@@ -99,6 +99,33 @@ async function nativeUnsubscribe(): Promise<PushState> {
   return 'unsubscribed';
 }
 
+/** Whether this install has already been shown the Android permission dialog. */
+const ASKED_KEY = 'hm.push-asked';
+
+/**
+ * F3b: ask for notification permission once, at the moment it explains itself.
+ *
+ * `POST_NOTIFICATIONS` is a runtime permission on Android 13+, and a denial is close to
+ * permanent — the system stops showing the dialog and the user has to find the app's
+ * settings page to change their mind. Asking at first launch, before the person has any
+ * reason to want a notification, is the reliable way to collect that denial. So it is
+ * asked after their first order is placed, when "tell me when it is on its way" is
+ * obviously the point.
+ *
+ * The flag survives a denial deliberately: re-asking is the behaviour Android is
+ * protecting users from, and the second dialog would never appear anyway.
+ */
+export async function requestPushOnce(): Promise<void> {
+  if (!isNativeShell()) return;
+  try {
+    if (window.localStorage.getItem(ASKED_KEY)) return;
+    window.localStorage.setItem(ASKED_KEY, '1');
+  } catch {
+    return; // no storage to remember the ask by — better to never ask than to ask always
+  }
+  await subscribeToPush().catch(() => {});
+}
+
 /** Current push state without prompting for permission. */
 export async function getPushState(): Promise<PushState> {
   if (!pushSupported()) return 'unsupported';

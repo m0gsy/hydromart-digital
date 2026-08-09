@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
+import { resolveDeepLink } from '@/lib/deep-link';
 import { isNativeShell, openExternal } from '@/lib/platform';
 
 /**
@@ -29,6 +31,9 @@ const MIN_CHROME = 111;
 
 const WEBVIEW_PACKAGE = 'com.google.android.webview';
 
+/** Whether the URL this process was launched with has already been navigated to. */
+let launchHandled = false;
+
 interface Block {
   title: string;
   message: string;
@@ -50,6 +55,7 @@ function chromeMajor(): number | null {
 
 export function NativeBridge() {
   const [block, setBlock] = useState<Block | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (!isNativeShell()) return;
@@ -63,12 +69,54 @@ export function NativeBridge() {
       return;
     }
 
+    // F3. The one call that keeps the app out from under the status bar, instead of an
+    // audit of 226 pages for a `safe-area-inset-top` none of them have: Capacitor draws
+    // the WebView edge-to-edge by default, so the header of every screen renders behind
+    // the clock and the battery icon. `overlay: false` gives the status bar its own strip
+    // and starts the WebView below it. No-op on the web, where the plugin is absent.
+    callPlugin('StatusBar', 'setOverlaysWebView', { overlay: false });
+
     void minimumVersionBlock().then((found) => {
       if (found) setBlock(found);
     });
 
-    return onPluginEvent('App', 'backButton', handleBack);
-  }, []);
+    const open = (raw: string | undefined) => {
+      const path = raw ? resolveDeepLink(raw) : null;
+      if (path) router.push(path);
+    };
+
+    // F3b, the two ways a route arrives from outside the app. An App Link is Android
+    // handing over a verified `https://` URL it decided belongs to this app; the other is
+    // the notification the user just tapped, carrying the destination crm-service chose
+    // for that event. Both go through the same rewriting, because both can be older than
+    // the routes this build ships.
+    const offLink = onPluginEvent('App', 'appUrlOpen', (event: { url?: string }) =>
+      open(event?.url),
+    );
+    const offTap = onPluginEvent(
+      'PushNotifications',
+      'pushNotificationActionPerformed',
+      (event: { notification?: { data?: { url?: string } } }) =>
+        open(event?.notification?.data?.url),
+    );
+    const offBack = onPluginEvent('App', 'backButton', handleBack);
+
+    // A link that started the app from cold may have been delivered before this listener
+    // existed, so the launch URL is asked for as well. `launchHandled` because
+    // `getLaunchUrl()` keeps answering with it for the whole process lifetime — without
+    // the flag, a remount would drag the user back to a page they had navigated away
+    // from.
+    if (!launchHandled) {
+      launchHandled = true;
+      void askPlugin<{ url?: string }>('App', 'getLaunchUrl').then((launch) => open(launch?.url));
+    }
+
+    return () => {
+      offLink();
+      offTap();
+      offBack();
+    };
+  }, [router]);
 
   if (!block) return null;
   return <BlockingScreen block={block} />;

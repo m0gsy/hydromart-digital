@@ -383,7 +383,7 @@ prefiks. `FCM_*` wajib masuk skema Joi atau `check-env-contract.mjs` menggagalka
 nilai kosong harus **mematikan** push (tiru pola `enabled` VAPID) atau crm tidak boot di CI.
 ⚠️ Lantai coverage crm-service **98/98/98/98** berlaku penuh.
 
-### Fase 3b — Login biometrik + deep link · ~3 hari · **setelah F2 hijau**
+### Fase 3b — Login biometrik + deep link · ~3 hari · SELESAI
 
 Keduanya hanya lapisan di atas hal yang sudah jadi, jadi dikerjakan setelah token store
 dan shell bekerja — bukan sebelumnya.
@@ -434,7 +434,7 @@ memanggil dengan literal di satu berkas, seperti `/health` sudah dipanggil.
 Ini harus ada **sebelum unggahan Play pertama.** Gerbang versi tidak bisa dipasang
 belakangan ke binary yang sudah ada di tangan pengguna.
 
-### Fase 6 — CI/CD · ~2–3 hari
+### Fase 6 — CI/CD · ~2–3 hari · SELESAI
 
 Satu workflow baru `mobile.yml`, terpisah dari 4 yang ada supaya tidak pernah jadi gerbang
 deploy backend. Dipicu tag, bukan setiap PR. Langkah: export → `npm ci` di `mobile/` →
@@ -450,6 +450,12 @@ kehilangannya masih bisa dipulihkan. Tanpa itu, keystore hilang = app tidak bisa
 selamanya.
 
 ### Fase 7 — Toko · ~3 hari kerja, tapi lihat catatan kalender di bawah
+
+> **Bagian yang bisa dikerjakan dari repo sudah selesai** dan pindah ke
+> [docs/MOBILE_PLAY_STORE.md](MOBILE_PLAY_STORE.md): jawaban Data Safety per binary, tabel
+> justifikasi izin, jalur hapus akun, akses reviewer, dan audit manifest gabungan yang
+> menggagalkan build CI atas izin yang belum dijustifikasi. Sisanya di bawah adalah klik di
+> Play Console, dan daftarnya ada di bagian terakhir dokumen itu.
 
 Data Safety (lokasi presisi, foto, data pribadi, data keuangan, device ID FCM, berkas),
 URL + jalur hapus akun, target API level Capacitor 7 (35), justifikasi tiap izin, dan
@@ -652,16 +658,16 @@ Supaya tidak terbaca sebagai kelalaian:
 | F0 perbaikan web          | 2    | SELESAI                                      |
 | F1 export                 | 5–8  | SELESAI                                      |
 | F1c ukuran APK            | 1    | SELESAI — 229→27 halaman, 12,1→2,7 MB        |
-| F2 auth                   | 4    | jalur kritis menuju unggahan pertama         |
-| F3 shell                  | 4–5  | jalur kritis                                 |
-| F5 gerbang versi          | 1    | jalur kritis — **wajib di unggahan pertama** |
-| F6 CI/CD                  | 2–3  | jalur kritis                                 |
-| F7-lite (syarat rilis)    | 2    | jalur kritis                                 |
-| **→ AAB pertama naik**    |      | **≈13 hari kerja dari sekarang**             |
-| F3b biometrik + deep link | 3    | selama 14 hari closed testing berjalan       |
-| F4 FCM                    | 4    | selama 14 hari closed testing berjalan       |
-| F7 sisa (polesan listing) | 1    | selama 14 hari closed testing berjalan       |
-| **Total koding**          |      | **±22–25 hari kerja tersisa ≈ 4,5–5 minggu** |
+| F2 auth                   | 4    | SELESAI                                      |
+| F3 shell                  | 4–5  | SELESAI                                      |
+| F4 FCM                    | 4    | SELESAI                                      |
+| F5 gerbang versi          | 1    | SELESAI                                      |
+| F3b biometrik + deep link | 3    | SELESAI                                      |
+| F6 CI/CD                  | 2–3  | SELESAI — `.github/workflows/mobile.yml`     |
+| F7 artefak                | 2    | SELESAI — `docs/MOBILE_PLAY_STORE.md`        |
+| **→ AAB pertama naik**    |      | **tinggal langkah Play Console**             |
+| F7 sisa (Play Console)    | —    | bukan koding; daftar tugas ada di dokumen F7 |
+| **Total koding**          |      | **selesai**                                  |
 
 Kalender di luar koding, dan ini yang sekarang menentukan tanggal rilis:
 

@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { endpoints } from './endpoints';
 import { getSession, setSession, subscribe } from './session-store';
-import { clearTokens, getRefreshToken, hasTokens } from './token-store';
+import { clearTokens, getRefreshToken, hasTokens, unlockTokens } from './token-store';
 import type { Customer, Session } from './types';
 
 interface AuthValue {
@@ -33,18 +33,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // own schedule; the token store outlives it. Checking only the profile logs a user
     // out of a live 30-day session because a cache was cleared — so a client holding a
     // token revalidates and rebuilds the profile from `/auth/me` instead.
-    if (getSession() || hasTokens()) {
-      api
-        .get<Customer>(endpoints.auth.me, true)
-        .then((customer) => setSession({ customer }))
-        .catch(() => {
-          /* refresh-and-retry lives in the client; a hard 401 clears the session */
-        })
-        .finally(() => setReady(true));
-    } else {
-      setReady(true);
-    }
-    return unsub;
+    // F3b: nothing may ask the API anything until the Keystore has been unlocked and the
+    // token store knows whether this launch has a session. Resolves immediately on the
+    // web, and on native when the device lock has been answered one way or the other —
+    // so the biometric prompt is the first thing a returning user sees, and the first
+    // request goes out with the bearer already attached instead of 401ing into a
+    // sign-out.
+    let cancelled = false;
+    void unlockTokens().then(() => {
+      if (cancelled) return;
+      if (getSession() || hasTokens()) {
+        api
+          .get<Customer>(endpoints.auth.me, true)
+          .then((customer) => setSession({ customer }))
+          .catch(() => {
+            /* refresh-and-retry lives in the client; a hard 401 clears the session */
+          })
+          .finally(() => setReady(true));
+      } else {
+        setReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   const value = useMemo<AuthValue>(

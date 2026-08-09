@@ -14,12 +14,29 @@ describe('web origin', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor;
   });
 
   it('stores no token, even from a response that carries one', async () => {
     vi.resetModules();
     const { api } = await import('@/lib/api');
     const tokens = await import('@/lib/token-store');
+    // A vault that would answer if anything asked it to. Nothing on this origin should.
+    const vault = { value: null as string | null };
+    (window as unknown as { Capacitor: unknown }).Capacitor = {
+      Plugins: {
+        SecureStorage: {
+          internalGetItem: async () => ({ data: vault.value }),
+          internalSetItem: async ({ data }: { data: string }) => {
+            vault.value = data;
+          },
+          internalRemoveItem: async () => {
+            vault.value = null;
+            return { success: true };
+          },
+        },
+      },
+    };
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -34,7 +51,10 @@ describe('web origin', () => {
     await api.post('/auth/api/v1/auth/otp/verify', {});
 
     expect(tokens.hasTokens()).toBe(false);
-    expect(window.localStorage.getItem('hm.tokens')).toBeNull();
+    // Not in the Keystore either — the web branch never reaches the vault at all, which
+    // is what keeps a browser's session in the httpOnly cookie SEC-4 built for it.
+    await tokens.tokensPersisted();
+    expect(vault.value).toBeNull();
   });
 
   it('sends no Authorization header, and refuses to write one even if asked to', async () => {

@@ -21,6 +21,18 @@ def hydromartAppName = project.findProperty('hydromartAppName') ?: 'Hydromart'
 // the release tag. The default only exists so a local debug build runs.
 def hydromartVersionCode = (project.findProperty('hydromartVersionCode') ?: '1') as Integer
 def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
+/**
+ * F3b, App Links. The host is deployment-specific — `WEB_DOMAIN` lives in the VPS `.env`
+ * and nowhere in this repo — so CI passes it and the default below is only a placeholder
+ * that lets a local build compile. A wrong host does not break the app; Android simply
+ * fails to verify it and links open in the browser as they do today.
+ *
+ * `hydromartLinkPrefix` keeps the two binaries from both claiming the same URLs on a
+ * staff phone that has both. See the intent-filter comment in AndroidManifest.xml.
+ */
+def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart.id'
+def hydromartLinkPrefix = project.findProperty('hydromartLinkPrefix') ?: '/'
+def hydromartKeystore = rootProject.file('upload.jks')
 
 android {
     namespace = "id.hydromart.app"
@@ -39,6 +51,7 @@ android {
         resValue "string", "title_activity_main", hydromartAppName
         resValue "string", "package_name", hydromartAppId
         resValue "string", "custom_url_scheme", hydromartAppId
+        manifestPlaceholders = [webHost: hydromartWebHost, linkPrefix: hydromartLinkPrefix]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -46,9 +59,36 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /**
+     * F6. The upload keystore is written by CI from a secret and deleted afterwards, so
+     * it is absent on a developer's machine and on every PR — hence the `exists()` guard.
+     * Without it a plain `./gradlew build` here would fail on a file that is deliberately
+     * not in the repo. The passwords come from the environment for the same reason: a
+     * `keystore.properties` on disk is one `git add -A` away from being public, and
+     * `.gitignore` already lists it as a second line of defence.
+     */
+    signingConfigs {
+        release {
+            if (hydromartKeystore.exists()) {
+                storeFile hydromartKeystore
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
-            minifyEnabled false
+            if (hydromartKeystore.exists()) {
+                signingConfig signingConfigs.release
+            }
+            // F1c's supporting lever. Safe with Capacitor: plugins are found by class
+            // name at runtime from capacitor.plugins.json, which R8 cannot see — but
+            // capacitor-android ships `consumerProguardFiles` keeping every
+            // `@CapacitorPlugin` class and its `@PluginMethod`s, so the reflection still
+            // resolves. Verified in that file rather than assumed.
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

@@ -1,0 +1,6 @@
+Capacitor writes capacitor.config.json, capacitor.plugins.json and the whole web export
+into this directory, and .gitignore excludes all three — correctly, they are generated.
+
+The consequence is that nothing under assets/ was tracked, so the directory did not exist
+in a fresh checkout, and `cap update` failed with ENOENT trying to write into it. This
+file exists only so the directory does.

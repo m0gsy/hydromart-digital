@@ -55,6 +55,18 @@ export class AuthConfigService {
     };
   }
 
+  /**
+   * J6: the one phone number that gets a fixed OTP, so a Play reviewer who cannot receive
+   * an Indonesian SMS can still sign in. Null unless BOTH values are set — the feature has
+   * to be impossible to half-enable, because half-enabled looks identical to working right
+   * up until a reviewer tries it.
+   */
+  get reviewerOtp(): { phone: string; code: string } | null {
+    const phone = this.config.get<string>('REVIEWER_PHONE', '').trim();
+    const code = this.config.get<string>('REVIEWER_OTP_CODE', '').trim();
+    return phone && code ? { phone, code } : null;
+  }
+
   get otpDeliveryChannel(): OtpDeliveryChannel {
     return this.config.get<OtpDeliveryChannel>('OTP_DELIVERY_CHANNEL', 'console');
   }

@@ -8,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NativeBridge } from '@/components/native-bridge';
 import { openExternal, printDocument, saveFile } from '@/lib/platform';
 
+// The bridge navigates, and outside a Next app there is no router to navigate with.
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 // F3. The shell's two jobs, plus the three capabilities `platform.ts` reserved a seam
 // for in F1. The origin in the docblock is what makes `isNativeShell()` true — the same
 // switch the gateway uses, so the two halves cannot disagree.
@@ -21,13 +25,18 @@ const removed: string[] = [];
 /** What `App.getInfo()` reports — the installed binary's own versionCode. */
 let appInfo: { id?: string; build?: string } | null = { id: 'id.hydromart.app', build: '12' };
 
+/** What `App.getLaunchUrl()` reports — the URL this process was started with, if any. */
+let launchUrl: { url?: string } | null = null;
+
 function installBridge() {
-  for (const name of ['App', 'Browser', 'Filesystem', 'Share']) {
+  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications', 'StatusBar']) {
     plugins[name] = {
+      setOverlaysWebView: vi.fn(async () => undefined),
       open: vi.fn(async () => undefined),
       share: vi.fn(async () => undefined),
       exitApp: vi.fn(async () => undefined),
       getInfo: vi.fn(async () => appInfo),
+      getLaunchUrl: vi.fn(async () => launchUrl),
       writeFile: vi.fn(async () => ({ uri: 'file:///cache/x' })),
       addListener: vi.fn(async (event: string, handler: Listener) => {
         listeners[event] = handler;
@@ -49,6 +58,8 @@ let mobileConfig: unknown = { minVersionCode: 0, updateMessage: '' };
 let mobileConfigStatus = 200;
 
 beforeEach(() => {
+  push.mockClear();
+  launchUrl = null;
   installBridge();
   setUserAgent(MODERN);
   appInfo = { id: 'id.hydromart.app', build: '12' };
@@ -155,6 +166,15 @@ describe('minimum version gate', () => {
   });
 });
 
+describe('status bar', () => {
+  it('takes the WebView out from under the status bar', () => {
+    render(<NativeBridge />);
+    // Capacitor draws edge-to-edge by default, which puts every screen's header behind
+    // the clock. One call, instead of a safe-area audit of 226 pages.
+    expect(plugins.StatusBar!.setOverlaysWebView).toHaveBeenCalledWith({ overlay: false });
+  });
+});
+
 describe('hardware back button', () => {
   it('closes the top overlay instead of navigating', () => {
     const closed = vi.fn();
@@ -189,6 +209,48 @@ describe('hardware back button', () => {
     const { unmount } = render(<NativeBridge />);
     unmount();
     expect(removed).toContain('backButton');
+  });
+});
+
+describe('deep links and notification taps', () => {
+  it('opens the page an App Link names, rewritten to the route this build has', () => {
+    render(<NativeBridge />);
+    listeners.appUrlOpen?.({ url: 'https://hydromart.example/orders/o-1' });
+    expect(push).toHaveBeenCalledWith('/orders/detail?id=o-1');
+  });
+
+  it('opens the destination a tapped notification carries', () => {
+    render(<NativeBridge />);
+    listeners.pushNotificationActionPerformed?.({
+      notification: { data: { url: '/orders/detail?id=o-7' } },
+    });
+    expect(push).toHaveBeenCalledWith('/orders/detail?id=o-7');
+  });
+
+  it('ignores a notification with no destination and a link to another origin', () => {
+    render(<NativeBridge />);
+    listeners.pushNotificationActionPerformed?.({ notification: {} });
+    listeners.appUrlOpen?.({ url: '//evil.example/orders/1' });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('follows the URL the app was launched with from cold', async () => {
+    // A fresh module graph: the launch URL is answered once per process, and the module
+    // remembers having done it.
+    vi.resetModules();
+    const { NativeBridge: Fresh } = await import('@/components/native-bridge');
+    launchUrl = { url: 'https://hydromart.example/products/p-3' };
+
+    render(<Fresh />);
+
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/products/detail?id=p-3'));
+  });
+
+  it('unsubscribes from both on unmount', () => {
+    const { unmount } = render(<NativeBridge />);
+    unmount();
+    expect(removed).toContain('appUrlOpen');
+    expect(removed).toContain('pushNotificationActionPerformed');
   });
 });
 

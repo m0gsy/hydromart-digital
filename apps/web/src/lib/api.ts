@@ -9,6 +9,8 @@ import {
   getAccessToken,
   getRefreshToken,
   hasTokens,
+  tokensPersisted,
+  unlockTokens,
 } from './token-store';
 import type { Session } from './types';
 
@@ -195,12 +197,29 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   // here rather than at each call site, so a future token-bearing endpoint cannot be
   // added without the store already knowing about it. A no-op on the web, where the
   // gateway returns the customer alone and keeps the tokens in httpOnly cookies.
-  captureTokens(data);
+  // F3b: and wait for the Keystore before the caller can act on them. The rotated
+  // refresh token is only useful once — if the process dies between the response and the
+  // disk, the app relaunches holding the previous one, replays it, and the session
+  // service's reuse detection revokes the whole family. A no-op on the web and on every
+  // response that carries no tokens: `persisting` is an already-resolved promise.
+  if (captureTokens(data)) await tokensPersisted();
   return data as T;
 }
 
 /** Authenticated request with transparent refresh-and-retry on 401. */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // F3b: nothing that needs a bearer may go out before the Keystore has been read.
+  //
+  // Reading it is asynchronous and can sit behind a biometric prompt for several
+  // seconds, while React mounts the landing screen immediately — and the courier's
+  // `/driver` home fires four authenticated requests the moment it renders. Without this
+  // line every one of them leaves with no token, 401s, finds no credential to refresh
+  // with, and the app opens onto four error states for a session that was never in
+  // trouble. `RequireAuth` covers the pages that use it; this covers the ones that do
+  // not, in the one place they all pass through.
+  //
+  // Resolved-promise no-op on the web and on every request after the first.
+  if (options.auth) await unlockTokens();
   try {
     return await rawRequest<T>(path, options);
   } catch (err) {
@@ -277,6 +296,10 @@ export async function uploadFile<T = { url: string }>(
   /** internal: prevents an infinite refresh loop */
   _retry = false,
 ): Promise<T> {
+  // Same wait as `request()`: the offline queue flushes proof-of-delivery photos on the
+  // first signal after a cold start, which can be before the Keystore has been read.
+  await unlockTokens();
+
   const form = new FormData();
   form.append('file', file);
   for (const [key, value] of Object.entries(fields)) form.append(key, value);

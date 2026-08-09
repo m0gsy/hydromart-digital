@@ -69,6 +69,32 @@ export async function askPlugin<T>(
   }
 }
 
+export type PluginResult<T> = { ok: true; value: T } | { ok: false; code: string };
+
+/**
+ * Same again, for the calls where the rejection IS the answer.
+ *
+ * `askPlugin` flattens every failure to null, which is right for a share sheet and wrong
+ * for a biometric prompt: "the user pressed cancel" and "the fingerprint did not match"
+ * arrive as the same rejection shape and must not be treated the same — one of them
+ * counts towards wiping the stored session and the other must never.
+ *
+ * An absent plugin answers `unavailable`, which is a code no plugin returns.
+ */
+export async function tryPlugin<T>(
+  plugin: string,
+  method: string,
+  options?: Record<string, unknown>,
+): Promise<PluginResult<T>> {
+  const fn = bridge()?.Plugins?.[plugin]?.[method];
+  if (typeof fn !== 'function') return { ok: false, code: 'unavailable' };
+  try {
+    return { ok: true, value: (await fn(options)) as T };
+  } catch (err) {
+    return { ok: false, code: String((err as { code?: unknown })?.code ?? '') };
+  }
+}
+
 /**
  * Subscribe to a plugin event. Returns a cleanup function, always — an absent plugin
  * gives a no-op, so no caller needs a null check in its `useEffect`.

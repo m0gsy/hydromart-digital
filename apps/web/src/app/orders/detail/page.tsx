@@ -23,6 +23,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
 import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
+import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { DepotPaymentPanel, Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
@@ -134,6 +135,13 @@ function OrderDetailInner({ id }: { id: string }) {
     }, 15000);
     return () => clearInterval(t);
   }, [status]);
+
+  // F3b: the first order is the moment asking for notification permission makes sense to
+  // the person being asked. No-op on the web and on every visit but the one straight
+  // after checkout.
+  useEffect(() => {
+    if (placed) void requestPushOnce();
+  }, [placed]);
 
   async function pay() {
     if (!order) return;
