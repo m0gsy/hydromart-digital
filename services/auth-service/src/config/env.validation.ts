@@ -39,6 +39,29 @@ export const envValidationSchema = Joi.object({
   OTP_CONSOLE_ACK: Joi.string().allow('').default(''),
   OTP_PEPPER: requiredSecret(16),
 
+  // J6: the Play reviewer cannot receive an Indonesian SMS, and "we could not sign in" is
+  // the most common rejection for an app that is entirely behind a login. One nominated
+  // phone number gets a FIXED code instead of a random one — issued, hashed, stored,
+  // expired, attempt-limited and consumed exactly like any other, because there is no
+  // shortcut in the verify path at all and there must never be one.
+  //
+  // Both blank = the feature does not exist. A phone WITHOUT a code fails at boot rather
+  // than half-enabling — that number would keep getting random codes while looking
+  // configured, which is the failure you find during review and not before. A code
+  // without a phone is inert and matches nothing.
+  //
+  // Whoever knows this pair can sign in as this account, so it must be a dedicated demo
+  // customer with no real orders and no staff role — never a real person's number.
+  REVIEWER_PHONE: Joi.string().allow('').default(''),
+  REVIEWER_OTP_CODE: Joi.string()
+    .allow('')
+    .pattern(/^\d*$/, 'digits')
+    .default('')
+    .when('REVIEWER_PHONE', {
+      is: Joi.string().min(1).required(),
+      then: Joi.string().min(4).required(),
+    }),
+
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // UU PDP tahap 1 (item 13). Blank is allowed so a dev box boots without it; the

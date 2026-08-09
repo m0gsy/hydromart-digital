@@ -47,7 +47,7 @@ export class OtpService {
       await this.otpTokens.consumeAllForPurpose(customer.id, purpose, now);
     }
 
-    const code = this.crypto.generateNumericCode(policy.length);
+    const code = this.fixedCodeFor(customer.phone) ?? this.crypto.generateNumericCode(policy.length);
     const codeHash = await this.crypto.hashSecret(code);
     const expiresAt = new Date(now.getTime() + policy.ttlSeconds * 1000);
 
@@ -97,6 +97,26 @@ export class OtpService {
     }
 
     await this.otpTokens.markConsumed(record.id, now);
+  }
+
+  /**
+   * J6. The Play reviewer's number gets a code that does not change; every other number
+   * gets a random one, which is every number when the feature is unconfigured.
+   *
+   * Note where this sits, and where it deliberately does not. It replaces the value the
+   * generator would have produced, and then nothing else changes: the code is hashed the
+   * same way, stored the same way, expires on the same clock, is consumed on first use and
+   * is bounded by the same attempt limit. `verify()` has no idea this exists and must
+   * never gain one — a branch there would be a way into the app that skips checking a
+   * credential, which is a different thing entirely from a credential that is predictable.
+   *
+   * An exact string match, not a normalised or partial one. Phone numbers in this system
+   * are already stored in one canonical form, and a looser comparison here is a wider door
+   * than anybody asked for.
+   */
+  private fixedCodeFor(phone: string): string | null {
+    const reviewer = this.config.reviewerOtp;
+    return reviewer && reviewer.phone === phone ? reviewer.code : null;
   }
 
   /** Mask a phone number for safe display: keep country code + last 3 digits. */

@@ -110,6 +110,10 @@ services:
       SMS_API_TOKEN: ${SMS_API_TOKEN:-}
       SMS_SENDER_ID: ${SMS_SENDER_ID:-HYDROMART}
       OTP_PEPPER: ${OTP_PEPPER:?set OTP_PEPPER}
+      # J6: the demo account a Play reviewer signs in with, since they cannot receive an
+      # Indonesian SMS. Both blank = the feature does not exist. See docs/MOBILE_PLAY_STORE.md.
+      REVIEWER_PHONE: ${REVIEWER_PHONE:-}
+      REVIEWER_OTP_CODE: ${REVIEWER_OTP_CODE:-}
       CRM_SERVICE_URL: http://crm:3012
       # UU PDP tahap 1 (item 13): auth-service fans out to customer-service to export or
       # scrub the profile and addresses. The adapter fails closed, so a missing value

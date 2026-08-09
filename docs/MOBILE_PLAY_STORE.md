@@ -146,10 +146,25 @@ Sudah ada, sejak F0:
 Login hanya OTP telepon. Reviewer Play ada di negara lain, tidak akan menerima SMS
 Indonesia, dan **"tidak bisa masuk" adalah salah satu alasan penolakan paling umum.**
 
-Yang harus disiapkan sebelum submit, di Play Console → App content → App access:
+**Mekanismenya sudah ada di kode.** `REVIEWER_PHONE` + `REVIEWER_OTP_CODE` di `.env`
+membuat satu nomor menerima kode tetap, bukan acak. Yang tidak berubah: kode itu tetap
+di-hash, tetap kedaluwarsa, tetap sekali pakai, tetap dibatasi jumlah percobaan. **Tidak
+ada jalan pintas di jalur verifikasi** — yang berubah hanya nilai yang digenerate, dan itu
+disengaja: kredensial yang bisa ditebak berbeda jauh dari kredensial yang tidak diperiksa.
 
-1. Satu nomor telepon reviewer yang di-seed dengan **OTP tetap**, dijaga env (jangan
-   pernah kode mati di repo).
+Aturan yang mengikat:
+
+- **Dua-duanya kosong = fitur tidak ada.** Mengisi nomor tanpa kode membuat auth-service
+  gagal boot — bukan setengah aktif, karena setengah aktif terlihat persis seperti bekerja
+  sampai reviewer mencobanya.
+- Arahkan ke **akun demo khusus**: nol pesanan asli, bukan role staf, bukan nomor orang
+  sungguhan. Siapa pun yang tahu pasangan itu bisa masuk sebagai akun tersebut.
+- Ganti kodenya setelah review selesai, atau kosongkan keduanya untuk mematikan fitur.
+
+Langkah di Play Console → App content → App access:
+
+1. Buat akun demo dengan nomor itu, isi `REVIEWER_PHONE` + `REVIEWER_OTP_CODE` di `.env`
+   VPS, lalu `docker compose up -d auth`.
 2. Nomor + kode itu ditempel di kolom "App access" beserta satu kalimat: aplikasi ini
    memakai OTP, gunakan kode ini.
 3. Untuk **Hydromart Ops**, tambahkan lagi: deskripsi harus jujur bahwa aplikasi ini hanya
@@ -184,7 +199,11 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 - [ ] Isi Data Safety dari bagian 1 — dua form, satu per aplikasi, dan isinya berbeda
 - [ ] Content rating, target audience, kategori
 - [ ] URL hapus akun dari bagian 3
-- [ ] Akses reviewer dari bagian 4
+- [ ] Akses reviewer dari bagian 4 (akun demo + dua env, lalu tempel di App access)
+- [ ] Uji di ponsel sungguhan sebelum unggahan pertama: Actions → **Mobile release** → Run
+      workflow menghasilkan dua APK debug yang bisa di-sideload, tanpa perlu akun Play.
+      Jalankan checklist perangkat di `MOBILE_APPS_PLAN.md` — beberapa itemnya tidak bisa
+      diperbaiki setelah binary ada di tangan pengguna
 - [ ] Aset listing: ikon 512×512, feature graphic 1024×500, ≥2 screenshot ponsel per
       aplikasi, deskripsi pendek + panjang dalam Bahasa Indonesia
 
