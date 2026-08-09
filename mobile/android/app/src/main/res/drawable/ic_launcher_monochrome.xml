@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lapisan monochrome untuk themed icon Android 13+. Geometri mengikuti
+     kanvas 108dp dengan isi terkurung di lingkaran aman 66dp, sama seperti
+     ic_launcher_foreground. Bentuk padat, karena sistem hanya memakai alfa. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M33.51,28.13 h10.79 v19.94 h19.34 V28.13 h10.85 v51.73 h-10.85 V59.05 h-19.34 v20.81 h-10.79 Z" />
+</vector>

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Latar lapisan adaptive icon. Putih dipilih karena palang tengah H
+         punya celah putih di antara garis ombaknya; latar berwarna akan
+         menembus celah itu dan merusak bentuk mark. -->
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
