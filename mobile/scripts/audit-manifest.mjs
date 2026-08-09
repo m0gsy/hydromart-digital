@@ -3,7 +3,7 @@
  * F7: what the two binaries actually ask the phone for.
  *
  *   node scripts/audit-manifest.mjs                       # our manifest + every plugin's
- *   node scripts/audit-manifest.mjs <merged-manifest.xml> # what Gradle really produced
+ *   node scripts/audit-manifest.mjs <dir-or-file>       # what Gradle really produced
  *
  * A Play listing is rejected — or dragged into a declaration process that takes weeks —
  * over a permission nobody meant to ship. The dangerous ones do not appear in any file a
@@ -22,7 +22,7 @@
  * `app/build/intermediates/merged_manifests/release/`), where the AAR contributions are
  * finally visible. Run without arguments locally, where they are not.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,10 +72,7 @@ const ALLOWED = new Map([
     'com.google.android.c2dm.permission.RECEIVE',
     'Contributed by FCM. The permission that lets the app receive a push at all.',
   ],
-  [
-    'android.permission.VIBRATE',
-    'Contributed by FCM. Notification vibration, no separate prompt.',
-  ],
+  ['android.permission.VIBRATE', 'Contributed by FCM. Notification vibration, no separate prompt.'],
   [
     'android.permission.FOREGROUND_SERVICE',
     'Contributed by Play Services. Not used by any code in this app.',
@@ -87,6 +84,29 @@ const PERMISSION = /<uses-permission[^>]*android:name="([^"]+)"/g;
 function permissionsIn(file) {
   const xml = readFileSync(file, 'utf8');
   return [...xml.matchAll(PERMISSION)].map((m) => m[1]);
+}
+
+/**
+ * Accept a directory as well as a file, and find the manifest inside it.
+ *
+ * The caller is Gradle's intermediates tree, whose layout is AGP's business and not a
+ * contract: 8.x puts the merged manifest under a directory named after the task that
+ * produced it, older versions did not, and pinning the exact path here means a plugin
+ * upgrade turns the permission gate off by making it fail to find its input. Searching
+ * cannot go stale that way.
+ */
+function resolveManifest(path) {
+  if (!existsSync(path)) return null;
+  if (statSync(path).isFile()) return path;
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    const found = entry.isDirectory()
+      ? resolveManifest(join(path, entry.name))
+      : entry.name === 'AndroidManifest.xml'
+        ? join(path, entry.name)
+        : null;
+    if (found) return found;
+  }
+  return null;
 }
 
 /** Our own manifest, plus every installed Capacitor plugin's. */
@@ -109,12 +129,21 @@ function sourceManifests() {
 }
 
 const argument = process.argv[2];
-const files = argument ? [resolve(argument)] : sourceManifests();
-
-const missing = files.filter((f) => !existsSync(f));
-if (missing.length) {
-  console.error(`No manifest at ${missing.join(', ')}`);
-  process.exit(1);
+let files;
+if (argument) {
+  const merged = resolveManifest(resolve(argument));
+  if (!merged) {
+    console.error(`No AndroidManifest.xml at or under ${argument}`);
+    process.exit(1);
+  }
+  files = [merged];
+} else {
+  files = sourceManifests();
+  const missing = files.filter((f) => !existsSync(f));
+  if (missing.length) {
+    console.error(`No manifest at ${missing.join(', ')}`);
+    process.exit(1);
+  }
 }
 
 /** permission -> the manifests that ask for it. */

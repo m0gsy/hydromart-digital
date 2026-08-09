@@ -111,7 +111,7 @@ jobs:
 
       - name: Permissions are the ones we justified
         working-directory: mobile
-        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release
 
       - name: Ops binary compiles
         working-directory: mobile/android
@@ -311,7 +311,7 @@ jobs:
       # — after the merge, before the upload.
       - name: Customer — permission audit
         working-directory: mobile
-        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release
 
       - name: Customer — keep the AAB
         run: mv mobile/android/app/build/outputs/bundle/release/app-release.aab hydromart-customer.aab
@@ -342,7 +342,7 @@ jobs:
 
       - name: Ops — permission audit
         working-directory: mobile
-        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release
 
       - name: Ops — keep the AAB
         run: mv mobile/android/app/build/outputs/bundle/release/app-release.aab hydromart-ops.aab
