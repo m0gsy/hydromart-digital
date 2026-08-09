@@ -2,11 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { ArrowsClockwise, Bell, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
+import { onPluginEvent } from '@/lib/capacitor';
 import { useT } from '@/lib/locale-context';
+import { isNativeShell } from '@/lib/platform';
 import { consoleHome, isStaff } from '@/lib/roles';
 
 const BAR =
@@ -17,10 +20,31 @@ const BAR =
 // ponytail: kept `fixed` (not the spec's `sticky`) — the root layout reserves
 // pb-24 on <main> for a fixed bar; sticky would drop it into flow after the
 // footer and leave that gap. Same pinned-to-viewport look either way.
+/**
+ * Whether the soft keyboard is up, on native only. `willShow`/`didHide` rather than one
+ * pair or the other: hiding on the announcement keeps the bar from being caught by the
+ * keyboard on its way up, and waiting for the keyboard to be fully gone before restoring
+ * it keeps the bar from flashing back into the closing animation.
+ */
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    const offShow = onPluginEvent('Keyboard', 'keyboardWillShow', () => setOpen(true));
+    const offHide = onPluginEvent('Keyboard', 'keyboardDidHide', () => setOpen(false));
+    return () => {
+      offShow();
+      offHide();
+    };
+  }, []);
+  return open;
+}
+
 export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
   const { customer, ready } = useAuth();
+  const keyboardOpen = useKeyboardOpen();
 
   const active = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -43,6 +67,11 @@ export function BottomNav() {
       </Link>
     );
   };
+
+  // Android shrinks the WebView for the keyboard, which leaves this bar pinned directly
+  // on top of it — covering the field being typed into on `/verify` and `/checkout`,
+  // where the bar has nothing to offer anyway. Gone while typing, back afterwards.
+  if (keyboardOpen) return null;
 
   // Staff accounts don't shop: no shop/reorder/cart tabs, just their console.
   if (ready && customer != null && isStaff(customer.role)) {
