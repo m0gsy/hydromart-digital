@@ -108,10 +108,17 @@ bukan string persis.
   video demo, dan menambah berminggu-minggu di review. `lib/geo.ts` hanya membaca posisi
   saat kurir sedang melihat layarnya.
 - **`READ_MEDIA_IMAGES` / `READ_EXTERNAL_STORAGE`** — memicu proses deklarasi Photo &
-  Video. Semua foto diambil langsung dari kamera lewat `getUserMedia`; galeri tidak pernah
-  dibaca. Ini justru risiko yang paling mudah masuk tanpa disadari lewat plugin, dan itu
-  sebabnya audit di bawah menolak izin yang tidak ada di daftar, bukan sekadar
-  memperingatkan izin yang sudah diketahui buruk.
+  Video. Tidak ada satu pun berkas di perangkat yang dibaca aplikasi ini, dan itulah
+  pernyataan yang benar — bukan "semuanya lewat `getUserMedia`", karena hanya absen wajah
+  HR yang begitu. Foto bukti kirim memakai `<input type="file" capture="environment">`,
+  yang diterjemahkan Capacitor menjadi intent kamera; kalau intent itu tidak bisa
+  diluncurkan ia jatuh ke pemilih dokumen sistem, dan pemilih dokumen tidak butuh izin
+  penyimpanan apa pun karena penggunanya sendiri yang memilih berkasnya. Agar jatuhnya
+  tidak terjadi karena alasan yang salah, manifest mendeklarasikan `<queries>` untuk
+  `android.media.action.IMAGE_CAPTURE` — tanpa itu, package visibility Android 11 membuat
+  kamera tak terlihat dan setiap bukti kirim membuka galeri. Ini justru risiko yang paling
+  mudah masuk tanpa disadari lewat plugin, dan itu sebabnya audit di bawah menolak izin
+  yang tidak ada di daftar, bukan sekadar memperingatkan izin yang sudah diketahui buruk.
 - **`QUERY_ALL_PACKAGES`**, **`SCHEDULE_EXACT_ALARM`**, **`REQUEST_INSTALL_PACKAGES`** —
   tidak ada yang membutuhkannya.
 
