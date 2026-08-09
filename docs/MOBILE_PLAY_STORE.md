@@ -389,11 +389,22 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 
 ## 8. Bundle mana yang diunggah, dan kapan berhenti mengunggahnya sendiri
 
-**Unggah `mobile-v1.0.1`, bukan `mobile-v1.0.0`.** Yang pertama membuktikan jalur rilisnya
-utuh tapi membawa ikon placeholder, jadi ia tidak pernah dimaksudkan untuk naik ke toko.
-`1.0.1` membawa ikon merek yang sebenarnya dan enam perbaikan mobile di belakangnya.
+**Aturannya bukan nomor versi, melainkan: unggah tag yang dibuat dari `main` terkini.**
+Ditulis begini karena versi yang disebut namanya langsung basi — dan sudah pernah, dua
+kali:
 
-AAB-nya ada sebagai artifact di run tag tersebut (`hydromart-aab-1.0.1`), bertahan 30 hari.
+- `mobile-v1.0.0` membuktikan jalur rilisnya utuh tapi membawa ikon placeholder.
+- `mobile-v1.0.1` membawa ikon asli dan enam perbaikan, lalu **pass verifikasi kedua
+  menemukan enam lagi** — termasuk satu yang membuat setiap foto bukti kirim membuka
+  galeri, bukan kamera, di Android 11+. Tag itu dibuat sebelum perbaikan tersebut masuk,
+  jadi AAB-nya membawa bug itu.
+
+Jadi sebelum mengunggah, periksa satu hal: apakah tag yang dipegang lebih baru dari commit
+terakhir di `main`. Kalau tidak, buat tag baru dan pakai yang itu. Ini murah — satu tag,
+dua puluh menit build — dan jauh lebih murah daripada menarik rilis dari track yang sudah
+punya penguji di dalamnya.
+
+AAB tiap tag ada sebagai artifact di run-nya (`hydromart-aab-<versi>`), bertahan 30 hari.
 `versionCode` diambil dari nomor run, bukan dari tag — Play menolak `versionCode` yang
 pernah ia lihat, dan menjalankan ulang tag yang sama harus menghasilkan angka lebih tinggi.
 
