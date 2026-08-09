@@ -79,6 +79,15 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      # Pinned rather than inherited. The Capacitor CLI refuses to run below Node 22, and
+      # this job passed only because it happened not to set a version and the runner's
+      # default was high enough — which is a thing that changes without anyone here
+      # deciding it. `.nvmrc` is NOT used: it pins 20 for the services and the web build,
+      # and nothing in this job builds either.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
       - name: Install Capacitor dependencies
         working-directory: mobile
         run: npm ci
@@ -169,12 +178,26 @@ jobs:
         working-directory: mobile
         run: npm ci
 
-      - name: Customer — export and sync
+      # Both exports first, while Node is the version the repo pins. They land in separate
+      # directories, so neither waits on the other's APK.
+      - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
         run: |
           npm run build:mobile --workspace @hydromart/web -- customer
-          npm run sync:customer --prefix mobile
+          npm run build:mobile --workspace @hydromart/web -- ops
+
+      # The Capacitor CLI refuses to run on anything below Node 22, and `.nvmrc` pins 20
+      # because that is what the services and the web build are tested against. Both
+      # constraints are real, so the job satisfies them in turn rather than picking a
+      # winner: the exports above are built on 20, everything from here down runs on 22.
+      # Nothing after this point is JavaScript we ship.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Customer — sync
+        run: npm run sync:customer --prefix mobile
 
       - name: Customer — debug APK
         working-directory: mobile/android
@@ -186,12 +209,8 @@ jobs:
             -PhydromartLinkPrefix=/
           mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-customer-debug.apk"
 
-      - name: Ops — export and sync
-        env:
-          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
-        run: |
-          npm run build:mobile --workspace @hydromart/web -- ops
-          npm run sync:ops --prefix mobile
+      - name: Ops — sync
+        run: npm run sync:ops --prefix mobile
 
       - name: Ops — debug APK
         working-directory: mobile/android
@@ -277,16 +296,27 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
-      # Two exports, two syncs, two bundles — and they cannot be interleaved. `cap sync`
-      # copies into one shared assets directory (see mobile/android/app/build.gradle for
-      # why this project uses Gradle properties rather than product flavors), so the
-      # customer AAB has to be finished and out of the way before the ops export is
-      # copied over the top of it.
-      - name: Customer — export
+      # Both exports first, on the Node version the repo pins. They land in separate
+      # directories, so having both at once costs nothing.
+      - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
-        run: npm run build:mobile --workspace @hydromart/web -- customer
+        run: |
+          npm run build:mobile --workspace @hydromart/web -- customer
+          npm run build:mobile --workspace @hydromart/web -- ops
 
+      # The Capacitor CLI refuses to run below Node 22; `.nvmrc` pins 20 because that is
+      # what the services and the web build are tested against. Both constraints are real,
+      # so they are satisfied in turn — exports on 20, everything below on 22. Nothing
+      # after this point is JavaScript that ships.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      # The two syncs still cannot be interleaved with their builds: `cap sync` copies into
+      # one shared assets directory (see mobile/android/app/build.gradle for why this
+      # project uses Gradle properties rather than product flavors), so the customer AAB
+      # has to be finished and out of the way before the ops export is copied over the top.
       - name: Customer — sync
         working-directory: mobile
         run: npm run sync:customer
@@ -315,11 +345,6 @@ jobs:
 
       - name: Customer — keep the AAB
         run: mv mobile/android/app/build/outputs/bundle/release/app-release.aab hydromart-customer.aab
-
-      - name: Ops — export
-        env:
-          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
-        run: npm run build:mobile --workspace @hydromart/web -- ops
 
       - name: Ops — sync
         working-directory: mobile
