@@ -192,7 +192,129 @@ yang perlu diatur sendiri di sini.
 
 ---
 
-## 6. Yang tersisa untuk Anda — semuanya di Play Console
+## 6. Teks listing — tinggal salin
+
+Wajib diisi sebelum rilis ke track mana pun, termasuk closed testing. Batas Play: judul 30
+karakter, deskripsi pendek 80, deskripsi panjang 4000.
+
+### App 1 — Hydromart (`id.hydromart.app`)
+
+**Judul**
+
+```
+Hydromart
+```
+
+**Deskripsi pendek**
+
+```
+Pesan galon isi ulang & air kemasan dari depot terdekat, diantar ke rumah.
+```
+
+**Deskripsi panjang**
+
+```
+Hydromart mengantar air minum bersih dari depot terdekat langsung ke rumah Anda.
+
+BELANJA TANPA RIBET
+• Jelajahi katalog galon isi ulang dan air kemasan lengkap dengan harga depot Anda
+• Simpan produk favorit untuk pemesanan berikutnya
+• Pesan ulang pesanan lama hanya dengan satu ketukan
+• Langganan berulang untuk kebutuhan rutin, tanpa perlu memesan tiap minggu
+
+LACAK SAMPAI DI DEPAN PINTU
+• Pantau status pesanan dari diterima, disiapkan, sampai dalam perjalanan
+• Notifikasi otomatis di setiap perubahan status
+• Simpan alamat beserta patokan, supaya kurir tidak perlu menelepon
+
+BAYAR DI TEMPAT
+Bayar tunai atau QRIS langsung ke kurir saat pesanan tiba. Tidak ada kartu yang perlu
+disimpan di aplikasi.
+
+POIN DAN VOUCHER
+• Kumpulkan poin dari setiap pesanan selesai
+• Naik tier keanggotaan dan nikmati harga khusus
+• Tukar poin dengan hadiah di katalog rewards
+• Bagikan kode referral Anda dan dapatkan poin tambahan
+
+AKUN ANDA, KENDALI ANDA
+Ubah profil dan foto, atur tema dan bahasa, kelola notifikasi, ekspor data Anda, atau
+hapus akun kapan saja langsung dari aplikasi — sesuai UU Perlindungan Data Pribadi.
+
+Butuh bantuan? Halaman bantuan tersedia di dalam aplikasi.
+```
+
+### App 2 — Hydromart Ops (`id.hydromart.ops`)
+
+Deskripsinya **harus** menyatakan sejak kalimat pertama bahwa ini aplikasi internal. Play
+menolak aplikasi yang tampak publik tapi seluruh isinya di balik login tanpa penjelasan,
+dan Ops seluruhnya begitu — J6 berlaku dua kali lipat di sini.
+
+**Judul**
+
+```
+Hydromart Ops
+```
+
+**Deskripsi pendek**
+
+```
+Aplikasi internal staf Hydromart. Perlu akun karyawan yang sudah terdaftar.
+```
+
+**Deskripsi panjang**
+
+```
+APLIKASI INTERNAL — KHUSUS KARYAWAN HYDROMART
+
+Aplikasi ini bukan untuk umum. Masuk hanya bisa dilakukan dengan nomor telepon karyawan
+yang sudah didaftarkan oleh perusahaan; pendaftaran mandiri tidak tersedia. Bila Anda
+pelanggan, aplikasi yang Anda cari adalah "Hydromart".
+
+Satu aplikasi untuk seluruh operasi depot. Layar pertama menyesuaikan jabatan Anda.
+
+KURIR
+• Rute hari ini dan daftar antaran
+• Navigasi ke alamat lengkap dengan patokan
+• Bukti kirim: foto, tanda tangan, catatan gagal kirim, jadwal ulang
+• Terima pembayaran tunai atau QRIS di tempat, catat galon kembali
+• Absen masuk dan pulang, target, pendapatan, dan setoran
+• Bekerja tanpa sinyal: foto dan absen tersimpan dan terkirim saat jaringan kembali
+
+KEPALA DEPOT
+• Kasir konter, buka dan tutup shift, buku kas, cetak struk
+• Antrean pesanan, pelacakan kurir, penugasan roster
+• Stok, susut, retur, dan meteran air
+• Penyelesaian pembayaran, setoran kurir, tutup harian
+
+SUPERVISOR DAN MANAJER
+• Ringkasan banyak depot, antrean persetujuan, harga, tim
+• Keuangan depot, target, sengketa, insiden
+
+SEMUA KARYAWAN
+Absen wajah, riwayat kehadiran, slip gaji, pengajuan cuti, dan pengumuman perusahaan.
+
+Data yang ditampilkan adalah data operasional milik perusahaan dan hanya dapat diakses
+oleh karyawan yang berwenang.
+```
+
+### Aset gambar yang masih harus dibuat
+
+Tidak ada satu pun di repo; semuanya perlu dibuat dari nol.
+
+| Aset              | Ukuran    | Catatan                                                                           |
+| ----------------- | --------- | --------------------------------------------------------------------------------- |
+| Ikon              | 512×512   | PNG, tanpa alpha. `apps/web/public/icon-512.png` bisa jadi dasar                  |
+| Feature graphic   | 1024×500  | PNG/JPG, tanpa alpha                                                              |
+| Screenshot ponsel | min 2/app | Ambil dari APK uji: beranda + lacak pesanan (pelanggan); rute + bukti kirim (Ops) |
+
+Screenshot paling mudah diambil justru dari APK debug yang dihasilkan
+**Actions → Mobile release → Run workflow** — jadi satu perjalanan menghasilkan dua hal:
+bukti checklist perangkat, dan aset listing.
+
+---
+
+## 7. Yang tersisa untuk Anda — semuanya di Play Console
 
 Tidak satu pun bisa diselesaikan dari repo ini.
 
