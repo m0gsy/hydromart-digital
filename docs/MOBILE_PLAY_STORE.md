@@ -377,3 +377,26 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 - [ ] Tanpa langkah ini App Links tidak terverifikasi dan tautan terbuka di browser —
       bukan kerusakan, hanya kehilangan fitur, dan tidak terlihat dari dalam aplikasi
 - [ ] Rekrut **15–20** penguji (lantai 12), mulai closed testing 14 hari
+
+---
+
+## 8. Bundle mana yang diunggah, dan kapan berhenti mengunggahnya sendiri
+
+**Unggah `mobile-v1.0.1`, bukan `mobile-v1.0.0`.** Yang pertama membuktikan jalur rilisnya
+utuh tapi membawa ikon placeholder, jadi ia tidak pernah dimaksudkan untuk naik ke toko.
+`1.0.1` membawa ikon merek yang sebenarnya dan enam perbaikan mobile di belakangnya.
+
+AAB-nya ada sebagai artifact di run tag tersebut (`hydromart-aab-1.0.1`), bertahan 30 hari.
+`versionCode` diambil dari nomor run, bukan dari tag — Play menolak `versionCode` yang
+pernah ia lihat, dan menjalankan ulang tag yang sama harus menghasilkan angka lebih tinggi.
+
+Setelah kedua app ada di Play, listing terisi, dan rilis pertama lolos review **dengan
+tangan**, isi secret opsional `PLAY_SERVICE_ACCOUNT_JSON` (isi berkas kunci service account
+apa adanya, sebagai teks). Sejak saat itu tiap tag `mobile-v*` naik sendiri ke **track
+internal**. Tanpa secret itu langkahnya skip dengan notice dan run tetap hijau — jadi tidak
+ada yang perlu dimatikan lebih dulu.
+
+Track-nya `internal` dan tidak pernah `production`: internal testing terbit dalam hitungan
+menit ke daftar nama tertentu, dan itu satu-satunya track yang tidak bisa menjangkau publik
+karena kecelakaan. Menaikkannya ke closed testing dan seterusnya tetap keputusan yang
+diambil orang di konsol.
