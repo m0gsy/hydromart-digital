@@ -74,12 +74,34 @@ async function nativePushState(): Promise<PushState> {
   return window.localStorage.getItem(FCM_ENDPOINT_KEY) ? 'subscribed' : 'unsubscribed';
 }
 
+/**
+ * The notification channel every push lands in. Must match
+ * `com.google.firebase.messaging.default_notification_channel_id` in the manifest — a
+ * mismatch is silent, and Android quietly files everything into "Miscellaneous" instead.
+ *
+ * Android 8+ takes importance from the channel, not the message: without one of our own,
+ * order updates arrive at default importance with no heads-up and no sound, and the only
+ * control the user has is to turn the whole app off. Creating it is idempotent, and it
+ * has to exist before the first notification or that one lands in the fallback channel.
+ */
+async function ensureChannel(): Promise<void> {
+  await askPlugin('PushNotifications', 'createChannel', {
+    id: 'hydromart_orders',
+    name: 'Pesanan & pengiriman',
+    description: 'Status pesanan, kurir dalam perjalanan, poin dan voucher.',
+    importance: 4, // IMPORTANCE_HIGH — a heads-up banner, which is the point of the message
+    visibility: 1, // VISIBILITY_PUBLIC: the lock screen may show it; nothing here is a secret
+  });
+}
+
 async function nativeSubscribe(): Promise<PushState> {
   const status = await askPlugin<{ receive?: string }>('PushNotifications', 'requestPermissions');
   // Android 13+ makes POST_NOTIFICATIONS a runtime permission, and a denial cannot be
   // re-asked easily — which is why this is only ever called from a deliberate action.
   if (status?.receive !== 'granted')
     return status?.receive === 'denied' ? 'denied' : 'unsubscribed';
+
+  await ensureChannel();
 
   const token = await fcmToken();
   if (!token) return 'unsupported';

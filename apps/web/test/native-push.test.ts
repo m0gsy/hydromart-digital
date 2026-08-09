@@ -25,6 +25,7 @@ function installBridge() {
       PushNotifications: {
         checkPermissions: vi.fn(async () => ({ receive: permission })),
         requestPermissions: vi.fn(async () => ({ receive: permission })),
+        createChannel: vi.fn(async () => undefined),
         register: vi.fn(async () => {
           // The plugin answers asynchronously; `register()` only starts the handshake.
           queueMicrotask(() => {
@@ -80,6 +81,24 @@ describe('subscribing on Android', () => {
     expect(JSON.parse(call[1].body as string)).toEqual({ endpoint: 'fcm:TOKEN-1' });
     // No `keys`: an Android registration has no keypair, and the DTO now allows that.
     expect(window.localStorage.getItem('hm.fcm-endpoint')).toBe('fcm:TOKEN-1');
+  });
+
+  /**
+   * Android 8+ takes importance from the channel, not the message. Without one of ours,
+   * every push lands in the system's "Miscellaneous" channel at default importance: no
+   * heads-up, and the only control the user has is to silence the whole app. The id has
+   * to match `default_notification_channel_id` in the manifest — a mismatch is silent.
+   */
+  it('creates the notification channel the manifest names', async () => {
+    const push = await load();
+    await push.subscribeToPush();
+
+    const created = (
+      window as unknown as {
+        Capacitor: { Plugins: { PushNotifications: { createChannel: ReturnType<typeof vi.fn> } } };
+      }
+    ).Capacitor.Plugins.PushNotifications.createChannel;
+    expect(created).toHaveBeenCalledWith(expect.objectContaining({ id: 'hydromart_orders' }));
   });
 
   it('never asks the browser for a VAPID key it cannot use', async () => {
