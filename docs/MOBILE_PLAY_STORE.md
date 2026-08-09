@@ -309,11 +309,19 @@ oleh karyawan yang berwenang.
 
 Semuanya ada di [`docs/play-assets/`](play-assets/).
 
-| Aset              | Ukuran    | Berkas                                                             |
-| ----------------- | --------- | ------------------------------------------------------------------ |
-| Ikon              | 512×512   | `app-icon-512.png`                                                 |
-| Feature graphic   | 1024×500  | `feature-graphic-1024x500.png`                                     |
-| Screenshot ponsel | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
+| Aset                      | Ukuran    | Berkas                                                              |
+| ------------------------- | --------- | ------------------------------------------------------------------- |
+| Ikon                      | 512×512   | `app-icon-512.png`                                                  |
+| Feature graphic           | 1024×500  | `feature-graphic-1024x500.png`                                      |
+| Screenshot ponsel         | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png`  |
+| Screenshot tablet 7 inci  | 1200×2134 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
+| Screenshot tablet 10 inci | 1600×2844 | `screenshot-tab10-…` (tiga berkas, nama sama polanya)               |
+
+Tablet opsional di Play — hanya screenshot ponsel yang wajib. Diisi karena tanpanya Play
+menampilkan listing "tidak dioptimalkan untuk tablet" pada perangkat tablet, dan karena
+biayanya nol: aplikasinya memang responsif. Yang 10 inci bukan versi diperbesar dari yang
+7 inci — di 810dp tata letaknya berganti ke nav atas dan grid tiga kolom, sementara 600dp
+masih tata letak ponsel, persis seperti di tablet sungguhan.
 
 Ketiga screenshot itu **bukan** hasil tangkapan dari APK: keduanya diambil dari aplikasi
 web produksi di viewport ponsel (412×732 @3×, mobile+touch, akun reviewer). Isinya persis
