@@ -106,6 +106,23 @@ if (target && !TARGETS[target]) {
   process.exit(1);
 }
 
+/**
+ * The prune list again, as route patterns the shipped bundle can read.
+ *
+ * A deep link can name a route this binary does not carry — a notification sent to a
+ * phone whose owner has both apps, an old WhatsApp link, anything. In an exported build
+ * that is not a page with stale data, it is a file that is not there, so the WebView
+ * shows a blank screen with no way back. `deep-link.ts` needs to know which paths those
+ * are, and this is the only place that knows: writing the list by hand in the client
+ * would be the same list twice, drifting the first time a folder moves.
+ *
+ * A stashed directory becomes `/hq/*` — that route and everything under it. A stashed
+ * `page.tsx` becomes the exact route only: Ops drops `/hr` itself while keeping `/hr/me`.
+ */
+function prunedRoutes(paths) {
+  return paths.map((p) => (p.endsWith('.tsx') ? `/${dirname(p)}` : `/${p}/*`));
+}
+
 /** Total bytes under `dir`, so the size claim in a PR description is measured, not guessed. */
 function sizeOf(dir) {
   let total = 0;
@@ -237,7 +254,12 @@ try {
   execFileSync(process.execPath, [next, 'build'], {
     cwd: WEB,
     stdio: 'inherit',
-    env: { ...process.env, MOBILE_BUILD: '1', MOBILE_OUT_DIR: relative(WEB, outDir) },
+    env: {
+      ...process.env,
+      MOBILE_BUILD: '1',
+      MOBILE_OUT_DIR: relative(WEB, outDir),
+      NEXT_PUBLIC_MOBILE_PRUNED: prunedRoutes(pruned).join(','),
+    },
   });
   ok = true;
 } finally {
