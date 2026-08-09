@@ -83,14 +83,22 @@ jobs:
         working-directory: mobile
         run: npm ci
 
-      # `cap update` and not `cap sync`: it regenerates the native project — the
-      # `capacitor-cordova-android-plugins` bridge module that `capacitor.build.gradle`
-      # reads, and the settings.gradle listing every plugin — without wanting a web
-      # export to copy. Both are generated, both are correctly gitignored, and without
-      # this the build fails on a script that is not in the repo and never should be.
+      # `cap update` regenerates the native project: the `capacitor-cordova-android-plugins`
+      # bridge module that `capacitor.build.gradle` reads, and the settings.gradle listing
+      # every plugin. Both are generated, both are correctly gitignored, and without them
+      # Gradle fails on a script that is not in the repo and never should be.
+      #
+      # It also runs a copy step, so it insists on a web export existing even though this
+      # job does not care what is in one. A placeholder satisfies that and keeps the job
+      # at four minutes instead of ten — what is being asked here is whether the NATIVE
+      # project compiles. The real export has its own gate in `CI`, and the `testable`
+      # job below builds it for the APKs that go on a phone.
       - name: Generate the native project
         working-directory: mobile
-        run: npx cap update android
+        run: |
+          mkdir -p ../apps/web/mobile-out-customer
+          echo '<!doctype html><title>placeholder</title>' > ../apps/web/mobile-out-customer/index.html
+          npx cap update android
 
       - name: Customer binary compiles
         working-directory: mobile/android
