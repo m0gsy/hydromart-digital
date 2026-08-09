@@ -298,19 +298,44 @@ Data yang ditampilkan adalah data operasional milik perusahaan dan hanya dapat d
 oleh karyawan yang berwenang.
 ```
 
-### Aset gambar yang masih harus dibuat
+### Aset gambar
 
-Tidak ada satu pun di repo; semuanya perlu dibuat dari nol.
+Semuanya ada di [`docs/play-assets/`](play-assets/).
 
-| Aset              | Ukuran    | Catatan                                                                           |
-| ----------------- | --------- | --------------------------------------------------------------------------------- |
-| Ikon              | 512×512   | PNG, tanpa alpha. `apps/web/public/icon-512.png` bisa jadi dasar                  |
-| Feature graphic   | 1024×500  | PNG/JPG, tanpa alpha                                                              |
-| Screenshot ponsel | min 2/app | Ambil dari APK uji: beranda + lacak pesanan (pelanggan); rute + bukti kirim (Ops) |
+| Aset              | Ukuran    | Berkas                                                             |
+| ----------------- | --------- | ------------------------------------------------------------------ |
+| Ikon              | 512×512   | `app-icon-512.png`                                                 |
+| Feature graphic   | 1024×500  | `feature-graphic-1024x500.png`                                     |
+| Screenshot ponsel | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
 
-Screenshot paling mudah diambil justru dari APK debug yang dihasilkan
-**Actions → Mobile release → Run workflow** — jadi satu perjalanan menghasilkan dua hal:
-bukti checklist perangkat, dan aset listing.
+Ketiga screenshot itu **bukan** hasil tangkapan dari APK: keduanya diambil dari aplikasi
+web produksi di viewport ponsel (412×732 @3×, mobile+touch, akun reviewer). Isinya persis
+yang digambar WebView — Capacitor menyajikan bundel yang sama — jadi sah dipakai untuk
+listing hari ini. Rasionya 9:16, ukuran minimum Play terpenuhi.
+
+Dua hal yang perlu Anda ketahui sebelum mengunggahnya:
+
+- **Produk di produksi belum punya foto.** Kartu produk menggambar ikon tetesan sebagai
+  pengganti. Unggah foto produk dulu kalau ingin listing terlihat penuh.
+- Nama sapaan di beranda adalah nama akun reviewer ("Halo, Play."). Ganti nama akun demo
+  itu kalau mengganggu, lalu ambil ulang.
+
+Versi yang lebih baik tetap datang dari APK debug hasil **Actions → Mobile release → Run
+workflow** — satu perjalanan menghasilkan dua hal sekaligus: bukti checklist perangkat dan
+aset listing yang benar-benar dari binary.
+
+### Store settings — nilai yang dipakai
+
+| Kolom             | App pelanggan                                     | App Ops  |
+| ----------------- | ------------------------------------------------- | -------- |
+| Jenis aplikasi    | App                                               | App      |
+| Kategori          | Food & Drink                                      | Business |
+| Email kontak      | `hello@hydromart-digital.com`                     | sama     |
+| Situs web         | `https://hydromart-digital.com`                   | sama     |
+| Kebijakan privasi | `https://hydromart-digital.com/kebijakan-privasi` | sama     |
+| Hapus akun        | `https://hydromart-digital.com/hapus-akun`        | sama     |
+
+Keempat URL itu sudah menjawab 200 di produksi (dicek 2026-08-09).
 
 ---
 
@@ -335,7 +360,8 @@ Tidak satu pun bisa diselesaikan dari repo ini.
       Jalankan checklist perangkat di `MOBILE_APPS_PLAN.md` — beberapa itemnya tidak bisa
       diperbaiki setelah binary ada di tangan pengguna
 - [ ] Aset listing: ikon 512×512, feature graphic 1024×500, ≥2 screenshot ponsel per
-      aplikasi, deskripsi pendek + panjang dalam Bahasa Indonesia
+      aplikasi, deskripsi pendek + panjang dalam Bahasa Indonesia. Untuk app pelanggan
+      semuanya sudah ada di `docs/play-assets/`; untuk Ops belum satu pun screenshot
 
 **Setelah AAB pertama diterima:**
 
