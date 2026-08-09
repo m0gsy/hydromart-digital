@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/app-shell';
 import { NativeBridge } from '@/components/native-bridge';
+import { PushForeground } from '@/components/push-foreground';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
@@ -57,6 +58,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LocaleProvider>
             <AuthProvider>
               <ToastProvider>
+                {/* Needs the toast, so it cannot live in NativeBridge above. */}
+                <PushForeground />
                 {/* Shop chrome vs. bare console — the cart/location providers ride the
                     shop branch, so consoles never fetch a cart. */}
                 <AppShell>{children}</AppShell>
