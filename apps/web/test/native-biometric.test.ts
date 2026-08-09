@@ -28,7 +28,18 @@ function install(options: {
   /** Codes the prompt rejects with, in order; `undefined` means it succeeds. */
   outcomes?: (string | undefined)[];
 }) {
-  const vault = { value: options.stored ?? null };
+  // Keyed, because the vault holds two entries now: the session and the failure counter.
+  // A mock with one slot let `setFailures(0)` delete the session, which is a bug the
+  // harness invented rather than one the code has.
+  const entries: Record<string, string | null> = { hydromart_session: options.stored ?? null };
+  const vault = {
+    get value() {
+      return entries.hydromart_session ?? null;
+    },
+    set value(next: string | null) {
+      entries.hydromart_session = next;
+    },
+  };
   const prompts: number[] = [];
   const outcomes = options.outcomes ?? [];
   const biometry = options.biometry === undefined ? { isAvailable: true } : options.biometry;
@@ -37,12 +48,14 @@ function install(options: {
     isNativePlatform: () => true,
     Plugins: {
       SecureStorage: {
-        internalGetItem: async () => ({ data: vault.value }),
-        internalSetItem: async ({ data }: { data: string }) => {
-          vault.value = data;
+        internalGetItem: async ({ prefixedKey }: { prefixedKey: string }) => ({
+          data: entries[prefixedKey] ?? null,
+        }),
+        internalSetItem: async ({ prefixedKey, data }: { prefixedKey: string; data: string }) => {
+          entries[prefixedKey] = data;
         },
-        internalRemoveItem: async () => {
-          vault.value = null;
+        internalRemoveItem: async ({ prefixedKey }: { prefixedKey: string }) => {
+          entries[prefixedKey] = null;
           return { success: true };
         },
       },
@@ -196,6 +209,73 @@ describe('unlockTokens', () => {
 
     expect(promptCount()).toBe(0);
     expect(store.getAccessToken()).toBe('AT-NEW');
+  });
+
+  /**
+   * A dismissal has always been survivable by design — but `unlocking` is remembered for
+   * the life of the process, so the only way to ask again used to be killing the app. One
+   * stray back-press therefore cost an OTP, which is the outcome the design says it exists
+   * to prevent.
+   */
+  it('can ask again after the prompt was dismissed', async () => {
+    const { vault, promptCount } = install({ stored: STORED, outcomes: ['userCancel', undefined] });
+    const store = await loadStore();
+
+    await store.unlockTokens();
+    expect(store.hasTokens()).toBe(false);
+    expect(store.unlockWasCancelled()).toBe(true);
+    expect(vault.value).toBe(STORED); // dismissing destroyed nothing
+
+    await store.retryUnlock();
+
+    expect(promptCount()).toBe(2);
+    expect(store.getRefreshToken()).toBe('RT-1');
+    expect(store.unlockWasCancelled()).toBe(false);
+  });
+
+  it('does not offer a retry when nothing was dismissed', async () => {
+    install({ stored: STORED, outcomes: ['authenticationFailed'] });
+    const store = await loadStore();
+
+    await store.unlockTokens();
+
+    // A real mismatch counts towards the wipe; offering "try again" for it would be the
+    // bypass the whole design refuses.
+    expect(store.unlockWasCancelled()).toBe(false);
+  });
+
+  /**
+   * Android invalidates a Keystore key when a new fingerprint is enrolled. The blob is
+   * then undecryptable forever, and treating that as "nothing stored" leaves it on disk
+   * raising a prompt on every launch for something that can never open.
+   */
+  it('clears an entry the device can no longer decrypt', async () => {
+    const { vault } = install({ stored: STORED });
+    (
+      window as unknown as { Capacitor: { Plugins: { SecureStorage: Record<string, unknown> } } }
+    ).Capacitor.Plugins.SecureStorage.internalGetItem = async () => {
+      throw Object.assign(new Error('keyInvalidated'), { code: 'keyInvalidated' });
+    };
+    const store = await loadStore();
+
+    await store.unlockTokens();
+
+    expect(store.hasTokens()).toBe(false);
+    expect(vault.value).toBeNull();
+  });
+
+  it('keeps the entry when the plugin is simply not there', async () => {
+    const { vault } = install({ stored: STORED });
+    (
+      window as unknown as { Capacitor: { Plugins: Record<string, unknown> } }
+    ).Capacitor.Plugins.SecureStorage = {};
+    const store = await loadStore();
+
+    await store.unlockTokens();
+
+    // 'unavailable' is a build problem, not a broken key — destroying a good session over
+    // it would turn a missing plugin into a mass sign-out.
+    expect(vault.value).toBe(STORED);
   });
 
   it('unlocks nothing and prompts for nothing on the web', async () => {

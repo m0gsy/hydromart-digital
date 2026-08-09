@@ -1,7 +1,8 @@
 'use client';
 
+import { onResume } from './app-lifecycle';
 import { isNativeShell } from './platform';
-import { unlockDevice, vaultClear, vaultRead, vaultWrite } from './secure-vault';
+import { FAILURES_KEY, unlockDevice, vaultClear, vaultRead, vaultWrite } from './secure-vault';
 
 /**
  * F2: the native half of the session. F3b: and where it sleeps.
@@ -31,8 +32,16 @@ export interface Tokens {
   refreshToken: string;
 }
 
-/** Consecutive failed unlock attempts survive an app restart; the token must not outlive them. */
-const FAILURE_KEY = 'hm.unlock-failures';
+/**
+ * How long the app has to have been in the background before the session is put back
+ * behind the device lock.
+ *
+ * Depot phones are shared and get left on counters. Until now a session unlocked at 6am
+ * stayed open until the process died, which on Android can be days. Fifteen minutes is
+ * long enough that stepping outside to hand over a gallon is not a re-prompt, and short
+ * enough that a phone left on a table is not an open session.
+ */
+const RELOCK_AFTER_MS = 15 * 60_000;
 
 /**
  * Three real mismatches and the stored session is destroyed — the user goes back through
@@ -49,8 +58,10 @@ const MAX_UNLOCK_FAILURES = 3;
 let tokens: Tokens | null = null;
 /** The last vault write, so a caller can wait for the disk before acting on the token. */
 let persisting: Promise<void> = Promise.resolve();
-/** The one unlock this process will ever do. See `unlockTokens`. */
+/** The unlock in flight, or the one already done. See `unlockTokens`. */
 let unlocking: Promise<void> | null = null;
+/** Whether the last unlock ended because the prompt was dismissed, so a screen can offer another. */
+let cancelled = false;
 
 function isTokens(value: unknown): value is Tokens {
   const t = value as Partial<Tokens> | null | undefined;
@@ -66,20 +77,17 @@ function parseTokens(raw: string): Tokens | null {
   }
 }
 
-function failures(): number {
-  try {
-    return Number(window.localStorage.getItem(FAILURE_KEY)) || 0;
-  } catch {
-    return 0;
-  }
+async function failures(): Promise<number> {
+  const read = await vaultRead(FAILURES_KEY);
+  return read.ok ? Number(read.data) || 0 : 0;
 }
 
-function setFailures(count: number): void {
+async function setFailures(count: number): Promise<void> {
   try {
-    if (count === 0) window.localStorage.removeItem(FAILURE_KEY);
-    else window.localStorage.setItem(FAILURE_KEY, String(count));
+    if (count === 0) await vaultClear(FAILURES_KEY);
+    else await vaultWrite(String(count), FAILURES_KEY);
   } catch {
-    /* localStorage evicted or unavailable: the OS lockout is still in force */
+    /* Keystore unavailable: the OS's own biometric lockout is still in force */
   }
 }
 
@@ -117,6 +125,25 @@ export function unlockTokens(): Promise<void> {
   return unlocking;
 }
 
+/**
+ * Whether the stored session is sitting there unopened because the prompt was dismissed.
+ *
+ * Dismissing deliberately does not destroy anything — but until now it also left no way
+ * back, because `unlocking` is remembered for the life of the process. One stray
+ * back-press therefore cost an OTP, which is the exact outcome `unlockTokens` says it
+ * exists to avoid. A screen that can see this can offer the prompt again.
+ */
+export function unlockWasCancelled(): boolean {
+  return cancelled;
+}
+
+/** Ask again, after a dismissal. The only thing allowed to forget a finished unlock. */
+export function retryUnlock(): Promise<void> {
+  cancelled = false;
+  unlocking = null;
+  return unlockTokens();
+}
+
 async function restoreFromVault(): Promise<void> {
   // A session already established this launch needs no unlocking, and must not be
   // overwritten by what happens to be on disk. The case that matters is the one right
@@ -124,25 +151,37 @@ async function restoreFromVault(): Promise<void> {
   // arrives, and without this it would raise a biometric prompt to re-open a session the
   // user opened thirty seconds ago with a code from an SMS.
   if (tokens) return;
+  cancelled = false;
 
-  const stored = await vaultRead();
-  if (!stored) {
+  const read = await vaultRead();
+  // A read that failed is a key the device can no longer use — Android invalidates one
+  // when a new fingerprint is enrolled. Leaving the entry in place would mean a prompt
+  // on every launch for a blob that can never be decrypted again, so it goes, and the
+  // user signs in once with an OTP. Deliberately not done for `unavailable`, which is a
+  // missing plugin rather than a broken key.
+  if (!read.ok) {
+    if (read.code !== 'unavailable') await vaultClear();
+    primeTokens(null);
+    return;
+  }
+  if (read.data === null) {
     primeTokens(null);
     return;
   }
 
   const outcome = await unlockDevice('Buka sesi Hydromart Anda');
   if (outcome === 'ok' || outcome === 'unavailable') {
-    setFailures(0);
-    primeTokens(parseTokens(stored));
+    await setFailures(0);
+    primeTokens(parseTokens(read.data));
     return;
   }
 
+  cancelled = outcome === 'cancelled';
   if (outcome === 'failed') {
-    const count = failures() + 1;
-    setFailures(count);
+    const count = (await failures()) + 1;
+    await setFailures(count);
     if (count >= MAX_UNLOCK_FAILURES) {
-      setFailures(0);
+      await setFailures(0);
       await vaultClear();
     }
   }
@@ -199,6 +238,23 @@ export function tokensPersisted(): Promise<void> {
 }
 
 export function clearTokens(): void {
-  setFailures(0);
+  void setFailures(0);
   setTokens(null);
+}
+
+/**
+ * Put an open session back behind the device lock after a long absence.
+ *
+ * `tokens = null` and not `setTokens(null)`: the second one wipes the vault, which would
+ * turn "prove it is still you" into "sign in with an OTP again" — the opposite of the
+ * point. Clearing `unlocking` is what makes the next authenticated request raise the
+ * prompt, and every request already awaits `unlockTokens()`.
+ */
+if (typeof window !== 'undefined') {
+  onResume((awayMs) => {
+    if (!isNativeShell() || awayMs < RELOCK_AFTER_MS || tokens === null) return;
+    tokens = null;
+    unlocking = null;
+    cancelled = false;
+  });
 }
