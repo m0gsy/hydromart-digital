@@ -79,6 +79,24 @@ const ALLOWED = new Map([
   ],
 ]);
 
+/**
+ * The same list, for the permissions whose NAME contains the applicationId — so the exact
+ * string differs between the two binaries and cannot be a map key.
+ */
+const ALLOWED_PATTERNS = [
+  [
+    /^[\w.]+\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION$/,
+    'Contributed by androidx.core. A signature-level permission the app grants only to ' +
+      'itself, so a broadcast registered with RECEIVER_NOT_EXPORTED cannot be reached by ' +
+      'another app. Never prompts, never appears in the Play listing.',
+  ],
+];
+
+/** The sentence that justifies this permission, or null if nothing does. */
+function justify(name) {
+  return ALLOWED.get(name) ?? ALLOWED_PATTERNS.find(([pattern]) => pattern.test(name))?.[1] ?? null;
+}
+
 const PERMISSION = /<uses-permission[^>]*android:name="([^"]+)"/g;
 
 function permissionsIn(file) {
@@ -163,13 +181,13 @@ console.log(
     : `${files.length} source manifests (our app + every installed plugin)`,
 );
 for (const name of names) {
-  const justification = ALLOWED.get(name);
+  const justification = justify(name);
   console.log(`  ${justification ? 'OK  ' : 'NEW '} ${name}`);
   if (justification) console.log(`         ${justification}`);
   else console.log(`         asked for by: ${found.get(name).join(', ')}`);
 }
 
-const unjustified = names.filter((n) => !ALLOWED.has(n));
+const unjustified = names.filter((n) => justify(n) === null);
 if (unjustified.length) {
   console.error(
     `\n${unjustified.length} permission(s) with no justification. Write down why each is` +

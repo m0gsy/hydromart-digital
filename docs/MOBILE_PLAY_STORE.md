@@ -94,6 +94,14 @@ ini — semuanya dibawa masuk oleh Firebase Cloud Messaging lewat manifest AAR-n
 memunculkan dialog apa pun ke pengguna, tapi tetap terdaftar di skrip audit supaya
 kemunculannya adalah keputusan, bukan kejutan.
 
+Satu lagi yang hanya terlihat di manifest hasil merge:
+`<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, dibawa androidx.core. Izin
+tingkat signature yang aplikasi berikan **hanya kepada dirinya sendiri**, supaya broadcast
+yang didaftarkan dengan `RECEIVER_NOT_EXPORTED` tidak bisa dijangkau aplikasi lain. Tidak
+pernah meminta apa pun ke pengguna dan tidak muncul di listing Play. Namanya memuat
+applicationId, jadi ia berbeda antar-binary dan dicocokkan dengan pola di skrip audit,
+bukan string persis.
+
 ### Yang sengaja TIDAK diminta
 
 - **`ACCESS_BACKGROUND_LOCATION`** — butuh foreground service, deklarasi tertulis, dan
