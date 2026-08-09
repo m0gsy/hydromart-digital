@@ -68,7 +68,7 @@ jobs:
   # compiles, and the export has its own gate in `CI`.
   compile:
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
+    if: github.event_name == 'pull_request'
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
@@ -114,9 +114,100 @@ jobs:
             -PhydromartWebHost=hydromart.example \
             -PhydromartLinkPrefix=/driver
 
+  # An APK you can put on a phone, today, without a Play account.
+  #
+  # The device checklist in docs/MOBILE_APPS_PLAN.md is the largest untested risk left in
+  # this project, and several of its items — `getUserMedia` in a bare WebView, the local
+  # server's path resolution, Tailwind v4 on an old WebView — cannot be fixed after
+  # release. Until now there was no way to run any of it: the release APK is unsigned and
+  # will not install, and signing needs a keystore that does not exist yet.
+  #
+  # `assembleDebug` is signed with Android's automatic debug key, so it installs by
+  # sideloading. It is a real build of the real app against the real API — only the
+  # signature is throwaway. Run it from the Actions tab; both APKs land as artifacts.
+  #
+  # Not on pull_request: it builds two web exports and takes ten minutes, and every PR
+  # paying that to produce an APK nobody downloads is waste.
+  testable:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # Without this the app installs, opens, and fails every request with a network
+      # error that names nothing — `api.ts` falls back to http://localhost:8080 and
+      # Android blocks cleartext. A test build that cannot reach the API tests nothing.
+      - name: MOBILE_API_URL is set
+        env:
+          MOBILE_API_URL: ${{ vars.MOBILE_API_URL }}
+        run: test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the APK could not reach the API"; exit 1; }
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install Capacitor dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Customer — export and sync
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+        run: |
+          npm run build:mobile --workspace @hydromart/web -- customer
+          npm run sync:customer --prefix mobile
+
+      - name: Customer — debug APK
+        working-directory: mobile/android
+        run: |
+          ./gradlew --no-daemon assembleDebug \
+            -PhydromartAppId=id.hydromart.app \
+            -PhydromartAppName=Hydromart \
+            -PhydromartWebHost=${{ vars.MOBILE_WEB_HOST || 'hydromart.example' }} \
+            -PhydromartLinkPrefix=/
+          mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-customer-debug.apk"
+
+      - name: Ops — export and sync
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+        run: |
+          npm run build:mobile --workspace @hydromart/web -- ops
+          npm run sync:ops --prefix mobile
+
+      - name: Ops — debug APK
+        working-directory: mobile/android
+        run: |
+          ./gradlew --no-daemon assembleDebug \
+            -PhydromartAppId=id.hydromart.ops \
+            -PhydromartAppName='Hydromart Ops' \
+            -PhydromartWebHost=${{ vars.MOBILE_WEB_HOST || 'hydromart.example' }} \
+            -PhydromartLinkPrefix=/driver
+          mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-ops-debug.apk"
+
+      - name: Upload the APKs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hydromart-debug-apks
+          path: |
+            hydromart-customer-debug.apk
+            hydromart-ops-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
   bundle:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
