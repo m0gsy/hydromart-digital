@@ -46,17 +46,44 @@ const DYNAMIC_PARENTS = [
 const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
 
 /**
+ * Routes this binary does not carry, written by `scripts/build-mobile.mjs` from the very
+ * list it prunes with — so the two cannot disagree. Empty everywhere else, which is the
+ * right answer for the web build: it serves all 226 routes.
+ *
+ * `/hq/*` is a subtree; `/hr` with no star is that route alone, because the Ops binary
+ * drops the HR console index while keeping everything under `/hr/me`.
+ */
+const PRUNED = (process.env.NEXT_PUBLIC_MOBILE_PRUNED ?? '').split(',').filter(Boolean);
+
+function servedHere(path: string, pruned: string[]): boolean {
+  return !pruned.some((entry) =>
+    entry.endsWith('/*')
+      ? path === entry.slice(0, -2) || path.startsWith(entry.slice(0, -1))
+      : path === entry,
+  );
+}
+
+/**
  * The path a deep link should open, or null when there is nothing sensible to open.
  *
  * Returns a path, never a URL: the caller hands it to the Next router, and a link that
  * could name another origin would let anything that can send this app an intent decide
  * what the WebView loads.
+ *
+ * A route this binary pruned resolves to home instead. The customer app has no
+ * `/driver/...` file to serve, and pushing at one produces a blank screen with no
+ * navigation left on it — a worse outcome than starting the person somewhere real.
+ * Every source of these is outside our control: a phone with both apps installed, a
+ * notification sent before a release, a link pasted into WhatsApp.
  */
-export function resolveDeepLink(raw: string): string | null {
+export function resolveDeepLink(raw: string, pruned: string[] = PRUNED): string | null {
   const target = pathAndQuery(raw);
   if (target === null) return null;
 
   const [path, query] = splitQuery(target);
+  // Checked before the rewrite rather than after, and identical either way: turning a
+  // segment into `?id=` never moves a route out of the folder it was pruned with.
+  if (!servedHere(path, pruned)) return '/';
   const unchanged = query ? `${path}?${query}` : path;
   const parent = DYNAMIC_PARENTS.find((p) => path.startsWith(`${p}/`));
   if (!parent) return unchanged;

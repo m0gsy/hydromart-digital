@@ -127,6 +127,61 @@ describe('subscribing on Android', () => {
   });
 });
 
+/**
+ * `requestPushOnce` spends the one runtime-permission dialog Android will show, so what
+ * closes the question matters more than that it is asked. The regression here: the flag
+ * used to be written before the attempt, so a granted permission whose token or whose
+ * `POST /push/subscribe` failed left a device registered nowhere and nothing left to
+ * retry it with.
+ */
+describe('asking once', () => {
+  const asked = () => window.localStorage.getItem('hm.push-asked');
+
+  it('remembers the ask once the device is registered', async () => {
+    const push = await load();
+    await push.requestPushOnce();
+
+    expect(asked()).toBe('1');
+    expect(window.localStorage.getItem('hm.fcm-endpoint')).toBe('fcm:TOKEN-1');
+  });
+
+  it('remembers a denial, because Android will not show the dialog again', async () => {
+    permission = 'denied';
+    const push = await load();
+    await push.requestPushOnce();
+
+    expect(asked()).toBe('1');
+  });
+
+  it('asks nothing a second time', async () => {
+    const push = await load();
+    await push.requestPushOnce();
+    fetchMock.mockClear();
+
+    await push.requestPushOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves the question open when permission was granted but no token arrived', async () => {
+    registrationResult = { error: true };
+    const push = await load();
+    await push.requestPushOnce();
+
+    expect(asked()).toBeNull();
+  });
+
+  it('leaves the question open when the endpoint never reached the server', async () => {
+    fetchMock.mockImplementationOnce(async () => new Response('{}', { status: 500 }));
+    const push = await load();
+    await push.requestPushOnce();
+
+    expect(asked()).toBeNull();
+    // And the next attempt really does try again rather than being a no-op.
+    await push.requestPushOnce();
+    expect(asked()).toBe('1');
+  });
+});
+
 describe('reading the state back', () => {
   it('is supported in the WebView even though a service worker would not be', async () => {
     const push = await load();

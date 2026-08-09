@@ -72,3 +72,41 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/orders/')).toBe('/orders');
   });
 });
+
+/**
+ * The second blank screen, the one the rewriting cannot fix: a link naming a route this
+ * binary never shipped. `scripts/build-mobile.mjs` writes the list from the paths it
+ * actually prunes, so these strings are the shape it emits, not a guess at it.
+ */
+describe('routes this binary does not carry', () => {
+  const CUSTOMER = ['/hq/*', '/hr/*', '/dashboard/*', '/driver/*', '/m/*', '/resellers/*'];
+  // Ops keeps `/hr/me` and drops the console: a subtree per pruned folder, plus `/hr`
+  // itself as an exact route because its `page.tsx` went and its `layout.tsx` stayed.
+  const OPS = ['/hq/*', '/hr/employees/*', '/hr/payroll/*', '/hr'];
+
+  it('sends a customer opening a courier link home, not to a blank screen', () => {
+    expect(resolveDeepLink('/driver/deliveries/d-1', CUSTOMER)).toBe('/');
+    expect(resolveDeepLink('/dashboard', CUSTOMER)).toBe('/');
+  });
+
+  it('still serves the routes that binary does carry', () => {
+    expect(resolveDeepLink('/orders/ord-1', CUSTOMER)).toBe('/orders/detail?id=ord-1');
+    expect(resolveDeepLink('/driver/deliveries/d-1', OPS)).toBe('/driver/deliveries/detail?id=d-1');
+  });
+
+  it('drops the HR console without taking /hr/me with it', () => {
+    expect(resolveDeepLink('/hr', OPS)).toBe('/');
+    expect(resolveDeepLink('/hr/payroll/p-1', OPS)).toBe('/');
+    expect(resolveDeepLink('/hr/me/check-in', OPS)).toBe('/hr/me/check-in');
+  });
+
+  // A prefix is a path segment, never a string. `/mm` is not under `/m`.
+  it('does not match a route that merely starts with the same letters', () => {
+    expect(resolveDeepLink('/resellers-guide', CUSTOMER)).toBe('/resellers-guide');
+    expect(resolveDeepLink('/hr-policy', OPS)).toBe('/hr-policy');
+  });
+
+  it('carries every route when nothing was pruned, which is the web build', () => {
+    expect(resolveDeepLink('/driver/deliveries/d-1', [])).toBe('/driver/deliveries/detail?id=d-1');
+  });
+});
