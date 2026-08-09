@@ -109,7 +109,7 @@ export default function HqFranchisePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {pending !== undefined && <Money amount={pending} className="font-semibold" />}
-                  <Button variant="secondary" onClick={() => router.push(`/hq/depots/${d.id}`)}>
+                  <Button variant="secondary" onClick={() => router.push(`/hq/depots/detail?id=${d.id}`)}>
                     {t('hq.franchise.open')}
                   </Button>
                 </div>

@@ -69,7 +69,7 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
   const { t } = useT();
   return (
     <Link
-      href={`/dashboard/customers/${c.id}`}
+      href={`/dashboard/customers/detail?id=${c.id}`}
       className="grid grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] items-center gap-3 border-t border-app px-3 py-3 text-sm transition-colors hover:bg-brand-50"
     >
       <div className="flex min-w-0 items-center gap-2.5">

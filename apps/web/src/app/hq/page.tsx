@@ -199,7 +199,7 @@ export default function HqOverviewPage() {
                       <tr
                         key={r.depotId}
                         className="cursor-pointer transition-colors hover:bg-[color:var(--surface-soft)]"
-                        onClick={() => router.push(`/hq/depots/${r.depotId}`)}
+                        onClick={() => router.push(`/hq/depots/detail?id=${r.depotId}`)}
                       >
                         <td className="py-2.5 font-medium">{r.name}</td>
                         <td className="py-2.5 text-right">
@@ -256,7 +256,7 @@ export default function HqOverviewPage() {
           {depots.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted">{t('hq.overview.perf.empty')}</p>
           ) : (
-            <DepotMap depots={depots} onSelect={(d) => router.push(`/hq/depots/${d.id}`)} />
+            <DepotMap depots={depots} onSelect={(d) => router.push(`/hq/depots/detail?id=${d.id}`)} />
           )}
         </div>
       )}

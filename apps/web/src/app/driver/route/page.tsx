@@ -128,7 +128,7 @@ function RouteView() {
                 {i < stops.length - 1 && <span className="w-0.5 flex-1 bg-[color:var(--border)]" style={{ minHeight: 18 }} />}
               </div>
               <Link
-                href={`/driver/deliveries/${d.id}`}
+                href={`/driver/deliveries/detail?id=${d.id}`}
                 className={`mb-3 flex-1 rounded-2xl bg-white p-3.5 ${
                   isNext ? 'border-2 border-brand-600' : 'border border-[color:var(--border)]'
                 }`}
@@ -151,7 +151,7 @@ function RouteView() {
 
       <button
         type="button"
-        onClick={() => stops[0] && router.push(`/driver/deliveries/${stops[0].id}`)}
+        onClick={() => stops[0] && router.push(`/driver/deliveries/detail?id=${stops[0].id}`)}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-600 py-3.5 text-sm font-extrabold text-on-brand shadow-lg shadow-brand-600/20"
       >
         <NavigationArrow size={18} weight="fill" />

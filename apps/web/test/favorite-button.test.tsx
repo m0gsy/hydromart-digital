@@ -32,7 +32,7 @@ describe('FavoriteButton', () => {
     customer = null;
     render(<FavoriteButton productId="p1" />);
     await userEvent.click(screen.getByRole('button'));
-    expect(push).toHaveBeenCalledWith('/login?next=%2Fproducts%2Fp1');
+    expect(push).toHaveBeenCalledWith('/login?next=%2Fproducts%2Fdetail%3Fid%3Dp1');
     expect(post).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,6 @@
 import { formatDateTime, formatIDR } from './format';
 import { statusLabel } from './order-status';
+import { printDocument } from './platform';
 import type { Order } from './types';
 
 // Escape user/API text before inlining into the print HTML.
@@ -72,6 +73,11 @@ export function printReceipt(
 <p class="muted" style="text-align:center;margin-top:20px">Terima kasih telah memesan di Hydromart.</p>
 <script>window.onload=function(){window.print()}</script>
 </body></html>`;
+
+  // An Android WebView supports neither `window.open` nor `window.print()`, and the
+  // cashier console runs there. F3 fills this in; until then the caller's existing
+  // failure handling is what a native user sees, which is at least honest.
+  if (printDocument(html)) return true;
 
   const w = window.open('', '_blank', 'width=480,height=640');
   if (!w) return false;

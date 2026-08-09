@@ -18,12 +18,21 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Hydromart — Pesan air minum',
   description: 'Pesan galon isi ulang dan air kemasan dari depot terdekat, diantar ke rumahmu.',
+  // A static file rather than the app/manifest.ts convention: that convention is a
+  // generated route, and the mobile build has to stay free of routes to export.
+  manifest: '/manifest.webmanifest',
 };
 
 export const viewport: Viewport = {
   themeColor: '#0c97ac',
   width: 'device-width',
   initialScale: 1,
+  // Seven places already lay out against `env(safe-area-inset-bottom)`, but without
+  // `viewport-fit=cover` the browser resolves every one of those insets to 0 — so the
+  // bottom nav has been sitting under the iOS home indicator and, once this is wrapped
+  // in a native shell, would sit under the Android gesture bar. This one word is what
+  // turns the existing CSS on.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

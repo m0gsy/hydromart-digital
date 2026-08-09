@@ -17,6 +17,7 @@ import { dashC } from './en/dashC';
 import { driver } from './en/driver';
 import { hq } from './en/hq';
 import { privacy } from './en/privacy';
+import { deleteAccount } from './en/deleteAccount';
 import { franchise } from './en/franchise';
 import { customerFix } from './en/customerFix';
 import { courierFix } from './en/courierFix';
@@ -160,6 +161,7 @@ export const en: Dictionary = {
   driver,
   hq,
   privacy,
+  deleteAccount,
   franchise,
   customerFix,
   courierFix,

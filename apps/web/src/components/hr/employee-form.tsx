@@ -103,7 +103,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
       if (id) await api.patch(endpoints.hr.updateEmployee(id), payload.value, true);
       else await api.post(endpoints.hr.createEmployee, payload.value, true);
       notify(id ? 'Karyawan diperbarui' : 'Karyawan ditambahkan');
-      router.push(id ? `/hr/employees/${id}` : '/hr/employees');
+      router.push(id ? `/hr/employees/detail?id=${id}` : '/hr/employees');
       router.refresh();
     } catch (e2) {
       setErr(e2 instanceof ApiError ? e2.message : 'Gagal menyimpan.');

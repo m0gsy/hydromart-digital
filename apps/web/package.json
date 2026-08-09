@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "build:mobile": "node scripts/build-mobile.mjs",
     "start": "next start -p 3000",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
     "typecheck": "tsc --noEmit",
@@ -13,7 +14,10 @@
     "_test_cov_note": "apps/web has no jest coverage gate, but it MUST answer to `npm run test:cov --workspaces` — that is the only test step CI runs. Without this the whole web suite, including the audit F-7/F-13 round-trip ratchets the perf baseline names, never executed in CI.",
     "test:cov": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install --with-deps chromium"
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "test:export": "playwright test -c playwright.static.config.ts",
+    "test:export:customer": "node scripts/run-export-tests.mjs customer",
+    "test:export:ops": "node scripts/run-export-tests.mjs ops"
   },
   "dependencies": {
     "@hydromart/access": "*",

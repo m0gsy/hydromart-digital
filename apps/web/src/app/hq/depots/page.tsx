@@ -114,7 +114,7 @@ export default function HqDepotsPage() {
             <button
               key={d.id}
               type="button"
-              onClick={() => router.push(`/hq/depots/${d.id}`)}
+              onClick={() => router.push(`/hq/depots/detail?id=${d.id}`)}
               className="text-left"
             >
               <Card className="flex h-full flex-col gap-2 p-4 transition-shadow hover:shadow-lift">

@@ -34,7 +34,7 @@ export function FavoriteButton({ productId, className = '' }: { productId: strin
 
   async function toggle() {
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/${productId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${productId}`)}`);
       return;
     }
     const next = !on;
