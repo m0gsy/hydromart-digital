@@ -5,6 +5,7 @@ import {
   AT_COOKIE,
   RT_COOKIE,
   createSessionRouter,
+  isNative,
   readCookie,
 } from '../../src/routing/session-bff';
 
@@ -53,6 +54,148 @@ describe('readCookie', () => {
 
   it('returns undefined when the named cookie is absent', () => {
     expect(readCookie(req('other=1'), 'hm_at')).toBeUndefined();
+  });
+});
+
+describe('isNative', () => {
+  const req = (origin?: string) => ({ headers: origin === undefined ? {} : { origin } }) as never;
+
+  it('recognises the two Capacitor origins', () => {
+    expect(isNative(req('https://localhost'))).toBe(true);
+    expect(isNative(req('capacitor://localhost'))).toBe(true);
+  });
+
+  it('is false for a browser origin and for no origin at all', () => {
+    expect(isNative(req('https://app.hydromart.id'))).toBe(false);
+    expect(isNative(req())).toBe(false);
+  });
+
+  // The whole reason the switch is Origin and not a header the page can set: a lookalike
+  // must not be enough to talk this router out of its cookies.
+  it('is false for origins that merely look like the native one', () => {
+    expect(isNative(req('http://localhost'))).toBe(false);
+    expect(isNative(req('https://localhost:3000'))).toBe(false);
+    expect(isNative(req('https://localhost.evil.id'))).toBe(false);
+  });
+});
+
+describe('createSessionRouter — native (Capacitor origin)', () => {
+  const NATIVE = 'https://localhost';
+
+  it('returns the tokens in the body and sets NO cookies on verify', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, SESSION));
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/otp/verify')
+      .set('Origin', NATIVE)
+      .send({ otp: '000000' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(SESSION);
+    // A cookie here would be dead weight: `sameSite: 'lax'` means the WebView never
+    // sends it back, so the session would silently be one request long.
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('refreshes from the request body, since there is no cookie to read', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, SESSION));
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/token/refresh')
+      .set('Origin', NATIVE)
+      .send({ refreshToken: 'RT-456' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(SESSION);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse((init as { body: string }).body)).toEqual({ refreshToken: 'RT-456' });
+  });
+
+  it('401s a native refresh with no token in the body, and never calls upstream', async () => {
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/token/refresh')
+      .set('Origin', NATIVE)
+      .send({});
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores a cookie sent from a native origin — the body is the only source', async () => {
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/token/refresh')
+      .set('Origin', NATIVE)
+      .set('Cookie', `${RT_COOKIE}=RT-456`)
+      .send({});
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-string refreshToken rather than forwarding it', async () => {
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/token/refresh')
+      .set('Origin', NATIVE)
+      .send({ refreshToken: { evil: true } });
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Without this the native logout finds no cookie, skips the revoke, and leaves a token
+  // alive for its full 30 days on a phone the user believes they signed out of.
+  it('revokes upstream on logout using the body token and the bearer', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { ok: true }));
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/logout')
+      .set('Origin', NATIVE)
+      .set('Authorization', 'Bearer AT-123')
+      .send({ refreshToken: 'RT-456' });
+
+    expect(res.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${AUTH_BASE}/api/v1/auth/logout`);
+    expect((init as { headers: Record<string, string> }).headers.authorization).toBe(
+      'Bearer AT-123',
+    );
+    expect(JSON.parse((init as { body: string }).body)).toEqual({ refreshToken: 'RT-456' });
+  });
+
+  // An access token that has already expired is the normal case for a logout, so the
+  // revoke must not depend on one being there.
+  it.each([
+    ['malformed', 'Basic nonsense'],
+    ['absent', undefined],
+  ])('still revokes when the bearer header is %s', async (_label, header) => {
+    fetchMock.mockResolvedValue(jsonRes(200, { ok: true }));
+    let req = request(makeApp()).post('/auth/api/v1/auth/logout').set('Origin', NATIVE);
+    if (header) req = req.set('Authorization', header);
+    const res = await req.send({ refreshToken: 'RT-456' });
+
+    expect(res.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init as { headers: Record<string, string> }).headers.authorization).toBeUndefined();
+  });
+
+  it('passes an upstream rejection through unchanged on native verify', async () => {
+    fetchMock.mockResolvedValue(jsonRes(400, { message: 'bad otp' }));
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/otp/verify')
+      .set('Origin', NATIVE)
+      .send({ otp: 'x' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ message: 'bad otp' });
+  });
+
+  it('401s a native refresh the upstream rejected', async () => {
+    fetchMock.mockResolvedValue(jsonRes(401, { message: 'expired' }));
+    const res = await request(makeApp())
+      .post('/auth/api/v1/auth/token/refresh')
+      .set('Origin', NATIVE)
+      .send({ refreshToken: 'RT-DEAD' });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ statusCode: 401, message: 'Session expired.' });
   });
 });
 

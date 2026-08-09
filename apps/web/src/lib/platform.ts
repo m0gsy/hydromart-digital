@@ -1,5 +1,7 @@
 'use client';
 
+import { askPlugin, callPlugin } from './capacitor';
+
 /**
  * The three things this app does that a browser handles for free and an Android
  * WebView does not. Each is one function so that when the Capacitor shell lands there
@@ -34,9 +36,15 @@ export function isNativeShell(): boolean {
  * fail: `_blank` either does nothing or navigates the app's own view away with no way
  * back, and `tel:`/`https://wa.me` are unhandled schemes.
  */
-export function openExternal(_url: string): boolean {
-  // ponytail: the native branch is F3's, once @capacitor/browser + App are installed.
-  return false;
+export function openExternal(url: string): boolean {
+  if (!isNativeShell()) return false;
+  // A Custom Tab for web pages — it keeps the app in the back stack, which a plain
+  // navigation does not. Everything else (`tel:`, `mailto:`, `geo:`, and the `intent:`
+  // shapes) is handed to the WebView, whose Capacitor client turns an unhandled scheme
+  // into an Android Intent. Sending those to the browser plugin instead just fails.
+  if (/^https?:/i.test(url)) return callPlugin('Browser', 'open', { url });
+  window.location.assign(url);
+  return true;
 }
 
 /**
@@ -46,8 +54,43 @@ export function openExternal(_url: string): boolean {
  * WebView there is no download manager listening, so the click lands on nothing and the
  * user gets no file and no error. F3 writes it through Filesystem + Share instead.
  */
-export function saveFile(_filename: string, _blob: Blob): boolean {
-  return false;
+export function saveFile(filename: string, blob: Blob): boolean {
+  if (!isNativeShell()) return false;
+  // Returns immediately: the write and the share sheet are asynchronous, and the callers
+  // (`downloadBlob`) are synchronous by design because that is what a browser download
+  // is. "True" means the native path has taken it, not that the file is on disk yet.
+  void writeAndShare(filename, blob);
+  return true;
+}
+
+/**
+ * Write to the app's cache directory, then offer the share sheet — the closest thing
+ * Android has to a download. The cache directory rather than Documents so the OS can
+ * reclaim the space: these are exports the user is about to send somewhere, not a
+ * library the app is responsible for keeping.
+ */
+async function writeAndShare(filename: string, blob: Blob): Promise<void> {
+  const data = await toBase64(blob);
+  if (data === null) return;
+  const written = await askPlugin<{ uri?: string }>('Filesystem', 'writeFile', {
+    path: filename,
+    data,
+    directory: 'CACHE',
+    recursive: true,
+  });
+  if (!written?.uri) return;
+  callPlugin('Share', 'share', { title: filename, files: [written.uri] });
+}
+
+/** Filesystem.writeFile takes base64 for anything that is not plain text. */
+function toBase64(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    // `result` is a data URL — everything after the comma is the payload.
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
 }
 
 /**
@@ -57,6 +100,11 @@ export function saveFile(_filename: string, _blob: Blob): boolean {
  * `window.open` + `window.print()` are both unsupported in an Android WebView, which is
  * why `printReceipt` returns a boolean its callers already act on.
  */
-export function printDocument(_html: string): boolean {
-  return false;
+export function printDocument(html: string): boolean {
+  // ponytail: shares the receipt as an HTML file rather than printing it. Android has no
+  // print API a Capacitor core plugin exposes, and the share sheet reaches every printer
+  // app, Drive and WhatsApp — which is what a depot cashier actually does with a struk.
+  // If a counter ever gets a real thermal printer, that is a Bluetooth plugin and a new
+  // branch here, not a change to any caller.
+  return saveFile('struk.html', new Blob([html], { type: 'text/html' }));
 }

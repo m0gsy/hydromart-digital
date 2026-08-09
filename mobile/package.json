@@ -1,0 +1,26 @@
+{
+  "name": "hydromart-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Capacitor shell for the two Hydromart Android binaries. Deliberately outside the npm workspaces — see README.md.",
+  "scripts": {
+    "sync:customer": "node scripts/sync.mjs customer",
+    "sync:ops": "node scripts/sync.mjs ops"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/browser": "8.0.4",
+    "@capacitor/core": "8.5.0",
+    "@capacitor/filesystem": "8.1.2",
+    "@capacitor/geolocation": "8.2.1",
+    "@capacitor/keyboard": "8.0.5",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/push-notifications": "8.1.2",
+    "@capacitor/share": "8.0.1",
+    "@capacitor/status-bar": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.0"
+  }
+}

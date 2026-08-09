@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { NATIVE_ORIGINS } from '../routing/session-bff';
+
 /**
  * Maps a public path segment (`/{segment}/...`) to the env var holding the
  * upstream base URL it proxies to. Segment names are plural/public-facing;
@@ -78,12 +80,36 @@ export class GatewayConfigService {
   get port(): number {
     return this.num('GATEWAY_PORT');
   }
+  /**
+   * F2: the two Capacitor origins are appended here rather than added to
+   * `CORS_ALLOWED_ORIGINS` on every deployment. They are constants of the platform, not
+   * a per-environment choice, and an env var that must be edited by hand on the VPS is
+   * an env var that will be forgotten — the failure mode being every request from the
+   * shipped app failing CORS with no server-side error to find.
+   *
+   * Safe to allow unconditionally: session cookies are `sameSite: 'lax'`, so a page that
+   * really is served from `https://localhost` still cannot ride a signed-in browser
+   * session; it can only make the same anonymous calls any origin can.
+   */
+  /**
+   * F5: what `GET /mobile-config` answers. Reading it from env means the kill switch is
+   * an env edit and a container restart — no rebuild, no Play review, no waiting for
+   * users to update. Which is the entire point of having it.
+   */
+  get mobile(): { minVersionCode: number; updateMessage: string } {
+    return {
+      minVersionCode: Number(this.config.get<string>('MOBILE_MIN_VERSION_CODE', '0')),
+      updateMessage: this.config.get<string>('MOBILE_UPDATE_MESSAGE', '').trim(),
+    };
+  }
+
   get corsOrigins(): string[] {
-    return this.config
+    const configured = this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
       .split(',')
       .map((o) => o.trim())
       .filter((o) => o.length > 0);
+    return [...new Set([...configured, ...NATIVE_ORIGINS])];
   }
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };

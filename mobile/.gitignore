@@ -1,0 +1,9 @@
+# Firebase config (F4). Injected by CI from a secret and never committed — it is one of
+# the file shapes gitleaks scans for, and a leaked one identifies the project to anybody.
+android/app/google-services.json
+
+# Signing material. The upload keystore lives in a CI secret; a copy on disk here is for
+# a local release build only and must not travel with the repo.
+*.jks
+*.keystore
+keystore.properties

@@ -17,6 +17,8 @@ import { BroadcastPrismaRepository } from '../infrastructure/prisma/broadcast.pr
 import { PushSubscriptionPrismaRepository } from '../infrastructure/prisma/push.prisma.repository';
 import { WhatsappBroadcastHttpAdapter } from '../infrastructure/whatsapp/whatsapp-broadcast.http.adapter';
 import { WebPushSenderAdapter } from '../infrastructure/webpush/web-push.sender.adapter';
+import { FcmSenderAdapter } from '../infrastructure/fcm/fcm.sender.adapter';
+import { CompositePushSender } from '../infrastructure/push/composite-push.sender';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { CampaignController } from './campaign.controller';
 import { NotificationController } from './notification.controller';
@@ -36,7 +38,12 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.WhatsappBroadcast, useClass: WhatsappBroadcastHttpAdapter },
   { provide: CRM_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: CRM_TOKENS.PushSubscriptionRepository, useClass: PushSubscriptionPrismaRepository },
-  { provide: CRM_TOKENS.PushSender, useClass: WebPushSenderAdapter },
+  // Both transports are always constructed; the composite routes per subscription by the
+  // endpoint prefix. Each disables itself when its own credentials are unset, so a
+  // deployment with only VAPID (or only FCM) configured still works for that half.
+  WebPushSenderAdapter,
+  FcmSenderAdapter,
+  { provide: CRM_TOKENS.PushSender, useClass: CompositePushSender },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

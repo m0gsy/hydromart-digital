@@ -463,8 +463,23 @@ Aset listing yang harus dibuat dari nol (belum ada apa pun): ikon 512×512, feat
 Indonesia, dan kategori. Untuk app Ops, deskripsi harus jujur bahwa ia hanya untuk staf —
 Play menolak app yang tampak publik tapi seluruh isinya di balik login tanpa penjelasan.
 
-**Dua proyek Firebase / dua `google-services.json`** — satu per `applicationId`. Token FCM
-tidak berlaku lintas app.
+**SATU proyek Firebase berisi DUA app Android**, satu per `applicationId`. Rancangan awal
+saya menulis dua proyek terpisah; itu keliru dan mahal. Sebuah proyek Firebase memang
+wadah untuk banyak app, dan pengiriman FCM HTTP v1 dialamatkan **per-proyek**
+(`POST /v1/projects/{project_id}/messages:send`) dengan token yang menentukan instance
+app-nya. Jadi satu proyek berarti satu service account, satu set `FCM_*`, satu secret CI —
+sementara dua proyek memaksa crm-service memilih kredensial mana untuk token mana, yaitu
+cabang yang tidak perlu ada.
+
+Yang tetap benar dari catatan lama: **token FCM tidak berlaku lintas app.** Itu properti
+token, bukan alasan memisahkan proyek.
+
+Satu `google-services.json` sudah cukup untuk kedua flavor: berkas yang diunduh dari
+proyek memuat seluruh app di dalamnya, dan plugin Gradle mencocokkan lewat
+`applicationId`. Jadi satu berkas di `android/app/`, satu secret CI, bukan dua.
+
+Pisahkan jadi dua proyek **hanya kalau** nanti butuh Analytics/Crashlytics atau tagihan
+yang terpisah per-app. Rilis 1 tidak memakai keduanya (lihat "Yang sengaja TIDAK ada").
 
 Rilis bertahap: internal testing → closed testing → production, dengan staged rollout
 (misalnya 10% dulu). Ini juga yang membuat gerbang versi (F5) berguna sejak hari pertama.
@@ -518,9 +533,15 @@ kalender, bukan koding, dan semuanya bisa jalan paralel:
    dipercepat.
 2. Daftar **Play App Signing** sejak awal — dengan itu keystore kita hanya kunci _upload_
    dan kehilangannya masih bisa dipulihkan.
-3. Buat Google Group penguji, mulai kumpulkan alamat. Target 15–20 terkonfirmasi.
-4. Buat dua proyek Firebase (satu per `applicationId`) — dibutuhkan F4, dan
-   pembuatannya gratis serta tidak menghalangi apa pun.
+3. Kumpulkan 15–20 alamat penguji. **Daftar email di Play Console sudah cukup** untuk
+   jumlah segitu — Google Group hanya perlu kalau rosternya dikelola orang lain, dan ia
+   menambah satu setelan izin yang kalau salah membuat penguji melihat "item not
+   available". Tiap alamat wajib akun Google sungguhan.
+4. Buat **satu** proyek Firebase berisi dua app Android (`id.hydromart.app` dan
+   `id.hydromart.ops`) — dibutuhkan F4, gratis, dan tidak menghalangi apa pun.
+   Project ID ikut ke dalam endpoint FCM v1 jadi praktis permanen; nama tampilan bisa
+   diubah kapan saja. Lewati Google Analytics (tidak dipakai) dan SHA-1 (hanya perlu
+   untuk Google Sign-In, sementara App Links di sini disajikan Caddy sendiri).
 
 ---
 
@@ -552,7 +573,7 @@ F0 ✅ ────────────────────────�
                                                         ▼
                                        ajukan akses produksi → staged rollout 10%
 
- (paralel, MULAI MINGGU INI) akun Play + Play App Signing + Firebase ×2
+ (paralel, MULAI MINGGU INI) akun Play + Play App Signing + 1 proyek Firebase (2 app)
                              + rekrut 15–20 penguji (lantai 12, bukan target)
 ```
 
@@ -628,9 +649,9 @@ Supaya tidak terbaca sebagai kelalaian:
 
 | Fase                      | Hari | Status                                       |
 | ------------------------- | ---- | -------------------------------------------- |
-| F0 perbaikan web          | 2    | ✅ selesai                                    |
-| F1 export                 | 5–8  | ✅ selesai                                    |
-| F1c ukuran APK            | 1    | ✅ selesai — 229→27 halaman, 12,1→2,7 MB      |
+| F0 perbaikan web          | 2    | SELESAI                                      |
+| F1 export                 | 5–8  | SELESAI                                      |
+| F1c ukuran APK            | 1    | SELESAI — 229→27 halaman, 12,1→2,7 MB        |
 | F2 auth                   | 4    | jalur kritis menuju unggahan pertama         |
 | F3 shell                  | 4–5  | jalur kritis                                 |
 | F5 gerbang versi          | 1    | jalur kritis — **wajib di unggahan pertama** |
