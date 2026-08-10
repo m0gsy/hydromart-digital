@@ -11,16 +11,25 @@ import { Button } from '@/components/ui';
 // Not a full focus trap (ponytail: Esc + labelled dialog cover the common case;
 // add a trap if these host long forms with many tab stops).
 
+// Every open overlay listens on the document, so one Escape used to close the whole stack
+// at once — and the Android back button *is* an Escape here (native-bridge dispatches one).
+// A confirm opened over a sheet has to close the confirm only. Registration order is open
+// order, which is the same as stacking order for anything a user opened by tapping.
+const stack: (() => void)[] = [];
+
 function useOverlay(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return;
+    const self = () => onClose();
+    stack.push(self);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && stack[stack.length - 1] === self) onClose();
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      stack.splice(stack.indexOf(self), 1);
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k }) }));
 
-import { Sheet } from '@/components/overlay';
+import { ConfirmDialog, Sheet } from '@/components/overlay';
 
 /** jsdom has no pointer capture; the drag handler calls it unconditionally. */
 function stubPointerCapture(el: Element) {
@@ -108,5 +108,46 @@ describe('Sheet', () => {
     );
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The Android back button arrives here as one Escape (native-bridge dispatches it), and
+ * every open overlay listens on the document. Without a stack, confirming a deletion inside
+ * a sheet and pressing back would close the confirm and the sheet in the same press.
+ */
+describe('nested overlays', () => {
+  it('gives Escape to the topmost overlay only', () => {
+    const closeSheet = vi.fn();
+    const closeConfirm = vi.fn();
+    const { rerender } = render(
+      <Sheet open onClose={closeSheet} title="Pembayaran">
+        <ConfirmDialog open={false} title="Hapus" message="?" onConfirm={() => {}} onClose={closeConfirm} />
+      </Sheet>,
+    );
+    rerender(
+      <Sheet open onClose={closeSheet} title="Pembayaran">
+        <ConfirmDialog open title="Hapus" message="?" onConfirm={() => {}} onClose={closeConfirm} />
+      </Sheet>,
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(closeConfirm).toHaveBeenCalledTimes(1);
+    expect(closeSheet).not.toHaveBeenCalled();
+  });
+
+  it('hands Escape back to the sheet once the confirm is gone', () => {
+    const closeSheet = vi.fn();
+    const sheet = (confirmOpen: boolean) => (
+      <Sheet open onClose={closeSheet} title="Pembayaran">
+        <ConfirmDialog open={confirmOpen} title="Hapus" message="?" onConfirm={() => {}} onClose={() => {}} />
+      </Sheet>
+    );
+    const { rerender } = render(sheet(false));
+    rerender(sheet(true));
+    rerender(sheet(false));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(closeSheet).toHaveBeenCalledTimes(1);
   });
 });
