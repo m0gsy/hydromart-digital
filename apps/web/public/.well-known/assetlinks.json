@@ -4,7 +4,11 @@
     "target": {
       "namespace": "android_app",
       "package_name": "id.hydromart.app",
-      "sha256_cert_fingerprints": []
+      "sha256_cert_fingerprints": [
+        "07:3A:F8:6A:38:2C:1C:25:2C:D3:17:B9:35:97:27:48:BB:BB:10:40:27:68:3C:F1:03:08:78:4B:2C:3A:DD:94",
+        "9A:CC:7C:3F:1C:74:E7:69:E5:2C:4F:1F:CD:71:92:25:F7:AC:FB:33:18:B8:EE:D9:2D:F7:15:84:BB:FE:5B:E1",
+        "48:71:38:C8:FA:E3:3B:58:32:98:B4:BB:BD:4A:5D:CE:FA:3A:81:23:26:84:69:F9:81:15:B2:EC:3B:26:31:FA"
+      ]
     }
   },
   {
