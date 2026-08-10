@@ -39,6 +39,7 @@ import { useAsync } from '@/lib/use-async';
 import type {
   Address,
   Cart,
+  DeliveryOptions,
   Depot,
   LoyaltyAccount,
   MyVoucher,
@@ -49,23 +50,32 @@ import type {
   VoucherQuote,
 } from '@/lib/types';
 
-// Advisory express-delivery surcharge shown as a pre-submit preview only. order-service
-// computes the authoritative delivery fee from the routed depot at checkout.
-const EXPRESS_FEE = 5000;
 // The deliveryWindow value order-service/depot reads is a locale-independent ID literal
-// (matches the existing scheduled-slot strings), so express keeps an ID marker too.
+// (matches the scheduled-slot strings), so express keeps an ID marker too.
 const EXPRESS_WINDOW = 'Antar sekarang (express)';
 
-type SlotCapacity = 'OK' | 'LOW' | 'FULL';
-// ponytail: capacity static, wire when depot slot API exists. Times are ID literals so the
-// depot console reads them unchanged (same as the previous flat slot chips).
-const SLOTS: { time: string; period: 'periodMorning' | 'periodNoon' | 'periodAfternoon' | 'periodEvening'; cap: SlotCapacity }[] = [
-  { time: '09.00–11.00', period: 'periodMorning', cap: 'FULL' },
-  { time: '11.00–13.00', period: 'periodNoon', cap: 'OK' },
-  { time: '13.00–15.00', period: 'periodNoon', cap: 'OK' },
-  { time: '15.00–17.00', period: 'periodAfternoon', cap: 'OK' },
-  { time: '17.00–19.00', period: 'periodAfternoon', cap: 'LOW' },
-];
+/**
+ * What this screen falls back to while the depot's own delivery settings are in flight, or
+ * if that read fails. Express is off in the fallback on purpose: offering a paid upgrade at
+ * a price this screen guessed is exactly the bug being fixed — the old constants showed
+ * Rp5.000 that no order ever charged.
+ */
+const NO_OPTIONS: DeliveryOptions = {
+  slots: [],
+  expressEnabled: false,
+  expressFee: 0,
+  expressEtaMinMinutes: 0,
+  expressEtaMaxMinutes: 0,
+};
+
+/** Which part of the day a `HH.MM-HH.MM` window starts in, for the line under it. */
+function slotPeriod(slot: string): 'periodMorning' | 'periodNoon' | 'periodAfternoon' | 'periodEvening' {
+  const hour = Number(slot.slice(0, 2));
+  if (hour < 11) return 'periodMorning';
+  if (hour < 15) return 'periodNoon';
+  if (hour < 18) return 'periodAfternoon';
+  return 'periodEvening';
+}
 
 /** The next 4 delivery dates as { key: ID-literal label, num: day-of-month }. */
 function buildDates(t: (k: string) => string): { key: string; num: number }[] {
@@ -198,6 +208,21 @@ function CheckoutInner() {
   // here rather than per line.
   const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
 
+  // Delivery windows and express pricing belong to the depot, not to this screen. Read for
+  // the depot that will actually fulfil the order, so the surcharge shown is the one
+  // order-service will charge — it used to be a constant here and nothing at all there.
+  const { data: options } = useAsync<DeliveryOptions>(
+    () => api.get(endpoints.orders.deliveryOptions(depot?.id ?? null), true),
+    [depot?.id],
+  );
+  const delivery = options ?? NO_OPTIONS;
+
+  // A depot that stops offering express while this screen is open must not leave a
+  // selection that checkout would now reject.
+  useEffect(() => {
+    if (!delivery.expressEnabled) setExpress(false);
+  }, [delivery.expressEnabled]);
+
   // Non-blocking: the membership discount is a bonus preview. If loyalty is down
   // the customer still checks out (order-service applies the tier discount itself,
   // fail-open). rate 0 on any error. Scoped to the fulfilling depot because both the
@@ -307,6 +332,9 @@ function CheckoutInner() {
           // Gate on isReseller: never send voucher code for resellers (flat pricing, no stacking).
           voucherCode: isReseller ? undefined : voucherCode.trim() || undefined,
           deliveryWindow: deliveryWindow || undefined,
+          // The intent, not the price: order-service reads the surcharge from the depot's
+          // own settings. Nothing this screen believes about money is sent.
+          express: express || undefined,
         },
         true,
         { 'Idempotency-Key': attemptKey.current },
@@ -374,7 +402,7 @@ function CheckoutInner() {
   // because the membership-rate lookup needs it too.
   const deliveryFee = (depot?.deliveryFee ?? 0) * galonQuantity(cart.items);
   // ponytail: express surcharge is display-only until a depot express-pricing API exists.
-  const expressFee = express ? EXPRESS_FEE : 0;
+  const expressFee = express ? delivery.expressFee : 0;
   const displayedTotal = estimatedTotal + deliveryFee + expressFee;
 
   // 13n — when a voucher fails, surface how far the cart is from eligibility. minSpend
@@ -585,7 +613,8 @@ function CheckoutInner() {
     {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
     <div className="flex flex-col gap-3">
 
-      {/* Express-now */}
+      {/* Express-now — only where the depot actually offers it */}
+      {delivery.expressEnabled && (
       <button
         type="button"
         onClick={() => {
@@ -602,17 +631,25 @@ function CheckoutInner() {
         </span>
         <span className="flex-1">
           <span className="block text-[14.5px] font-extrabold">{t('customerFix.slot.expressNow')}</span>
-          <span className="block text-xs text-white/85">{t('customerFix.slot.expressEta')}</span>
+          <span className="block text-xs text-white/85">
+            {t('customerFix.slot.expressEta', {
+              min: delivery.expressEtaMinMinutes,
+              max: delivery.expressEtaMaxMinutes,
+            })}
+          </span>
         </span>
         <span className="flex items-center gap-2 text-[13px] font-extrabold">
-          {t('customerFix.slot.expressFee', { amount: formatIDR(EXPRESS_FEE) })}
+          {t('customerFix.slot.expressFee', { amount: formatIDR(delivery.expressFee) })}
           {express && <Check size={16} weight="bold" />}
         </span>
       </button>
+      )}
 
-      <div className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-muted">
-        {t('customerFix.slot.orSchedule')}
-      </div>
+      {delivery.expressEnabled && (
+        <div className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-muted">
+          {t('customerFix.slot.orSchedule')}
+        </div>
+      )}
 
       {/* Date row */}
       <div className="flex gap-2 overflow-x-auto">
@@ -642,39 +679,35 @@ function CheckoutInner() {
 
       {/* Slots + capacity */}
       <div className="flex flex-col gap-2.5">
-        {SLOTS.map((s) => {
-          const on = !express && slotTime === s.time;
-          const full = s.cap === 'FULL';
+        {/* The windows this depot offers, in its own order. There is no capacity here: the
+            list used to carry a hardcoded "Penuh" and a hardcoded "Sisa sedikit" that no
+            depot had ever set, and a slot that lies about being full is worse than a slot
+            that says nothing. */}
+        {delivery.slots.map((slot) => {
+          const on = !express && slotTime === slot;
           return (
             <button
-              key={s.time}
+              key={slot}
               type="button"
-              disabled={full}
               onClick={() => {
-                setSlotTime(s.time);
+                setSlotTime(slot);
                 setExpress(false);
               }}
               aria-pressed={on}
-              className={`flex items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors disabled:cursor-not-allowed ${
+              className={`flex items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors ${
                 on
                   ? 'border-[1.5px] border-brand-600 bg-brand-50'
-                  : full
-                    ? 'border-app bg-[color:var(--surface)] opacity-55'
-                    : 'border-app bg-[color:var(--surface)] hover:border-brand-300'
+                  : 'border-app bg-[color:var(--surface)] hover:border-brand-300'
               }`}
             >
               <span>
-                <span className="block text-sm font-bold">{s.time}</span>
+                <span className="block text-sm font-bold">{slot}</span>
                 <span className={`block text-[11.5px] ${on ? 'font-semibold text-brand-800' : 'text-muted'}`}>
-                  {t(`customerFix.slot.${s.period}`)}
+                  {t(`customerFix.slot.${slotPeriod(slot)}`)}
                   {on && ` · ${t('customerFix.slot.selected')}`}
                 </span>
               </span>
-              {full ? (
-                <span className="text-[11.5px] font-extrabold text-[color:var(--danger)]">{t('customerFix.slot.capFull')}</span>
-              ) : s.cap === 'LOW' ? (
-                <span className="text-[11.5px] font-extrabold text-[color:var(--warning,#b97d10)]">{t('customerFix.slot.capLow')}</span>
-              ) : on ? (
+              {on ? (
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-on-brand">
                   <Check size={12} weight="bold" />
                 </span>

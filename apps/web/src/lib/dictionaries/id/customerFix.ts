@@ -14,13 +14,11 @@ export const customerFix = {
   // 13b — delivery slot (checkout)
   slot: {
     expressNow: 'Antar sekarang',
-    expressEta: 'Estimasi 30–60 menit',
+    expressEta: 'Estimasi {min}–{max} menit',
     expressFee: '+{amount}',
     orSchedule: 'Atau jadwalkan',
     today: 'Hari ini',
     tomorrow: 'Besok',
-    capFull: 'Penuh',
-    capLow: 'Hampir penuh',
     selected: 'dipilih',
     periodMorning: 'Pagi',
     periodNoon: 'Siang',

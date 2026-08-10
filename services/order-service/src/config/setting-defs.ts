@@ -8,6 +8,8 @@ export interface SettingDef {
   min?: number;
   max?: number;
   envDefault: number | string;
+  /** `string` settings only: regex the written value must match (see the platform slice). */
+  pattern?: string;
   /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
   global?: boolean;
 }
@@ -78,6 +80,58 @@ export const SETTING_DEFS: SettingDef[] = [
     min: 0,
     max: 100000,
     envDefault: 200,
+  },
+  // Delivery timing, which used to live in the checkout page as three constants: the
+  // slot list, the express surcharge and its ETA. The surcharge in particular was shown
+  // to the customer and never charged — order pricing had no express component at all —
+  // so this is the money path, not a preference screen.
+  //
+  // Per-depot on purpose: a depot with one courier does not offer the same windows, or
+  // the same "now", as a depot with six.
+  {
+    key: 'expressEnabled',
+    label: 'Antar sekarang (1 = tawarkan, 0 = jangan)',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 1,
+  },
+  {
+    key: 'expressFee',
+    label: 'Biaya antar sekarang',
+    type: 'money',
+    unit: 'Rp',
+    min: 0,
+    max: 1000000,
+    envDefault: 5000,
+  },
+  {
+    key: 'expressEtaMinMinutes',
+    label: 'Estimasi antar sekarang (tercepat)',
+    type: 'int',
+    unit: 'menit',
+    min: 5,
+    max: 480,
+    envDefault: 30,
+  },
+  {
+    key: 'expressEtaMaxMinutes',
+    label: 'Estimasi antar sekarang (terlama)',
+    type: 'int',
+    unit: 'menit',
+    min: 5,
+    max: 480,
+    envDefault: 60,
+  },
+  // Comma-separated `HH.MM-HH.MM`, in the order they should be offered. The pattern is
+  // enforced on write: this string is parsed by the checkout screen, and a typo here
+  // would otherwise surface as a missing or malformed slot in front of a customer.
+  {
+    key: 'deliverySlots',
+    label: 'Slot jam antar (pisah koma, contoh 09.00-11.00)',
+    type: 'string',
+    envDefault: '09.00-11.00,11.00-13.00,13.00-15.00,15.00-17.00,17.00-19.00',
+    pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}(,\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2})*$',
   },
   {
     key: 'stalledHours',

@@ -6,6 +6,7 @@ const DEFS: SettingDef[] = [
   { key: 'fee', label: 'Ongkir', type: 'money', envDefault: 5000 },
   { key: 'label', label: 'Label', type: 'string', envDefault: 'depot' },
   { key: 'netWide', label: 'Global only', type: 'int', envDefault: 1, global: true },
+  { key: 'slots', label: 'Slot', type: 'string', envDefault: '09.00-11.00', pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}$' },
 ];
 const BY_KEY: Record<string, SettingDef> = Object.assign(
   Object.create(null),
@@ -56,7 +57,13 @@ describe('SettingsSliceService', () => {
     const { service } = build();
     const out = await service.schema(null);
     expect(out.defs).toBe(DEFS);
-    expect(out.effective).toEqual({ radiusKm: 5, fee: 5000, label: 'depot', netWide: 1 });
+    expect(out.effective).toEqual({
+      radiusKm: 5,
+      fee: 5000,
+      label: 'depot',
+      netWide: 1,
+      slots: '09.00-11.00',
+    });
   });
 
   it('prefers a depot override over the global row', async () => {
@@ -113,6 +120,9 @@ describe('SettingsSliceService', () => {
     ['a per-depot override of a global-only key', put({ scope: 'DEPOT', depotId: 'd1', key: 'netWide' }), 'global-only'],
     ['a value below min', put({ value: '0' }), 'below min'],
     ['a value above max', put({ value: '99' }), 'above max'],
+    // A string tunable something downstream parses must fail at the person typing it,
+    // not three screens later at the reader.
+    ['a string that does not match its pattern', put({ key: 'slots', value: '9-11' }), 'must match'],
   ])('refuses %s', async (_case, input, message) => {
     const { repo, service } = build();
     await expect(service.put(input)).rejects.toThrow(message);
@@ -123,6 +133,12 @@ describe('SettingsSliceService', () => {
     const { repo, service } = build();
     await service.put(put({ key: 'label', value: 'kantor' }));
     expect(repo.upserts[0].value).toBe('kantor');
+  });
+
+  it('accepts a string that matches its pattern', async () => {
+    const { repo, service } = build();
+    await service.put(put({ key: 'slots', value: '13.00-15.00' }));
+    expect(repo.upserts[0].value).toBe('13.00-15.00');
   });
 
   it('refuses a DEPOT reset with no depot, and passes GLOBAL through as null', async () => {

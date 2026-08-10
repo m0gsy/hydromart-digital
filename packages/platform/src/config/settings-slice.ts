@@ -11,6 +11,13 @@ export interface SettingDef {
   envDefault: number | string;
   min?: number;
   max?: number;
+  /**
+   * `string` settings only: a regex the value must match, source form, anchored by the
+   * author. `min`/`max` cannot police a string, and a free-text tunable that something
+   * downstream has to parse — a slot list, a code format — fails at the reader rather
+   * than at the person who typed it otherwise.
+   */
+  pattern?: string;
   /** true = GLOBAL scope only; a per-depot override is refused. */
   global?: boolean;
 }
@@ -70,6 +77,9 @@ export abstract class SettingsSliceService {
       throw new BadRequestException(`${input.key} is a global-only setting; no per-depot override`);
     }
     const coerced = coerce(input.value, def.type);
+    if (def.type === 'string' && def.pattern && !new RegExp(def.pattern).test(String(coerced))) {
+      throw new BadRequestException(`${input.key} must match ${def.pattern}`);
+    }
     if (def.type !== 'string') {
       const n = coerced as number;
       if (def.min != null && n < def.min) {

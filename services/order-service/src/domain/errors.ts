@@ -55,6 +55,19 @@ export class BelowMinimumOrderError extends DomainError {
 }
 
 /**
+ * Express delivery was asked for at a depot that does not offer it. Rejecting beats
+ * quietly placing a scheduled order: someone who chose "antar sekarang" wanted the next
+ * hour, and a silent downgrade sells them something else at the same price.
+ */
+export class ExpressUnavailableError extends DomainError {
+  readonly code = 'ORDER_EXPRESS_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This depot is not taking express deliveries right now. Please pick a time slot.');
+  }
+}
+
+/**
  * The delivery address is outside every active depot's service radius. Only
  * thrown when the depot directory was reachable and returned depots — a directory
  * outage (or a platform with no depots configured) stays fail-open and unrouted.

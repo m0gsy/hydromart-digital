@@ -235,6 +235,18 @@ export interface OrderStatusEvent {
   createdAt: string;
 }
 
+/**
+ * Delivery timing a depot offers, straight from its settings. The express surcharge here
+ * is the one the order is charged — checkout holds no prices of its own.
+ */
+export interface DeliveryOptions {
+  slots: string[];
+  expressEnabled: boolean;
+  expressFee: number;
+  expressEtaMinMinutes: number;
+  expressEtaMaxMinutes: number;
+}
+
 export interface Order extends DeliveryAddress {
   id: string;
   orderNumber: string;

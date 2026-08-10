@@ -40,6 +40,7 @@ import {
   CancelOrderDto,
   CheckoutDto,
   CreateReviewDto,
+  DeliveryOptionsResponseDto,
   InternalRefundDto,
   ListOrdersQueryDto,
   OrderValueBatchDto,
@@ -102,10 +103,23 @@ export class OrderController {
         depotId: dto.depotId ?? null,
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
+        express: dto.express ?? false,
         idempotencyKey: idempotencyKey ?? null,
       },
       authorization,
     );
+  }
+
+  // Declared before any ':id' route so 'delivery-options' is never read as an order id.
+  @ApiOkResponse({ type: DeliveryOptionsResponseDto })
+  @Get('delivery-options')
+  @ApiOperation({
+    summary: 'Delivery windows and express pricing offered by a depot',
+    description:
+      'What the checkout screen may offer. The express surcharge here is the one the order will be charged — the screen never carries its own price.',
+  })
+  deliveryOptions(@Query('depotId') depotId?: string): DeliveryOptionsResponseDto {
+    return this.orders.deliveryOptions(depotId ?? null);
   }
 
   // Declared before any ':id' route so 'walk-in' is never read as an order id.

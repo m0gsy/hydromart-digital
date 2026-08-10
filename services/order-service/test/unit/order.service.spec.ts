@@ -7,6 +7,7 @@ import { OrderService } from '../../src/application/services/order.service';
 import { OutboxService } from '../../src/application/services/outbox.service';
 import {
   BelowMinimumOrderError,
+  ExpressUnavailableError,
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
@@ -98,6 +99,9 @@ describe('OrderService', () => {
   let service: OrderService;
   let outbox: OutboxService;
   const customer = randomUUID();
+  // Held rather than passed inline: the express tests need to change what the depot has
+  // configured, which is a property of the config, not of the service.
+  let config: ReturnType<typeof buildTestConfig>;
 
   beforeEach(() => {
     orders = new InMemoryOrderRepository();
@@ -119,6 +123,7 @@ describe('OrderService', () => {
     inventory = new FakeInventory();
     cartService = new CartService(cart, catalog);
     outbox = buildOutbox(orders);
+    config = buildTestConfig();
     service = new OrderService(
       orders,
       cart,
@@ -134,7 +139,7 @@ describe('OrderService', () => {
       promo,
       inventory,
       cartService,
-      buildTestConfig(),
+      config,
       recommendation,
       forecast,
       franchiseRevenue,
@@ -1659,6 +1664,47 @@ describe('OrderService', () => {
     });
     expect(order.deliveryFee).toBe(8000);
     expect(order.total).toBe(28000);
+  });
+
+  // The express surcharge was a constant in the checkout SCREEN and had no counterpart
+  // here at all: the customer read a total with Rp5.000 in it and the order stored one
+  // without. These four are the money path.
+  describe('express delivery', () => {
+    it('adds the depot surcharge to the order, not just to the preview', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address, express: true });
+      expect(order.deliveryFee).toBe(5000 + 5000); // per-galon shipping + express
+      expect(order.total).toBe(20000 + 10000);
+    });
+
+    it('charges nothing extra for a scheduled delivery', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        deliveryWindow: '09.00-11.00',
+      });
+      expect(order.deliveryFee).toBe(5000);
+    });
+
+    it('refuses express at a depot that has switched it off, rather than downgrading it', async () => {
+      jest
+        .spyOn(config, 'express')
+        .mockReturnValue({ enabled: false, fee: 5000, etaMinMinutes: 30, etaMaxMinutes: 60 });
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, express: true }),
+      ).rejects.toThrow(ExpressUnavailableError);
+    });
+
+    it('reports what the screen may offer, from the same place checkout prices it', () => {
+      expect(service.deliveryOptions(null)).toEqual({
+        slots: ['09.00-11.00', '11.00-13.00'],
+        expressEnabled: true,
+        expressFee: 5000,
+        expressEtaMinMinutes: 30,
+        expressEtaMaxMinutes: 60,
+      });
+    });
   });
 
   it('rejects checkout when the subtotal is below the depot minimum', async () => {
