@@ -4,7 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "id.hydromart.app",
-      "sha256_cert_fingerprints": []
+      "sha256_cert_fingerprints": [
+        "07:3A:F8:6A:38:2C:1C:25:2C:D3:17:B9:35:97:27:48:BB:BB:10:40:27:68:3C:F1:03:08:78:4B:2C:3A:DD:94"
+      ]
     }
   },
   {
