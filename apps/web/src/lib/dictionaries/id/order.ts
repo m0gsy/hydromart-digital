@@ -35,6 +35,7 @@ export const order = {
     phone: 'Telepon',
     address: 'Alamat',
     addressPlaceholder: 'Jalan, nomor, RT/RW',
+    addressRequired: 'Lengkapi alamat pengiriman dulu.',
     city: 'Kota',
     province: 'Provinsi',
     postalCode: 'Kode pos',

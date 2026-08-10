@@ -26,17 +26,22 @@ test('an authenticated customer can place an order through manual checkout', asy
 
   await page.goto('/checkout');
 
-  // No saved addresses on this account → the manual entry form is shown. Fill the
-  // required fields by their stable input ids (labels are locale-driven).
+  // Each part of the form is a row that opens its own sheet. No saved addresses on this
+  // account → the address sheet holds the manual entry form. Fill it by the stable input
+  // ids (labels are locale-driven), then dismiss the sheet.
+  await page.getByRole('button', { name: /alamat pengiriman|delivery address/i }).click();
   await page.locator('#recipientName').fill('Budi Santoso');
   await page.locator('#phone').fill('081234567890');
   await page.locator('#addressLine').fill('Jl. Merdeka No. 10, RT 01/RW 02');
   await page.locator('#city').fill('Jakarta Pusat');
   await page.locator('#province').fill('DKI Jakarta');
+  await page.getByRole('dialog').getByRole('button', { name: /simpan|save/i }).click();
 
-  // No map pin on a manually-typed address → pick the fulfilling depot. The submit
-  // button stays disabled until one is chosen, so this click is load-bearing.
+  // No map pin on a manually-typed address → pick the fulfilling depot, in its own sheet.
+  // The submit button stays disabled until one is chosen, so this is load-bearing.
+  await page.getByRole('button', { name: /pilih depot|choose.*depot/i }).click();
   await page.getByTestId('depot-picker').getByRole('button').first().click();
+  await page.getByRole('dialog').getByRole('button', { name: /simpan|save/i }).click();
 
   // CASH is the default payment method. Submit places the order and redirects to the
   // order page with the one-time success banner (?placed=1).
