@@ -44,14 +44,23 @@ export function AppBar() {
     <header className="surface sticky top-0 z-30 border-b border-app pt-[env(safe-area-inset-top)] sm:hidden">
       <div className="flex h-14 items-center gap-2 px-4">
         {chrome.kind === 'pushed' ? (
-          <button
-            type="button"
-            onClick={goBack}
-            aria-label={t('common.back')}
-            className="-ml-2 flex h-10 w-10 flex-none items-center justify-center rounded-full text-[color:var(--text)] transition-colors hover:bg-brand-50"
-          >
-            <ArrowLeft size={22} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label={t('common.back')}
+              className="-ml-2 flex h-10 w-10 flex-none items-center justify-center rounded-full text-[color:var(--text)] transition-colors hover:bg-brand-50"
+            >
+              <ArrowLeft size={22} />
+            </button>
+            {/* Only once the page below has stopped rendering its own — the titles arrive
+                one screen at a time, with the phase that rebuilds that screen. */}
+            {chrome.titleKey && (
+              <h1 className="truncate text-[17px] font-extrabold tracking-[-0.02em]">
+                {t(chrome.titleKey)}
+              </h1>
+            )}
+          </>
         ) : chrome.titleKey ? (
           // Root screens own the page title now, so the page below no longer repeats it.
           <h1 className="truncate text-[19px] font-extrabold tracking-[-0.02em]">
@@ -65,9 +74,6 @@ export function AppBar() {
             <span className="text-[19px]">hydromart</span>
           </Link>
         )}
-
-        {/* Pushed screens keep their own <h1> for now; their titles move up here in the
-            phase that rebuilds each screen, so the heading is never rendered twice. */}
 
         <div className="ml-auto flex flex-none items-center gap-1.5">
           {ready && customer && (
