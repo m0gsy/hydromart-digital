@@ -193,9 +193,14 @@ sampai layar utama. Lebih lemah, tapi diterima.
 
 ## 5. Target API level
 
-Capacitor 8 menargetkan API 35, yang memenuhi syarat Play saat ini. Nilainya ada di
-`mobile/android/variables.gradle` dan berubah saat Capacitor di-upgrade — bukan sesuatu
-yang perlu diatur sendiri di sini.
+`mobile/android/variables.gradle` memakai `targetSdkVersion = 36`, memenuhi syarat Play
+saat ini. Nilainya berubah saat Capacitor di-upgrade — bukan sesuatu yang perlu diatur
+sendiri di sini.
+
+Konsekuensinya bukan administratif: sejak API 35 Android memaksa edge-to-edge dan
+`StatusBar.setOverlaysWebView(false)` menjadi no-op. Aplikasi memang menggambar di bawah
+status bar, jadi yang menahan chrome-nya adalah `env(safe-area-inset-top)` di app bar —
+bukan panggilan plugin itu, yang sudah dihapus.
 
 ---
 

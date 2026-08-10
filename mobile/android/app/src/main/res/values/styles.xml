@@ -16,7 +16,16 @@
     </style>
 
 
+    <!--
+        Android 12+ draws the launch screen itself from these attributes and ignores a
+        windowBackground drawable, so `android:background` alone gave a bare white flash on
+        every current phone. The icon and background colour here are what the system shows
+        before the WebView exists; @drawable/splash stays for Android 11 and below.
+    -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

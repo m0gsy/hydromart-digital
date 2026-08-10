@@ -7,6 +7,7 @@ import { Check, Drop, Plus } from '@phosphor-icons/react';
 
 import { RemoteImage } from '@/components/remote-image';
 import { MemberPrice, Money } from '@/components/ui';
+import { haptic } from '@/lib/platform';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -44,6 +45,7 @@ export function ProductCard({
       return;
     }
     setAdding(true);
+    haptic(); // the badge is in the app bar, well away from the thumb that just tapped
     bump(1); // optimistic badge until the server's own cart lands
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it

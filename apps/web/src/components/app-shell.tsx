@@ -43,7 +43,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Nav />
         <main
           className={
-            'mx-auto w-full max-w-[1216px] px-4 pt-6 sm:px-8 sm:pb-10 ' +
+            'mx-auto w-full max-w-[1216px] px-4 sm:px-8 sm:pb-10 ' +
+            // A bare screen has no app bar to carry the inset, and `targetSdkVersion = 36`
+            // means Android draws the app under the status bar whatever the plugin says.
+            // Without this, "Masuk" sits under the clock on any current phone.
+            (kind === 'bare' ? 'pt-[calc(env(safe-area-inset-top)+1.5rem)] ' : 'pt-6 ') +
             // Only the tab bar needs clearing, and only root screens show it.
             (kind === 'root' ? 'pb-24' : 'pb-10')
           }

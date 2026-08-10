@@ -29,9 +29,10 @@ let appInfo: { id?: string; build?: string } | null = { id: 'id.hydromart.app', 
 let launchUrl: { url?: string } | null = null;
 
 function installBridge() {
-  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications', 'StatusBar']) {
+  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications', 'StatusBar', 'SplashScreen']) {
     plugins[name] = {
-      setOverlaysWebView: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined),
+      setStyle: vi.fn(async () => undefined),
       open: vi.fn(async () => undefined),
       share: vi.fn(async () => undefined),
       exitApp: vi.fn(async () => undefined),
@@ -166,12 +167,20 @@ describe('minimum version gate', () => {
   });
 });
 
-describe('status bar', () => {
-  it('takes the WebView out from under the status bar', () => {
+describe('splash screen', () => {
+  // `launchAutoHide` is off in capacitor.config.ts, so nothing else dismisses it.
+  it('hides the splash once the shell has mounted', () => {
     render(<NativeBridge />);
-    // Capacitor draws edge-to-edge by default, which puts every screen's header behind
-    // the clock. One call, instead of a safe-area audit of 226 pages.
-    expect(plugins.StatusBar!.setOverlaysWebView).toHaveBeenCalledWith({ overlay: false });
+    expect(plugins.SplashScreen!.hide).toHaveBeenCalled();
+  });
+
+  // The branch that blocks an ancient WebView returns before everything else in the
+  // effect. Hiding after it would leave that screen behind a splash forever.
+  it('hides it even when the WebView is too old to run the app', () => {
+    setUserAgent('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/98.0.0.0 Mobile');
+    render(<NativeBridge />);
+    expect(screen.getByRole('heading', { name: /WebView/i })).toBeInTheDocument();
+    expect(plugins.SplashScreen!.hide).toHaveBeenCalled();
   });
 });
 

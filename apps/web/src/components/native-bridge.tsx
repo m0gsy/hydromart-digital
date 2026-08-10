@@ -60,6 +60,12 @@ export function NativeBridge() {
   useEffect(() => {
     if (!isNativeShell()) return;
 
+    // Hidden before anything that can return early. `launchAutoHide` is off, so the splash
+    // stays up until this runs — and the branch below deliberately returns without doing
+    // anything else, which would have left an unsupported WebView staring at a splash
+    // instead of at the screen explaining why it stopped. No-op on the web.
+    callPlugin('SplashScreen', 'hide', { fadeOutDuration: 200 });
+
     const major = chromeMajor();
     // A missing Chrome token means this is not the WebView we know how to judge; do not
     // lock a user out on a guess.
@@ -68,13 +74,6 @@ export function NativeBridge() {
       // No point asking the server anything: this screen is already the final answer.
       return;
     }
-
-    // F3. The one call that keeps the app out from under the status bar, instead of an
-    // audit of 226 pages for a `safe-area-inset-top` none of them have: Capacitor draws
-    // the WebView edge-to-edge by default, so the header of every screen renders behind
-    // the clock and the battery icon. `overlay: false` gives the status bar its own strip
-    // and starts the WebView below it. No-op on the web, where the plugin is absent.
-    callPlugin('StatusBar', 'setOverlaysWebView', { overlay: false });
 
     void minimumVersionBlock().then((found) => {
       if (found) setBlock(found);

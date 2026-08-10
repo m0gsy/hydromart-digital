@@ -32,6 +32,7 @@ import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { resolveDeliveryDepot } from '@/lib/depots';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
+import { haptic } from '@/lib/platform';
 import { galonQuantity } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -304,6 +305,8 @@ function CheckoutInner() {
       return;
     }
     setSubmitting(true);
+    haptic(); // the one irreversible tap on this screen
+
     setSubmitError(null);
     // B-13: one key for this whole attempt at buying this cart, deliberately kept across
     // failed submits. If the request timed out on an order the server had already placed,
