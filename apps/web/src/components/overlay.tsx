@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
@@ -36,14 +36,43 @@ export function Sheet({
   onClose,
   title,
   children,
+  footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /**
+   * Pinned below the scroll area rather than at the end of it. A sheet that carries a form
+   * needs its Simpan button reachable without scrolling to the bottom of the form first.
+   */
+  footer?: React.ReactNode;
 }) {
   useOverlay(open, onClose);
+  const [dragY, setDragY] = useState(0);
+  useEffect(() => {
+    if (!open) setDragY(0);
+  }, [open]);
   if (!open) return null;
+
+  // Drag-to-dismiss on the handle only, not the whole panel — the panel scrolls, and a
+  // gesture that both scrolls and dismisses picks the wrong one about half the time.
+  // Pointer events rather than touch: the same code then works with a mouse on desktop.
+  const onHandleDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const startY = e.clientY;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => setDragY(Math.max(0, ev.clientY - startY));
+    const up = (ev: PointerEvent) => {
+      el.releasePointerCapture(ev.pointerId);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      if (ev.clientY - startY > 120) onClose();
+      else setDragY(0);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+  };
 
   return (
     <div
@@ -61,8 +90,22 @@ export function Sheet({
       />
       <div
         className="surface relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl shadow-lift sm:w-full sm:max-w-lg sm:rounded-3xl"
-        style={{ animation: 'fadeUp 0.25s var(--ease-out) both' }}
+        style={{
+          animation: dragY === 0 ? 'slideUp 0.25s var(--ease-out) both' : undefined,
+          transform: dragY ? `translateY(${dragY}px)` : undefined,
+          transition: dragY ? 'none' : 'transform 0.2s var(--ease-out)',
+        }}
       >
+        {/* Grab handle — the affordance that says this can be flicked away, and the only
+            part of the panel that listens for the drag. Hidden from `sm:` up, where the
+            sheet is a centered dialog and there is nothing to drag it towards. */}
+        <div
+          onPointerDown={onHandleDown}
+          className="flex touch-none justify-center pt-2.5 pb-1 sm:hidden"
+          aria-hidden="true"
+        >
+          <span className="h-1 w-10 rounded-full bg-[color:var(--border)]" />
+        </div>
         <div className="flex items-center justify-between border-b border-app px-5 py-4">
           <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
           <button
@@ -75,6 +118,11 @@ export function Sheet({
           </button>
         </div>
         <div className="overflow-y-auto p-5">{children}</div>
+        {footer && (
+          <div className="border-t border-app p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
