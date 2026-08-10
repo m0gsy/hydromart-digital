@@ -3,6 +3,7 @@ import { profile as base } from '../id/profile';
 // English — mirrors the shape of id/profile.ts (the source of truth for keys).
 export const profile: typeof base = {
   rewards: {
+    tabs: { redeem: 'Redeem', vouchers: 'Vouchers', history: 'History' },
     title: 'Rewards & points',
     hero: {
       membership: 'Membership',

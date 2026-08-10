@@ -120,7 +120,7 @@ function Panel() {
 
   return (
     <div>
-      <h1 className="mb-5 text-[28px] font-extrabold tracking-[-0.03em]">{copy.title}</h1>
+      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">{copy.title}</h1>
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
         {/* setup */}

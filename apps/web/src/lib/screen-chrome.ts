@@ -51,6 +51,13 @@ const ROOT: Record<string, string | undefined> = {
 const PUSHED: Record<string, string> = {
   '/cart': 'order.cart.title',
   '/checkout': 'order.checkout.title',
+  '/rewards': 'profile.rewards.title',
+  '/vouchers': 'profile.rewards.wallet.title',
+  '/subscriptions': 'subscriptions.title',
+  '/addresses': 'profile.addresses.list.title',
+  '/referral': 'profile.referral.title',
+  '/help': 'help.title',
+  '/notifications': 'notifications.title',
 };
 
 const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);

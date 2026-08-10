@@ -52,7 +52,7 @@ export default function HelpPage() {
 
   return (
     <div className="mx-auto max-w-[520px]">
-      <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">{t('help.title')}</h1>
+      <h1 className="hidden text-[22px] font-extrabold tracking-[-0.02em] sm:block">{t('help.title')}</h1>
 
       {/* search */}
       <label className="mt-3.5 flex h-12 items-center gap-2 rounded-[14px] border border-app surface px-4">

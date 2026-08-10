@@ -70,7 +70,7 @@ function Feed() {
   return (
     <div className="mx-auto max-w-[430px]">
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">{t('notifications.title')}</h1>
+        <h1 className="hidden text-[22px] font-extrabold tracking-[-0.02em] sm:block">{t('notifications.title')}</h1>
         {hasUnread && (
           <button
             type="button"

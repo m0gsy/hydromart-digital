@@ -71,7 +71,12 @@ describe('screenChrome', () => {
   it('titles only the pushed screens whose page heading has moved up', () => {
     expect(screenChrome('/cart').titleKey).toBe('order.cart.title');
     expect(screenChrome('/checkout').titleKey).toBe('order.checkout.title');
-    for (const path of ['/rewards', '/products/detail', '/orders/detail']) {
+    expect(screenChrome('/rewards').titleKey).toBe('profile.rewards.title');
+    expect(screenChrome('/notifications').titleKey).toBe('notifications.title');
+    // Still untitled, each for its own reason: a product and an order are named by their
+    // own screen (the product name, the order number), and `/promo`'s heading is the
+    // artwork rather than a label.
+    for (const path of ['/products/detail', '/orders/detail', '/promo']) {
       expect(screenChrome(path).titleKey).toBeUndefined();
     }
   });

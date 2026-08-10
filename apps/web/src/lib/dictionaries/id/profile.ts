@@ -1,6 +1,7 @@
 // Bahasa Indonesia — profile area (rewards + addresses). Mirrored by en/profile.ts.
 export const profile = {
   rewards: {
+    tabs: { redeem: 'Tukar poin', vouchers: 'Voucher', history: 'Riwayat' },
     title: 'Rewards & poin',
     hero: {
       membership: 'Keanggotaan',
