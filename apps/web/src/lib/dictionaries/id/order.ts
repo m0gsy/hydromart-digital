@@ -72,6 +72,7 @@ export const order = {
     pickDepotEmpty: 'Belum ada depot aktif. Coba lagi nanti.',
     pickDepotRequired: 'Pilih depot dulu untuk melanjutkan.',
     placeOrder: 'Buat pesanan —',
+    placeOrderShort: 'Buat pesanan',
     priceVerified:
       'Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih.',
     emptyCart: 'Keranjangmu kosong. Tambahkan produk sebelum checkout.',

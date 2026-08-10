@@ -151,6 +151,9 @@ function SearchField() {
       />
       <Input
         type="search"
+        // Named, so the browser can autofill and remember it — an unnamed form field is
+        // also what Chrome flags in the issues panel.
+        name="search"
         enterKeyHint="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}

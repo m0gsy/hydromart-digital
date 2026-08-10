@@ -1032,7 +1032,10 @@ function CheckoutInner() {
           disabled={needsDepotPick && !pickedDepotId}
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >
-          {t('order.checkout.placeOrder')}
+          {/* Not `placeOrder`: that string ends in an em dash because the rail version is
+              followed by the amount. The bar carries the total on its left already, so the
+              dash would dangle. */}
+          {t('order.checkout.placeOrderShort')}
         </Button>
       </StickyActionBar>
 
