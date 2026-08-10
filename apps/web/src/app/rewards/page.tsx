@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   ArrowsClockwise,
@@ -29,7 +28,6 @@ import { formatDateTime, formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { tierProgress } from '@/lib/loyalty';
 import { useAsync } from '@/lib/use-async';
-import { useQueryParam } from '@/lib/use-query-param';
 import type {
   LoyaltyAccount,
   MyVoucher,
@@ -627,9 +625,15 @@ type RewardsTab = 'tukar' | 'voucher' | 'riwayat';
 
 function RewardsInner() {
   const { t } = useT();
-  const router = useRouter();
-  const raw = useQueryParam('tab');
-  const tab: RewardsTab = raw === 'voucher' || raw === 'riwayat' ? raw : 'tukar';
+  /**
+   * Plain state, not `?tab=`. The obvious version puts the tab in the URL so a link can
+   * point at one, and it does not work here: the App Router does not re-render this screen
+   * for a query-only push, and `useQueryParam`'s popstate subscription does not fire for
+   * one either — the picker moved and the section under it did not. Rather than ship a URL
+   * contract that is right half the time, the tab is local. Back then leaves the screen
+   * instead of walking through three tabs, which on a phone is the better answer anyway.
+   */
+  const [tab, setTab] = useState<RewardsTab>('tukar');
   // The member card and its ladder: global, network-wide standing.
   const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
@@ -666,12 +670,11 @@ function RewardsInner() {
       {/* Below `lg:` this screen is four stacked screens' worth of content — wallet, catalog,
           redemptions, ledger — and the balance at the top is what people come for. The tabs
           pick one; every section stays mounted, so switching costs no request and the desktop
-          stack is literally the same markup with the picker gone. The tab is in the URL, so
-          back works and a link can point at one. */}
+          stack is literally the same markup with the picker gone. */}
       <Segmented
         className="mb-4 w-full justify-between lg:hidden"
         value={tab}
-        onChange={(v) => router.push(`/rewards?tab=${v}`)}
+        onChange={setTab}
         options={[
           { value: 'tukar', label: t('profile.rewards.tabs.redeem') },
           { value: 'voucher', label: t('profile.rewards.tabs.vouchers') },
