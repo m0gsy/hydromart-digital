@@ -40,7 +40,9 @@ test('an authenticated customer can place an order through manual checkout', asy
 
   // CASH is the default payment method. Submit places the order and redirects to the
   // order page with the one-time success banner (?placed=1).
-  await page.locator('button[type=submit]').click();
+  // `:visible` because the form now carries two submits — the rail's at `lg:` and the
+  // sticky bar's below it — and exactly one of them is ever on screen.
+  await page.locator('button[type=submit]:visible').click();
 
   await expect(page).toHaveURL(/\/orders\/detail\?id=[^&]+&placed=1/, { timeout: 20_000 });
   // Toast provider keeps an always-present empty role=alert region; assert no alert has
