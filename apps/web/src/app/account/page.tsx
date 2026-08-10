@@ -30,7 +30,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { Sheet, ConfirmDialog } from '@/components/overlay';
-import { Button, Chip, ErrorState, Field, Input, CenterState, LinkButton, Skeleton } from '@/components/ui';
+import { Button, Chip, ErrorState, Field, Input, CenterState, LinkButton, Segmented, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
@@ -587,19 +587,15 @@ function PrefsSection() {
               <div className="text-[13.5px] font-extrabold">{t('account.language')}</div>
               <div className="mt-0.5 text-xs text-muted">{t('account.languageBody')}</div>
             </div>
-            <div className="flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]">
-              {(['id', 'en'] as const).map((lng) => (
-                <button
-                  key={lng}
-                  type="button"
-                  onClick={() => { if (locale !== lng) toggle(); }}
-                  aria-pressed={locale === lng}
-                  className={`rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${locale === lng ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
-                >
-                  {lng}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={locale}
+              onChange={() => toggle()}
+              className="uppercase"
+              options={[
+                { value: 'id', label: 'id' },
+                { value: 'en', label: 'en' },
+              ]}
+            />
           </div>
 
           {/* Theme (light / dark / follow system) — provider already app-wide, this is the customer toggle */}
@@ -611,19 +607,14 @@ function PrefsSection() {
               <div className="text-[13.5px] font-extrabold">{t('account.theme')}</div>
               <div className="mt-0.5 text-xs text-muted">{t('account.themeBody')}</div>
             </div>
-            <div className="flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]">
-              {(['light', 'dark', 'system'] as const).map((th) => (
-                <button
-                  key={th}
-                  type="button"
-                  onClick={() => setTheme(th)}
-                  aria-pressed={theme === th}
-                  className={`rounded-full px-3 py-[5px] text-xs font-extrabold transition-colors ${theme === th ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
-                >
-                  {t(`account.theme_${th}`)}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={theme}
+              onChange={setTheme}
+              options={(['light', 'dark', 'system'] as const).map((th) => ({
+                value: th,
+                label: t(`account.theme_${th}`),
+              }))}
+            />
           </div>
         </div>
       ) : null}
@@ -747,6 +738,24 @@ export default function AccountPage() {
           <PrivacyDataSection />
           <ConsentSection />
           <PrefsSection />
+
+          {/* The footer is hidden below `sm:`, and these two links cannot go with it: Play
+              requires the account-deletion page to be reachable from inside the app, and the
+              privacy policy is the other half of the same obligation. */}
+          <div className="surface flex flex-col overflow-hidden rounded-2xl border border-app">
+            <Link
+              href="/kebijakan-privasi"
+              className="border-b border-app px-4 py-3.5 text-sm font-bold transition-colors hover:bg-brand-50"
+            >
+              {t('privacy.title')}
+            </Link>
+            <Link
+              href="/hapus-akun"
+              className="px-4 py-3.5 text-sm font-bold text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)]"
+            >
+              {t('deleteAccount.navLabel')}
+            </Link>
+          </div>
 
           {/* mobile logout + version */}
           <button

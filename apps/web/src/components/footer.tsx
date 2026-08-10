@@ -44,8 +44,12 @@ export function Footer() {
     },
   ];
 
+  // Hidden below `sm:`, where a four-column link farm under every screen is web furniture
+  // the app has no use for. The two links that are not furniture — the privacy policy and
+  // the account-deletion page Play requires to be reachable in-app — moved into /account in
+  // the same change, so hiding this never takes them away.
   return (
-    <footer className="bg-deep-teal mt-10 text-white">
+    <footer className="bg-deep-teal mt-10 hidden text-white sm:block">
       <div className="mx-auto w-full max-w-[1216px] px-5 pb-[30px] pt-11 sm:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="flex flex-col gap-3">
