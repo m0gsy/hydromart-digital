@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,13 +8,14 @@ import {
   Bank,
   Bell,
   ChartLineUp,
+  ClipboardText,
   CreditCard,
   DeviceMobile,
+  FileText,
   Gift,
   Hash,
   Headset,
   Heart,
-  House,
   MapPin,
   Medal,
   Money,
@@ -24,13 +24,27 @@ import {
   Plus,
   QrCode,
   Receipt,
+  ShieldCheck,
   SignOut,
+  SlidersHorizontal,
   Translate,
-  User,
+  TrashSimple,
 } from '@phosphor-icons/react';
 
 import { Sheet, ConfirmDialog } from '@/components/overlay';
-import { Button, Chip, ErrorState, Field, Input, CenterState, LinkButton, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Chip,
+  ErrorState,
+  Field,
+  Input,
+  CenterState,
+  LinkButton,
+  ListRow,
+  Segmented,
+  Skeleton,
+  Toggle,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
@@ -42,7 +56,6 @@ import { canViewDashboard, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { formatDateTime } from '@/lib/format';
 import type {
-  Address,
   Customer,
   ConsentState,
   DataSubjectRequest,
@@ -58,8 +71,10 @@ import type {
 // time from the release tag (see apps/web/Dockerfile); `dev` on a local run.
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
 
-// Shared right-column card shell (spec 4f: white, 1px border, radius 20, pad 24).
-const CARD = 'surface rounded-[20px] border border-app p-6';
+/** A group of rows reads as one card; the divider is what separates the rows inside it. */
+const GROUP = 'surface divide-y divide-[color:var(--border-soft)] rounded-2xl border border-app px-4';
+
+const ROW_ICON = 'text-brand-600';
 
 const PAY_ICON: Record<SavedPaymentType, typeof Money> = {
   CASH: Money,
@@ -69,136 +84,10 @@ const PAY_ICON: Record<SavedPaymentType, typeof Money> = {
   VA: Hash,
 };
 
-/* ---------- Toggle (accessible switch, spec 46×27) ---------- */
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`flex h-[27px] w-[46px] flex-shrink-0 items-center rounded-full p-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
-        on ? 'justify-end bg-brand-600' : 'justify-start bg-[#dcdad2] dark:bg-[color:var(--surface-soft)]'
-      }`}
-    >
-      <span className="h-[21px] w-[21px] rounded-full bg-white shadow-card" />
-    </button>
-  );
-}
-
-/* ---------- Section header (title + trailing action) ---------- */
-function CardHead({ id, title, action }: { id?: string; title: string; action?: ReactNode }) {
-  return (
-    <div className="mb-4 flex items-center justify-between gap-4">
-      <h2 id={id} className="scroll-mt-24 text-[17px] font-extrabold">{title}</h2>
-      {action}
-    </div>
-  );
-}
-
-/* ---------- Profile (read-only; full editing incl. photo lives at /account/edit) ---------- */
-function ProfileSection({ customer }: { customer: Customer }) {
-  const { t, locale } = useT();
-
-  const memberSince = new Date(customer.createdAt).toLocaleDateString(
-    locale === 'en' ? 'en-US' : 'id-ID',
-    { month: 'short', year: 'numeric' },
-  );
-
-  const rows = [
-    { label: t('account.profileCard.name'), value: customer.fullName ?? '—' },
-    { label: t('account.profileCard.phone'), value: customer.phone },
-    { label: t('account.profileCard.email'), value: customer.email ?? t('account.profileCard.emailEmpty') },
-    { label: locale === 'en' ? 'Member since' : 'Member sejak', value: memberSince },
-  ];
-
-  return (
-    <section className={CARD}>
-      <CardHead
-        id="profile"
-        title={t('account.profileCard.title')}
-        action={
-          <Link
-            href="/account/edit"
-            className="flex items-center gap-1.5 rounded-full border border-app px-4 py-1.5 text-xs font-extrabold transition-colors hover:border-brand-600 hover:text-brand-700"
-          >
-            <PencilSimple size={14} weight="bold" />
-            {t('account.profileCard.edit')}
-          </Link>
-        }
-      />
-
-      <div className="grid grid-cols-2 gap-x-7 gap-y-[18px]">
-        {rows.map((r) => (
-          <div key={r.label} className="min-w-0">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">{r.label}</div>
-            <div className="mt-1 truncate text-[14.5px] font-bold">{r.value}</div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ---------- Saved addresses (compact read + manage at /addresses) ---------- */
-function AddressesSection() {
-  const { t } = useT();
-  const { data, error, loading, reload } = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
-
-  return (
-    <section className={CARD}>
-      <CardHead
-        id="addresses"
-        title={t('account.addressesCard.title')}
-        action={
-          <Link href="/addresses" className="flex items-center gap-1.5 text-xs font-extrabold text-brand-700 hover:underline">
-            <Plus size={14} weight="bold" />
-            {t('account.addressesCard.add')}
-          </Link>
-        }
-      />
-      {loading ? (
-        <Skeleton className="h-16 w-full rounded-xl" />
-      ) : error ? (
-        <ErrorState message={error} onRetry={reload} />
-      ) : !data || data.length === 0 ? (
-        <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-muted">{t('account.addressesCard.empty')}</p>
-          <LinkButton href="/addresses" variant="secondary">{t('account.addressesCard.add')}</LinkButton>
-        </div>
-      ) : (
-        <div className="grid gap-3.5 sm:grid-cols-2">
-          {data.map((a) => (
-            <div key={a.id} className="flex gap-3 rounded-[16px] border border-app px-4 py-[15px]">
-              <House size={18} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[13.5px] font-extrabold">
-                  <span className="truncate">{a.label}</span>
-                  {a.isPrimary && <Chip tone="tint">{t('account.addressesCard.primary')}</Chip>}
-                </div>
-                <div className="mt-0.5 truncate text-xs text-muted">{a.addressLine}</div>
-                <div className="mt-2 flex items-center gap-4">
-                  <Link href="/addresses" className="text-xs font-extrabold text-brand-700 hover:underline">
-                    {t('account.profileCard.edit')}
-                  </Link>
-                  <Link href="/addresses" className="text-xs font-bold text-muted hover:text-[color:var(--danger)]">
-                    {t('account.payments.delete')}
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/* ---------- Payment methods ---------- */
+/* ---------- Payment methods (sheet body) ---------- */
 const PAY_TYPES: SavedPaymentType[] = ['CASH', 'TRANSFER', 'QRIS', 'EWALLET', 'VA'];
 
-function PaymentsSection() {
+function PaymentsBody() {
   const { t } = useT();
   const { data, error, loading, reload } = useAsync<SavedPaymentMethod[]>(() =>
     api.get(endpoints.paymentMethods.list, true),
@@ -248,22 +137,7 @@ function PaymentsSection() {
   }
 
   return (
-    <section className={CARD}>
-      <CardHead
-        id="payments"
-        title={t('account.payments.title')}
-        action={
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 text-xs font-extrabold text-brand-700 hover:underline"
-          >
-            <Plus size={14} weight="bold" />
-            {t('account.payments.add')}
-          </button>
-        }
-      />
-
+    <div className="flex flex-col gap-4">
       {loading ? (
         <Skeleton className="h-16 w-full rounded-xl" />
       ) : error ? (
@@ -277,7 +151,7 @@ function PaymentsSection() {
             return (
               <div key={m.id} className="flex items-center gap-3 rounded-[14px] border border-app px-[15px] py-[13px]">
                 <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50">
-                  <Icon size={18} weight="fill" className="text-brand-600" />
+                  <Icon size={18} weight="fill" className={ROW_ICON} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-extrabold">{m.label}</div>
@@ -303,8 +177,10 @@ function PaymentsSection() {
         </div>
       )}
 
-      <Sheet open={adding} onClose={() => setAdding(false)} title={t('account.payments.sheetTitle')}>
-        <form onSubmit={add} className="flex flex-col gap-4">
+      {/* The add form expands in place. It used to be a sheet of its own, and a sheet inside
+          a sheet gives the hardware back button two things to close at once. */}
+      {adding ? (
+        <form onSubmit={add} className="flex flex-col gap-4 rounded-2xl border border-app p-4">
           <Field label={t('account.payments.type')} htmlFor="pm-type">
             <div className="flex flex-wrap gap-2">
               {PAY_TYPES.map((ty) => {
@@ -333,7 +209,12 @@ function PaymentsSection() {
           </Field>
           <Button type="submit" loading={busy} disabled={!label.trim()}>{t('account.payments.save')}</Button>
         </form>
-      </Sheet>
+      ) : (
+        <Button variant="secondary" onClick={() => setAdding(true)}>
+          <Plus size={14} weight="bold" />
+          {t('account.payments.add')}
+        </Button>
+      )}
 
       <ConfirmDialog
         open={removeTarget !== null}
@@ -344,17 +225,17 @@ function PaymentsSection() {
         onConfirm={remove}
         onClose={() => setRemoveTarget(null)}
       />
-    </section>
+    </div>
   );
 }
 
-/* ---------- Preferences (notifications + language) ---------- */
+/* ---------- Personal data (sheet body) ---------- */
 /**
  * UU PDP tahap 1 (item 13). The two rights that shipped first: ask for a copy, ask to be
  * deleted. Neither runs on the click — head office decides, so this is a request form
  * plus the state of what was asked, not a self-service delete button.
  */
-function PrivacyDataSection() {
+function PrivacyDataBody() {
   const { t } = useT();
   const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<DataSubjectRequest[]>(() =>
@@ -393,10 +274,7 @@ function PrivacyDataSection() {
   const completedExport = (data ?? []).some((r) => r.type === 'EXPORT' && r.status === 'COMPLETED');
 
   return (
-    <section className={CARD}>
-      <h2 id="privacy-data" className="mb-2 scroll-mt-24 text-[17px] font-extrabold">
-        {t('account.privacyData.title')}
-      </h2>
+    <div>
       <p className="mb-3 text-sm text-muted">{t('account.privacyData.body')}</p>
 
       <div className="flex flex-wrap gap-2">
@@ -451,16 +329,17 @@ function PrivacyDataSection() {
         onConfirm={() => submit('DELETE')}
         onClose={() => setConfirmDelete(false)}
       />
-    </section>
+    </div>
   );
 }
 
+/* ---------- Consents (sheet body) ---------- */
 /**
  * UU PDP tahap 2 — the consent ledger. Mandatory purposes are shown but not switchable:
  * hiding them would leave the customer unable to see what they are held to, and offering
  * a switch the server refuses would be a lie in the UI.
  */
-function ConsentSection() {
+function ConsentBody() {
   const { t } = useT();
   const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<ConsentState[]>(() =>
@@ -482,50 +361,47 @@ function ConsentSection() {
   }
 
   return (
-    <section className={CARD}>
-      <h2 id="consents" className="mb-2 scroll-mt-24 text-[17px] font-extrabold">
-        {t('account.consents.title')}
-      </h2>
-      <p className="mb-3 text-sm text-muted">{t('account.consents.body')}</p>
+    <div>
+      <p className="mb-1 text-sm text-muted">{t('account.consents.body')}</p>
       {loading ? (
         <Skeleton className="h-24 w-full rounded-xl" />
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
-        <ul className="divide-y divide-[color:var(--border-soft)]">
+        <div className="divide-y divide-[color:var(--border-soft)]">
           {(data ?? []).map((row) => (
-            <li key={row.purpose} className="flex items-center gap-3.5 py-3.5">
-              <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-bold">
-                  {t(`account.consents.purpose.${row.purpose}`)}
-                </div>
-                <div className="mt-0.5 text-xs text-muted">
-                  {row.decidedAt
-                    ? t('account.consents.since', {
-                        date: formatDateTime(row.decidedAt).split(',')[0] ?? '',
-                      })
-                    : t('account.consents.never')}
-                </div>
-              </div>
-              {row.withdrawable ? (
-                <Toggle
-                  on={row.granted}
-                  onChange={(v) => toggle(row, v)}
-                  label={t(`account.consents.purpose.${row.purpose}`)}
-                />
-              ) : (
-                <Chip tone="tint">{t('account.consents.mandatory')}</Chip>
-              )}
-              {pending === row.purpose && <span className="text-xs text-muted">…</span>}
-            </li>
+            <ListRow
+              key={row.purpose}
+              title={t(`account.consents.purpose.${row.purpose}`)}
+              subtitle={
+                row.decidedAt
+                  ? t('account.consents.since', {
+                      date: formatDateTime(row.decidedAt).split(',')[0] ?? '',
+                    })
+                  : t('account.consents.never')
+              }
+              trailing={
+                row.withdrawable ? (
+                  <Toggle
+                    on={row.granted}
+                    disabled={pending === row.purpose}
+                    onChange={(v) => toggle(row, v)}
+                    label={t(`account.consents.purpose.${row.purpose}`)}
+                  />
+                ) : (
+                  <Chip tone="tint">{t('account.consents.mandatory')}</Chip>
+                )
+              }
+            />
           ))}
-        </ul>
+        </div>
       )}
-    </section>
+    </div>
   );
 }
 
-function PrefsSection() {
+/* ---------- Preferences (sheet body): notifications + language + theme ---------- */
+function PrefsBody() {
   const { t, locale, toggle } = useT();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
@@ -553,81 +429,93 @@ function PrefsSection() {
     { key: 'whatsapp' as const, icon: DeviceMobile },
   ];
 
-  const rowShell = 'flex items-center gap-3.5 border-b border-[color:var(--border-soft)] py-3.5';
-  const tileIcon = 'flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-xl bg-brand-50';
+  if (loading) return <Skeleton className="h-24 w-full rounded-xl" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!prefs) return null;
 
   return (
-    <section className={CARD}>
-      <h2 id="prefs" className="mb-2 scroll-mt-24 text-[17px] font-extrabold">{t('account.prefs.title')}</h2>
-      {loading ? (
-        <Skeleton className="h-24 w-full rounded-xl" />
-      ) : error ? (
-        <ErrorState message={error} onRetry={reload} />
-      ) : prefs ? (
-        <div>
-          {rows.map(({ key, icon: Icon }) => (
-            <div key={key} className={rowShell}>
-              <span className={tileIcon}>
-                <Icon size={18} weight="fill" className="text-brand-600" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-extrabold">{t(`account.prefs.${key}.title`)}</div>
-                <div className="mt-0.5 text-xs text-muted">{t(`account.prefs.${key}.body`)}</div>
-              </div>
-              <Toggle on={prefs[key]} onChange={(v) => togglePref(key, v)} label={t(`account.prefs.${key}.title`)} />
-            </div>
-          ))}
+    <div className="divide-y divide-[color:var(--border-soft)]">
+      {rows.map(({ key, icon: Icon }) => (
+        <ListRow
+          key={key}
+          icon={<Icon size={18} weight="fill" className={ROW_ICON} />}
+          title={t(`account.prefs.${key}.title`)}
+          subtitle={t(`account.prefs.${key}.body`)}
+          trailing={
+            <Toggle on={prefs[key]} onChange={(v) => togglePref(key, v)} label={t(`account.prefs.${key}.title`)} />
+          }
+        />
+      ))}
 
-          {/* Language (spec 4f: segmented ID/EN as the last preference row) */}
-          <div className="flex items-center gap-3.5 py-3.5">
-            <span className={tileIcon}>
-              <Translate size={18} weight="fill" className="text-brand-600" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-extrabold">{t('account.language')}</div>
-              <div className="mt-0.5 text-xs text-muted">{t('account.languageBody')}</div>
-            </div>
-            <div className="flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]">
-              {(['id', 'en'] as const).map((lng) => (
-                <button
-                  key={lng}
-                  type="button"
-                  onClick={() => { if (locale !== lng) toggle(); }}
-                  aria-pressed={locale === lng}
-                  className={`rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${locale === lng ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
-                >
-                  {lng}
-                </button>
-              ))}
-            </div>
-          </div>
+      <ListRow
+        icon={<Translate size={18} weight="fill" className={ROW_ICON} />}
+        title={t('account.language')}
+        subtitle={t('account.languageBody')}
+        trailing={
+          <Segmented
+            value={locale}
+            onChange={() => toggle()}
+            className="uppercase"
+            options={[
+              { value: 'id', label: 'id' },
+              { value: 'en', label: 'en' },
+            ]}
+          />
+        }
+      />
 
-          {/* Theme (light / dark / follow system) — provider already app-wide, this is the customer toggle */}
-          <div className="flex items-center gap-3.5 py-3.5">
-            <span className={tileIcon}>
-              <Moon size={18} weight="fill" className="text-brand-600" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-extrabold">{t('account.theme')}</div>
-              <div className="mt-0.5 text-xs text-muted">{t('account.themeBody')}</div>
-            </div>
-            <div className="flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]">
-              {(['light', 'dark', 'system'] as const).map((th) => (
-                <button
-                  key={th}
-                  type="button"
-                  onClick={() => setTheme(th)}
-                  aria-pressed={theme === th}
-                  className={`rounded-full px-3 py-[5px] text-xs font-extrabold transition-colors ${theme === th ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
-                >
-                  {t(`account.theme_${th}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </section>
+      {/* Theme (light / dark / follow system) — provider already app-wide, this is the customer toggle */}
+      <ListRow
+        icon={<Moon size={18} weight="fill" className={ROW_ICON} />}
+        title={t('account.theme')}
+        subtitle={t('account.themeBody')}
+        trailing={
+          <Segmented
+            value={theme}
+            onChange={setTheme}
+            options={(['light', 'dark', 'system'] as const).map((th) => ({
+              value: th,
+              label: t(`account.theme_${th}`),
+            }))}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+/* ---------- The four settings that have no route of their own ---------- */
+type SheetKey = 'payments' | 'prefs' | 'privacyData' | 'consents';
+
+const SHEETS = [
+  { key: 'payments', titleKey: 'account.payments.title', icon: CreditCard, Body: PaymentsBody },
+  { key: 'prefs', titleKey: 'account.prefs.title', icon: SlidersHorizontal, Body: PrefsBody },
+  { key: 'privacyData', titleKey: 'account.privacyData.title', icon: ShieldCheck, Body: PrivacyDataBody },
+  { key: 'consents', titleKey: 'account.consents.title', icon: ClipboardText, Body: ConsentBody },
+] as const satisfies readonly { key: SheetKey; titleKey: string; icon: typeof Money; Body: () => React.ReactNode }[];
+
+/* ---------- Profile card ---------- */
+function ProfileCard({ customer, subtitle }: { customer: Customer; subtitle: string }) {
+  const { t } = useT();
+  const initial = customer.fullName?.trim()?.[0]?.toUpperCase() ?? '?';
+
+  return (
+    <div className="flex items-center gap-3.5 rounded-2xl bg-[color:var(--text)] p-4 text-[color:var(--surface)]">
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-extrabold text-on-brand">
+        {initial}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-extrabold">{customer.fullName ?? '—'}</div>
+        <div className="truncate text-xs text-[color:var(--surface)]/70">{subtitle}</div>
+      </div>
+      <Link
+        href="/account/edit"
+        className="flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-extrabold text-brand-300"
+      >
+        <PencilSimple size={14} weight="bold" />
+        {t('account.profileCard.edit')}
+      </Link>
+    </div>
   );
 }
 
@@ -639,6 +527,7 @@ export default function AccountPage() {
   // Global on purpose: this is the customer's card across the network, not their
   // standing at one depot.
   const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
 
   if (ready && !customer) {
     return (
@@ -653,24 +542,24 @@ export default function AccountPage() {
   }
   if (!customer) return null;
 
-  const initial = customer.fullName?.trim()?.[0]?.toUpperCase() ?? '?';
   const opsHref = canViewDashboard(customer.role) ? '/dashboard' : '/dashboard/orders';
   const showOps = isStaff(customer.role);
   const tier = loyalty?.tier;
   const memberSub = tier ? `${tier.charAt(0)}${tier.slice(1).toLowerCase()} member` : customer.phone;
 
-  const navLinks = [
-    { href: '#profile', label: t('account.nav.profile'), icon: User, active: true },
-    { href: '#addresses', label: t('account.nav.addresses'), icon: MapPin, active: false },
-    { href: '#payments', label: t('account.nav.payments'), icon: CreditCard, active: false },
-    { href: '/orders', label: t('account.nav.orders'), icon: Receipt, active: false },
-    { href: '/rewards', label: t('account.nav.rewards'), icon: Medal, active: false },
-    { href: '/favorites', label: t('account.nav.favorites'), icon: Heart, active: false },
-    { href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise, active: false },
-    { href: '/referral', label: t('account.nav.referral'), icon: Gift, active: false },
-    { href: '#prefs', label: t('account.nav.prefs'), icon: Bell, active: false },
-    { href: '/help', label: t('help.title'), icon: Headset, active: false },
-    ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp, active: false }] : []),
+  // One list, two presentations: rows below `lg:`, the sidebar above it. Two arrays would
+  // drift the first time a destination is added.
+  const links = [
+    { href: '/orders', label: t('account.nav.orders'), icon: Receipt },
+    { href: '/addresses', label: t('account.nav.addresses'), icon: MapPin },
+    { href: '/rewards', label: t('account.nav.rewards'), icon: Medal },
+    { href: '/vouchers', label: t('profile.rewards.wallet.title'), icon: Gift },
+    { href: '/favorites', label: t('account.nav.favorites'), icon: Heart },
+    { href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise },
+    { href: '/referral', label: t('account.nav.referral'), icon: Gift },
+    { href: '/notifications', label: t('notifications.title'), icon: Bell },
+    { href: '/help', label: t('help.title'), icon: Headset },
+    ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp }] : []),
   ];
 
   function logout() {
@@ -680,32 +569,21 @@ export default function AccountPage() {
 
   return (
     <div>
-      <h1 className="mb-5 text-[28px] font-extrabold tracking-[-0.03em]">{t('account.title')}</h1>
+      {/* Below `sm:` the app bar carries this title, so rendering it here as well would show
+          it twice. Above `sm:` the app bar is gone and the page owns its heading again. */}
+      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">{t('account.title')}</h1>
 
       <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
         {/* desktop sidebar (spec 4f) */}
         <aside className="hidden lg:sticky lg:top-20 lg:block">
           <div className="surface flex flex-col gap-1.5 rounded-[20px] border border-app p-3.5">
-            <div className="mb-1.5 flex items-center gap-3 border-b border-[color:var(--border-soft)] px-3 pb-3.5 pt-2.5">
-              <span className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--text)] text-lg font-extrabold text-[color:var(--surface)]">
-                {initial}
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-[14.5px] font-extrabold">{customer.fullName ?? '—'}</div>
-                <div className="truncate text-xs text-muted">{memberSub}</div>
-              </div>
-            </div>
-            {navLinks.map(({ href, label, icon: Icon, active }) => (
+            {links.map(({ href, label, icon: Icon }) => (
               <Link
-                key={href}
+                key={label}
                 href={href}
-                className={`flex items-center gap-3 rounded-xl px-[13px] py-[11px] text-[13.5px] transition-colors ${
-                  active
-                    ? 'bg-brand-50 font-extrabold text-brand-800'
-                    : 'font-bold text-[#3d565e] hover:bg-[color:var(--surface-muted)] dark:text-[color:var(--text)]'
-                }`}
+                className="flex items-center gap-3 rounded-xl px-[13px] py-[11px] text-[13.5px] font-bold text-[#3d565e] transition-colors hover:bg-[color:var(--surface-muted)] dark:text-[color:var(--text)]"
               >
-                <Icon size={18} weight="fill" className={active ? 'text-brand-800' : 'text-muted'} />
+                <Icon size={18} weight="fill" className="text-muted" />
                 {label}
               </Link>
             ))}
@@ -720,33 +598,47 @@ export default function AccountPage() {
           </div>
         </aside>
 
-        {/* content column (spec 4f: gap 16px) */}
         <div className="flex flex-col gap-4">
-          {/* mobile profile header (spec 4g) */}
-          <div className="flex items-center gap-3.5 rounded-2xl bg-[color:var(--text)] p-4 text-[color:var(--surface)] lg:hidden">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-extrabold text-on-brand">
-              {initial}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-extrabold">{customer.fullName ?? '—'}</div>
-              <div className="truncate text-xs text-[color:var(--surface)]/70">{memberSub}</div>
-            </div>
-            <Link href="/rewards" className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-extrabold text-brand-300">
-              <Medal size={14} weight="fill" />
-              {t('account.nav.rewards')}
-            </Link>
-            <Link href="/vouchers" className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-extrabold text-brand-300">
-              <Gift size={14} weight="fill" />
-              {t('profile.rewards.wallet.title')}
-            </Link>
+          <ProfileCard customer={customer} subtitle={memberSub} />
+
+          <div className={`${GROUP} lg:hidden`}>
+            {links.map(({ href, label, icon: Icon }) => (
+              <ListRow
+                key={label}
+                href={href}
+                title={label}
+                icon={<Icon size={18} weight="fill" className={ROW_ICON} />}
+              />
+            ))}
           </div>
 
-          <ProfileSection customer={customer} />
-          <AddressesSection />
-          <PaymentsSection />
-          <PrivacyDataSection />
-          <ConsentSection />
-          <PrefsSection />
+          <div className={GROUP}>
+            {SHEETS.map(({ key, titleKey, icon: Icon }) => (
+              <ListRow
+                key={key}
+                title={t(titleKey)}
+                icon={<Icon size={18} weight="fill" className={ROW_ICON} />}
+                onClick={() => setSheet(key)}
+              />
+            ))}
+          </div>
+
+          {/* The footer is hidden below `sm:`, and these two links cannot go with it: Play
+              requires the account-deletion page to be reachable from inside the app, and the
+              privacy policy is the other half of the same obligation. */}
+          <div className={GROUP}>
+            <ListRow
+              href="/kebijakan-privasi"
+              title={t('privacy.title')}
+              icon={<FileText size={18} weight="fill" className={ROW_ICON} />}
+            />
+            <ListRow
+              href="/hapus-akun"
+              tone="danger"
+              title={t('deleteAccount.navLabel')}
+              icon={<TrashSimple size={18} weight="fill" className="text-[color:var(--danger)]" />}
+            />
+          </div>
 
           {/* mobile logout + version */}
           <button
@@ -760,6 +652,13 @@ export default function AccountPage() {
           <p className="text-center text-xs font-medium text-muted">{t('account.version', { v: APP_VERSION })}</p>
         </div>
       </div>
+
+      {/* Bodies mount with their sheet, so opening /account is one request now, not five. */}
+      {SHEETS.map(({ key, titleKey, Body }) => (
+        <Sheet key={key} open={sheet === key} onClose={() => setSheet(null)} title={t(titleKey)}>
+          <Body />
+        </Sheet>
+      ))}
     </div>
   );
 }

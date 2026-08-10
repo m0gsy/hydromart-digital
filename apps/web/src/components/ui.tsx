@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
+import { CaretRight } from '@phosphor-icons/react';
 
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { useKeyboardOpen } from '@/lib/use-keyboard';
 
 function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -377,5 +379,153 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
     >
       {message}
     </CenterState>
+  );
+}
+
+/* ---------- Segmented ---------- */
+/**
+ * A pill-in-a-track switch for two or three mutually exclusive options. Extracted rather
+ * than invented: this exact markup was written twice inside /account (language, theme), and
+ * a third copy was about to appear for the rewards tabs.
+ *
+ * `aria-pressed` on each option rather than a radio group, matching what was already there —
+ * these switch a view or a preference immediately, they do not stage a form value.
+ */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        'flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]',
+        className,
+      )}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => {
+            if (option.value !== value) onChange(option.value);
+          }}
+          aria-pressed={option.value === value}
+          className={cx(
+            'rounded-full px-3.5 py-[5px] text-xs font-extrabold transition-colors',
+            option.value === value ? 'bg-brand-600 text-on-brand' : 'text-muted',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- ListRow ---------- */
+/**
+ * One row of a settings-style list: icon tile, title, optional subtitle, trailing slot.
+ * The shape was copy-pasted in four places before this existed, which is also why it takes
+ * either an `href` or an `onClick` — half of those rows navigate and half open a sheet.
+ *
+ * A row with neither is a plain row, not a broken button: some of them only display.
+ */
+export function ListRow({
+  icon,
+  title,
+  subtitle,
+  trailing,
+  href,
+  onClick,
+  tone = 'default',
+}: {
+  icon?: ReactNode;
+  title: string;
+  subtitle?: string;
+  trailing?: ReactNode;
+  href?: string;
+  onClick?: () => void;
+  tone?: 'default' | 'danger';
+}) {
+  const body = (
+    <>
+      {icon && (
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-50">
+          {icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 text-left">
+        <span
+          className={cx(
+            'block truncate text-[13.5px] font-extrabold',
+            tone === 'danger' && 'text-[color:var(--danger)]',
+          )}
+        >
+          {title}
+        </span>
+        {subtitle && <span className="mt-0.5 block truncate text-xs text-muted">{subtitle}</span>}
+      </span>
+      {trailing ?? ((href || onClick) && <CaretRight size={16} className="flex-none text-muted" />)}
+    </>
+  );
+
+  const shell = 'flex w-full items-center gap-3.5 py-3.5 text-left';
+
+  if (href) {
+    return (
+      <Link href={href} className={shell}>
+        {body}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={shell}>
+        {body}
+      </button>
+    );
+  }
+  return <div className={shell}>{body}</div>;
+}
+
+/* ---------- StickyActionBar ---------- */
+/**
+ * The primary action of a screen, pinned above the fold on a phone and inline from `sm:` up.
+ * Every commerce screen here puts its total and its CTA in a right-hand rail, which on a
+ * phone lands at the bottom of a long scroll — permanently below the fold.
+ *
+ * Extracted from the product detail page, which had already solved this inline.
+ *
+ * The keyboard case is the reason this is a component and not a class string: Android
+ * shrinks the WebView, so a bar pinned to the bottom ends up sitting on top of the keyboard,
+ * over the field being typed into. Unlike the tab bar it must not disappear — the CTA is the
+ * point of the screen — so it stops being sticky and rejoins the flow instead.
+ */
+export function StickyActionBar({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const keyboardOpen = useKeyboardOpen();
+  return (
+    <div
+      className={cx(
+        'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 py-3',
+        '-mx-4 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0',
+        !keyboardOpen && 'sticky bottom-0',
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }

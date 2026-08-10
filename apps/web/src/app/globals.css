@@ -232,6 +232,18 @@ body {
   }
 }
 
+/* A sheet arrives from the edge it is anchored to, not from eight pixels below the middle.
+   fadeUp's nudge reads as a card settling; this reads as a panel being pulled up, which is
+   also the direction the drag handle sends it back. */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

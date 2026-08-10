@@ -17,7 +17,7 @@ import {
 import { RemoteImage } from '@/components/remote-image';
 import { FavoriteButton } from '@/components/favorite-button';
 import { QuantityStepper } from '@/components/quantity-stepper';
-import { Button, Chip, ErrorState, MemberPrice, Money, Skeleton } from '@/components/ui';
+import { Button, Chip, ErrorState, MemberPrice, Money, Skeleton, StickyActionBar } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useCart } from '@/lib/cart-context';
 import { endpoints } from '@/lib/endpoints';
@@ -256,7 +256,7 @@ export default function ProductDetailPage() {
             </div>
 
             {/* qty + CTA — sticky on mobile, inline on desktop */}
-            <div className="sticky bottom-0 z-10 -mx-4 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 py-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
+            <StickyActionBar>
               <QuantityStepper value={qty} onChange={setQty} disabled={adding} />
               <Button
                 onClick={addToCart}
@@ -275,7 +275,7 @@ export default function ProductDetailPage() {
                 )}
               </Button>
               <FavoriteButton productId={id} className="h-[54px] w-[54px]" />
-            </div>
+            </StickyActionBar>
 
             {added && (
               <Link href="/cart" className="text-sm font-semibold text-brand-700">

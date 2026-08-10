@@ -2,44 +2,29 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { ArrowsClockwise, Bell, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
+import { Bell, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
-import { onPluginEvent } from '@/lib/capacitor';
 import { useT } from '@/lib/locale-context';
-import { isNativeShell } from '@/lib/platform';
 import { consoleHome, isStaff } from '@/lib/roles';
+import { useKeyboardOpen } from '@/lib/use-keyboard';
 
 const BAR =
   'fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-app bg-[color:var(--surface-muted)]/95 px-[22px] pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[8px] sm:hidden';
 
 // Mobile-only bottom tab bar (hidden on sm+, where the top nav carries the links).
-// 1f: five slots with an elevated teal "Pesan lagi" (reorder) FAB in the middle.
+// Four slots, and only on the four root screens — `AppShell` does not render this on a
+// pushed screen, where the app bar's back chevron is the whole navigation model.
+//
+// The fifth slot used to be an elevated "Pesan lagi" FAB pointing at `/products`, the same
+// href as the Belanja tab beside it. It bought an accent and cost a quarter of the bar;
+// reordering itself is unaffected, since "Beli lagi" is the first rail on an authed home
+// and the first block on /orders. A FAB earns the slot back the day it opens a
+// quick-reorder sheet instead of a duplicate link.
 // ponytail: kept `fixed` (not the spec's `sticky`) — the root layout reserves
 // pb-24 on <main> for a fixed bar; sticky would drop it into flow after the
 // footer and leave that gap. Same pinned-to-viewport look either way.
-/**
- * Whether the soft keyboard is up, on native only. `willShow`/`didHide` rather than one
- * pair or the other: hiding on the announcement keeps the bar from being caught by the
- * keyboard on its way up, and waiting for the keyboard to be fully gone before restoring
- * it keeps the bar from flashing back into the closing animation.
- */
-function useKeyboardOpen(): boolean {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!isNativeShell()) return;
-    const offShow = onPluginEvent('Keyboard', 'keyboardWillShow', () => setOpen(true));
-    const offHide = onPluginEvent('Keyboard', 'keyboardDidHide', () => setOpen(false));
-    return () => {
-      offShow();
-      offHide();
-    };
-  }, []);
-  return open;
-}
-
 export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
@@ -88,18 +73,6 @@ export function BottomNav() {
     <nav className={BAR} aria-label="Navigasi utama">
       {tab('/', t('nav.home'), House)}
       {tab('/products', t('nav.shop'), SquaresFour)}
-
-      {/* Center reorder FAB — elevated above the bar */}
-      <Link
-        href="/products"
-        className="flex flex-1 flex-col items-center gap-1 text-[10px] font-extrabold text-brand-600"
-      >
-        <span className="-mt-[26px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-600 shadow-[0_8px_18px_rgba(12,151,172,0.35)]">
-          <ArrowsClockwise size={24} weight="fill" className="text-white" />
-        </span>
-        {t('order.detail.reorder')}
-      </Link>
-
       {tab('/orders', t('nav.orders'), Receipt)}
       {tab('/account', t('nav.account'), User)}
     </nav>

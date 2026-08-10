@@ -38,8 +38,9 @@ export function Nav() {
     </Link>
   );
 
+  // Below `sm:` this header is replaced by `AppBar` — see `AppShell`.
   return (
-    <header className="surface sticky top-0 z-30 border-b border-app">
+    <header className="surface sticky top-0 z-30 hidden border-b border-app sm:block">
       <nav className="mx-auto flex h-16 max-w-[1216px] items-center gap-3 px-4 sm:h-[72px] sm:gap-5 sm:px-8">
         <Link
           href="/"
