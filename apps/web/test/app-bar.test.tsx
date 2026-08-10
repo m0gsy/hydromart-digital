@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let pathname = '/';
+let search = new URLSearchParams();
 let customer: { role: string; fullName?: string } | null = null;
 let count = 0;
 const back = vi.fn();
 const replace = vi.fn();
+const push = vi.fn();
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ back, replace }),
+  useRouter: () => ({ back, replace, push }),
+  useSearchParams: () => search,
 }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer, ready: true }) }));
 vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ count }) }));
@@ -20,10 +23,12 @@ import { AppBar } from '@/components/app-bar';
 
 beforeEach(() => {
   pathname = '/';
+  search = new URLSearchParams();
   customer = null;
   count = 0;
   back.mockClear();
   replace.mockClear();
+  push.mockClear();
   window.history.pushState({}, '', '/');
 });
 
@@ -46,6 +51,26 @@ describe('AppBar', () => {
     pathname = '/orders';
     render(<AppBar />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('nav.orders');
+  });
+
+  // The catalog spends its bar on search instead of a title; the page keeps the heading
+  // screen-reader-only, so a phone never shows two of them.
+  it('renders the catalog search in place of a title, seeded from the URL', () => {
+    pathname = '/products';
+    search = new URLSearchParams('search=galon');
+    render(<AppBar />);
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect((screen.getByLabelText('shop.catalog.searchLabel') as HTMLInputElement).value).toBe('galon');
+  });
+
+  it('keeps the category filter when the app-bar search is submitted', () => {
+    pathname = '/products';
+    search = new URLSearchParams('category=c1');
+    render(<AppBar />);
+    const field = screen.getByLabelText('shop.catalog.searchLabel') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: ' galon ' } });
+    fireEvent.submit(field.closest('form')!);
+    expect(push).toHaveBeenCalledWith('/products?search=galon&category=c1');
   });
 
   it('shows a back control on a pushed screen and no title', () => {

@@ -28,6 +28,11 @@ export interface Chrome {
    * they arrive one phase at a time rather than all at once.
    */
   titleKey?: string;
+  /**
+   * The app bar is a search field on this screen rather than a title. Only the catalog
+   * qualifies: it is the one screen where searching is the reason you arrived.
+   */
+  search?: boolean;
   /** Where back goes when there is no history to go back to (deep links land like that). */
   backHref: string;
 }
@@ -85,7 +90,9 @@ function normalise(pathname: string): string {
 export function screenChrome(pathname: string): Chrome {
   const path = normalise(pathname);
 
-  if (path in ROOT) return { kind: 'root', titleKey: ROOT[path], backHref: '/' };
+  if (path in ROOT) {
+    return { kind: 'root', titleKey: ROOT[path], search: path === '/products', backHref: '/' };
+  }
   if (BARE.has(path)) return { kind: 'bare', backHref: '/' };
 
   return { kind: 'pushed', titleKey: PUSHED[path], backHref: BACK[path] ?? '/' };

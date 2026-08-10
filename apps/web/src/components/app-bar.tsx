@@ -1,9 +1,11 @@
 'use client';
 
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, Bell, Drop, ShoppingCartSimple } from '@phosphor-icons/react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Bell, Drop, MagnifyingGlass, ShoppingCartSimple } from '@phosphor-icons/react';
 
+import { Input } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -61,6 +63,13 @@ export function AppBar() {
               </h1>
             )}
           </>
+        ) : chrome.search ? (
+          // The catalog spends its app bar on the search field: title + subtitle + a
+          // full-width pill were ~120px of the first screen, and the pill is what the
+          // thumb was reaching for. The page keeps the heading, screen-reader only.
+          <Suspense fallback={<div className="h-10 flex-1" />}>
+            <SearchField />
+          </Suspense>
         ) : chrome.titleKey ? (
           // Root screens own the page title now, so the page below no longer repeats it.
           <h1 className="truncate text-[19px] font-extrabold tracking-[-0.02em]">
@@ -105,5 +114,50 @@ export function AppBar() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The catalog's search, living in the app bar. Seeded from the URL because the URL is the
+ * catalog's source of truth for its filters — come back to the screen, or arrive from the
+ * home hero, and the field already reads what is filtered. Submitting keeps the category:
+ * searching within a category is the common case, and dropping it silently is worse than
+ * an extra tap to clear it.
+ */
+function SearchField() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const { t } = useT();
+
+  const query = params.get('search')?.trim() ?? '';
+  const category = params.get('category') ?? '';
+  const [value, setValue] = useState(query);
+
+  useEffect(() => setValue(query), [query]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const p = new URLSearchParams();
+    if (value.trim()) p.set('search', value.trim());
+    if (category) p.set('category', category);
+    router.push(`/products${p.toString() ? `?${p.toString()}` : ''}`);
+  }
+
+  return (
+    <form onSubmit={submit} className="relative min-w-0 flex-1">
+      <MagnifyingGlass
+        size={17}
+        className="pointer-events-none absolute left-[13px] top-1/2 -translate-y-1/2 text-brand-600"
+      />
+      <Input
+        type="search"
+        enterKeyHint="search"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={t('shop.catalog.searchPlaceholder')}
+        aria-label={t('shop.catalog.searchLabel')}
+        className="surface h-10 !rounded-full border-app pl-[38px] pr-3.5 text-[14px]"
+      />
+    </form>
   );
 }

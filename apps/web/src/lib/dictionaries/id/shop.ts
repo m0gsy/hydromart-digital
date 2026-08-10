@@ -7,9 +7,7 @@ export const shop = {
     searchPlaceholder: 'Cari produk…',
     searchLabel: 'Cari produk',
     all: 'Semua',
-    prevPage: 'Halaman sebelumnya',
-    nextPage: 'Halaman berikutnya',
-    pageN: 'Halaman {n}',
+    loadMore: 'Muat lebih banyak',
     trending: 'Terlaris',
   },
   pdp: {

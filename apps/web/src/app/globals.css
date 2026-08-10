@@ -220,6 +220,15 @@ body {
 .text-deep-teal {
   color: #0b4d57;
 }
+/* A horizontally scrolling row of chips (catalog categories, cart add-ons) reads as a row,
+   not as a scroll container — a desktop scrollbar under it is noise. Touch platforms
+   already overlay theirs, so this only changes the narrow-desktop case. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 @keyframes fadeUp {
   from {
