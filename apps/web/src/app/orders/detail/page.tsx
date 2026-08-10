@@ -17,7 +17,7 @@ import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton, StickyActionBar } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
@@ -221,8 +221,9 @@ function OrderDetailInner({ id }: { id: string }) {
         </div>
       )}
 
-      {/* breadcrumb */}
-      <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
+      {/* breadcrumb — the app bar's back chevron is this, below `sm:`, and says it in one
+          control instead of a row of text. */}
+      <div className="hidden items-center gap-2 text-[13px] font-semibold text-muted sm:flex">
         <Link href="/orders" className="transition-colors hover:text-brand-600">
           {t('nav.orders')}
         </Link>
@@ -460,7 +461,11 @@ function OrderDetailInner({ id }: { id: string }) {
                   </RadioCard>
                 ))}
               </div>
-              <Button onClick={pay} loading={action === 'pay'} className="rounded-full">
+              <Button
+                onClick={pay}
+                loading={action === 'pay'}
+                className="hidden rounded-full lg:inline-flex"
+              >
                 {t('order.detail.payNow')}
               </Button>
             </div>
@@ -472,9 +477,14 @@ function OrderDetailInner({ id }: { id: string }) {
             </p>
           )}
 
-          {/* actions */}
+          {/* actions — the primary one is in the sticky bar below `lg:`, so this copy of it
+              only exists where the bar does not. */}
           <div className="flex flex-wrap gap-3">
-            <Button onClick={repeat} loading={action === 'repeat'} className="rounded-full">
+            <Button
+              onClick={repeat}
+              loading={action === 'repeat'}
+              className="hidden rounded-full lg:inline-flex"
+            >
               <ArrowsClockwise size={17} weight="fill" />
               {t('order.detail.reorder')}
             </Button>
@@ -502,6 +512,24 @@ function OrderDetailInner({ id }: { id: string }) {
           <OrderTimeline history={order.history} />
         </div>
       </div>
+
+      {/* The one action this screen is for, kept on screen. An order detail is a long page —
+          items, address, payment, timeline — and "bayar" or "pesan lagi" used to be at the
+          bottom of all of it. A direct child of the scrolling column on purpose: wrapped in
+          a breakpoint div, `sticky` resolves against a box exactly as tall as the bar.
+          `unstickAt="lg"` matches where the inline copies above come back. */}
+      <StickyActionBar className="lg:hidden" unstickAt="lg">
+        {needsPayment(order, payment) ? (
+          <Button onClick={pay} loading={action === 'pay'} className="h-13 flex-1 rounded-full font-extrabold">
+            {t('order.detail.payNow')}
+          </Button>
+        ) : (
+          <Button onClick={repeat} loading={action === 'repeat'} className="h-13 flex-1 rounded-full font-extrabold">
+            <ArrowsClockwise size={17} weight="fill" />
+            {t('order.detail.reorder')}
+          </Button>
+        )}
+      </StickyActionBar>
 
       {/* Cancel-with-reason sheet (spec 10b) — Sheet (not ConfirmDialog) so it can
           host the reason radios; the reason rides along in the cancel POST. */}
