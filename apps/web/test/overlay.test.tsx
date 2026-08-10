@@ -56,6 +56,19 @@ describe('Sheet', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Alamat');
   });
 
+  // `position: fixed` resolves against the nearest transformed ancestor, and PageTransition
+  // leaves one on every page — in the page tree the sheet opened below the fold on any long
+  // screen. Leaving the render tree is the fix, so this asserts it leaves.
+  it('renders outside the tree it was declared in', () => {
+    const { container } = render(
+      <Sheet open onClose={() => {}} title="Alamat">
+        body
+      </Sheet>,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
   it('pins the footer outside the scrolling body', () => {
     render(
       <Sheet open onClose={() => {}} title="Alamat" footer={<button>Simpan</button>}>
