@@ -36,6 +36,7 @@ export const order: typeof base = {
     phone: 'Phone',
     address: 'Address',
     addressPlaceholder: 'Street, number, RT/RW',
+    addressRequired: 'Complete the delivery address first.',
     city: 'City',
     province: 'Province',
     postalCode: 'Postal code',
