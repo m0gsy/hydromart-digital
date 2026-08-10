@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { ArrowRight, Drop } from '@phosphor-icons/react';
 
+import { BiometricRetry } from '@/components/biometric-retry';
 import { Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -95,6 +96,9 @@ function LoginForm() {
         <h1 className="text-[26px] font-extrabold tracking-tight">{t('auth.login.heading')}</h1>
         <p className="text-[13.5px] text-muted">{t('auth.login.subtitle')}</p>
       </div>
+
+      {/* Only ever rendered when a stored session was left unopened by a dismissed prompt. */}
+      <BiometricRetry />
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="phone" className="text-[12.5px] font-bold">

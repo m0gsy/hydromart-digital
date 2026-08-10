@@ -206,6 +206,31 @@ describe('offline queue', () => {
     });
   });
 
+  /**
+   * The only automatic trigger used to be the `online` event, which an Android WebView
+   * reports through `navigator.onLine` and cannot be relied on, plus the queue banner
+   * mounting — which happens once, because it lives in the driver layout and moving
+   * between courier screens does not remount it. A courier who regained signal while
+   * sitting on the same screen sent nothing.
+   */
+  it('flushes when the app comes back to the front', async () => {
+    const queue = await freshQueue();
+    post.mockRejectedValue(new ApiError(0, 'offline'));
+    await queue.runOrQueue(punch);
+    expect(queue.pending()).toHaveLength(1);
+
+    post.mockReset();
+    post.mockResolvedValue({ id: 'att-1' });
+    // What `app-lifecycle` listens to; in the shell `appStateChange` fires alongside it.
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    await vi.waitFor(() => expect(queue.pending()).toHaveLength(0));
+  });
+
   it('survives a reload: a queued job is read back from IndexedDB', async () => {
     const first = await freshQueue();
     post.mockRejectedValue(new ApiError(0, 'offline'));

@@ -108,10 +108,17 @@ bukan string persis.
   video demo, dan menambah berminggu-minggu di review. `lib/geo.ts` hanya membaca posisi
   saat kurir sedang melihat layarnya.
 - **`READ_MEDIA_IMAGES` / `READ_EXTERNAL_STORAGE`** — memicu proses deklarasi Photo &
-  Video. Semua foto diambil langsung dari kamera lewat `getUserMedia`; galeri tidak pernah
-  dibaca. Ini justru risiko yang paling mudah masuk tanpa disadari lewat plugin, dan itu
-  sebabnya audit di bawah menolak izin yang tidak ada di daftar, bukan sekadar
-  memperingatkan izin yang sudah diketahui buruk.
+  Video. Tidak ada satu pun berkas di perangkat yang dibaca aplikasi ini, dan itulah
+  pernyataan yang benar — bukan "semuanya lewat `getUserMedia`", karena hanya absen wajah
+  HR yang begitu. Foto bukti kirim memakai `<input type="file" capture="environment">`,
+  yang diterjemahkan Capacitor menjadi intent kamera; kalau intent itu tidak bisa
+  diluncurkan ia jatuh ke pemilih dokumen sistem, dan pemilih dokumen tidak butuh izin
+  penyimpanan apa pun karena penggunanya sendiri yang memilih berkasnya. Agar jatuhnya
+  tidak terjadi karena alasan yang salah, manifest mendeklarasikan `<queries>` untuk
+  `android.media.action.IMAGE_CAPTURE` — tanpa itu, package visibility Android 11 membuat
+  kamera tak terlihat dan setiap bukti kirim membuka galeri. Ini justru risiko yang paling
+  mudah masuk tanpa disadari lewat plugin, dan itu sebabnya audit di bawah menolak izin
+  yang tidak ada di daftar, bukan sekadar memperingatkan izin yang sudah diketahui buruk.
 - **`QUERY_ALL_PACKAGES`**, **`SCHEDULE_EXACT_ALARM`**, **`REQUEST_INSTALL_PACKAGES`** —
   tidak ada yang membutuhkannya.
 
@@ -302,11 +309,19 @@ oleh karyawan yang berwenang.
 
 Semuanya ada di [`docs/play-assets/`](play-assets/).
 
-| Aset              | Ukuran    | Berkas                                                             |
-| ----------------- | --------- | ------------------------------------------------------------------ |
-| Ikon              | 512×512   | `app-icon-512.png`                                                 |
-| Feature graphic   | 1024×500  | `feature-graphic-1024x500.png`                                     |
-| Screenshot ponsel | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
+| Aset                      | Ukuran    | Berkas                                                              |
+| ------------------------- | --------- | ------------------------------------------------------------------- |
+| Ikon                      | 512×512   | `app-icon-512.png`                                                  |
+| Feature graphic           | 1024×500  | `feature-graphic-1024x500.png`                                      |
+| Screenshot ponsel         | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png`  |
+| Screenshot tablet 7 inci  | 1200×2134 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
+| Screenshot tablet 10 inci | 1600×2844 | `screenshot-tab10-…` (tiga berkas, nama sama polanya)               |
+
+Tablet opsional di Play — hanya screenshot ponsel yang wajib. Diisi karena tanpanya Play
+menampilkan listing "tidak dioptimalkan untuk tablet" pada perangkat tablet, dan karena
+biayanya nol: aplikasinya memang responsif. Yang 10 inci bukan versi diperbesar dari yang
+7 inci — di 810dp tata letaknya berganti ke nav atas dan grid tiga kolom, sementara 600dp
+masih tata letak ponsel, persis seperti di tablet sungguhan.
 
 Ketiga screenshot itu **bukan** hasil tangkapan dari APK: keduanya diambil dari aplikasi
 web produksi di viewport ponsel (412×732 @3×, mobile+touch, akun reviewer). Isinya persis
@@ -382,11 +397,22 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 
 ## 8. Bundle mana yang diunggah, dan kapan berhenti mengunggahnya sendiri
 
-**Unggah `mobile-v1.0.1`, bukan `mobile-v1.0.0`.** Yang pertama membuktikan jalur rilisnya
-utuh tapi membawa ikon placeholder, jadi ia tidak pernah dimaksudkan untuk naik ke toko.
-`1.0.1` membawa ikon merek yang sebenarnya dan enam perbaikan mobile di belakangnya.
+**Aturannya bukan nomor versi, melainkan: unggah tag yang dibuat dari `main` terkini.**
+Ditulis begini karena versi yang disebut namanya langsung basi — dan sudah pernah, dua
+kali:
 
-AAB-nya ada sebagai artifact di run tag tersebut (`hydromart-aab-1.0.1`), bertahan 30 hari.
+- `mobile-v1.0.0` membuktikan jalur rilisnya utuh tapi membawa ikon placeholder.
+- `mobile-v1.0.1` membawa ikon asli dan enam perbaikan, lalu **pass verifikasi kedua
+  menemukan enam lagi** — termasuk satu yang membuat setiap foto bukti kirim membuka
+  galeri, bukan kamera, di Android 11+. Tag itu dibuat sebelum perbaikan tersebut masuk,
+  jadi AAB-nya membawa bug itu.
+
+Jadi sebelum mengunggah, periksa satu hal: apakah tag yang dipegang lebih baru dari commit
+terakhir di `main`. Kalau tidak, buat tag baru dan pakai yang itu. Ini murah — satu tag,
+dua puluh menit build — dan jauh lebih murah daripada menarik rilis dari track yang sudah
+punya penguji di dalamnya.
+
+AAB tiap tag ada sebagai artifact di run-nya (`hydromart-aab-<versi>`), bertahan 30 hari.
 `versionCode` diambil dari nomor run, bukan dari tag — Play menolak `versionCode` yang
 pernah ia lihat, dan menjalankan ulang tag yang sama harus menghasilkan angka lebih tinggi.
 

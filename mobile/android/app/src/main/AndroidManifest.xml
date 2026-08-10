@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+      `allowBackup` is false, against the scaffold default. Auto Backup copies app data to
+      the user's Drive, and the Keystore key that decrypts the stored session is not part
+      of it — so the ciphertext is useless to anyone who restores it, and the session is
+      not what this protects. `hm.unlock-failures` is: a brute-force counter that can be
+      rolled back by restoring a backup is not a counter. Nothing here is worth keeping
+      across a factory reset either, since every screen is a view of the server.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -62,6 +70,18 @@
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/hydromart_brand" />
 
+        <!--
+          Without this, Android files every push into its own "Miscellaneous" channel at
+          default importance: no heads-up, no sound, and a user who wants to mute one kind
+          of message can only mute all of them. The channel itself is created from JS the
+          first time push is subscribed (`lib/push.ts`) — the id must match this string
+          exactly, or Android silently falls back to Miscellaneous again and nothing looks
+          wrong until someone notices notifications stopped arriving on top.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="hydromart_orders" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -85,6 +105,23 @@
       READ_MEDIA_IMAGES (the camera is captured live through getUserMedia; nothing reads
       the photo library, and asking would trigger the Photo & Video declaration process).
     -->
+
+    <!--
+      Android 11 package visibility. `<input type="file" capture>` for a proof-of-delivery
+      photo reaches Capacitor's `showImageCapturePicker`, which asks
+      `resolveActivity(ACTION_IMAGE_CAPTURE)` first — and without this block that call
+      answers null even on a phone with a camera app, because the app is simply not
+      visible to us. Capacitor then falls back to the document picker, so the courier is
+      asked for camera permission and handed a gallery. Nothing in the app can tell.
+
+      Declaring a query is not a permission: it never prompts, and it does not appear in
+      the Play listing. Harmless if a future Android stops needing it.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Push: Android 13+ makes this a runtime prompt, asked after the first order. -->

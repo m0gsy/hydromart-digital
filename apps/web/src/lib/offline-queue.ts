@@ -1,6 +1,7 @@
 'use client';
 
 import { api, ApiError, uploadFile } from './api';
+import { onResume } from './app-lifecycle';
 import { endpoints } from './endpoints';
 import { getSession } from './session-store';
 
@@ -270,4 +271,11 @@ export async function flush(): Promise<void> {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => void flush());
+  // The `online` event alone is not a plan on Android. A WebView reports connectivity
+  // through `navigator.onLine`, which is unreliable there, and the only other trigger is
+  // the queue banner mounting — which happens once, because it lives in the driver
+  // layout and navigating between courier screens does not remount it. A courier who
+  // regains signal while sitting on the same screen sent nothing until they came back to
+  // the app. Coming back to the app is now the trigger.
+  onResume(() => void flush());
 }

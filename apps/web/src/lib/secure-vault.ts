@@ -31,15 +31,42 @@ const PLUGIN_BIOMETRY = 'BiometricAuthNative';
  * inheriting the plugin's default `capacitor-storage_` so a future wrapper import cannot
  * silently start reading a different entry.
  */
-const VAULT_KEY = 'hydromart_session';
+export const VAULT_KEY = 'hydromart_session';
 
-/** Read the stored blob, or null when there is none (a first run, or after a wipe). */
-export async function vaultRead(): Promise<string | null> {
-  const res = await askPlugin<{ data?: string | null }>(PLUGIN_STORAGE, 'internalGetItem', {
-    prefixedKey: VAULT_KEY,
+/**
+ * The unlock-failure counter, stored beside the session rather than in localStorage.
+ *
+ * It used to live in localStorage, which is the one store this codebase already argues
+ * cannot be trusted — Android evicts it under storage pressure while the Keystore entry
+ * survives (see `hasTokens` in `token-store.ts`). A brute-force counter that the OS can
+ * clear on its own schedule, or that a restored backup can roll back, is not a counter.
+ */
+export const FAILURES_KEY = 'hydromart_unlock_failures';
+
+export type VaultRead =
+  /** The entry was read. `data` is null when there is none — a first run, or after a wipe. */
+  | { ok: true; data: string | null }
+  /** The read itself failed. Not the same thing, and must not be treated as "empty". */
+  | { ok: false; code: string };
+
+/**
+ * Read a stored blob.
+ *
+ * The failure case is reported rather than flattened to null because the realistic cause
+ * is not "there is nothing there": Android invalidates a Keystore key when the user
+ * enrols a new fingerprint, and a decrypt that fails for that reason would otherwise look
+ * exactly like a fresh install — a silent sign-out plus an entry left on disk that can
+ * never be read again and will raise a prompt on every launch forever.
+ */
+export async function vaultRead(key: string = VAULT_KEY): Promise<VaultRead> {
+  const res = await tryPlugin<{ data?: string | null }>(PLUGIN_STORAGE, 'internalGetItem', {
+    prefixedKey: key,
     sync: false,
   });
-  return res?.data ?? null;
+  // The plugin rejects rather than returning null for a key it does not have; that is an
+  // absence, not a failure, and the two must not end up on the same branch.
+  if (!res.ok) return res.code === 'itemNotFound' ? { ok: true, data: null } : res;
+  return { ok: true, data: res.value?.data ?? null };
 }
 
 /**
@@ -49,9 +76,9 @@ export async function vaultRead(): Promise<string | null> {
  * launch — and replay is exactly what the session service's reuse detection revokes the
  * whole family for, forcing the user back through OTP.
  */
-export async function vaultWrite(value: string): Promise<void> {
+export async function vaultWrite(value: string, key: string = VAULT_KEY): Promise<void> {
   await askPlugin(PLUGIN_STORAGE, 'internalSetItem', {
-    prefixedKey: VAULT_KEY,
+    prefixedKey: key,
     data: value,
     sync: false,
     // iOS keychain accessibility. Ignored on Android, passed so the one code path stays
@@ -60,8 +87,8 @@ export async function vaultWrite(value: string): Promise<void> {
   });
 }
 
-export async function vaultClear(): Promise<void> {
-  await askPlugin(PLUGIN_STORAGE, 'internalRemoveItem', { prefixedKey: VAULT_KEY, sync: false });
+export async function vaultClear(key: string = VAULT_KEY): Promise<void> {
+  await askPlugin(PLUGIN_STORAGE, 'internalRemoveItem', { prefixedKey: key, sync: false });
 }
 
 export type UnlockResult =
