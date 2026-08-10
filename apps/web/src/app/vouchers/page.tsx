@@ -37,7 +37,7 @@ function VouchersInner() {
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>
-        <h1 className="text-[22px] font-extrabold tracking-tight">{t('profile.rewards.wallet.title')}</h1>
+        <h1 className="hidden text-[22px] font-extrabold tracking-tight sm:block">{t('profile.rewards.wallet.title')}</h1>
       </div>
 
       {loading ? (

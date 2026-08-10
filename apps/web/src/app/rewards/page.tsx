@@ -20,7 +20,7 @@ import {
 
 import { RequireAuth } from '@/components/require-auth';
 import { Sheet } from '@/components/overlay';
-import { Button, Card, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, Input, Segmented, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -620,8 +620,20 @@ function ReferralCard() {
 
 /* ============================ Page ============================ */
 
+/** Which stack of this screen a phone is looking at. Desktop shows all three at once. */
+type RewardsTab = 'tukar' | 'voucher' | 'riwayat';
+
 function RewardsInner() {
   const { t } = useT();
+  /**
+   * Plain state, not `?tab=`. The obvious version puts the tab in the URL so a link can
+   * point at one, and it does not work here: the App Router does not re-render this screen
+   * for a query-only push, and `useQueryParam`'s popstate subscription does not fire for
+   * one either — the picker moved and the section under it did not. Rather than ship a URL
+   * contract that is right half the time, the tab is local. Back then leaves the screen
+   * instead of walking through three tabs, which on a phone is the better answer anyway.
+   */
+  const [tab, setTab] = useState<RewardsTab>('tukar');
   // The member card and its ladder: global, network-wide standing.
   const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
@@ -642,7 +654,7 @@ function RewardsInner() {
 
   return (
     <div className="mx-auto w-full max-w-[1216px] pb-14">
-      <h1 className="mb-5 flex items-center gap-2.5 text-[30px] font-extrabold tracking-tight">
+      <h1 className="mb-5 hidden items-center gap-2.5 text-[30px] font-extrabold tracking-tight sm:flex">
         <Sparkle size={28} weight="fill" className="text-brand-600" />
         {t('profile.rewards.title')}
       </h1>
@@ -655,9 +667,30 @@ function RewardsInner() {
         <Hero account={{ ...acc, pointsBalance: liveBalance }} tiers={tiers.data ?? []} onRedeemClick={scrollToCatalog} />
       ) : null}
 
-      <VoucherWallet onHistory={showLedger} />
+      {/* Below `lg:` this screen is four stacked screens' worth of content — wallet, catalog,
+          redemptions, ledger — and the balance at the top is what people come for. The tabs
+          pick one; every section stays mounted, so switching costs no request and the desktop
+          stack is literally the same markup with the picker gone. */}
+      <Segmented
+        className="mb-4 w-full justify-between lg:hidden"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'tukar', label: t('profile.rewards.tabs.redeem') },
+          { value: 'voucher', label: t('profile.rewards.tabs.vouchers') },
+          { value: 'riwayat', label: t('profile.rewards.tabs.history') },
+        ]}
+      />
 
-      <div className="mt-[26px] grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className={tab === 'voucher' ? 'lg:block' : 'hidden lg:block'}>
+        <VoucherWallet onHistory={showLedger} />
+      </div>
+
+      <div
+        className={`mt-[26px] gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start ${
+          tab === 'tukar' ? 'grid' : 'hidden'
+        }`}
+      >
         <RedeemCatalog
           balance={liveBalance}
           onRedeemed={(newBalance) => {
@@ -669,11 +702,13 @@ function RewardsInner() {
         <HowPointsWork />
       </div>
 
-      <MyRedemptions reloadKey={redemptionsKey} onCancelled={setBalance} />
+      <div className={tab === 'riwayat' ? 'lg:block' : 'hidden lg:block'}>
+        <MyRedemptions reloadKey={redemptionsKey} onCancelled={setBalance} />
 
-      <div id="rewards-ledger" className="mt-6 grid gap-5 scroll-mt-4 md:grid-cols-2">
-        <LedgerCard open={ledgerOpen} onToggle={() => setLedgerOpen((v) => !v)} />
-        <ReferralCard />
+        <div id="rewards-ledger" className="mt-6 grid gap-5 scroll-mt-4 md:grid-cols-2">
+          <LedgerCard open={ledgerOpen} onToggle={() => setLedgerOpen((v) => !v)} />
+          <ReferralCard />
+        </div>
       </div>
     </div>
   );

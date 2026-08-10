@@ -105,7 +105,7 @@ function AddressesInner() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-[30px] font-extrabold tracking-tight">{t('profile.addresses.list.title')}</h1>
+        <h1 className="hidden text-[30px] font-extrabold tracking-tight sm:block">{t('profile.addresses.list.title')}</h1>
         <Button type="button" onClick={openCreate} className="rounded-full">
           <Plus size={17} weight="bold" />
           {t('profile.addresses.list.add')}

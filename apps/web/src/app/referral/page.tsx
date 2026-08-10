@@ -30,7 +30,7 @@ function ReferralInner() {
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>
-        <h1 className="text-[22px] font-extrabold tracking-tight">Ajak teman</h1>
+        <h1 className="hidden text-[22px] font-extrabold tracking-tight sm:block">Ajak teman</h1>
       </div>
 
       {loading ? (

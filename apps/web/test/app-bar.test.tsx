@@ -74,7 +74,8 @@ describe('AppBar', () => {
   });
 
   it('shows a back control on a pushed screen and no title', () => {
-    pathname = '/rewards';
+    // A product names itself — the PDP keeps its own heading, so the bar stays untitled.
+    pathname = '/products/detail';
     render(<AppBar />);
     expect(screen.getByRole('button', { name: 'common.back' })).toBeTruthy();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
