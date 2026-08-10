@@ -5,13 +5,23 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowsClockwise, Drop, MagnifyingGlass } from '@phosphor-icons/react';
 
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { useAsync } from '@/lib/use-async';
+import type { Category } from '@/lib/types';
 
 // Home hero (1c Fresh Flow): teal-tint rounded panel with a big greeting, a
 // rounded-full search pill, quick-search chips, and a designed image slot with a
 // floating "beli lagi" affordance. The delivery-location control now lives in the
 // depot card, not here.
 
+/**
+ * Fallback chips, used only until the real categories land (and if the catalog has none).
+ * These are free-text searches, which is what every chip used to be: tapping "Air botol"
+ * ran a search for "botol" and left the catalog's category filter on "Semua", so the chip
+ * looked like a filter and behaved like a guess at product names.
+ */
 const QUICK = [
   { label: 'home.hero.quick.refill', q: 'galon' },
   { label: 'home.hero.quick.bottled', q: 'botol' },
@@ -22,6 +32,18 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
   const router = useRouter();
   const { t } = useT();
   const [term, setTerm] = useState('');
+
+  // The chips are shortcuts into the catalog's own filter, so they are the catalog's own
+  // categories — same cached request the catalog makes, so it costs nothing extra — rather
+  // than three hardcoded words hoping to match a product name.
+  const categories = useAsync<Category[]>(
+    () => api.getCached<Category[]>(endpoints.products.categories),
+    [],
+  );
+  const chips =
+    categories.data && categories.data.length > 0
+      ? categories.data.slice(0, 3).map((c) => ({ label: c.name, href: `/products?category=${c.id}` }))
+      : QUICK.map((c) => ({ label: t(c.label), href: `/products?search=${c.q}` }));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,13 +90,13 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
         </form>
 
         <div className="flex flex-wrap items-center gap-2">
-          {QUICK.map((c) => (
+          {chips.map((c) => (
             <Link
-              key={c.q}
-              href={`/products?search=${c.q}`}
+              key={c.href}
+              href={c.href}
               className="text-deep-teal rounded-full bg-white/75 px-[15px] py-2 text-[13px] font-bold transition-colors hover:bg-white"
             >
-              {t(c.label)}
+              {c.label}
             </Link>
           ))}
         </div>
