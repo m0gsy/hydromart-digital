@@ -42,6 +42,22 @@ const config: CapacitorConfig = {
      */
     androidScheme: 'https',
   },
+  plugins: {
+    SplashScreen: {
+      /**
+       * The shell hides it, not a timer. `launchAutoHide: true` dismisses the splash after
+       * a fixed delay whether or not the web layer has painted, which on a cold start over
+       * a slow connection means a white screen with nothing in it. `NativeBridge` calls
+       * `hide()` once React has mounted — unconditionally, including on the error path,
+       * because a splash that only hides on the happy path is a dead app when something
+       * throws.
+       */
+      launchAutoHide: false,
+      backgroundColor: '#0b4d57',
+      androidSpinnerStyle: 'small',
+      spinnerColor: '#8fe3ee',
+    },
+  },
   android: {
     // F6 sets `usesCleartextTraffic=false` for release. Nothing in the app should ever
     // reach a plain-http URL: `MOBILE_API_URL` is https, and a missing one falls back to

@@ -73,6 +73,7 @@ export const order: typeof base = {
     pickDepotEmpty: 'No active depot right now. Please try again later.',
     pickDepotRequired: 'Pick a depot to continue.',
     placeOrder: 'Place order —',
+    placeOrderShort: 'Place order',
     priceVerified:
       "Prices are re-verified by the depot when the order is placed — you won't be charged more.",
     emptyCart: 'Your cart is empty. Add products before checking out.',

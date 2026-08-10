@@ -2,6 +2,8 @@
 
 import { Minus, Plus } from '@phosphor-icons/react';
 
+import { haptic } from '@/lib/platform';
+
 export function QuantityStepper({
   value,
   onChange,
@@ -16,13 +18,19 @@ export function QuantityStepper({
   disabled?: boolean;
 }) {
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
+  // The number changing is the only feedback this control gives, and on a phone the thumb
+  // is usually covering it.
+  const step = (next: number) => {
+    haptic();
+    onChange(next);
+  };
   return (
     <div className="inline-flex h-10 items-center rounded-full border border-app">
       <button
         type="button"
         aria-label="Decrease quantity"
         disabled={disabled || value <= min}
-        onClick={() => onChange(clamp(value - 1))}
+        onClick={() => step(clamp(value - 1))}
         className="flex h-full w-[38px] items-center justify-center text-muted transition-colors hover:text-brand-600 disabled:opacity-40 disabled:hover:text-muted"
       >
         <Minus size={16} />
@@ -34,7 +42,7 @@ export function QuantityStepper({
         type="button"
         aria-label="Increase quantity"
         disabled={disabled || value >= max}
-        onClick={() => onChange(clamp(value + 1))}
+        onClick={() => step(clamp(value + 1))}
         className="flex h-full w-[38px] items-center justify-center text-muted transition-colors hover:text-brand-600 disabled:opacity-40 disabled:hover:text-muted"
       >
         <Plus size={16} />

@@ -193,9 +193,14 @@ sampai layar utama. Lebih lemah, tapi diterima.
 
 ## 5. Target API level
 
-Capacitor 8 menargetkan API 35, yang memenuhi syarat Play saat ini. Nilainya ada di
-`mobile/android/variables.gradle` dan berubah saat Capacitor di-upgrade — bukan sesuatu
-yang perlu diatur sendiri di sini.
+`mobile/android/variables.gradle` memakai `targetSdkVersion = 36`, memenuhi syarat Play
+saat ini. Nilainya berubah saat Capacitor di-upgrade — bukan sesuatu yang perlu diatur
+sendiri di sini.
+
+Konsekuensinya bukan administratif: sejak API 35 Android memaksa edge-to-edge dan
+`StatusBar.setOverlaysWebView(false)` menjadi no-op. Aplikasi memang menggambar di bawah
+status bar, jadi yang menahan chrome-nya adalah `env(safe-area-inset-top)` di app bar —
+bukan panggilan plugin itu, yang sudah dihapus.
 
 ---
 
@@ -314,7 +319,7 @@ Semuanya ada di [`docs/play-assets/`](play-assets/).
 | Ikon                      | 512×512   | `app-icon-512.png`                                                  |
 | Feature graphic           | 1024×500  | `feature-graphic-1024x500.png`                                      |
 | Screenshot ponsel         | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png`  |
-| Screenshot tablet 7 inci  | 1200×2134 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
+| Screenshot tablet 7 inci  | 1200×2133 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
 | Screenshot tablet 10 inci | 1600×2844 | `screenshot-tab10-…` (tiga berkas, nama sama polanya)               |
 
 Tablet opsional di Play — hanya screenshot ponsel yang wajib. Diisi karena tanpanya Play
@@ -323,10 +328,16 @@ biayanya nol: aplikasinya memang responsif. Yang 10 inci bukan versi diperbesar 
 7 inci — di 810dp tata letaknya berganti ke nav atas dan grid tiga kolom, sementara 600dp
 masih tata letak ponsel, persis seperti di tablet sungguhan.
 
-Ketiga screenshot itu **bukan** hasil tangkapan dari APK: keduanya diambil dari aplikasi
-web produksi di viewport ponsel (412×732 @3×, mobile+touch, akun reviewer). Isinya persis
-yang digambar WebView — Capacitor menyajikan bundel yang sama — jadi sah dipakai untuk
-listing hari ini. Rasionya 9:16, ukuran minimum Play terpenuhi.
+Ketiga screenshot itu **bukan** hasil tangkapan dari APK: semuanya diambil dari aplikasi
+web di viewport ponsel (412×732 @3×, mobile+touch, akun pelanggan), tablet 7 inci
+(400×711 @3×) dan tablet 10 inci (800×1422 @2× — di atas 640px chrome-nya berganti ke nav
+desktop, seperti di tablet sungguhan). Isinya persis yang digambar WebView — Capacitor
+menyajikan bundel yang sama — jadi sah dipakai untuk listing hari ini. Rasionya 9:16,
+ukuran minimum Play terpenuhi.
+
+Kesembilannya diambil ulang setelah redesain IA ponsel: app bar + tab bar empat slot,
+pencarian di app bar pada layar Belanja, dan rewards bertab. Yang sebelumnya menggambarkan
+tata letak yang sudah tidak ada.
 
 Dua hal yang perlu Anda ketahui sebelum mengunggahnya:
 

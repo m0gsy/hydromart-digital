@@ -6,4 +6,8 @@
       only what is ours lives here.
     -->
     <color name="hydromart_brand">#0C97AC</color>
+    <!-- Deep teal behind the Android 12+ launch icon. Same value as the SplashScreen
+         plugin's backgroundColor, so the system splash and the plugin's do not flash
+         two different colours at each other on a cold start. -->
+    <color name="splashBackground">#0B4D57</color>
 </resources>

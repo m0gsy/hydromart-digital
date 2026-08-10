@@ -108,3 +108,17 @@ export function printDocument(html: string): boolean {
   // branch here, not a change to any caller.
   return saveFile('struk.html', new Blob([html], { type: 'text/html' }));
 }
+
+/**
+ * A short tick under the thumb, on the handful of actions where the screen's own feedback
+ * arrives too late to feel like a response: a quantity changing, something entering the
+ * cart, an order being placed, a destructive confirm.
+ *
+ * Deliberately one function with one intensity. Haptics that vary by event are a design
+ * language nobody reads, and every extra buzz makes the ones that matter mean less. No-op
+ * on the web and on any device whose owner has switched vibration off — the plugin
+ * answers for that, not this.
+ */
+export function haptic(): void {
+  callPlugin('Haptics', 'impact', { style: 'LIGHT' });
+}
