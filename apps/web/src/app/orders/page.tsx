@@ -44,7 +44,9 @@ function OrdersInner() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">{t('order.list.title')}</h1>
+      {/* The app bar titles this screen below `sm:`; rendering it here too showed a phone
+          the same word twice. */}
+      <h1 className="hidden text-2xl font-bold sm:block">{t('order.list.title')}</h1>
       <ProductRecRail title={t('order.list.buyAgain')} endpoint={endpoints.recommendations.reorder()} requiresAuth />
       <ul className="flex flex-col gap-3">
         {data.items.map((order) => (
