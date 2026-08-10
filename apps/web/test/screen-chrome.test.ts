@@ -57,6 +57,15 @@ describe('screenChrome', () => {
     expect(screenChrome('/account').titleKey).toBe('nav.account');
   });
 
+  // Search takes over the app bar on the catalog and nowhere else — every other screen
+  // would be trading a title people navigate by for a field they did not ask for.
+  it('gives the app bar to search on the catalog only', () => {
+    expect(screenChrome('/products').search).toBe(true);
+    for (const path of ['/', '/orders', '/account', '/cart', '/favorites']) {
+      expect(screenChrome(path).search).toBeFalsy();
+    }
+  });
+
   // A pushed screen earns its app-bar title by giving up its own <h1> below `sm:`, one
   // screen per phase. Anything still rendering a heading must stay untitled here.
   it('titles only the pushed screens whose page heading has moved up', () => {

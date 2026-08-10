@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MagnifyingGlass, Drop, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { MagnifyingGlass, Drop } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
 import { ProductRecRail } from '@/components/product-rec-rail';
@@ -32,6 +32,30 @@ function ProductsCatalog() {
   const [search, setSearch] = useState(query);
   const [page, setPage] = useState(1);
 
+  /**
+   * The grid accumulates pages instead of replacing them — "load more" keeps what you have
+   * already scrolled past, which is also what stops a back navigation from losing your
+   * place. Three things this shape buys, all of which the obvious version gets wrong:
+   *
+   * - Keyed by page number, not appended, so re-running the loader (StrictMode does, twice)
+   *   cannot write the same page into the grid twice.
+   * - Stamped with the filter signature, so changing search or category reads as "nothing
+   *   loaded yet" on the very same render. Clearing it in an effect instead would paint one
+   *   frame of the empty state between the tap and the skeletons.
+   * - `total` is remembered here rather than read off the last response, because a failed
+   *   "load more" leaves `useAsync` holding the response before it.
+   */
+  const sig = `${query}|${categoryId}`;
+  const [loaded, setLoaded] = useState<{ sig: string; byPage: Record<number, Product[]>; total: number }>({
+    sig,
+    byPage: {},
+    total: 0,
+  });
+  // Read inside the loader's `then`, where `sig` itself would be the value captured when
+  // the request went out — that is exactly the response we have to ignore.
+  const sigRef = useRef(sig);
+  sigRef.current = sig;
+
   // One loyalty fetch for the whole grid; passed to every card.
   const memberRate = useMemberRate();
 
@@ -59,18 +83,33 @@ function ProductsCatalog() {
     [location?.lat, location?.lng],
   );
 
-  const { data, error, loading, reload } = useAsync<Page<Product>>(
-    () =>
-      api.get(
+  // The filters changing beats `setPage(1)` to the render, so ask for page 1 whenever what
+  // is on screen belongs to a different filter — otherwise a category tapped from page 3
+  // fetches page 3 of the new category first.
+  const activePage = loaded.sig === sig ? page : 1;
+
+  const { error, loading, reload } = useAsync<Page<Product>>(() => {
+    const forSig = sig;
+    const forPage = activePage;
+    return api
+      .get<Page<Product>>(
         endpoints.products.browse({
-          page,
+          page: forPage,
           limit: LIMIT,
           search: query || undefined,
           categoryId: categoryId || undefined,
         }),
-      ),
-    [page, query, categoryId],
-  );
+      )
+      .then((res) => {
+        if (sigRef.current !== forSig) return res; // a filter we have already left
+        setLoaded((prev) => ({
+          sig: forSig,
+          byPage: prev.sig === forSig ? { ...prev.byPage, [forPage]: res.items } : { [forPage]: res.items },
+          total: res.total,
+        }));
+        return res;
+      });
+  }, [activePage, query, categoryId]);
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -81,8 +120,24 @@ function ProductsCatalog() {
     router.push(`/products${p.toString() ? `?${p.toString()}` : ''}`);
   }
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / LIMIT)) : 1;
-  const empty = !data || data.items.length === 0;
+  const fresh = loaded.sig === sig;
+  const items = useMemo(
+    () =>
+      fresh
+        ? Object.keys(loaded.byPage)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .flatMap((n) => loaded.byPage[n] ?? [])
+        : [],
+    [fresh, loaded.byPage],
+  );
+
+  // Skeletons until the first page of *these* filters has landed — `loading` alone is also
+  // true while page 2 is in flight, and swapping the grid out for skeletons then would
+  // throw away exactly what the reader was looking at.
+  const firstLoad = !error && (!fresh || (loading && items.length === 0));
+  const empty = items.length === 0;
+  const hasMore = fresh && items.length < loaded.total;
 
   const subtitle = depot
     ? t('shop.catalog.subtitleDepot', {
@@ -94,15 +149,18 @@ function ProductsCatalog() {
   return (
     <div className="flex flex-col">
       {/* Header + search pill — one row (flex-end, space-between, 24px gap) on
-          desktop, stacked on mobile. */}
+          desktop, stacked on mobile. Below `sm:` the app bar carries the title and the
+          search field, so all that is left here is the depot line: the heading stays in
+          the document for screen readers and heading order, and the pill would be the
+          second one on screen. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div className="flex flex-col gap-1.5">
-          <h1 className="text-[30px] font-extrabold leading-none tracking-[-0.03em] text-[color:var(--text)]">
+          <h1 className="sr-only text-[30px] font-extrabold leading-none tracking-[-0.03em] text-[color:var(--text)] sm:not-sr-only">
             {t('shop.catalog.title')}
           </h1>
-          <p className="text-[14.5px] text-muted">{subtitle}</p>
+          <p className="text-[13.5px] text-muted sm:text-[14.5px]">{subtitle}</p>
         </div>
-        <form onSubmit={submitSearch} className="relative w-full sm:w-[380px]">
+        <form onSubmit={submitSearch} className="relative hidden w-full sm:block sm:w-[380px]">
           <MagnifyingGlass
             size={18}
             className="pointer-events-none absolute left-[18px] top-1/2 -translate-y-1/2 text-brand-600"
@@ -123,10 +181,13 @@ function ProductsCatalog() {
       {categories.loading && !categories.data ? (
         <div className="mt-5 min-h-[38px]" />
       ) : (categories.data?.length ?? 0) > 0 ? (
-        <div className="mt-5 flex flex-wrap gap-[9px]">
+        // One scrolling row on a phone — wrapping pills push the grid a whole row down
+        // per extra category. The negative margin + padding bleeds the row to the screen
+        // edge so the last pill is visibly cut off, which is what says "scrollable".
+        <div className="no-scrollbar -mx-4 mt-5 flex snap-x gap-[9px] overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           <Link
             href="/products"
-            className={`rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
+            className={`flex-none snap-start rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
               categoryId
                 ? 'surface border border-app text-muted hover:border-brand-600'
                 : 'bg-[color:var(--text)] text-[color:var(--surface)]'
@@ -138,7 +199,7 @@ function ProductsCatalog() {
             <Link
               key={c.id}
               href={`/products?category=${c.id}`}
-              className={`rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
+              className={`flex-none snap-start whitespace-nowrap rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
                 c.id === categoryId
                   ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
                   : 'surface border border-app text-muted hover:border-brand-600'
@@ -153,7 +214,7 @@ function ProductsCatalog() {
       {/* sr-only h2 keeps heading order valid (page h1 → list h2 → card h3). */}
       <h2 className="sr-only">{t('shop.catalog.title')}</h2>
 
-      {loading ? (
+      {firstLoad ? (
         <div className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             // Card-shaped skeleton (square image + content block) so its height
@@ -168,7 +229,7 @@ function ProductsCatalog() {
             </div>
           ))}
         </div>
-      ) : error ? (
+      ) : error && empty ? (
         <div className="pt-6">
           <ErrorState message={error} onRetry={reload} />
         </div>
@@ -179,56 +240,31 @@ function ProductsCatalog() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 pb-2 pt-6 sm:grid-cols-3 lg:grid-cols-4">
-            {data.items.map((product) => (
+            {items.map((product) => (
               <ProductCard key={product.id} product={product} memberRate={memberRate} />
             ))}
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pb-10 pt-[22px]">
-              <PageButton
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                aria-label={t('shop.catalog.prevPage')}
+          {/* One button instead of numbered pages: numbers on a phone are 38px targets in a
+              row, and paging away and back lost the scroll position every time. */}
+          {hasMore && (
+            <div className="flex justify-center pb-10 pt-[22px]">
+              <Button
+                variant="secondary"
+                loading={loading}
+                // After a failure the next page is still the one that failed — advancing
+                // would skip it silently. Retry the same request instead.
+                onClick={error ? reload : () => setPage((p) => p + 1)}
               >
-                <CaretLeft size={15} weight="bold" />
-              </PageButton>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <PageButton key={n} onClick={() => setPage(n)} active={n === page} aria-label={t('shop.catalog.pageN', { n })}>
-                  {n}
-                </PageButton>
-              ))}
-              <PageButton
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                aria-label={t('shop.catalog.nextPage')}
-              >
-                <CaretRight size={15} weight="bold" />
-              </PageButton>
+                {t('shop.catalog.loadMore')}
+              </Button>
             </div>
+          )}
+          {error && !loading && (
+            <p className="pb-10 text-center text-[13.5px] text-muted">{error}</p>
           )}
         </>
       )}
     </div>
-  );
-}
-
-// Round 38px pagination control — filled ink when active, bordered otherwise.
-function PageButton({
-  active = false,
-  children,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
-  return (
-    <button
-      {...rest}
-      className={`flex h-[38px] w-[38px] items-center justify-center rounded-full text-[13.5px] font-bold transition-colors disabled:opacity-40 ${
-        active
-          ? 'bg-[color:var(--text)] font-extrabold text-[color:var(--surface)]'
-          : 'surface border border-app text-muted hover:border-brand-600 disabled:hover:border-app'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

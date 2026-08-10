@@ -9,9 +9,7 @@ export const shop: typeof base = {
     searchPlaceholder: 'Search products…',
     searchLabel: 'Search products',
     all: 'All',
-    prevPage: 'Previous page',
-    nextPage: 'Next page',
-    pageN: 'Page {n}',
+    loadMore: 'Load more',
     trending: 'Best sellers',
   },
   pdp: {
