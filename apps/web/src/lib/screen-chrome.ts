@@ -22,7 +22,11 @@ export type ChromeKind = 'root' | 'pushed' | 'bare';
 
 export interface Chrome {
   kind: ChromeKind;
-  /** Locale key for the app-bar title. Root screens only for now — see `AppBar`. */
+  /**
+   * Locale key for the app-bar title. A pushed screen only gets one once its own `<h1>` is
+   * gone from the page below `sm:`, so the heading is never rendered twice — which is why
+   * they arrive one phase at a time rather than all at once.
+   */
   titleKey?: string;
   /** Where back goes when there is no history to go back to (deep links land like that). */
   backHref: string;
@@ -36,6 +40,11 @@ const ROOT: Record<string, string | undefined> = {
   '/products': 'nav.shop',
   '/orders': 'nav.orders',
   '/account': 'nav.account',
+};
+
+/** Pushed screens whose page heading has already moved up here. */
+const PUSHED: Record<string, string> = {
+  '/cart': 'order.cart.title',
 };
 
 const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);
@@ -78,5 +87,5 @@ export function screenChrome(pathname: string): Chrome {
   if (path in ROOT) return { kind: 'root', titleKey: ROOT[path], backHref: '/' };
   if (BARE.has(path)) return { kind: 'bare', backHref: '/' };
 
-  return { kind: 'pushed', backHref: BACK[path] ?? '/' };
+  return { kind: 'pushed', titleKey: PUSHED[path], backHref: BACK[path] ?? '/' };
 }

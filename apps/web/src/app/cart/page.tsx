@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
+  CaretUp,
   Clock,
   Drop,
   Plus,
@@ -14,10 +15,11 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 
+import { Sheet } from '@/components/overlay';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
+import { ErrorState, LinkButton, Money, Skeleton, StickyActionBar } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
@@ -48,6 +50,7 @@ function CartInner() {
   // optimistically so qty/remove don't reload the whole list (kills the flicker).
   const [lines, setLines] = useState<CartLine[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
   const seeded = useRef(false);
 
   useEffect(() => {
@@ -169,9 +172,54 @@ function CartInner() {
 
   const recItems = recs.data ?? [];
 
+  // One summary, two places: the rail at `lg:`, the sheet below it. Writing it twice is how
+  // the two drift.
+  const summary = (
+    <>
+      <div className="flex justify-between text-[14px]">
+        <span className="text-muted">{t('order.cart.subtotal')}</span>
+        <Money amount={subtotal} className="font-bold" />
+      </div>
+      {rate > 0 && (
+        <div className="flex justify-between text-[14px]">
+          <span className="text-muted">
+            {t('order.cart.memberDiscount', { pct: Math.round(rate * 100) })}
+          </span>
+          <span className="font-bold text-[color:var(--success)]">
+            −<Money amount={discount} />
+          </span>
+        </div>
+      )}
+      <div className="flex justify-between border-t border-[color:var(--border-soft)] pt-3.5 text-[16px] font-extrabold">
+        <span>{t('order.cart.estTotal')}</span>
+        <Money amount={total} />
+      </div>
+      <p className="text-[12.5px] leading-relaxed text-muted">{t('order.cart.shippingNote')}</p>
+      <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 px-3.5 py-[11px] text-[12.5px] text-amber-900">
+        <Tag size={16} weight="fill" className="flex-shrink-0 text-amber-600" />
+        {t('order.cart.voucherHint')}
+      </div>
+      <div className="flex justify-center gap-4 pt-1 text-[11.5px] font-bold text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <ShieldCheck size={14} weight="fill" className="text-brand-600" />
+          {t('order.cart.trustSecure')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Clock size={14} weight="fill" className="text-brand-600" />
+          {t('order.cart.trustFast')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Drop size={14} weight="fill" className="text-brand-600" />
+          {t('order.cart.trustSealed')}
+        </span>
+      </div>
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">
+      {/* Below `sm:` the app bar carries this title. */}
+      <h1 className="hidden text-[30px] font-extrabold tracking-[-0.03em] sm:block">
         {t('order.cart.title')}{' '}
         <span className="text-[15px] font-bold text-muted">
           {t('order.cart.itemCount', { n: totalQty })}
@@ -245,11 +293,13 @@ function CartInner() {
               <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">
                 {t('order.cart.addOnTitle')}
               </h2>
-              <div className="grid grid-cols-2 gap-3">
+              {/* Scrolls sideways on a phone — four stacked cards pushed the total another
+                  screen down. From `sm:` up there is room for the grid it was. */}
+              <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0">
                 {recItems.map((rec) => (
                   <div
                     key={rec.productId}
-                    className="surface flex items-center gap-3 rounded-[16px] p-[11px] shadow-card"
+                    className="surface flex w-[230px] flex-none snap-start items-center gap-3 rounded-[16px] p-[11px] shadow-card sm:w-auto"
                   >
                     <Link
                       href={`/products/detail?id=${rec.productId}`}
@@ -277,54 +327,47 @@ function CartInner() {
           )}
         </div>
 
-        {/* summary */}
-        <div className="surface flex flex-col gap-3.5 rounded-[22px] p-6 shadow-card lg:sticky lg:top-20">
+        {/* summary rail — only where there is a column for it */}
+        <div className="surface hidden flex-col gap-3.5 rounded-[22px] p-6 shadow-card lg:sticky lg:top-20 lg:flex">
           <h2 className="text-[17px] font-extrabold">{t('order.cart.summary')}</h2>
-          <div className="flex justify-between text-[14px]">
-            <span className="text-muted">{t('order.cart.subtotal')}</span>
-            <Money amount={subtotal} className="font-bold" />
-          </div>
-          {rate > 0 && (
-            <div className="flex justify-between text-[14px]">
-              <span className="text-muted">
-                {t('order.cart.memberDiscount', { pct: Math.round(rate * 100) })}
-              </span>
-              <span className="font-bold text-[color:var(--success)]">
-                −<Money amount={discount} />
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-[color:var(--border-soft)] pt-3.5 text-[16px] font-extrabold">
-            <span>{t('order.cart.estTotal')}</span>
-            <Money amount={total} />
-          </div>
-          <p className="text-[12.5px] leading-relaxed text-muted">
-            {t('order.cart.shippingNote')}
-          </p>
+          {summary}
           <LinkButton href="/checkout" className="h-13 w-full rounded-full text-[15px] font-extrabold">
             {t('order.cart.checkout')}
             <ArrowRight size={17} />
           </LinkButton>
-          <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 px-3.5 py-[11px] text-[12.5px] text-amber-900">
-            <Tag size={16} weight="fill" className="flex-shrink-0 text-amber-600" />
-            {t('order.cart.voucherHint')}
-          </div>
-          <div className="flex justify-center gap-4 pt-1 text-[11.5px] font-bold text-muted">
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck size={14} weight="fill" className="text-brand-600" />
-              {t('order.cart.trustSecure')}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock size={14} weight="fill" className="text-brand-600" />
-              {t('order.cart.trustFast')}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Drop size={14} weight="fill" className="text-brand-600" />
-              {t('order.cart.trustSealed')}
-            </span>
-          </div>
         </div>
       </div>
+
+      {/* Everywhere narrower, the rail landed at the bottom of a long scroll: the total and
+          the checkout button were permanently below the fold. */}
+      <StickyActionBar className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setShowSummary(true)}
+          className="flex min-w-0 flex-col items-start"
+        >
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-muted">
+            {t('order.cart.summary')}
+            <CaretUp size={11} weight="bold" />
+          </span>
+          <Money amount={total} className="text-[17px] font-extrabold" />
+        </button>
+        <LinkButton
+          href="/checkout"
+          className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
+        >
+          {t('order.cart.checkout')}
+          <ArrowRight size={17} />
+        </LinkButton>
+      </StickyActionBar>
+
+      <Sheet
+        open={showSummary}
+        onClose={() => setShowSummary(false)}
+        title={t('order.cart.summary')}
+      >
+        <div className="flex flex-col gap-3.5">{summary}</div>
+      </Sheet>
     </div>
   );
 }

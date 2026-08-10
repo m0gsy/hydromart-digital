@@ -55,6 +55,13 @@ describe('AppBar', () => {
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
+  it('titles a pushed screen that has given up its own heading', () => {
+    pathname = '/cart';
+    render(<AppBar />);
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('order.cart.title');
+  });
+
   it('goes back through history when there is history', () => {
     pathname = '/orders/detail';
     window.history.pushState({}, '', '/orders');

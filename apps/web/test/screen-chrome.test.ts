@@ -57,6 +57,15 @@ describe('screenChrome', () => {
     expect(screenChrome('/account').titleKey).toBe('nav.account');
   });
 
+  // A pushed screen earns its app-bar title by giving up its own <h1> below `sm:`, one
+  // screen per phase. Anything still rendering a heading must stay untitled here.
+  it('titles only the pushed screens whose page heading has moved up', () => {
+    expect(screenChrome('/cart').titleKey).toBe('order.cart.title');
+    for (const path of ['/checkout', '/rewards', '/products/detail', '/orders/detail']) {
+      expect(screenChrome(path).titleKey).toBeUndefined();
+    }
+  });
+
   // `trailingSlash: true` in the exported build: the same screen arrives spelled both ways.
   it.each(Object.keys(ROUTES).filter((p) => p !== '/'))('%s/ resolves like %s', (path) => {
     expect(screenChrome(`${path}/`)).toEqual(screenChrome(path));
