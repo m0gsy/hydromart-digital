@@ -61,7 +61,8 @@ describe('screenChrome', () => {
   // screen per phase. Anything still rendering a heading must stay untitled here.
   it('titles only the pushed screens whose page heading has moved up', () => {
     expect(screenChrome('/cart').titleKey).toBe('order.cart.title');
-    for (const path of ['/checkout', '/rewards', '/products/detail', '/orders/detail']) {
+    expect(screenChrome('/checkout').titleKey).toBe('order.checkout.title');
+    for (const path of ['/rewards', '/products/detail', '/orders/detail']) {
       expect(screenChrome(path).titleKey).toBeUndefined();
     }
   });

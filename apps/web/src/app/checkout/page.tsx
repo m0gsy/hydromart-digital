@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bank,
+  CaretUp,
   Check,
   CheckCircle,
   DeviceMobile,
@@ -19,8 +20,9 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 
+import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton, StickyActionBar } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
@@ -139,6 +141,7 @@ function CheckoutInner() {
   /** Idempotency key for the current purchase attempt; cleared once an order is placed. */
   const attemptKey = useRef('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
 
   // `null` = a fresh manually-typed address (no saved coordinates). Selecting a saved
@@ -373,6 +376,63 @@ function CheckoutInner() {
       )
     : [];
 
+  // One summary, two places: the rail at `lg:`, the sheet behind the sticky bar below it.
+  const summaryBody = (
+    <>
+      {cart.items.map((l) => (
+        <div key={l.productId} className="flex items-center gap-3">
+          <div className="h-11 w-11 flex-shrink-0 rounded-[10px] bg-[color:var(--surface-muted)]" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-bold">{l.productName}</div>
+            <div className="text-xs text-muted">×{l.quantity}</div>
+          </div>
+          <Money amount={l.lineTotal} className="text-[13px] font-bold" />
+        </div>
+      ))}
+
+      <div className="flex flex-col gap-2.5 border-t border-app pt-3.5 text-[13.5px]">
+        <div className="flex justify-between">
+          <span className="text-muted">{t('order.checkout.subtotal')}</span>
+          <Money amount={cart.subtotal} className="font-bold" />
+        </div>
+        {membershipDiscount > 0 && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>{t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}</span>
+            <span className="font-bold">
+              −<Money amount={membershipDiscount} />
+            </span>
+          </div>
+        )}
+        {voucherDiscount > 0 && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>{t('order.checkout.voucherLabel', { code: quote?.code ?? '' })}</span>
+            <span className="font-bold">
+              −<Money amount={voucherDiscount} />
+            </span>
+          </div>
+        )}
+        {depot ? (
+          <div className="flex justify-between">
+            <span className="text-muted">{t('order.checkout.deliveryEst', { name: depot.name })}</span>
+            <Money amount={deliveryFee} className="font-bold" />
+          </div>
+        ) : (
+          <p className="text-xs text-muted">{t('order.checkout.deliveryNote')}</p>
+        )}
+      </div>
+
+      <div className="flex justify-between border-t border-app pt-3.5 text-[17px] font-extrabold">
+        <span>{t('order.checkout.total')}</span>
+        <Money amount={displayedTotal} />
+      </div>
+
+      <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
+        <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />
+        {t('order.checkout.priceVerified')}
+      </p>
+    </>
+  );
+
   return (
     <form onSubmit={placeOrder} className="flex flex-col">
       {/* Progress stepper — centered in-page row */}
@@ -399,7 +459,8 @@ function CheckoutInner() {
         </span>
       </div>
 
-      <h1 className="mb-5 text-[30px] font-extrabold tracking-[-0.03em]">
+      {/* Below `sm:` the app bar carries this title. */}
+      <h1 className="mb-5 hidden text-[30px] font-extrabold tracking-[-0.03em] sm:block">
         {t('order.checkout.title')}
       </h1>
 
@@ -793,56 +854,10 @@ function CheckoutInner() {
           )}
         </div>
 
-        {/* RIGHT summary */}
-        <Card className="flex flex-col gap-3.5 rounded-[22px] p-6 lg:sticky lg:top-20">
+        {/* RIGHT summary — a rail only where there is a column for one */}
+        <Card className="hidden flex-col gap-3.5 rounded-[22px] p-6 lg:sticky lg:top-20 lg:flex">
           <h2 className="text-[17px] font-extrabold">{t('order.checkout.orderSummary')}</h2>
-
-          {cart.items.map((l) => (
-            <div key={l.productId} className="flex items-center gap-3">
-              <div className="h-11 w-11 flex-shrink-0 rounded-[10px] bg-[color:var(--surface-muted)]" />
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-bold">{l.productName}</div>
-                <div className="text-xs text-muted">×{l.quantity}</div>
-              </div>
-              <Money amount={l.lineTotal} className="text-[13px] font-bold" />
-            </div>
-          ))}
-
-          <div className="flex flex-col gap-2.5 border-t border-app pt-3.5 text-[13.5px]">
-            <div className="flex justify-between">
-              <span className="text-muted">{t('order.checkout.subtotal')}</span>
-              <Money amount={cart.subtotal} className="font-bold" />
-            </div>
-            {membershipDiscount > 0 && (
-              <div className="flex justify-between text-[color:var(--success)]">
-                <span>{t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}</span>
-                <span className="font-bold">
-                  −<Money amount={membershipDiscount} />
-                </span>
-              </div>
-            )}
-            {voucherDiscount > 0 && (
-              <div className="flex justify-between text-[color:var(--success)]">
-                <span>{t('order.checkout.voucherLabel', { code: quote?.code ?? '' })}</span>
-                <span className="font-bold">
-                  −<Money amount={voucherDiscount} />
-                </span>
-              </div>
-            )}
-            {depot ? (
-              <div className="flex justify-between">
-                <span className="text-muted">{t('order.checkout.deliveryEst', { name: depot.name })}</span>
-                <Money amount={deliveryFee} className="font-bold" />
-              </div>
-            ) : (
-              <p className="text-xs text-muted">{t('order.checkout.deliveryNote')}</p>
-            )}
-          </div>
-
-          <div className="flex justify-between border-t border-app pt-3.5 text-[17px] font-extrabold">
-            <span>{t('order.checkout.total')}</span>
-            <Money amount={displayedTotal} />
-          </div>
+          {summaryBody}
 
           {submitError && (
             <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -861,13 +876,50 @@ function CheckoutInner() {
           {needsDepotPick && !pickedDepotId && (
             <p className="text-xs text-muted">{t('order.checkout.pickDepotRequired')}</p>
           )}
-
-          <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
-            <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />
-            {t('order.checkout.priceVerified')}
-          </p>
         </Card>
       </div>
+
+      {/* Everywhere narrower the rail stacked under a form long enough that the total and
+          the button that spends the money were never on screen together. */}
+      {submitError && (
+        <p className="mb-2 text-sm font-medium text-[color:var(--danger)] lg:hidden" role="alert">
+          {submitError}
+        </p>
+      )}
+      {needsDepotPick && !pickedDepotId && (
+        <p className="mb-2 text-xs text-muted lg:hidden">{t('order.checkout.pickDepotRequired')}</p>
+      )}
+      {/* A direct child of the form on purpose: `sticky` only holds while its containing
+          block is on screen, and a wrapper div is exactly as tall as the bar itself. */}
+      <StickyActionBar className="lg:hidden" unstickAt="lg">
+        <button
+          type="button"
+          onClick={() => setShowSummary(true)}
+          className="flex min-w-0 flex-col items-start"
+        >
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-muted">
+            {t('order.checkout.orderSummary')}
+            <CaretUp size={11} weight="bold" />
+          </span>
+          <Money amount={displayedTotal} className="text-[17px] font-extrabold" />
+        </button>
+        <Button
+          type="submit"
+          loading={submitting}
+          disabled={needsDepotPick && !pickedDepotId}
+          className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
+        >
+          {t('order.checkout.placeOrder')}
+        </Button>
+      </StickyActionBar>
+
+      <Sheet
+        open={showSummary}
+        onClose={() => setShowSummary(false)}
+        title={t('order.checkout.orderSummary')}
+      >
+        <div className="flex flex-col gap-3.5">{summaryBody}</div>
+      </Sheet>
     </form>
   );
 }

@@ -511,16 +511,26 @@ export function ListRow({
 export function StickyActionBar({
   children,
   className,
+  unstickAt = 'sm',
 }: {
   children: ReactNode;
   className?: string;
+  /**
+   * The width at which the screen has room to show the action inline again — usually `sm:`,
+   * but `lg:` for a screen whose page is long enough that "inline" still means "off the
+   * bottom of a tablet". Match it to where that screen's summary rail comes back.
+   */
+  unstickAt?: 'sm' | 'lg';
 }) {
   const keyboardOpen = useKeyboardOpen();
   return (
     <div
       className={cx(
         'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 py-3',
-        '-mx-4 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0',
+        '-mx-4',
+        unstickAt === 'lg'
+          ? 'lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0'
+          : 'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0',
         !keyboardOpen && 'sticky bottom-0',
         className,
       )}

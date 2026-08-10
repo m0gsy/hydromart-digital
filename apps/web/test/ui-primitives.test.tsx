@@ -71,6 +71,16 @@ describe('StickyActionBar', () => {
     expect(container.firstElementChild?.className).toContain('sticky');
   });
 
+  // A form long enough that "inline at `sm:`" still means "off the bottom of a tablet" has
+  // to keep the bar pinned until its rail actually comes back.
+  it('goes inline at the width its screen gets its rail back', () => {
+    keyboardOpen = false;
+    const { container } = render(<StickyActionBar unstickAt="lg">x</StickyActionBar>);
+    const cls = container.firstElementChild?.className ?? '';
+    expect(cls).toContain('lg:static');
+    expect(cls).not.toContain('sm:static');
+  });
+
   // It must not vanish like the tab bar does — the CTA is the point of the screen. It stops
   // being pinned so it sits above the keyboard instead of on top of it.
   it('rejoins the flow while the keyboard is up, rather than hiding', () => {

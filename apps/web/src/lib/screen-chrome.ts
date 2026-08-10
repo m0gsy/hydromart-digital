@@ -45,6 +45,7 @@ const ROOT: Record<string, string | undefined> = {
 /** Pushed screens whose page heading has already moved up here. */
 const PUSHED: Record<string, string> = {
   '/cart': 'order.cart.title',
+  '/checkout': 'order.checkout.title',
 };
 
 const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);
