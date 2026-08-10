@@ -105,6 +105,50 @@ export class OrderConfigService {
     );
   }
   /**
+   * Express delivery, as the fulfilling depot has it configured. `fee` is charged, not
+   * previewed: it used to be a constant in the checkout screen that the customer saw and
+   * the order never included.
+   */
+  express(depotId: string | null = null): {
+    enabled: boolean;
+    fee: number;
+    etaMinMinutes: number;
+    etaMaxMinutes: number;
+  } {
+    return {
+      enabled: this.tunable('expressEnabled', this.num('ORDER_EXPRESS_ENABLED'), depotId) === 1,
+      fee: this.tunable('expressFee', this.num('ORDER_EXPRESS_FEE'), depotId),
+      etaMinMinutes: this.tunable(
+        'expressEtaMinMinutes',
+        this.num('ORDER_EXPRESS_ETA_MIN_MINUTES'),
+        depotId,
+      ),
+      etaMaxMinutes: this.tunable(
+        'expressEtaMaxMinutes',
+        this.num('ORDER_EXPRESS_ETA_MAX_MINUTES'),
+        depotId,
+      ),
+    };
+  }
+  /**
+   * Scheduled windows the depot offers, in the order they should be shown. Stored as one
+   * comma-separated string because that is what the settings screen can edit; the write
+   * path enforces the `HH.MM-HH.MM` shape, so a bad entry never reaches here.
+   */
+  deliverySlots(depotId: string | null = null): string[] {
+    const def = SETTING_DEF_BY_KEY.deliverySlots;
+    const raw = this.settings.effective(
+      'deliverySlots',
+      def.type,
+      this.config.getOrThrow<string>('ORDER_DELIVERY_SLOTS'),
+      depotId,
+    ) as string;
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  /**
    * Nominal galon fill (ml) the water-meter variance is divided by to read as
    * "setara galon". Per-depot: a depot whose main line is 15L counts in 15L units.
    */

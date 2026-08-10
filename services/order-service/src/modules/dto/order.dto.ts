@@ -110,6 +110,33 @@ export class CheckoutDto {
   @IsString()
   @MaxLength(40)
   deliveryWindow?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Express ("antar sekarang") instead of a scheduled window. The surcharge is read from the depot\'s settings server-side; no price is accepted from the client.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  express?: boolean;
+}
+
+/** What the checkout screen may offer for delivery timing at one depot. */
+export class DeliveryOptionsResponseDto {
+  @ApiProperty({ example: ['09.00-11.00', '11.00-13.00'] })
+  slots!: string[];
+
+  @ApiProperty({ example: true })
+  expressEnabled!: boolean;
+
+  @ApiProperty({ example: 5000, description: 'Surcharge in IDR, charged on the order.' })
+  expressFee!: number;
+
+  @ApiProperty({ example: 30 })
+  expressEtaMinMinutes!: number;
+
+  @ApiProperty({ example: 60 })
+  expressEtaMaxMinutes!: number;
 }
 
 export class ListOrdersQueryDto {

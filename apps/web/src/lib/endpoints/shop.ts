@@ -59,6 +59,11 @@ orders: {
   // Undo a counter sale at the till (same day only).
   voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
   checkout: '/orders/api/v1/orders/checkout',
+  // Delivery windows + express pricing as the fulfilling depot has them configured. The
+  // checkout screen carries no prices of its own: the surcharge shown here is the one the
+  // order is charged.
+  deliveryOptions: (depotId?: string | null) =>
+    `/orders/api/v1/orders/delivery-options${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   list: '/orders/api/v1/orders',
   get: (id: string) => `/orders/api/v1/orders/${id}`,
   cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,

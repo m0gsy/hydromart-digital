@@ -11,6 +11,7 @@ import {
 
 import {
   BelowMinimumOrderError,
+  ExpressUnavailableError,
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
@@ -104,11 +105,26 @@ export interface CheckoutInput {
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
   deliveryWindow?: string | null;
   /**
+   * "Antar sekarang": the customer wants the express service rather than a scheduled
+   * window. A flag rather than a price — the surcharge comes from the depot's settings
+   * here, never from the client.
+   */
+  express?: boolean;
+  /**
    * Client-supplied `Idempotency-Key`, one per checkout attempt (B-13). A double tap or a
    * retry after a timeout carries the same key and gets the order the first attempt placed,
    * rather than a second one. Absent = no protection, exactly as before.
    */
   idempotencyKey?: string | null;
+}
+
+/** Delivery timing a depot offers, as the checkout screen needs to render it. */
+export interface DeliveryOptions {
+  slots: string[];
+  expressEnabled: boolean;
+  expressFee: number;
+  expressEtaMinMinutes: number;
+  expressEtaMaxMinutes: number;
 }
 
 export interface ListOrdersInput {
@@ -225,6 +241,25 @@ export class OrderService {
   }
 
   /**
+   * What the checkout screen may offer for delivery timing at this depot. Reading it from
+   * the same place `checkout` prices from is the point: the screen used to hold its own
+   * slot list and its own express fee, and the fee it showed was never charged.
+   *
+   * No depot yet (the address has not been chosen) resolves the global values, which is
+   * also what an order routed to no depot would be priced at.
+   */
+  deliveryOptions(depotId: string | null): DeliveryOptions {
+    const express = this.config.express(depotId);
+    return {
+      slots: this.config.deliverySlots(depotId),
+      expressEnabled: express.enabled,
+      expressFee: express.fee,
+      expressEtaMinMinutes: express.etaMinMinutes,
+      expressEtaMaxMinutes: express.etaMaxMinutes,
+    };
+  }
+
+  /**
    * Places an order from the customer's cart. Prices are re-resolved from the
    * catalog (never trusts the client), the delivery address is snapshotted, and
    * the cart is cleared on success.
@@ -268,7 +303,19 @@ export class OrderService {
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
+    const shippingFee = money(depot.deliveryFee * galonQuantity(items));
+
+    // "Antar sekarang" is a paid speed upgrade the depot configures. The checkout screen
+    // used to show a flat Rp5.000 for it that no order ever included: the customer read a
+    // total, and a different one was stored. The price is decided here, from the depot's
+    // own settings, and the client only says which service it wants.
+    //
+    // A depot that has switched express off rejects rather than quietly downgrading the
+    // order to scheduled: the customer asked for a delivery in the next hour, and silently
+    // selling them a different thing is the worse failure.
+    const express = this.config.express(depot.id);
+    if (input.express && !express.enabled) throw new ExpressUnavailableError();
+    const expressFee = input.express ? money(express.fee) : 0;
 
     // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
     // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
@@ -302,8 +349,10 @@ export class OrderService {
       let voucherValueDiscount = 0;
       let voucherShippingDiscount = 0;
       // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
+      // The shipping fee alone, without the express surcharge: a FREE_SHIPPING voucher
+      // waives delivery, and paying nothing for a speed upgrade is not what it promises.
       const quoteP = voucherCode
-        ? this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization)
+        ? this.promo.quote(voucherCode, customerId, subtotal, shippingFee, authorization)
         : Promise.resolve(null);
       // A rejected voucher must still reject checkout, and a rejected quote must not leave
       // the membership call unhandled — allSettled, then rethrow the quote's failure.
@@ -328,9 +377,13 @@ export class OrderService {
       // voucher is capped separately against the delivery fee it exists to waive, so a
       // small order with a large fee still gets its shipping fully covered.
       const valueDiscount = Math.min(subtotal, membershipDiscount + voucherValueDiscount);
-      const shippingDiscount = Math.min(deliveryFee, voucherShippingDiscount);
+      const shippingDiscount = Math.min(shippingFee, voucherShippingDiscount);
       discount = money(valueDiscount + shippingDiscount);
     }
+    // Stored as one delivery charge, because that is what it is to the customer and to the
+    // receipt. ponytail: if a depot ever needs express reported apart from shipping, that
+    // is a column on Order, not a second total.
+    const deliveryFee = money(shippingFee + expressFee);
     const total = money(subtotal + deliveryFee - discount);
 
     const order = await this.reserveThenCreate(

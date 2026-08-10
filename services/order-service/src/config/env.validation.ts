@@ -37,6 +37,17 @@ export const envValidationSchema = Joi.object({
   // Percent off the subtotal of every subscription delivery (spec 7b "hemat 5%").
   // Boot-time fallback only; a depot may override it through settings.
   ORDER_SUBSCRIPTION_DISCOUNT_PCT: Joi.number().min(0).max(50).default(5),
+  // Express ("antar sekarang") delivery. Boot-time fallbacks only; every one of these is
+  // overridable per depot through settings, which is where they belong — the surcharge is
+  // charged, not decorative.
+  ORDER_EXPRESS_ENABLED: Joi.number().integer().min(0).max(1).default(1),
+  ORDER_EXPRESS_FEE: Joi.number().min(0).default(5000),
+  ORDER_EXPRESS_ETA_MIN_MINUTES: Joi.number().integer().positive().default(30),
+  ORDER_EXPRESS_ETA_MAX_MINUTES: Joi.number().integer().positive().default(60),
+  // Scheduled delivery windows offered at checkout: comma-separated `HH.MM-HH.MM`.
+  ORDER_DELIVERY_SLOTS: Joi.string()
+    .pattern(/^\d{2}\.\d{2}-\d{2}\.\d{2}(,\d{2}\.\d{2}-\d{2}\.\d{2})*$/)
+    .default('09.00-11.00,11.00-13.00,13.00-15.00,15.00-17.00,17.00-19.00'),
   // Nominal galon fill used to express a water-meter variance as "setara galon".
   ORDER_METER_REFERENCE_VOLUME_ML: Joi.number().integer().positive().default(19000),
   // Litres of meter-vs-sales variance tolerated before an ops alert fires.

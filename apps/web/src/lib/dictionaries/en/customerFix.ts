@@ -12,13 +12,11 @@ export const customerFix = {
   // 13b — delivery slot (checkout)
   slot: {
     expressNow: 'Deliver now',
-    expressEta: 'Est. 30–60 min',
+    expressEta: 'Est. {min}–{max} min',
     expressFee: '+{amount}',
     orSchedule: 'Or schedule',
     today: 'Today',
     tomorrow: 'Tomorrow',
-    capFull: 'Full',
-    capLow: 'Almost full',
     selected: 'selected',
     periodMorning: 'Morning',
     periodNoon: 'Midday',
