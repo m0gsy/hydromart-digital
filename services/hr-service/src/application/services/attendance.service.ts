@@ -18,6 +18,7 @@ import {
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { withinGeofence } from '../../domain/geofence';
+import { latenessFor } from '../../domain/lateness';
 import {
   assignmentInForce,
   parseRotationPattern,
@@ -77,9 +78,11 @@ export class AttendanceService {
     // depot's shift and then config — so anyone HR has not assigned is judged exactly as
     // before this existed.
     const startMinutes = this.parseHHMM(await this.shiftStartFor(employee, workDate));
-    const tolerance = this.config.lateToleranceMinutes(employee.depotId);
-    const late = minutesOfDay > startMinutes + tolerance;
-    const lateMinutes = late ? minutesOfDay - startMinutes : 0;
+    const { late, lateMinutes } = latenessFor({
+      minutesOfDay,
+      startMinutes,
+      toleranceMinutes: this.config.lateToleranceMinutes(employee.depotId),
+    });
     const photoUrl =
       punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
 
