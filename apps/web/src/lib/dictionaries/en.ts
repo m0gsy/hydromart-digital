@@ -142,6 +142,7 @@ export const en: Dictionary = {
     retry: 'Try again',
     loading: 'Loading…',
     somethingWrong: 'Something went wrong',
+    error: 'Something went wrong.',
   },
   home,
   shop,

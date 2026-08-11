@@ -143,6 +143,9 @@ export const id = {
     retry: 'Coba lagi',
     loading: 'Memuat…',
     somethingWrong: 'Ada yang tidak beres',
+    // Used by the HQ order queue's assign-depot failure; without it the screen printed
+    // the key itself at the user.
+    error: 'Ada yang tidak beres.',
   },
   home,
   shop,

@@ -340,7 +340,11 @@ function CartInner() {
 
       {/* Everywhere narrower, the rail landed at the bottom of a long scroll: the total and
           the checkout button were permanently below the fold. */}
-      <StickyActionBar className="lg:hidden">
+      {/* `unstickAt="lg"` because the bar is `lg:hidden` and the summary rail returns at
+          `lg:`. With the default `sm:` it went static at 640px while still being the only
+          total on screen until 1024 — a long cart on a tablet then had neither a pinned
+          total nor the rail. */}
+      <StickyActionBar className="lg:hidden" unstickAt="lg">
         <button
           type="button"
           onClick={() => setShowSummary(true)}

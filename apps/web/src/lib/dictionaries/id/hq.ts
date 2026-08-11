@@ -1169,6 +1169,7 @@ export const hq = {
     up: 'Operasional',
     down: 'Mati',
     summary: '{up}/{total} layanan operasional',
+    loadError: 'Status layanan tidak bisa dimuat.',
   },
   exportsLog: {
     title: 'Log ekspor data',
