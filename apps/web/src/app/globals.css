@@ -253,6 +253,33 @@ body {
   }
 }
 
+/* Directional page transitions (Ph9). A screen pushed off a tab arrives from the right;
+   coming back out of one, the tab arrives from the left. Only those two directions are
+   animated — see `pageAnimation` for why pushed→pushed is not. Opacity rides along so a
+   slide never looks like a redraw, and `both` holds the start frame, which is what stops
+   the first frame flashing at the wrong offset. */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
