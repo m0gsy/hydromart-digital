@@ -217,6 +217,16 @@ export class DepotMonthlyReportResponseDto {
   netProfitIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   slaPct!: number | null;
+  @ApiProperty({ type: Number })
+  gallons!: number;
+  @ApiProperty({ type: Number })
+  prevGallons!: number;
+  @ApiProperty({ type: Number })
+  gallonsDelta!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  growthPct!: number | null;
+  @ApiProperty({ type: Number })
+  avgGallonsPerDay!: number;
   @ApiProperty({ required: false, type: DepotMonthlyReportTopCourierResponseDto })
   topCourier?: DepotMonthlyReportTopCourierResponseDto;
 }

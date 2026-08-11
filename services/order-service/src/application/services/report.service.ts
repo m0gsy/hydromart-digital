@@ -143,6 +143,17 @@ export interface DepotMonthlyReport {
   netProfitIdr: number | null;
   /** Null — SLA on-time needs delivery-service timings, no order-service source. */
   slaPct: number | null;
+  // Depot SOP: the monthly review is read in GALLONS, against last month.
+  /** Gallons delivered this month. */
+  gallons: number;
+  /** The same figure for the month before, which is what the SOP compares against. */
+  prevGallons: number;
+  /** gallons − prevGallons; negative when the depot sold less. */
+  gallonsDelta: number;
+  /** Percent change vs last month, or null when last month was 0 (no denominator). */
+  growthPct: number | null;
+  /** Gallons per elapsed day of the month — not per 30, which flatters a short month. */
+  avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
 }
 
@@ -508,7 +519,13 @@ export class ReportService {
     const tz = this.config.businessTimeZone;
     const from = dayStartUtc(`${month}-01`, tz);
     const to = addLocalMonths(from, 1, tz);
-    const rows = await this.orders.ordersForDepot(depotId, { from, to });
+    const prevFrom = addLocalMonths(from, -1, tz);
+    // Last month is one more read of the same shape — the SOP reads the two side by side,
+    // and a month of one depot's orders is far under the 20.000-row range bound.
+    const [rows, prevRows] = await Promise.all([
+      this.orders.ordersForDepot(depotId, { from, to }),
+      this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
+    ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
     for (const o of live) {
@@ -516,6 +533,13 @@ export class ReportService {
         byCourier.set(o.driverName, (byCourier.get(o.driverName) ?? 0) + 1);
     }
     const top = [...byCourier.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // Gallons count only what was actually DELIVERED, the same rule the daily report and
+    // the reseller rollup use — a galon still on the truck has not been sold to anyone.
+    const gallonsOf = (rs: typeof rows): number =>
+      rs.filter((r) => isDelivered(r.status)).reduce((sum, r) => sum + gallonQty(r), 0);
+    const gallons = gallonsOf(rows);
+    const prevGallons = gallonsOf(prevRows);
     return {
       depotId,
       month,
@@ -526,8 +550,31 @@ export class ReportService {
       netProfitIdr: null,
       // TODO: SLA on-time needs delivery-service timings — no order-service source.
       slaPct: null,
+      gallons,
+      prevGallons,
+      gallonsDelta: gallons - prevGallons,
+      // Null, not 0 and not Infinity: with nothing to grow from there is no percentage to
+      // report, and "+100%" off a zero base is a number somebody would act on.
+      growthPct:
+        prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
+      avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
+  }
+
+  /**
+   * Days of the month that have actually happened, for the per-day average.
+   *
+   * A finished month is its whole length; the CURRENT month is only as long as it has got
+   * so far. Dividing this month's four days of sales by 31 reports a depot as collapsing
+   * every time somebody opens the review early in the month.
+   */
+  private static elapsedDays(from: Date, to: Date): number {
+    const now = new Date();
+    const end = now < to ? now : to;
+    // A day in progress counts (ceil): four and a half days in is day five, not day four.
+    // Floor at 1 so a month that has not started yet averages 0 rather than dividing by 0.
+    return Math.max(1, Math.ceil((end.getTime() - from.getTime()) / DAY_MS));
   }
 
   /**

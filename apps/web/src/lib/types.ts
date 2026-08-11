@@ -2078,6 +2078,13 @@ export interface ReportDepotMonthly {
   activeCustomers: number;
   netProfitIdr: number | null;
   slaPct: number | null;
+  // Depot SOP: the monthly review is read in galon, against last month.
+  gallons: number;
+  prevGallons: number;
+  gallonsDelta: number;
+  /** null when last month sold nothing — there is no percentage to report off zero. */
+  growthPct: number | null;
+  avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
 }
 

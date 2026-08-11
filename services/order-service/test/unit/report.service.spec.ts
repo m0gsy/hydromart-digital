@@ -622,6 +622,122 @@ describe('ReportService empty and absent shapes', () => {
     const out = await svc.reportsDepotMonthly('d1', '2026-05');
     expect(out.topCourier).toBeUndefined();
     expect(out.orders).toBe(0);
+    expect(out).toMatchObject({ gallons: 0, prevGallons: 0, gallonsDelta: 0, growthPct: null });
+  });
+
+  // Depot SOP §4: the monthly review is read in galon, against last month.
+  describe('monthly gallon figures', () => {
+    const gallonOrder = (createdAt: string, qty: number, status = OrderStatus.DELIVERED) => ({
+      id: `o-${createdAt}-${qty}`,
+      customerId: 'c1',
+      status,
+      total: qty * 20000,
+      createdAt: new Date(createdAt),
+      items: [
+        {
+          productId: 'p1',
+          productName: 'Air Galon 19L',
+          unit: 'Galon 19L',
+          volumeMl: 19000,
+          isGallon: true,
+          quantity: qty,
+        },
+      ],
+    });
+    /**
+     * Two windows: May 2026 is the reported month, April 2026 the comparison.
+     *
+     * Split on the instant, not on `getUTCMonth()` — the bounds are WIB midnights, so
+     * May's window starts at 2026-04-30T17:00Z and reads as April in UTC.
+     */
+    const APRIL_MAY_BOUNDARY = new Date('2026-04-15T00:00:00.000Z');
+    const withMonths = (may: unknown[], april: unknown[]) =>
+      stub({
+        ordersForDepot: async (_d: string, range: { from: Date }) =>
+          range.from < APRIL_MAY_BOUNDARY ? april : may,
+      });
+
+    it('reports this month, last month, the delta and the growth percentage', async () => {
+      const svc = withMonths(
+        [gallonOrder('2026-05-04T00:00:00.000Z', 90), gallonOrder('2026-05-20T00:00:00.000Z', 30)],
+        [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
+      );
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({
+        gallons: 120,
+        prevGallons: 100,
+        gallonsDelta: 20,
+        growthPct: 20,
+      });
+    });
+
+    it('reports a fall as a negative delta and a negative percentage', async () => {
+      const svc = withMonths(
+        [gallonOrder('2026-05-04T00:00:00.000Z', 75)],
+        [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
+      );
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({ gallonsDelta: -25, growthPct: -25 });
+    });
+
+    // Not 0, not Infinity, not "+100%" — there is nothing to grow from.
+    it('reports no percentage at all when last month sold nothing', async () => {
+      const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 120)], []);
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({ gallons: 120, prevGallons: 0, gallonsDelta: 120, growthPct: null });
+    });
+
+    it('counts only delivered gallons — a cancelled or in-flight order is not a sale', async () => {
+      const svc = withMonths(
+        [
+          gallonOrder('2026-05-04T00:00:00.000Z', 40),
+          gallonOrder('2026-05-05T00:00:00.000Z', 60, OrderStatus.CANCELLED),
+          gallonOrder('2026-05-06T00:00:00.000Z', 60, OrderStatus.ON_DELIVERY),
+        ],
+        [],
+      );
+      expect((await svc.reportsDepotMonthly('d1', '2026-05')).gallons).toBe(40);
+    });
+
+    // A finished month averages over its whole length; the CURRENT month only over the
+    // days that have happened, or every review opened on the 3rd reads as a collapse.
+    it('averages a finished month over its whole length', async () => {
+      const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 310)], []);
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out.avgGallonsPerDay).toBe(10); // 310 / 31, not 310 / 30
+    });
+
+    it('averages the current month over the days elapsed so far', async () => {
+      jest.useFakeTimers({
+        // 5 August 2026, 10:00 WIB — four full days plus one in progress.
+        now: new Date('2026-08-05T03:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+      try {
+        const svc = stub({
+          ordersForDepot: async (_d: string, range: { from: Date }) =>
+            range.from < new Date('2026-07-15T00:00:00.000Z')
+              ? []
+              : [gallonOrder('2026-08-02T00:00:00.000Z', 50)],
+        });
+        expect((await svc.reportsDepotMonthly('d1', '2026-08')).avgGallonsPerDay).toBe(10); // 50 / 5
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('averages a month that has not started yet as 0 rather than dividing by zero', async () => {
+      jest.useFakeTimers({
+        now: new Date('2026-08-05T03:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+      try {
+        const svc = stub({ ordersForDepot: async () => [] });
+        expect((await svc.reportsDepotMonthly('d1', '2026-12')).avgGallonsPerDay).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   // Behaviour change, deliberate (migration 20260802120000_meter_reading): a gallon is

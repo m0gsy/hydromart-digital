@@ -68,6 +68,29 @@ function MonthlyReviewBody() {
     { label: 'Setoran selisih', value: '—' },
   ];
 
+  // Depot SOP: the monthly report is read in galon, in this order and with these words.
+  // Omset is the revenue figure already on the stat row above; it is repeated here because
+  // the SOP sheet reads as one block and a manager copies it line by line.
+  const galon: Row[] = [
+    { label: 'Total galon bulan lalu', value: r ? r.prevGallons.toLocaleString('id-ID') : '—' },
+    { label: 'Total galon bulan sekarang', value: r ? r.gallons.toLocaleString('id-ID') : '—' },
+    {
+      label: 'Selisih',
+      value: r ? `${r.gallonsDelta > 0 ? '+' : ''}${r.gallonsDelta.toLocaleString('id-ID')}` : '—',
+    },
+    {
+      label: 'Persentase',
+      // '—' when last month sold nothing: there is no percentage, and printing +100% off a
+      // zero base is a number somebody would take to a meeting.
+      value: r?.growthPct != null ? `${r.growthPct > 0 ? '+' : ''}${r.growthPct}%` : '—',
+    },
+    {
+      label: 'Rata-rata per hari',
+      value: r ? `${r.avgGallonsPerDay.toLocaleString('id-ID')} galon` : '—',
+    },
+    { label: 'Omset', value: r ? formatIDR(r.revenueIdr) : '—' },
+  ];
+
   const team: Row[] = [
     { label: 'Kurir teratas', value: r?.topCourier ? `${r.topCourier.name} · ${r.topCourier.delivered} antar` : '—' },
     { label: 'Pelanggan aktif', value: r ? r.activeCustomers.toLocaleString('id-ID') : '—' },
@@ -101,6 +124,8 @@ function MonthlyReviewBody() {
               </Card>
             ))}
           </div>
+
+          <Panel title="Penjualan galon" rows={galon} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Panel title="Governance" rows={governance} />
