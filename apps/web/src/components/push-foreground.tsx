@@ -1,10 +1,13 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { useToast } from '@/components/toast';
 import { onPluginEvent } from '@/lib/capacitor';
+import { resolveDeepLink } from '@/lib/deep-link';
 import { isNativeShell } from '@/lib/platform';
+import { startPushTokenSync } from '@/lib/push';
 
 /**
  * The push that arrives while the app is open, which nothing else draws.
@@ -27,20 +30,35 @@ import { isNativeShell } from '@/lib/platform';
  */
 export function PushForeground() {
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     if (!isNativeShell()) return;
-    return onPluginEvent(
+    // E4. One `registration` listener that outlives the first handshake, so a rotated FCM
+    // token is re-registered instead of silently ending push. Mounted here because this
+    // component already exists for the life of the app and is already native-only.
+    const offToken = startPushTokenSync();
+    const offPush = onPluginEvent(
       'PushNotifications',
       'pushNotificationReceived',
-      (notification: { title?: string; body?: string }) => {
+      (notification: { title?: string; body?: string; data?: { url?: string } }) => {
         // Either half can be absent — a data-only message has neither, and there is
         // nothing to show for one of those.
         const text = [notification?.title, notification?.body].filter(Boolean).join(' — ');
-        if (text) toast(text, 'info');
+        if (!text) return;
+        // The destination crm-service chose for this event, through the same rewriting a
+        // tapped tray notification goes through — which is also what rejects a URL that
+        // is not ours. A payload that points nowhere gives a plain pill: a toast that
+        // looks pressable and does nothing is worse than one that plainly is not.
+        const path = notification?.data?.url ? resolveDeepLink(notification.data.url) : null;
+        toast(text, 'info', path ? () => router.push(path) : undefined);
       },
     );
-  }, [toast]);
+    return () => {
+      offToken();
+      offPush();
+    };
+  }, [toast, router]);
 
   return null;
 }
