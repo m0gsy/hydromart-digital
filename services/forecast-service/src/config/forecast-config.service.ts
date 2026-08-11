@@ -9,6 +9,11 @@ export class ForecastConfigService {
     return Number(this.config.getOrThrow(key));
   }
 
+  /** One business zone for the whole platform; day buckets are cut here (C2). */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
+  }
+
   get nodeEnv(): string {
     return this.config.get<string>('NODE_ENV', 'development');
   }

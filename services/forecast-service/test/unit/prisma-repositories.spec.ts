@@ -1,7 +1,7 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ForecastPrismaRepository } from '../../src/infrastructure/prisma/forecast.prisma.repository';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
-import { toUtcDay } from '../../src/domain/series';
+import { dateToDay, toBusinessDay } from '../../src/domain/series';
 
 // Unit-tests the forecast-service Prisma repository against per-model jest.fn() mocks of
 // PrismaService. No real database: read methods assert EXACT prisma call args + row mapping
@@ -40,7 +40,10 @@ describe('ForecastPrismaRepository', () => {
   const repo = new ForecastPrismaRepository(prisma);
 
   const at = new Date('2026-01-15T10:00:00Z');
-  const day = dayToDate(toUtcDay(at)); // UTC-midnight bucket for `at`
+  // C2: the day the ingest is filed under is the BUSINESS day of `at`, computed by the
+// caller and handed to the repository — the repository no longer derives it.
+const DAY_TZ = 'Asia/Jakarta';
+const day = dayToDate(toBusinessDay(at, DAY_TZ));
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -69,7 +72,7 @@ describe('ForecastPrismaRepository', () => {
     tx.depotDailyRevenue.findFirst.mockResolvedValue(null);
     tx.customerActivity.findUnique.mockResolvedValue(null);
 
-    await repo.applyIngest(cmd);
+    await repo.applyIngest(cmd, toBusinessDay(cmd.at, DAY_TZ));
 
     expect($transaction).toHaveBeenCalledTimes(1);
     // Audit S-20 and its Q-17 baseline row: the product refs and the demand increments are
@@ -105,7 +108,7 @@ describe('ForecastPrismaRepository', () => {
       total: 150000,
       at,
       items: [{ productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 3 }],
-    });
+    }, toBusinessDay(at, DAY_TZ));
     expect(tx.$executeRaw).not.toHaveBeenCalled();
     expect(tx.ingestedOrder.create).not.toHaveBeenCalled();
   });
@@ -124,7 +127,7 @@ describe('ForecastPrismaRepository', () => {
       total: 50000,
       at, // older than `newer`
       items: [{ productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 1 }],
-    });
+    }, toBusinessDay(at, DAY_TZ));
 
     expect(tx.depotDailyRevenue.update).toHaveBeenCalledWith({
       where: { id: 'ddr-1' },
@@ -141,7 +144,7 @@ describe('ForecastPrismaRepository', () => {
       { productId: 'p-1', depotId: 'depot-1', day: rowDay, quantity: 3 },
     ]);
     const out = await repo.findDemandRows({ productId: 'p-1', depotId: 'depot-1', fromDay: 20000, toDay: 20010 });
-    expect(out).toEqual([{ productId: 'p-1', depotId: 'depot-1', day: toUtcDay(rowDay), quantity: 3 }]);
+    expect(out).toEqual([{ productId: 'p-1', depotId: 'depot-1', day: dateToDay(rowDay), quantity: 3 }]);
     expect(productDailyDemand.findMany).toHaveBeenCalledWith({
       where: {
         productId: 'p-1',
@@ -194,7 +197,7 @@ describe('ForecastPrismaRepository', () => {
     const rowDay = new Date('2026-01-15T00:00:00Z');
     depotDailyRevenue.findMany.mockResolvedValue([{ depotId: 'depot-1', day: rowDay, revenue: 150000 }]);
     const out = await repo.findRevenueRows({ depotId: 'depot-1', fromDay: 20000, toDay: 20010 });
-    expect(out).toEqual([{ depotId: 'depot-1', day: toUtcDay(rowDay), revenue: 150000 }]);
+    expect(out).toEqual([{ depotId: 'depot-1', day: dateToDay(rowDay), revenue: 150000 }]);
     expect(depotDailyRevenue.findMany).toHaveBeenCalledWith({
       where: { day: { gte: dayToDate(20000), lte: dayToDate(20010) }, depotId: 'depot-1' },
     });

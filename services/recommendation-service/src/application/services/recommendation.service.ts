@@ -1,4 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalDays, startOfLocalDay } from '@hydromart/platform';
+
+import { RecommendationConfigService } from '../../config/recommendation-config.service';
 
 import { rankReorder } from '../../domain/reorder';
 import { rankRelated } from '../../domain/co-buy';
@@ -22,14 +25,14 @@ function clampDays(days: number): number {
   return Math.min(MAX_DAYS, Math.max(MIN_DAYS, days));
 }
 
-/** UTC-midnight of the given instant (mirrors the repo adapter's day bucketing). */
-function utcMidnight(at: Date): Date {
-  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
-}
+
 
 @Injectable()
 export class RecommendationService {
-  constructor(@Inject(RECOMMENDATION_TOKENS.Repository) private readonly repo: RecommendationRepository) {}
+  constructor(
+    @Inject(RECOMMENDATION_TOKENS.Repository) private readonly repo: RecommendationRepository,
+    private readonly config: RecommendationConfigService,
+  ) {}
 
   async ingest(cmd: IngestCommand): Promise<void> {
     if (await this.repo.hasIngested(cmd.orderId)) return;
@@ -60,7 +63,11 @@ export class RecommendationService {
   }
 
   async trending(depotId: string | null, days: number, limit: number, now: Date = new Date()): Promise<RecItem[]> {
-    const fromDay = new Date(utcMidnight(now).getTime() - (clampDays(days) - 1) * 86_400_000);
+    // C2: the window opens at LOCAL midnight. Opening it at UTC midnight — 07:00 WIB —
+    // meant that for the first seven hours of every day the board began mid-morning of the
+    // day before and quietly dropped the previous local evening's orders.
+    const tz = this.config.businessTimeZone;
+    const fromDay = addLocalDays(startOfLocalDay(now, tz), -(clampDays(days) - 1), tz);
     // Summed, ranked and limited by Postgres (audit S-18).
     const ranked = await this.repo.trendingTotals(depotId, fromDay, clampLimit(limit));
     // ponytail: ML re-ranker seam — a future model would re-rank `ranked` before enrichment.

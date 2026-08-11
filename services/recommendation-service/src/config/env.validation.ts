@@ -2,6 +2,7 @@ import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   RECOMMENDATION_SERVICE_PORT: Joi.number().port().default(3013),
   RECOMMENDATION_DATABASE_URL: Joi.string()

@@ -15,7 +15,7 @@ export interface IngestCommand {
   at: Date;
 }
 
-/** One daily-revenue cell. `day` = epoch day number (see domain series.ts `toUtcDay`). */
+/** One daily-revenue cell. `day` = business-zone day number (see domain series.ts `toBusinessDay`). */
 export interface RevenueRow {
   depotId: string | null;
   day: number;
@@ -31,7 +31,7 @@ export interface CustomerActivityRow {
   totalSpent: number;
 }
 
-/** One daily-demand cell. `day` = epoch day number (see domain series.ts `toUtcDay`). */
+/** One daily-demand cell. `day` = business-zone day number (see domain series.ts `toBusinessDay`). */
 export interface DemandRow {
   productId: string;
   depotId: string | null;
@@ -52,13 +52,18 @@ export interface ForecastRepository {
   /**
    * Applies one order's demand into the read model atomically: upserts each ProductRef,
    * increments ProductDailyDemand (quantity += item.quantity, orderCount += 1) at
-   * (productId, depotId, toUtcDay(at)); increments DepotDailyRevenue (revenue += total,
-   * orderCount += 1) at (depotId, toUtcDay(at)); upserts CustomerActivity (orderCount += 1,
+   * (productId, depotId, day); increments DepotDailyRevenue (revenue += total,
+   * orderCount += 1) at (depotId, day); upserts CustomerActivity (orderCount += 1,
    * lastOrderAt = max(existing, at), depotId = cmd.depotId); and inserts the IngestedOrder
    * marker. Idempotent: if orderId is already ingested it is a no-op (the PK insert is the
    * concurrency backstop) — a re-ingested order never double-counts any aggregate.
    */
-  applyIngest(cmd: IngestCommand): Promise<void>;
+  /**
+   * `day` is the business-zone day this order counts against (C2), computed by the
+   * application layer — that is where the zone lives. The repository must not re-derive it
+   * from `cmd.at`, or the same instant would bucket differently depending on the caller.
+   */
+  applyIngest(cmd: IngestCommand, day: number): Promise<void>;
 
   /**
    * Daily-demand rows for one product within [fromDay, toDay] inclusive.

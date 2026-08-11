@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
+
 import { OrderConfigService } from '../../config/order-config.service';
 import { MeterReadingBackwardsError, MeterReadingNotOpenedError } from '../../domain/errors';
 import {
@@ -16,8 +18,6 @@ import { OrderRecord, OrderRepository } from '../ports/order.repository';
 import { OrderStatus } from '../../domain/order-status';
 import { ORDER_TOKENS } from '../tokens';
 import { gallonQty, isDelivered } from './report.service';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The sales side of one day, from that day's orders. CANCELLED never counts. */
 function totalsFrom(rows: OrderRecord[]): SoldTotals {
@@ -121,14 +121,19 @@ export class MeterService {
     const readings = await this.readings.listForRange(depotId, from, to);
     if (readings.length === 0) return [];
 
-    const windowStart = new Date(`${from}T00:00:00.000Z`);
-    const windowEnd = new Date(new Date(`${to}T00:00:00.000Z`).getTime() + DAY_MS);
+    // C2: a meter reading is taken by depot staff on a LOCAL day, so the sales compared
+    // against it must be cut on the same day. `${day}T00:00:00Z` is midnight UTC — 07:00
+    // WIB — so every order in the first seven hours of the day landed on the day before,
+    // and the variance alert fired at both ends of it.
+    const tz = this.config.businessTimeZone;
+    const windowStart = dayStartUtc(from, tz);
+    const windowEnd = addLocalDays(dayStartUtc(to, tz), 1, tz);
     const byDay = new Map<string, OrderRecord[]>();
     for (const order of await this.orders.ordersForDepot(depotId, {
       from: windowStart,
       to: windowEnd,
     })) {
-      const day = order.createdAt.toISOString().slice(0, 10);
+      const day = localDayKey(order.createdAt, tz);
       const bucket = byDay.get(day);
       if (bucket) bucket.push(order);
       else byDay.set(day, [order]);
@@ -177,8 +182,9 @@ export class MeterService {
    * CANCELLED orders are excluded there and here.
    */
   private async soldTotals(depotId: string, date: string): Promise<SoldTotals> {
-    const from = new Date(`${date}T00:00:00.000Z`);
-    const to = new Date(from.getTime() + DAY_MS);
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(date, tz);
+    const to = addLocalDays(from, 1, tz);
     return totalsFrom(await this.orders.ordersForDepot(depotId, { from, to }));
   }
 

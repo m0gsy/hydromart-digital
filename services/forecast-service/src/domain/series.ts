@@ -1,7 +1,30 @@
+import { zoneOffsetMs } from '@hydromart/platform';
+
 const MS_PER_DAY = 86_400_000;
 
-/** Epoch day number for a Date (UTC midnight buckets). */
-export function toUtcDay(d: Date): number {
+/**
+ * Day number for a Date, counted in the BUSINESS zone (C2).
+ *
+ * Every demand and revenue cell is keyed by this, and the forecast reads its own "today"
+ * the same way — so cutting on UTC filed an order placed at 01:00 WIB against yesterday's
+ * demand, and for the first seven hours of every day the forecast's "today" was the day
+ * before. A depot was restocked against a series shifted by one day.
+ *
+ * It replaces `toUtcDay` rather than sitting beside it: two day-numbering schemes in one
+ * table is the bug, not the fix. Rows written before this change keep their old key, so
+ * the history has a one-day seam at the release — it ages out of the moving-average window
+ * within `historyDays`.
+ */
+export function toBusinessDay(d: Date, timeZone: string): number {
+  return Math.floor((d.getTime() + zoneOffsetMs(d, timeZone)) / MS_PER_DAY);
+}
+
+/**
+ * The inverse of the `day * MS_PER_DAY` Date the repository stores. Deliberately NOT
+ * `toBusinessDay`: that value is already a day NUMBER wearing a Date, so re-applying a zone
+ * offset to it would shift it a second time.
+ */
+export function dateToDay(d: Date): number {
   return Math.floor(d.getTime() / MS_PER_DAY);
 }
 

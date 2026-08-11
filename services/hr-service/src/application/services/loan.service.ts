@@ -1,8 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, localMonthKey, runImport } from '@hydromart/platform';
 
 import { Loan } from '../../../prisma/generated/client';
 import { loanRemainingAfter, loanIsSettled } from '../../domain/loan';
+import { HrConfigService } from '../../config/hr-config.service';
 import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
 import { EmployeeService } from './employee.service';
 
@@ -20,6 +21,7 @@ export class LoanService {
   constructor(
     @Inject(LOAN_REPOSITORY) private readonly repo: LoanRepository,
     private readonly employees: EmployeeService,
+    private readonly config: HrConfigService,
   ) {}
 
   async create(
@@ -87,7 +89,12 @@ export class LoanService {
     asOfPeriod: string,
   ): Promise<LoanView[]> {
     await this.employees.getById(user, employeeId);
-    const period = PERIOD_RE.test(asOfPeriod) ? asOfPeriod : new Date().toISOString().slice(0, 7);
+    // C2: the fallback period is the LOCAL month. `toISOString().slice(0, 7)` is the UTC
+    // month, so for the first seven hours of the 1st WIB it still said last month — an
+    // employee opening their kasbon at 06:00 on 1 August was shown July's balance.
+    const period = PERIOD_RE.test(asOfPeriod)
+      ? asOfPeriod
+      : localMonthKey(new Date(), this.config.timeZone);
     const loans = await this.repo.listByEmployee(employeeId);
     return loans.map((l) => {
       const terms = {

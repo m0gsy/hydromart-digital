@@ -23,7 +23,7 @@ describe('RecommendationService', () => {
 
   beforeEach(() => {
     repo = new FakeRecommendationRepository();
-    service = new RecommendationService(repo);
+    service = new RecommendationService(repo, { businessTimeZone: 'Asia/Jakarta' } as never);
   });
 
   it('ingest then reorder returns all purchased products for that customer', async () => {
@@ -50,7 +50,9 @@ describe('RecommendationService', () => {
 
   it('trending(null, days, ...) includes a, b, c for today', async () => {
     await service.ingest(makeIngest());
-    const now = new Date('2026-07-11T23:00:00Z');
+    // 21:00 WIB on 11 July — the same LOCAL day as the ingest at 17:00 WIB. Written as
+    // 23:00Z it was already 06:00 on the 12th in WIB, so "today" no longer contained it (C2).
+    const now = new Date('2026-07-11T14:00:00Z');
 
     const trending = await service.trending(null, 1, 10, now);
 
@@ -137,7 +139,9 @@ describe('RecommendationService', () => {
 
   it('clamps days: days=0 behaves like days=1 (today only)', async () => {
     await service.ingest(makeIngest());
-    const now = new Date('2026-07-11T23:00:00Z');
+    // 21:00 WIB on 11 July — the same LOCAL day as the ingest at 17:00 WIB. Written as
+    // 23:00Z it was already 06:00 on the 12th in WIB, so "today" no longer contained it (C2).
+    const now = new Date('2026-07-11T14:00:00Z');
 
     const items = await service.trending(null, 0, 10, now);
 
@@ -146,17 +150,39 @@ describe('RecommendationService', () => {
 
   it('clamps days above 365 without throwing', async () => {
     await service.ingest(makeIngest());
-    const now = new Date('2026-07-11T23:00:00Z');
+    // 21:00 WIB on 11 July — the same LOCAL day as the ingest at 17:00 WIB. Written as
+    // 23:00Z it was already 06:00 on the 12th in WIB, so "today" no longer contained it (C2).
+    const now = new Date('2026-07-11T14:00:00Z');
 
     await expect(service.trending(null, 10000, 10, now)).resolves.not.toThrow();
   });
 
   it('trending excludes sales from before the window', async () => {
     await service.ingest(makeIngest({ orderId: 'order-old', at: new Date('2026-01-01T00:00:00Z') }));
-    const now = new Date('2026-07-11T23:00:00Z');
+    // 21:00 WIB on 11 July — the same LOCAL day as the ingest at 17:00 WIB. Written as
+    // 23:00Z it was already 06:00 on the 12th in WIB, so "today" no longer contained it (C2).
+    const now = new Date('2026-07-11T14:00:00Z');
 
     const items = await service.trending(null, 1, 10, now);
 
     expect(items).toEqual([]);
+  });
+});
+
+// C2: "trending over the last N days" started at UTC midnight — 07:00 WIB — so for the
+// first seven hours of every day the window began mid-morning of the day before and the
+// board silently dropped the previous local evening's orders.
+describe('RecommendationService.trending window (C2)', () => {
+  it('starts the window at LOCAL midnight, not UTC midnight', async () => {
+    const repo = new FakeRecommendationRepository();
+    const seen: Date[] = [];
+    repo.trendingTotals = async (_d: string | null, fromDay: Date) => {
+      seen.push(fromDay);
+      return [];
+    };
+    const service = new RecommendationService(repo, { businessTimeZone: 'Asia/Jakarta' } as never);
+    // 2 Aug 03:00 WIB. A 1-day window must start at 1 Aug 17:00 UTC = 2 Aug 00:00 WIB.
+    await service.trending(null, 1, 10, new Date('2026-08-01T20:00:00.000Z'));
+    expect(seen[0].toISOString()).toBe('2026-08-01T17:00:00.000Z');
   });
 });

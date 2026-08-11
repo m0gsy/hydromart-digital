@@ -353,6 +353,19 @@ describe('CourierPayoutService', () => {
 
     const incentives = () => ledger.entries.filter((e) => e.type === 'INCENTIVE');
 
+    // C2: the incentive month is the courier's month, in WIB. `startOfMonth` used the
+    // SERVER's calendar — UTC on the box — so a delivery made on 1 August at 02:00 WIB
+    // (31 July 19:00 UTC) counted against July's tally and, once August's own deliveries
+    // arrived, could pay the same rung twice or never.
+    it('counts a delivery just after local midnight into the LOCAL month', async () => {
+      // 31 Jul 19:00 UTC = 1 Aug 02:00 WIB.
+      await service.recordDeliveryEarning(event('d1', '2026-07-31T19:00:00.000Z', true));
+      await service.recordDeliveryEarning(event('d2', '2026-08-01T05:00:00.000Z', true));
+      expect(incentives()).toHaveLength(1);
+      // Both deliveries are August's, so the rung is August's rung.
+      expect(incentives()[0].sourceRef).toContain(':2026-08:2');
+    });
+
     it('posts nothing before the first rung is reached', async () => {
       await service.recordDeliveryEarning(event('d1', day(1), true));
       expect(incentives()).toHaveLength(0);

@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AccountNameResolver } from '@hydromart/platform';
 
-import { denseDailySeries, toUtcDay } from '../../domain/series';
+import { denseDailySeries, toBusinessDay } from '../../domain/series';
 import { forecastDemand } from '../../domain/forecast';
 import { ChurnBand, churnRisk } from '../../domain/churn';
 import {
@@ -90,7 +90,7 @@ export class ForecastService {
 
   async ingest(cmd: IngestCommand): Promise<void> {
     if (await this.repo.hasIngested(cmd.orderId)) return; // idempotent short-circuit
-    await this.repo.applyIngest(cmd); // applyIngest is idempotent too (concurrency backstop)
+    await this.repo.applyIngest(cmd, toBusinessDay(cmd.at, this.config.businessTimeZone)); // applyIngest is idempotent too (concurrency backstop)
   }
 
   async demand(params: {
@@ -104,7 +104,7 @@ export class ForecastService {
     const horizonDays = clamp(params.horizonDays ?? DEFAULT_HORIZON_DAYS, MIN_HORIZON_DAYS, MAX_HORIZON_DAYS);
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
-    const today = toUtcDay(params.now ?? new Date());
+    const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
     const fromDay = today - historyDays + 1;
     const toDay = today;
 
@@ -152,7 +152,7 @@ export class ForecastService {
     const limit = clamp(params.limit ?? DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT);
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
-    const today = toUtcDay(params.now ?? new Date());
+    const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
     const fromDay = today - historyDays + 1;
     const toDay = today;
 
@@ -199,7 +199,7 @@ export class ForecastService {
     const horizonDays = clamp(params.horizonDays ?? DEFAULT_HORIZON_DAYS, MIN_HORIZON_DAYS, MAX_HORIZON_DAYS);
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
-    const today = toUtcDay(params.now ?? new Date());
+    const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
     const fromDay = today - historyDays + 1;
     const toDay = today;
 

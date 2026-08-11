@@ -55,9 +55,14 @@ function fakeEmployees(): EmployeeService {
   } as unknown as EmployeeService;
 }
 
+/** Only the business zone matters here; the rest of HrConfigService is untouched. */
+function fakeConfig() {
+  return { timeZone: 'Asia/Jakarta' } as unknown as import('../../src/config/hr-config.service').HrConfigService;
+}
+
 function make() {
   const repo = new FakeRepo();
-  return { repo, svc: new LoanService(repo, fakeEmployees()) };
+  return { repo, svc: new LoanService(repo, fakeEmployees(), fakeConfig()) };
 }
 
 const base = {
@@ -126,5 +131,36 @@ describe('LoanService.listByEmployee', () => {
   it('propagates the employee 404 guard', async () => {
     const { svc } = make();
     await expect(svc.listByEmployee(hr, 'x', '2026-07')).rejects.toThrow(NotFoundException);
+  });
+});
+
+// C2: "which period are we in" was `new Date().toISOString().slice(0, 7)` — the UTC month.
+// For the first seven hours of the 1st of every month WIB, that is still LAST month, so a
+// courier opening their kasbon screen at 06:00 on 1 August was shown July's instalment as
+// still due and August's as not yet started.
+describe('LoanService.listForEmployee default period (C2)', () => {
+  it('defaults to the LOCAL month, not the UTC one', async () => {
+    const { repo, svc } = make();
+    repo.rows = [
+      {
+        id: 'l1',
+        employeeId: 'e1',
+        principal: 1_000_000,
+        installmentAmount: 300_000,
+        startPeriod: '2026-08',
+        active: true,
+      } as never,
+    ];
+    // 31 Jul 18:00 UTC = 1 Aug 01:00 WIB. In UTC this is still July, and the August
+    // instalment would not have started yet.
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-31T18:00:00.000Z'));
+    try {
+      const [view] = await svc.listByEmployee(hr, 'e1', 'not-a-period');
+      // August has started locally, so one instalment is already reckoned: 1.000.000 −
+      // 300.000. Read as July it would still show the full 1.000.000.
+      expect(view.remaining).toBe(700_000);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

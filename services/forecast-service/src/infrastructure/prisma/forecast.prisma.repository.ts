@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { toUtcDay } from '../../domain/series';
+import { dateToDay } from '../../domain/series';
 import {
   CustomerActivityRow,
   DemandRow,
@@ -28,8 +28,8 @@ export class ForecastPrismaRepository implements ForecastRepository {
     return row !== null;
   }
 
-  async applyIngest(cmd: IngestCommand): Promise<void> {
-    const day = dayToDate(toUtcDay(cmd.at));
+  async applyIngest(cmd: IngestCommand, dayNumber: number): Promise<void> {
+    const day = dayToDate(dayNumber);
     await this.prisma.$transaction(async (tx) => {
       // Idempotent no-op if already ingested; the PK create below is the concurrency backstop.
       const already = await tx.ingestedOrder.findUnique({ where: { orderId: cmd.orderId } });
@@ -161,7 +161,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
     return rows.map((r) => ({
       productId: r.productId,
       depotId: r.depotId,
-      day: toUtcDay(r.day),
+      day: dateToDay(r.day),
       quantity: r.quantity,
     }));
   }
@@ -181,7 +181,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
       const row: DemandRow = {
         productId: r.productId,
         depotId: r.depotId,
-        day: toUtcDay(r.day),
+        day: dateToDay(r.day),
         quantity: r.quantity,
       };
       const bucket = byProduct.get(r.productId);
@@ -209,7 +209,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
         ...(depotId === undefined ? {} : { depotId }),
       },
     });
-    return rows.map((r) => ({ depotId: r.depotId, day: toUtcDay(r.day), revenue: r.revenue }));
+    return rows.map((r) => ({ depotId: r.depotId, day: dateToDay(r.day), revenue: r.revenue }));
   }
 
   async listCustomerActivity(query: {
