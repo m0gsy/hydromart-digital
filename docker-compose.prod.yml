@@ -689,6 +689,11 @@ services:
       # crond discards every entry of a crontab it does not see as root-owned. The
       # entrypoint installs a root-owned copy from this same directory instead.
       - ./scripts/scheduler:/scripts:ro
+      # C1: alpine ships no zone files, so the TZ above read as UTC and every cron time in
+      # the crontab fired seven hours out of place. The host has tzdata; lending it costs
+      # nothing and needs no network at container start (the entrypoint falls back to
+      # `apk add tzdata` on a host that has none, and refuses to run without either).
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
     command: ["sh", "/scripts/entrypoint.sh"]
     # H-38: crond keeps running whether or not its jobs do anything, so `running` said
     # nothing about whether sweeps were happening. This asserts a sweep has SUCCEEDED
