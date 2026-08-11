@@ -66,6 +66,8 @@ services:
       # order columns, so the test stack needs the same wiring the real one does.
       ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
+      # Agen registration-photo storage (SOP §7). Required to boot under NODE_ENV=production.
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/resellers
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3002/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
