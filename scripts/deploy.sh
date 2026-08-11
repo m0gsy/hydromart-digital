@@ -142,6 +142,16 @@ fi
 log "converging the full stack (recreates changed containers, starts anything stopped)"
 converge
 
+# The scheduler bind-mounts scripts/scheduler/ and its entrypoint COPIES the crontab to
+# /etc/crontabs/root at container start. So a release that only edits the crontab changes
+# nothing compose can see: converge leaves the container running, crond keeps the schedule
+# it read at boot, and the new jobs never fire. Silently — which is the same failure mode
+# as the ownership bug the entrypoint comment describes, found the same way, too late.
+if ! git diff --quiet "$PREV_SHA" "$NEW_SHA" -- scripts/scheduler/ 2>/dev/null; then
+  log "scheduler scripts changed — restarting it so crond re-reads the crontab"
+  $COMPOSE restart scheduler || log "!! scheduler restart failed — new cron jobs are NOT live"
+fi
+
 if health_ok; then
   echo "$PREV_SHA" > "$STATE_DIR/prev-sha"   # one step back, for manual rollback
   echo "$NEW_SHA" > "$LAST_GOOD"
