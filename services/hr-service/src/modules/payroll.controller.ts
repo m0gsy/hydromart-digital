@@ -29,6 +29,42 @@ export class PayrollController {
     return this.payroll.listSelf(user, query);
   }
 
+  /**
+   * The caller's own payslip, by id.
+   *
+   * `GET :id` below is `hrView`-gated and no ordinary employee has that capability, so
+   * "Slip Gaji Saya" could list payslips and then 403 on opening one. Scoped by ownership
+   * in the service — a payroll belonging to somebody else 404s rather than 403s.
+   *
+   * Two path segments, so the single-segment `:id` route cannot swallow it.
+   */
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
+  @Get('me/:id')
+  @ApiOperation({ summary: 'One of my own payslips with its item lines (self)' })
+  getSelfById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollWithItems> {
+    return this.payroll.getSelfById(user, id);
+  }
+
+  @ApiOkResponse({
+    description: 'The salary slip as a PDF.',
+    content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Get('me/:id/slip')
+  @ApiOperation({ summary: 'Download one of my own payslips as a PDF (self)' })
+  async selfSlip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.payroll.selfSlip(user, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="slip-${id}.pdf"`);
+    res.send(pdf);
+  }
+
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Get(':id')
   @Can('hrView')
@@ -37,6 +73,10 @@ export class PayrollController {
     return this.payroll.getById(user, id);
   }
 
+  @ApiOkResponse({
+    description: 'The salary slip as a PDF.',
+    content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+  })
   @Get(':id/slip')
   @Can('hrView')
   @ApiOperation({ summary: 'Download a payroll as a salary-slip PDF' })

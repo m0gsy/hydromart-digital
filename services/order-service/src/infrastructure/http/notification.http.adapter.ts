@@ -3,6 +3,22 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OrderConfigService } from '../../config/order-config.service';
 import { NotificationPort } from '../../application/ports/notification.port';
 
+/** What crm-service's SendNotificationDto accepts. Duplicated on purpose — see `dial()`. */
+const CRM_PHONE_RE = /^\+?[0-9]{8,15}$/;
+
+/**
+ * Strip the separators a human types. crm rejects anything but digits (optionally
+ * +-prefixed), and this adapter is fail-open — a 400 is logged and swallowed — so an
+ * operator who typed `0812-3456-7890` anywhere upstream would produce a notification that
+ * never arrives and never complains. Every caller routes through here, so normalising once
+ * covers the customer numbers, the ops alert number and the depot's own number alike.
+ */
+function dial(phone: string): string {
+  const trimmed = phone.trim();
+  const plus = trimmed.startsWith('+') ? '+' : '';
+  return `${plus}${trimmed.replace(/\D/g, '')}`;
+}
+
 /**
  * Fires a customer WhatsApp notification via crm-service on order lifecycle changes.
  * Uses crm's system-to-system endpoint authenticated by the shared INTERNAL_SERVICE_KEY
@@ -29,6 +45,14 @@ export class NotificationHttpAdapter implements NotificationPort {
       this.logger.warn(`No internal service key; skipped ${event} notification`);
       return;
     }
+    const dialled = dial(phone);
+    // Still unusable after normalising (empty, free text, too short): say so by name. crm
+    // would 400 and this adapter would swallow it, which is how a depot goes a week without
+    // its report while every log line reads "skipped".
+    if (!CRM_PHONE_RE.test(dialled)) {
+      this.logger.warn(`${event} notification skipped: "${phone}" is not a usable phone number`);
+      return;
+    }
     const url = `${this.config.crmServiceUrl}/api/v1/notifications/internal`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), NotificationHttpAdapter.TIMEOUT_MS);
@@ -36,7 +60,7 @@ export class NotificationHttpAdapter implements NotificationPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
-        body: JSON.stringify({ event, phone, customerId, vars }),
+        body: JSON.stringify({ event, phone: dialled, customerId, vars }),
         signal: controller.signal,
       });
       if (!res.ok) {

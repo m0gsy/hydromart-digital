@@ -83,7 +83,7 @@ describe('coordination adapters fail open on a non-2xx response', () => {
   it('notification.notify swallows a 500', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(
-      new NotificationHttpAdapter(makeConfig()).notify('e', 'p', {}, 'c', ''),
+      new NotificationHttpAdapter(makeConfig()).notify('e', '081234567890', {}, 'c', ''),
     ).resolves.toBeUndefined();
   });
 
@@ -181,7 +181,10 @@ describe('an outbound call that hangs is aborted and still settles', () => {
       'membership.getDiscountRate',
       () => new MembershipHttpAdapter(cfg()).getDiscountRate('Bearer t'),
     ],
-    ['notification.notify', () => new NotificationHttpAdapter(cfg()).notify('e', 'p', {}, 'c', '')],
+    [
+      'notification.notify',
+      () => new NotificationHttpAdapter(cfg()).notify('e', '081234567890', {}, 'c', ''),
+    ],
     ['product-catalog.getProduct', () => new ProductCatalogHttpAdapter(cfg()).getProduct('p1')],
     ['promo.quote', () => new PromoHttpAdapter(cfg()).quote('X', 'c1', 1, 0, 'Bearer x')],
     ['promo.redeem', () => new PromoHttpAdapter(cfg()).redeem('X', 'c', 'o', 1, 0, '')],

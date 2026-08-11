@@ -87,6 +87,7 @@ function build(opts: Opts = {}) {
           if (opts.salesThrows) throw new Error('order-service down');
           return opts.sales ?? null;
         }),
+        depotDailyGallons: jest.fn(async () => null),
       };
 
   return {

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { addLocalDays, addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
@@ -14,6 +14,8 @@ import {
   ReportRange,
   SalesBucket,
 } from '../ports/order.repository';
+import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { NotificationPort } from '../ports/notification.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -143,6 +145,17 @@ export interface DepotMonthlyReport {
   netProfitIdr: number | null;
   /** Null — SLA on-time needs delivery-service timings, no order-service source. */
   slaPct: number | null;
+  // Depot SOP: the monthly review is read in GALLONS, against last month.
+  /** Gallons delivered this month. */
+  gallons: number;
+  /** The same figure for the month before, which is what the SOP compares against. */
+  prevGallons: number;
+  /** gallons − prevGallons; negative when the depot sold less. */
+  gallonsDelta: number;
+  /** Percent change vs last month, or null when last month was 0 (no denominator). */
+  growthPct: number | null;
+  /** Gallons per elapsed day of the month — not per 30, which flatters a short month. */
+  avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
 }
 
@@ -197,10 +210,19 @@ export const isDelivered = (s: OrderStatus): boolean =>
 @Injectable()
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
+  private readonly logger = new Logger(ReportService.name);
 
   constructor(
     @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
     private readonly config: OrderConfigService,
+    // Optional so every existing test double that builds a ReportService with two args
+    // keeps compiling; the broadcast simply does nothing without them.
+    @Optional()
+    @Inject(ORDER_TOKENS.DepotDirectory)
+    private readonly depotDirectory?: DepotDirectoryPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.Notification)
+    private readonly notifications?: NotificationPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -508,7 +530,13 @@ export class ReportService {
     const tz = this.config.businessTimeZone;
     const from = dayStartUtc(`${month}-01`, tz);
     const to = addLocalMonths(from, 1, tz);
-    const rows = await this.orders.ordersForDepot(depotId, { from, to });
+    const prevFrom = addLocalMonths(from, -1, tz);
+    // Last month is one more read of the same shape — the SOP reads the two side by side,
+    // and a month of one depot's orders is far under the 20.000-row range bound.
+    const [rows, prevRows] = await Promise.all([
+      this.orders.ordersForDepot(depotId, { from, to }),
+      this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
+    ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
     for (const o of live) {
@@ -516,6 +544,13 @@ export class ReportService {
         byCourier.set(o.driverName, (byCourier.get(o.driverName) ?? 0) + 1);
     }
     const top = [...byCourier.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // Gallons count only what was actually DELIVERED, the same rule the daily report and
+    // the reseller rollup use — a galon still on the truck has not been sold to anyone.
+    const gallonsOf = (rs: typeof rows): number =>
+      rs.filter((r) => isDelivered(r.status)).reduce((sum, r) => sum + gallonQty(r), 0);
+    const gallons = gallonsOf(rows);
+    const prevGallons = gallonsOf(prevRows);
     return {
       depotId,
       month,
@@ -526,8 +561,107 @@ export class ReportService {
       netProfitIdr: null,
       // TODO: SLA on-time needs delivery-service timings — no order-service source.
       slaPct: null,
+      gallons,
+      prevGallons,
+      gallonsDelta: gallons - prevGallons,
+      // Null, not 0 and not Infinity: with nothing to grow from there is no percentage to
+      // report, and "+100%" off a zero base is a number somebody would act on.
+      growthPct:
+        prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
+      avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
+  }
+
+  /**
+   * Days of the month that have actually happened, for the per-day average.
+   *
+   * A finished month is its whole length; the CURRENT month is only as long as it has got
+   * so far. Dividing this month's four days of sales by 31 reports a depot as collapsing
+   * every time somebody opens the review early in the month.
+   */
+  private static elapsedDays(from: Date, to: Date): number {
+    const now = new Date();
+    const end = now < to ? now : to;
+    // A day in progress counts (ceil): four and a half days in is day five, not day four.
+    // Floor at 1 so a month that has not started yet averages 0 rather than dividing by 0.
+    return Math.max(1, Math.ceil((end.getTime() - from.getTime()) / DAY_MS));
+  }
+
+  /**
+   * Depot SOP: the twice-daily "laporan penjualan siang/sore" — how many gallons each
+   * depot has delivered so far today, sent to the depot itself.
+   *
+   * Addressed to `contactPhone`, falling back to the HQ ops number so a depot that has
+   * not filled its number in is still reported rather than silently skipped.
+   *
+   * NOT idempotent, on purpose: there is no table to record a send in, and `sweep.sh`
+   * already holds a per-job lock, so a double send needs a manual run. The message is
+   * informational, not a transaction — inventing a dedupe table for it would be the more
+   * expensive mistake. Failures are per depot: one unreachable number must not stop the
+   * rest of the round.
+   *
+   * The count is `attempted`, NOT `sent`. `NotificationPort` is fail-open by contract — its
+   * adapter logs a crm outage and returns void — so this layer cannot know a message
+   * actually left the building, and a cron line reading "sent 12" while WhatsApp was down
+   * is the kind of false all-clear that keeps an outage quiet for a week.
+   */
+  async broadcastDailySales(
+    slot: 'siang' | 'sore',
+  ): Promise<{ attempted: number; skipped: number }> {
+    if (!this.depotDirectory || !this.notifications) return { attempted: 0, skipped: 0 };
+    const contacts = await this.depotDirectory.listContacts();
+    if (!contacts) return { attempted: 0, skipped: 0 };
+
+    const today = localDayKey(new Date(), this.config.businessTimeZone);
+    const fallback = this.config.alertPhone;
+    let attempted = 0;
+    let skipped = 0;
+    for (const depot of contacts) {
+      const phone = depot.contactPhone || fallback;
+      if (!phone) {
+        skipped++;
+        continue;
+      }
+      try {
+        const days = await this.depotDailyGallons(depot.id, today, today);
+        const gallons = days.reduce((sum, d) => sum + d.gallons, 0);
+        await this.notifications.notify(
+          'DEPOT_SALES_UPDATE',
+          phone,
+          { slot, depot: depot.name, gallons: String(gallons) },
+          null,
+          '',
+        );
+        attempted++;
+      } catch (error) {
+        // One depot's failure is its own; the round continues. In practice this catches the
+        // gallon query, not the notify — see the note above.
+        this.logger.warn(
+          `Daily sales update skipped for ${depot.id}: ${(error as Error).message}`,
+        );
+        skipped++;
+      }
+    }
+    return { attempted, skipped };
+  }
+
+  /**
+   * Gallons delivered per local day, for hr-service's daily sales bonus (depot SOP).
+   *
+   * `fromDay`/`toDay` are inclusive 'YYYY-MM-DD' LOCAL day keys, matching the way
+   * `Attendance.workDate` is stored — the bonus is paid per attended day, so the two must
+   * cut the day at the same instant. Bucketing happens in SQL, in the same time zone.
+   */
+  async depotDailyGallons(
+    depotId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<{ day: string; gallons: number }[]> {
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(fromDay, tz);
+    const to = addLocalDays(dayStartUtc(toDay, tz), 1, tz);
+    return this.orders.depotDailyGallons(depotId, from, to, tz);
   }
 
   /**

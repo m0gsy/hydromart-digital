@@ -25,6 +25,44 @@ describe('CustomerConfigService', () => {
     expect(dev.isProduction).toBe(false);
   });
 
+  // SOP §7 agen photo storage. Same env names as depot/auth-service on purpose.
+  it('reads the storage driver, local dir and public base url, trailing slash stripped', () => {
+    const dflt = makeConfig({});
+    expect(dflt.storageDriver).toBe('local');
+    expect(dflt.storageLocalDir).toBe('./var/uploads');
+    expect(dflt.storagePublicBaseUrl).toBe('http://localhost:3003');
+
+    const s3 = makeConfig(
+      {
+        STORAGE_DRIVER: 's3',
+        STORAGE_LOCAL_DIR: '/data/uploads',
+        STORAGE_PUBLIC_BASE_URL: 'https://cdn.example/bucket//',
+        STORAGE_S3_REGION: 'jkt-1',
+      },
+      {
+        STORAGE_S3_ENDPOINT: 'https://nos.jkt-1.neo.id',
+        STORAGE_S3_BUCKET: 'hydromart-customers',
+        STORAGE_S3_ACCESS_KEY_ID: 'k',
+        STORAGE_S3_SECRET_ACCESS_KEY: 's',
+      },
+    );
+    expect(s3.storageDriver).toBe('s3');
+    expect(s3.storageLocalDir).toBe('/data/uploads');
+    // Stripped: the adapters join with '/' and a double slash breaks the object URL.
+    expect(s3.storagePublicBaseUrl).toBe('https://cdn.example/bucket');
+    expect(s3.s3).toEqual({
+      endpoint: 'https://nos.jkt-1.neo.id',
+      region: 'jkt-1',
+      bucket: 'hydromart-customers',
+      accessKeyId: 'k',
+      secretAccessKey: 's',
+    });
+  });
+
+  it('treats any STORAGE_DRIVER other than s3 as local', () => {
+    expect(makeConfig({ STORAGE_DRIVER: 'nonsense' }).storageDriver).toBe('local');
+  });
+
   it('nodeEnv falls back to the "development" default when unset', () => {
     expect(makeConfig({}).nodeEnv).toBe('development');
   });

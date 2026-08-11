@@ -217,6 +217,16 @@ export class DepotMonthlyReportResponseDto {
   netProfitIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   slaPct!: number | null;
+  @ApiProperty({ type: Number })
+  gallons!: number;
+  @ApiProperty({ type: Number })
+  prevGallons!: number;
+  @ApiProperty({ type: Number })
+  gallonsDelta!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  growthPct!: number | null;
+  @ApiProperty({ type: Number })
+  avgGallonsPerDay!: number;
   @ApiProperty({ required: false, type: DepotMonthlyReportTopCourierResponseDto })
   topCourier?: DepotMonthlyReportTopCourierResponseDto;
 }
@@ -921,6 +931,30 @@ export class InternalDepotSales2ResponseDto {
   depotId!: string;
   @ApiProperty({ type: Number })
   totalIdr!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDailySalesBroadcastResponseDto {
+  @ApiProperty({ type: Number })
+  attempted!: number;
+  @ApiProperty({ type: Number })
+  skipped!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDepotDailyGallonsDaysResponseDto {
+  @ApiProperty({ type: String })
+  day!: string;
+  @ApiProperty({ type: Number })
+  gallons!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDepotDailyGallonsResponseDto {
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: [InternalDepotDailyGallonsDaysResponseDto] })
+  days!: InternalDepotDailyGallonsDaysResponseDto[];
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

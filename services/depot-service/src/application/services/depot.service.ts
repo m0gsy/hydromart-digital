@@ -124,6 +124,27 @@ export class DepotService {
       .slice(0, take);
   }
 
+  /**
+   * EVERY active depot, paged past `browse`'s 100-row cap.
+   *
+   * `browse({ limit: 1000 })` silently clamps to MAX_LIMIT, so a caller that has to reach
+   * all of them — the SOP sales broadcast — would quietly stop at the hundredth depot and
+   * look like it had covered the network. Bounded by the reported `total`, so it cannot
+   * spin if a page comes back empty.
+   */
+  async listAllActive(): Promise<DepotRecord[]> {
+    const out: DepotRecord[] = [];
+    for (let page = 1; ; page++) {
+      const { items, total } = await this.depots.search({
+        page,
+        limit: DepotService.MAX_LIMIT,
+        activeOnly: true,
+      });
+      out.push(...items);
+      if (items.length === 0 || out.length >= total) return out;
+    }
+  }
+
   /** Depots managed by a franchise owner (active and inactive — an owner manages their own). */
   async listMine(ownerId: string): Promise<DepotRecord[]> {
     return this.depots.findByOwner(ownerId);

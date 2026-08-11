@@ -165,6 +165,9 @@ export interface NearbyDepot {
   distanceKm: number;
   /** True when distanceKm <= serviceRadiusKm (depot delivers to the point). */
   withinService: boolean;
+  /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
+  operatingHours?: Record<string, DepotHours>;
+  holidays?: DepotHoliday[];
 }
 
 export interface Page<T> {
@@ -859,6 +862,9 @@ export interface Depot {
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
+  operatingHours?: Record<string, DepotHours>;
+  holidays?: DepotHoliday[];
 }
 
 // ---- Payout / komisi (payout-service, "Keuangan · usulan") ----
@@ -974,6 +980,8 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   active: boolean;
   // Franchise owner account id (null for company-owned depots) — drives the payout card.
   ownerId?: string | null;
+  /** The depot's own WhatsApp number for the SOP sales update; null = use the ops number. */
+  contactPhone?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
 }
@@ -988,6 +996,9 @@ export interface OwnerPayoutBalance {
 export interface DepotHours {
   open: string;
   close: string;
+  /** Optional midday closure. Both must be set for the break to count. */
+  breakStart?: string;
+  breakEnd?: string;
 }
 export interface DepotHoliday {
   date: string;
@@ -1008,6 +1019,8 @@ export interface DepotPayload {
   deliveryFee: number;
   minOrderAmount: number | null;
   serviceRadiusKm?: number;
+  /** The depot's own WhatsApp number for the SOP sales update; null = use the ops number. */
+  contactPhone?: string | null;
   paymentBankName?: string | null;
   paymentBankAccountNumber?: string | null;
   paymentBankAccountHolder?: string | null;
@@ -2069,6 +2082,13 @@ export interface ReportDepotMonthly {
   activeCustomers: number;
   netProfitIdr: number | null;
   slaPct: number | null;
+  // Depot SOP: the monthly review is read in galon, against last month.
+  gallons: number;
+  prevGallons: number;
+  gallonsDelta: number;
+  /** null when last month sold nothing — there is no percentage to report off zero. */
+  growthPct: number | null;
+  avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
 }
 

@@ -214,6 +214,31 @@ describe('depot-scoped guards and by-id getters', () => {
     });
   });
 
+  // SOP §3: the sales broadcast must reach EVERY active depot, and browse clamps at 100.
+  it('pages listAllActive past the browse cap and stops at the reported total', async () => {
+    const page = (n: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({ id: `d-${n}-${i}` }) as never);
+    const search = jest
+      .fn()
+      .mockResolvedValueOnce({ items: page(1, 100), total: 150 })
+      .mockResolvedValueOnce({ items: page(2, 50), total: 150 });
+    const svc = new DepotService({ search } as never);
+    const out = await svc.listAllActive();
+    expect(out).toHaveLength(150);
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(search).toHaveBeenNthCalledWith(1, { page: 1, limit: 100, activeOnly: true });
+    expect(search).toHaveBeenNthCalledWith(2, { page: 2, limit: 100, activeOnly: true });
+  });
+
+  // A page that comes back empty must end the loop even if `total` disagrees, or a
+  // miscounting repository spins forever inside a cron tick.
+  it('stops on an empty page even when total overstates the count', async () => {
+    const search = jest.fn().mockResolvedValue({ items: [], total: 999 });
+    const svc = new DepotService({ search } as never);
+    await expect(svc.listAllActive()).resolves.toEqual([]);
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to 10 nearby depots when the caller sends limit 0', async () => {
     const search = jest.fn().mockResolvedValue({ items: [], total: 0 });
     await new DepotService({ search } as never).findNearby(-6.19, 106.84, 0);

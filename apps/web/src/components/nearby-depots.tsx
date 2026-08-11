@@ -8,6 +8,7 @@ import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { Chip, Money, Skeleton } from '@/components/ui';
+import { DEPOT_OPEN_LABEL, depotOpenState } from '@/lib/opening-hours';
 import { LocationSelector } from '@/components/location-selector';
 import type { NearbyDepot } from '@/lib/types';
 
@@ -74,6 +75,7 @@ export function NearbyDepots() {
                     )}
                   </div>
                 </div>
+                <DepotOpenChip depot={d} />
                 <Chip tone={d.withinService ? 'success' : 'outline'}>{d.distanceKm.toFixed(1)} km</Chip>
               </div>
             ))}
@@ -92,5 +94,15 @@ export function NearbyDepots() {
         )}
       </div>
     </section>
+  );
+}
+
+/** Buka / Istirahat / Tutup for one depot, from its own configured hours. */
+function DepotOpenChip({ depot }: { depot: NearbyDepot }) {
+  const state = depotOpenState(depot.operatingHours, depot.holidays);
+  return (
+    <Chip tone={state === 'buka' ? 'success' : state === 'istirahat' ? 'amber' : 'outline'}>
+      {DEPOT_OPEN_LABEL[state]}
+    </Chip>
   );
 }

@@ -394,6 +394,41 @@ export class OrderPrismaRepository implements OrderRepository {
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
 
+  async depotDailyGallons(
+    depotId: string,
+    from: Date,
+    to: Date,
+    tz: string,
+  ): Promise<{ day: string; gallons: number }[]> {
+    // The day boundary is WIB, NOT UTC — `date_trunc('day', "createdAt")` (what the revenue
+    // series does) cuts at 07:00 local and would pay the daily bonus against a window that
+    // does not line up with `Attendance.workDate`. Two `AT TIME ZONE` hops: the column is a
+    // naive timestamp holding UTC, so label it UTC first, then read it in `tz`.
+    const rows = await this.prisma.$queryRaw<{ day: string; gallons: bigint | null }[]>(
+      Prisma.sql`
+      SELECT to_char(
+               date_trunc('day', o."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz}),
+               'YYYY-MM-DD'
+             ) AS day,
+             COALESCE(SUM(i."quantity"), 0)::bigint AS gallons
+      FROM "orders" o
+      JOIN "order_items" i ON i."orderId" = o."id"
+      WHERE o."depotId" = ${depotId}::uuid
+        AND o."status" IN (${Prisma.join(
+          [DbOrderStatus.DELIVERED, DbOrderStatus.COMPLETED].map(
+            (status) => Prisma.sql`${status}::"OrderStatus"`,
+          ),
+        )})
+        AND i."isGallon" = true
+        AND o."createdAt" >= ${from}
+        AND o."createdAt" < ${to}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `,
+    );
+    return rows.map((r) => ({ day: r.day, gallons: r.gallons ? Number(r.gallons) : 0 }));
+  }
+
   async search(
     query: OrderQuery,
   ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {

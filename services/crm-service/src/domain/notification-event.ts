@@ -27,6 +27,10 @@ export enum NotificationEvent {
   // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
   // {{category}}, {{note}}. Recipient is the ops number.
   COURIER_INCIDENT = 'COURIER_INCIDENT',
+  // Operational (not customer-facing): fired twice a day by order-service's cron with the
+  // depot's gallon count so far. Tokens: {{slot}}, {{depot}}, {{gallons}}. Recipient is the
+  // depot's own number, falling back to the ops number.
+  DEPOT_SALES_UPDATE = 'DEPOT_SALES_UPDATE',
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
   CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
@@ -68,6 +72,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     '💧 Selisih meteran air depot {{depot}} tanggal {{date}}: {{variance}} liter (± {{gallons}} galon) dibanding penjualan tercatat. Mohon dicek.',
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
+  [NotificationEvent.DEPOT_SALES_UPDATE]:
+    'Laporan penjualan {{slot}} depot {{depot}} : {{gallons}} Galon',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
   [NotificationEvent.POINTS_EARNED]:
@@ -93,6 +99,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
   NotificationEvent.COURIER_INCIDENT,
+  NotificationEvent.DEPOT_SALES_UPDATE,
   // HR events go to staff, so they belong in the ops feed, not a customer inbox. The
   // employee's own leave decisions included — the recipient is an employee either way.
   NotificationEvent.LEAVE_SUBMITTED,

@@ -622,6 +622,122 @@ describe('ReportService empty and absent shapes', () => {
     const out = await svc.reportsDepotMonthly('d1', '2026-05');
     expect(out.topCourier).toBeUndefined();
     expect(out.orders).toBe(0);
+    expect(out).toMatchObject({ gallons: 0, prevGallons: 0, gallonsDelta: 0, growthPct: null });
+  });
+
+  // Depot SOP §4: the monthly review is read in galon, against last month.
+  describe('monthly gallon figures', () => {
+    const gallonOrder = (createdAt: string, qty: number, status = OrderStatus.DELIVERED) => ({
+      id: `o-${createdAt}-${qty}`,
+      customerId: 'c1',
+      status,
+      total: qty * 20000,
+      createdAt: new Date(createdAt),
+      items: [
+        {
+          productId: 'p1',
+          productName: 'Air Galon 19L',
+          unit: 'Galon 19L',
+          volumeMl: 19000,
+          isGallon: true,
+          quantity: qty,
+        },
+      ],
+    });
+    /**
+     * Two windows: May 2026 is the reported month, April 2026 the comparison.
+     *
+     * Split on the instant, not on `getUTCMonth()` — the bounds are WIB midnights, so
+     * May's window starts at 2026-04-30T17:00Z and reads as April in UTC.
+     */
+    const APRIL_MAY_BOUNDARY = new Date('2026-04-15T00:00:00.000Z');
+    const withMonths = (may: unknown[], april: unknown[]) =>
+      stub({
+        ordersForDepot: async (_d: string, range: { from: Date }) =>
+          range.from < APRIL_MAY_BOUNDARY ? april : may,
+      });
+
+    it('reports this month, last month, the delta and the growth percentage', async () => {
+      const svc = withMonths(
+        [gallonOrder('2026-05-04T00:00:00.000Z', 90), gallonOrder('2026-05-20T00:00:00.000Z', 30)],
+        [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
+      );
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({
+        gallons: 120,
+        prevGallons: 100,
+        gallonsDelta: 20,
+        growthPct: 20,
+      });
+    });
+
+    it('reports a fall as a negative delta and a negative percentage', async () => {
+      const svc = withMonths(
+        [gallonOrder('2026-05-04T00:00:00.000Z', 75)],
+        [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
+      );
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({ gallonsDelta: -25, growthPct: -25 });
+    });
+
+    // Not 0, not Infinity, not "+100%" — there is nothing to grow from.
+    it('reports no percentage at all when last month sold nothing', async () => {
+      const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 120)], []);
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out).toMatchObject({ gallons: 120, prevGallons: 0, gallonsDelta: 120, growthPct: null });
+    });
+
+    it('counts only delivered gallons — a cancelled or in-flight order is not a sale', async () => {
+      const svc = withMonths(
+        [
+          gallonOrder('2026-05-04T00:00:00.000Z', 40),
+          gallonOrder('2026-05-05T00:00:00.000Z', 60, OrderStatus.CANCELLED),
+          gallonOrder('2026-05-06T00:00:00.000Z', 60, OrderStatus.ON_DELIVERY),
+        ],
+        [],
+      );
+      expect((await svc.reportsDepotMonthly('d1', '2026-05')).gallons).toBe(40);
+    });
+
+    // A finished month averages over its whole length; the CURRENT month only over the
+    // days that have happened, or every review opened on the 3rd reads as a collapse.
+    it('averages a finished month over its whole length', async () => {
+      const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 310)], []);
+      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      expect(out.avgGallonsPerDay).toBe(10); // 310 / 31, not 310 / 30
+    });
+
+    it('averages the current month over the days elapsed so far', async () => {
+      jest.useFakeTimers({
+        // 5 August 2026, 10:00 WIB — four full days plus one in progress.
+        now: new Date('2026-08-05T03:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+      try {
+        const svc = stub({
+          ordersForDepot: async (_d: string, range: { from: Date }) =>
+            range.from < new Date('2026-07-15T00:00:00.000Z')
+              ? []
+              : [gallonOrder('2026-08-02T00:00:00.000Z', 50)],
+        });
+        expect((await svc.reportsDepotMonthly('d1', '2026-08')).avgGallonsPerDay).toBe(10); // 50 / 5
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('averages a month that has not started yet as 0 rather than dividing by zero', async () => {
+      jest.useFakeTimers({
+        now: new Date('2026-08-05T03:00:00.000Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+      try {
+        const svc = stub({ ordersForDepot: async () => [] });
+        expect((await svc.reportsDepotMonthly('d1', '2026-12')).avgGallonsPerDay).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   // Behaviour change, deliberate (migration 20260802120000_meter_reading): a gallon is
@@ -666,5 +782,110 @@ describe('ReportService empty and absent shapes', () => {
       orderCount: 0,
       lastOrderAt: null,
     });
+  });
+});
+
+// Depot SOP §1: hr-service asks for a month of local day keys; the service must turn
+// them into the WIB window and hand the repository the same zone it bucketed by.
+describe('ReportService.depotDailyGallons', () => {
+  it('converts inclusive local day keys into a [start, next-day-start) WIB window', async () => {
+    const depotDailyGallons = jest.fn(async () => [{ day: '2026-07-01', gallons: 130 }]);
+    const svc = new ReportService({ depotDailyGallons } as never, reportTestConfig());
+
+    await expect(svc.depotDailyGallons('d1', '2026-07-01', '2026-07-31')).resolves.toEqual([
+      { day: '2026-07-01', gallons: 130 },
+    ]);
+    // WIB is UTC+7, so 1 July 00:00 WIB is 30 June 17:00Z and the exclusive upper bound
+    // is 1 August 00:00 WIB — the whole of the 31st, not up to its morning.
+    expect(depotDailyGallons).toHaveBeenCalledWith(
+      'd1',
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
+      'Asia/Jakarta',
+    );
+  });
+});
+
+// Depot SOP §3: the twice-daily "laporan penjualan siang/sore", sent to each depot.
+describe('ReportService.broadcastDailySales', () => {
+  const config = { businessTimeZone: 'Asia/Jakarta', alertPhone: '0800-ops' } as OrderConfigService;
+  const orders = {
+    depotDailyGallons: jest.fn(async () => [{ day: '2026-08-11', gallons: 137 }]),
+  } as never;
+
+  function build(
+    contacts: { id: string; name: string; contactPhone: string | null }[] | null,
+    overrides: { notify?: jest.Mock; alertPhone?: string } = {},
+  ) {
+    const notify = overrides.notify ?? jest.fn(async () => undefined);
+    const directory = { listContacts: jest.fn(async () => contacts) } as never;
+    const svc = new ReportService(
+      orders,
+      { ...config, alertPhone: overrides.alertPhone ?? '0800-ops' } as OrderConfigService,
+      directory,
+      { notify } as never,
+    );
+    return { svc, notify, directory };
+  }
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it("sends each depot today's gallon count, to the depot's own number", async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0 });
+    expect(notify).toHaveBeenCalledWith(
+      'DEPOT_SALES_UPDATE',
+      '0811',
+      { slot: 'siang', depot: 'Depot Cikini', gallons: '137' },
+      null,
+      '',
+    );
+  });
+
+  // A depot with no number of its own is still reported, just to the ops number — dropping
+  // it would make an unfilled field look like a depot that sold nothing.
+  it('falls back to the ops number when the depot has none', async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: null }]);
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0 });
+    expect(notify.mock.calls[0]?.[1]).toBe('0800-ops');
+    expect(notify.mock.calls[0]?.[2]).toMatchObject({ slot: 'sore' });
+  });
+
+  it('skips a depot with no number and no ops fallback, rather than throwing', async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'D', contactPhone: null }], {
+      alertPhone: '',
+    });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 1 });
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  // One failing depot must not cost the rest of the round. The gallon query is what can
+  // actually reject here — `notify` is fail-open and swallows its own errors, which is
+  // exactly why the count is called `attempted`.
+  it('keeps going when one depot fails', async () => {
+    const notify = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('whatsapp down'))
+      .mockResolvedValue(undefined);
+    const { svc } = build(
+      [
+        { id: 'd1', name: 'A', contactPhone: '0811' },
+        { id: 'd2', name: 'B', contactPhone: '0822' },
+      ],
+      { notify },
+    );
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 1 });
+  });
+
+  it('does nothing when depot-service cannot answer', async () => {
+    const { svc, notify } = build(null);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0 });
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  // The ports are optional so every two-argument ReportService in these tests still builds.
+  it('does nothing at all when the ports are not wired', async () => {
+    const svc = new ReportService(orders, config);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0 });
   });
 });

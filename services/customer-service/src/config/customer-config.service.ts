@@ -71,6 +71,36 @@ export class CustomerConfigService {
     };
   }
 
+  // Agen registration-photo storage. Same contract and same env names as
+  // depot/product/auth-service: the URL handed back is absolute, because the ops console
+  // renders it with no base URL of this service to prepend.
+  get storageLocalDir(): string {
+    return this.config.get<string>('STORAGE_LOCAL_DIR', './var/uploads');
+  }
+  get storagePublicBaseUrl(): string {
+    return this.config
+      .get<string>('STORAGE_PUBLIC_BASE_URL', 'http://localhost:3003')
+      .replace(/\/+$/, '');
+  }
+  get storageDriver(): 'local' | 's3' {
+    return this.config.get<string>('STORAGE_DRIVER', 'local') === 's3' ? 's3' : 'local';
+  }
+  get s3(): {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  } {
+    return {
+      endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      bucket: this.config.getOrThrow<string>('STORAGE_S3_BUCKET'),
+      accessKeyId: this.config.getOrThrow<string>('STORAGE_S3_ACCESS_KEY_ID'),
+      secretAccessKey: this.config.getOrThrow<string>('STORAGE_S3_SECRET_ACCESS_KEY'),
+    };
+  }
+
   /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
   get businessTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);

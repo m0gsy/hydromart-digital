@@ -1,4 +1,10 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -19,6 +25,8 @@ const row: Reseller = {
   homeDepotId: 'd1',
   monthlyTargetQty: 100,
   discountPct: 0,
+  flatGallonPriceIdr: 0,
+  photoUrl: null,
   active: true,
   joinDate: new Date('2026-01-01'),
   note: null,
@@ -31,10 +39,25 @@ function makeService(): jest.Mocked<Pick<ResellerService, 'list' | 'get' | 'regi
 }
 
 const importsMock = { importResellers: jest.fn() };
+const storageMock = { put: jest.fn() };
 
 function controllerWith(svc: ReturnType<typeof makeService>): ResellerController {
-  return new ResellerController(svc as unknown as ResellerService, importsMock as never);
+  return new ResellerController(
+    svc as unknown as ResellerService,
+    importsMock as never,
+    storageMock as never,
+  );
 }
+
+/** A one-pixel PNG — the sniffer reads the real bytes, not the declared mimetype. */
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+const upload = (over: Partial<{ buffer: Buffer; size: number }> = {}) =>
+  ({
+    buffer: over.buffer ?? PNG,
+    mimetype: 'image/png',
+    size: over.size ?? PNG.length,
+    originalname: 'ktp.png',
+  }) as never;
 
 const registerDto: RegisterResellerDto = {
   customerId: 'c1',
@@ -97,6 +120,78 @@ describe('ResellerController', () => {
     });
   });
 
+  // SOP §7: the agen's registration photo, on the existing storage path.
+  describe('uploadPhoto', () => {
+    beforeEach(() => storageMock.put.mockReset());
+
+    it('stores the file and records the URL on the reseller', async () => {
+      const svc = makeService();
+      storageMock.put.mockResolvedValue({ url: 'https://cdn/resellers/a.png', key: 'x' });
+      svc.update.mockResolvedValue({ ...row, photoUrl: 'https://cdn/resellers/a.png' });
+      await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).resolves.toMatchObject({
+        photoUrl: 'https://cdn/resellers/a.png',
+      });
+      // The content type comes from the BYTES, not from what the client declared.
+      expect(storageMock.put).toHaveBeenCalledWith({
+        body: PNG,
+        contentType: 'image/png',
+        ext: 'png',
+      });
+      expect(svc.update).toHaveBeenCalledWith(user, 'c1', {
+        photoUrl: 'https://cdn/resellers/a.png',
+      });
+    });
+
+    it('rejects a missing file', async () => {
+      await expect(controllerWith(makeService()).uploadPhoto(user, 'c1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    // H-20: a .html wearing an image/png label would be a stored XSS off the bucket.
+    it('rejects bytes that are not one of the allowed image formats', async () => {
+      const html = Buffer.from('<html><script>alert(1)</script></html>');
+      await expect(
+        controllerWith(makeService()).uploadPhoto(user, 'c1', upload({ buffer: html })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(storageMock.put).not.toHaveBeenCalled();
+    });
+
+    it('rejects a PDF — this field is a photo', async () => {
+      const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0, 0, 0, 0]);
+      await expect(
+        controllerWith(makeService()).uploadPhoto(user, 'c1', upload({ buffer: pdf })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a file over 5MB', async () => {
+      await expect(
+        controllerWith(makeService()).uploadPhoto(user, 'c1', upload({ size: 6 * 1024 * 1024 })),
+      ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    });
+
+    it('reports storage being down as 503, not as a broken photo', async () => {
+      const svc = makeService();
+      storageMock.put.mockRejectedValue(new Error('endpoint unreachable'));
+      await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(svc.update).not.toHaveBeenCalled();
+    });
+
+    it('maps an unknown reseller to 404 and rethrows anything else', async () => {
+      const svc = makeService();
+      storageMock.put.mockResolvedValue({ url: 'https://cdn/x.png', key: 'x' });
+      svc.update.mockRejectedValueOnce(new ResellerNotFoundError());
+      await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      const boom = new Error('boom');
+      svc.update.mockRejectedValueOnce(boom);
+      await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).rejects.toBe(boom);
+    });
+  });
+
   describe('update', () => {
     it('updates on success', async () => {
       const svc = makeService();
@@ -126,9 +221,15 @@ describe('ResellerSelfController', () => {
   const controller = new ResellerSelfController(svc as never);
   const selfUser = { sub: 'cust-1', role: Role.CUSTOMER, phone: null };
 
-  it('returns active + discountPct for a reseller', async () => {
-    svc.findMy.mockResolvedValue({ active: true, discountPct: 12 });
-    expect(await controller.me(selfUser as never)).toEqual({ active: true, discountPct: 12 });
+  it('returns active + both pricing shapes for a reseller', async () => {
+    // Checkout needs the flat galon price here too — it is the SOP's agen price, and
+    // without it order-service would fall back to membership pricing for a flat-price agen.
+    svc.findMy.mockResolvedValue({ active: true, discountPct: 12, flatGallonPriceIdr: 5000 });
+    expect(await controller.me(selfUser as never)).toEqual({
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 5000,
+    });
     expect(svc.findMy).toHaveBeenCalledWith('cust-1');
   });
 

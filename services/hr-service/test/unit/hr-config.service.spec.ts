@@ -89,6 +89,33 @@ describe('HrConfigService', () => {
     expect(svc.performanceSalesTarget()).toBe(0);
   });
 
+  // Depot SOP. Every one of these ships EMPTY/0, which is what keeps an unconfigured depot
+  // on the old payroll — so the default read is the behaviour worth pinning.
+  it('serves the depot SOP tunables as off by default, and honours a per-depot override', async () => {
+    const off = new HrConfigService(config(), await cacheWith([]));
+    expect(off.dailySalesBonusTiers()).toBe('');
+    expect(off.lateFineCsv(false)).toBe('');
+    expect(off.lateFineCsv(true)).toBe('');
+    expect(off.lateTier2AfterMinutes()).toBe(0);
+    expect(off.absentAfterMinutes()).toBe(0);
+
+    const svc = new HrConfigService(
+      config(),
+      await cacheWith([
+        { scope: 'DEPOT', depotId, key: 'dailySalesBonusTiers', value: '120:15000' },
+        { scope: 'DEPOT', depotId, key: 'lateFineStaff', value: '10000,15000,20000' },
+        { scope: 'DEPOT', depotId, key: 'lateFineManager', value: '15000,20000,25000' },
+        { scope: 'DEPOT', depotId, key: 'lateTier2AfterMinutes', value: '70' },
+        { scope: 'DEPOT', depotId, key: 'absentAfterMinutes', value: '130' },
+      ]),
+    );
+    expect(svc.dailySalesBonusTiers(depotId)).toBe('120:15000');
+    expect(svc.lateFineCsv(false, depotId)).toBe('10000,15000,20000');
+    expect(svc.lateFineCsv(true, depotId)).toBe('15000,20000,25000');
+    expect(svc.lateTier2AfterMinutes(depotId)).toBe(70);
+    expect(svc.absentAfterMinutes(depotId)).toBe(130);
+  });
+
   // Q-13. The store keeps percentages ×100 because it is integer-only, so the thing that
   // matters here is that they come back as real percentages and the rupiah ceilings do not.
   it('divides the stored ×100 percentages back, and leaves the rupiah ceilings alone', async () => {

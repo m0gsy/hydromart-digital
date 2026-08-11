@@ -28,6 +28,8 @@ import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalo
 import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
 import { OrderCrmHttpAdapter } from '../infrastructure/http/order-crm.http.adapter';
 import { DepotLedgerHttpAdapter } from '../infrastructure/http/depot-ledger.http.adapter';
+import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
+import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { AddressController } from './address.controller';
 import { PaymentMethodController } from './payment-method.controller';
 import { ProfileController } from './profile.controller';
@@ -61,6 +63,14 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
   { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },
   { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
+  {
+    provide: CUSTOMER_TOKENS.Storage,
+    useFactory: (config: CustomerConfigService) =>
+      config.storageDriver === 's3'
+        ? new S3StorageAdapter(config)
+        : new LocalDiskStorageAdapter(config),
+    inject: [CustomerConfigService],
+  },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

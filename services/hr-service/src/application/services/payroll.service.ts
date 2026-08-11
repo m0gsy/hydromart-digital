@@ -23,7 +23,13 @@ import { loanDeductionFor } from '../../domain/loan';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
 import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
-import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
+import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
+import { parseFines, tierOf } from '../../domain/late-fine';
+import {
+  ATTENDANCE_REPOSITORY,
+  AttendanceRepository,
+  WorkedMinutesRow,
+} from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
 import { BONUS_RULE_REPOSITORY, BonusRuleRepository } from '../ports/bonus-rule.repository';
 import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
@@ -83,18 +89,38 @@ export class PayrollService {
     }
 
     const { from, to } = this.monthRange(periodMonth);
-    // Five reads that need nothing from each other — attendance, allowances, manual
-    // bonuses, the depot's working days and its bonus rules — used to be awaited one after
-    // another (audit S-21). Payroll generation runs per employee, so this is the run's
-    // whole cost multiplied by headcount.
-    const [{ presentDays, lateDays, leaveDays }, allowanceRows, bonusRows, workingDays, rules] =
-      await Promise.all([
-        this.attendance.summary(employeeId, from, to),
-        this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
-        this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
-        this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
-        this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
-      ]);
+    // Depot SOP daily gallon bonus. Parsed BEFORE the reads so the cross-service gallon
+    // call is only paid for when a ladder is actually configured — an empty ladder (every
+    // depot until someone fills it in) must cost nothing and change nothing.
+    const gallonTiers = parseTiers(this.config.dailySalesBonusTiers(employee.depotId));
+    const wantsDailyBonus = gallonTiers.length > 0 && !!this.sales && !!employee.depotId;
+
+    // Reads that need nothing from each other — attendance, allowances, manual bonuses, the
+    // depot's working days, its bonus rules, the per-day attendance rows and the depot's
+    // daily gallons — used to be awaited one after another (audit S-21). Payroll generation
+    // runs per employee, so this is the run's whole cost multiplied by headcount.
+    const [
+      { presentDays, lateDays, leaveDays },
+      allowanceRows,
+      bonusRows,
+      workingDays,
+      rules,
+      workedDays,
+      dailyGallons,
+    ] = await Promise.all([
+      this.attendance.summary(employeeId, from, to),
+      this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
+      this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
+      this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
+      this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
+      this.attendance.listWorkedMinutes(employeeId, from, to),
+      wantsDailyBonus
+        ? // Day KEYS, not Dates: `workDate` is a LOCAL date kept as UTC-midnight and
+          // order-service buckets in the same PRICING_TZ. `monthRange` is already
+          // UTC-midnight, so slicing the ISO string is the local day.
+          this.sales!.depotDailyGallons(employee.depotId!, dayKey(from), dayKey(to))
+        : null,
+    ]);
 
     const items: PayrollItemInput[] = [];
 
@@ -179,25 +205,46 @@ export class PayrollService {
       }
     }
 
+    // Depot SOP: daily gallon-target bonus, paid IN FULL to each attending staff member for
+    // every day the depot hit a tier. `dailyGallons` null (order-service down, or no ladder)
+    // pays nothing — same rule as the SALES_TOTAL bonus, never a fabricated zero-day.
+    if (dailyGallons) {
+      let total = 0;
+      let days = 0;
+      for (const row of workedDays) {
+        const amount = bonusForDay(gallonTiers, dailyGallons.get(dayKey(row.workDate)) ?? 0);
+        if (amount > 0) {
+          total += amount;
+          days++;
+        }
+      }
+      if (total > 0) {
+        items.push({ kind: 'BONUS', label: `Bonus target harian (${days} hari)`, amount: total });
+      }
+    }
+
     // Overtime (M24-17). A weekly-off day and a national holiday are the same thing to
     // payroll — neither was an expected working day — so both are paid at the off-day
     // multiplier and every worked minute on them counts, not just the excess.
-    const overtime = await this.overtimeBonus(employee, periodMonth, from, to);
+    const overtime = await this.overtimeBonus(employee, periodMonth, from, to, workedDays);
     if (overtime) items.push(overtime);
 
-    // DEDUCTION lines: auto late (lateDays × config) + manual rows
-    const lateRate = this.config.lateDeductionAmount(employee.depotId);
-    if (lateDays > 0 && lateRate > 0) {
-      items.push({
-        kind: 'DEDUCTION',
-        label: `Potongan terlambat (${lateDays} hari)`,
-        amount: lateDays * lateRate,
-      });
-    }
-    // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
-    // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
-    if (employee.salaryType === 'MONTHLY') {
-      const absentDays = await this.absentDays(
+    // DEDUCTION lines: lateness + absence, then manual rows.
+    const isDepotManager = employee.role === 'KEPALA_DEPOT';
+    const fines = parseFines(this.config.lateFineCsv(isDepotManager, employee.depotId));
+    if (fines) {
+      // Depot SOP §2: three steps by minutes late, at the rate for this jabatan.
+      const counts = { T1: 0, T2: 0, ABSENT: 0 };
+      const tier2After = this.config.lateTier2AfterMinutes(employee.depotId);
+      const absentAfter = this.config.absentAfterMinutes(employee.depotId);
+      for (const row of workedDays) {
+        const tier = tierOf(row.lateMinutes, tier2After, absentAfter);
+        if (tier !== 'NONE') counts[tier]++;
+      }
+      // A day nobody showed up for and a day someone showed up hours late are the same
+      // thing to the SOP — one "tidak absen" fine each. They cannot overlap: an ABSENT-by-
+      // lateness day HAS an attendance row, so it is not in `absentDays()`.
+      counts.ABSENT += await this.absentDays(
         periodMonth,
         employee.depotId,
         from,
@@ -205,13 +252,46 @@ export class PayrollService {
         presentDays,
         leaveDays,
       );
-      const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
-      if (absentDays > 0 && absenceRate > 0) {
+      const lines: [keyof typeof counts, number, string][] = [
+        ['T1', fines.tier1, 'Denda telat 1'],
+        ['T2', fines.tier2, 'Denda telat 2'],
+        ['ABSENT', fines.absent, 'Denda tidak absen'],
+      ];
+      for (const [key, rate, label] of lines) {
+        const days = counts[key];
+        if (days > 0 && rate > 0) {
+          items.push({ kind: 'DEDUCTION', label: `${label} (${days} hari)`, amount: days * rate });
+        }
+      }
+    } else {
+      // No tiered fine configured: the flat rate, exactly as before.
+      const lateRate = this.config.lateDeductionAmount(employee.depotId);
+      if (lateDays > 0 && lateRate > 0) {
         items.push({
           kind: 'DEDUCTION',
-          label: `Potongan absen (${absentDays} hari)`,
-          amount: absentDays * absenceRate,
+          label: `Potongan terlambat (${lateDays} hari)`,
+          amount: lateDays * lateRate,
         });
+      }
+      // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
+      // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
+      if (employee.salaryType === 'MONTHLY') {
+        const absentDays = await this.absentDays(
+          periodMonth,
+          employee.depotId,
+          from,
+          to,
+          presentDays,
+          leaveDays,
+        );
+        const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
+        if (absentDays > 0 && absenceRate > 0) {
+          items.push({
+            kind: 'DEDUCTION',
+            label: `Potongan absen (${absentDays} hari)`,
+            amount: absentDays * absenceRate,
+          });
+        }
       }
     }
 
@@ -317,10 +397,47 @@ export class PayrollService {
     return this.load(user, id);
   }
 
+  /**
+   * The caller's OWN payroll, by id.
+   *
+   * `getById` above is `hrView`-gated, which no ordinary employee has — so an employee
+   * could list their payslips and then not open one. This is the read that lets them,
+   * and it is scoped by ownership rather than by depot.
+   *
+   * A payroll belonging to somebody else 404s, not 403: a colleague's payroll id is not
+   * something an employee should be able to confirm the existence of.
+   */
+  async getSelfById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+    return (await this.loadSelf(user, id)).payroll;
+  }
+
+  /** The same slip PDF as `slip`, for the employee's own payroll only. */
+  async selfSlip(user: AuthenticatedUser, id: string): Promise<Buffer> {
+    const { payroll, employee } = await this.loadSelf(user, id);
+    return PayrollService.renderSlip(payroll, employee);
+  }
+
+  private async loadSelf(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<{ payroll: PayrollWithItems; employee: Employee }> {
+    const employee = await this.employees.getSelf(user);
+    const payroll = await this.repo.findById(id);
+    if (!payroll || payroll.employeeId !== employee.id) {
+      throw new NotFoundException('Payroll tidak ditemukan');
+    }
+    return { payroll, employee };
+  }
+
   /** Render a salary-slip PDF for one payroll. */
   async slip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const payroll = await this.load(user, id); // 404 + depot check
     const employee = await this.employees.getById(user, payroll.employeeId);
+    return PayrollService.renderSlip(payroll, employee);
+  }
+
+  /** One slip layout, shared by the staff route and the employee's own. */
+  private static renderSlip(payroll: PayrollWithItems, employee: Employee): Promise<Buffer> {
     return payrollSlipPdf({
       employeeName: employee.fullName,
       employeeCode: employee.employeeCode,
@@ -394,10 +511,10 @@ export class PayrollService {
     periodMonth: string,
     from: Date,
     to: Date,
+    days: WorkedMinutesRow[],
   ): Promise<PayrollItemInput | null> {
     const depotId = employee.depotId;
     const standardWorkingMinutes = this.config.standardWorkingMinutes(depotId);
-    const days = await this.attendance.listWorkedMinutes(employee.id, from, to);
     if (days.length === 0) return null;
 
     // The off-day test is the union of the weekly-off weekdays and the dated national
@@ -482,6 +599,14 @@ export class PayrollService {
       to: new Date(Date.UTC(y, m, 0)),
     };
   }
+}
+
+/**
+ * The LOCAL day key of a `@db.Date` value. Those are stored as UTC-midnight, so the UTC
+ * slice IS the local date — `toLocaleDateString` would shift it back a day in WIB.
+ */
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 function sum(items: PayrollItemInput[], kind: PayrollItemInput['kind']): number {

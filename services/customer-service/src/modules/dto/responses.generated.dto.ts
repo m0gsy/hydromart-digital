@@ -27,6 +27,10 @@ export class ResellerResponseDto {
   monthlyTargetQty!: number;
   @ApiProperty({ type: Number })
   discountPct!: number;
+  @ApiProperty({ type: Number })
+  flatGallonPriceIdr!: number;
+  @ApiProperty({ type: String, nullable: true })
+  photoUrl!: string | null;
   @ApiProperty({ type: Boolean })
   active!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -200,6 +204,8 @@ export class Me2ResponseDto {
   active!: boolean;
   @ApiProperty({ type: Number })
   discountPct!: number;
+  @ApiProperty({ type: Number })
+  flatGallonPriceIdr!: number;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

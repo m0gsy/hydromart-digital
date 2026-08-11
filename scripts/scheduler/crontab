@@ -26,3 +26,9 @@
 # hour late is not an integration. Retries back off on their own (1m, 5m, 25m, ...), so
 # a dead endpoint is not hammered by this cadence.
 */5 * * * * sh /scripts/sweep.sh webhooks/deliveries/process admin:3017
+# Depot SOP: the twice-daily "laporan penjualan" — how many gallons each depot has sold so
+# far today, sent to the depot's own number. 13:00 (siang) and 21:00 (sore) WIB. The slot
+# is a path segment rather than a body because sweep.sh posts an empty one; it also gives
+# the two runs separate locks, so a slow siang never swallows sore.
+0 13 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/siang
+0 21 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/sore

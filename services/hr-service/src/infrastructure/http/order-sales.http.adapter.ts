@@ -39,4 +39,35 @@ export class OrderSalesHttpAdapter implements SalesPort {
       return null;
     }
   }
+
+  async depotDailyGallons(
+    depotId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<Map<string, number> | null> {
+    const { url, internalKey } = this.config.orderService;
+    if (!url || !internalKey) return null;
+    const qs = new URLSearchParams({ depotId, from: fromDay, to: toDay });
+    try {
+      const res = await fetch(
+        `${url.replace(/\/$/, '')}/api/v1/reports/internal/depot-daily-gallons?${qs}`,
+        {
+          headers: { 'x-internal-key': internalKey },
+          signal: AbortSignal.timeout(OrderSalesHttpAdapter.TIMEOUT_MS),
+        },
+      );
+      if (!res.ok) {
+        this.logger.warn(`depot-daily-gallons ${res.status} for depot ${depotId}`);
+        return null;
+      }
+      const body = (await res.json()) as { days?: { day: string; gallons: number }[] };
+      if (!Array.isArray(body.days)) return null;
+      return new Map(body.days.map((d) => [d.day, d.gallons]));
+    } catch (err) {
+      this.logger.warn(
+        `depot-daily-gallons fetch failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
 }

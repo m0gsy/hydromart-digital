@@ -30,6 +30,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { resolveDeliveryDepot } from '@/lib/depots';
+import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
@@ -119,10 +120,15 @@ function CheckoutInner() {
   const { data: myVouchers } = useAsync<MyVoucher[]>(() => api.get(endpoints.vouchers.me, true));
   // Reseller ("agen") pricing status. Fail-soft: 404 (not a reseller) or any error just
   // leaves data null — useAsync already swallows the rejection into its ignored `error`.
-  const { data: reseller } = useAsync<{ active: boolean; discountPct: number }>(() =>
-    api.get(endpoints.resellers.me, true),
-  );
-  const isReseller = !!reseller?.active && reseller.discountPct > 0;
+  const { data: reseller } = useAsync<{
+    active: boolean;
+    discountPct: number;
+    flatGallonPriceIdr: number;
+  }>(() => api.get(endpoints.resellers.me, true));
+  // A flat per-galon agen price counts as reseller pricing too — without it the badge and
+  // the voucher lock disagree with what the server actually charges.
+  const isReseller =
+    !!reseller?.active && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0);
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -217,6 +223,11 @@ function CheckoutInner() {
     [depot?.id],
   );
   const delivery = options ?? NO_OPTIONS;
+
+  // Buka / istirahat / tutup for the fulfilling depot, from the hours the public depot
+  // projection already carries. Only explains the missing express option — the server is
+  // the one that actually withdraws it.
+  const depotState = depotOpenState(depot?.operatingHours, depot?.holidays);
 
   // A depot that stops offering express while this screen is open must not leave a
   // selection that checkout would now reject.
@@ -392,7 +403,13 @@ function CheckoutInner() {
 
   // Preview only — order-service computes the authoritative discount at checkout.
   const membershipRate = loyalty?.discountRate ?? 0;
-  const membershipDiscount = Math.floor(cart.subtotal * membershipRate);
+  // A reseller gets NEITHER membership nor voucher — order-service replaces both with the
+  // agen price. Previewing a membership discount the server will not apply put a number on
+  // screen that the bill then contradicted, which is the defect the express fee already
+  // taught us once. The agen discount itself cannot be previewed honestly here: the flat
+  // price applies per galon line and excludes wholesale-band lines, and the cart carries
+  // neither flag. So the summary shows list price and says the agen price lands at checkout.
+  const membershipDiscount = isReseller ? 0 : Math.floor(cart.subtotal * membershipRate);
   const voucherDiscount = quote?.discount ?? 0;
   const totalDiscount = Math.min(cart.subtotal, membershipDiscount + voucherDiscount);
   const estimatedTotal = cart.subtotal - totalDiscount;
@@ -616,6 +633,16 @@ function CheckoutInner() {
     {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
     <div className="flex flex-col gap-3">
 
+      {/* Why "antar sekarang" is missing. The server already withdrew it (deliveryOptions
+          applies the same test), so without a line here the option just silently vanishes. */}
+      {depotState !== 'buka' && (
+        <p className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-[13px] text-muted">
+          {depotState === 'istirahat'
+            ? 'Depot sedang istirahat — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'
+            : 'Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'}
+        </p>
+      )}
+
       {/* Express-now — only where the depot actually offers it */}
       {delivery.expressEnabled && (
       <button
@@ -732,7 +759,11 @@ function CheckoutInner() {
     {/* Voucher — hidden for active resellers (flat reseller price, no stacking) */}
     {isReseller ? (
       <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
-        <Badge tone="success">Harga reseller −{reseller!.discountPct}%</Badge>
+        <Badge tone="success">
+          {reseller!.flatGallonPriceIdr > 0
+            ? `Harga agen Rp${reseller!.flatGallonPriceIdr.toLocaleString('id-ID')}/galon`
+            : `Harga reseller −${reseller!.discountPct}%`}
+        </Badge>
         <p className="text-sm text-muted">
           Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.
         </p>
@@ -875,6 +906,12 @@ function CheckoutInner() {
             <span className="font-bold">
               −<Money amount={membershipDiscount} />
             </span>
+          </div>
+        )}
+        {isReseller && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>Harga agen</span>
+            <span className="text-xs font-semibold">dihitung saat pesanan dibuat</span>
           </div>
         )}
         {voucherDiscount > 0 && (

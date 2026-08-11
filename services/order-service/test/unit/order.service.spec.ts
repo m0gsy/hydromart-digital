@@ -1049,7 +1049,7 @@ describe('OrderService', () => {
 
   it('applies reseller percent discount and skips membership + voucher', async () => {
     await addToCart(20000, 1); // subtotal 20000
-    resellerDiscount.result = { active: true, discountPct: 10 };
+    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
     membership.rate = 0.05; // must be ignored
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(2000); // 10% of 20000, membership 5% ignored
@@ -1098,8 +1098,76 @@ describe('OrderService', () => {
       depots.depots = [nearDepot];
       const productId = await addToCart(22000, 10);
       pricing.setTier('depot-near', productId, 10, 5500);
-      resellerDiscount.result = { active: true, discountPct: 10 };
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
       const order = await service.checkout(customer, { deliveryAddress: routed }, 'Bearer tok');
+      expect(order.subtotal).toBe(55000);
+      expect(order.discount).toBe(0);
+    });
+  });
+
+  // Depot SOP §5: an agen pays a flat Rp5.000 per galon, whatever the galon lists at.
+  describe('flat reseller galon price', () => {
+    it('discounts each galon line down to the flat price', async () => {
+      await addToCart(8000, 3); // 3 × Rp8.000 = 24.000 listed
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      membership.rate = 0.05; // must be ignored — reseller pricing replaces it
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      expect(order.subtotal).toBe(24000);
+      expect(order.discount).toBe(9000); // (8000 − 5000) × 3
+    });
+
+    // Without `flatGallonPriceIdr` in the isReseller test, this reseller falls through to
+    // the membership+voucher path and is never charged the agen price at all.
+    it('is a reseller even with no discount percent at all', async () => {
+      await addToCart(8000, 1);
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      membership.rate = 0.05;
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      expect(order.discount).toBe(3000); // flat price, not 5% membership (400)
+      expect(promo.quoteCalls).toHaveLength(0);
+    });
+
+    it('wins over the percentage when both are set', async () => {
+      await addToCart(8000, 1);
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 5000 };
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      expect(order.discount).toBe(3000); // not 800
+    });
+
+    it('never marks a line up that already sits below the flat price', async () => {
+      await addToCart(4000, 2);
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      expect(order.discount).toBe(0);
+    });
+
+    it('leaves non-galon lines at list price', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: false });
+      await cartService.setItem(customer, p.id, 2, false);
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      expect(order.discount).toBe(0);
+    });
+
+    it('skips a band-priced galon line — it is already at the bulk price', async () => {
+      depots.depots = [
+        {
+          id: 'depot-near',
+          lat: -6.9,
+          lng: 107.6,
+          serviceRadiusKm: 10,
+          deliveryFee: 0,
+          minOrderAmount: null,
+        },
+      ];
+      const productId = await addToCart(8000, 10);
+      pricing.setTier('depot-near', productId, 10, 5500);
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      const order = await service.checkout(
+        customer,
+        { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
+        'Bearer tok',
+      );
       expect(order.subtotal).toBe(55000);
       expect(order.discount).toBe(0);
     });
@@ -1107,7 +1175,7 @@ describe('OrderService', () => {
 
   it('rejects a voucher for an active reseller', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: true, discountPct: 10 };
+    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
     await expect(
       service.checkout(
         customer,
@@ -1127,7 +1195,7 @@ describe('OrderService', () => {
 
   it('ignores a deactivated reseller and falls back to normal pricing', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: false, discountPct: 10 };
+    resellerDiscount.result = { active: false, discountPct: 10, flatGallonPriceIdr: 0 };
     membership.rate = 0.05;
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(1000); // reseller gated off; membership applies instead
@@ -1696,13 +1764,78 @@ describe('OrderService', () => {
       ).rejects.toThrow(ExpressUnavailableError);
     });
 
-    it('reports what the screen may offer, from the same place checkout prices it', () => {
-      expect(service.deliveryOptions(null)).toEqual({
+    it('reports what the screen may offer, from the same place checkout prices it', async () => {
+      await expect(service.deliveryOptions(null)).resolves.toEqual({
         slots: ['09.00-11.00', '11.00-13.00'],
         expressEnabled: true,
         expressFee: 5000,
         expressEtaMinMinutes: 30,
         expressEtaMaxMinutes: 60,
+      });
+    });
+
+    // Depot SOP §6: nobody is at the counter during the midday break, so the immediate
+    // upgrade is off — while the scheduled slots stay, because tomorrow morning is fine.
+    describe('while the depot is on its break or shut', () => {
+      const shutDepot = {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 0,
+        minOrderAmount: null,
+        operatingHours: {
+          mon: { open: '08:00', close: '21:00', breakStart: '12:00', breakEnd: '13:00' },
+        },
+        holidays: [],
+      };
+      const routed = { ...address, latitude: -6.91, longitude: 107.61 };
+      // Monday 2026-08-10, 12.30 WIB — inside the break.
+      const onBreak = new Date('2026-08-10T05:30:00.000Z');
+
+      beforeEach(() => {
+        depots.depots = [shutDepot];
+        jest.useFakeTimers({ now: onBreak, doNotFake: ['nextTick', 'setImmediate'] });
+      });
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('withdraws express from the screen', async () => {
+        const options = await service.deliveryOptions('depot-near');
+        expect(options.expressEnabled).toBe(false);
+        expect(options.slots).toHaveLength(2); // scheduled delivery is unaffected
+      });
+
+      it('refuses an express order rather than billing for it', async () => {
+        await addToCart(20000, 1);
+        await expect(
+          service.checkout(customer, { deliveryAddress: routed, express: true }),
+        ).rejects.toThrow(ExpressUnavailableError);
+      });
+
+      it('still accepts a scheduled order', async () => {
+        await addToCart(20000, 1);
+        const order = await service.checkout(customer, {
+          deliveryAddress: routed,
+          deliveryWindow: '09.00-11.00',
+        });
+        expect(order.deliveryWindow).toBe('09.00-11.00');
+      });
+
+      it('leaves express alone once the break is over', async () => {
+        jest.setSystemTime(new Date('2026-08-10T06:30:00.000Z')); // 13.30 WIB
+        await expect(service.deliveryOptions('depot-near')).resolves.toMatchObject({
+          expressEnabled: true,
+        });
+      });
+
+      // A directory blip must not quietly withdraw a paid upgrade the depot opted into.
+      it('keeps express when the depot directory cannot answer', async () => {
+        depots.unreachable = true;
+        await expect(service.deliveryOptions('depot-near')).resolves.toMatchObject({
+          expressEnabled: true,
+        });
       });
     });
   });

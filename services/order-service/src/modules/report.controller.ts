@@ -1,9 +1,20 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
   AuthenticatedUser,
   CurrentUser,
+  InternalAuthGuard,
+  Public,
   Role,
   Roles,
   assertDepotAccess,
@@ -14,6 +25,7 @@ import { ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
   DepotCompareQueryDto,
+  DepotDailyGallonsQueryDto,
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
@@ -26,6 +38,10 @@ import {
 } from './dto/report.dto';
 import { CustomerSummary, DepotCompareReport, DepotDailyReport, DepotMonthlyReport, DepotRatingsReport, DepotWeeklyReport, ReportRangeView, ResellerRollupReport, RetentionCohortReport, RevenueByProductReport, SalesReport } from '../application/services/report.service';
 import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } from '../application/ports/order.repository';
+import {
+  InternalDailySalesBroadcastResponseDto,
+  InternalDepotDailyGallonsResponseDto,
+} from './dto/responses.generated.dto';
 import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
@@ -178,6 +194,52 @@ export class ReportController {
   @ApiOperation({ summary: "One depot's monthly ops review (orders/revenue/active customers)" })
   depotMonthly(@Query() q: DepotMonthlyQueryDto): Promise<DepotMonthlyReport> {
     return this.reports.reportsDepotMonthly(q.depotId, q.month);
+  }
+
+  /**
+   * Gallons delivered per local day, for hr-service's daily sales bonus (depot SOP).
+   *
+   * No end-user token — the caller is a payroll run, authenticated by the shared
+   * INTERNAL_SERVICE_KEY. `@Public()` is required because this controller carries a
+   * class-level `@Roles(...)`; InternalAuthGuard is then the sole (fail-closed) auth.
+   */
+  @ApiOkResponse({ type: InternalDepotDailyGallonsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-daily-gallons')
+  @ApiOperation({ summary: 'Gallons delivered per local day for a depot (internal service auth)' })
+  async internalDepotDailyGallons(
+    @Query() q: DepotDailyGallonsQueryDto,
+  ): Promise<{ depotId: string; days: { day: string; gallons: number }[] }> {
+    return {
+      depotId: q.depotId,
+      days: await this.reports.depotDailyGallons(q.depotId, q.from, q.to),
+    };
+  }
+
+  /**
+   * Depot SOP: the twice-daily sales update, fired by cron (13:00 and 18:00 WIB).
+   *
+   * Internal-key only, like the gallon aggregate above — the caller is a scheduler, not a
+   * signed-in user. Returns the counts so the cron log says what actually went out.
+   */
+  @ApiOkResponse({ type: InternalDailySalesBroadcastResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/daily-sales-broadcast/:slot')
+  @ApiOperation({ summary: "Send each depot today's gallon count (internal service auth)" })
+  internalDailySalesBroadcast(
+    // A path segment, not a body: `sweep.sh` posts `--post-data=''` with no content-type,
+    // so a body DTO would arrive empty and 400 on every cron tick. It also gives the two
+    // slots separate sweep locks, which is what you want — siang must not block sore.
+    @Param('slot') slot: string,
+  ): Promise<{ attempted: number; skipped: number }> {
+    if (slot !== 'siang' && slot !== 'sore') {
+      throw new BadRequestException('slot must be siang or sore');
+    }
+    return this.reports.broadcastDailySales(slot);
   }
 
   @ApiOkResponse({ type: AudienceReach3ResponseDto })

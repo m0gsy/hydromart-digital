@@ -173,6 +173,21 @@ export class DepotMonthlyQueryDto {
   month!: string;
 }
 
+/** Internal (hr-service) daily-gallon aggregate. Day KEYS, not instants — see the port. */
+export class DepotDailyGallonsQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: '2026-08-01', description: 'Inclusive first local day, YYYY-MM-DD.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'from must be YYYY-MM-DD' })
+  from!: string;
+
+  @ApiProperty({ example: '2026-08-31', description: 'Inclusive last local day, YYYY-MM-DD.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'to must be YYYY-MM-DD' })
+  to!: string;
+}
+
 export class ResellerRollupQueryDto {
   @ApiProperty() @IsUUID() depotId!: string;
   @ApiProperty({ example: '2026-07' }) @Matches(/^\d{4}-(0[1-9]|1[0-2])$/) month!: string;

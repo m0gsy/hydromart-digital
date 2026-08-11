@@ -44,7 +44,7 @@ export function DepotHoursEditor({
       return next;
     });
   }
-  function setTime(key: string, field: 'open' | 'close', value: string) {
+  function setTime(key: string, field: keyof DepotHours, value: string) {
     setHours((h) => ({ ...h, [key]: { ...(h[key] ?? DEFAULT_HOURS), [field]: value } }));
   }
   function addHoliday() {
@@ -93,20 +93,42 @@ export function DepotHoursEditor({
               <div key={d.key} className="flex items-center gap-3 border-t border-app py-2.5 first:border-0">
                 <span className="w-16 text-sm font-semibold">{d.label}</span>
                 {dh ? (
-                  <div className="flex flex-1 items-center gap-2">
-                    <Input
-                      type="time"
-                      value={dh.open}
-                      onChange={(e) => setTime(d.key, 'open', e.target.value)}
-                      className="py-1.5"
-                    />
-                    <span className="text-muted">–</span>
-                    <Input
-                      type="time"
-                      value={dh.close}
-                      onChange={(e) => setTime(d.key, 'close', e.target.value)}
-                      className="py-1.5"
-                    />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="time"
+                        value={dh.open}
+                        onChange={(e) => setTime(d.key, 'open', e.target.value)}
+                        className="py-1.5"
+                      />
+                      <span className="text-muted">–</span>
+                      <Input
+                        type="time"
+                        value={dh.close}
+                        onChange={(e) => setTime(d.key, 'close', e.target.value)}
+                        className="py-1.5"
+                      />
+                    </div>
+                    {/* Istirahat: kosongkan salah satu untuk menonaktifkan. Jumat cukup
+                        diisi jam mulai yang lebih awal — tidak ada kolom khusus. */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-14 shrink-0 text-xs text-muted">Istirahat</span>
+                      <Input
+                        type="time"
+                        aria-label={`Mulai istirahat ${d.label}`}
+                        value={dh.breakStart ?? ''}
+                        onChange={(e) => setTime(d.key, 'breakStart', e.target.value)}
+                        className="py-1.5"
+                      />
+                      <span className="text-muted">–</span>
+                      <Input
+                        type="time"
+                        aria-label={`Selesai istirahat ${d.label}`}
+                        value={dh.breakEnd ?? ''}
+                        onChange={(e) => setTime(d.key, 'breakEnd', e.target.value)}
+                        className="py-1.5"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <span className="flex-1 text-sm text-muted">Tutup</span>

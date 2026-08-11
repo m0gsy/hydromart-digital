@@ -9,6 +9,10 @@ export interface Reseller {
   homeDepotId: string;
   monthlyTargetQty: number;
   discountPct: number;
+  /** SOP: flat rupiah per galon; > 0 replaces `discountPct` at checkout. 0 = price by percent. */
+  flatGallonPriceIdr: number;
+  /** Registration photo of the agen, or null when none was uploaded. */
+  photoUrl: string | null;
   active: boolean;
   joinDate: string;
   note: string | null;

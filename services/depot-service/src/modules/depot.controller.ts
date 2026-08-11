@@ -28,7 +28,7 @@ import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, R
 import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
-import { DepotService, NearbyDepot } from '../application/services/depot.service';
+import { DepotService } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
 import {
@@ -36,10 +36,11 @@ import {
   CreateDepotDto,
   DepotPaymentInfoView,
   NearbyDepotsQueryDto,
+  NearbyDepotView,
   PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
-import { DepotResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
+import { DepotResponseDto, InternalContactsResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
@@ -76,8 +77,9 @@ export class DepotController {
   @Public()
   @Get('nearby')
   @ApiOperation({ summary: 'Find active depots near a coordinate (nearest first)' })
-  nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepot[]> {
-    return this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
+  async nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepotView[]> {
+    const found = await this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
+    return found.map(NearbyDepotView.fromNearby);
   }
 
   // Service-to-service: forecast-service resolves which depots a franchise owner owns so it
@@ -111,6 +113,30 @@ export class DepotController {
     // ownershipType rides along so the caller can tell "company depot, nobody to credit"
     // from "franchise depot missing its owner" — the second one is a defect worth logging.
     return { ownerId: depot.ownerId, ownershipType: depot.ownershipType };
+  }
+
+  /**
+   * Service-to-service: every active depot's name and own WhatsApp number, for the SOP's
+   * twice-daily sales update that order-service's cron sends.
+   *
+   * `contactPhone` is deliberately NOT in `PublicDepotView`. It belongs to depot staff and
+   * would be harvestable in bulk from an anonymous route — the same objection that moved
+   * the bank details behind a signed-in route. Internal key only.
+   */
+  @ApiOkResponse({ type: InternalContactsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/contacts')
+  @ApiOperation({ summary: 'Active depots with their own phone number (internal service auth)' })
+  async internalContacts(): Promise<{
+    depots: { id: string; name: string; contactPhone: string | null }[];
+  }> {
+    // listAllActive, not browse: browse clamps to 100 and the hundred-and-first depot
+    // would silently never get its sales report.
+    const depots = await this.depots.listAllActive();
+    return {
+      depots: depots.map((d) => ({ id: d.id, name: d.name, contactPhone: d.contactPhone })),
+    };
   }
 
   // Admin listing includes inactive depots (public browse is active-only), so a
@@ -191,6 +217,7 @@ export class DepotController {
       deliveryFee: dto.deliveryFee,
       minOrderAmount: dto.minOrderAmount ?? null,
       ownerId: dto.ownerId ?? null,
+      contactPhone: dto.contactPhone ?? null,
       paymentBankName: dto.paymentBankName ?? null,
       paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,
       paymentBankAccountHolder: dto.paymentBankAccountHolder ?? null,

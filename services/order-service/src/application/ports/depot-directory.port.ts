@@ -1,3 +1,5 @@
+import { Holiday, OperatingHours } from '../../domain/opening-hours';
+
 /** The subset of a depot the order-service needs to route + price an order at checkout. */
 export interface DepotLocation {
   id: string;
@@ -8,6 +10,16 @@ export interface DepotLocation {
   deliveryFee: number;
   /** Minimum order subtotal (IDR) the depot accepts, or null for no minimum. */
   minOrderAmount: number | null;
+  // The three below are what the public projection carries beyond routing and pricing.
+  // Optional because a depot legitimately has none of them: nobody has filled the
+  // opening-hours form in yet. Absent reads as "always open", never as "shut" — see
+  // isOpenAt — so a depot that has not configured hours keeps behaving as it always did.
+  /** Depot's own name, for the messages a broadcast or a courier reads. */
+  name?: string;
+  /** Weekly hours incl. the optional midday break. */
+  operatingHours?: OperatingHours;
+  /** Dated full-day closures. */
+  holidays?: Holiday[];
 }
 
 /**
@@ -27,8 +39,23 @@ export interface DepotOwnership {
   ownershipType: 'WARALABA' | 'HKP';
 }
 
+/** One active depot's name and its own WhatsApp number (internal-key route). */
+export interface DepotContact {
+  id: string;
+  name: string;
+  /** Null = no number of its own; the caller falls back to the HQ ops number. */
+  contactPhone: string | null;
+}
+
 export interface DepotDirectoryPort {
   listActiveDepots(): Promise<DepotLocation[] | null>;
+  /**
+   * Every active depot with its own phone number, for operational messages addressed to
+   * the depot. Read from the internal-key route rather than the public projection: a
+   * depot's WhatsApp number belongs to its staff and must not be scrapeable anonymously.
+   * Null when depot-service is unreachable or the key is unset.
+   */
+  listContacts(): Promise<DepotContact[] | null>;
   /**
    * Ownership of one depot, for crediting a completed order. Not part of the public depot
    * projection, so this reads the internal-key route. Null when depot-service is unreachable

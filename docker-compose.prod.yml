@@ -173,6 +173,20 @@ services:
       # zeros too. It fails soft, so nothing ever logged.
       ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
+      # Object storage for agen registration photos (SOP §7). BiznetGio NEO (S3-compatible).
+      #
+      # Falls back to the AUTH bucket AS A SET — bucket, both keys and the public base URL
+      # together, because a bucket paired with another bucket's URL serves 404s. Agen photos
+      # live under resellers/ and avatars under avatars/, so sharing one bucket cannot
+      # collide, and the fallback is what makes this release need no new secret to deploy.
+      # Set the CUSTOMER_STORAGE_* four in .env to split them onto their own bucket later.
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:?set STORAGE_S3_ENDPOINT (e.g. https://nos.jkt-1.neo.id)}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-jkt-1}
+      STORAGE_S3_BUCKET: ${CUSTOMER_STORAGE_S3_BUCKET:-${AUTH_STORAGE_S3_BUCKET:?set AUTH_STORAGE_S3_BUCKET or CUSTOMER_STORAGE_S3_BUCKET}}
+      STORAGE_S3_ACCESS_KEY_ID: ${CUSTOMER_STORAGE_S3_ACCESS_KEY_ID:-${AUTH_STORAGE_S3_ACCESS_KEY_ID:?set AUTH_STORAGE_S3_ACCESS_KEY_ID or CUSTOMER_STORAGE_S3_ACCESS_KEY_ID}}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${CUSTOMER_STORAGE_S3_SECRET_ACCESS_KEY:-${AUTH_STORAGE_S3_SECRET_ACCESS_KEY:?set AUTH_STORAGE_S3_SECRET_ACCESS_KEY or CUSTOMER_STORAGE_S3_SECRET_ACCESS_KEY}}
+      STORAGE_PUBLIC_BASE_URL: ${CUSTOMER_STORAGE_PUBLIC_BASE_URL:-${AUTH_STORAGE_PUBLIC_BASE_URL:?set AUTH_STORAGE_PUBLIC_BASE_URL or CUSTOMER_STORAGE_PUBLIC_BASE_URL}}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3002/api/v1/health"]
       interval: 30s

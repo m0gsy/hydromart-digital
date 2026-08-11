@@ -166,8 +166,6 @@ export class NearbyDepotResponseDto {
   code!: string;
   @ApiProperty({ type: String })
   name!: string;
-  @ApiProperty({ enum: ['WARALABA', 'HKP'] })
-  ownershipType!: string;
   @ApiProperty({ type: String })
   address!: string;
   @ApiProperty({ type: String })
@@ -184,32 +182,32 @@ export class NearbyDepotResponseDto {
   deliveryFee!: number;
   @ApiProperty({ type: Number, nullable: true })
   minOrderAmount!: number | null;
-  @ApiProperty({ type: String, nullable: true })
-  ownerId!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  assistantSupervisorId!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  paymentBankName!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  paymentBankAccountNumber!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  paymentBankAccountHolder!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  paymentQrisImageUrl!: string | null;
   @ApiProperty({ type: Object })
   operatingHours!: unknown;
   @ApiProperty({ type: [HolidayResponseDto] })
   holidays!: HolidayResponseDto[];
   @ApiProperty({ type: Boolean })
   active!: boolean;
-  @ApiProperty({ type: String, format: 'date-time' })
-  createdAt!: string;
-  @ApiProperty({ type: String, format: 'date-time' })
-  updatedAt!: string;
   @ApiProperty({ type: Number })
   distanceKm!: number;
   @ApiProperty({ type: Boolean })
   withinService!: boolean;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalContactsDepotsResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  name!: string;
+  @ApiProperty({ type: String, nullable: true })
+  contactPhone!: string | null;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalContactsResponseDto {
+  @ApiProperty({ type: [InternalContactsDepotsResponseDto] })
+  depots!: InternalContactsDepotsResponseDto[];
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

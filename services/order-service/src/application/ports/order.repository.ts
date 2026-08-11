@@ -312,6 +312,19 @@ export interface OrderRepository {
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
+  /**
+   * Gallons a depot delivered per LOCAL day in [from, to), bucketed in `tz`.
+   *
+   * One aggregate query, not `ordersForDepot`: a month of rows is exactly the shape that
+   * trips `ReportRangeTooLargeError` at 20.000 orders, and nothing here needs the rows.
+   * Days with no delivered gallons are absent from the result, not zero-filled.
+   */
+  depotDailyGallons(
+    depotId: string,
+    from: Date,
+    to: Date,
+    tz: string,
+  ): Promise<{ day: string; gallons: number }[]>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.

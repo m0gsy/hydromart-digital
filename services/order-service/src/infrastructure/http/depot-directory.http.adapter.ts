@@ -2,10 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import {
+  DepotContact,
   DepotDirectoryPort,
   DepotLocation,
   DepotOwnership,
 } from '../../application/ports/depot-directory.port';
+import { Holiday, OperatingHours } from '../../domain/opening-hours';
 
 interface DepotResponse {
   id: string;
@@ -14,6 +16,9 @@ interface DepotResponse {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount?: number | null;
+  name?: string;
+  operatingHours?: unknown;
+  holidays?: unknown;
 }
 interface DepotPage {
   items: DepotResponse[];
@@ -52,11 +57,44 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         serviceRadiusKm: d.serviceRadiusKm,
         deliveryFee: d.deliveryFee,
         minOrderAmount: d.minOrderAmount ?? null,
+        name: d.name ?? '',
+        // The public projection already sends both; they are `unknown` there because the
+        // column is a JSON blob. Anything that is not the expected shape reads as "not
+        // configured", which `isOpenAt` treats as always open — never as silently closed.
+        operatingHours:
+          d.operatingHours && typeof d.operatingHours === 'object' && !Array.isArray(d.operatingHours)
+            ? (d.operatingHours as OperatingHours)
+            : {},
+        holidays: Array.isArray(d.holidays) ? (d.holidays as Holiday[]) : [],
       }));
     } catch (error) {
       this.logger.warn(
         `Depot routing unavailable, order left unrouted: ${(error as Error).message}`,
       );
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async listContacts(): Promise<DepotContact[] | null> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) return null;
+    const url = `${this.config.depotServiceUrl}/api/v1/depots/internal/contacts`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json', 'x-internal-key': internalServiceKey },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`depot-service responded ${res.status}`);
+      }
+      const body = (await res.json()) as { depots?: DepotContact[] };
+      return Array.isArray(body.depots) ? body.depots : null;
+    } catch (error) {
+      this.logger.warn(`Depot contacts unavailable: ${(error as Error).message}`);
       return null;
     } finally {
       clearTimeout(timer);

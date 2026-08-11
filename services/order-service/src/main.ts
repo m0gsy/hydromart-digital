@@ -53,6 +53,20 @@ async function bootstrap(): Promise<void> {
     { logger },
   );
 
+  // ORDER_ALERT_PHONE has no format validation, and it cannot get one: a pattern that
+  // rejects the value already in a running .env would turn a cosmetic problem into a
+  // service that will not boot. So it is a WARNING, said once, at the only moment
+  // anybody is looking at this log. The adapter normalises separators, so this only
+  // fires on a value no amount of stripping can rescue — and every staff alert
+  // (meter variance, and now the SOP sales report) goes to that number.
+  const alertPhone = config.alertPhone;
+  if (alertPhone && !/^\+?[0-9]{8,15}$/.test(alertPhone.replace(/[^\d+]/g, ''))) {
+    logger.warn(
+      `ORDER_ALERT_PHONE is not a usable phone number — staff alerts will not be sent`,
+      'Bootstrap',
+    );
+  }
+
   enableMetrics(app, 'order-service');
   await app.listen(config.port, '0.0.0.0');
   logger.log(`order-service listening on port ${config.port}`, 'Bootstrap');

@@ -10,6 +10,9 @@
 //   STORAGE_PUBLIC_BASE_URL=https://nos.jkt-1.neo.id/hydromart-pod \
 //   node scripts/verify-object-storage.mjs
 //
+// STORAGE_PROBE_PREFIX (default `probe`) picks the prefix to prove, e.g. `resellers` for
+// the agen registration photos customer-service writes.
+//
 // It: sets a public-read bucket policy, sets a UU PDP lifecycle rule (expire pod/*
 // after POD_RETENTION_DAYS, default 365), PutObjects a probe file, then GETs the
 // returned public URL and checks the bytes round-trip. Exit 0 = storage is ready.
@@ -95,7 +98,13 @@ async function main() {
   }
 
   // 2) Upload a probe object (mirrors the adapter's key shape / content-type).
-  const key = `probe/${randomUUID()}.txt`;
+  //
+  // The prefix is settable because "the bucket is public" and "the prefix my adapter
+  // writes to is public" are not the same claim once a bucket is shared: agen photos go
+  // under resellers/, avatars under avatars/, proofs under pod/. Probing the prefix the
+  // adapter will actually use is what makes this a check rather than an assumption.
+  const prefix = (process.env.STORAGE_PROBE_PREFIX || 'probe').replace(/^\/+|\/+$/g, '');
+  const key = `${prefix}/${randomUUID()}.txt`;
   const body = Buffer.from(`hydromart-storage-probe ${key}`);
   await client.send(
     new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: 'text/plain' }),

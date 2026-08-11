@@ -1,18 +1,42 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
   Get,
+  Inject,
+  Logger,
   NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
+  PayloadTooLargeException,
   Post,
   Query,
+  ServiceUnavailableException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  ImportSummary,
+  SNIFFED_MIME,
+  sniffFileType,
+} from '@hydromart/platform';
+
+import { CUSTOMER_TOKENS } from '../application/tokens';
+import { StoragePort } from '../application/ports/storage.port';
 
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService, ResellerView } from '../application/services/reseller.service';
@@ -24,14 +48,27 @@ import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './
 import { ImportResellersDto } from './dto/customer-import.dto';
 import { ImportResponseDto, ResellerResponseDto } from './dto/responses.generated.dto';
 
+// Multipart agen photo (SOP §7). Minimal file shape avoids a hard @types/multer dep —
+// same trick depot-service's QRIS upload uses.
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+interface UploadedImage {
+  buffer: Buffer;
+  mimetype: string;
+  size: number;
+  originalname: string;
+}
+
 @ApiTags('Resellers')
 @ApiBearerAuth()
 @Can('resellerView')
 @Controller({ path: 'resellers', version: '1' })
 export class ResellerController {
+  private readonly logger = new Logger(ResellerController.name);
+
   constructor(
     private readonly resellers: ResellerService,
     private readonly imports: CustomerImportService,
+    @Inject(CUSTOMER_TOKENS.Storage) private readonly storage: StoragePort,
   ) {}
 
   @ApiOkResponse({ type: ResellerResponseDto, isArray: true })
@@ -79,11 +116,62 @@ export class ResellerController {
         homeDepotId: dto.homeDepotId,
         monthlyTargetQty: dto.monthlyTargetQty,
         discountPct: dto.discountPct,
+        flatGallonPriceIdr: dto.flatGallonPriceIdr,
         joinDate: new Date(dto.joinDate),
         note: dto.note,
       });
     } catch (e) {
       if (e instanceof ResellerExistsError) throw new ConflictException(e.message);
+      throw e;
+    }
+  }
+
+  /**
+   * SOP §7: the agen's registration photo. Stored on the existing photo path (S3 driver +
+   * STORAGE_PUBLIC_BASE_URL), not a new one, and the URL lands on the reseller record.
+   */
+  @ApiOkResponse({ type: ResellerResponseDto })
+  @Can('resellerAdmin')
+  @Post(':customerId/photo')
+  @ApiOperation({ summary: "Upload the agen's registration photo; returns the updated row" })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: PHOTO_MAX_BYTES } }))
+  async uploadPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+    @UploadedFile() file?: UploadedImage,
+  ) {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    // H-20: `file.mimetype` is whatever the client typed into the multipart part. Trust the
+    // bytes — the bucket serves what lands there straight back to a browser, so an .svg or
+    // an .html wearing an image/jpeg label is a stored XSS.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
+    if (!ext) {
+      throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
+    }
+    if (file.size > PHOTO_MAX_BYTES) {
+      throw new PayloadTooLargeException('file exceeds 5MB');
+    }
+    let url: string;
+    try {
+      ({ url } = await this.storage.put({
+        body: file.buffer,
+        contentType: SNIFFED_MIME[ext],
+        ext,
+      }));
+    } catch (error) {
+      this.logger.error(`Agen photo upload failed for ${customerId}: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
+    try {
+      return await this.resellers.update(user, customerId, { photoUrl: url });
+    } catch (e) {
+      if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;
     }
   }

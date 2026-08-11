@@ -172,6 +172,11 @@ function TargetsBody() {
             activeCustomers: 0,
             netProfitIdr: null,
             slaPct: null,
+            gallons: 0,
+            prevGallons: 0,
+            gallonsDelta: 0,
+            growthPct: null,
+            avgGallonsPerDay: 0,
           }),
     [scopedId],
   );

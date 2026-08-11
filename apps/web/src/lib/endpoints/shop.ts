@@ -229,6 +229,8 @@ resellers: {
   create: '/customers/api/v1/resellers',
   import: '/customers/api/v1/resellers/import',
   detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
+  /** SOP §7 — multipart upload of the agen's registration photo; returns the updated row. */
+  uploadPhoto: (customerId: string) => `/customers/api/v1/resellers/${customerId}/photo`,
   // Caller's own reseller pricing status (customer-facing, checkout). 404 = not a reseller.
   me: '/customers/api/v1/resellers/me',
 },

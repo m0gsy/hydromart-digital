@@ -769,6 +769,7 @@ describe('PricingController', () => {
 describe('DepotController', () => {
   const svc = {
     browse: jest.fn(),
+    listAllActive: jest.fn(),
     findNearby: jest.fn(),
     listMine: jest.fn(),
     get: jest.fn(),
@@ -782,6 +783,7 @@ describe('DepotController', () => {
     jest.clearAllMocks();
     storage.put.mockResolvedValue({ url: 'https://cdn.example/qris/abc.png', key: 'qris/abc.png' });
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
+    svc.listAllActive.mockResolvedValue([]);
     // browse/get now map through PublicDepotView, so the stubs have to return real rows.
     svc.browse.mockResolvedValue({
       items: [{ id: DEPOT, name: 'D' }],
@@ -790,11 +792,15 @@ describe('DepotController', () => {
       limit: 20,
     });
     svc.get.mockResolvedValue({ id: DEPOT, name: 'D', paymentBankAccountNumber: '123' });
+    // nearby maps through NearbyDepotView for the same reason browse/get do.
+    svc.findNearby.mockResolvedValue([
+      { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', distanceKm: 1.2, withinService: true },
+    ]);
   });
 
   // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
   // depot's bank account to anonymous callers.
-  it('keeps bank details and ownership out of the public browse/detail payloads', async () => {
+  it('keeps bank details and ownership out of the public browse/detail/nearby payloads', async () => {
     const leaks = [
       'paymentBankName',
       'paymentBankAccountNumber',
@@ -805,11 +811,19 @@ describe('DepotController', () => {
     ];
     const page = await c.browse({ page: 1 } as never);
     const one = await c.get(DEPOT);
+    // `nearby` is anonymous too and was still returning the whole DepotRecord — the same
+    // leak this test was written to close, one route over.
+    const near = await c.nearby({ lat: 1, lng: 2 } as never);
     for (const key of leaks) {
       expect(page.items[0]).not.toHaveProperty(key);
       expect(one).not.toHaveProperty(key);
+      expect(near[0]).not.toHaveProperty(key);
     }
     expect(one).toHaveProperty('name');
+    // …while still carrying what the "buka/tutup" badge and the distance chip need.
+    expect(near[0]).toMatchObject({ name: 'D', distanceKm: 1.2, withinService: true });
+    expect(near[0]).toHaveProperty('operatingHours');
+    expect(near[0]).toHaveProperty('holidays');
   });
 
   it('serves the payment destination only on the dedicated authenticated route', async () => {
@@ -817,6 +831,28 @@ describe('DepotController', () => {
       name: 'D',
       paymentBankAccountNumber: '123',
     });
+  });
+
+  // Depot SOP §3: order-service's cron reads the depot phone numbers here rather than off
+  // the public projection, so they are not scrapeable by an anonymous caller.
+  it('serves depot phone numbers only on the internal-key route', async () => {
+    svc.listAllActive.mockResolvedValueOnce([
+      { id: DEPOT, name: 'D', contactPhone: '0811', paymentBankAccountNumber: '123' },
+      { id: 'd2', name: 'E', contactPhone: null },
+    ]);
+    const out = await c.internalContacts();
+    expect(out).toEqual({
+      depots: [
+        { id: DEPOT, name: 'D', contactPhone: '0811' },
+        { id: 'd2', name: 'E', contactPhone: null },
+      ],
+    });
+    // listAllActive, not browse — browse clamps at 100 and would silently drop the rest.
+    expect(svc.listAllActive).toHaveBeenCalled();
+    expect(svc.browse).not.toHaveBeenCalledWith(expect.objectContaining({ limit: 1000 }), true);
+    // …and the public browse next to it still carries no phone number at all.
+    const page = await c.browse({ page: 1 } as never);
+    expect(page.items[0]).not.toHaveProperty('contactPhone');
   });
 
   it('browses, finds nearby (default+explicit), manages, mine, get and remove', async () => {

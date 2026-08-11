@@ -8,6 +8,12 @@ export interface SettingDef {
   min?: number;
   max?: number;
   envDefault: number | string;
+  /**
+   * `string` settings only: anchored regex the value must match. `min`/`max` cannot police
+   * a string, and a CSV something downstream has to parse fails at the reader rather than
+   * at the person who typed it otherwise. Enforced by SettingsSliceService.put.
+   */
+  pattern?: string;
   /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
   global?: boolean;
 }
@@ -182,6 +188,57 @@ export const SETTING_DEFS: SettingDef[] = [
     type: 'string',
     unit: 'tahun:persen, koma (mis. 1:5,2:10)',
     envDefault: '',
+  },
+  // Depot SOP: denda telat bertingkat, per jabatan. Three rupiah steps in the order the
+  // SOP table prints them — telat 1, telat 2, tidak absen. Empty = the depot keeps the flat
+  // `lateDeductionAmount` above, so no existing depot's payroll moves on its own.
+  {
+    key: 'lateFineStaff',
+    label: 'Denda telat bertingkat — staf',
+    type: 'string',
+    unit: 'telat1,telat2,tidakAbsen (Rp)',
+    envDefault: '',
+    pattern: '^$|^\\d+,\\d+,\\d+$',
+  },
+  {
+    key: 'lateFineManager',
+    label: 'Denda telat bertingkat — kepala depot',
+    type: 'string',
+    unit: 'telat1,telat2,tidakAbsen (Rp)',
+    envDefault: '',
+    pattern: '^$|^\\d+,\\d+,\\d+$',
+  },
+  // Both boundaries are minutes AFTER `workStartTime`, not clock times — the same frame
+  // `lateToleranceMinutes` already uses, and the frame `Attendance.lateMinutes` is recorded
+  // in. For the SOP's 07:50 start that makes 09:00 = 70 and 10:00 = 130. 0 = step disabled.
+  {
+    key: 'lateTier2AfterMinutes',
+    label: 'Batas denda telat 2',
+    type: 'int',
+    unit: 'menit setelah jam masuk (0 = nonaktif)',
+    min: 0,
+    max: 1440,
+    envDefault: 0,
+  },
+  {
+    key: 'absentAfterMinutes',
+    label: 'Batas dianggap tidak absen',
+    type: 'int',
+    unit: 'menit setelah jam masuk (0 = nonaktif)',
+    min: 0,
+    max: 1440,
+    envDefault: 0,
+  },
+  // Depot SOP: a daily gallon-sales target ladder paid IN FULL to every staff member who
+  // attended that day. Separate from the bonus-rule engine, which is monthly and reckons in
+  // IDR — a daily gallon step cannot be expressed as a metric there. Empty = feature off.
+  {
+    key: 'dailySalesBonusTiers',
+    label: 'Bonus target penjualan harian (galon)',
+    type: 'string',
+    unit: 'galon:rupiah, koma (mis. 120:15000,150:20000)',
+    envDefault: '',
+    pattern: '^$|^\\d+:\\d+(,\\d+:\\d+)*$',
   },
   {
     key: 'geofenceLat',

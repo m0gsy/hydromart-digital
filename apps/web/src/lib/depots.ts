@@ -32,6 +32,7 @@ export interface DepotForm {
   serviceRadiusKm: string;
   deliveryFee: string;
   minOrderAmount: string;
+  contactPhone: string;
   paymentBankName: string;
   paymentBankAccountNumber: string;
   paymentBankAccountHolder: string;
@@ -51,6 +52,7 @@ export const EMPTY_DEPOT_FORM: DepotForm = {
   serviceRadiusKm: '',
   deliveryFee: '',
   minOrderAmount: '',
+  contactPhone: '',
   paymentBankName: '',
   paymentBankAccountNumber: '',
   paymentBankAccountHolder: '',
@@ -94,6 +96,13 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
   if (lng === null || lng < -180 || lng > 180) return { ok: false, error: 'Longitude must be between -180 and 180.' };
   const deliveryFee = numOrNull(form.deliveryFee);
   if (deliveryFee === null || deliveryFee < 0) return { ok: false, error: 'Delivery fee must be 0 or more.' };
+  // Digits only (optionally +-prefixed): crm-service enforces exactly this on the message
+  // it sends, and the send path is fail-open — a dashed number saved here would mean the
+  // depot silently never receives its sales report. Caught at the form, not at 13:00.
+  const phone = form.contactPhone.trim() || null;
+  if (phone !== null && !/^\+?[0-9]{8,15}$/.test(phone)) {
+    return { ok: false, error: 'Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.' };
+  }
 
   const value: DepotPayload = {
     ...text,
@@ -104,6 +113,9 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
     lng,
     deliveryFee,
     minOrderAmount: numOrNull(form.minOrderAmount),
+    // Blank → null clears the field; a depot with no number of its own falls back to the
+    // HQ ops number for the SOP sales update rather than being skipped.
+    contactPhone: phone,
     // Blank → null clears the field (empties allowed; payment info is optional).
     paymentBankName: form.paymentBankName.trim() || null,
     paymentBankAccountNumber: form.paymentBankAccountNumber.trim() || null,

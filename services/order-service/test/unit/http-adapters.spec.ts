@@ -241,6 +241,33 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots()).toBeNull();
   });
 
+  // Depot SOP §3: the phone numbers come off an internal-key route, never the public
+  // projection — they belong to depot staff and must not be scrapeable anonymously.
+  it('reads depot contacts over the internal-key route', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: { depots: [{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }] } }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listContacts();
+    expect(out).toEqual([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/depots/internal/contacts');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('returns null for contacts on a non-2xx, a bad body, or a missing internal key', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).listContacts()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(res({ body: {} }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).listContacts()).toBeNull();
+
+    fetchMock.mockClear();
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).listContacts(),
+    ).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reads the depot owner over the internal-key route', async () => {
     fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9', ownershipType: 'WARALABA' } }));
     const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1');
@@ -527,18 +554,47 @@ describe('MembershipHttpAdapter', () => {
 });
 
 describe('NotificationHttpAdapter', () => {
+  const send = (phone: string) =>
+    new NotificationHttpAdapter(makeConfig()).notify('e', phone, {}, 'c', '');
+  const sentPhone = () => JSON.parse(fetchMock.mock.calls.at(-1)?.[1].body).phone;
+
   it('skips without key + notifies on happy path', async () => {
     await new NotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify(
       'e',
-      'p',
+      '081234567890',
       {},
       'c',
       '',
     );
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new NotificationHttpAdapter(makeConfig()).notify('e', 'p', {}, 'c', '');
+    await send('081234567890');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * crm's SendNotificationDto only accepts digits (optionally +-prefixed) and this adapter
+   * is fail-open — a 400 is logged and swallowed. So a human-typed number anywhere upstream
+   * (a depot's contact number, the ops alert number) would produce a notification that never
+   * arrives and never complains. Normalised once here, where all six callers route through.
+   */
+  it('strips the separators a human types, keeping a leading +', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await send('0812-3456-7890');
+    expect(sentPhone()).toBe('081234567890');
+    await send('+62 812 3456 7890');
+    expect(sentPhone()).toBe('+6281234567890');
+    await send(' (0812) 3456.7890 ');
+    expect(sentPhone()).toBe('081234567890');
+  });
+
+  it('names a number that is unusable even after stripping, instead of a silent 400', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    for (const bad of ['', 'telp depot', '0812', '-']) {
+      fetchMock.mockClear();
+      await send(bad);
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
   });
 });
 
