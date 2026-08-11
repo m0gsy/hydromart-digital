@@ -25,6 +25,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     serviceRadiusKm: String(d.serviceRadiusKm),
     deliveryFee: String(d.deliveryFee),
     minOrderAmount: d.minOrderAmount == null ? '' : String(d.minOrderAmount),
+    contactPhone: d.contactPhone ?? '',
     paymentBankName: d.paymentBankName ?? '',
     paymentBankAccountNumber: d.paymentBankAccountNumber ?? '',
     paymentBankAccountHolder: d.paymentBankAccountHolder ?? '',
@@ -139,6 +140,20 @@ export function DepotForm({
           <Input id="d-min" inputMode="numeric" value={form.minOrderAmount} onChange={set('minOrderAmount')} placeholder="20000" />
         </Field>
       </div>
+
+      <Field
+        label="Nomor WhatsApp depot"
+        htmlFor="d-phone"
+        hint="Tujuan laporan penjualan siang & sore. Kosong = dikirim ke nomor ops pusat."
+      >
+        <Input
+          id="d-phone"
+          inputMode="tel"
+          value={form.contactPhone}
+          onChange={set('contactPhone')}
+          placeholder="081234567890"
+        />
+      </Field>
 
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">{t('hq.depots.form.payment')}</span>

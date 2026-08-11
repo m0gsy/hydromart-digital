@@ -934,6 +934,14 @@ export class InternalDepotSales2ResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDailySalesBroadcastResponseDto {
+  @ApiProperty({ type: Number })
+  sent!: number;
+  @ApiProperty({ type: Number })
+  skipped!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalDepotDailyGallonsDaysResponseDto {
   @ApiProperty({ type: String })
   day!: string;

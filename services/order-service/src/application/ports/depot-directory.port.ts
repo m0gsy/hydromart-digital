@@ -39,8 +39,23 @@ export interface DepotOwnership {
   ownershipType: 'WARALABA' | 'HKP';
 }
 
+/** One active depot's name and its own WhatsApp number (internal-key route). */
+export interface DepotContact {
+  id: string;
+  name: string;
+  /** Null = no number of its own; the caller falls back to the HQ ops number. */
+  contactPhone: string | null;
+}
+
 export interface DepotDirectoryPort {
   listActiveDepots(): Promise<DepotLocation[] | null>;
+  /**
+   * Every active depot with its own phone number, for operational messages addressed to
+   * the depot. Read from the internal-key route rather than the public projection: a
+   * depot's WhatsApp number belongs to its staff and must not be scrapeable anonymously.
+   * Null when depot-service is unreachable or the key is unset.
+   */
+  listContacts(): Promise<DepotContact[] | null>;
   /**
    * Ownership of one depot, for crediting a completed order. Not part of the public depot
    * projection, so this reads the internal-key route. Null when depot-service is unreachable

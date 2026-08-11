@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { addLocalDays, addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
@@ -14,6 +14,8 @@ import {
   ReportRange,
   SalesBucket,
 } from '../ports/order.repository';
+import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { NotificationPort } from '../ports/notification.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -208,10 +210,19 @@ export const isDelivered = (s: OrderStatus): boolean =>
 @Injectable()
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
+  private readonly logger = new Logger(ReportService.name);
 
   constructor(
     @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
     private readonly config: OrderConfigService,
+    // Optional so every existing test double that builds a ReportService with two args
+    // keeps compiling; the broadcast simply does nothing without them.
+    @Optional()
+    @Inject(ORDER_TOKENS.DepotDirectory)
+    private readonly depotDirectory?: DepotDirectoryPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.Notification)
+    private readonly notifications?: NotificationPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -575,6 +586,56 @@ export class ReportService {
     // A day in progress counts (ceil): four and a half days in is day five, not day four.
     // Floor at 1 so a month that has not started yet averages 0 rather than dividing by 0.
     return Math.max(1, Math.ceil((end.getTime() - from.getTime()) / DAY_MS));
+  }
+
+  /**
+   * Depot SOP: the twice-daily "laporan penjualan siang/sore" — how many gallons each
+   * depot has delivered so far today, sent to the depot itself.
+   *
+   * Addressed to `contactPhone`, falling back to the HQ ops number so a depot that has
+   * not filled its number in is still reported rather than silently skipped.
+   *
+   * NOT idempotent, on purpose: there is no table to record a send in, and `sweep.sh`
+   * already holds a per-job lock, so a double send needs a manual run. The message is
+   * informational, not a transaction — inventing a dedupe table for it would be the more
+   * expensive mistake. Failures are per depot: one unreachable number must not stop the
+   * rest of the round.
+   */
+  async broadcastDailySales(slot: 'siang' | 'sore'): Promise<{ sent: number; skipped: number }> {
+    if (!this.depotDirectory || !this.notifications) return { sent: 0, skipped: 0 };
+    const contacts = await this.depotDirectory.listContacts();
+    if (!contacts) return { sent: 0, skipped: 0 };
+
+    const today = localDayKey(new Date(), this.config.businessTimeZone);
+    const fallback = this.config.alertPhone;
+    let sent = 0;
+    let skipped = 0;
+    for (const depot of contacts) {
+      const phone = depot.contactPhone || fallback;
+      if (!phone) {
+        skipped++;
+        continue;
+      }
+      try {
+        const days = await this.depotDailyGallons(depot.id, today, today);
+        const gallons = days.reduce((sum, d) => sum + d.gallons, 0);
+        await this.notifications.notify(
+          'DEPOT_SALES_UPDATE',
+          phone,
+          { slot, depot: depot.name, gallons: String(gallons) },
+          null,
+          '',
+        );
+        sent++;
+      } catch (error) {
+        // One depot's failure is its own; the round continues.
+        this.logger.warn(
+          `Daily sales update skipped for ${depot.id}: ${(error as Error).message}`,
+        );
+        skipped++;
+      }
+    }
+    return { sent, skipped };
   }
 
   /**

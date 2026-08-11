@@ -831,6 +831,32 @@ describe('DepotController', () => {
     });
   });
 
+  // Depot SOP §3: order-service's cron reads the depot phone numbers here rather than off
+  // the public projection, so they are not scrapeable by an anonymous caller.
+  it('serves depot phone numbers only on the internal-key route', async () => {
+    svc.browse.mockResolvedValueOnce({
+      items: [
+        { id: DEPOT, name: 'D', contactPhone: '0811', paymentBankAccountNumber: '123' },
+        { id: 'd2', name: 'E', contactPhone: null },
+      ],
+      total: 2,
+      page: 1,
+      limit: 1000,
+    });
+    const out = await c.internalContacts();
+    expect(out).toEqual({
+      depots: [
+        { id: DEPOT, name: 'D', contactPhone: '0811' },
+        { id: 'd2', name: 'E', contactPhone: null },
+      ],
+    });
+    // Active depots only — a deactivated depot has nobody to send a sales report to.
+    expect(svc.browse).toHaveBeenCalledWith({ page: 1, limit: 1000 }, true);
+    // …and the public browse next to it still carries no phone number at all.
+    const page = await c.browse({ page: 1 } as never);
+    expect(page.items[0]).not.toHaveProperty('contactPhone');
+  });
+
   it('browses, finds nearby (default+explicit), manages, mine, get and remove', async () => {
     await c.browse({ page: 1 } as never);
     expect(svc.browse).toHaveBeenCalledWith({ page: 1 }, true);

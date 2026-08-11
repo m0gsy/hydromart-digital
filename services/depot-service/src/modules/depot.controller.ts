@@ -40,7 +40,7 @@ import {
   PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
-import { DepotResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
+import { DepotResponseDto, InternalContactsResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
@@ -113,6 +113,28 @@ export class DepotController {
     // ownershipType rides along so the caller can tell "company depot, nobody to credit"
     // from "franchise depot missing its owner" — the second one is a defect worth logging.
     return { ownerId: depot.ownerId, ownershipType: depot.ownershipType };
+  }
+
+  /**
+   * Service-to-service: every active depot's name and own WhatsApp number, for the SOP's
+   * twice-daily sales update that order-service's cron sends.
+   *
+   * `contactPhone` is deliberately NOT in `PublicDepotView`. It belongs to depot staff and
+   * would be harvestable in bulk from an anonymous route — the same objection that moved
+   * the bank details behind a signed-in route. Internal key only.
+   */
+  @ApiOkResponse({ type: InternalContactsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/contacts')
+  @ApiOperation({ summary: 'Active depots with their own phone number (internal service auth)' })
+  async internalContacts(): Promise<{
+    depots: { id: string; name: string; contactPhone: string | null }[];
+  }> {
+    const { items } = await this.depots.browse({ page: 1, limit: 1000 }, true);
+    return {
+      depots: items.map((d) => ({ id: d.id, name: d.name, contactPhone: d.contactPhone })),
+    };
   }
 
   // Admin listing includes inactive depots (public browse is active-only), so a
@@ -193,6 +215,7 @@ export class DepotController {
       deliveryFee: dto.deliveryFee,
       minOrderAmount: dto.minOrderAmount ?? null,
       ownerId: dto.ownerId ?? null,
+      contactPhone: dto.contactPhone ?? null,
       paymentBankName: dto.paymentBankName ?? null,
       paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,
       paymentBankAccountHolder: dto.paymentBankAccountHolder ?? null,

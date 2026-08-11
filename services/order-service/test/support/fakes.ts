@@ -42,6 +42,7 @@ import {
   ProductCatalogPort,
 } from '../../src/application/ports/product-catalog.port';
 import {
+  DepotContact,
   DepotDirectoryPort,
   DepotLocation,
   DepotOwnership,
@@ -735,6 +736,16 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   ownershipTypes = new Map<string, 'WARALABA' | 'HKP'>();
   async listActiveDepots(): Promise<DepotLocation[] | null> {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
+  }
+  /** depotId -> its own phone; a depot absent here has none and falls back to ops. */
+  contactPhones = new Map<string, string>();
+  async listContacts(): Promise<DepotContact[] | null> {
+    if (this.unreachable) return null;
+    return this.depots.map((d) => ({
+      id: d.id,
+      name: d.name ?? d.id,
+      contactPhone: this.contactPhones.get(d.id) ?? null,
+    }));
   }
   async findOwner(depotId: string): Promise<DepotOwnership | null> {
     if (this.unreachable) return null;

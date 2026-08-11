@@ -241,6 +241,33 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots()).toBeNull();
   });
 
+  // Depot SOP §3: the phone numbers come off an internal-key route, never the public
+  // projection — they belong to depot staff and must not be scrapeable anonymously.
+  it('reads depot contacts over the internal-key route', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: { depots: [{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }] } }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listContacts();
+    expect(out).toEqual([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/depots/internal/contacts');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('returns null for contacts on a non-2xx, a bad body, or a missing internal key', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).listContacts()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(res({ body: {} }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).listContacts()).toBeNull();
+
+    fetchMock.mockClear();
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).listContacts(),
+    ).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reads the depot owner over the internal-key route', async () => {
     fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9', ownershipType: 'WARALABA' } }));
     const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1');

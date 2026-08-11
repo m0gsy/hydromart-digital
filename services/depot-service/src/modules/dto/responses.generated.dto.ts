@@ -195,6 +195,22 @@ export class NearbyDepotResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalContactsDepotsResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  name!: string;
+  @ApiProperty({ type: String, nullable: true })
+  contactPhone!: string | null;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalContactsResponseDto {
+  @ApiProperty({ type: [InternalContactsDepotsResponseDto] })
+  depots!: InternalContactsDepotsResponseDto[];
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalOwnedResponseDto {
   @ApiProperty({ type: [String] })
   depotIds!: string[];

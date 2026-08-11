@@ -67,6 +67,10 @@ model Depot {
   /// means HQ and up only. Written ONLY through the staff-hierarchy routes, never the depot
   /// PATCH — a manager must not be able to redraw their own scope.
   assistantSupervisorId String? @db.Uuid
+  /// The depot's own WhatsApp number, for operational messages addressed to the depot
+  /// rather than to a customer (SOP: the twice-daily sales update). Null = fall back to
+  /// the HQ ops number.
+  contactPhone   String?
   /// Per-depot payment destination shown to a paying customer (franchise model: money goes
   /// direct to each depot, manually confirmed, no gateway). All optional until an owner sets them.
   paymentBankName          String?

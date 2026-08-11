@@ -980,6 +980,8 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   active: boolean;
   // Franchise owner account id (null for company-owned depots) — drives the payout card.
   ownerId?: string | null;
+  /** The depot's own WhatsApp number for the SOP sales update; null = use the ops number. */
+  contactPhone?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
 }
@@ -1017,6 +1019,8 @@ export interface DepotPayload {
   deliveryFee: number;
   minOrderAmount: number | null;
   serviceRadiusKm?: number;
+  /** The depot's own WhatsApp number for the SOP sales update; null = use the ops number. */
+  contactPhone?: string | null;
   paymentBankName?: string | null;
   paymentBankAccountNumber?: string | null;
   paymentBankAccountHolder?: string | null;

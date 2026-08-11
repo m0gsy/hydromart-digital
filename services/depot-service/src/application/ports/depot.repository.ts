@@ -28,6 +28,8 @@ export interface DepotRecord {
   ownerId: string | null;
   /** Assistant supervisor (auth account id) overseeing this depot; null = unassigned. */
   assistantSupervisorId: string | null;
+  /** The depot's own WhatsApp number for operational messages; null = use the ops number. */
+  contactPhone: string | null;
   paymentBankName: string | null;
   paymentBankAccountNumber: string | null;
   paymentBankAccountHolder: string | null;
@@ -62,6 +64,7 @@ export interface CreateDepotData {
   minOrderAmount: number | null;
   ownerId: string | null;
   assistantSupervisorId?: string | null;
+  contactPhone?: string | null;
   paymentBankName?: string | null;
   paymentBankAccountNumber?: string | null;
   paymentBankAccountHolder?: string | null;

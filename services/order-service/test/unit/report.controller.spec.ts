@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import { ReportController } from '../../src/modules/report.controller';
 import { ReportService } from '../../src/application/services/report.service';
 
@@ -28,6 +30,7 @@ function makeService(): Mocked {
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
     depotDailyGallons: jest.fn().mockResolvedValue([]),
+    broadcastDailySales: jest.fn().mockResolvedValue({ sent: 2, skipped: 0 }),
   } as unknown as Mocked;
 }
 
@@ -176,6 +179,19 @@ describe('ReportController', () => {
       } as never),
     ).resolves.toEqual({ depotId: 'd1', days: [{ day: '2026-07-01', gallons: 130 }] });
     expect(service.depotDailyGallons).toHaveBeenCalledWith('d1', '2026-07-01', '2026-07-31');
+  });
+
+  it('internalDailySalesBroadcast: forwards the slot from the path', async () => {
+    await expect(controller.internalDailySalesBroadcast('sore')).resolves.toEqual({
+      sent: 2,
+      skipped: 0,
+    });
+    expect(service.broadcastDailySales).toHaveBeenCalledWith('sore');
+  });
+
+  it('internalDailySalesBroadcast: rejects a slot that is not siang or sore', () => {
+    expect(() => controller.internalDailySalesBroadcast('malam')).toThrow(BadRequestException);
+    expect(service.broadcastDailySales).not.toHaveBeenCalled();
   });
 
   it('audienceReach: forwards the depotId', async () => {

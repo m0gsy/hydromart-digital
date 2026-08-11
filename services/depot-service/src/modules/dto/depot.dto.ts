@@ -134,6 +134,15 @@ export class CreateDepotDto {
   @IsUUID()
   ownerId?: string;
 
+  @ApiPropertyOptional({
+    description: "Depot's own WhatsApp number for operational messages (SOP sales update).",
+    example: '081234567890',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  contactPhone?: string;
+
   @ApiPropertyOptional({ description: "Depot's bank name for direct payment.", example: 'BCA' })
   @IsOptional()
   @IsString()

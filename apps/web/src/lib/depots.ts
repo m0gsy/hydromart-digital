@@ -32,6 +32,7 @@ export interface DepotForm {
   serviceRadiusKm: string;
   deliveryFee: string;
   minOrderAmount: string;
+  contactPhone: string;
   paymentBankName: string;
   paymentBankAccountNumber: string;
   paymentBankAccountHolder: string;
@@ -51,6 +52,7 @@ export const EMPTY_DEPOT_FORM: DepotForm = {
   serviceRadiusKm: '',
   deliveryFee: '',
   minOrderAmount: '',
+  contactPhone: '',
   paymentBankName: '',
   paymentBankAccountNumber: '',
   paymentBankAccountHolder: '',
@@ -104,6 +106,9 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
     lng,
     deliveryFee,
     minOrderAmount: numOrNull(form.minOrderAmount),
+    // Blank → null clears the field; a depot with no number of its own falls back to the
+    // HQ ops number for the SOP sales update rather than being skipped.
+    contactPhone: form.contactPhone.trim() || null,
     // Blank → null clears the field (empties allowed; payment info is optional).
     paymentBankName: form.paymentBankName.trim() || null,
     paymentBankAccountNumber: form.paymentBankAccountNumber.trim() || null,

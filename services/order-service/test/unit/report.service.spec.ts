@@ -805,3 +805,85 @@ describe('ReportService.depotDailyGallons', () => {
     );
   });
 });
+
+// Depot SOP §3: the twice-daily "laporan penjualan siang/sore", sent to each depot.
+describe('ReportService.broadcastDailySales', () => {
+  const config = { businessTimeZone: 'Asia/Jakarta', alertPhone: '0800-ops' } as OrderConfigService;
+  const orders = {
+    depotDailyGallons: jest.fn(async () => [{ day: '2026-08-11', gallons: 137 }]),
+  } as never;
+
+  function build(
+    contacts: { id: string; name: string; contactPhone: string | null }[] | null,
+    overrides: { notify?: jest.Mock; alertPhone?: string } = {},
+  ) {
+    const notify = overrides.notify ?? jest.fn(async () => undefined);
+    const directory = { listContacts: jest.fn(async () => contacts) } as never;
+    const svc = new ReportService(
+      orders,
+      { ...config, alertPhone: overrides.alertPhone ?? '0800-ops' } as OrderConfigService,
+      directory,
+      { notify } as never,
+    );
+    return { svc, notify, directory };
+  }
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it("sends each depot today's gallon count, to the depot's own number", async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ sent: 1, skipped: 0 });
+    expect(notify).toHaveBeenCalledWith(
+      'DEPOT_SALES_UPDATE',
+      '0811',
+      { slot: 'siang', depot: 'Depot Cikini', gallons: '137' },
+      null,
+      '',
+    );
+  });
+
+  // A depot with no number of its own is still reported, just to the ops number — dropping
+  // it would make an unfilled field look like a depot that sold nothing.
+  it('falls back to the ops number when the depot has none', async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: null }]);
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ sent: 1, skipped: 0 });
+    expect(notify.mock.calls[0]?.[1]).toBe('0800-ops');
+    expect(notify.mock.calls[0]?.[2]).toMatchObject({ slot: 'sore' });
+  });
+
+  it('skips a depot with no number and no ops fallback, rather than throwing', async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'D', contactPhone: null }], {
+      alertPhone: '',
+    });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ sent: 0, skipped: 1 });
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  // One unreachable number must not cost the rest of the round.
+  it('keeps going when one depot fails', async () => {
+    const notify = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('whatsapp down'))
+      .mockResolvedValue(undefined);
+    const { svc } = build(
+      [
+        { id: 'd1', name: 'A', contactPhone: '0811' },
+        { id: 'd2', name: 'B', contactPhone: '0822' },
+      ],
+      { notify },
+    );
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ sent: 1, skipped: 1 });
+  });
+
+  it('does nothing when depot-service cannot answer', async () => {
+    const { svc, notify } = build(null);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ sent: 0, skipped: 0 });
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  // The ports are optional so every two-argument ReportService in these tests still builds.
+  it('does nothing at all when the ports are not wired', async () => {
+    const svc = new ReportService(orders, config);
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ sent: 0, skipped: 0 });
+  });
+});
