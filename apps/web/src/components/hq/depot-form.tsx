@@ -144,7 +144,7 @@ export function DepotForm({
       <Field
         label="Nomor WhatsApp depot"
         htmlFor="d-phone"
-        hint="Tujuan laporan penjualan siang & sore. Kosong = dikirim ke nomor ops pusat."
+        hint="Tujuan laporan penjualan siang & sore. Angka saja (boleh diawali +). Kosong = dikirim ke nomor ops pusat."
       >
         <Input
           id="d-phone"

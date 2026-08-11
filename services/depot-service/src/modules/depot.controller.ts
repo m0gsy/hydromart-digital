@@ -131,9 +131,11 @@ export class DepotController {
   async internalContacts(): Promise<{
     depots: { id: string; name: string; contactPhone: string | null }[];
   }> {
-    const { items } = await this.depots.browse({ page: 1, limit: 1000 }, true);
+    // listAllActive, not browse: browse clamps to 100 and the hundred-and-first depot
+    // would silently never get its sales report.
+    const depots = await this.depots.listAllActive();
     return {
-      depots: items.map((d) => ({ id: d.id, name: d.name, contactPhone: d.contactPhone })),
+      depots: depots.map((d) => ({ id: d.id, name: d.name, contactPhone: d.contactPhone })),
     };
   }
 

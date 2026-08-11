@@ -600,15 +600,22 @@ export class ReportService {
    * informational, not a transaction — inventing a dedupe table for it would be the more
    * expensive mistake. Failures are per depot: one unreachable number must not stop the
    * rest of the round.
+   *
+   * The count is `attempted`, NOT `sent`. `NotificationPort` is fail-open by contract — its
+   * adapter logs a crm outage and returns void — so this layer cannot know a message
+   * actually left the building, and a cron line reading "sent 12" while WhatsApp was down
+   * is the kind of false all-clear that keeps an outage quiet for a week.
    */
-  async broadcastDailySales(slot: 'siang' | 'sore'): Promise<{ sent: number; skipped: number }> {
-    if (!this.depotDirectory || !this.notifications) return { sent: 0, skipped: 0 };
+  async broadcastDailySales(
+    slot: 'siang' | 'sore',
+  ): Promise<{ attempted: number; skipped: number }> {
+    if (!this.depotDirectory || !this.notifications) return { attempted: 0, skipped: 0 };
     const contacts = await this.depotDirectory.listContacts();
-    if (!contacts) return { sent: 0, skipped: 0 };
+    if (!contacts) return { attempted: 0, skipped: 0 };
 
     const today = localDayKey(new Date(), this.config.businessTimeZone);
     const fallback = this.config.alertPhone;
-    let sent = 0;
+    let attempted = 0;
     let skipped = 0;
     for (const depot of contacts) {
       const phone = depot.contactPhone || fallback;
@@ -626,16 +633,17 @@ export class ReportService {
           null,
           '',
         );
-        sent++;
+        attempted++;
       } catch (error) {
-        // One depot's failure is its own; the round continues.
+        // One depot's failure is its own; the round continues. In practice this catches the
+        // gallon query, not the notify — see the note above.
         this.logger.warn(
           `Daily sales update skipped for ${depot.id}: ${(error as Error).message}`,
         );
         skipped++;
       }
     }
-    return { sent, skipped };
+    return { attempted, skipped };
   }
 
   /**

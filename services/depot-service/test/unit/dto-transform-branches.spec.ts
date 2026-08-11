@@ -1,4 +1,5 @@
 import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 
 import {
   BrowseDepotsQueryDto,
@@ -135,5 +136,34 @@ describe('roster weekStart must be a Monday', () => {
 
   it('carries a message that names Monday, so the caller can fix it', () => {
     expect(new IsMondayConstraint().defaultMessage()).toContain('Monday');
+  });
+});
+
+// SOP §3. crm-service's SendNotificationDto enforces this exact pattern on the number it
+// messages, and order-service's notification adapter is fail-open — it logs a 400 and
+// returns. A dashed number accepted here would mean the depot silently never receives its
+// sales report, so the rule is enforced where an operator types it.
+describe('CreateDepotDto.contactPhone matches crm-service phone validation', () => {
+  const check = async (contactPhone: unknown): Promise<string[]> => {
+    const errors = await validate(plainToInstance(CreateDepotDto, { contactPhone }), {
+      skipMissingProperties: true,
+    });
+    return errors.filter((e) => e.property === 'contactPhone').map((e) => e.property);
+  };
+
+  it('accepts a plain and a +-prefixed number', async () => {
+    expect(await check('081234567890')).toEqual([]);
+    expect(await check('+6281234567890')).toEqual([]);
+  });
+
+  it('accepts it being absent — a depot may have no number of its own', async () => {
+    expect(await check(undefined)).toEqual([]);
+  });
+
+  it('rejects separators, a too-short number, and free text', async () => {
+    expect(await check('0812-3456-7890')).toEqual(['contactPhone']);
+    expect(await check('+62 812 3456 7890')).toEqual(['contactPhone']);
+    expect(await check('0812')).toEqual(['contactPhone']);
+    expect(await check('telp depot')).toEqual(['contactPhone']);
   });
 });

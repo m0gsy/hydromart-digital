@@ -13,6 +13,7 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -135,12 +136,19 @@ export class CreateDepotDto {
   ownerId?: string;
 
   @ApiPropertyOptional({
-    description: "Depot's own WhatsApp number for operational messages (SOP sales update).",
+    description:
+      "Depot's own WhatsApp number for operational messages (SOP sales update). Digits " +
+      'only, optionally +-prefixed — crm-service rejects anything else, and the send path ' +
+      'is fail-open, so a dashed number here would mean the depot silently never gets its ' +
+      'report. Same rule as SendNotificationDto.phone, stated where it is typed.',
     example: '081234567890',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(30)
+  @Matches(/^\+?[0-9]{8,15}$/, {
+    message: 'contactPhone must be 8-15 digits, optionally prefixed with +',
+  })
+  @MaxLength(20)
   contactPhone?: string;
 
   @ApiPropertyOptional({ description: "Depot's bank name for direct payment.", example: 'BCA' })

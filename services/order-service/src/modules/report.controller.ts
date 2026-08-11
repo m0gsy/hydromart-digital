@@ -235,7 +235,7 @@ export class ReportController {
     // so a body DTO would arrive empty and 400 on every cron tick. It also gives the two
     // slots separate sweep locks, which is what you want — siang must not block sore.
     @Param('slot') slot: string,
-  ): Promise<{ sent: number; skipped: number }> {
+  ): Promise<{ attempted: number; skipped: number }> {
     if (slot !== 'siang' && slot !== 'sore') {
       throw new BadRequestException('slot must be siang or sore');
     }

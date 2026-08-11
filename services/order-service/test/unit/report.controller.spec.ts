@@ -30,7 +30,7 @@ function makeService(): Mocked {
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
     depotDailyGallons: jest.fn().mockResolvedValue([]),
-    broadcastDailySales: jest.fn().mockResolvedValue({ sent: 2, skipped: 0 }),
+    broadcastDailySales: jest.fn().mockResolvedValue({ attempted: 2, skipped: 0 }),
   } as unknown as Mocked;
 }
 
@@ -183,7 +183,7 @@ describe('ReportController', () => {
 
   it('internalDailySalesBroadcast: forwards the slot from the path', async () => {
     await expect(controller.internalDailySalesBroadcast('sore')).resolves.toEqual({
-      sent: 2,
+      attempted: 2,
       skipped: 0,
     });
     expect(service.broadcastDailySales).toHaveBeenCalledWith('sore');

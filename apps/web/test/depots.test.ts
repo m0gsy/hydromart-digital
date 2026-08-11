@@ -15,6 +15,30 @@ const valid = {
   deliveryFee: '5000',
 };
 
+describe('toDepotPayload — depot WhatsApp number (SOP §3)', () => {
+  const withPhone = (contactPhone: string) => toDepotPayload({ ...valid, contactPhone });
+
+  it('accepts a plain or +-prefixed number', () => {
+    expect(withPhone('081234567890')).toMatchObject({
+      ok: true,
+      value: { contactPhone: '081234567890' },
+    });
+    expect(withPhone('+6281234567890')).toMatchObject({ ok: true });
+  });
+
+  it('sends null when left blank — the depot falls back to the ops number', () => {
+    expect(toDepotPayload(valid)).toMatchObject({ ok: true, value: { contactPhone: null } });
+  });
+
+  // crm-service enforces exactly this pattern and the send path is fail-open, so a dashed
+  // number saved here would mean the depot silently never gets its report at 13:00.
+  it('refuses a number crm-service would reject, at the form rather than at send time', () => {
+    for (const bad of ['0812-3456-7890', '+62 812 3456 7890', '0812', 'telp depot']) {
+      expect(withPhone(bad)).toMatchObject({ ok: false });
+    }
+  });
+});
+
 describe('toDepotPayload', () => {
   it('coerces a valid form to a numeric payload', () => {
     const res = toDepotPayload(valid);

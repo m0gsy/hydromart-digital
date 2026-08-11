@@ -936,7 +936,7 @@ export class InternalDepotSales2ResponseDto {
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalDailySalesBroadcastResponseDto {
   @ApiProperty({ type: Number })
-  sent!: number;
+  attempted!: number;
   @ApiProperty({ type: Number })
   skipped!: number;
 }

@@ -769,6 +769,7 @@ describe('PricingController', () => {
 describe('DepotController', () => {
   const svc = {
     browse: jest.fn(),
+    listAllActive: jest.fn(),
     findNearby: jest.fn(),
     listMine: jest.fn(),
     get: jest.fn(),
@@ -782,6 +783,7 @@ describe('DepotController', () => {
     jest.clearAllMocks();
     storage.put.mockResolvedValue({ url: 'https://cdn.example/qris/abc.png', key: 'qris/abc.png' });
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
+    svc.listAllActive.mockResolvedValue([]);
     // browse/get now map through PublicDepotView, so the stubs have to return real rows.
     svc.browse.mockResolvedValue({
       items: [{ id: DEPOT, name: 'D' }],
@@ -834,15 +836,10 @@ describe('DepotController', () => {
   // Depot SOP §3: order-service's cron reads the depot phone numbers here rather than off
   // the public projection, so they are not scrapeable by an anonymous caller.
   it('serves depot phone numbers only on the internal-key route', async () => {
-    svc.browse.mockResolvedValueOnce({
-      items: [
-        { id: DEPOT, name: 'D', contactPhone: '0811', paymentBankAccountNumber: '123' },
-        { id: 'd2', name: 'E', contactPhone: null },
-      ],
-      total: 2,
-      page: 1,
-      limit: 1000,
-    });
+    svc.listAllActive.mockResolvedValueOnce([
+      { id: DEPOT, name: 'D', contactPhone: '0811', paymentBankAccountNumber: '123' },
+      { id: 'd2', name: 'E', contactPhone: null },
+    ]);
     const out = await c.internalContacts();
     expect(out).toEqual({
       depots: [
@@ -850,8 +847,9 @@ describe('DepotController', () => {
         { id: 'd2', name: 'E', contactPhone: null },
       ],
     });
-    // Active depots only — a deactivated depot has nobody to send a sales report to.
-    expect(svc.browse).toHaveBeenCalledWith({ page: 1, limit: 1000 }, true);
+    // listAllActive, not browse — browse clamps at 100 and would silently drop the rest.
+    expect(svc.listAllActive).toHaveBeenCalled();
+    expect(svc.browse).not.toHaveBeenCalledWith(expect.objectContaining({ limit: 1000 }), true);
     // …and the public browse next to it still carries no phone number at all.
     const page = await c.browse({ page: 1 } as never);
     expect(page.items[0]).not.toHaveProperty('contactPhone');
