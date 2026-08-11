@@ -20,6 +20,7 @@ import {
   RewardKind,
 } from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
+import { rupiah } from '../../domain/rupiah';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
 import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
@@ -156,7 +157,7 @@ export class PayrollService {
         items.push({
           kind: 'ALLOWANCE',
           label: a.note ?? `Tunjangan ${a.type}`,
-          amount: Number(a.amount),
+          amount: rupiah(a.amount),
           sourceRef: a.id,
         });
       }
@@ -167,7 +168,7 @@ export class PayrollService {
       items.push({
         kind: 'BONUS',
         label: b.note ?? `Bonus ${b.type}`,
-        amount: Number(b.amount),
+        amount: rupiah(b.amount),
         sourceRef: b.id,
       });
     }
@@ -302,7 +303,7 @@ export class PayrollService {
       items.push({
         kind: 'DEDUCTION',
         label: d.note ?? `Potongan ${d.type}`,
-        amount: Number(d.amount),
+        amount: rupiah(d.amount),
         sourceRef: d.id,
       });
     }
