@@ -13,10 +13,12 @@ import {
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
+import { RemoteImage } from '@/components/remote-image';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { mediaUrl } from '@/lib/format';
 import { canManageResellers, canViewResellers, isHq } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import {
@@ -256,7 +258,8 @@ function ResellerRow({
 
   return (
     <div className={`flex items-center justify-between gap-4 p-4 text-sm ${r.active ? '' : 'opacity-60'}`}>
-      <div>
+      <ResellerPhoto reseller={r} onChanged={onChanged} />
+      <div className="min-w-0 flex-1">
         <div className="font-semibold">{name ?? r.customerId}</div>
         <div className="text-muted">
           {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
@@ -412,5 +415,60 @@ export default function ResellersPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+// SOP §7: the agen's registration photo. Thumbnail doubles as the picker — the row has
+// no space for a separate button, and there is only ever one photo.
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChanged: () => void }) {
+  const { toast: notify } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    if (file.size > PHOTO_MAX_BYTES) {
+      notify('Foto melebihi 5MB.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      await uploadFile(endpoints.resellers.uploadPhoto(r.customerId), file);
+      notify('Foto agen tersimpan');
+      onChanged();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : 'Gagal mengunggah foto.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <label
+      className={`relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-app bg-[color:var(--surface-muted)] text-[10px] font-semibold text-muted ${
+        busy ? 'opacity-60' : ''
+      }`}
+      title={r.photoUrl ? 'Ganti foto agen' : 'Unggah foto agen'}
+    >
+      <RemoteImage
+        src={mediaUrl(r.photoUrl)}
+        alt="Foto agen"
+        width={48}
+        height={48}
+        className="h-full w-full object-cover"
+        fallback={<span>Foto</span>}
+      />
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        disabled={busy}
+        onChange={pick}
+        aria-label={`Foto agen ${r.customerId}`}
+      />
+    </label>
   );
 }

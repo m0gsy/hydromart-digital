@@ -27,6 +27,34 @@ export const envValidationSchema = Joi.object({
   // loyalty. Blank = fail-closed (birthday sweep can't award, retries next run).
   INTERNAL_SERVICE_KEY: optionalSecret(16),
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Agen registration-photo storage (SOP §7). Same names and same rules as depot-service:
+  // in production the public base URL must be a real origin, because the stored URL is
+  // absolute and rendered by consoles that cannot reach a localhost value.
+  STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
+  STORAGE_PUBLIC_BASE_URL: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
+      otherwise: Joi.string().uri().default('http://localhost:3003'),
+    }),
+  STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  STORAGE_S3_ENDPOINT: Joi.string()
+    .uri()
+    .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_REGION: Joi.string().default('auto'),
+  STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
+  STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
   CRM_NEW_DAYS: Joi.number().integer().positive().default(30),
   CRM_ACTIVE_DAYS: Joi.number().integer().positive().default(90),
   CRM_FOLLOWUP_DAYS: Joi.number().integer().positive().default(60),

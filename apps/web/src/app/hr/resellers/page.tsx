@@ -3,10 +3,11 @@
 import { Storefront } from '@phosphor-icons/react';
 
 import { HrDepotPicker } from '@/components/hr/depot-picker';
+import { RemoteImage } from '@/components/remote-image';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, mediaUrl } from '@/lib/format';
 import { useDepot } from '@/lib/depot-context';
 import { useAsync } from '@/lib/use-async';
 import type { Reseller } from '@/lib/reseller';
@@ -59,6 +60,7 @@ export default function HrResellersPage() {
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-[12.5px] text-muted">
+                <th className="px-4 py-2.5 font-semibold">Foto</th>
                 <th className="px-4 py-2.5 font-semibold">Customer</th>
                 <th className="px-4 py-2.5 font-semibold">Diskon</th>
                 <th className="px-4 py-2.5 font-semibold">Target / bulan</th>
@@ -69,6 +71,16 @@ export default function HrResellersPage() {
             <tbody>
               {(rows.data ?? []).map((r) => (
                 <tr key={r.customerId} className="border-t border-app">
+                  <td className="px-4 py-2.5">
+                    <RemoteImage
+                      src={mediaUrl(r.photoUrl)}
+                      alt={`Foto agen ${r.customerName ?? r.customerId}`}
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded-lg object-cover"
+                      fallback={<span className="text-xs text-muted">—</span>}
+                    />
+                  </td>
                   <td className="px-4 py-2.5">
                     {r.customerName ?? (
                       <span className="font-mono text-xs text-muted">

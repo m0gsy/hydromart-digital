@@ -13,4 +13,5 @@ export const CUSTOMER_TOKENS = {
   ResellerRepository: Symbol('ResellerRepository'),
   IdentityPort: Symbol('IdentityPort'),
   PdpRepository: Symbol('PdpRepository'),
+  Storage: Symbol('Storage'),
 } as const;

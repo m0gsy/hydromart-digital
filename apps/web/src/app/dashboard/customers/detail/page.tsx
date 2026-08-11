@@ -12,16 +12,18 @@ import {
 } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, Chip, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime, formatIDR } from '@/lib/format';
+import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotCrm, canUseManagerConsole } from '@/lib/roles';
+import { canViewDepotCrm, canUseManagerConsole, canViewResellers } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import type { Reseller } from '@/lib/reseller';
 import type { DepotCustomerDetail } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -56,6 +58,17 @@ function DetailBody({ id }: { id: string }) {
 
   const { customer } = useAuth();
   const isManager = canUseManagerConsole(customer?.role);
+
+  // SOP §7: if this customer is an agen, show their registration photo here too — this is
+  // the screen a depot opens to check who they are dealing with. 404 = not an agen, which
+  // is the common case, so the lookup fails soft to null rather than surfacing an error.
+  const reseller = useAsync<Reseller | null>(
+    () =>
+      canViewResellers(customer?.role)
+        ? api.get<Reseller>(endpoints.resellers.detail(id), true).catch(() => null)
+        : Promise.resolve(null),
+    [id, customer?.role],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -111,6 +124,25 @@ function DetailBody({ id }: { id: string }) {
                   )}
                 </Stat>
               </div>
+
+              {/* SOP §7 — agen registration photo, when this customer is one. */}
+              {reseller.data?.photoUrl && (
+                <Card className="flex items-center gap-3 p-4">
+                  <RemoteImage
+                    src={mediaUrl(reseller.data.photoUrl)}
+                    alt="Foto pendaftaran agen"
+                    width={64}
+                    height={64}
+                    className="h-16 w-16 rounded-xl object-cover"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Foto pendaftaran agen</p>
+                    <p className="text-xs text-[color:var(--text-muted)]">
+                      Diunggah saat pendaftaran reseller.
+                    </p>
+                  </div>
+                </Card>
+              )}
 
               {/* Manager churn-risk panel (12b) — only when the forecast aggregate is present. */}
               {isManager && profile.churnRisk && (
