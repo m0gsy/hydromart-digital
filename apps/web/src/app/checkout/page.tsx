@@ -403,7 +403,13 @@ function CheckoutInner() {
 
   // Preview only — order-service computes the authoritative discount at checkout.
   const membershipRate = loyalty?.discountRate ?? 0;
-  const membershipDiscount = Math.floor(cart.subtotal * membershipRate);
+  // A reseller gets NEITHER membership nor voucher — order-service replaces both with the
+  // agen price. Previewing a membership discount the server will not apply put a number on
+  // screen that the bill then contradicted, which is the defect the express fee already
+  // taught us once. The agen discount itself cannot be previewed honestly here: the flat
+  // price applies per galon line and excludes wholesale-band lines, and the cart carries
+  // neither flag. So the summary shows list price and says the agen price lands at checkout.
+  const membershipDiscount = isReseller ? 0 : Math.floor(cart.subtotal * membershipRate);
   const voucherDiscount = quote?.discount ?? 0;
   const totalDiscount = Math.min(cart.subtotal, membershipDiscount + voucherDiscount);
   const estimatedTotal = cart.subtotal - totalDiscount;
@@ -900,6 +906,12 @@ function CheckoutInner() {
             <span className="font-bold">
               −<Money amount={membershipDiscount} />
             </span>
+          </div>
+        )}
+        {isReseller && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>Harga agen</span>
+            <span className="text-xs font-semibold">dihitung saat pesanan dibuat</span>
           </div>
         )}
         {voucherDiscount > 0 && (
