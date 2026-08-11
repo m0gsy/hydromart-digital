@@ -26,6 +26,14 @@ export class GeneratePayrollDto {
   periodMonth!: string;
 }
 
+/** D10: one depot, one period. No `employeeId` — the batch is the whole active roster. */
+export class GenerateBatchPayrollDto {
+  @IsUUID() depotId!: string;
+
+  @Matches(PERIOD, { message: 'periodMonth harus format YYYY-MM' })
+  periodMonth!: string;
+}
+
 export class ListPayrollDto {
   @IsOptional() @Matches(PERIOD) periodMonth?: string;
   @IsOptional() @IsUUID() employeeId?: string;

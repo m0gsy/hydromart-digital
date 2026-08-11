@@ -5,7 +5,7 @@ import { Response } from 'express';
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
-import { GeneratePayrollDto, ListPayrollDto } from './dto/payroll.dto';
+import { GenerateBatchPayrollDto, GeneratePayrollDto, ListPayrollDto } from './dto/payroll.dto';
 import { PayrollWithItems } from '../application/ports/payroll.repository';
 import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
@@ -97,6 +97,22 @@ export class PayrollController {
   @ApiOperation({ summary: 'Generate/re-generate a DRAFT payroll for an employee + period' })
   generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.generate(user, dto.employeeId, dto.periodMonth);
+  }
+
+  /**
+   * D10. One depot, one period, DRAFTs for everyone active. Approve and pay stay manual and
+   * per-person — this prepares, it does not move money, and there is no cron behind it.
+   * The per-employee summary is the point: a batch that quietly skipped someone is worse
+   * than no batch, because nobody notices a missing payslip until payday.
+   */
+  @Post('generate-batch')
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Generate DRAFT payroll for every active employee of one depot' })
+  generateBatch(
+    @Body() dto: GenerateBatchPayrollDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ generated: number; failed: { employeeId: string; name: string; reason: string }[] }> {
+    return this.payroll.generateBatch(user, dto.depotId, dto.periodMonth);
   }
 
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })
