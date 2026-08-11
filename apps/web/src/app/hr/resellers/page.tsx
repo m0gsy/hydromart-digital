@@ -76,7 +76,11 @@ export default function HrResellersPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 tabular-nums">{r.discountPct}%</td>
+                  <td className="px-4 py-2.5 tabular-nums">
+                    {r.flatGallonPriceIdr > 0
+                      ? `Rp${r.flatGallonPriceIdr.toLocaleString('id-ID')}/galon`
+                      : `${r.discountPct}%`}
+                  </td>
                   <td className="px-4 py-2.5 tabular-nums">{r.monthlyTargetQty}</td>
                   <td className="px-4 py-2.5 text-muted">{formatDateTime(r.joinDate)}</td>
                   <td className="px-4 py-2.5">

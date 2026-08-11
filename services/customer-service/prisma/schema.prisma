@@ -136,6 +136,11 @@ model ResellerProfile {
   monthlyTargetQty Int      @default(0)
   /// Flat reseller discount percent off subtotal at checkout (0-100). 0 = no reseller price.
   discountPct      Int      @default(0)
+  /// Depot SOP: flat rupiah per gallon (e.g. 5000), overriding discountPct when > 0.
+  /// A percentage cannot express "every galon costs Rp5.000 whatever it lists at".
+  flatGallonPriceIdr Int    @default(0)
+  /// Registration photo of the agen (KTP/toko), on the shared public storage base URL.
+  photoUrl         String?
   active           Boolean  @default(true)
   joinDate         DateTime @db.Date
   note             String?

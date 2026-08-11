@@ -1,6 +1,12 @@
 export interface ResellerDiscount {
   active: boolean;
   discountPct: number;
+  /**
+   * Depot SOP: a flat rupiah price per galon (Rp5.000), which wins over `discountPct`
+   * when > 0. A percentage cannot express it — the SOP price is the same whatever the
+   * galon lists at, so the discount has to be computed per line, not off the subtotal.
+   */
+  flatGallonPriceIdr: number;
 }
 
 /**

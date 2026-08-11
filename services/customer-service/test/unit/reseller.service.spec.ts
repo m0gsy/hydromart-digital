@@ -22,6 +22,8 @@ function row(over: Partial<Reseller> = {}): Reseller {
     homeDepotId: 'd1',
     monthlyTargetQty: 100,
     discountPct: 0,
+    flatGallonPriceIdr: 0,
+    photoUrl: null,
     active: true,
     joinDate: new Date('2026-01-01'),
     note: null,

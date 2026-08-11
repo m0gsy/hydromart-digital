@@ -33,6 +33,8 @@ export class ResellerPrismaRepository implements ResellerRepository {
         homeDepotId: data.homeDepotId,
         monthlyTargetQty: data.monthlyTargetQty,
         discountPct: data.discountPct ?? 0,
+        flatGallonPriceIdr: data.flatGallonPriceIdr ?? 0,
+        photoUrl: data.photoUrl ?? null,
         joinDate: data.joinDate,
         note: data.note ?? null,
       },

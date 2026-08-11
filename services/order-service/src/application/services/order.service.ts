@@ -293,7 +293,10 @@ export class OrderService {
     // Pricing and reseller status are independent of each other — the reseller lookup only
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
-    const [{ items, subtotal, tierPricedTotal, catalogFallback }, reseller] = await Promise.all([
+    const [
+      { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback },
+      reseller,
+    ] = await Promise.all([
       this.priceLines(depot.id, lines),
       this.resellerDiscount.get(authorization),
     ]);
@@ -317,9 +320,13 @@ export class OrderService {
     if (input.express && !express.enabled) throw new ExpressUnavailableError();
     const expressFee = input.express ? money(express.fee) : 0;
 
-    // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
-    // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
-    const isReseller = reseller?.active === true && reseller.discountPct > 0;
+    // Reseller pricing (reseller-only): an active reseller priced either by percent or by
+    // the SOP's flat rupiah-per-galon gets that instead of membership/voucher. Fails open
+    // (null → normal pricing). The flat price must be in this test too: without it a
+    // reseller with no percentage would fall through to the membership+voucher path and
+    // never be charged the agen price at all.
+    const isReseller =
+      reseller?.active === true && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0);
 
     // voucherCode is null for resellers so the later redeem block is skipped too.
     const voucherCode = isReseller ? null : input.voucherCode?.trim().toUpperCase() || null;
@@ -327,10 +334,27 @@ export class OrderService {
     let discount: number;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      // Wholesale-priced lines are excluded from the reseller percentage — they are
-      // already at the depot's bulk price and must not be discounted twice.
-      const discountable = money(Math.max(0, subtotal - tierPricedTotal));
-      discount = money(Math.min(subtotal, percentDiscount(discountable, reseller!.discountPct)));
+      if (reseller!.flatGallonPriceIdr > 0) {
+        // Depot SOP: every galon costs the agen a flat Rp5.000 whatever it lists at, so the
+        // discount is the per-line gap down to that price. Expressed as a discount rather
+        // than by rewriting unitPrice so the order still records what the goods list at and
+        // what the agen was let off — which is what reconciliation reads.
+        // A line already BELOW the flat price is left alone (max 0), never marked up.
+        discount = money(
+          items
+            .filter((i) => i.isGallon && !tieredProductIds.has(i.productId))
+            .reduce(
+              (sum, i) =>
+                sum + Math.max(0, i.unitPrice - reseller!.flatGallonPriceIdr) * i.quantity,
+              0,
+            ),
+        );
+      } else {
+        // Wholesale-priced lines are excluded from the reseller percentage — they are
+        // already at the depot's bulk price and must not be discounted twice.
+        const discountable = money(Math.max(0, subtotal - tierPricedTotal));
+        discount = money(Math.min(subtotal, percentDiscount(discountable, reseller!.discountPct)));
+      }
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -454,6 +478,8 @@ export class OrderService {
    *
    * `tierPricedTotal` is the rupiah that came from a wholesale band; only checkout uses it,
    * to keep the reseller percentage off bulk-priced lines (decided 2026-07-27).
+   * `tieredProductIds` is the same exclusion, per line rather than as a total — which the
+   * SOP flat galon price needs, because it reprices each galon line individually.
    */
   private async priceLines(
     depotId: string,
@@ -462,6 +488,7 @@ export class OrderService {
     items: CreateOrderItemData[];
     subtotal: number;
     tierPricedTotal: number;
+    tieredProductIds: Set<string>;
     /** Set when these are catalog prices standing in for the depot's own. */
     catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
   }> {
@@ -482,6 +509,7 @@ export class OrderService {
     const catalogFallback = !depotId ? 'NO_DEPOT' : lookup.unavailable ? 'DEPOT_UNREACHABLE' : null;
     const items: CreateOrderItemData[] = [];
     let tierPricedTotal = 0;
+    const tieredProductIds = new Set<string>();
     for (const line of lines) {
       const product = productById.get(line.productId)!;
       const priceRow = prices.get(product.id);
@@ -492,7 +520,10 @@ export class OrderService {
       const tiered = typeof priceRow?.tierPrice === 'number';
       const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
       const lineTotal = money(unitPrice * line.quantity);
-      if (tiered) tierPricedTotal += lineTotal;
+      if (tiered) {
+        tierPricedTotal += lineTotal;
+        tieredProductIds.add(product.id);
+      }
       items.push({
         productId: product.id,
         productName: product.name,
@@ -511,6 +542,7 @@ export class OrderService {
       items,
       subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
       tierPricedTotal,
+      tieredProductIds,
       catalogFallback,
     };
   }

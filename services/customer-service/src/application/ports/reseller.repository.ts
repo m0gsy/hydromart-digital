@@ -3,6 +3,9 @@ export interface Reseller {
   homeDepotId: string;
   monthlyTargetQty: number;
   discountPct: number;
+  /** Depot SOP: flat rupiah per gallon; > 0 overrides `discountPct` at checkout. */
+  flatGallonPriceIdr: number;
+  photoUrl: string | null;
   active: boolean;
   joinDate: Date;
   note: string | null;
@@ -15,6 +18,8 @@ export interface CreateResellerData {
   homeDepotId: string;
   monthlyTargetQty: number;
   discountPct?: number;
+  flatGallonPriceIdr?: number;
+  photoUrl?: string | null;
   joinDate: Date;
   note?: string | null;
 }
@@ -23,6 +28,8 @@ export interface UpdateResellerData {
   homeDepotId?: string;
   monthlyTargetQty?: number;
   discountPct?: number;
+  flatGallonPriceIdr?: number;
+  photoUrl?: string | null;
   active?: boolean;
   note?: string | null;
 }

@@ -36,10 +36,21 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
       if (!res.ok) {
         throw new Error(`customer-service responded ${res.status}`);
       }
-      const body = (await res.json()) as { active?: boolean; discountPct?: number };
+      const body = (await res.json()) as {
+        active?: boolean;
+        discountPct?: number;
+        flatGallonPriceIdr?: number;
+      };
       const discountPct = Number(body.discountPct);
       if (!Number.isFinite(discountPct)) return null;
-      return { active: body.active === true, discountPct };
+      // Absent on a customer-service that predates the column — 0 is "price by percent",
+      // which is what those rows meant anyway, so an old peer is not a pricing surprise.
+      const flat = Number(body.flatGallonPriceIdr);
+      return {
+        active: body.active === true,
+        discountPct,
+        flatGallonPriceIdr: Number.isFinite(flat) && flat > 0 ? flat : 0,
+      };
     } catch (error) {
       this.logger.warn(`Reseller pricing unavailable: ${(error as Error).message}`);
       return null; // fail open

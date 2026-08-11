@@ -19,6 +19,8 @@ const row: Reseller = {
   homeDepotId: 'd1',
   monthlyTargetQty: 100,
   discountPct: 0,
+  flatGallonPriceIdr: 0,
+  photoUrl: null,
   active: true,
   joinDate: new Date('2026-01-01'),
   note: null,
@@ -126,9 +128,15 @@ describe('ResellerSelfController', () => {
   const controller = new ResellerSelfController(svc as never);
   const selfUser = { sub: 'cust-1', role: Role.CUSTOMER, phone: null };
 
-  it('returns active + discountPct for a reseller', async () => {
-    svc.findMy.mockResolvedValue({ active: true, discountPct: 12 });
-    expect(await controller.me(selfUser as never)).toEqual({ active: true, discountPct: 12 });
+  it('returns active + both pricing shapes for a reseller', async () => {
+    // Checkout needs the flat galon price here too — it is the SOP's agen price, and
+    // without it order-service would fall back to membership pricing for a flat-price agen.
+    svc.findMy.mockResolvedValue({ active: true, discountPct: 12, flatGallonPriceIdr: 5000 });
+    expect(await controller.me(selfUser as never)).toEqual({
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 5000,
+    });
     expect(svc.findMy).toHaveBeenCalledWith('cust-1');
   });
 

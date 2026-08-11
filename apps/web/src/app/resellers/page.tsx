@@ -40,6 +40,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
   const [phone, setPhone] = useState('');
   const [target, setTarget] = useState('');
   const [discount, setDiscount] = useState('');
+  const [flatPrice, setFlatPrice] = useState('');
   const [joinDate, setJoinDate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +59,10 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       setError('Diskon harus 0–100.');
       return;
     }
+    if (flatPrice !== '' && !(Number(flatPrice) >= 0)) {
+      setError('Harga flat per galon harus berupa angka 0 atau lebih.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -69,6 +74,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
           homeDepotId: depotId,
           monthlyTargetQty: Number(target),
           discountPct: Number(discount) || 0,
+          flatGallonPriceIdr: Number(flatPrice) || 0,
           joinDate: new Date(joinDate).toISOString(),
         },
         true,
@@ -77,6 +83,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       setPhone('');
       setTarget('');
       setDiscount('');
+      setFlatPrice('');
       setJoinDate('');
       onDone();
     } catch (err) {
@@ -108,6 +115,14 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
         </Field>
         <Field label="Diskon reseller (%)" hint="0–100, kosong = 0">
           <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" />
+        </Field>
+        <Field label="Harga flat per galon (Rp)" hint="Isi untuk memakai harga tetap, bukan diskon persen">
+          <Input
+            type="number"
+            value={flatPrice}
+            onChange={(e) => setFlatPrice(e.target.value)}
+            placeholder="5000"
+          />
         </Field>
         <Field label="Tanggal bergabung">
           <Input type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
@@ -142,6 +157,7 @@ function ResellerRow({
   const [editing, setEditing] = useState(false);
   const [target, setTarget] = useState(String(r.monthlyTargetQty));
   const [discount, setDiscount] = useState(String(r.discountPct));
+  const [flatPrice, setFlatPrice] = useState(String(r.flatGallonPriceIdr));
   const [note, setNote] = useState(r.note ?? '');
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -156,6 +172,7 @@ function ResellerRow({
   function openEdit() {
     setTarget(String(r.monthlyTargetQty));
     setDiscount(String(r.discountPct));
+    setFlatPrice(String(r.flatGallonPriceIdr));
     setNote(r.note ?? '');
     setEditing(true);
   }
@@ -169,11 +186,20 @@ function ResellerRow({
       notify('Diskon harus 0–100.', 'error');
       return;
     }
+    if (!(Number(flatPrice) >= 0)) {
+      notify('Harga flat per galon harus berupa angka 0 atau lebih.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(
         endpoints.resellers.detail(r.customerId),
-        { monthlyTargetQty: Number(target), discountPct: Number(discount), note: note.trim() || null },
+        {
+          monthlyTargetQty: Number(target),
+          discountPct: Number(discount),
+          flatGallonPriceIdr: Number(flatPrice),
+          note: note.trim() || null,
+        },
         true,
       );
       notify('Reseller diperbarui');
@@ -209,6 +235,9 @@ function ResellerRow({
           <Field label="Diskon (%)">
             <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
           </Field>
+          <Field label="Harga flat/galon (Rp)" hint="0 = pakai diskon persen">
+            <Input type="number" value={flatPrice} onChange={(e) => setFlatPrice(e.target.value)} />
+          </Field>
           <Field label="Catatan (opsional)">
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
@@ -233,7 +262,11 @@ function ResellerRow({
           {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
           {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
           {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
-          {r.discountPct > 0 && <> · diskon {r.discountPct}%</>}
+          {r.flatGallonPriceIdr > 0 ? (
+            <> · Rp{r.flatGallonPriceIdr.toLocaleString('id-ID')}/galon</>
+          ) : (
+            r.discountPct > 0 && <> · diskon {r.discountPct}%</>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2">

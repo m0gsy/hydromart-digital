@@ -119,10 +119,15 @@ function CheckoutInner() {
   const { data: myVouchers } = useAsync<MyVoucher[]>(() => api.get(endpoints.vouchers.me, true));
   // Reseller ("agen") pricing status. Fail-soft: 404 (not a reseller) or any error just
   // leaves data null — useAsync already swallows the rejection into its ignored `error`.
-  const { data: reseller } = useAsync<{ active: boolean; discountPct: number }>(() =>
-    api.get(endpoints.resellers.me, true),
-  );
-  const isReseller = !!reseller?.active && reseller.discountPct > 0;
+  const { data: reseller } = useAsync<{
+    active: boolean;
+    discountPct: number;
+    flatGallonPriceIdr: number;
+  }>(() => api.get(endpoints.resellers.me, true));
+  // A flat per-galon agen price counts as reseller pricing too — without it the badge and
+  // the voucher lock disagree with what the server actually charges.
+  const isReseller =
+    !!reseller?.active && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0);
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -732,7 +737,11 @@ function CheckoutInner() {
     {/* Voucher — hidden for active resellers (flat reseller price, no stacking) */}
     {isReseller ? (
       <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
-        <Badge tone="success">Harga reseller −{reseller!.discountPct}%</Badge>
+        <Badge tone="success">
+          {reseller!.flatGallonPriceIdr > 0
+            ? `Harga agen Rp${reseller!.flatGallonPriceIdr.toLocaleString('id-ID')}/galon`
+            : `Harga reseller −${reseller!.discountPct}%`}
+        </Badge>
         <p className="text-sm text-muted">
           Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.
         </p>

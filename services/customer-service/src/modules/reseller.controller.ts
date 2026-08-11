@@ -79,6 +79,7 @@ export class ResellerController {
         homeDepotId: dto.homeDepotId,
         monthlyTargetQty: dto.monthlyTargetQty,
         discountPct: dto.discountPct,
+        flatGallonPriceIdr: dto.flatGallonPriceIdr,
         joinDate: new Date(dto.joinDate),
         note: dto.note,
       });

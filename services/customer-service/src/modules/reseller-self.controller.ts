@@ -16,10 +16,16 @@ export class ResellerSelfController {
 
   @ApiOkResponse({ type: Me2ResponseDto })
   @Get('me')
-  @ApiOperation({ summary: 'My reseller pricing (active + discount percent)' })
-  async me(@CurrentUser() user: AuthenticatedUser): Promise<{ active: boolean; discountPct: number }> {
+  @ApiOperation({ summary: 'My reseller pricing (active + discount percent or flat galon price)' })
+  async me(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ active: boolean; discountPct: number; flatGallonPriceIdr: number }> {
     const found = await this.resellers.findMy(user.sub);
     if (!found) throw new NotFoundException('Not a reseller');
-    return { active: found.active, discountPct: found.discountPct };
+    return {
+      active: found.active,
+      discountPct: found.discountPct,
+      flatGallonPriceIdr: found.flatGallonPriceIdr,
+    };
   }
 }
