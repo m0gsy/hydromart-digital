@@ -32,9 +32,15 @@ fail() {
 # 1. Ancestry. `git merge-base --is-ancestor` answers "is this commit ON that branch's
 # history", which is the question — not "does the branch contain a commit with this
 # message", and not "is it reachable from some ref".
-if ! git rev-parse --verify --quiet "$SHA^{commit}" >/dev/null; then
+if ! FULL_SHA="$(git rev-parse --verify --quiet "$SHA^{commit}")"; then
   fail "$SHA is not a commit in this checkout — fetch it before releasing from it"
 fi
+# `gh run list --commit` matches ONLY the full 40-character SHA: an abbreviated one returns
+# an empty list, which this script reads as "nothing has tested this commit" and refuses the
+# release. The workflow passes `github.sha` and is fine, but a human running this by hand
+# would be told their good commit was untested — and a gate that lies is a gate somebody
+# switches off. Normalising here costs one line and removes the trap.
+SHA="$FULL_SHA"
 if ! git rev-parse --verify --quiet "$BRANCH^{commit}" >/dev/null; then
   fail "no branch '$BRANCH' in this checkout — cannot prove the tag descends from it"
 fi

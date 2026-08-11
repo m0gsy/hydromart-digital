@@ -81,6 +81,13 @@ esac
 mkstub failure
 [ "$(rc "$MAIN_SHA")" != 0 ] && ok "a red CI is refused" || bad "a red CI must be refused"
 
+# An abbreviated SHA must resolve to the same answer. `gh run list --commit` matches only
+# the full 40 characters, so without normalising, a hand-run release would be refused with
+# "nothing has tested this commit" about a commit CI had passed.
+mkstub success
+[ "$(rc "${MAIN_SHA:0:8}")" = 0 ] && ok "an abbreviated SHA is normalised, not refused" ||
+  bad "an abbreviated SHA must be resolved to the full one before the CI lookup"
+
 # The dangerous one: no run at all reads as "nothing failed" to anything that only checks
 # for the string `failure`. A tag pushed before CI even started must not build.
 mkstub ''
