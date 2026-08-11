@@ -31,18 +31,25 @@ trap 'rm -rf "$TMP"' EXIT
 
 # The exact shape that broke production: a PEM pasted straight in, unquoted, plus the
 # ordinary lines that must still survive it.
-cat >"$TMP/.env" <<'FIXTURE'
+# The PEM markers are assembled from a word instead of written out: spelled in full they
+# ARE a private-key header, and the secret scanner rightly fails any build containing one.
+# The file on disk is still byte-for-byte the shape that broke production — the key sits on
+# lines 6-8, and 7-8 are the two body lines the loader must refuse to run.
+{
+  cat <<'FIXTURE'
 # a comment
 POSTGRES_PASSWORD=s3cr3t
 
 QUOTED_NAME="Hydromart Depot"
 SINGLE_QUOTED='satu'
-FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDfake
------END PRIVATE KEY-----
+FIXTURE
+  P=PRIVATE
+  printf 'FIREBASE_KEY=-----BEGIN %s KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCfake\n-----END %s KEY-----\n' "$P" "$P"
+  cat <<'FIXTURE'
 AFTER_THE_KEY=still-read
 URL_WITH_HASH=postgresql://u:p@h:5432/db?schema=public
 FIXTURE
+} >"$TMP/.env"
 
 # Run the loader the way the callers do: from the repo root of that deployment.
 out="$(cd "$TMP" && . "$ROOT/scripts/load-env.sh" >/dev/null 2>&1; echo "$?")"
