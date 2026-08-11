@@ -19,8 +19,8 @@ export class PayrollController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List payroll runs' })
-  list(@Query() query: ListPayrollDto) {
-    return this.payroll.list(query);
+  list(@Query() query: ListPayrollDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.payroll.list(user, query);
   }
 
   @Get('me')

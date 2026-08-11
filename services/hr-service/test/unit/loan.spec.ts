@@ -54,3 +54,19 @@ describe('idempotency', () => {
     expect(loanDeductionFor(loan, '2026-08')).toBe(loanDeductionFor(loan, '2026-08'));
   });
 });
+
+// D4: the elapsed-months arithmetic assumes every earlier period collected a full
+// installment. Once a period can only collect part of one (net is floored at 0), that
+// assumption writes off the difference — so payroll passes what was ACTUALLY taken.
+describe('paidSoFar overrides the elapsed-months assumption', () => {
+  it('keeps asking for the installment while the ledger says it is unpaid', () => {
+    // Five months elapsed on a 1.000.000 loan at 300.000: "settled" by elapsed months.
+    expect(loanDeductionFor(loan, '2026-11')).toBe(0);
+    expect(loanDeductionFor(loan, '2026-11', 600_000)).toBe(300_000);
+  });
+
+  it('never collects more than the outstanding balance', () => {
+    expect(loanDeductionFor(loan, '2026-11', 900_000)).toBe(100_000);
+    expect(loanDeductionFor(loan, '2026-11', 1_000_000)).toBe(0);
+  });
+});

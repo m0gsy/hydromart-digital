@@ -55,10 +55,26 @@ export interface PayrollRepository {
     status: PayrollStatus,
     stamp: { approvedBy?: string; approvedAt?: Date; paidAt?: Date },
   ): Promise<PayrollWithItems>;
+  /**
+   * IDR already deducted for each `sourceRef` on this employee's payslips BEFORE
+   * `beforePeriodMonth` — the repayment ledger behind D4.
+   *
+   * A loan installment used to be derived purely from elapsed months, which assumes every
+   * period collected in full. Once a period can collect less than the installment (net is
+   * floored at 0), that assumption silently forgives the difference. This is what was
+   * actually taken, so the remainder keeps being asked for.
+   */
+  deductedBySourceRefBefore(
+    employeeId: string,
+    beforePeriodMonth: string,
+    sourceRefs: readonly string[],
+  ): Promise<Map<string, number>>;
   list(filter: {
     periodMonth?: string;
     employeeId?: string;
     status?: PayrollStatus;
+    /** Depots the caller may see, via the owning employee. `undefined` = every depot (HQ). */
+    depotIds?: readonly string[];
     skip: number;
     take: number;
   }): Promise<{ rows: Payroll[]; total: number }>;

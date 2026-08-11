@@ -57,6 +57,7 @@ function build(opts: Opts = {}) {
     presentDays: opts.presentDays ?? 20,
     lateDays: opts.lateDays ?? 2,
     leaveDays: 0,
+    pendingDays: 0,
   });
   const attendance = {
     summary: jest.fn(async () => oneSummary()),

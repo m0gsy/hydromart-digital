@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Bonus, Deduction, Employee, Payroll } from '../../prisma/generated/client';
@@ -46,7 +46,14 @@ class FakePayrollRepo implements PayrollRepository {
     this.status = status;
     return { ...(this.byId as PayrollWithItems), status };
   }
-  async list() {
+  /** D4: no earlier payslip took anything, unless a test says otherwise. */
+  repaid = new Map<string, number>();
+  async deductedBySourceRefBefore(): Promise<Map<string, number>> {
+    return this.repaid;
+  }
+  lastListFilter?: Parameters<PayrollRepository['list']>[0];
+  async list(filter: Parameters<PayrollRepository['list']>[0]) {
+    this.lastListFilter = filter;
     return { rows: [] as Payroll[], total: 0 };
   }
 }
@@ -83,7 +90,8 @@ function build(opts: {
     upsertManual: async () => ({}) as never,
     patchStatus: async () => ({}) as never,
     recordAdjustment: async () => undefined,
-    summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
+    summary: async () =>
+      opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     summaryMany: async () => new Map(),
     listWorkedMinutes: async () =>
       (opts.workedMinutes ?? []).map((d) => ({
@@ -169,7 +177,7 @@ describe('PayrollService.generate', () => {
   it('DAILY base = dailyRate × presentDays; net folds bonus and deductions', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 50000 as never },
-      summary: { presentDays: 20, lateDays: 2, leaveDays: 0 },
+      summary: { presentDays: 20, lateDays: 2, leaveDays: 0, pendingDays: 0 },
       bonuses: [{ id: 'b1', type: 'MANUAL', amount: 100000 as never, note: 'THR' }],
       deductions: [{ id: 'd1', type: 'CASH_ADVANCE', amount: 50000 as never, note: 'Kasbon' }],
     });
@@ -198,7 +206,7 @@ describe('PayrollService.generate', () => {
     it('withholds BPJS and PPh 21, and takes them out of net', async () => {
       const { repo, svc } = build({
         employee: enrolled,
-        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       });
       await svc.generate(user, 'e1', '2026-07');
       const w = repo.lastWrite!;
@@ -219,7 +227,7 @@ describe('PayrollService.generate', () => {
     it('deducts nothing statutory for an employee enrolled in neither scheme', async () => {
       const { repo, svc } = build({
         employee: { ...enrolled, bpjsKes: null as never, bpjsTk: null as never },
-        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       });
       await svc.generate(user, 'e1', '2026-07');
       // PPh 21 still applies — it is tax, not a scheme — and is HIGHER, because the
@@ -232,7 +240,7 @@ describe('PayrollService.generate', () => {
     it('withholds no tax when the employee has no PTKP status on file', async () => {
       const { repo, svc } = build({
         employee: { ...enrolled, ptkpStatus: null as never },
-        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       });
       await svc.generate(user, 'e1', '2026-07');
       const labels = repo.lastWrite!.items.filter((i) => i.kind === 'DEDUCTION').map((i) => i.label);
@@ -245,7 +253,7 @@ describe('PayrollService.generate', () => {
     it('reckons BPJS on gross, not on gross minus the lateness deduction', async () => {
       const { repo, svc } = build({
         employee: enrolled,
-        summary: { presentDays: 31, lateDays: 3, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 3, leaveDays: 0, pendingDays: 0 },
       });
       await svc.generate(user, 'e1', '2026-07');
       const health = repo
@@ -259,7 +267,7 @@ describe('PayrollService.generate', () => {
     // MONTHLY 4,464,000 / (31 × 480) = 300 per minute. 120 overtime minutes × 1.5 = 54,000.
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
-      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -273,7 +281,7 @@ describe('PayrollService.generate', () => {
     // 300 × 300/min × 2 = 180,000.
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_320_000 as never },
-      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       holidayDates: ['2026-07-17'],
       workedMinutes: [{ workDate: '2026-07-17', workingMinutes: 300 }],
     });
@@ -288,7 +296,7 @@ describe('PayrollService.generate', () => {
     // 2026-07-05 is a Sunday; weeklyOff '0' makes it an off day.
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 96_000 as never },
-      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       weeklyOff: '0',
       workedMinutes: [{ workDate: '2026-07-05', workingMinutes: 240 }],
     });
@@ -302,7 +310,7 @@ describe('PayrollService.generate', () => {
   it('adds no overtime line when nobody worked past the standard shift (M24-17)', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
-      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 470 }],
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -322,7 +330,7 @@ describe('PayrollService.generate', () => {
     it('pays the reached tier for every attended day and names the day count', async () => {
       const { repo, svc } = build({
         employee: daily,
-        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
         gallonTiers: SOP,
         dailyGallons: { '2026-07-01': 130, '2026-07-02': 205, '2026-07-03': 100 },
@@ -337,7 +345,7 @@ describe('PayrollService.generate', () => {
     it('pays nothing for a day the employee did not attend', async () => {
       const { repo, svc } = build({
         employee: daily,
-        summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 1, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480 }],
         gallonTiers: SOP,
         // The depot hit 300 gallons on the 2nd, but this employee was not there.
@@ -352,7 +360,7 @@ describe('PayrollService.generate', () => {
     it('adds no line at all when no attended day reached a tier', async () => {
       const { repo, svc } = build({
         employee: daily,
-        summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 1, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480 }],
         gallonTiers: SOP,
         dailyGallons: { '2026-07-01': 90 },
@@ -366,7 +374,7 @@ describe('PayrollService.generate', () => {
     it('pays nothing when order-service could not answer — null never pays', async () => {
       const { repo, svc } = build({
         employee: daily,
-        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
         gallonTiers: SOP,
         dailyGallons: null,
@@ -382,7 +390,7 @@ describe('PayrollService.generate', () => {
     it('leaves an unconfigured depot byte-identical to the old payroll', async () => {
       const opts = {
         employee: daily,
-        summary: { presentDays: 3, lateDays: 1, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 1, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
       };
       const before = build(opts);
@@ -396,7 +404,7 @@ describe('PayrollService.generate', () => {
       const depotDailyGallons = jest.fn(async () => new Map<string, number>());
       const { svc } = build({
         employee: daily,
-        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
         salesPort: { depotSales: async () => null, depotDailyGallons },
       });
@@ -408,7 +416,7 @@ describe('PayrollService.generate', () => {
       const depotDailyGallons = jest.fn(async () => new Map<string, number>());
       const { svc } = build({
         employee: { ...daily, depotId: null },
-        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
         gallonTiers: SOP,
         salesPort: { depotSales: async () => null, depotDailyGallons },
@@ -421,7 +429,7 @@ describe('PayrollService.generate', () => {
       const depotDailyGallons = jest.fn(async () => new Map<string, number>());
       const { svc } = build({
         employee: daily,
-        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: attended,
         gallonTiers: SOP,
         salesPort: { depotSales: async () => null, depotDailyGallons },
@@ -450,7 +458,7 @@ describe('PayrollService.generate', () => {
       const { repo, svc } = build({
         employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
         // 4 attended days out of 31 — the rest land in the "tidak absen" count below.
-        summary: { presentDays: 4, lateDays: 3, leaveDays: 27 },
+        summary: { presentDays: 4, lateDays: 3, leaveDays: 27, pendingDays: 0 },
         workedMinutes: threeLateDays,
         lateFineStaff: STAFF,
         ...boundaries,
@@ -475,7 +483,7 @@ describe('PayrollService.generate', () => {
           role: 'KEPALA_DEPOT',
           joinDate: new Date('2025-01-01T00:00:00.000Z'),
         },
-        summary: { presentDays: 4, lateDays: 3, leaveDays: 27 },
+        summary: { presentDays: 4, lateDays: 3, leaveDays: 27, pendingDays: 0 },
         workedMinutes: threeLateDays,
         lateFineStaff: STAFF,
         lateFineManager: MANAGER,
@@ -495,7 +503,7 @@ describe('PayrollService.generate', () => {
       const { repo, svc } = build({
         employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
         // July 2026 has 31 working days with no weekly-off configured.
-        summary: { presentDays: 29, lateDays: 0, leaveDays: 0 },
+        summary: { presentDays: 29, lateDays: 0, leaveDays: 0, pendingDays: 0 },
         workedMinutes: [],
         lateFineStaff: STAFF,
         ...boundaries,
@@ -506,10 +514,27 @@ describe('PayrollService.generate', () => {
       ]);
     });
 
+    // D2: a PENDING punch is a day HR has not decided yet — the schema calls it "counts as
+    // nothing". `absentDays` counted every day that was not PRESENT/LATE/LEAVE, so an
+    // offline punch synced late, or a supervisor punching outside every geofence, was fined
+    // as a full no-show if payroll ran before someone judged it.
+    it('does not fine a day whose punch is still PENDING', async () => {
+      const { repo, svc } = build({
+        employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
+        // 31 working days: 29 attended, 2 awaiting a decision, 0 genuinely missed.
+        summary: { presentDays: 29, lateDays: 0, leaveDays: 0, pendingDays: 2 },
+        workedMinutes: [],
+        lateFineStaff: STAFF,
+        ...boundaries,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(fineLines(repo)).toEqual([]);
+    });
+
     it('adds no line for a step whose rate is 0', async () => {
       const { repo, svc } = build({
         employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
-        summary: { presentDays: 31, lateDays: 1, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 1, leaveDays: 0, pendingDays: 0 },
         workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480, lateMinutes: 40 }],
         lateFineStaff: '0,15000,20000',
         ...boundaries,
@@ -521,7 +546,7 @@ describe('PayrollService.generate', () => {
     it('keeps the flat deduction untouched when no tiered fine is configured', async () => {
       const { repo, svc } = build({
         employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
-        summary: { presentDays: 31, lateDays: 3, leaveDays: 0 },
+        summary: { presentDays: 31, lateDays: 3, leaveDays: 0, pendingDays: 0 },
         workedMinutes: threeLateDays,
       });
       await svc.generate(user, 'e1', '2026-07');
@@ -534,7 +559,7 @@ describe('PayrollService.generate', () => {
   it('TRAINING with no dailyRate falls back to the config training rate', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: null, employmentStatus: 'TRAINING' as never },
-      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.gross).toBe(300_000); // 30k × 10
@@ -543,7 +568,7 @@ describe('PayrollService.generate', () => {
   it('MONTHLY base = monthlyRate regardless of present days', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
-      summary: { presentDays: 18, lateDays: 5, leaveDays: 0 },
+      summary: { presentDays: 18, lateDays: 5, leaveDays: 0, pendingDays: 0 },
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.gross).toBe(4_000_000);
@@ -555,7 +580,7 @@ describe('PayrollService.generate', () => {
     // → 8 absent × 25k = 200k, on top of 5 late × 10k = 50k.
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
-      summary: { presentDays: 20, lateDays: 5, leaveDays: 2 },
+      summary: { presentDays: 20, lateDays: 5, leaveDays: 2, pendingDays: 0 },
       absenceRate: 25_000,
       holidayDates: ['2026-07-17'],
     });
@@ -566,7 +591,7 @@ describe('PayrollService.generate', () => {
   it('DAILY never gets an absence deduction (missing days already earn nothing)', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
-      summary: { presentDays: 5, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 5, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       absenceRate: 25_000,
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -581,7 +606,7 @@ describe('PayrollService.generate', () => {
   it('re-generates a DRAFT in place but refuses a locked (APPROVED) payroll', async () => {
     const draft = build({
       employee: { dailyRate: 1000 as never },
-      summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 1, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     });
     draft.repo.existing = { id: 'p1', status: 'DRAFT' } as PayrollWithItems;
     await draft.svc.generate(user, 'e1', '2026-07');
@@ -611,5 +636,38 @@ describe('PayrollService lifecycle', () => {
     await expect(svc.approve(user, 'p1')).rejects.toThrow(ConflictException);
     repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
     await expect(svc.markPaid(user, 'p1')).rejects.toThrow(ConflictException);
+  });
+});
+
+// D1: `list` used to take no `user` at all, so a depot manager asking for a whole page of
+// a period got every employee's gross/bonus/deduction/net in the chain. `hrView` reaches
+// MANAGER, SUPERVISOR and ASSISTANT_SUPERVISOR, so this was three scoped roles wide.
+describe('PayrollService.list depot scoping (D1)', () => {
+  const manager = (depotIds: readonly string[]): AuthenticatedUser => ({
+    sub: 'm1',
+    role: 'MANAGER' as never,
+    phone: null,
+    depotId: depotIds[0] ?? null,
+    depotIds,
+  });
+  const page = { page: 1, pageSize: 30 };
+
+  it('narrows a depot manager to their own depots', async () => {
+    const { repo, svc } = build({ employee: {} });
+    await svc.list(manager(['dA']), page);
+    expect(repo.lastListFilter?.depotIds).toEqual(['dA']);
+  });
+
+  it('refuses a depot the caller is not responsible for', async () => {
+    const { svc } = build({ employee: {} });
+    await expect(svc.list(manager(['dA']), { ...page, depotId: 'dB' })).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('leaves an HQ caller unscoped', async () => {
+    const { repo, svc } = build({ employee: {} });
+    await svc.list({ sub: 'hq', role: 'HEAD_OFFICE' as never, phone: null, depotId: null }, page);
+    expect(repo.lastListFilter?.depotIds).toBeUndefined();
   });
 });

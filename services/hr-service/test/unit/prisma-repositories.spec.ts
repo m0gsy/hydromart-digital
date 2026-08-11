@@ -971,8 +971,8 @@ describe('AnalyticsPrismaRepository', () => {
     const out = await repo.summaryMany(['e1', 'e2'], new Date('2026-07-01'), new Date('2026-07-31'));
 
     // Same arithmetic as summary(): presentDays counts PRESENT *and* LATE.
-    expect(out.get('e1')).toEqual({ presentDays: 20, lateDays: 2, leaveDays: 1 });
-    expect(out.get('e2')).toEqual({ presentDays: 0, lateDays: 0, leaveDays: 0 });
+    expect(out.get('e1')).toEqual({ presentDays: 20, lateDays: 2, leaveDays: 1, pendingDays: 0 });
+    expect(out.get('e2')).toEqual({ presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 });
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
   });
 
@@ -1362,12 +1362,15 @@ describe('AttendancePrismaRepository', () => {
       { employeeId: 'e1', status: 'PRESENT', _count: { _all: 17 } },
       { employeeId: 'e1', status: 'LATE', _count: { _all: 3 } },
       { employeeId: 'e1', status: 'LEAVE', _count: { _all: 1 } },
+      // D2: counted on its own so payroll can keep it out of absence.
+      { employeeId: 'e1', status: 'PENDING', _count: { _all: 2 } },
     ]);
     const repo = new AttendancePrismaRepository(asService(p));
     await expect(repo.summary('e1', from, to)).resolves.toEqual({
       presentDays: 20,
       lateDays: 3,
       leaveDays: 1,
+      pendingDays: 2,
     });
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledWith({
       by: ['employeeId', 'status'],
@@ -1385,6 +1388,7 @@ describe('AttendancePrismaRepository', () => {
       presentDays: 0,
       lateDays: 0,
       leaveDays: 0,
+      pendingDays: 0,
     });
   });
 
@@ -2191,6 +2195,24 @@ describe('PayrollPrismaRepository', () => {
     });
   });
 
+  // D9: `generate` reads "does a payroll exist for this period?" and then writes, outside a
+  // transaction. Two clicks at once both read null and both create; the unique index stops
+  // the duplicate, but a raw P2002 reached the operator as a 500.
+  it('create turns a duplicate (period already generated) into a 409', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').create.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }));
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.create(write)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('create rethrows any other write failure', async () => {
+    const p = makePrisma();
+    const boom = new Error('db down');
+    m(p, 'payroll').create.mockRejectedValue(boom);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.create(write)).rejects.toBe(boom);
+  });
+
   it('regenerate drops old items then updates money/day fields in a transaction', async () => {
     const p = makePrisma();
     const out = sentinel();
@@ -2250,6 +2272,39 @@ describe('PayrollPrismaRepository', () => {
     await expect(repo.setStatus('pr1', 'DRAFT', 'APPROVED', {})).rejects.toBe(boom);
   });
 
+  // D4: the loan repayment ledger — what earlier payslips actually took, per loan.
+  it('deductedBySourceRefBefore sums earlier periods per sourceRef', async () => {
+    const p = makePrisma();
+    m(p, 'payrollItem').groupBy.mockResolvedValue([
+      { sourceRef: 'l1', _sum: { amount: 600_000 } },
+      { sourceRef: 'l2', _sum: { amount: null } },
+    ]);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.deductedBySourceRefBefore('e1', '2026-09', ['l1', 'l2'])).resolves.toEqual(
+      new Map([
+        ['l1', 600_000],
+        ['l2', 0],
+      ]),
+    );
+    expect(m(p, 'payrollItem').groupBy).toHaveBeenCalledWith({
+      by: ['sourceRef'],
+      where: {
+        kind: 'DEDUCTION',
+        sourceRef: { in: ['l1', 'l2'] },
+        // "YYYY-MM" sorts as it dates, so `lt` is every earlier period.
+        payroll: { employeeId: 'e1', periodMonth: { lt: '2026-09' } },
+      },
+      _sum: { amount: true },
+    });
+  });
+
+  it('deductedBySourceRefBefore asks the database nothing when there are no loans', async () => {
+    const p = makePrisma();
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.deductedBySourceRefBefore('e1', '2026-09', [])).resolves.toEqual(new Map());
+    expect(m(p, 'payrollItem').groupBy).not.toHaveBeenCalled();
+  });
+
   it('list builds where + paginates in a transaction', async () => {
     const p = makePrisma();
     const rows = [sentinel()];
@@ -2257,9 +2312,22 @@ describe('PayrollPrismaRepository', () => {
     m(p, 'payroll').count.mockResolvedValue(1);
     const repo = new PayrollPrismaRepository(asService(p));
     await expect(
-      repo.list({ periodMonth: '2026-07', employeeId: 'e1', status: 'PAID', skip: 0, take: 10 }),
+      repo.list({
+        periodMonth: '2026-07',
+        employeeId: 'e1',
+        status: 'PAID',
+        depotIds: ['dA'],
+        skip: 0,
+        take: 10,
+      }),
     ).resolves.toEqual({ rows, total: 1 });
-    const where = { periodMonth: '2026-07', employeeId: 'e1', status: 'PAID' };
+    // D1: the depot lives on the owning employee, so the scope is a relation filter.
+    const where = {
+      periodMonth: '2026-07',
+      employeeId: 'e1',
+      status: 'PAID',
+      employee: { depotId: { in: ['dA'] } },
+    };
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where,
       orderBy: { createdAt: 'desc' },

@@ -30,6 +30,8 @@ export class ListPayrollDto {
   @IsOptional() @Matches(PERIOD) periodMonth?: string;
   @IsOptional() @IsUUID() employeeId?: string;
   @IsOptional() @IsEnum(PayrollStatus) status?: PayrollStatus;
+  /** Narrow to one depot. Rejected when it is outside the caller's own depots (D1). */
+  @IsOptional() @IsUUID() depotId?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) pageSize = 30;

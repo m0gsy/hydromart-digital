@@ -24,7 +24,12 @@ import { EmployeeService } from './employee.service';
 const DASHBOARD_LIMIT = 200;
 
 /** An employee with no attendance rows in the period — no days present, none late. */
-const EMPTY_SUMMARY: AttendanceSummary = { presentDays: 0, lateDays: 0, leaveDays: 0 };
+const EMPTY_SUMMARY: AttendanceSummary = {
+  presentDays: 0,
+  lateDays: 0,
+  leaveDays: 0,
+  pendingDays: 0,
+};
 
 interface DepotLoaders {
   holidayDates(depotId: string | null): Promise<string[]>;

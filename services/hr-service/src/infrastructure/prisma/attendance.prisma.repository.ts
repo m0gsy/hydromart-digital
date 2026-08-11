@@ -75,7 +75,9 @@ export class AttendancePrismaRepository implements AttendanceRepository {
    */
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
     const byEmployee = await this.summaryMany([employeeId], from, to);
-    return byEmployee.get(employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
+    return (
+      byEmployee.get(employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 }
+    );
   }
 
   /**
@@ -97,12 +99,19 @@ export class AttendancePrismaRepository implements AttendanceRepository {
       _count: { _all: true },
     });
     for (const row of rows) {
-      const entry = out.get(row.employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
+      const entry = out.get(row.employeeId) ?? {
+        presentDays: 0,
+        lateDays: 0,
+        leaveDays: 0,
+        pendingDays: 0,
+      };
       // PRESENT and LATE are both days worked; LATE additionally counts as late. Same
       // arithmetic as summary(), which counts PRESENT+LATE for presentDays.
       if (row.status === 'PRESENT' || row.status === 'LATE') entry.presentDays += row._count._all;
       if (row.status === 'LATE') entry.lateDays += row._count._all;
       if (row.status === 'LEAVE') entry.leaveDays += row._count._all;
+      // D2: counted so payroll can leave it out of absence rather than fine it as a no-show.
+      if (row.status === 'PENDING') entry.pendingDays += row._count._all;
       out.set(row.employeeId, entry);
     }
     return out;

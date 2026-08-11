@@ -25,11 +25,15 @@ function installmentsElapsed(loan: LoanTerms, period: string): number {
 /**
  * The IDR to deduct in `period` for this loan: a full installment, or the smaller final
  * stub that clears the balance, or 0 once fully paid / before it starts.
+ *
+ * `paidSoFar` is what earlier payslips ACTUALLY took (D4). Without it the function assumes
+ * every elapsed month collected a full installment — true until a period could not afford
+ * one, from which point the assumption quietly writes off the shortfall.
  */
-export function loanDeductionFor(loan: LoanTerms, period: string): number {
+export function loanDeductionFor(loan: LoanTerms, period: string, paidSoFar?: number): number {
   const n = installmentsElapsed(loan, period);
   if (n === 0 || loan.installmentAmount <= 0) return 0;
-  const paidBefore = Math.min(loan.principal, loan.installmentAmount * (n - 1));
+  const paidBefore = Math.min(loan.principal, paidSoFar ?? loan.installmentAmount * (n - 1));
   if (paidBefore >= loan.principal) return 0;
   return Math.max(0, Math.round(Math.min(loan.installmentAmount, loan.principal - paidBefore)));
 }
