@@ -68,7 +68,37 @@ export type QueuedJob = Job & {
   owner?: string | null;
   /** Set once the server refused the job for good; it stays until the user discards it. */
   error?: string;
+  /** E5: how many times sending has been tried and failed for a reason worth retrying. */
+  attempts?: number;
+  /** E5: the earliest time worth trying again. Absent means "now". */
+  nextAttemptAt?: string;
 };
+
+/**
+ * E5. How many transient failures a job absorbs before it stops being invisible.
+ *
+ * Not unbounded: a job that fails the same way forever is a job nobody will ever be told
+ * about, and silence is the failure mode this whole file exists to prevent. When the count
+ * runs out the job is marked with its last message, which is what puts it in front of the
+ * operator.
+ */
+export const MAX_ATTEMPTS = 6;
+
+/**
+ * E5. How long a captured job may sit unsent before it is dropped.
+ *
+ * The payloads here are a face frame for an HR punch and a delivery photo plus a
+ * signature — biometric and personal data, unencrypted in IndexedDB, on a depot phone
+ * people hand to each other. A punch nobody has managed to sync in a week is not going to
+ * become useful; the image staying on that phone forever is the part that can still do
+ * harm. So the retention rule is about the payload, not about the punch.
+ */
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** 30s, 1m, 2m, 4m, 8m, capped at 15m — the shape of a deploy, then of an outage. */
+function backoffMs(attempts: number): number {
+  return Math.min(30_000 * 2 ** (attempts - 1), 15 * 60_000);
+}
 
 type Listener = (jobs: QueuedJob[]) => void;
 
@@ -116,11 +146,14 @@ function emit(): void {
 /** Load the stored queue once per page load. Safe to call repeatedly. */
 export async function hydrate(): Promise<QueuedJob[]> {
   if (hydrated || typeof indexedDB === 'undefined') return cache;
-  hydrated = true;
   try {
     cache = ((await tx<QueuedJob[]>('readonly', (s) => s.getAll())) ?? []).sort((a, b) =>
       a.capturedAt.localeCompare(b.capturedAt),
     );
+    // E5: only NOW. This used to be set before the read, so a `getAll()` that threw left
+    // `cache = []` and `hydrated = true` for the rest of the page load — queued work
+    // present on disk, invisible in the UI and skipped by every flush, with no retry.
+    hydrated = true;
   } catch {
     cache = [];
   }
@@ -227,6 +260,33 @@ function isUnauthenticated(e: unknown): boolean {
 }
 
 /**
+ * E5. Worth trying again, as opposed to refused.
+ *
+ * The old code had no such idea: anything that was not status 0 or 401 was written down as
+ * a final refusal, and a job carrying one is skipped by every later flush. So one 502 from
+ * the gateway during a deploy — the most ordinary failure this app has — permanently killed
+ * a courier's queued punch, and only an operator noticing and discarding it cleared it.
+ *
+ * 5xx is us and will be gone shortly. 408 and 429 are explicitly "come back". Anything else
+ * in the 4xx range is the server saying no on the merits — already checked in, outside the
+ * geofence, delivery already closed — and retrying that is just noise.
+ *
+ * A failure that is not an `ApiError` at all (the photo upload's `fetch`, a blob that will
+ * not read) counts as retryable too: the realistic cause is the same dropped connection,
+ * and `MAX_ATTEMPTS` stops a genuinely broken payload from looping forever.
+ */
+function isRetryable(e: unknown): boolean {
+  if (!(e instanceof ApiError)) return true;
+  return e.status === 0 || e.status === 408 || e.status === 429 || e.status >= 500;
+}
+
+/** Past the retention window: the payload has to go, whatever became of the job. */
+function expired(job: QueuedJob, now: number): boolean {
+  const captured = Date.parse(job.capturedAt);
+  return Number.isFinite(captured) && now - captured > RETENTION_MS;
+}
+
+/**
  * Try the job now; queue it if the device is offline. Anything else (already checked in,
  * outside the geofence, delivery already closed) still throws so the caller can show it.
  */
@@ -238,7 +298,10 @@ export async function runOrQueue<T = unknown>(
   try {
     return { outcome: 'sent', result: (await run(job, capturedAt)) as T };
   } catch (e) {
-    if (!isOffline(e)) throw e;
+    // E5: a 5xx at capture used to propagate to the caller, and the work was simply gone —
+    // the courier saw an error, the punch existed nowhere. Anything retryable is captured
+    // now; only a real refusal still throws, because that one the courier must be told.
+    if (!isRetryable(e)) throw e;
     await put({ ...job, id: crypto.randomUUID(), capturedAt, owner: currentOwner() });
     return { outcome: 'queued' };
   }
@@ -248,25 +311,61 @@ export async function runOrQueue<T = unknown>(
  * Push everything queued. Jobs the server refuses on business grounds are marked and left
  * for the user to discard; jobs that fail because we are still offline stay untouched.
  */
-export async function flush(): Promise<void> {
+export async function flush(ignoreBackoff = false): Promise<void> {
   if (flushing) return flushing;
   flushing = (async () => {
     await hydrate();
+    const now = Date.now();
     for (const job of [...cache]) {
-      if (job.error || !ownedByCurrent(job)) continue;
+      if (!ownedByCurrent(job)) continue;
+      // Checked before `job.error`, so a refused job's face frame does not outlive the
+      // window either just because nobody pressed discard.
+      if (expired(job, now)) {
+        await discard(job.id);
+        continue;
+      }
+      if (job.error) continue;
+      // Waiting out its backoff. Skipped rather than returned: a later job may be due.
+      if (!ignoreBackoff && job.nextAttemptAt && Date.parse(job.nextAttemptAt) > now) continue;
       try {
         await run(job, job.capturedAt);
         await discard(job.id);
       } catch (e) {
         // No network, or the session lapsed — keep the rest for the next attempt either way.
         if (isOffline(e) || isUnauthenticated(e)) return;
-        await put({ ...job, error: e instanceof Error ? e.message : 'Gagal mengirim' });
+        const message = e instanceof Error ? e.message : 'Gagal mengirim';
+        if (!isRetryable(e)) {
+          await put({ ...job, error: message });
+          continue;
+        }
+        const attempts = (job.attempts ?? 0) + 1;
+        await put(
+          attempts >= MAX_ATTEMPTS
+            ? // Out of attempts. Marked, because a job that keeps failing silently is a job
+              // nobody will ever be told about — which is the failure this file exists to
+              // prevent. The message is the last real one from the server.
+              { ...job, attempts, error: message }
+            : {
+                ...job,
+                attempts,
+                nextAttemptAt: new Date(now + backoffMs(attempts)).toISOString(),
+              },
+        );
       }
     }
   })().finally(() => {
     flushing = null;
   });
   return flushing;
+}
+
+/**
+ * Flush now, ignoring every backoff timer. For the "coba lagi" the operator presses when
+ * they know the gateway is back — waiting out a 15-minute window in front of someone who
+ * can see the queue is its own kind of broken.
+ */
+export function flushNow(): Promise<void> {
+  return flush(true);
 }
 
 if (typeof window !== 'undefined') {
