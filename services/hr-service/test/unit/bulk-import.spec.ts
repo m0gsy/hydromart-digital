@@ -194,7 +194,7 @@ describe('LoanService.importMany', () => {
 
   it('creates an active loan from the remaining balance', async () => {
     const repo = new FakeRepo();
-    const svc = new LoanService(repo, fakeEmployees());
+    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never);
 
     const summary = await svc.importMany(hr, [row]);
 
@@ -208,7 +208,7 @@ describe('LoanService.importMany', () => {
 
   it('fails a row with a malformed period instead of the whole file', async () => {
     const repo = new FakeRepo();
-    const svc = new LoanService(repo, fakeEmployees());
+    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never);
 
     const summary = await svc.importMany(hr, [{ ...row, startPeriod: 'Agustus' }, row]);
 

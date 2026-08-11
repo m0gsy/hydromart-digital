@@ -31,6 +31,7 @@ function assertDay(value: string): string {
 }
 
 function toDay(value: Date): string {
+  // tz-ok: @db.Date coming back out of the service — already a local calendar day.
   return value.toISOString().slice(0, 10);
 }
 

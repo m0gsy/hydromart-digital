@@ -165,6 +165,11 @@ jobs:
       - name: .env loader self-check
         run: bash scripts/load-env.test.sh
 
+      # C1b: the host crontab runs the backup, the restore drill and the watchdog. It
+      # followed the host's UTC clock, so "03:00 nightly backup" fired at 10:00 WIB.
+      - name: Host crontab block self-check
+        run: bash scripts/install-host-cron.test.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check
@@ -175,6 +180,15 @@ jobs:
       # scripts/create-indexes.sh, which is what production runs first (audit H-39).
       - name: Index build cannot lock production
         run: node scripts/check-index-concurrency.mjs
+
+      # C4: the two ways this repo kept cutting time in the wrong zone — a UTC period key
+      # from toISOString().slice, and a bare date_trunc in raw SQL. Both shipped more than
+      # once; a reasoned `// tz-ok:` is the only way past.
+      - name: Periods are cut in the business zone
+        run: node scripts/check-tz-usage.mjs
+
+      - name: Timezone guard self-check
+        run: bash scripts/check-tz-usage.test.sh
 
       # The OpenAPI document still does not describe most responses (audit D-6). This
       # does not fix that; it stops it growing — a new route with no declared response

@@ -1,4 +1,3 @@
-import { toUtcDay } from '../../src/domain/series';
 import {
   CustomerActivityRow,
   DemandRow,
@@ -45,10 +44,10 @@ export class FakeForecastRepository implements ForecastRepository {
     return this.ingestedOrderIds.has(orderId);
   }
 
-  async applyIngest(cmd: IngestCommand): Promise<void> {
+  async applyIngest(cmd: IngestCommand, dayNumber: number): Promise<void> {
     if (this.ingestedOrderIds.has(cmd.orderId)) return; // idempotent no-op
 
-    const day = toUtcDay(cmd.at);
+    const day = dayNumber;
     for (const item of cmd.items) {
       this.upsertRef(item);
       this.incrementCell(item.productId, cmd.depotId, day, item.quantity);

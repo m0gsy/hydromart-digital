@@ -32,6 +32,7 @@ function toDate(date: string): Date {
 }
 
 function toDayString(value: Date): string {
+  // tz-ok: the meter reading's `date` is @db.Date — the local day staff read it on.
   return value.toISOString().slice(0, 10);
 }
 

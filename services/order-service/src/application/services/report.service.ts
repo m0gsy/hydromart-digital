@@ -226,7 +226,7 @@ export class ReportService {
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
-    const buckets = await this.orders.salesSeries(granularity, range);
+    const buckets = await this.orders.salesSeries(granularity, range, this.config.businessTimeZone);
     return { granularity, ...ReportService.rangeView(range), buckets };
   }
 
@@ -293,7 +293,7 @@ export class ReportService {
   }
 
   async retentionCohort(range: ReportRange): Promise<RetentionCohortReport> {
-    const cells = await this.orders.retentionCohort(range);
+    const cells = await this.orders.retentionCohort(range, this.config.businessTimeZone);
     const byCohort = new Map<string, Map<number, number>>();
     for (const c of cells) {
       const m = byCohort.get(c.cohort) ?? new Map<number, number>();

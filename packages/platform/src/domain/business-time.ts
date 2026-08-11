@@ -71,6 +71,18 @@ export function localHour(at: Date, timeZone: string = BUSINESS_TIME_ZONE): numb
 }
 
 /**
+ * Minutes since local midnight, 0..1439 (C4).
+ *
+ * Attendance needs the wall-clock minute a punch happened at, not just the hour — lateness
+ * is measured in minutes. hr-service used to derive this from its own `Intl` block; one
+ * copy per service is how two of them drift apart.
+ */
+export function localMinutesOfDay(at: Date, timeZone: string = BUSINESS_TIME_ZONE): number {
+  const shifted = new Date(at.getTime() + zoneOffsetMs(at, timeZone));
+  return shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
+}
+
+/**
  * The UTC instant at which the local day `YYYY-MM-DD` begins.
  *
  * Two passes: guess the instant as if the key were UTC, read the zone's offset there,
@@ -103,6 +115,8 @@ export function localDayRange(
 export function addLocalDays(at: Date, n: number, timeZone: string = BUSINESS_TIME_ZONE): Date {
   const [y, m, d] = localDayKey(at, timeZone).split('-').map(Number);
   const shifted = new Date(Date.UTC(y, m - 1, d + n));
+  // tz-ok: `shifted` already carries the zone offset, so reading it as UTC IS reading it
+  // locally — this is the primitive the rest of the platform is told to use.
   return dayStartUtc(shifted.toISOString().slice(0, 10), timeZone);
 }
 
@@ -115,6 +129,8 @@ export function startOfLocalMonth(at: Date, timeZone: string = BUSINESS_TIME_ZON
 export function addLocalMonths(at: Date, n: number, timeZone: string = BUSINESS_TIME_ZONE): Date {
   const [y, m] = localMonthKey(at, timeZone).split('-').map(Number);
   const shifted = new Date(Date.UTC(y, m - 1 + n, 1));
+  // tz-ok: `shifted` already carries the zone offset, so reading it as UTC IS reading it
+  // locally — this is the primitive the rest of the platform is told to use.
   return dayStartUtc(shifted.toISOString().slice(0, 10), timeZone);
 }
 

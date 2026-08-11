@@ -779,12 +779,35 @@ describe('OrderPrismaRepository', () => {
     const daily = await repo.salesSeries('daily', {
       from: new Date('2026-01-01'),
       to: new Date('2026-02-01'),
-    });
+    }, 'Asia/Jakarta');
     expect(daily).toEqual([{ period: '2026-01-01', orderCount: 3, revenue: 300000 }]);
 
     $queryRaw.mockResolvedValue([{ period: '2026-01', orderCount: BigInt(3), revenue: null }]);
-    const monthly = await repo.salesSeries('monthly', {});
+    const monthly = await repo.salesSeries('monthly', {}, 'Asia/Jakarta');
     expect(monthly).toEqual([{ period: '2026-01', orderCount: 3, revenue: 0 }]);
+  });
+
+  // C2. The columns are naive timestamps holding UTC, so `date_trunc('day', "createdAt")`
+  // cuts the day at 07:00 WIB: every order between midnight and 7am was counted on the
+  // previous day, in the report the depot is judged on. Two hops — label it UTC, then read
+  // it in the business zone — is the same shape depotDailyGallons already uses.
+  const twoHop = (sql: { sql: string }) => sql.sql.replace(/\s+/g, ' ');
+  it('cuts the sales series on the LOCAL day, not on UTC', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.salesSeries('daily', {}, 'Asia/Jakarta');
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).toContain(`AT TIME ZONE 'UTC' AT TIME ZONE`);
+    expect(q.values).toContain('Asia/Jakarta');
+  });
+
+  it('cuts retention cohorts on the LOCAL month, not on UTC', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.retentionCohort({}, 'Asia/Jakarta');
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    // Both the cohort month and the activity month, or a customer's first order lands in
+    // one month and their first activity in another.
+    expect(twoHop(q).match(/AT TIME ZONE 'UTC' AT TIME ZONE/g)?.length).toBe(2);
+    expect(q.values).toContain('Asia/Jakarta');
   });
 
   // Depot SOP §1. The bonus is paid per attended day, and `Attendance.workDate` is a WIB
@@ -828,8 +851,8 @@ describe('OrderPrismaRepository', () => {
   // and still put its buyer in a retention cohort. The status list is bound as a
   // parameter, so asserting on the call's values is what proves the predicate.
   it.each([
-    ['salesSeries', (r: typeof repo) => r.salesSeries('daily', {})],
-    ['retentionCohort', (r: typeof repo) => r.retentionCohort({})],
+    ['salesSeries', (r: typeof repo) => r.salesSeries('daily', {}, 'Asia/Jakarta')],
+    ['retentionCohort', (r: typeof repo) => r.retentionCohort({}, 'Asia/Jakarta')],
     ['audienceReach', (r: typeof repo) => r.audienceReach()],
     ['segmentEstimate', (r: typeof repo) => r.segmentEstimate({})],
   ])('excludes both CANCELLED and VOIDED from %s', async (_name, run) => {
@@ -1021,7 +1044,7 @@ describe('OrderPrismaRepository', () => {
 
   it('maps retention cohort raw rows', async () => {
     $queryRaw.mockResolvedValue([{ cohort: '2026-01', monthIndex: 1, customers: BigInt(4) }]);
-    const out = await repo.retentionCohort({});
+    const out = await repo.retentionCohort({}, 'Asia/Jakarta');
     expect(out).toEqual([{ cohort: '2026-01', monthIndex: 1, customers: 4 }]);
   });
 

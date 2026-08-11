@@ -7,7 +7,13 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  assertDepotAccess,
+  depotScopeIds,
+  localDayKey,
+  localMinutesOfDay,
+} from '@hydromart/platform';
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -386,21 +392,19 @@ export class AttendanceService {
     return result.score;
   }
 
-  /** Local calendar date (as a UTC-midnight Date for @db.Date) + minutes-since-midnight in `tz`. */
+  /**
+   * Local calendar date (as a UTC-midnight Date for @db.Date) + minutes-since-midnight.
+   *
+   * C4: this used to carry its own `Intl` block — a second copy of the platform's day
+   * boundary living inside hr-service, next to a third one in analytics.service. Copies of
+   * a rule that decides which day a punch belongs to are how two screens end up disagreeing
+   * about the same morning.
+   */
   private localParts(now: Date, tz: string): { workDate: Date; minutesOfDay: number } {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(now);
-    const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '00';
-    const workDate = new Date(`${get('year')}-${get('month')}-${get('day')}T00:00:00.000Z`);
-    const minutesOfDay = Number(get('hour')) * 60 + Number(get('minute'));
-    return { workDate, minutesOfDay };
+    return {
+      workDate: new Date(`${localDayKey(now, tz)}T00:00:00.000Z`),
+      minutesOfDay: localMinutesOfDay(now, tz),
+    };
   }
 
   private parseHHMM(hhmm: string): number {

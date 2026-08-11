@@ -12,6 +12,7 @@ export const envValidationSchema = Joi.object({
   // order-service base URL; used later for the completed-orders rebuild feed.
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
+  PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   CHURN_WINDOW_DAYS: Joi.number().integer().default(45),

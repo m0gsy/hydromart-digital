@@ -1,4 +1,4 @@
-import { toUtcDay, addDays, denseDailySeries } from '../../src/domain/series';
+import { toBusinessDay, addDays, denseDailySeries } from '../../src/domain/series';
 import { movingAverage } from '../../src/domain/moving-average';
 import { linearTrend, projectAt } from '../../src/domain/trend';
 import { clampNonNeg, forecastDemand, forecastConfidence } from '../../src/domain/forecast';
@@ -9,11 +9,26 @@ const NOW = new Date('2026-07-11T00:00:00Z');
 const ago = (days: number): Date => new Date(NOW.getTime() - days * DAY);
 
 describe('series', () => {
-  it('toUtcDay/addDays are consistent epoch-day math', () => {
-    const d0 = toUtcDay(new Date('2026-07-11T00:00:00Z'));
-    const d1 = toUtcDay(new Date('2026-07-12T23:59:59Z'));
+  it('toBusinessDay/addDays are consistent day math', () => {
+    const d0 = toBusinessDay(new Date('2026-07-11T00:00:00Z'), 'Asia/Jakarta');
+    // 12 Jul 23:59 WIB — the last instant of the NEXT local day, not of the next UTC one.
+    const d1 = toBusinessDay(new Date('2026-07-12T16:59:59Z'), 'Asia/Jakarta');
     expect(d1 - d0).toBe(1);
     expect(addDays(d0, 3)).toBe(d0 + 3);
+  });
+
+  // C2: demand is bucketed per day and the forecast reads "today" the same way. On UTC an
+  // order placed at 01:00 WIB was filed against YESTERDAY's demand, and for the first seven
+  // hours of every day the forecast's own "today" was the day before — so the depot was
+  // restocked against a series shifted by one day.
+  it('files an order just after local midnight on the LOCAL day', () => {
+    const tz = 'Asia/Jakarta';
+    // 17:00Z on 11 Jul is 00:00 WIB on 12 Jul.
+    const lateNight = toBusinessDay(new Date('2026-07-11T17:00:00Z'), tz);
+    const nextMorning = toBusinessDay(new Date('2026-07-12T03:00:00Z'), tz);
+    expect(lateNight).toBe(nextMorning);
+    // …and one hour earlier is still the previous day.
+    expect(toBusinessDay(new Date('2026-07-11T16:59:59Z'), tz)).toBe(lateNight - 1);
   });
   it('fills gaps with 0 and preserves length + order', () => {
     const rows = [

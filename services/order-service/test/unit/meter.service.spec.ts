@@ -391,6 +391,31 @@ describe('MeterService reads', () => {
     expect(result.varianceIdr).toBeNull();
   });
 
+  // C2: a meter reading is taken by depot staff on a LOCAL day, so the sales it is compared
+  // against must be the same local day. Bucketing on UTC pushed every order between
+  // midnight and 07:00 WIB onto the day before — the meter says water left the tank today,
+  // the sales say it was sold yesterday, and the variance alert fires at both ends.
+  it('buckets sales by the LOCAL day the meter was read on', async () => {
+    const { service, repo, orders } = build({
+      orders: [
+        // 07:30 WIB on 2 Aug — 00:30 UTC, so UTC bucketing files it under 2 Aug anyway.
+        order({ createdAt: new Date('2026-08-01T23:00:00.000Z') }), // 06:00 WIB, 2 Aug
+        order({ createdAt: new Date('2026-08-02T03:00:00.000Z') }), // 10:00 WIB, 2 Aug
+      ],
+    });
+    repo.seed({ date: '2026-08-02', openingM3: 1000, closingM3: 1002.5 });
+    const rows = await service.history(DEPOT, '2026-08-02', '2026-08-02');
+    expect(rows).toHaveLength(1);
+    // Both sales belong to 2 August in WIB. On UTC the first one lands on 1 August and
+    // this row would only see one of them.
+    expect(rows[0].soldLiters).toBe(4860); // 2 orders × 2.430 L; on UTC only one is seen
+    // …and the window read from the database is the local day, not the UTC one.
+    expect(orders.ordersForDepot).toHaveBeenCalledWith(DEPOT, {
+      from: new Date('2026-08-01T17:00:00.000Z'),
+      to: new Date('2026-08-02T17:00:00.000Z'),
+    });
+  });
+
   it('returns one history row per recorded day, oldest first', async () => {
     const { service, repo, orders } = build({
       orders: [
@@ -406,17 +431,22 @@ describe('MeterService reads', () => {
     expect(rows[0].varianceLiters).toBe(70);
     // The whole window is read once and bucketed — not once per day on the chart (H-48).
     expect(orders.ordersForDepot).toHaveBeenCalledTimes(1);
+    // C2: the window is the LOCAL span of those two days — 01 Aug 00:00 WIB is
+    // 31 Jul 17:00 UTC — not the UTC span that used to be read.
     expect(orders.ordersForDepot).toHaveBeenCalledWith(DEPOT, {
-      from: new Date('2026-08-01T00:00:00.000Z'),
-      to: new Date('2026-08-03T00:00:00.000Z'),
+      from: new Date('2026-07-31T17:00:00.000Z'),
+      to: new Date('2026-08-02T17:00:00.000Z'),
     });
   });
 
   it('sums every order that falls on the same day into that day s row', async () => {
     const { service, repo } = build({
+      // Both in WIB on 1 August: 15:00 and 21:00. The second one used to be written as
+      // 17:30 UTC — which is 00:30 WIB on the SECOND of August, so under the local-day
+      // bucketing this test's own premise no longer held (C2).
       orders: [
         order({ createdAt: new Date('2026-08-01T08:00:00.000Z') }),
-        order({ createdAt: new Date('2026-08-01T17:30:00.000Z') }),
+        order({ createdAt: new Date('2026-08-01T14:00:00.000Z') }),
       ],
     });
     repo.seed({ date: '2026-08-01', openingM3: 1000, closingM3: 1002.5 });

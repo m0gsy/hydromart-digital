@@ -234,8 +234,13 @@ describe('VoucherPrismaRepository', () => {
     // H-16: the day labels must be cut in the business zone. On UTC every redemption
     // before 07:00 WIB lands on the previous bar — and the caller labels its buckets
     // with local day keys, so a UTC label matches none of them and the chart reads zero.
+    //
+    // C2: and it takes TWO hops. `createdAt` is a naive timestamp holding UTC, so a single
+    // `AT TIME ZONE 'Asia/Jakarta'` reads the stored value as though it were already local
+    // and converts it the WRONG WAY — a 7-hour error in the opposite direction from the
+    // one this assertion was written to catch. Label it UTC first, then read it locally.
     const dailySql = $queryRaw.mock.calls[0][0];
-    expect(dailySql.strings.join('')).toContain('AT TIME ZONE');
+    expect(dailySql.strings.join('')).toContain(`AT TIME ZONE 'UTC' AT TIME ZONE `);
     expect(dailySql.values).toContain('Asia/Jakarta');
   });
 

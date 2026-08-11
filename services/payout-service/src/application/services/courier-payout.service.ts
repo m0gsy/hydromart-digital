@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { localHour } from '@hydromart/platform';
+import { localHour, localMonthKey, startOfLocalMonth } from '@hydromart/platform';
 
 import { computeEarning, tiersReached, tiersValid } from '../../domain/courier-earning';
 import {
@@ -103,9 +103,14 @@ export class CourierPayoutService {
     deliveredAt: Date,
   ): Promise<void> {
     if (rule.tiers.length === 0) return;
-    const monthStart = startOfMonth(deliveredAt);
+    // C2: the incentive month is the COURIER's month, in the business zone. The old
+    // `startOfMonth` read the server's calendar — UTC on the box — so a delivery made at
+    // 02:00 WIB on the 1st counted against the previous month's tally, and the same rung
+    // could be paid twice or skipped entirely once the real month's deliveries arrived.
+    const tz = this.config.businessTimeZone;
+    const monthStart = startOfLocalMonth(deliveredAt, tz);
     const delivered = await this.ledger.countByType(event.courierId, 'EARNING', monthStart);
-    const month = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+    const month = localMonthKey(deliveredAt, tz);
     for (const tier of tiersReached(rule.tiers, delivered)) {
       const sourceRef = `incentive:${rule.id}:${event.courierId}:${month}:${tier.deliveries}`;
       if (await this.ledger.findBySourceRef(sourceRef)) continue;
@@ -156,7 +161,9 @@ export class CourierPayoutService {
   }
 
   async summary(courierId: string): Promise<CourierEarningsSummary> {
-    const monthStart = startOfMonth(new Date());
+    // Same boundary as the incentive tally above: "this month's earnings" on the courier's
+    // screen must mean the month they are living in, not the server's.
+    const monthStart = startOfLocalMonth(new Date(), this.config.businessTimeZone);
     const [availableBalance, monthEarnings, recent, recentWithdrawals] = await Promise.all([
       this.ledger.balanceFor(courierId),
       this.ledger.sumByType(courierId, 'EARNING', monthStart),
@@ -242,8 +249,4 @@ export class CourierPayoutService {
     if (!hoursValid) throw new InvalidEarningRuleError();
     return this.ledger.createRule(data);
   }
-}
-
-function startOfMonth(now: Date): Date {
-  return new Date(now.getFullYear(), now.getMonth(), 1);
 }
