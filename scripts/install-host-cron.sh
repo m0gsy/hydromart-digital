@@ -36,14 +36,14 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Nightly full-cluster dump + offsite copy. Reports OK/FAILED to admin-service (H-37).
-0 3 * * * cd $REPO && set -a && . ./.env && set +a && bash scripts/backup-db.sh >> /var/log/hydromart-backup.log 2>&1
+0 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-db.sh >> /var/log/hydromart-backup.log 2>&1
 
 # Weekly tested restore into a scratch container (H-36/Q-10). Non-destructive. Verifies
 # the newest dump against the LIVE cluster and alerts loudly when it does not match.
-30 4 * * 1 cd $REPO && set -a && . ./.env && set +a && bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
+30 4 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
 
 # Converge anything that stopped between deploys, and record why it stopped.
-*/5 * * * * cd $REPO && set -a && . ./.env && set +a && bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
+*/5 * * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
 $END
 EOF
 }
