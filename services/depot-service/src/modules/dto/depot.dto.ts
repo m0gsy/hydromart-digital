@@ -161,11 +161,17 @@ export class CreateDepotDto {
   // ponytail: JSON blobs validated shallowly (shape documented in schema.prisma); tighten to
   // nested DTOs if operators start submitting malformed hours/holidays.
   @ApiPropertyOptional({
-    description: 'Weekly hours, e.g. { "mon": { "open": "08:00", "close": "20:00" } }.',
+    description:
+      'Weekly hours, e.g. { "mon": { "open": "08:00", "close": "21:00", ' +
+      '"breakStart": "12:00", "breakEnd": "13:00" } }. The break is optional per day — ' +
+      'Friday simply carries an earlier breakStart, no special field.',
   })
   @IsOptional()
   @IsObject()
-  operatingHours?: Record<string, { open: string; close: string }>;
+  operatingHours?: Record<
+    string,
+    { open: string; close: string; breakStart?: string; breakEnd?: string }
+  >;
 
   @ApiPropertyOptional({ description: 'Closure dates, e.g. [{ "date": "2026-08-17" }].' })
   @IsOptional()
@@ -226,6 +232,22 @@ export class PublicDepotView {
       holidays: d.holidays,
       active: d.active,
     };
+  }
+}
+
+/**
+ * The public projection plus the distance annotation, for `GET /depots/nearby`.
+ *
+ * That route was returning the whole `DepotRecord` — every depot's bank name, account
+ * number and account holder, on an anonymous endpoint, which is the exact leak
+ * `PublicDepotView` was introduced to close on `browse` next door. Same fix, same shape.
+ */
+export class NearbyDepotView extends PublicDepotView {
+  @ApiProperty() distanceKm!: number;
+  @ApiProperty() withinService!: boolean;
+
+  static fromNearby(d: DepotRecord & { distanceKm: number; withinService: boolean }): NearbyDepotView {
+    return { ...PublicDepotView.from(d), distanceKm: d.distanceKm, withinService: d.withinService };
   }
 }
 

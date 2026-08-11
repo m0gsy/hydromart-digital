@@ -165,6 +165,9 @@ export interface NearbyDepot {
   distanceKm: number;
   /** True when distanceKm <= serviceRadiusKm (depot delivers to the point). */
   withinService: boolean;
+  /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
+  operatingHours?: Record<string, DepotHours>;
+  holidays?: DepotHoliday[];
 }
 
 export interface Page<T> {
@@ -859,6 +862,9 @@ export interface Depot {
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
+  operatingHours?: Record<string, DepotHours>;
+  holidays?: DepotHoliday[];
 }
 
 // ---- Payout / komisi (payout-service, "Keuangan · usulan") ----
@@ -988,6 +994,9 @@ export interface OwnerPayoutBalance {
 export interface DepotHours {
   open: string;
   close: string;
+  /** Optional midday closure. Both must be set for the break to count. */
+  breakStart?: string;
+  breakEnd?: string;
 }
 export interface DepotHoliday {
   date: string;

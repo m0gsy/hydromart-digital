@@ -28,7 +28,7 @@ import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, R
 import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
-import { DepotService, NearbyDepot } from '../application/services/depot.service';
+import { DepotService } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
 import {
@@ -36,6 +36,7 @@ import {
   CreateDepotDto,
   DepotPaymentInfoView,
   NearbyDepotsQueryDto,
+  NearbyDepotView,
   PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
@@ -76,8 +77,9 @@ export class DepotController {
   @Public()
   @Get('nearby')
   @ApiOperation({ summary: 'Find active depots near a coordinate (nearest first)' })
-  nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepot[]> {
-    return this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
+  async nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepotView[]> {
+    const found = await this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
+    return found.map(NearbyDepotView.fromNearby);
   }
 
   // Service-to-service: forecast-service resolves which depots a franchise owner owns so it

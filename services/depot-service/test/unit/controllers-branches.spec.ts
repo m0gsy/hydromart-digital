@@ -790,11 +790,15 @@ describe('DepotController', () => {
       limit: 20,
     });
     svc.get.mockResolvedValue({ id: DEPOT, name: 'D', paymentBankAccountNumber: '123' });
+    // nearby maps through NearbyDepotView for the same reason browse/get do.
+    svc.findNearby.mockResolvedValue([
+      { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', distanceKm: 1.2, withinService: true },
+    ]);
   });
 
   // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
   // depot's bank account to anonymous callers.
-  it('keeps bank details and ownership out of the public browse/detail payloads', async () => {
+  it('keeps bank details and ownership out of the public browse/detail/nearby payloads', async () => {
     const leaks = [
       'paymentBankName',
       'paymentBankAccountNumber',
@@ -805,11 +809,19 @@ describe('DepotController', () => {
     ];
     const page = await c.browse({ page: 1 } as never);
     const one = await c.get(DEPOT);
+    // `nearby` is anonymous too and was still returning the whole DepotRecord — the same
+    // leak this test was written to close, one route over.
+    const near = await c.nearby({ lat: 1, lng: 2 } as never);
     for (const key of leaks) {
       expect(page.items[0]).not.toHaveProperty(key);
       expect(one).not.toHaveProperty(key);
+      expect(near[0]).not.toHaveProperty(key);
     }
     expect(one).toHaveProperty('name');
+    // …while still carrying what the "buka/tutup" badge and the distance chip need.
+    expect(near[0]).toMatchObject({ name: 'D', distanceKm: 1.2, withinService: true });
+    expect(near[0]).toHaveProperty('operatingHours');
+    expect(near[0]).toHaveProperty('holidays');
   });
 
   it('serves the payment destination only on the dedicated authenticated route', async () => {

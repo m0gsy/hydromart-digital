@@ -1764,13 +1764,78 @@ describe('OrderService', () => {
       ).rejects.toThrow(ExpressUnavailableError);
     });
 
-    it('reports what the screen may offer, from the same place checkout prices it', () => {
-      expect(service.deliveryOptions(null)).toEqual({
+    it('reports what the screen may offer, from the same place checkout prices it', async () => {
+      await expect(service.deliveryOptions(null)).resolves.toEqual({
         slots: ['09.00-11.00', '11.00-13.00'],
         expressEnabled: true,
         expressFee: 5000,
         expressEtaMinMinutes: 30,
         expressEtaMaxMinutes: 60,
+      });
+    });
+
+    // Depot SOP §6: nobody is at the counter during the midday break, so the immediate
+    // upgrade is off — while the scheduled slots stay, because tomorrow morning is fine.
+    describe('while the depot is on its break or shut', () => {
+      const shutDepot = {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 0,
+        minOrderAmount: null,
+        operatingHours: {
+          mon: { open: '08:00', close: '21:00', breakStart: '12:00', breakEnd: '13:00' },
+        },
+        holidays: [],
+      };
+      const routed = { ...address, latitude: -6.91, longitude: 107.61 };
+      // Monday 2026-08-10, 12.30 WIB — inside the break.
+      const onBreak = new Date('2026-08-10T05:30:00.000Z');
+
+      beforeEach(() => {
+        depots.depots = [shutDepot];
+        jest.useFakeTimers({ now: onBreak, doNotFake: ['nextTick', 'setImmediate'] });
+      });
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('withdraws express from the screen', async () => {
+        const options = await service.deliveryOptions('depot-near');
+        expect(options.expressEnabled).toBe(false);
+        expect(options.slots).toHaveLength(2); // scheduled delivery is unaffected
+      });
+
+      it('refuses an express order rather than billing for it', async () => {
+        await addToCart(20000, 1);
+        await expect(
+          service.checkout(customer, { deliveryAddress: routed, express: true }),
+        ).rejects.toThrow(ExpressUnavailableError);
+      });
+
+      it('still accepts a scheduled order', async () => {
+        await addToCart(20000, 1);
+        const order = await service.checkout(customer, {
+          deliveryAddress: routed,
+          deliveryWindow: '09.00-11.00',
+        });
+        expect(order.deliveryWindow).toBe('09.00-11.00');
+      });
+
+      it('leaves express alone once the break is over', async () => {
+        jest.setSystemTime(new Date('2026-08-10T06:30:00.000Z')); // 13.30 WIB
+        await expect(service.deliveryOptions('depot-near')).resolves.toMatchObject({
+          expressEnabled: true,
+        });
+      });
+
+      // A directory blip must not quietly withdraw a paid upgrade the depot opted into.
+      it('keeps express when the depot directory cannot answer', async () => {
+        depots.unreachable = true;
+        await expect(service.deliveryOptions('depot-near')).resolves.toMatchObject({
+          expressEnabled: true,
+        });
       });
     });
   });

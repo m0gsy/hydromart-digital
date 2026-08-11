@@ -1,3 +1,5 @@
+import { Holiday, OperatingHours } from '../../domain/opening-hours';
+
 /** The subset of a depot the order-service needs to route + price an order at checkout. */
 export interface DepotLocation {
   id: string;
@@ -8,6 +10,16 @@ export interface DepotLocation {
   deliveryFee: number;
   /** Minimum order subtotal (IDR) the depot accepts, or null for no minimum. */
   minOrderAmount: number | null;
+  // The three below are what the public projection carries beyond routing and pricing.
+  // Optional because a depot legitimately has none of them: nobody has filled the
+  // opening-hours form in yet. Absent reads as "always open", never as "shut" — see
+  // isOpenAt — so a depot that has not configured hours keeps behaving as it always did.
+  /** Depot's own name, for the messages a broadcast or a courier reads. */
+  name?: string;
+  /** Weekly hours incl. the optional midday break. */
+  operatingHours?: OperatingHours;
+  /** Dated full-day closures. */
+  holidays?: Holiday[];
 }
 
 /**

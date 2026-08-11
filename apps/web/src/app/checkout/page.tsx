@@ -30,6 +30,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { resolveDeliveryDepot } from '@/lib/depots';
+import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
@@ -222,6 +223,11 @@ function CheckoutInner() {
     [depot?.id],
   );
   const delivery = options ?? NO_OPTIONS;
+
+  // Buka / istirahat / tutup for the fulfilling depot, from the hours the public depot
+  // projection already carries. Only explains the missing express option — the server is
+  // the one that actually withdraws it.
+  const depotState = depotOpenState(depot?.operatingHours, depot?.holidays);
 
   // A depot that stops offering express while this screen is open must not leave a
   // selection that checkout would now reject.
@@ -620,6 +626,16 @@ function CheckoutInner() {
 
     {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
     <div className="flex flex-col gap-3">
+
+      {/* Why "antar sekarang" is missing. The server already withdrew it (deliveryOptions
+          applies the same test), so without a line here the option just silently vanishes. */}
+      {depotState !== 'buka' && (
+        <p className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-[13px] text-muted">
+          {depotState === 'istirahat'
+            ? 'Depot sedang istirahat — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'
+            : 'Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'}
+        </p>
+      )}
 
       {/* Express-now — only where the depot actually offers it */}
       {delivery.expressEnabled && (

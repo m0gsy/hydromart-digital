@@ -43,6 +43,7 @@ import {
 } from '../../domain/order-status';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
+import { isOpenAt } from '../../domain/opening-hours';
 import { applyAdjustment, galonQuantity, percentDiscount } from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
@@ -248,15 +249,35 @@ export class OrderService {
    * No depot yet (the address has not been chosen) resolves the global values, which is
    * also what an order routed to no depot would be priced at.
    */
-  deliveryOptions(depotId: string | null): DeliveryOptions {
+  async deliveryOptions(depotId: string | null): Promise<DeliveryOptions> {
     const express = this.config.express(depotId);
     return {
       slots: this.config.deliverySlots(depotId),
-      expressEnabled: express.enabled,
+      // Depot SOP: nobody is at the counter while it is shut or on its lunch break, so
+      // "antar sekarang" is not on offer then. Scheduled slots stay — a customer may order
+      // at 22:00 for tomorrow morning. Checkout applies the SAME test before charging, so
+      // the screen and the bill cannot disagree about what was available.
+      expressEnabled: express.enabled && (await this.depotIsOpen(depotId)),
       expressFee: express.fee,
       expressEtaMinMinutes: express.etaMinMinutes,
       expressEtaMaxMinutes: express.etaMaxMinutes,
     };
+  }
+
+  /**
+   * Is this depot serving right now? Unknown depot, no depot, or an unreachable directory
+   * all answer TRUE: express is a paid upgrade the depot opted into, and a directory blip
+   * must not quietly withdraw it. Only a depot that says it is shut is treated as shut.
+   */
+  private async depotIsOpen(depotId: string | null, depot?: DepotLocation): Promise<boolean> {
+    if (!depotId) return true;
+    let found = depot;
+    if (!found) {
+      const depots = await this.depotDirectory.listActiveDepots();
+      found = depots?.find((d) => d.id === depotId);
+    }
+    if (!found) return true;
+    return isOpenAt(found.operatingHours, found.holidays, new Date(), this.config.businessTimeZone);
   }
 
   /**
@@ -317,7 +338,12 @@ export class OrderService {
     // order to scheduled: the customer asked for a delivery in the next hour, and silently
     // selling them a different thing is the worse failure.
     const express = this.config.express(depot.id);
-    if (input.express && !express.enabled) throw new ExpressUnavailableError();
+    // The same closed/break test the screen ran in `deliveryOptions`, applied to the depot
+    // already resolved above — so an express order placed while the counter is shut is
+    // refused rather than billed for a delivery nobody can make.
+    const expressAvailable =
+      express.enabled && (await this.depotIsOpen(depot.id, depot));
+    if (input.express && !expressAvailable) throw new ExpressUnavailableError();
     const expressFee = input.express ? money(express.fee) : 0;
 
     // Reseller pricing (reseller-only): an active reseller priced either by percent or by

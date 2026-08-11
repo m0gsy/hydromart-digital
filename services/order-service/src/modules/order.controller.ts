@@ -118,7 +118,7 @@ export class OrderController {
     description:
       'What the checkout screen may offer. The express surcharge here is the one the order will be charged — the screen never carries its own price.',
   })
-  deliveryOptions(@Query('depotId') depotId?: string): DeliveryOptionsResponseDto {
+  deliveryOptions(@Query('depotId') depotId?: string): Promise<DeliveryOptionsResponseDto> {
     return this.orders.deliveryOptions(depotId ?? null);
   }
 

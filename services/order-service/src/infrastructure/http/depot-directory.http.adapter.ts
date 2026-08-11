@@ -6,6 +6,7 @@ import {
   DepotLocation,
   DepotOwnership,
 } from '../../application/ports/depot-directory.port';
+import { Holiday, OperatingHours } from '../../domain/opening-hours';
 
 interface DepotResponse {
   id: string;
@@ -14,6 +15,9 @@ interface DepotResponse {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount?: number | null;
+  name?: string;
+  operatingHours?: unknown;
+  holidays?: unknown;
 }
 interface DepotPage {
   items: DepotResponse[];
@@ -52,6 +56,15 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         serviceRadiusKm: d.serviceRadiusKm,
         deliveryFee: d.deliveryFee,
         minOrderAmount: d.minOrderAmount ?? null,
+        name: d.name ?? '',
+        // The public projection already sends both; they are `unknown` there because the
+        // column is a JSON blob. Anything that is not the expected shape reads as "not
+        // configured", which `isOpenAt` treats as always open — never as silently closed.
+        operatingHours:
+          d.operatingHours && typeof d.operatingHours === 'object' && !Array.isArray(d.operatingHours)
+            ? (d.operatingHours as OperatingHours)
+            : {},
+        holidays: Array.isArray(d.holidays) ? (d.holidays as Holiday[]) : [],
       }));
     } catch (error) {
       this.logger.warn(
