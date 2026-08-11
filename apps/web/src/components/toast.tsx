@@ -8,14 +8,24 @@ import { CheckCircle, Info, WarningCircle } from '@phosphor-icons/react';
 // No portal/deps — a fixed container in the provider is enough.
 
 type ToastTone = 'success' | 'error' | 'info';
+
+/**
+ * Optional: makes the pill tappable. Added for the foreground push (E4), which announced
+ * "your order is on its way" and then had nowhere to go — the destination was in the
+ * payload the whole time. Optional because a toast that looks pressable and does nothing
+ * is worse than one that plainly does not, so only callers with a real destination pass it.
+ */
+type ToastAction = () => void;
+
 interface ToastItem {
   id: number;
   message: string;
   tone: ToastTone;
+  onPress?: ToastAction;
 }
 
 interface ToastValue {
-  toast: (message: string, tone?: ToastTone) => void;
+  toast: (message: string, tone?: ToastTone, onPress?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastValue | null>(null);
@@ -36,9 +46,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
 
-  const toast = useCallback((message: string, tone: ToastTone = 'success') => {
+  const toast = useCallback((message: string, tone: ToastTone = 'success', onPress?: ToastAction) => {
     const id = nextId.current++;
-    setItems((prev) => [...prev, { id, message, tone }]);
+    setItems((prev) => [...prev, { id, message, tone, onPress }]);
     setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 3200);
   }, []);
 
@@ -52,6 +62,30 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       >
         {items.map((t) => {
           const Icon = TONE_ICON[t.tone];
+          const body = (
+            <>
+              <Icon size={18} weight="fill" className={TONE_STYLE[t.tone]} />
+              {t.message}
+            </>
+          );
+          const shell =
+            'pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-[color:var(--text)] px-5 py-3 text-left text-sm font-semibold text-[color:var(--surface)] shadow-lift';
+          if (t.onPress) {
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setItems((prev) => prev.filter((i) => i.id !== t.id));
+                  t.onPress?.();
+                }}
+                className={shell}
+                style={{ animation: 'fadeUp 0.25s var(--ease-out) both' }}
+              >
+                {body}
+              </button>
+            );
+          }
           return (
             <div
               key={t.id}

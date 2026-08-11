@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
@@ -55,10 +55,23 @@ function chromeMajor(): number | null {
 
 export function NativeBridge() {
   const [block, setBlock] = useState<Block | null>(null);
+  // Read by the back handler, which is registered once and must never see a stale copy of
+  // this. A ref rather than the state value for exactly that reason.
+  const blockedRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
     if (!isNativeShell()) return;
+
+    // E2. Registered before every early return below, and before the version guard in
+    // particular. It used to sit ~30 lines further down, so the blocking screen — the one
+    // screen with no history and no other way out — was the one screen with no back
+    // handler. Without a JS listener the App plugin navigates history if it can and
+    // otherwise swallows the press: it never calls `finish()`, so the button is inert and
+    // the app cannot be closed with it.
+    const offBack = onPluginEvent('App', 'backButton', (event: { canGoBack?: boolean }) =>
+      handleBack(event, blockedRef.current),
+    );
 
     // Hidden before anything that can return early. `launchAutoHide` is off, so the splash
     // stays up until this runs — and the branch below deliberately returns without doing
@@ -70,13 +83,17 @@ export function NativeBridge() {
     // A missing Chrome token means this is not the WebView we know how to judge; do not
     // lock a user out on a guess.
     if (major !== null && major < MIN_CHROME) {
+      blockedRef.current = true;
       setBlock(WEBVIEW_BLOCK);
       // No point asking the server anything: this screen is already the final answer.
-      return;
+      return offBack;
     }
 
     void minimumVersionBlock().then((found) => {
-      if (found) setBlock(found);
+      if (found) {
+        blockedRef.current = true;
+        setBlock(found);
+      }
     });
 
     const open = (raw: string | undefined) => {
@@ -98,8 +115,6 @@ export function NativeBridge() {
       (event: { notification?: { data?: { url?: string } } }) =>
         open(event?.notification?.data?.url),
     );
-    const offBack = onPluginEvent('App', 'backButton', handleBack);
-
     // A link that started the app from cold may have been delivered before this listener
     // existed, so the launch URL is asked for as well. `launchHandled` because
     // `getLaunchUrl()` keeps answering with it for the whole process lifetime — without
@@ -176,7 +191,14 @@ async function minimumVersionBlock(): Promise<Block | null> {
  * neither navigating nor leaving, however many times it is pressed. The length is kept
  * only as the answer for a payload that did not arrive.
  */
-function handleBack(event?: { canGoBack?: boolean }): void {
+function handleBack(event?: { canGoBack?: boolean }, blocked = false): void {
+  // The blocking screen is terminal: there is nothing behind it this build is willing to
+  // render, so "back" can only mean leave. `canGoBack` is deliberately ignored here —
+  // going back to a page drawn by a WebView we just refused is not an exit.
+  if (blocked) {
+    callPlugin('App', 'exitApp');
+    return;
+  }
   if (document.querySelector('[aria-modal="true"]')) {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return;

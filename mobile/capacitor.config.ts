@@ -54,8 +54,9 @@ const config: CapacitorConfig = {
        */
       launchAutoHide: false,
       backgroundColor: '#0b4d57',
-      androidSpinnerStyle: 'small',
-      spinnerColor: '#8fe3ee',
+      // No `androidSpinnerStyle`/`spinnerColor` here: both are only read when `showSpinner`
+      // is true, which it never was. They read as an intention that never happened, and
+      // the next person to touch this would have debugged a spinner that was never on.
     },
   },
   android: {

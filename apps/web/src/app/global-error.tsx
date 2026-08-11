@@ -1,5 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
+
+import { callPlugin } from '@/lib/capacitor';
+
 // Catches failures in the ROOT layout itself, where the normal error boundary and
 // Tailwind/layout chrome may be unavailable — so it renders its own <html>/<body>
 // with inline styles. Keep it dependency-free.
@@ -10,6 +14,17 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // E1. On native the splash is dismissed by JS and by nothing else
+  // (`launchAutoHide: false`), and its only caller lives inside the root layout — the
+  // very thing that just failed. Rendering this screen therefore has to hide the splash
+  // itself, or the app the user is looking at is a splash with no way out and no message.
+  // `callPlugin` is a runtime bridge lookup with no `@capacitor/*` import and it never
+  // throws, so this stays as dependency-free as the comment above asks for, and is a
+  // no-op on the web.
+  useEffect(() => {
+    callPlugin('SplashScreen', 'hide', { fadeOutDuration: 200 });
+  }, []);
+
   return (
     <html lang="id">
       <body

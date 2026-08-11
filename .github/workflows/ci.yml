@@ -175,6 +175,12 @@ jobs:
       - name: .env doctor self-check
         run: bash scripts/env-doctor.test.sh
 
+      # The gate that decides whether a tag becomes a signed, publishable AAB. It is the
+      # only thing standing between `git tag mobile-v9 && git push --tags` on a scratch
+      # branch and the Play Store, so its refusals are pinned rather than assumed.
+      - name: mobile release gate self-check
+        run: bash scripts/mobile-release-gate.test.sh
+
       # A new CREATE INDEX in a migration locks writes on that table for the whole build.
       # This fails the PR unless the index also has a CONCURRENTLY build in
       # scripts/create-indexes.sh, which is what production runs first (audit H-39).

@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react';
 import { ArrowsClockwise, CloudSlash, Trash } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
-import { discard, flush, hydrate, pending, subscribe, type QueuedJob } from '@/lib/offline-queue';
+import {
+  discard,
+  flush,
+  flushNow,
+  hydrate,
+  pending,
+  subscribe,
+  type QueuedJob,
+} from '@/lib/offline-queue';
 
 const LABELS: Record<QueuedJob['kind'], string> = {
   hrPunch: 'Absen wajah',
@@ -31,7 +39,10 @@ export function OfflineQueueBanner() {
   const sendNow = async () => {
     setBusy(true);
     try {
-      await flush();
+      // `flushNow`, not `flush`: this is somebody pressing a button because they know the
+      // gateway is back. Making them wait out a backoff window they cannot see is its own
+      // kind of broken. The automatic flush on mount above still respects it.
+      await flushNow();
     } finally {
       setBusy(false);
     }

@@ -8,6 +8,7 @@ import { PushForeground } from '@/components/push-foreground';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
+import { SPLASH_NET_SCRIPT } from '@/lib/splash-net';
 import { ThemeProvider } from '@/lib/theme-context';
 
 const jakarta = Plus_Jakarta_Sans({
@@ -49,6 +50,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `try{var t=localStorage.getItem('hydromart.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}`,
           }}
         />
+        {/* E1. The splash is dismissed by JS and by nothing else. If React never boots —
+            a 404'd chunk, syntax an old WebView rejects — no component can hide it,
+            including NativeBridge. This is markup, so it runs anyway. See lib/splash-net. */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_NET_SCRIPT }} />
       </head>
       <body className="min-h-[100dvh] overflow-x-hidden">
         {/* Outside the providers: its WebView-too-old screen has to render even if

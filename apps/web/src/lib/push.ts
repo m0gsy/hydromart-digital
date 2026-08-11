@@ -3,6 +3,7 @@
 // no-ops / return 'unsupported' when the browser lacks push or no VAPID key is set.
 import { api } from './api';
 import { askPlugin, onPluginEvent } from './capacitor';
+import { vaultClear, vaultRead, vaultWrite } from './secure-vault';
 import { endpoints } from './endpoints';
 import { isNativeShell } from './platform';
 
@@ -20,6 +21,99 @@ export type PushState = 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed'
  * a browser endpoint uses; the composite sender in crm-service routes on that prefix.
  */
 const FCM_ENDPOINT_KEY = 'hm.fcm-endpoint';
+
+/**
+ * E4. Where the registered endpoint is remembered.
+ *
+ * Not `localStorage`: `token-store.ts:203-206` already argues at length that Android
+ * evicts WebView localStorage on its own schedule, and this file used to infer the whole
+ * subscription state from a key living there. An eviction therefore read as "never
+ * subscribed" while the server still held a live endpoint. The Keystore is the same store
+ * the session already trusts, and `SecureStorage` raises no biometric prompt.
+ *
+ * The old localStorage key is still read once, so an install that upgrades into this build
+ * does not re-POST an endpoint the server already has.
+ */
+async function readEndpoint(): Promise<string | null> {
+  const res = await vaultRead(FCM_ENDPOINT_KEY);
+  if (res.ok && res.data) return res.data;
+  // A failed read is NOT an absence (an invalidated Keystore key reads as a failure), but
+  // for this value the safe answer to both is the same: re-register. The cost is one POST.
+  try {
+    return window.localStorage.getItem(FCM_ENDPOINT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function writeEndpoint(endpoint: string): Promise<void> {
+  await vaultWrite(endpoint, FCM_ENDPOINT_KEY);
+  // Both, deliberately. The Keystore is the durable copy — it is what survives the
+  // localStorage eviction this used to lose the subscription to. But `vaultWrite` cannot
+  // report a missing plugin, so a build or device without SecureStorage would silently
+  // remember nothing at all and report 'unsubscribed' forever. Writing the old key as well
+  // costs nothing and keeps the previous behaviour as the floor rather than the ceiling.
+  try {
+    window.localStorage.setItem(FCM_ENDPOINT_KEY, endpoint);
+  } catch {
+    /* the vault is the copy that matters */
+  }
+}
+
+async function clearEndpoint(): Promise<void> {
+  await vaultClear(FCM_ENDPOINT_KEY);
+  try {
+    window.localStorage.removeItem(FCM_ENDPOINT_KEY);
+  } catch {
+    /* nothing to clean up */
+  }
+}
+
+/** The endpoint this device is registered under, or null. Exported for tests. */
+export async function nativeEndpoint(): Promise<string | null> {
+  return readEndpoint();
+}
+
+/** Tokens whose POST is in flight, so the permanent listener and `nativeSubscribe` — both
+ *  of which see the same `registration` event — do not each send one. */
+const inFlight = new Set<string>();
+
+async function syncToken(token: string): Promise<void> {
+  const endpoint = `fcm:${token}`;
+  if (inFlight.has(endpoint)) return;
+  if ((await readEndpoint()) === endpoint) return;
+  inFlight.add(endpoint);
+  try {
+    await api.post(endpoints.push.subscribe, { endpoint }, true);
+    await writeEndpoint(endpoint);
+  } catch {
+    // Deliberately keeps the PREVIOUS endpoint. Storing the new one before the server
+    // has it would make the next event dedupe against a registration that never happened,
+    // and the retry would never come.
+  } finally {
+    inFlight.delete(endpoint);
+  }
+}
+
+/**
+ * E4. One `registration` listener that outlives the handshake.
+ *
+ * `fcmToken()` below removes its own listener as soon as the first token lands, which is
+ * right for a one-shot handshake and wrong for the rest of the app's life: FCM rotates the
+ * registration token (app restore, cleared data, a Play Services refresh) and emits
+ * `registration` again. With nobody subscribed, the app kept a `fcm:<token>` the server
+ * could no longer deliver to — and every signal still said push was fine, so there was no
+ * path back for the user or for us.
+ *
+ * Listening costs nothing and needs no permission; it simply never fires until FCM has
+ * something to say.
+ */
+export function startPushTokenSync(): () => void {
+  if (!isNativeShell()) return () => {};
+  return onPluginEvent('PushNotifications', 'registration', (t: { value?: string }) => {
+    if (t?.value) void syncToken(t.value);
+  });
+}
 
 export function pushSupported(): boolean {
   if (typeof window === 'undefined') return false;
@@ -71,7 +165,7 @@ async function nativePushState(): Promise<PushState> {
   const status = await askPlugin<{ receive?: string }>('PushNotifications', 'checkPermissions');
   if (status?.receive === 'denied') return 'denied';
   if (status?.receive !== 'granted') return 'unsubscribed';
-  return window.localStorage.getItem(FCM_ENDPOINT_KEY) ? 'subscribed' : 'unsubscribed';
+  return (await readEndpoint()) ? 'subscribed' : 'unsubscribed';
 }
 
 /**
@@ -108,15 +202,15 @@ async function nativeSubscribe(): Promise<PushState> {
 
   const endpoint = `fcm:${token}`;
   await api.post(endpoints.push.subscribe, { endpoint }, true);
-  window.localStorage.setItem(FCM_ENDPOINT_KEY, endpoint);
+  await writeEndpoint(endpoint);
   return 'subscribed';
 }
 
 async function nativeUnsubscribe(): Promise<PushState> {
-  const endpoint = window.localStorage.getItem(FCM_ENDPOINT_KEY);
+  const endpoint = await readEndpoint();
   if (endpoint) {
     await api.del(`${endpoints.push.unsubscribe}?endpoint=${encodeURIComponent(endpoint)}`, true);
-    window.localStorage.removeItem(FCM_ENDPOINT_KEY);
+    await clearEndpoint();
   }
   return 'unsubscribed';
 }
