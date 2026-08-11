@@ -46,6 +46,7 @@ export class HolidayPrismaRepository implements HolidayRepository {
       where: { date: { gte: from, lte: to }, OR: [{ depotId: null }, { depotId }] },
       select: { date: true },
     });
+    // tz-ok: holiday `date` is @db.Date — a calendar day, not an instant.
     return rows.map((r) => r.date.toISOString().slice(0, 10));
   }
 }

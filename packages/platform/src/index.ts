@@ -16,6 +16,7 @@ export {
   localDayKey,
   localDayRange,
   localHour,
+  localMinutesOfDay,
   localMonthKey,
   localMonthRange,
   startOfLocalDay,

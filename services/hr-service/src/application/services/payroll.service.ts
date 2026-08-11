@@ -529,6 +529,7 @@ export class PayrollService {
 
     const breakdown = splitOvertime(
       days.map((d) => ({
+        // tz-ok: workDate is @db.Date — the attendance day, already local.
         workDate: d.workDate.toISOString().slice(0, 10),
         workingMinutes: d.workingMinutes,
       })),
@@ -606,6 +607,8 @@ export class PayrollService {
  * slice IS the local date — `toLocaleDateString` would shift it back a day in WIB.
  */
 function dayKey(d: Date): string {
+  // tz-ok: @db.Date values are stored UTC-midnight, so the UTC slice IS the local day —
+  // `toLocaleDateString` would shift it BACK a day in WIB.
   return d.toISOString().slice(0, 10);
 }
 

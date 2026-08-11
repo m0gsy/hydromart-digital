@@ -41,6 +41,7 @@ export interface SubmitLeaveInput {
   attachmentUrl?: string;
 }
 
+// tz-ok: leave startDate/endDate are @db.Date — whole local days, stored UTC-midnight.
 const ISO_DAY = (d: Date | string): string =>
   (typeof d === 'string' ? new Date(d) : d).toISOString().slice(0, 10);
 

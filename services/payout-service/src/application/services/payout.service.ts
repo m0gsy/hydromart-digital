@@ -287,6 +287,8 @@ function nextPayoutDate(now: Date, timeZone: string): Date {
   const [y, m, d] = localDayKey(now, timeZone).split('-').map(Number);
   const month = d < 15 ? m : m + 1;
   const rolled = new Date(Date.UTC(y, month - 1, 15));
+  // tz-ok: `rolled` was BUILT from the local y/m/d above via Date.UTC, so the slice reads
+  // back the local date it was made from; dayStartUtc then turns it into the WIB instant.
   return dayStartUtc(rolled.toISOString().slice(0, 10), timeZone);
 }
 

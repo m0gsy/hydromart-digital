@@ -181,6 +181,15 @@ jobs:
       - name: Index build cannot lock production
         run: node scripts/check-index-concurrency.mjs
 
+      # C4: the two ways this repo kept cutting time in the wrong zone — a UTC period key
+      # from toISOString().slice, and a bare date_trunc in raw SQL. Both shipped more than
+      # once; a reasoned `// tz-ok:` is the only way past.
+      - name: Periods are cut in the business zone
+        run: node scripts/check-tz-usage.mjs
+
+      - name: Timezone guard self-check
+        run: bash scripts/check-tz-usage.test.sh
+
       # The OpenAPI document still does not describe most responses (audit D-6). This
       # does not fix that; it stops it growing — a new route with no declared response
       # fails here until it has one.

@@ -6,6 +6,7 @@ import {
   localDayKey,
   localDayRange,
   localHour,
+  localMinutesOfDay,
   localMonthKey,
   localMonthRange,
   startOfLocalDay,
@@ -79,6 +80,45 @@ describe('business-time', () => {
     expect(startOfLocalDay(new Date('2026-03-08T18:00:00Z'), 'America/New_York').toISOString()).toBe(
       '2026-03-08T05:00:00.000Z',
     );
+  });
+});
+
+// C4: every period function must give the SAME answer whatever the machine's clock is set
+// to. Two of these were caught green on a WIB laptop and red on a UTC runner — the gap this
+// suite exists to close. `process.env.TZ` is read by V8 the first time a Date is formatted,
+// so this reaches under the helpers rather than trusting them.
+describe('period functions are independent of the machine clock', () => {
+  const AT = new Date('2026-07-31T18:30:00.000Z'); // 01:30 WIB on 1 August
+
+  const answers = () => ({
+    day: localDayKey(AT, 'Asia/Jakarta'),
+    month: localMonthKey(AT, 'Asia/Jakarta'),
+    hour: localHour(AT, 'Asia/Jakarta'),
+    minutes: localMinutesOfDay(AT, 'Asia/Jakarta'),
+    dayStart: startOfLocalDay(AT, 'Asia/Jakarta').toISOString(),
+    monthStart: startOfLocalMonth(AT, 'Asia/Jakarta').toISOString(),
+    offset: zoneOffsetMs(AT, 'Asia/Jakarta'),
+  });
+
+  it('gives identical answers under TZ=UTC and TZ=Pacific/Auckland', () => {
+    const original = process.env.TZ;
+    try {
+      process.env.TZ = 'UTC';
+      const utc = answers();
+      process.env.TZ = 'Pacific/Auckland';
+      const auckland = answers();
+      expect(auckland).toEqual(utc);
+      // …and the answers are the WIB ones, not either machine's.
+      expect(utc).toMatchObject({
+        day: '2026-08-01',
+        month: '2026-08',
+        hour: 1,
+        minutes: 90,
+        offset: 7 * 60 * 60 * 1000,
+      });
+    } finally {
+      process.env.TZ = original;
+    }
   });
 });
 

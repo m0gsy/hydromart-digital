@@ -23,6 +23,7 @@ function toRecord(row: {
   reopenedAt: Date | null;
   reopenedBy: string | null;
 }): DailyCloseRecord {
+  // tz-ok: businessDate is @db.Date — already the depot's local trading day.
   return { ...row, businessDate: row.businessDate.toISOString().slice(0, 10) };
 }
 

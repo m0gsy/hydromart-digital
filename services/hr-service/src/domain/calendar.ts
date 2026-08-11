@@ -40,6 +40,8 @@ export function workingDaysInRange(
     cursor.getTime() <= end.getTime();
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   ) {
+    // tz-ok: `cursor` is a local day key walked with UTC-day arithmetic — calendar maths
+    // over already-local dates, never an instant.
     const iso = cursor.toISOString().slice(0, 10);
     if (weeklyOffDays.has(cursor.getUTCDay())) continue;
     if (holidays.has(iso)) continue;

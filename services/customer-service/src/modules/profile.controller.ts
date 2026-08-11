@@ -23,6 +23,8 @@ function toProfileResponse(p: CustomerProfileRecord): ProfileResponseDto {
     membershipTier: p.membershipTier,
     pointBalance: p.pointBalance,
     favoriteDepotId: p.favoriteDepotId,
+    // tz-ok: birthdate is @db.Date (UTC-midnight) — the slice IS the calendar date, and
+    // a birthday has no time of day to shift.
     birthdate: p.birthdate ? p.birthdate.toISOString().slice(0, 10) : null,
   };
 }

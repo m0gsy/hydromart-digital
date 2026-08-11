@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds, localDayKey } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -16,6 +16,8 @@ export interface ReportData {
 }
 
 const dec = (d: Prisma.Decimal | null): number => (d ? d.toNumber() : 0);
+// tz-ok: only ever applied to @db.Date columns (joinDate, workDate, effectiveDate…), which
+// Prisma reads back as UTC-midnight — the slice IS the local date.
 const isoDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '');
 const isoTime = (d: Date | null): string => (d ? d.toISOString() : '');
 
@@ -385,13 +387,14 @@ export class AnalyticsService {
     return toCsv(report.headers, report.rows);
   }
 
-  /** Local (Asia/Jakarta) calendar date as YYYY-MM-DD. Mirrors attendance.service's day boundary. */
+  /**
+   * Today's local calendar date, `YYYY-MM-DD`.
+   *
+   * C4: this was a third copy of the platform's day boundary — one here, one in
+   * attendance.service, one in @hydromart/platform. Every copy is a chance for two screens
+   * to disagree about which day a morning belongs to.
+   */
   private today(now: Date = new Date()): string {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: this.config.timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now);
+    return localDayKey(now, this.config.timeZone);
   }
 }
