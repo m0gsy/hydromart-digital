@@ -132,9 +132,27 @@ that nothing else calls: hourly it places due subscription orders
 (`retention/internal/purge`), and every 15 minutes it releases HR announcements
 whose schedule has come due (`announcements/publish-due`). Without the sidecar a
 scheduled announcement simply never sends — there is no timer inside hr-service.
-Times are UTC — set `SCHEDULER_TZ=Asia/Jakarta`
-in `.env` to shift. Watch it with `docker compose logs -f scheduler`; disable
-with `... up -d --scale scheduler=0`.
+Times are **WIB** (`Asia/Jakarta`), not UTC: the container inherits `PRICING_TZ`, so the
+whole platform cuts its days at one boundary. Override just this one with `SCHEDULER_TZ`
+in `.env` if you ever need to.
+
+That was a lie for as long as it was written. `TZ` was set, but the `alpine` image ships no
+zone files, so the C library read every value as UTC and each sweep fired seven hours late
+— the 08:00 refill nudge went out at 15:00 WIB, the 03:30 retention purge ran at 10:30 WIB.
+The container now gets the host's `/usr/share/zoneinfo`, and **every deploy prints the
+scheduler's clock**, so the claim on this line is re-proved on each release instead of
+being trusted:
+
+```text
+[deploy] scheduler clock WIB+0700 (TZ=Asia/Jakarta) — cron times are local, as written
+```
+
+The same was true of the HOST crontab that `scripts/install-host-cron.sh` installs (backup,
+restore drill, watchdog): it followed the host's UTC clock until `CRON_TZ` was declared in
+the block. Both halves now read the same `.env` value.
+
+Watch it with `docker compose logs -f scheduler`; disable with
+`... up -d --scale scheduler=0`.
 
 ---
 

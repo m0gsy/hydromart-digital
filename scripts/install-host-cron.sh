@@ -28,12 +28,27 @@ END="# <<< hydromart <<<"
 # it, and the drill runs on Monday when the previous night's dump is the newest one.
 # ALERT_WEBHOOK_URL is read from .env by each script's own loader where it matters; the
 # drill needs it in the environment, so it is exported from .env here.
+# C1b — the times below are business hours, so cron must read them as business hours.
+# The host runs UTC, and a bare crontab follows the host: "03:00 nightly backup" fired at
+# 10:00 WIB, in the middle of the working day, and the Monday-morning restore drill landed
+# on Monday LUNCHTIME. Same class of bug as the scheduler container's missing zone files,
+# in the other half of the scheduling — one is inside docker, this one is not.
+#
+# Read from the same .env the stack uses, so one variable moves both clocks. `.env` is only
+# read, never sourced (that is what load-env.sh is for).
+if [ -f .env ]; then
+  . ./scripts/load-env.sh
+fi
+CRON_TZ_VALUE="${SCHEDULER_TZ:-${PRICING_TZ:-Asia/Jakarta}}"
+
 block() {
   cat <<EOF
 $BEGIN
 # Managed by scripts/install-host-cron.sh. Edit that file, not this block.
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Every time in this block is local, not UTC.
+CRON_TZ=$CRON_TZ_VALUE
 
 # Nightly full-cluster dump + offsite copy. Reports OK/FAILED to admin-service (H-37).
 0 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-db.sh >> /var/log/hydromart-backup.log 2>&1
