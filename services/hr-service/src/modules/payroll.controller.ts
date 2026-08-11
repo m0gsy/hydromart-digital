@@ -5,7 +5,12 @@ import { Response } from 'express';
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
-import { GenerateBatchPayrollDto, GeneratePayrollDto, ListPayrollDto } from './dto/payroll.dto';
+import {
+  GenerateBatchPayrollDto,
+  GenerateBatchResultDto,
+  GeneratePayrollDto,
+  ListPayrollDto,
+} from './dto/payroll.dto';
 import { PayrollWithItems } from '../application/ports/payroll.repository';
 import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
@@ -105,13 +110,14 @@ export class PayrollController {
    * The per-employee summary is the point: a batch that quietly skipped someone is worse
    * than no batch, because nobody notices a missing payslip until payday.
    */
+  @ApiOkResponse({ type: GenerateBatchResultDto })
   @Post('generate-batch')
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Generate DRAFT payroll for every active employee of one depot' })
   generateBatch(
     @Body() dto: GenerateBatchPayrollDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<{ generated: number; failed: { employeeId: string; name: string; reason: string }[] }> {
+  ): Promise<GenerateBatchResultDto> {
     return this.payroll.generateBatch(user, dto.depotId, dto.periodMonth);
   }
 

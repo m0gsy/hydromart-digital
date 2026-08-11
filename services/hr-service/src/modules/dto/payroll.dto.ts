@@ -1,4 +1,4 @@
-import { OmitType } from '@nestjs/swagger';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -24,6 +24,28 @@ export class GeneratePayrollDto {
 
   @Matches(PERIOD, { message: 'periodMonth harus format YYYY-MM' })
   periodMonth!: string;
+}
+
+/**
+ * D10: who did not get a draft, and why. Documented as a real shape rather than left to the
+ * D-6 ratchet's `undocumented` pile — this is the half of the response an operator acts on,
+ * and a client that cannot see it in the schema will not render it.
+ */
+export class GenerateBatchFailureDto {
+  @ApiProperty() employeeId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() reason!: string;
+}
+
+export class GenerateBatchResultDto {
+  @ApiProperty({ description: 'How many DRAFT payrolls were written.' })
+  generated!: number;
+
+  @ApiProperty({
+    type: [GenerateBatchFailureDto],
+    description: 'Empty means everybody has a draft. Otherwise: the people to look at.',
+  })
+  failed!: GenerateBatchFailureDto[];
 }
 
 /** D10: one depot, one period. No `employeeId` — the batch is the whole active roster. */
