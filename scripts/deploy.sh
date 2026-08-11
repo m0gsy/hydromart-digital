@@ -161,11 +161,16 @@ if health_ok; then
   # time landed seven hours late while looking perfectly healthy. Asking the container what
   # TZ it was given, and comparing what it makes of it against the same TZ on this host,
   # needs nothing from .env and cannot drift out of date.
-  SCHED_TZ="$($COMPOSE exec -T scheduler printenv TZ 2>/dev/null | tr -d '\r\n')"
+  # `|| true` on both probes, deliberately: this runs under `set -euo pipefail`, and pipefail
+  # makes a failed `compose exec` fail the whole assignment. A stopped scheduler is a
+  # legitimate state (DEPLOY.md documents `up -d --scale scheduler=0`), so without this a
+  # deploy that WORKED would exit non-zero straight after logging DEPLOY OK — the one
+  # signal anybody reads, wrong in the dangerous direction (H-17 again).
+  SCHED_TZ="$($COMPOSE exec -T scheduler printenv TZ 2>/dev/null | tr -d '\r\n' || true)"
   if [ -z "$SCHED_TZ" ]; then
     log "!! could not read the scheduler's TZ — its cron times are unverified"
   else
-    SCHED_CLOCK="$($COMPOSE exec -T scheduler date '+%Z%z' 2>/dev/null | tr -d '\r\n')"
+    SCHED_CLOCK="$($COMPOSE exec -T scheduler date '+%Z%z' 2>/dev/null | tr -d '\r\n' || true)"
     WANT_CLOCK="$(TZ="$SCHED_TZ" date '+%Z%z')"
     if [ "$SCHED_CLOCK" = "$WANT_CLOCK" ]; then
       log "scheduler clock $SCHED_CLOCK (TZ=$SCHED_TZ) — cron times are local, as written"
