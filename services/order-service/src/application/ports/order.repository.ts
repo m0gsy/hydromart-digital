@@ -401,8 +401,18 @@ export interface OrderRepository {
    * on the current status so a double-void writes nothing.
    */
   voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord>;
-  /** Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096. */
-  salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]>;
+  /**
+   * Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096.
+   *
+   * `tz` is the business zone the bucket is cut in — required, not defaulted: the columns
+   * are naive UTC timestamps, so a caller that forgets it reports every order between
+   * midnight and 7am on the previous day (C2).
+   */
+  salesSeries(
+    granularity: 'daily' | 'monthly',
+    range: ReportRange,
+    tz: string,
+  ): Promise<SalesBucket[]>;
   /** Highest-spending customers in the window (CANCELLED excluded). FR-097. */
   topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
@@ -427,7 +437,7 @@ export interface OrderRepository {
    * ordering `monthIndex` months later (CANCELLED excluded). The service pivots
    * these into per-cohort retention rows (22b).
    */
-  retentionCohort(range: ReportRange): Promise<RetentionCell[]>;
+  retentionCohort(range: ReportRange, tz: string): Promise<RetentionCell[]>;
   /** One customer's lifetime revenue/order-count/first-last dates (17e). */
   customerLifetime(customerId: string): Promise<CustomerLifetime>;
   /** Per-customer order aggregates for a depot's CRM lifecycle (Fase 4, CANCELLED excluded). */

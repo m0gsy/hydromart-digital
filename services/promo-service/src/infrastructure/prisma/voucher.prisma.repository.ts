@@ -170,7 +170,11 @@ export class VoucherPrismaRepository implements VoucherRepository {
         where: { voucherId, createdAt: { gte: from, lt: to } },
       }),
       this.prisma.$queryRaw<{ day: string; uses: bigint }[]>(Prisma.sql`
-        SELECT to_char("createdAt" AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
+        -- C2: two hops, not one. The column is a naive timestamp holding UTC, so a single
+        -- AT TIME ZONE reads it as though it were ALREADY local and converts it the wrong
+        -- way — the same seven hours, in the opposite direction from the bug H-16 fixed.
+        -- Label it UTC first, then read it in the business zone.
+        SELECT to_char("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
                COUNT(*)::bigint AS uses
         FROM "voucher_redemptions"
         WHERE "voucherId" = ${voucherId}::uuid AND "createdAt" >= ${from} AND "createdAt" < ${to}

@@ -580,7 +580,11 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
-  async salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]> {
+  async salesSeries(
+    granularity: 'daily' | 'monthly',
+    range: ReportRange,
+    tz: string,
+  ): Promise<SalesBucket[]> {
     // Whitelisted so the trunc unit / format are never attacker-controlled.
     const unit = granularity === 'monthly' ? 'month' : 'day';
     const fmt = granularity === 'monthly' ? 'YYYY-MM' : 'YYYY-MM-DD';
@@ -590,7 +594,10 @@ export class OrderPrismaRepository implements OrderRepository {
     const rows = await this.prisma.$queryRaw<
       { period: string; orderCount: bigint; revenue: Prisma.Decimal | null }[]
     >(Prisma.sql`
-      SELECT to_char(date_trunc(${unit}, "createdAt"), ${fmt}) AS period,
+      -- C2: the column is a naive timestamp holding UTC, so a bare date_trunc cuts the day
+      -- at 07:00 WIB — every order between midnight and 7am was reported on the day before.
+      -- Label it UTC, then read it in the business zone, exactly as depotDailyGallons does.
+      SELECT to_char(date_trunc(${unit}, "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz}), ${fmt}) AS period,
              COUNT(*)::bigint AS "orderCount",
              COALESCE(SUM("total"), 0) AS revenue
       FROM "orders"
@@ -785,7 +792,7 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
+  async retentionCohort(range: ReportRange, tz: string): Promise<RetentionCell[]> {
     const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
@@ -793,12 +800,17 @@ export class OrderPrismaRepository implements OrderRepository {
     const rows = await this.prisma.$queryRaw<
       { cohort: string; monthIndex: number; customers: bigint }[]
     >(Prisma.sql`
+      -- C2: both months are cut in the business zone. Cutting one of them in UTC and the
+      -- other locally would file a customer's first order in one month and their first
+      -- activity in the next, inventing a month-1 churn that never happened.
       WITH first_order AS (
-        SELECT "customerId", date_trunc('month', MIN("createdAt")) AS cohort
+        SELECT "customerId",
+               date_trunc('month', MIN("createdAt") AT TIME ZONE 'UTC' AT TIME ZONE ${tz}) AS cohort
         FROM "orders" WHERE ${where} GROUP BY "customerId"
       ),
       activity AS (
-        SELECT DISTINCT "customerId", date_trunc('month', "createdAt") AS active_month
+        SELECT DISTINCT "customerId",
+               date_trunc('month', "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz}) AS active_month
         FROM "orders" WHERE ${where}
       )
       SELECT to_char(f.cohort, 'YYYY-MM') AS cohort,

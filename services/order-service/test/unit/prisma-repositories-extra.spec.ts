@@ -101,7 +101,7 @@ describe('OrderPrismaRepository report range filters (bounded-window branches)',
   it('pushes both raw-SQL date conds for rating/retention reports', async () => {
     await repo.ratingByDepot({ from, to });
     await repo.depotRatings('d1', { from, to });
-    await repo.retentionCohort({ from, to });
+    await repo.retentionCohort({ from, to }, 'Asia/Jakarta');
     expect($queryRaw).toHaveBeenCalled();
   });
 });
