@@ -20,6 +20,7 @@ import {
   RewardKind,
 } from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
+import { rupiah } from '../../domain/rupiah';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
 import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
@@ -156,7 +157,7 @@ export class PayrollService {
         items.push({
           kind: 'ALLOWANCE',
           label: a.note ?? `Tunjangan ${a.type}`,
-          amount: Number(a.amount),
+          amount: rupiah(a.amount),
           sourceRef: a.id,
         });
       }
@@ -167,7 +168,7 @@ export class PayrollService {
       items.push({
         kind: 'BONUS',
         label: b.note ?? `Bonus ${b.type}`,
-        amount: Number(b.amount),
+        amount: rupiah(b.amount),
         sourceRef: b.id,
       });
     }
@@ -302,7 +303,7 @@ export class PayrollService {
       items.push({
         kind: 'DEDUCTION',
         label: d.note ?? `Potongan ${d.type}`,
-        amount: Number(d.amount),
+        amount: rupiah(d.amount),
         sourceRef: d.id,
       });
     }
@@ -636,6 +637,61 @@ export class PayrollService {
       return Math.round(rate * presentDays);
     }
     return employee.monthlyRate != null ? Math.round(Number(employee.monthlyRate)) : 0;
+  }
+
+  /**
+   * D10 — generate a DRAFT payroll for every active employee of one depot.
+   *
+   * `POST /payroll/generate` takes a single `employeeId`, and the web page is one click per
+   * person: a depot of thirty is thirty clicks, with no way to see who was missed. Missing
+   * one person is the failure that matters — nobody notices an absent payslip until payday.
+   *
+   * Reuses `generate` per employee rather than reimplementing it, so every D2/D4/D5/D7 fix
+   * applies here unchanged, and so does the next one. Approve and pay stay manual and
+   * per-person: this moves no money, it only prepares drafts.
+   *
+   * Safe to re-run. `@@unique([employeeId, periodMonth])` plus the in-place DRAFT rewrite
+   * make a second pass the same work rather than double work.
+   *
+   * One employee's failure must not decide the other twenty-nine's fate, so failures are
+   * collected and returned by name instead of thrown. An empty list back means everyone
+   * has a draft; a non-empty one is the list of people to look at.
+   */
+  async generateBatch(
+    user: AuthenticatedUser,
+    depotId: string,
+    periodMonth: string,
+  ): Promise<{ generated: number; failed: { employeeId: string; name: string; reason: string }[] }> {
+    if (!PERIOD_RE.test(periodMonth)) {
+      throw new BadRequestException('periodMonth harus format YYYY-MM');
+    }
+    // Through `EmployeeService.list`, which applies `depotScopeIds` — a depot manager
+    // cannot batch a depot that is not theirs, and does not need a second check here.
+    const { rows } = await this.employees.list(user, {
+      depotId,
+      status: 'ACTIVE',
+      page: 1,
+      pageSize: 500,
+    });
+
+    let generated = 0;
+    const failed: { employeeId: string; name: string; reason: string }[] = [];
+    // Serial, deliberately: `generate` already fans its own reads out in parallel, and each
+    // one is a transaction. Thirty of those at once is how a shared Postgres pool runs out
+    // mid-run and leaves half a depot with drafts and no error anybody saw.
+    for (const employee of rows) {
+      try {
+        await this.generate(user, employee.id, periodMonth);
+        generated++;
+      } catch (e) {
+        failed.push({
+          employeeId: employee.id,
+          name: employee.fullName,
+          reason: e instanceof Error ? e.message : 'Gagal membuat payroll',
+        });
+      }
+    }
+    return { generated, failed };
   }
 
   /** [first-day, last-day] of a YYYY-MM as UTC-midnight dates (matches @db.Date storage). */
