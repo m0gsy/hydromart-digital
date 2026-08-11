@@ -9,8 +9,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-[ -f .env ] || { echo "no .env in repo root — fill it first (see .env.production.example)" >&2; exit 1; }
-set -a; . ./.env; set +a
+# Reads .env, never runs it — a secret pasted in as a raw multi-line PEM used to be executed
+# by `. ./.env` and killed this script before a single migration was tried (2026-08-11).
+. ./scripts/load-env.sh
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set in .env}"
 
 # host = where Postgres is reachable: localhost when run on the host (default),

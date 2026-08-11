@@ -14,7 +14,7 @@
 # `customers` table now and then.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-set -a; source .env; set +a
+. ./scripts/load-env.sh
 GW="${GW:-http://localhost:8080}"
 DC="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 ok(){ echo "  ✅ $1"; }; no(){ echo "  ❌ $1"; }
