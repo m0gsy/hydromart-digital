@@ -924,6 +924,22 @@ export class InternalDepotSales2ResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDepotDailyGallonsDaysResponseDto {
+  @ApiProperty({ type: String })
+  day!: string;
+  @ApiProperty({ type: Number })
+  gallons!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDepotDailyGallonsResponseDto {
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: [InternalDepotDailyGallonsDaysResponseDto] })
+  days!: InternalDepotDailyGallonsDaysResponseDto[];
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalDepotCustomers2CustomersResponseDto {
   @ApiProperty({ type: String })
   customerId!: string;

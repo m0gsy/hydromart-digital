@@ -531,6 +531,24 @@ export class ReportService {
   }
 
   /**
+   * Gallons delivered per local day, for hr-service's daily sales bonus (depot SOP).
+   *
+   * `fromDay`/`toDay` are inclusive 'YYYY-MM-DD' LOCAL day keys, matching the way
+   * `Attendance.workDate` is stored — the bonus is paid per attended day, so the two must
+   * cut the day at the same instant. Bucketing happens in SQL, in the same time zone.
+   */
+  async depotDailyGallons(
+    depotId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<{ day: string; gallons: number }[]> {
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(fromDay, tz);
+    const to = addLocalDays(dayStartUtc(toDay, tz), 1, tz);
+    return this.orders.depotDailyGallons(depotId, from, to, tz);
+  }
+
+  /**
    * Per-reseller monthly achievement (design: reseller evaluation). For the requested
    * customerIds within one depot: delivered gallon volume this month + previous month
    * (drives growth), delivered order count, and the last delivered order time. Read-time

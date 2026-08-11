@@ -8,6 +8,12 @@ export interface SettingDef {
   min?: number;
   max?: number;
   envDefault: number | string;
+  /**
+   * `string` settings only: anchored regex the value must match. `min`/`max` cannot police
+   * a string, and a CSV something downstream has to parse fails at the reader rather than
+   * at the person who typed it otherwise. Enforced by SettingsSliceService.put.
+   */
+  pattern?: string;
   /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
   global?: boolean;
 }
@@ -182,6 +188,17 @@ export const SETTING_DEFS: SettingDef[] = [
     type: 'string',
     unit: 'tahun:persen, koma (mis. 1:5,2:10)',
     envDefault: '',
+  },
+  // Depot SOP: a daily gallon-sales target ladder paid IN FULL to every staff member who
+  // attended that day. Separate from the bonus-rule engine, which is monthly and reckons in
+  // IDR — a daily gallon step cannot be expressed as a metric there. Empty = feature off.
+  {
+    key: 'dailySalesBonusTiers',
+    label: 'Bonus target penjualan harian (galon)',
+    type: 'string',
+    unit: 'galon:rupiah, koma (mis. 120:15000,150:20000)',
+    envDefault: '',
+    pattern: '^$|^\\d+:\\d+(,\\d+:\\d+)*$',
   },
   {
     key: 'geofenceLat',

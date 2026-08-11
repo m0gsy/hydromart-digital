@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
-import { SettingRow, SettingsCache } from '@hydromart/platform';
+import { SettingRow, SettingsCache, localDayKey } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../src/config/order-config.service';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
@@ -243,6 +243,26 @@ export class InMemoryOrderRepository implements OrderRepository {
       )
       .filter((r) => r.createdAt >= from && r.createdAt <= to)
       .reduce((t, r) => t + Math.round(r.total), 0);
+  }
+  async depotDailyGallons(
+    depotId: string,
+    from: Date,
+    to: Date,
+    tz: string,
+  ): Promise<{ day: string; gallons: number }[]> {
+    const byDay = new Map<string, number>();
+    for (const r of this.rows) {
+      if (r.depotId !== depotId) continue;
+      if (r.status !== 'DELIVERED' && r.status !== 'COMPLETED') continue;
+      if (r.createdAt < from || r.createdAt >= to) continue;
+      const gallons = r.items.reduce((s, i) => s + (i.isGallon ? i.quantity : 0), 0);
+      if (gallons === 0) continue;
+      const day = localDayKey(r.createdAt, tz);
+      byDay.set(day, (byDay.get(day) ?? 0) + gallons);
+    }
+    return [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, gallons]) => ({ day, gallons }));
   }
   async search(
     query: OrderQuery,

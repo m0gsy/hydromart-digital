@@ -34,6 +34,9 @@ export const envValidationSchema = Joi.object({
   // Tenure raise ladder for depot heads (Rule-E): "years:pct" CSV, e.g. "1:5,2:10,3:15".
   // Empty = no automatic raise.
   HR_TENURE_RAISE_LADDER: Joi.string().allow('').default(''),
+  // Daily gallon-target bonus ladder (depot SOP): "gallons:rupiah" CSV, e.g.
+  // "120:15000,150:20000". Empty = no daily bonus, which is every depot until it is set.
+  HR_DAILY_SALES_BONUS_TIERS: Joi.string().allow('').default(''),
   // Working days of quota-consuming leave (ANNUAL/PERMISSION) per calendar year.
   HR_ANNUAL_LEAVE_QUOTA_DAYS: Joi.number().min(0).max(60).default(12),
   // Face recognition. neo = BiznetGio NEO cloud gallery (prod); onnx = in-process ArcFace;

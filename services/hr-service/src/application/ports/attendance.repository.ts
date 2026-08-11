@@ -48,6 +48,12 @@ export interface WorkedMinutesRow {
   workDate: Date;
   /** Null when the day was never checked out. */
   workingMinutes: number | null;
+  /**
+   * Minutes past the shift start this day's check-in was, measured from `workStartTime`
+   * itself (not from the end of the tolerance window). 0 on a PRESENT day. Feeds the
+   * tiered late fine — the flat one only ever needed a COUNT of late days.
+   */
+  lateMinutes: number;
 }
 
 export interface ManualAttendanceInput {

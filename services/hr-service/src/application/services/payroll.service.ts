@@ -23,7 +23,12 @@ import { loanDeductionFor } from '../../domain/loan';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
 import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
-import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
+import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
+import {
+  ATTENDANCE_REPOSITORY,
+  AttendanceRepository,
+  WorkedMinutesRow,
+} from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
 import { BONUS_RULE_REPOSITORY, BonusRuleRepository } from '../ports/bonus-rule.repository';
 import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
@@ -83,18 +88,38 @@ export class PayrollService {
     }
 
     const { from, to } = this.monthRange(periodMonth);
-    // Five reads that need nothing from each other — attendance, allowances, manual
-    // bonuses, the depot's working days and its bonus rules — used to be awaited one after
-    // another (audit S-21). Payroll generation runs per employee, so this is the run's
-    // whole cost multiplied by headcount.
-    const [{ presentDays, lateDays, leaveDays }, allowanceRows, bonusRows, workingDays, rules] =
-      await Promise.all([
-        this.attendance.summary(employeeId, from, to),
-        this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
-        this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
-        this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
-        this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
-      ]);
+    // Depot SOP daily gallon bonus. Parsed BEFORE the reads so the cross-service gallon
+    // call is only paid for when a ladder is actually configured — an empty ladder (every
+    // depot until someone fills it in) must cost nothing and change nothing.
+    const gallonTiers = parseTiers(this.config.dailySalesBonusTiers(employee.depotId));
+    const wantsDailyBonus = gallonTiers.length > 0 && !!this.sales && !!employee.depotId;
+
+    // Reads that need nothing from each other — attendance, allowances, manual bonuses, the
+    // depot's working days, its bonus rules, the per-day attendance rows and the depot's
+    // daily gallons — used to be awaited one after another (audit S-21). Payroll generation
+    // runs per employee, so this is the run's whole cost multiplied by headcount.
+    const [
+      { presentDays, lateDays, leaveDays },
+      allowanceRows,
+      bonusRows,
+      workingDays,
+      rules,
+      workedDays,
+      dailyGallons,
+    ] = await Promise.all([
+      this.attendance.summary(employeeId, from, to),
+      this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
+      this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
+      this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
+      this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
+      this.attendance.listWorkedMinutes(employeeId, from, to),
+      wantsDailyBonus
+        ? // Day KEYS, not Dates: `workDate` is a LOCAL date kept as UTC-midnight and
+          // order-service buckets in the same PRICING_TZ. `monthRange` is already
+          // UTC-midnight, so slicing the ISO string is the local day.
+          this.sales!.depotDailyGallons(employee.depotId!, dayKey(from), dayKey(to))
+        : null,
+    ]);
 
     const items: PayrollItemInput[] = [];
 
@@ -179,10 +204,28 @@ export class PayrollService {
       }
     }
 
+    // Depot SOP: daily gallon-target bonus, paid IN FULL to each attending staff member for
+    // every day the depot hit a tier. `dailyGallons` null (order-service down, or no ladder)
+    // pays nothing — same rule as the SALES_TOTAL bonus, never a fabricated zero-day.
+    if (dailyGallons) {
+      let total = 0;
+      let days = 0;
+      for (const row of workedDays) {
+        const amount = bonusForDay(gallonTiers, dailyGallons.get(dayKey(row.workDate)) ?? 0);
+        if (amount > 0) {
+          total += amount;
+          days++;
+        }
+      }
+      if (total > 0) {
+        items.push({ kind: 'BONUS', label: `Bonus target harian (${days} hari)`, amount: total });
+      }
+    }
+
     // Overtime (M24-17). A weekly-off day and a national holiday are the same thing to
     // payroll — neither was an expected working day — so both are paid at the off-day
     // multiplier and every worked minute on them counts, not just the excess.
-    const overtime = await this.overtimeBonus(employee, periodMonth, from, to);
+    const overtime = await this.overtimeBonus(employee, periodMonth, from, to, workedDays);
     if (overtime) items.push(overtime);
 
     // DEDUCTION lines: auto late (lateDays × config) + manual rows
@@ -394,10 +437,10 @@ export class PayrollService {
     periodMonth: string,
     from: Date,
     to: Date,
+    days: WorkedMinutesRow[],
   ): Promise<PayrollItemInput | null> {
     const depotId = employee.depotId;
     const standardWorkingMinutes = this.config.standardWorkingMinutes(depotId);
-    const days = await this.attendance.listWorkedMinutes(employee.id, from, to);
     if (days.length === 0) return null;
 
     // The off-day test is the union of the weekly-off weekdays and the dated national
@@ -482,6 +525,14 @@ export class PayrollService {
       to: new Date(Date.UTC(y, m, 0)),
     };
   }
+}
+
+/**
+ * The LOCAL day key of a `@db.Date` value. Those are stored as UTC-midnight, so the UTC
+ * slice IS the local date — `toLocaleDateString` would shift it back a day in WIB.
+ */
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 function sum(items: PayrollItemInput[], kind: PayrollItemInput['kind']): number {

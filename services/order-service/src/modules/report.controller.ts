@@ -1,9 +1,11 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
   AuthenticatedUser,
   CurrentUser,
+  InternalAuthGuard,
+  Public,
   Role,
   Roles,
   assertDepotAccess,
@@ -14,6 +16,7 @@ import { ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
   DepotCompareQueryDto,
+  DepotDailyGallonsQueryDto,
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
@@ -26,6 +29,7 @@ import {
 } from './dto/report.dto';
 import { CustomerSummary, DepotCompareReport, DepotDailyReport, DepotMonthlyReport, DepotRatingsReport, DepotWeeklyReport, ReportRangeView, ResellerRollupReport, RetentionCohortReport, RevenueByProductReport, SalesReport } from '../application/services/report.service';
 import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } from '../application/ports/order.repository';
+import { InternalDepotDailyGallonsResponseDto } from './dto/responses.generated.dto';
 import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
@@ -178,6 +182,28 @@ export class ReportController {
   @ApiOperation({ summary: "One depot's monthly ops review (orders/revenue/active customers)" })
   depotMonthly(@Query() q: DepotMonthlyQueryDto): Promise<DepotMonthlyReport> {
     return this.reports.reportsDepotMonthly(q.depotId, q.month);
+  }
+
+  /**
+   * Gallons delivered per local day, for hr-service's daily sales bonus (depot SOP).
+   *
+   * No end-user token — the caller is a payroll run, authenticated by the shared
+   * INTERNAL_SERVICE_KEY. `@Public()` is required because this controller carries a
+   * class-level `@Roles(...)`; InternalAuthGuard is then the sole (fail-closed) auth.
+   */
+  @ApiOkResponse({ type: InternalDepotDailyGallonsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-daily-gallons')
+  @ApiOperation({ summary: 'Gallons delivered per local day for a depot (internal service auth)' })
+  async internalDepotDailyGallons(
+    @Query() q: DepotDailyGallonsQueryDto,
+  ): Promise<{ depotId: string; days: { day: string; gallons: number }[] }> {
+    return {
+      depotId: q.depotId,
+      days: await this.reports.depotDailyGallons(q.depotId, q.from, q.to),
+    };
   }
 
   @ApiOkResponse({ type: AudienceReach3ResponseDto })

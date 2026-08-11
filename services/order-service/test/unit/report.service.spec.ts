@@ -668,3 +668,24 @@ describe('ReportService empty and absent shapes', () => {
     });
   });
 });
+
+// Depot SOP §1: hr-service asks for a month of local day keys; the service must turn
+// them into the WIB window and hand the repository the same zone it bucketed by.
+describe('ReportService.depotDailyGallons', () => {
+  it('converts inclusive local day keys into a [start, next-day-start) WIB window', async () => {
+    const depotDailyGallons = jest.fn(async () => [{ day: '2026-07-01', gallons: 130 }]);
+    const svc = new ReportService({ depotDailyGallons } as never, reportTestConfig());
+
+    await expect(svc.depotDailyGallons('d1', '2026-07-01', '2026-07-31')).resolves.toEqual([
+      { day: '2026-07-01', gallons: 130 },
+    ]);
+    // WIB is UTC+7, so 1 July 00:00 WIB is 30 June 17:00Z and the exclusive upper bound
+    // is 1 August 00:00 WIB — the whole of the 31st, not up to its morning.
+    expect(depotDailyGallons).toHaveBeenCalledWith(
+      'd1',
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
+      'Asia/Jakarta',
+    );
+  });
+});

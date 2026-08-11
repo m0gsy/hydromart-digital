@@ -27,6 +27,7 @@ function makeService(): Mocked {
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
+    depotDailyGallons: jest.fn().mockResolvedValue([]),
   } as unknown as Mocked;
 }
 
@@ -163,6 +164,18 @@ describe('ReportController', () => {
       controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never),
     ).resolves.toBe('monthly');
     expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-02');
+  });
+
+  it('internalDepotDailyGallons: forwards the day keys and echoes the depotId', async () => {
+    service.depotDailyGallons.mockResolvedValue([{ day: '2026-07-01', gallons: 130 }]);
+    await expect(
+      controller.internalDepotDailyGallons({
+        depotId: 'd1',
+        from: '2026-07-01',
+        to: '2026-07-31',
+      } as never),
+    ).resolves.toEqual({ depotId: 'd1', days: [{ day: '2026-07-01', gallons: 130 }] });
+    expect(service.depotDailyGallons).toHaveBeenCalledWith('d1', '2026-07-01', '2026-07-31');
   });
 
   it('audienceReach: forwards the depotId', async () => {

@@ -103,6 +103,7 @@ function build(opts: {
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),
         workingMinutes: d.workingMinutes,
+        lateMinutes: 0,
       })),
   } as unknown as AttendanceRepository;
   const bonuses = {
@@ -131,6 +132,8 @@ function build(opts: {
     standardWorkingMinutes: () => 480,
     overtimeMultiplierPct: () => 150,
     overtimeOffDayMultiplierPct: () => 200,
+    // Depot SOP daily gallon bonus stays off here — these fixtures pin the OLD payroll.
+    dailySalesBonusTiers: () => '',
     // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the

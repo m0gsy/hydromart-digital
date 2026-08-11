@@ -179,6 +179,14 @@ export class HrConfigService {
       radiusM: this.tunableNum('geofenceRadiusM', 0, depotId),
     };
   }
+  /** Daily gallon-target bonus ladder as CSV ("120:15000,150:20000"); '' = feature off. */
+  dailySalesBonusTiers(depotId: string | null = null): string {
+    return this.tunableStr(
+      'dailySalesBonusTiers',
+      this.config.get<string>('HR_DAILY_SALES_BONUS_TIERS', ''),
+      depotId,
+    );
+  }
   /** Depot-head tenure raise ladder as CSV ("1:5,2:10"); '' = no automatic raise (Rule-E). */
   tenureRaiseLadder(depotId: string | null = null): string {
     return this.tunableStr(

@@ -60,10 +60,16 @@ function build(opts: {
   absenceRate?: number;
   weeklyOff?: string;
   holidayDates?: string[];
-  /** M24-17: clocked minutes per attended day. */
-  workedMinutes?: { workDate: string; workingMinutes: number | null }[];
+  /** M24-17: clocked minutes per attended day (+ SOP: minutes late on that day). */
+  workedMinutes?: { workDate: string; workingMinutes: number | null; lateMinutes?: number }[];
   overtimePct?: number;
   overtimeOffDayPct?: number;
+  /** Depot SOP daily gallon bonus ladder; '' (the default) = feature off. */
+  gallonTiers?: string;
+  /** Gallons the depot sold per local day; null = order-service unavailable. */
+  dailyGallons?: Record<string, number> | null;
+  /** A whole SalesPort double, for asserting the call was (or was not) made. */
+  salesPort?: import('../../src/application/ports/sales.port').SalesPort;
 }) {
   const repo = opts.repo ?? new FakePayrollRepo();
   const attendance: AttendanceRepository = {
@@ -78,6 +84,7 @@ function build(opts: {
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),
         workingMinutes: d.workingMinutes,
+        lateMinutes: d.lateMinutes ?? 0,
       })),
     create: async () => ({}) as never,
     patchCheckOut: async () => ({}) as never,
@@ -103,6 +110,7 @@ function build(opts: {
     standardWorkingMinutes: () => 480,
     overtimeMultiplierPct: () => opts.overtimePct ?? 150,
     overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
+    dailySalesBonusTiers: () => opts.gallonTiers ?? '',
     // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the
@@ -121,9 +129,29 @@ function build(opts: {
   const holidays = {
     listDates: async () => opts.holidayDates ?? [],
   } as unknown as import('../../src/application/ports/holiday.repository').HolidayRepository;
+  const sales =
+    opts.salesPort ??
+    (opts.dailyGallons === undefined
+      ? undefined
+      : ({
+          depotSales: async () => null,
+          depotDailyGallons: async () =>
+            opts.dailyGallons === null ? null : new Map(Object.entries(opts.dailyGallons!)),
+        } as import('../../src/application/ports/sales.port').SalesPort));
   return {
     repo,
-    svc: new PayrollService(repo, attendance, bonuses, deductions, employees, config, holidays),
+    svc: new PayrollService(
+      repo,
+      attendance,
+      bonuses,
+      deductions,
+      employees,
+      config,
+      holidays,
+      undefined,
+      undefined,
+      sales,
+    ),
   };
 }
 
@@ -269,6 +297,128 @@ describe('PayrollService.generate', () => {
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Lembur'))).toBe(false);
+  });
+
+  // Depot SOP §1: bonus target penjualan harian, paid in full per attended day.
+  describe('daily gallon-target bonus', () => {
+    const SOP = '120:15000,150:20000,180:30000,200:50000,225:75000,250:100000,300:150000';
+    const daily = { salaryType: 'DAILY' as const, dailyRate: 60_000 as never };
+    const attended = [
+      { workDate: '2026-07-01', workingMinutes: 480 },
+      { workDate: '2026-07-02', workingMinutes: 480 },
+      { workDate: '2026-07-03', workingMinutes: 480 },
+    ];
+
+    it('pays the reached tier for every attended day and names the day count', async () => {
+      const { repo, svc } = build({
+        employee: daily,
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        workedMinutes: attended,
+        gallonTiers: SOP,
+        dailyGallons: { '2026-07-01': 130, '2026-07-02': 205, '2026-07-03': 100 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      const line = repo.lastWrite!.items.find((i) => i.label.startsWith('Bonus target harian'));
+      // 130 gal → 15.000; 205 gal → 50.000; 100 gal → below the ladder, nothing.
+      expect(line).toMatchObject({ kind: 'BONUS', amount: 65_000 });
+      expect(line!.label).toBe('Bonus target harian (2 hari)');
+    });
+
+    it('pays nothing for a day the employee did not attend', async () => {
+      const { repo, svc } = build({
+        employee: daily,
+        summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+        workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480 }],
+        gallonTiers: SOP,
+        // The depot hit 300 gallons on the 2nd, but this employee was not there.
+        dailyGallons: { '2026-07-01': 120, '2026-07-02': 300 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(
+        repo.lastWrite!.items.find((i) => i.label.startsWith('Bonus target harian')),
+      ).toMatchObject({ amount: 15_000 });
+    });
+
+    it('adds no line at all when no attended day reached a tier', async () => {
+      const { repo, svc } = build({
+        employee: daily,
+        summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+        workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480 }],
+        gallonTiers: SOP,
+        dailyGallons: { '2026-07-01': 90 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Bonus target harian'))).toBe(
+        false,
+      );
+    });
+
+    it('pays nothing when order-service could not answer — null never pays', async () => {
+      const { repo, svc } = build({
+        employee: daily,
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        workedMinutes: attended,
+        gallonTiers: SOP,
+        dailyGallons: null,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Bonus target harian'))).toBe(
+        false,
+      );
+    });
+
+    // The regression that matters most: every depot ships with the setting EMPTY, and none
+    // of them may see a single rupiah move.
+    it('leaves an unconfigured depot byte-identical to the old payroll', async () => {
+      const opts = {
+        employee: daily,
+        summary: { presentDays: 3, lateDays: 1, leaveDays: 0 },
+        workedMinutes: attended,
+      };
+      const before = build(opts);
+      await before.svc.generate(user, 'e1', '2026-07');
+      const after = build({ ...opts, dailyGallons: { '2026-07-01': 500 } }); // no gallonTiers
+      await after.svc.generate(user, 'e1', '2026-07');
+      expect(after.repo.lastWrite).toEqual(before.repo.lastWrite);
+    });
+
+    it('never calls order-service when no ladder is configured', async () => {
+      const depotDailyGallons = jest.fn(async () => new Map<string, number>());
+      const { svc } = build({
+        employee: daily,
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        workedMinutes: attended,
+        salesPort: { depotSales: async () => null, depotDailyGallons },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(depotDailyGallons).not.toHaveBeenCalled();
+    });
+
+    it('never calls order-service for an employee with no home depot', async () => {
+      const depotDailyGallons = jest.fn(async () => new Map<string, number>());
+      const { svc } = build({
+        employee: { ...daily, depotId: null },
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        workedMinutes: attended,
+        gallonTiers: SOP,
+        salesPort: { depotSales: async () => null, depotDailyGallons },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(depotDailyGallons).not.toHaveBeenCalled();
+    });
+
+    it('asks for the month as LOCAL day keys, not instants', async () => {
+      const depotDailyGallons = jest.fn(async () => new Map<string, number>());
+      const { svc } = build({
+        employee: daily,
+        summary: { presentDays: 3, lateDays: 0, leaveDays: 0 },
+        workedMinutes: attended,
+        gallonTiers: SOP,
+        salesPort: { depotSales: async () => null, depotDailyGallons },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(depotDailyGallons).toHaveBeenCalledWith('d1', '2026-07-01', '2026-07-31');
+    });
   });
 
   it('TRAINING with no dailyRate falls back to the config training rate', async () => {

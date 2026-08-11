@@ -787,6 +787,29 @@ describe('OrderPrismaRepository', () => {
     expect(monthly).toEqual([{ period: '2026-01', orderCount: 3, revenue: 0 }]);
   });
 
+  // Depot SOP §1. The bonus is paid per attended day, and `Attendance.workDate` is a WIB
+  // date — so the bucket must be cut in WIB too. `date_trunc('day', "createdAt")`, which
+  // the revenue series above uses, cuts at 07:00 local and would pay the wrong day.
+  it('buckets depot gallons by the LOCAL day, not by UTC', async () => {
+    $queryRaw.mockResolvedValue([
+      { day: '2026-07-01', gallons: BigInt(130) },
+      { day: '2026-07-02', gallons: null },
+    ]);
+    const out = await repo.depotDailyGallons(
+      'depot-1',
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
+      'Asia/Jakarta',
+    );
+    expect(out).toEqual([
+      { day: '2026-07-01', gallons: 130 },
+      { day: '2026-07-02', gallons: 0 },
+    ]);
+    const sql = ($queryRaw.mock.calls.at(-1)?.[0] as { strings: string[] }).strings.join('');
+    expect(sql).toContain(`AT TIME ZONE 'UTC' AT TIME ZONE`);
+    expect(sql).toContain('"isGallon" = true');
+  });
+
   // H-12: the order number's counter comes from a Postgres sequence now. `?? 0` is the
   // no-row case — it cannot happen against a real `nextval`, but a 0 suffix is a visible
   // wrong answer rather than a crash, so it is pinned rather than left to chance.
