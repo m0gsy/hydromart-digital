@@ -156,6 +156,24 @@ if health_ok; then
   echo "$PREV_SHA" > "$STATE_DIR/prev-sha"   # one step back, for manual rollback
   echo "$NEW_SHA" > "$LAST_GOOD"
   log "DEPLOY OK → $NEW_SHA (previous good: $PREV_SHA)"
+  # C1 — prove the scheduler's clock instead of assuming it. Compose sets TZ on that
+  # container, but alpine had no zone files to read it with, so it ran UTC and every cron
+  # time landed seven hours late while looking perfectly healthy. Asking the container what
+  # TZ it was given, and comparing what it makes of it against the same TZ on this host,
+  # needs nothing from .env and cannot drift out of date.
+  SCHED_TZ="$($COMPOSE exec -T scheduler printenv TZ 2>/dev/null | tr -d '\r\n')"
+  if [ -z "$SCHED_TZ" ]; then
+    log "!! could not read the scheduler's TZ — its cron times are unverified"
+  else
+    SCHED_CLOCK="$($COMPOSE exec -T scheduler date '+%Z%z' 2>/dev/null | tr -d '\r\n')"
+    WANT_CLOCK="$(TZ="$SCHED_TZ" date '+%Z%z')"
+    if [ "$SCHED_CLOCK" = "$WANT_CLOCK" ]; then
+      log "scheduler clock $SCHED_CLOCK (TZ=$SCHED_TZ) — cron times are local, as written"
+    else
+      log "!! scheduler clock is $SCHED_CLOCK but TZ=$SCHED_TZ means $WANT_CLOCK —"
+      log "   every sweep is firing at the wrong hour. Check /usr/share/zoneinfo in it."
+    fi
+  fi
   MISSING="$(missing_env_keys)"
   if [ -n "$MISSING" ]; then
     log "!! .env.example declares keys the live .env does not set: $MISSING"
