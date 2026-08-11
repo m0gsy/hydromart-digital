@@ -69,3 +69,6 @@ ops/alertmanager.webhook-url
 # Local UAT harness (throwaway run artefacts, not part of the product)
 .uat/
 uat.json
+# Signed bundles and listing assets pulled down from a Mobile release run, for uploading
+# by hand. Never committed: they are build output, and the .aab is signed.
+release-*/
