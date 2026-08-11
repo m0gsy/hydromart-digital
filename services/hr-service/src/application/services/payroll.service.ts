@@ -397,10 +397,47 @@ export class PayrollService {
     return this.load(user, id);
   }
 
+  /**
+   * The caller's OWN payroll, by id.
+   *
+   * `getById` above is `hrView`-gated, which no ordinary employee has — so an employee
+   * could list their payslips and then not open one. This is the read that lets them,
+   * and it is scoped by ownership rather than by depot.
+   *
+   * A payroll belonging to somebody else 404s, not 403: a colleague's payroll id is not
+   * something an employee should be able to confirm the existence of.
+   */
+  async getSelfById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+    return (await this.loadSelf(user, id)).payroll;
+  }
+
+  /** The same slip PDF as `slip`, for the employee's own payroll only. */
+  async selfSlip(user: AuthenticatedUser, id: string): Promise<Buffer> {
+    const { payroll, employee } = await this.loadSelf(user, id);
+    return PayrollService.renderSlip(payroll, employee);
+  }
+
+  private async loadSelf(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<{ payroll: PayrollWithItems; employee: Employee }> {
+    const employee = await this.employees.getSelf(user);
+    const payroll = await this.repo.findById(id);
+    if (!payroll || payroll.employeeId !== employee.id) {
+      throw new NotFoundException('Payroll tidak ditemukan');
+    }
+    return { payroll, employee };
+  }
+
   /** Render a salary-slip PDF for one payroll. */
   async slip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const payroll = await this.load(user, id); // 404 + depot check
     const employee = await this.employees.getById(user, payroll.employeeId);
+    return PayrollService.renderSlip(payroll, employee);
+  }
+
+  /** One slip layout, shared by the staff route and the employee's own. */
+  private static renderSlip(payroll: PayrollWithItems, employee: Employee): Promise<Buffer> {
     return payrollSlipPdf({
       employeeName: employee.fullName,
       employeeCode: employee.employeeCode,

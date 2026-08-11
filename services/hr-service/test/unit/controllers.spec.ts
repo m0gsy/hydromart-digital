@@ -494,7 +494,9 @@ describe('PayrollController', () => {
     'list',
     'listSelf',
     'getById',
+    'getSelfById',
     'slip',
+    'selfSlip',
     'generate',
     'approve',
     'markPaid',
@@ -519,6 +521,20 @@ describe('PayrollController', () => {
     expect(res.headers['Content-Disposition']).toBe('attachment; filename="slip-p1.pdf"');
     expect(res.send as jest.Mock).toHaveBeenCalled();
   });
+  // The self routes exist because `getById`/`slip` above are hrView-gated and no ordinary
+  // employee has that capability — see the note on the controller.
+  it('self detail + self slip delegate to the ownership-scoped service methods', async () => {
+    c.getSelfById('p1', user);
+    expect(payroll.getSelfById).toHaveBeenCalledWith(user, 'p1');
+
+    payroll.selfSlip.mockResolvedValue(Buffer.from('pdf'));
+    const res = fakeRes();
+    await c.selfSlip('p1', user, res);
+    expect(payroll.selfSlip).toHaveBeenCalledWith(user, 'p1');
+    expect(res.headers['Content-Type']).toBe('application/pdf');
+    expect(res.headers['Content-Disposition']).toBe('attachment; filename="slip-p1.pdf"');
+  });
+
   it('generate / approve / pay delegate', () => {
     c.generate({ employeeId: 'e1', periodMonth: '2026-07' } as never, user);
     expect(payroll.generate).toHaveBeenCalledWith(user, 'e1', '2026-07');

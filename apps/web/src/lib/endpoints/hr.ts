@@ -122,6 +122,9 @@ hr: {
     return `/payroll/api/v1/payroll${qs ? `?${qs}` : ''}`;
   },
   payrollById: (id: string) => `/payroll/api/v1/payroll/${id}`,
+  /** One of MY OWN payslips. `payrollById` is hrView-gated; staff have no such capability. */
+  payrollMeById: (id: string) => `/payroll/api/v1/payroll/me/${id}`,
+  payrollMeSlip: (id: string) => `/payroll/api/v1/payroll/me/${id}/slip`,
   generatePayroll: '/payroll/api/v1/payroll/generate',
   approvePayroll: (id: string) => `/payroll/api/v1/payroll/${id}/approve`,
   payPayroll: (id: string) => `/payroll/api/v1/payroll/${id}/pay`,
