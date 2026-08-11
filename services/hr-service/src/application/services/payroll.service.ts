@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -100,7 +100,7 @@ export class PayrollService {
     // daily gallons — used to be awaited one after another (audit S-21). Payroll generation
     // runs per employee, so this is the run's whole cost multiplied by headcount.
     const [
-      { presentDays, lateDays, leaveDays },
+      { presentDays, lateDays, leaveDays, pendingDays },
       allowanceRows,
       bonusRows,
       workingDays,
@@ -251,6 +251,7 @@ export class PayrollService {
         to,
         presentDays,
         leaveDays,
+        pendingDays,
       );
       const lines: [keyof typeof counts, number, string][] = [
         ['T1', fines.tier1, 'Denda telat 1'],
@@ -283,6 +284,7 @@ export class PayrollService {
           to,
           presentDays,
           leaveDays,
+          pendingDays,
         );
         const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
         if (absentDays > 0 && absenceRate > 0) {
@@ -305,9 +307,19 @@ export class PayrollService {
       });
     }
 
-    // Auto loan/kasbon installment (Rule-G): pure per-period deduction, idempotent on re-generate.
+    // Auto loan/kasbon installment (Rule-G): pure per-period deduction, idempotent on
+    // re-generate. Kept in `loanLines` because these are the only deferrable deductions —
+    // when the month cannot pay for everything, they are what gives way (D4).
+    const loanLines: PayrollItemInput[] = [];
     if (this.loans) {
       const activeLoans = await this.loans.listActiveByEmployee(employeeId);
+      // What earlier payslips really took, so a period that could only pay part of an
+      // installment leaves the rest owed instead of forgiven.
+      const repaid = await this.repo.deductedBySourceRefBefore(
+        employeeId,
+        periodMonth,
+        activeLoans.map((l) => l.id),
+      );
       for (const loan of activeLoans) {
         const amount = loanDeductionFor(
           {
@@ -316,14 +328,17 @@ export class PayrollService {
             startPeriod: loan.startPeriod,
           },
           periodMonth,
+          repaid.get(loan.id) ?? 0,
         );
         if (amount > 0) {
-          items.push({
+          const line: PayrollItemInput = {
             kind: 'DEDUCTION',
             label: loan.note ? `Cicilan: ${loan.note}` : 'Cicilan pinjaman',
             amount,
             sourceRef: loan.id,
-          });
+          };
+          items.push(line);
+          loanLines.push(line);
         }
       }
     }
@@ -355,6 +370,15 @@ export class PayrollService {
     }
 
     const totalBonus = sum(items, 'BONUS');
+    // D4: nobody may be handed a bill by their employer. Loan installments give way first
+    // and keep being owed (the ledger above is what makes that real); anything still over —
+    // fines, statutory withholding — stays printed at full value and the net is floored, so
+    // the slip shows what was assessed and the payment shows what could be taken.
+    const netBeforeFloor = deferLoanInstallments(
+      items,
+      loanLines,
+      gross + totalBonus - sum(items, 'DEDUCTION'),
+    );
     const totalDeduction = sum(items, 'DEDUCTION');
     const write = {
       employeeId,
@@ -362,7 +386,7 @@ export class PayrollService {
       gross,
       totalBonus,
       totalDeduction,
-      net: gross + totalBonus - totalDeduction,
+      net: Math.max(0, netBeforeFloor),
       presentDays,
       createdBy: user.sub,
       items,
@@ -452,17 +476,30 @@ export class PayrollService {
     });
   }
 
-  list(query: {
-    periodMonth?: string;
-    employeeId?: string;
-    status?: Payroll['status'];
-    page: number;
-    pageSize: number;
-  }) {
+  /**
+   * D1: depot-scoped payroll list. `hrView` reaches MANAGER, SUPERVISOR and
+   * ASSISTANT_SUPERVISOR, so without a scope one page of a period handed a depot manager
+   * every employee's gross, bonus, deduction and net in the whole chain. Scoped the same
+   * way as `attendance.list` — `GET :id` was already scoped, only the list was open.
+   */
+  // `async` on purpose: `depotScopeIds` throws for a depot outside the caller's set, and a
+  // method typed as returning a promise must reject rather than throw past its own signature.
+  async list(
+    user: AuthenticatedUser,
+    query: {
+      periodMonth?: string;
+      employeeId?: string;
+      status?: Payroll['status'];
+      depotId?: string;
+      page: number;
+      pageSize: number;
+    },
+  ) {
     return this.repo.list({
       periodMonth: query.periodMonth,
       employeeId: query.employeeId,
       status: query.status,
+      depotIds: depotScopeIds(user, query.depotId),
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
@@ -489,7 +526,15 @@ export class PayrollService {
     return payroll;
   }
 
-  /** Expected working days (calendar − weekly-off − holidays) minus days present or on leave. */
+  /**
+   * Expected working days (calendar − weekly-off − holidays) minus every day already
+   * accounted for: present, on leave, or awaiting HR's decision.
+   *
+   * D2: absence is derived by subtraction, so a status left out of the subtrahend becomes a
+   * no-show and is fined. PENDING is a day somebody DID punch for — offline and synced too
+   * late to trust the clock, or outside every geofence — and the schema says it counts as
+   * nothing until HR judges it. Fining it charged an honest employee for HR's backlog.
+   */
   private async absentDays(
     periodMonth: string,
     depotId: string | null,
@@ -497,9 +542,10 @@ export class PayrollService {
     to: Date,
     presentDays: number,
     leaveDays: number,
+    pendingDays: number,
   ): Promise<number> {
     const workingDays = await this.workingDays(periodMonth, depotId, from, to);
-    return Math.max(0, workingDays - presentDays - leaveDays);
+    return Math.max(0, workingDays - presentDays - leaveDays - pendingDays);
   }
 
   /**
@@ -607,6 +653,31 @@ export class PayrollService {
  */
 function dayKey(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Shrink loan installments — newest first — until `net` is no longer negative, dropping any
+ * line that ends up at zero rather than printing "Cicilan pinjaman 0" on a payslip.
+ *
+ * Only loans are touched: an installment not taken this month is still owed next month, so
+ * deferring it costs nobody anything. A fine or a statutory withholding is not a debt that
+ * can be moved, so those stay whole and the caller floors what is left.
+ *
+ * Mutates `items` (and the shared line objects in `loanLines`) and returns the new net.
+ */
+function deferLoanInstallments(
+  items: PayrollItemInput[],
+  loanLines: PayrollItemInput[],
+  net: number,
+): number {
+  for (let i = loanLines.length - 1; i >= 0 && net < 0; i--) {
+    const line = loanLines[i];
+    const relief = Math.min(line.amount, -net);
+    line.amount -= relief;
+    net += relief;
+    if (line.amount === 0) items.splice(items.indexOf(line), 1);
+  }
+  return net;
 }
 
 function sum(items: PayrollItemInput[], kind: PayrollItemInput['kind']): number {

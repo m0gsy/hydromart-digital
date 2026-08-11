@@ -505,8 +505,9 @@ describe('PayrollController', () => {
 
   it('read routes delegate', () => {
     const q = { page: 1 } as never;
-    c.list(q);
-    expect(payroll.list).toHaveBeenCalledWith(q);
+    c.list(q, user);
+    // D1: the caller travels with the query — the list is depot-scoped in the service.
+    expect(payroll.list).toHaveBeenCalledWith(user, q);
     c.listSelf(q, user);
     expect(payroll.listSelf).toHaveBeenCalledWith(user, q);
     c.getById('p1', user);

@@ -41,6 +41,15 @@ export interface AttendanceSummary {
   lateDays: number;
   /** Days marked LEAVE (approved) — not counted as absent in payroll. */
   leaveDays: number;
+  /**
+   * Days whose punch is still PENDING — synced late, or taken outside every geofence, and
+   * not yet judged by HR (D2).
+   *
+   * Required, not optional: payroll derives absence by subtraction, so any status missing
+   * from this summary silently becomes a no-show and gets fined. A new producer must say
+   * what it counts rather than default to zero.
+   */
+  pendingDays: number;
 }
 
 /** One attended day's clocked minutes (M24-17 overtime input). */

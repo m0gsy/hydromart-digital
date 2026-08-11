@@ -79,6 +79,11 @@ class FakePayrollRepo implements PayrollRepository {
     this.lastListFilter = filter;
     return { rows: [] as Payroll[], total: 0 };
   }
+  /** What earlier payslips actually took for each loan (D4). Empty = nothing collected yet. */
+  repaid = new Map<string, number>();
+  async deductedBySourceRefBefore(): Promise<Map<string, number>> {
+    return this.repaid;
+  }
 }
 
 function build(opts: {
@@ -86,6 +91,8 @@ function build(opts: {
   summary?: AttendanceSummary;
   rules?: Partial<BonusRule>[];
   loans?: Partial<Loan>[];
+  /** D4: IDR already taken for each loan id in earlier periods. */
+  repaid?: Record<string, number>;
   ladder?: string;
   sales?: number | null;
   allowances?: Partial<Allowance>[];
@@ -96,9 +103,10 @@ function build(opts: {
   noHolidays?: boolean;
 }) {
   const repo = new FakePayrollRepo();
+  if (opts.repaid) repo.repaid = new Map(Object.entries(opts.repaid));
   const attendance = {
     summary: async (): Promise<AttendanceSummary> =>
-      opts.summary ?? { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      opts.summary ?? { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     listWorkedMinutes: async () =>
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),
@@ -321,6 +329,89 @@ describe('PayrollService auto loan/kasbon (Rule-G)', () => {
   });
 });
 
+// D4: net was `gross + bonus − deduction` with no floor at all. Fines, kasbon installments,
+// BPJS and PPh 21 stack without any check against what the employee actually earned, so a
+// trainee on the daily training rate could be handed a NEGATIVE payslip — a bill from their
+// employer — and it was stored as-is in a Decimal(12,2).
+describe('PayrollService net floor and loan rollover (D4)', () => {
+  const kasbon = {
+    id: 'l1',
+    principal: 1_000_000 as never,
+    installmentAmount: 300_000 as never,
+    startPeriod: '2026-07',
+    note: 'Kasbon' as never,
+  };
+
+  it('clips the installment to what was earned instead of writing a negative net', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 30_000 as never },
+      summary: { presentDays: 2, lateDays: 0, leaveDays: 0, pendingDays: 0 }, // gross 60.000
+      loans: [kasbon],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const w = repo.lastWrite!;
+    expect(w.net).toBe(0);
+    // 300.000 asked, 60.000 available: take the 60.000, the rest rolls to the next period.
+    expect(w.items.find((i) => i.label === 'Cicilan: Kasbon')!.amount).toBe(60_000);
+    expect(w.totalDeduction).toBe(60_000);
+  });
+
+  it('drops an installment it cannot take at all rather than printing a zero line', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 30_000 as never },
+      summary: { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      loans: [kasbon],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const w = repo.lastWrite!;
+    expect(w.net).toBe(0);
+    expect(w.items.filter((i) => i.kind === 'DEDUCTION')).toEqual([]);
+    expect(w.totalDeduction).toBe(0);
+  });
+
+  it('still floors net at 0 when the un-deferrable deductions alone exceed the pay', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 30_000 as never },
+      // One day worked, five days late: 5 × 10.000 flat lateness > 30.000 earned.
+      summary: { presentDays: 1, lateDays: 5, leaveDays: 0, pendingDays: 0 },
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const w = repo.lastWrite!;
+    expect(w.net).toBe(0);
+    // The fine stays on the slip at full value — it was assessed, it just could not be
+    // collected out of this month's pay. Only loan installments roll forward.
+    expect(w.totalDeduction).toBe(50_000);
+  });
+
+  it('collects what is still owed, not what the elapsed months assume', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 200_000 as never },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      // Started 2026-05, so by 2026-09 five installments have "elapsed" and the old
+      // arithmetic calls the loan settled. The ledger says only 600.000 was ever taken.
+      loans: [{ ...kasbon, startPeriod: '2026-05' }],
+      repaid: { l1: 600_000 },
+    });
+    await svc.generate(user, 'e1', '2026-09');
+    expect(repo.lastWrite!.items.find((i) => i.label === 'Cicilan: Kasbon')).toMatchObject({
+      amount: 300_000,
+    });
+  });
+
+  it('takes only the final stub when the ledger shows the loan nearly cleared', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 200_000 as never },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      loans: [{ ...kasbon, startPeriod: '2026-05' }],
+      repaid: { l1: 900_000 },
+    });
+    await svc.generate(user, 'e1', '2026-09');
+    expect(repo.lastWrite!.items.find((i) => i.label === 'Cicilan: Kasbon')).toMatchObject({
+      amount: 100_000,
+    });
+  });
+});
+
 describe('PayrollService.load / slip / getById / list', () => {
   it('404s when the payroll is missing', async () => {
     const { svc } = build({ employee: {} });
@@ -347,7 +438,7 @@ describe('PayrollService.load / slip / getById / list', () => {
 
   it('list forwards pagination to the repo', async () => {
     const { repo, svc } = build({ employee: {} });
-    await svc.list({ periodMonth: '2026-07', page: 3, pageSize: 25 });
+    await svc.list(user, { periodMonth: '2026-07', page: 3, pageSize: 25 });
     expect(repo.lastListFilter).toMatchObject({ periodMonth: '2026-07', skip: 50, take: 25 });
   });
 });
@@ -477,7 +568,7 @@ describe('PayrollService remaining pay shapes', () => {
   it('pays a trainee with no rate of their own at the training day rate', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: null, employmentStatus: 'TRAINING' as never },
-      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0, pendingDays: 0 },
       workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
     });
     await svc.generate(user, 'e1', '2026-07');
