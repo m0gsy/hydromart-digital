@@ -189,6 +189,46 @@ export const SETTING_DEFS: SettingDef[] = [
     unit: 'tahun:persen, koma (mis. 1:5,2:10)',
     envDefault: '',
   },
+  // Depot SOP: denda telat bertingkat, per jabatan. Three rupiah steps in the order the
+  // SOP table prints them — telat 1, telat 2, tidak absen. Empty = the depot keeps the flat
+  // `lateDeductionAmount` above, so no existing depot's payroll moves on its own.
+  {
+    key: 'lateFineStaff',
+    label: 'Denda telat bertingkat — staf',
+    type: 'string',
+    unit: 'telat1,telat2,tidakAbsen (Rp)',
+    envDefault: '',
+    pattern: '^$|^\\d+,\\d+,\\d+$',
+  },
+  {
+    key: 'lateFineManager',
+    label: 'Denda telat bertingkat — kepala depot',
+    type: 'string',
+    unit: 'telat1,telat2,tidakAbsen (Rp)',
+    envDefault: '',
+    pattern: '^$|^\\d+,\\d+,\\d+$',
+  },
+  // Both boundaries are minutes AFTER `workStartTime`, not clock times — the same frame
+  // `lateToleranceMinutes` already uses, and the frame `Attendance.lateMinutes` is recorded
+  // in. For the SOP's 07:50 start that makes 09:00 = 70 and 10:00 = 130. 0 = step disabled.
+  {
+    key: 'lateTier2AfterMinutes',
+    label: 'Batas denda telat 2',
+    type: 'int',
+    unit: 'menit setelah jam masuk (0 = nonaktif)',
+    min: 0,
+    max: 1440,
+    envDefault: 0,
+  },
+  {
+    key: 'absentAfterMinutes',
+    label: 'Batas dianggap tidak absen',
+    type: 'int',
+    unit: 'menit setelah jam masuk (0 = nonaktif)',
+    min: 0,
+    max: 1440,
+    envDefault: 0,
+  },
   // Depot SOP: a daily gallon-sales target ladder paid IN FULL to every staff member who
   // attended that day. Separate from the bonus-rule engine, which is monthly and reckons in
   // IDR — a daily gallon step cannot be expressed as a metric there. Empty = feature off.

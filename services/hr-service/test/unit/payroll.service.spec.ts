@@ -68,6 +68,11 @@ function build(opts: {
   gallonTiers?: string;
   /** Gallons the depot sold per local day; null = order-service unavailable. */
   dailyGallons?: Record<string, number> | null;
+  /** Depot SOP tiered late fines, "telat1,telat2,tidakAbsen"; '' = the old flat rate. */
+  lateFineStaff?: string;
+  lateFineManager?: string;
+  lateTier2After?: number;
+  absentAfter?: number;
   /** A whole SalesPort double, for asserting the call was (or was not) made. */
   salesPort?: import('../../src/application/ports/sales.port').SalesPort;
 }) {
@@ -111,6 +116,11 @@ function build(opts: {
     overtimeMultiplierPct: () => opts.overtimePct ?? 150,
     overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
     dailySalesBonusTiers: () => opts.gallonTiers ?? '',
+    tenureRaiseLadder: () => '',
+    lateFineCsv: (isDepotManager: boolean) =>
+      (isDepotManager ? opts.lateFineManager : opts.lateFineStaff) ?? '',
+    lateTier2AfterMinutes: () => opts.lateTier2After ?? 0,
+    absentAfterMinutes: () => opts.absentAfter ?? 0,
     // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the
@@ -418,6 +428,106 @@ describe('PayrollService.generate', () => {
       });
       await svc.generate(user, 'e1', '2026-07');
       expect(depotDailyGallons).toHaveBeenCalledWith('d1', '2026-07-01', '2026-07-31');
+    });
+  });
+
+  // Depot SOP §2: denda telat bertingkat per jabatan.
+  describe('tiered late fine', () => {
+    const STAFF = '10000,15000,20000';
+    const MANAGER = '15000,20000,25000';
+    const boundaries = { lateTier2After: 70, absentAfter: 130 };
+    // 07.50 start: 40' late = tier 1, 80' = tier 2, 200' = counted as not attended.
+    const threeLateDays = [
+      { workDate: '2026-07-01', workingMinutes: 480, lateMinutes: 40 },
+      { workDate: '2026-07-02', workingMinutes: 480, lateMinutes: 80 },
+      { workDate: '2026-07-03', workingMinutes: 480, lateMinutes: 200 },
+      { workDate: '2026-07-04', workingMinutes: 480, lateMinutes: 0 },
+    ];
+    const fineLines = (repo: { lastWrite?: { items: { label: string; amount: number }[] } }) =>
+      repo.lastWrite!.items.filter((i) => i.label.startsWith('Denda'));
+
+    it('splits a staff member’s month into the three SOP lines', async () => {
+      const { repo, svc } = build({
+        employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
+        // 4 attended days out of 31 — the rest land in the "tidak absen" count below.
+        summary: { presentDays: 4, lateDays: 3, leaveDays: 27 },
+        workedMinutes: threeLateDays,
+        lateFineStaff: STAFF,
+        ...boundaries,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(fineLines(repo)).toEqual([
+        { kind: 'DEDUCTION', label: 'Denda telat 1 (1 hari)', amount: 10_000 },
+        { kind: 'DEDUCTION', label: 'Denda telat 2 (1 hari)', amount: 15_000 },
+        { kind: 'DEDUCTION', label: 'Denda tidak absen (1 hari)', amount: 20_000 },
+      ]);
+      // …and the old flat line is gone, not doubled up with the new ones.
+      expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Potongan terlambat'))).toBe(
+        false,
+      );
+    });
+
+    it('charges a kepala depot the manager rates', async () => {
+      const { repo, svc } = build({
+        employee: {
+          salaryType: 'DAILY',
+          dailyRate: 80_000 as never,
+          role: 'KEPALA_DEPOT',
+          joinDate: new Date('2025-01-01T00:00:00.000Z'),
+        },
+        summary: { presentDays: 4, lateDays: 3, leaveDays: 27 },
+        workedMinutes: threeLateDays,
+        lateFineStaff: STAFF,
+        lateFineManager: MANAGER,
+        ...boundaries,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(fineLines(repo)).toEqual([
+        { kind: 'DEDUCTION', label: 'Denda telat 1 (1 hari)', amount: 15_000 },
+        { kind: 'DEDUCTION', label: 'Denda telat 2 (1 hari)', amount: 20_000 },
+        { kind: 'DEDUCTION', label: 'Denda tidak absen (1 hari)', amount: 25_000 },
+      ]);
+    });
+
+    // Before this, "tidak absen" was MONTHLY-only, so depot staff on a daily rate were
+    // never fined for a missed day at all.
+    it('fines a DAILY employee for calendar days nobody turned up for', async () => {
+      const { repo, svc } = build({
+        employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
+        // July 2026 has 31 working days with no weekly-off configured.
+        summary: { presentDays: 29, lateDays: 0, leaveDays: 0 },
+        workedMinutes: [],
+        lateFineStaff: STAFF,
+        ...boundaries,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(fineLines(repo)).toEqual([
+        { kind: 'DEDUCTION', label: 'Denda tidak absen (2 hari)', amount: 40_000 },
+      ]);
+    });
+
+    it('adds no line for a step whose rate is 0', async () => {
+      const { repo, svc } = build({
+        employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
+        summary: { presentDays: 31, lateDays: 1, leaveDays: 0 },
+        workedMinutes: [{ workDate: '2026-07-01', workingMinutes: 480, lateMinutes: 40 }],
+        lateFineStaff: '0,15000,20000',
+        ...boundaries,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(fineLines(repo)).toEqual([]);
+    });
+
+    it('keeps the flat deduction untouched when no tiered fine is configured', async () => {
+      const { repo, svc } = build({
+        employee: { salaryType: 'DAILY', dailyRate: 60_000 as never },
+        summary: { presentDays: 31, lateDays: 3, leaveDays: 0 },
+        workedMinutes: threeLateDays,
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      expect(repo.lastWrite!.items.filter((i) => i.kind === 'DEDUCTION')).toEqual([
+        { kind: 'DEDUCTION', label: 'Potongan terlambat (3 hari)', amount: 30_000 },
+      ]);
     });
   });
 

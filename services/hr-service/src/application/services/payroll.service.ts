@@ -24,6 +24,7 @@ import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../dom
 import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
+import { parseFines, tierOf } from '../../domain/late-fine';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
@@ -228,19 +229,22 @@ export class PayrollService {
     const overtime = await this.overtimeBonus(employee, periodMonth, from, to, workedDays);
     if (overtime) items.push(overtime);
 
-    // DEDUCTION lines: auto late (lateDays × config) + manual rows
-    const lateRate = this.config.lateDeductionAmount(employee.depotId);
-    if (lateDays > 0 && lateRate > 0) {
-      items.push({
-        kind: 'DEDUCTION',
-        label: `Potongan terlambat (${lateDays} hari)`,
-        amount: lateDays * lateRate,
-      });
-    }
-    // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
-    // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
-    if (employee.salaryType === 'MONTHLY') {
-      const absentDays = await this.absentDays(
+    // DEDUCTION lines: lateness + absence, then manual rows.
+    const isDepotManager = employee.role === 'KEPALA_DEPOT';
+    const fines = parseFines(this.config.lateFineCsv(isDepotManager, employee.depotId));
+    if (fines) {
+      // Depot SOP §2: three steps by minutes late, at the rate for this jabatan.
+      const counts = { T1: 0, T2: 0, ABSENT: 0 };
+      const tier2After = this.config.lateTier2AfterMinutes(employee.depotId);
+      const absentAfter = this.config.absentAfterMinutes(employee.depotId);
+      for (const row of workedDays) {
+        const tier = tierOf(row.lateMinutes, tier2After, absentAfter);
+        if (tier !== 'NONE') counts[tier]++;
+      }
+      // A day nobody showed up for and a day someone showed up hours late are the same
+      // thing to the SOP — one "tidak absen" fine each. They cannot overlap: an ABSENT-by-
+      // lateness day HAS an attendance row, so it is not in `absentDays()`.
+      counts.ABSENT += await this.absentDays(
         periodMonth,
         employee.depotId,
         from,
@@ -248,13 +252,46 @@ export class PayrollService {
         presentDays,
         leaveDays,
       );
-      const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
-      if (absentDays > 0 && absenceRate > 0) {
+      const lines: [keyof typeof counts, number, string][] = [
+        ['T1', fines.tier1, 'Denda telat 1'],
+        ['T2', fines.tier2, 'Denda telat 2'],
+        ['ABSENT', fines.absent, 'Denda tidak absen'],
+      ];
+      for (const [key, rate, label] of lines) {
+        const days = counts[key];
+        if (days > 0 && rate > 0) {
+          items.push({ kind: 'DEDUCTION', label: `${label} (${days} hari)`, amount: days * rate });
+        }
+      }
+    } else {
+      // No tiered fine configured: the flat rate, exactly as before.
+      const lateRate = this.config.lateDeductionAmount(employee.depotId);
+      if (lateDays > 0 && lateRate > 0) {
         items.push({
           kind: 'DEDUCTION',
-          label: `Potongan absen (${absentDays} hari)`,
-          amount: absentDays * absenceRate,
+          label: `Potongan terlambat (${lateDays} hari)`,
+          amount: lateDays * lateRate,
         });
+      }
+      // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
+      // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
+      if (employee.salaryType === 'MONTHLY') {
+        const absentDays = await this.absentDays(
+          periodMonth,
+          employee.depotId,
+          from,
+          to,
+          presentDays,
+          leaveDays,
+        );
+        const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
+        if (absentDays > 0 && absenceRate > 0) {
+          items.push({
+            kind: 'DEDUCTION',
+            label: `Potongan absen (${absentDays} hari)`,
+            amount: absentDays * absenceRate,
+          });
+        }
       }
     }
 

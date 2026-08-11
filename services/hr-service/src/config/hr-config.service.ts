@@ -179,6 +179,35 @@ export class HrConfigService {
       radiusM: this.tunableNum('geofenceRadiusM', 0, depotId),
     };
   }
+  /**
+   * Depot SOP tiered late fine for one jabatan, as the SOP's own three-number CSV.
+   * '' = this depot has no tiered fine and keeps the flat `lateDeductionAmount`.
+   */
+  lateFineCsv(isDepotManager: boolean, depotId: string | null = null): string {
+    return isDepotManager
+      ? this.tunableStr(
+          'lateFineManager',
+          this.config.get<string>('HR_LATE_FINE_MANAGER', ''),
+          depotId,
+        )
+      : this.tunableStr('lateFineStaff', this.config.get<string>('HR_LATE_FINE_STAFF', ''), depotId);
+  }
+  /** Minutes after `workStartTime` at which the second late step starts; 0 = disabled. */
+  lateTier2AfterMinutes(depotId: string | null = null): number {
+    return this.tunableNum(
+      'lateTier2AfterMinutes',
+      Number(this.config.get<string>('HR_LATE_TIER2_AFTER_MINUTES', '0')),
+      depotId,
+    );
+  }
+  /** Minutes after `workStartTime` past which the SOP counts the day as not attended; 0 = disabled. */
+  absentAfterMinutes(depotId: string | null = null): number {
+    return this.tunableNum(
+      'absentAfterMinutes',
+      Number(this.config.get<string>('HR_ABSENT_AFTER_MINUTES', '0')),
+      depotId,
+    );
+  }
   /** Daily gallon-target bonus ladder as CSV ("120:15000,150:20000"); '' = feature off. */
   dailySalesBonusTiers(depotId: string | null = null): string {
     return this.tunableStr(

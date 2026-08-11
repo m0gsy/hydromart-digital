@@ -132,8 +132,11 @@ function build(opts: {
     standardWorkingMinutes: () => 480,
     overtimeMultiplierPct: () => 150,
     overtimeOffDayMultiplierPct: () => 200,
-    // Depot SOP daily gallon bonus stays off here — these fixtures pin the OLD payroll.
+    // Depot SOP settings stay off here — these fixtures pin the OLD payroll.
     dailySalesBonusTiers: () => '',
+    lateFineCsv: () => '',
+    lateTier2AfterMinutes: () => 0,
+    absentAfterMinutes: () => 0,
     // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the
