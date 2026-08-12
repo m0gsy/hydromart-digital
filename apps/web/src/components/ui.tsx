@@ -250,17 +250,9 @@ export function RadioCard({
 }
 
 /* ---------- MemberPrice ---------- (teal member-price chip on cards / PDP) */
-/**
- * A1. No `whitespace-nowrap`. On a 320px screen the product grid gives each card a 136px
- * box — 104px of content inside `p-4` — and this chip renders ~119.5px at the prices this
- * shop actually charges. Refusing to wrap made it push the add-to-cart button out of the
- * card's own `overflow:hidden`: measured at x=144 against a clip edge of x=136, so the
- * button was not merely cramped, it painted **zero visible pixels**. Wrapping to a second
- * line is the whole fix, and it costs a taller card on the narrowest phones only.
- */
 export function MemberPrice({ amount, className }: { amount: number; className?: string }) {
   return (
-    <Chip tone="tint" className={cx('min-w-0', className)}>
+    <Chip tone="tint" className={cx('whitespace-nowrap', className)}>
       Member {formatIDR(amount)}
     </Chip>
   );
