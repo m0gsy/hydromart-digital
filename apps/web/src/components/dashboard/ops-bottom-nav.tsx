@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Buildings,
   ChartLineUp,
@@ -13,7 +14,10 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
+import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import {
   canManagePricing,
   canViewDashboard,
@@ -77,11 +81,81 @@ export function OpsBottomNav() {
           </Link>
         );
       })}
-      {/* Static "more" affordance — mirrors design 5k; full menu is the desktop rail. */}
-      <span className="flex flex-col items-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]">
+      {/* B2. This was a `<span>`: styled exactly like the four real tabs beside it, and
+          doing nothing. The comment said "full menu is the desktop rail" — which meant a
+          depot manager on a phone could reach four screens and no others, and could not
+          re-scope the console to another depot at all. */}
+      <MoreSheetTab />
+    </nav>
+  );
+}
+
+/**
+ * The rest of the console, on a phone.
+ *
+ * Renders `GROUPS` from `ops-rail` rather than its own copy: one list, two surfaces. A
+ * second copy would drift the first time a route is added to one and not the other, and
+ * the symptom would be a screen that exists on desktop and is simply unreachable on a
+ * phone — which is the defect this replaces.
+ */
+function MoreSheetTab() {
+  const { customer } = useAuth();
+  const { t } = useT();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const role = customer?.role;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="flex flex-col items-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
+      >
         <DotsThreeOutline size={21} />
         Lainnya
-      </span>
-    </nav>
+      </button>
+
+      <Sheet open={open} onClose={() => setOpen(false)} title={t('ops.more.title')}>
+        <div className="flex flex-col gap-1 pb-2">
+          {/* A depot-scoped console whose switcher only exists on desktop is a console a
+              depot manager cannot re-scope from the floor. */}
+          <div className="pb-2">
+            <DepotSwitcher />
+          </div>
+          {GROUPS.map((group) => {
+            const items = group.items.filter((i) => i.show(role));
+            if (items.length === 0) return null;
+            return (
+              <div key={group.headKey}>
+                <p className="px-1 pb-1 pt-3 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
+                  {t(`ops.groups.${group.headKey}`)}
+                </p>
+                {items.map((item) => {
+                  const Ic = item.icon;
+                  const on = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className={
+                        'flex items-center gap-2.5 rounded-[10px] px-2 py-2.5 text-[14px] transition-colors ' +
+                        (on ? 'bg-brand-50 font-extrabold text-brand-800' : 'text-[color:var(--text)]')
+                      }
+                    >
+                      <Ic size={19} weight={on ? 'fill' : 'regular'} />
+                      {t(`ops.nav.${item.labelKey}`)}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </Sheet>
+    </>
   );
 }

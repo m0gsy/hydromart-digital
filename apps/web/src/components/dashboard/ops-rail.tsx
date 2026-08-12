@@ -93,14 +93,14 @@ import {
 
 type Role = string | null | undefined;
 
-interface RailItem {
+export interface RailItem {
   href: string;
   // i18n key under ops.nav.* — resolved at render via t().
   labelKey: string;
   icon: Icon;
   show: (role: Role) => boolean;
 }
-interface RailGroup {
+export interface RailGroup {
   // i18n key under ops.groups.* — resolved at render via t().
   headKey: string;
   items: RailItem[];
@@ -108,7 +108,9 @@ interface RailGroup {
 
 // Grouped by job-to-be-done. Each item is role-gated (chrome only — the server
 // stays authoritative); groups with no visible items collapse.
-const GROUPS: RailGroup[] = [
+// B2: exported so the phone "Lainnya" sheet renders the SAME menu the desktop rail does.
+// One list, two surfaces — a second copy would drift the moment a route is added.
+export const GROUPS: RailGroup[] = [
   {
     headKey: 'summary',
     items: [
@@ -229,7 +231,9 @@ const GROUPS: RailGroup[] = [
   },
 ];
 
-function DepotSwitcher() {
+// B2: exported for the phone sheet. A depot-scoped console whose switcher only exists on
+// desktop is a console a depot manager cannot re-scope from the floor.
+export function DepotSwitcher() {
   const { depots, selectedId, selected, setSelected } = useDepot();
   const { t } = useT();
   const [open, setOpen] = useState(false);
