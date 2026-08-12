@@ -7,5 +7,4 @@
 --
 -- Before running this on production, export it:
 --   \copy (SELECT id, "employeeCode", "exitDate" FROM employees WHERE "exitDate" IS NOT NULL) TO 'exit-dates.csv' CSV HEADER
-DROP INDEX IF EXISTS "employees_exitDate_idx";
 ALTER TABLE "employees" DROP COLUMN IF EXISTS "exitDate";

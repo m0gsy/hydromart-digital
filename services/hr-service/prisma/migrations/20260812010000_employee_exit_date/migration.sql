@@ -8,9 +8,9 @@
 -- Nullable, no backfill, no default: an employee who has not left has no exit date, and
 -- guessing one from `status = 'RESIGNED'` would invent a day nobody recorded — and that day
 -- is a number on a payslip.
+--
+-- No index, deliberately. Payroll reads this column off an employee row it has already
+-- fetched by id; nothing filters or sorts on it. An index here would lock writes on the
+-- table for the length of the build (audit H-39) to earn nothing. Add one CONCURRENTLY via
+-- scripts/create-indexes.sh on the day a query actually needs it.
 ALTER TABLE "employees" ADD COLUMN "exitDate" DATE;
-
--- Payroll asks "who was employed during this window", which is a range scan over the two
--- boundary columns. Partial, because the overwhelming majority of rows are NULL and an
--- index over them earns nothing.
-CREATE INDEX "employees_exitDate_idx" ON "employees" ("exitDate") WHERE "exitDate" IS NOT NULL;
