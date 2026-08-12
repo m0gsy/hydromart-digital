@@ -200,7 +200,7 @@ function OrderDetailInner({ id }: { id: string }) {
     <div className="mx-auto flex w-full max-w-[1216px] flex-col gap-4">
       {/* Success banner (spec 5b) — one-time, shown only when arriving from checkout. */}
       {placed && (
-        <div className={`${PANEL} flex items-center gap-3.5 p-[22px]`} role="status">
+        <div className={`${PANEL} flex flex-wrap items-center gap-3.5 p-[22px]`} role="status">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[color:var(--success-bg)]">
             <CheckCircle size={28} weight="fill" className="text-[color:var(--success)]" />
           </span>
@@ -208,7 +208,11 @@ function OrderDetailInner({ id }: { id: string }) {
             <p className="text-base font-extrabold">{t('order.detail.successTitle')}</p>
             <p className="mt-0.5 text-[13px] text-muted">{t('order.detail.successBody')}</p>
           </div>
-          <div className="hidden shrink-0 text-right sm:block">
+          {/* A9. This was `hidden sm:block`, so on a phone the ETA vanished entirely — the
+              one number the customer opened this screen for, missing on the device they
+              opened it on. It is not hidden now: it wraps onto its own full-width line
+              below `sm:` and keeps its place at the right of the banner above it. */}
+          <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
             <p className="text-[11px] font-bold text-muted">{t('order.detail.eta')}</p>
             {/* Real ETA once the courier starts the run (order.estimatedArrivalAt, set by
                 delivery-service at ON_DELIVERY); falls back to the static window pre-dispatch. */}
