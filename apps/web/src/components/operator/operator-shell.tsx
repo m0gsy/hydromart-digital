@@ -81,7 +81,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   const name = customer?.fullName ?? 'Operator';
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       {/* Franchise header */}
       <header className="surface border-b border-app">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">

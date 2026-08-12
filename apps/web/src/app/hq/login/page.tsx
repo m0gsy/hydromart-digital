@@ -84,7 +84,7 @@ function HqLoginPanel() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-[70dvh] items-center justify-center px-4 py-10">
       <div className="grid w-full max-w-[880px] overflow-hidden rounded-[24px] border border-app shadow-card md:grid-cols-2">
         {/* Deep-teal brand panel */}
         <div className="relative hidden flex-col justify-between bg-deep-teal p-10 text-white md:flex">

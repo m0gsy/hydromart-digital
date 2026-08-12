@@ -145,7 +145,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-[70dvh] items-center justify-center px-4 py-10">
       <Card className="grid w-full max-w-[1080px] overflow-hidden rounded-[24px] md:min-h-[600px] md:grid-cols-2">
         <BrandPanel />
         <div className="flex items-center justify-center px-6 py-10 md:px-14 md:py-12">
