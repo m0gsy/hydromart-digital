@@ -1,6 +1,7 @@
-// Play listing screenshots for id.hydromart.ops, taken from the web app at the same phone
-// viewport the customer set used (412x732 @3 = 1236x2196, mobile + touch) — Capacitor
-// serves the same bundle, so what this captures is what the binary draws.
+// Play listing screenshots for id.hydromart.ops, taken from the web app at the same three
+// viewports the customer set used — Capacitor serves the same bundle, so what this
+// captures is what the binary draws. The tablet sizes are not the phone shots enlarged:
+// past 640px the chrome switches to the desktop nav, exactly as it does on a real tablet.
 //
 //   node scripts/play-screenshots.mjs
 //
@@ -13,7 +14,14 @@ import { chromium, devices } from '@playwright/test';
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 const OUT = process.env.OUT_DIR ?? 'g:/VsCode/Hydromart/docs/play-assets';
 
-const PHONE = { viewport: { width: 412, height: 732 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
+const VIEWPORTS = [
+  { prefix: '', width: 412, height: 732, scale: 3 }, //  1236x2196 phone
+  { prefix: 'tab7-', width: 400, height: 711, scale: 3 }, // 1200x2133 7-inch tablet
+  // 1600x2400. Shorter than the customer set's 2844 on purpose: the depot console runs
+  // out of content before the taller frame runs out of pixels, and a listing image that is
+  // two-fifths empty reads as an unfinished app. Still inside Play's 9:16..16:9 window.
+  { prefix: 'tab10-', width: 800, height: 1200, scale: 2 },
+];
 
 const SHOTS = [
   { phone: '81100000003', route: '/driver', name: 'screenshot-ops-1-kurir' },
@@ -90,10 +98,18 @@ async function login(page, phone) {
 }
 
 const browser = await chromium.launch();
+for (const vp of VIEWPORTS) {
 for (const [phone, group] of Object.entries(
   SHOTS.reduce((a, s) => ((a[s.phone] ??= []).push(s), a), {}),
 )) {
-  const ctx = await browser.newContext({ ...devices['Pixel 5'], ...PHONE, locale: 'id-ID' });
+  const ctx = await browser.newContext({
+    ...devices['Pixel 5'],
+    viewport: { width: vp.width, height: vp.height },
+    deviceScaleFactor: vp.scale,
+    isMobile: true,
+    hasTouch: true,
+    locale: 'id-ID',
+  });
   await ctx.addInitScript(() => {
     localStorage.setItem('hydromart.onboarded', '1');
     localStorage.setItem('hydromart_driver_onboarded', '1');
@@ -104,9 +120,11 @@ for (const [phone, group] of Object.entries(
     await page.goto(`${BASE}${s.route}`, { waitUntil: 'networkidle' });
     await sleep(2500);
     if (s.before) await s.before(page);
-    await page.screenshot({ path: `${OUT}/${s.name}.png` });
-    console.log(`${s.name}.png  <- ${page.url()}`);
+    const file = s.name.replace('screenshot-ops-', `screenshot-ops-${vp.prefix}`);
+    await page.screenshot({ path: `${OUT}/${file}.png` });
+    console.log(`${file}.png  <- ${page.url()}`);
   }
   await ctx.close();
+}
 }
 await browser.close();

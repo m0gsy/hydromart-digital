@@ -338,10 +338,12 @@ Semuanya ada di [`docs/play-assets/`](play-assets/).
 | Screenshot tablet 7 inci  | 1200×2133 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
 | Screenshot tablet 10 inci | 1600×2844 | `screenshot-tab10-…` (tiga berkas, nama sama polanya)               |
 | Screenshot ponsel Ops     | 1236×2196 | `screenshot-ops-…` (empat berkas, nama sama polanya)                |
+| Tablet 7 inci Ops         | 1200×2133 | `screenshot-ops-tab7-…` (empat berkas)                              |
+| Tablet 10 inci Ops        | 1600×2400 | `screenshot-ops-tab10-…` (empat berkas)                             |
 
 Ikon dan feature graphic dipakai ulang untuk kedua aplikasi — keduanya murni merek, tanpa
 satu pun elemen khusus pelanggan. Screenshot **tidak** boleh dipakai ulang: listing
-aplikasi staf yang memajang layar belanja pelanggan adalah undangan penolakan. Keempat
+aplikasi staf yang memajang layar belanja pelanggan adalah undangan penolakan. Kedua belas
 berkas Ops di atas dibuat ulang dengan
 [`apps/web/scripts/play-screenshots.mjs`](../apps/web/scripts/play-screenshots.mjs) —
 login kurir (`+6281100000003`) untuk dua yang pertama, kepala depot (`+6281100000005`)
