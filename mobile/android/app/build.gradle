@@ -17,6 +17,11 @@ apply plugin: 'com.android.application'
  */
 def hydromartAppId = project.findProperty('hydromartAppId') ?: 'id.hydromart.app'
 def hydromartAppName = project.findProperty('hydromartAppName') ?: 'Hydromart'
+/**
+ * E6 — which of the two binaries this build is. Derived from the applicationId rather than
+ * carried as its own flag, so it can never disagree with the app actually being produced.
+ */
+def hydromartIsOps = hydromartAppId.endsWith('.ops')
 // Play rejects a re-upload of a versionCode it has already seen, so CI derives this from
 // the release tag. The default only exists so a local debug build runs.
 def hydromartVersionCode = (project.findProperty('hydromartVersionCode') ?: '1') as Integer
@@ -110,6 +115,85 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+}
+
+/**
+ * E6 — the customer app must not ask for permissions only the ops app uses.
+ *
+ * Measured on a built APK before this existed: `id.hydromart.app` shipped `CAMERA` and
+ * `ACCESS_FINE_LOCATION`. `docs/MOBILE_PLAY_STORE.md` justifies both, but every reason it
+ * gives is an OPS reason — "foto bukti kirim & absen wajah", "posisi kurir selama antaran".
+ * The customer app has no screen that opens a camera (the avatar picker goes through the
+ * system photo picker, which needs no permission) and only needs a rough position to pick
+ * the nearest depot. Both are permissions a Play reviewer asks you to justify in writing.
+ *
+ * Why a manifest TRANSFORM and not something simpler:
+ *
+ *  - `tools:node="${placeholder}"` does not work. The manifest merger resolves `tools:node`
+ *    BEFORE placeholder substitution and fails with
+ *    `No enum constant com.android.manifmerger.NodeOperationType.${CAMERA_NODE}`.
+ *    Tried, proven, discarded — do not spend the afternoon on it again.
+ *  - Product flavours would work, but `cap sync` writes the web export into
+ *    `src/main/assets` and does not know about per-flavour asset directories (see the
+ *    comment at the top of this file). Flavours would also rename every Gradle task and
+ *    silently break `mobile.yml`.
+ *
+ * So the merged manifest is rewritten after the merger has finished with it. The task
+ * FAILS if a permission it was told to strip is not there: a strip that silently does
+ * nothing because AGP changed its output format would be invisible until a Play reviewer
+ * found it, which is the whole failure this is here to prevent.
+ */
+abstract class StripCustomerOnlyPermissions extends DefaultTask {
+    @org.gradle.api.tasks.InputFile
+    abstract org.gradle.api.file.RegularFileProperty getMergedManifest()
+
+    @org.gradle.api.tasks.OutputFile
+    abstract org.gradle.api.file.RegularFileProperty getUpdatedManifest()
+
+    @org.gradle.api.tasks.Input
+    abstract org.gradle.api.provider.ListProperty<String> getPermissions()
+
+    @org.gradle.api.tasks.TaskAction
+    void strip() {
+        def text = mergedManifest.get().asFile.text
+        permissions.get().each { name ->
+            // The merged manifest is machine-generated, so the element is a predictable
+            // self-closing tag. Matched by its android:name to avoid touching a neighbour.
+            def pattern = ~/(?m)^[ \t]*<uses-permission[^>]*android:name="${java.util.regex.Pattern.quote(name)}"[^>]*\/>\r?\n?/
+            if (!(text =~ pattern)) {
+                throw new GradleException(
+                    "E6: expected to strip ${name} from the merged manifest, but no such " +
+                    "<uses-permission> is there. Either it stopped being declared (delete " +
+                    "it from this list) or AGP changed its output shape (fix the pattern). " +
+                    "Failing loudly rather than shipping a strip that does nothing.")
+            }
+            text = text.replaceAll(pattern, '')
+        }
+        updatedManifest.get().asFile.text = text
+    }
+}
+
+if (!hydromartIsOps) {
+    androidComponents {
+        onVariants(selector().all()) { variant ->
+            def strip = tasks.register(
+                "strip${variant.name.capitalize()}CustomerOnlyPermissions",
+                StripCustomerOnlyPermissions,
+            ) {
+                permissions.set([
+                    'android.permission.CAMERA',
+                    'android.permission.ACCESS_FINE_LOCATION',
+                ])
+            }
+            variant.artifacts
+                .use(strip)
+                .wiredWithFiles(
+                    { it.getMergedManifest() },
+                    { it.getUpdatedManifest() },
+                )
+                .toTransform(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE)
+        }
+    }
 }
 
 apply from: 'capacitor.build.gradle'
