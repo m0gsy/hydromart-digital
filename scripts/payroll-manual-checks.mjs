@@ -15,6 +15,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -50,6 +51,16 @@ async function api(method, path, body, token = HR) {
   return { status: res.status, body: json };
 }
 
+/**
+ * A statement against the stack's own database. Only item 18 needs it: a PENDING punch can
+ * only be PRODUCED by syncing an offline punch too late, which a script cannot stage.
+ */
+const PG = process.env.PSQL_CONTAINER ?? 'hydromart-postgres';
+const sql = (db, statement) =>
+  execFileSync('docker', ['exec', PG, 'psql', '-U', 'hydromart', '-d', db, '-tAc', statement], {
+    encoding: 'utf8',
+  }).trim();
+
 let failures = 0;
 const ok = (n) => console.log(`  ok   ${n}`);
 const bad = (n, detail) => {
@@ -76,6 +87,10 @@ async function createEmployee(depotId, overrides = {}) {
     fullName: `${STAMP} ${overrides.tag ?? 'Staf'}`,
     phone: `+62811${Math.floor(Math.random() * 9_000_000 + 1_000_000)}`,
     position: 'Staf Depot',
+    // Required, and constrained to the staff roles — CUSTOMER and the head-office roles are
+    // rejected. STAFF_DEPOT is the plainest one: no tenure raise, no depot-head bonus, so
+    // the payroll figures below stay about the employment window and nothing else.
+    role: 'STAFF_DEPOT',
     employmentStatus: 'PERMANENT',
     salaryType: 'MONTHLY',
     monthlyRate: 3_000_000,
@@ -164,6 +179,17 @@ async function main() {
     // `absenceDeductionAmount` is 0 there is no fine to avoid, and "no deductions" proves
     // nothing at all. Seen happening on a stale stack, where it read as a pass while the
     // prorate beside it was plainly broken.
+    // Switch the fine ON for this depot first. Without it there is no fine to escape, and
+    // "no deductions" would read as a pass while proving nothing — which is exactly what
+    // happened the first time this ran. The value is restored below.
+    // `scope` is required and the API rejects the request without it — a per-depot value
+    // and a network-wide one are deliberately different writes.
+    await api('PUT', '/hr/api/v1/hr/settings', {
+      key: 'absenceDeductionAmount',
+      value: '50000',
+      scope: 'DEPOT',
+      depotId: depotA.id,
+    });
     const control = await api('POST', '/hr/api/v1/payroll/generate', {
       employeeId: empA.id,
       periodMonth: PERIOD,
@@ -179,7 +205,66 @@ async function main() {
     } else {
       bad('19 joiner fined for days before joining', `deductions=${deductions}`);
     }
+    // Put the depot back the way it was found. A verification script that leaves a fine
+    // switched on is a verification script that changes somebody's payroll.
+    await api('DELETE', '/hr/api/v1/hr/settings', {
+      key: 'absenceDeductionAmount',
+      scope: 'DEPOT',
+      depotId: depotA.id,
+    });
   }
+
+  // ---- 18: a PENDING punch is not a no-show -----------------------------------------
+  //
+  // PENDING is a day somebody DID punch for — offline, synced too late to trust the device
+  // clock, or outside every geofence — and the schema says it counts as nothing until HR
+  // judges it. Fining it charges an honest employee for HR's backlog. The row is written
+  // straight to the database because the only way to PRODUCE one through the API is to
+  // sync a punch late, which is not a thing a script can stage.
+  const pendingEmp = await createEmployee(depotA.id, { tag: 'Pending' });
+  await api('PUT', '/hr/api/v1/hr/settings', {
+    key: 'absenceDeductionAmount',
+    value: '50000',
+    scope: 'DEPOT',
+    depotId: depotA.id,
+  });
+
+  const withoutPunch = await api('POST', '/hr/api/v1/payroll/generate', {
+    employeeId: pendingEmp.id,
+    periodMonth: PERIOD,
+  });
+  const fineBefore = sumKind(withoutPunch.body, 'DEDUCTION');
+
+  // A Tuesday inside the period, so it is a working day under any weekly-off setting that
+  // only takes Sunday off. Without that the fine would not move and the test would pass
+  // for the wrong reason.
+  sql(
+    'hydromart_hr',
+    `insert into attendance (id, "employeeId", "depotId", "workDate", status, "lateMinutes", "createdAt", "updatedAt")
+     values (gen_random_uuid(), '${pendingEmp.id}', '${depotA.id}', '${PERIOD}-10', 'PENDING', 0, now(), now())`,
+  );
+
+  const withPunch = await api('POST', '/hr/api/v1/payroll/generate', {
+    employeeId: pendingEmp.id,
+    periodMonth: PERIOD,
+  });
+  const fineAfter = sumKind(withPunch.body, 'DEDUCTION');
+
+  if (fineBefore === 0) {
+    bad('18 absence fine is not configured', 'nothing to exempt the PENDING day from');
+  } else if (fineAfter === fineBefore - 50_000) {
+    ok(`18 a PENDING punch removes exactly one day of absence fine (${fineBefore} → ${fineAfter})`);
+  } else if (fineAfter === fineBefore) {
+    bad('18 PENDING day still fined as a no-show', `fine unchanged at ${fineBefore}`);
+  } else {
+    bad('18 PENDING day changed the fine by the wrong amount', `${fineBefore} → ${fineAfter}`);
+  }
+
+  await api('DELETE', '/hr/api/v1/hr/settings', {
+    key: 'absenceDeductionAmount',
+    scope: 'DEPOT',
+    depotId: depotA.id,
+  });
 
   // ---- 20: net floors at 0 and the unpaid remainder rolls forward ------------------
   const trainee = await createEmployee(depotA.id, {
