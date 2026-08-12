@@ -142,7 +142,7 @@ export function Sheet({
           </div>
           <div className="overflow-y-auto p-5">{children}</div>
           {footer && (
-            <div className="border-t border-app p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="border-t border-app p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
               {footer}
             </div>
           )}

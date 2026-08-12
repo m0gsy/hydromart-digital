@@ -27,8 +27,13 @@ function DriverNav() {
   const pathname = usePathname();
   const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
   const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;
+  // B1+E0. `env(safe-area-inset-bottom)` on its own reports 0 on any WebView older than
+  // 140 — most of the courier fleet — so this nav sat directly on the gesture bar, and the
+  // tab a courier taps a hundred times a shift was the one competing with a system swipe.
+  // The Capacitor plugin always injects `--safe-area-inset-bottom`; `max()` keeps a real
+  // 0.5rem floor when both are absent.
   return (
-    <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[env(safe-area-inset-bottom)]">
+    <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
       {tabs.map(({ href, labelKey, icon: Icon }) => {
         const active = href === '/driver' ? pathname === href : pathname.startsWith(href);
         return (

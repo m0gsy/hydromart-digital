@@ -181,6 +181,12 @@ jobs:
       - name: mobile release gate self-check
         run: bash scripts/mobile-release-gate.test.sh
 
+      # E0: a bare env(safe-area-inset-*) is 0 on any WebView older than 140, so the inset
+      # vanishes on exactly the phones it exists for — while looking perfectly correct in
+      # every desktop browser anyone would check it in. Eight places had drifted back to it.
+      - name: Safe-area insets are WebView-safe
+        run: node scripts/check-safe-area.mjs
+
       # A new CREATE INDEX in a migration locks writes on that table for the whole build.
       # This fails the PR unless the index also has a CONCURRENTLY build in
       # scripts/create-indexes.sh, which is what production runs first (audit H-39).

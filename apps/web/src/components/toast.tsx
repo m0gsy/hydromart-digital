@@ -56,7 +56,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toast }}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-8"
+        // A4. `z-[55]`, above the sticky action bar and the tab bar (both z-50) and below the
+        // overlay layer. At z-50 a toast tied with them and lost on document order, so the
+        // one message explaining why a tap did nothing rendered underneath the button that
+        // was tapped — on exactly the screens that have a sticky bar.
+        className="pointer-events-none fixed inset-x-0 bottom-24 z-[55] flex flex-col items-center gap-2 px-4 sm:bottom-8"
         role="status"
         aria-live="polite"
       >

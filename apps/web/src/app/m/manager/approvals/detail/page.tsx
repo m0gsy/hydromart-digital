@@ -176,7 +176,7 @@ export default function ApprovalDetailPage() {
       </div>
 
       {pending ? (
-        <footer className="sticky bottom-0 flex gap-3 border-t border-app bg-[color:var(--surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <footer className="sticky bottom-0 flex gap-3 border-t border-app bg-[color:var(--surface)] p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
           <button
             type="button"
             onClick={() => decide('REJECT')}
@@ -195,7 +195,7 @@ export default function ApprovalDetailPage() {
           </button>
         </footer>
       ) : (
-        <footer className="border-t border-app bg-[color:var(--surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-sm text-[color:var(--text-muted)]">
+        <footer className="border-t border-app bg-[color:var(--surface)] p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] text-center text-sm text-[color:var(--text-muted)]">
           Item ini sudah {a.status === 'APPROVED' ? 'disetujui' : 'ditolak'}.
         </footer>
       )}

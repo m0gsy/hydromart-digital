@@ -18,7 +18,7 @@ import { screenChrome } from '@/lib/screen-chrome';
  * and to the WebView, and a narrow desktop window gets the app layout too. That was the
  * deliberate call; the alternative is two code paths per screen forever.
  *
- * `pt-[env(safe-area-inset-top)]` is load-bearing, not polish. `targetSdkVersion = 36` means
+ * `pt-[var(--safe-area-inset-top,env(safe-area-inset-top))]` is load-bearing, not polish. `targetSdkVersion = 36` means
  * Android 15 enforces edge-to-edge and ignores `StatusBar.setOverlaysWebView(false)`, so on
  * a current phone the app is already drawing under the status bar. Nothing else in the app
  * reads the top inset.
@@ -43,7 +43,7 @@ export function AppBar() {
   };
 
   return (
-    <header className="surface sticky top-0 z-30 border-b border-app pt-[env(safe-area-inset-top)] sm:hidden">
+    <header className="surface sticky top-0 z-30 border-b border-app pt-[var(--safe-area-inset-top,env(safe-area-inset-top))] sm:hidden">
       <div className="flex h-14 items-center gap-2 px-4">
         {chrome.kind === 'pushed' ? (
           <>
