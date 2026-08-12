@@ -174,9 +174,10 @@ Aturan yang mengikat:
   sampai reviewer mencobanya.
 - Arahkan ke **akun demo khusus**: nol pesanan asli, bukan nomor orang sungguhan. Siapa
   pun yang tahu pasangan itu bisa masuk sebagai akun tersebut.
-- **SMS-nya tetap terkirim.** Kode tetap hanya mengganti nilai yang digenerate; pengiriman
-  berjalan seperti biasa. Nomornya harus nomor yang Anda kuasai, bukan angka karangan yang
-  ternyata milik orang lain.
+- **SMS tidak dikirim ke nomor reviewer.** Reviewer sudah memegang kodenya dari Play
+  Console, jadi pengiriman hanya menagih biaya dan mengetuk ponsel orang yang tidak pernah
+  meminta — nomor demo tidak selalu SIM milik perusahaan. Yang dilewati hanya
+  pengirimannya; tantangannya tetap dibuat, tetap kedaluwarsa, tetap diverifikasi.
 - Ganti kodenya setelah review selesai, atau kosongkan keduanya untuk mematikan fitur.
 
 **Dua nomor, bukan satu.** `REVIEWER_PHONE` menerima daftar dipisah koma. Aplikasi

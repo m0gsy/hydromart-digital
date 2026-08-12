@@ -72,7 +72,6 @@ describe('OtpService', () => {
     it('gives the nominated number the fixed code', async () => {
       await withReviewer().issue(reviewerCustomer(), OtpPurpose.LOGIN);
 
-      expect(delivery.lastCode).toBe('424242');
       expect(otpRepo.rows[0].codeHash).toBe('hashed:424242');
     });
 
@@ -98,15 +97,31 @@ describe('OtpService', () => {
       // The fake repo keys challenges by customer id and every helper customer shares one,
       // so clear between issues or the resend cooldown answers instead of the code path.
       await many.issue(reviewerCustomer(), OtpPurpose.LOGIN);
-      expect(delivery.lastCode).toBe('424242');
+      expect(otpRepo.rows[0].codeHash).toBe('hashed:424242');
 
       otpRepo.rows.length = 0;
       await many.issue(activeCustomer(second), OtpPurpose.LOGIN);
-      expect(delivery.lastCode).toBe('424242');
+      expect(otpRepo.rows[0].codeHash).toBe('hashed:424242');
 
       otpRepo.rows.length = 0;
       await many.issue(activeCustomer(), OtpPurpose.LOGIN);
       expect(delivery.lastCode).toBe('123456');
+    });
+
+    // The reviewer already knows the code, so sending it costs an SMS and rings a phone
+    // that may belong to somebody who never asked — the demo numbers are not always SIMs
+    // the company holds. The challenge itself is still created and still verified.
+    it('sends no SMS to a nominated number, but still records the challenge', async () => {
+      await withReviewer().issue(reviewerCustomer(), OtpPurpose.LOGIN);
+
+      expect(delivery.sent).toHaveLength(0);
+      expect(otpRepo.rows[0].codeHash).toBe('hashed:424242');
+    });
+
+    it('still delivers to every other number', async () => {
+      await withReviewer().issue(activeCustomer(), OtpPurpose.LOGIN);
+
+      expect(delivery.sent).toHaveLength(1);
     });
 
     it('ignores blank entries rather than matching an empty phone', async () => {

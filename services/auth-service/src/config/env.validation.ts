@@ -43,7 +43,9 @@ export const envValidationSchema = Joi.object({
   // the most common rejection for an app that is entirely behind a login. One nominated
   // phone number gets a FIXED code instead of a random one — issued, hashed, stored,
   // expired, attempt-limited and consumed exactly like any other, because there is no
-  // shortcut in the verify path at all and there must never be one.
+  // shortcut in the verify path at all and there must never be one. It is not delivered:
+  // the reviewer reads the code off the Play listing, and the number may be a SIM nobody
+  // here owns.
   //
   // Both blank = the feature does not exist. A phone WITHOUT a code fails at boot rather
   // than half-enabling — that number would keep getting random codes while looking
