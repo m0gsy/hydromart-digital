@@ -2,6 +2,7 @@
 // server stays authority. Types live here (not types.ts) to keep the HR surface self-contained.
 
 import type { HrManagedRole } from '@hydromart/access';
+import { BUSINESS_TZ } from './wib';
 
 // DEPOT_MANAGER is gone: it was a JABATAN wearing a status's clothes, which made "depot
 // head" and "on probation" mutually exclusive. It now lives on `Employee.role`.
@@ -672,7 +673,7 @@ export function fmtDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    : d.toLocaleDateString('id-ID', { timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 /** ISO datetime → "13.05". Empty-safe. */
@@ -681,7 +682,7 @@ export function fmtTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    : d.toLocaleTimeString('id-ID', { timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit' });
 }
 
 /** Current period as YYYY-MM. */

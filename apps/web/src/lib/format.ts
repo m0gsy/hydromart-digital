@@ -1,5 +1,7 @@
 // Pure formatting helpers. Covered by test/format.test.ts.
 
+import { BUSINESS_TZ } from './wib';
+
 // Plain number grouping (id-ID uses "." as the thousands separator), then a
 // literal "Rp " prefix — avoids the locale currency-symbol spacing (Intl inserts
 // a non-breaking space) that makes the output awkward to assert on.
@@ -39,7 +41,12 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+// C3: `timeZone` is not optional here. Without it `Intl` formats in whatever zone the
+// device is set to, so the same order timestamp reads differently on a courier's phone
+// abroad, on a laptop left on UTC, and on a depot PC — and the one that is wrong is the one
+// nobody is looking at. Every timestamp this app prints is a business event in WIB.
 const dateFmt = new Intl.DateTimeFormat('id-ID', {
+  timeZone: BUSINESS_TZ,
   day: 'numeric',
   month: 'short',
   year: 'numeric',

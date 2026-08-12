@@ -11,14 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { CourierEarningRule, CourierEarningsSummary, CourierPerformance, Shift } from '@/lib/types';
-
-/** YYYY-MM-DD of the WIB (UTC+7) Monday of the current week — matches the home/perf pages. */
-function thisWibMonday(): string {
-  const wib = new Date(Date.now() + 7 * 3600 * 1000);
-  const daysFromMon = (wib.getUTCDay() + 6) % 7;
-  const monday = new Date(Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate() - daysFromMon));
-  return monday.toISOString().slice(0, 10);
-}
+import { mondayWib } from '@/lib/wib';
 
 function ShiftGoal() {
   const router = useRouter();
@@ -28,7 +21,7 @@ function ShiftGoal() {
 
   const earnings = useAsync<CourierEarningsSummary>(() => api.get(endpoints.courierPayout.summary, true), []);
   const perf = useAsync<CourierPerformance>(
-    () => api.get(endpoints.deliveries.performance(thisWibMonday(), depotId), true),
+    () => api.get(endpoints.deliveries.performance(mondayWib(), depotId), true),
     [depotId],
   );
   const shift = useAsync<Shift | null>(() => api.get(endpoints.deliveries.shifts.current, true), []);
