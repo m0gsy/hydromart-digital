@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import './globals.css';
 import { AppShell } from '@/components/app-shell';
@@ -11,9 +11,27 @@ import { LocaleProvider } from '@/lib/locale-context';
 import { SPLASH_NET_SCRIPT } from '@/lib/splash-net';
 import { ThemeProvider } from '@/lib/theme-context';
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+/**
+ * Self-hosted, not `next/font/google`.
+ *
+ * `next/font/google` downloads the font AT BUILD TIME. That put `fonts.gstatic.com` on the
+ * critical path of every production build: five times in one session CI died with
+ * "Failed to fetch `Plus Jakarta Sans` from Google Fonts", which Next reports as
+ * "Failed to compile … webpack errors" — a message that reads like a code defect and once
+ * cost half an hour of diagnosis before the real cause was found further up the log.
+ *
+ * The file is the same one Google was serving: the `latin` subset of the VARIABLE font, so
+ * one 27 kB file covers 400–800 instead of five static cuts. `subsets: ['latin']` was
+ * already the declared subset, so nothing shipped to a browser changes — the bytes are now
+ * fetched at `npm run build`-time from disk instead of over the network.
+ *
+ * Updating it: re-fetch the CSS with a modern browser User-Agent (Google serves woff2 only
+ * to those) and take the `src` of the block whose `unicode-range` starts `U+0000-00FF`.
+ */
+const jakarta = localFont({
+  src: './fonts/PlusJakartaSans-latin.woff2',
+  weight: '400 800',
+  style: 'normal',
   display: 'swap',
   variable: '--font-jakarta',
 });
