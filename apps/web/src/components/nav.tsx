@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, CaretDown, Drop, MapPin, ShoppingCartSimple, User } from '@phosphor-icons/react';
+import { Bell, ShoppingCartSimple, User } from '@phosphor-icons/react';
 
+import { LocationSelector } from '@/components/location-selector';
+import { BrandMark } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
-import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { formatIDR } from '@/lib/format';
 import { canViewDashboard, isStaff } from '@/lib/roles';
@@ -14,7 +15,6 @@ import { canViewDashboard, isStaff } from '@/lib/roles';
 export function Nav() {
   const { customer, ready } = useAuth();
   const { count, cart } = useCart();
-  const { location } = useLocation();
   const { t } = useT();
   const pathname = usePathname();
 
@@ -42,31 +42,22 @@ export function Nav() {
   return (
     <header className="surface sticky top-0 z-30 hidden border-b border-app sm:block">
       <nav className="mx-auto flex h-16 max-w-[1216px] items-center gap-3 px-4 sm:h-[72px] sm:gap-5 sm:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 font-extrabold tracking-[-0.02em]"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600">
-            <Drop size={19} weight="fill" className="text-white" />
-          </span>
-          <span className="text-[19px]">hydromart</span>
+        {/* A15: the FIFTH hand-built copy of the lockup, found only after the other four
+            were centralised. */}
+        <Link href="/">
+          <BrandMark />
         </Link>
 
-        {/* Location pill — reads the shared delivery location; taps through to the
-            home hero where the full selector (geolocation + depot picker) lives.
-            ponytail: LocationSelector owns its open state and can't be driven from
-            here without editing it (out of scope); route to it instead of cloning
-            its depot-fetch. Make it controllable if the dropdown must live in-nav. */}
-        <Link
-          href="/"
-          className="hidden items-center gap-1.5 rounded-full border border-app bg-[color:var(--surface)] px-4 py-[9px] text-[13.5px] font-semibold sm:flex"
-        >
-          <MapPin size={16} weight="fill" className="text-brand-600" />
-          <span className="max-w-[10rem] truncate">
-            {location ? location.label : t('home.location.placeholder')}
-          </span>
-          <CaretDown size={12} className="text-muted" />
-        </Link>
+        {/* A14. This was a `<Link href="/">` wearing a pin, a label and a caret: it looked
+            exactly like a dropdown and went to the home page instead. Someone tapping it to
+            change depot got navigated away, which reads as the app losing the tap.
+
+            The note left here said the real selector "can't be driven from here without
+            editing it" and to make it controllable first. It turned out not to need that —
+            `LocationSelector` owns its own open state, so it only ever needed mounting. */}
+        <div className="hidden sm:block">
+          <LocationSelector compact />
+        </div>
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* primary links — desktop only; mobile uses the bottom tab bar */}
