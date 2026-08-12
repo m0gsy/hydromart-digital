@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -6,6 +6,7 @@ import {
   IdentityPort,
   ProvisionManagedStaffInput,
   ProvisionStaffInput,
+  UpdateStaffProfileInput,
 } from '../../application/ports/identity.port';
 
 /**
@@ -47,7 +48,14 @@ export class IdentityHttpAdapter implements IdentityPort {
     await this.post('auth/internal/staff/status', { customerId, active });
   }
 
-  private async post<T>(path: string, input: unknown): Promise<T> {
+  async updateStaffProfile(input: UpdateStaffProfileInput): Promise<void> {
+    // The one call here that can legitimately be refused by DATA rather than by an outage:
+    // the number belongs to somebody else. A 503 "auth-service menolak (409)" told the
+    // person editing to try again later, which would never work.
+    await this.post('auth/internal/staff/profile', input, 'Nomor HP ini sudah dipakai akun lain');
+  }
+
+  private async post<T>(path: string, input: unknown, conflictMessage?: string): Promise<T> {
     const { url, internalKey } = this.config.authService;
     if (!url || !internalKey) {
       throw new ServiceUnavailableException('AUTH_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
@@ -67,6 +75,9 @@ export class IdentityHttpAdapter implements IdentityPort {
       );
     }
 
+    if (res.status === 409 && conflictMessage) {
+      throw new BadRequestException(conflictMessage);
+    }
     if (!res.ok) {
       throw new ServiceUnavailableException(`auth-service menolak permintaan (${res.status})`);
     }

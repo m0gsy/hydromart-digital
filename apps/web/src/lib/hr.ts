@@ -516,6 +516,12 @@ export interface SettingDef {
   label?: string;
   min?: number;
   max?: number;
+  /**
+   * What the number or string actually means ("menit setelah jam masuk",
+   * "telat1,telat2,tidakAbsen (Rp)"). The server has always sent it; dropping it here left
+   * the CSV settings as a blank box nobody could guess the shape of.
+   */
+  unit?: string;
 }
 export interface SettingsSchema {
   defs: SettingDef[];

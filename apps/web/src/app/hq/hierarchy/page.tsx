@@ -41,6 +41,34 @@ interface Described {
 }
 
 /**
+ * The two whole-network reads this page needs, each paged to exhaustion at the cap.
+ *
+ * Both asked for `limit: 200`, and BOTH services cap that field at 100 — so the depot card
+ * rendered "limit must not be greater than 100" instead of the hierarchy, and the assistant
+ * picker behind it was equally dead. Paged at the cap rather than lowered to it: depot 101
+ * would otherwise vanish from the map silently, which is the same failure wearing a nicer
+ * face. Same shape as `readLinkedAccountIds` on the staff console (K-5).
+ */
+const PAGE = 100;
+
+async function readAllPages<T>(url: (page: number) => string): Promise<T[]> {
+  const rows: T[] = [];
+  for (let page = 1; ; page += 1) {
+    const { items, total } = await api.get<Page<T>>(url(page), true);
+    rows.push(...items);
+    if (items.length < PAGE || rows.length >= total) return rows;
+  }
+}
+
+const readAllAssistants = () =>
+  readAllPages<Customer>((page) =>
+    endpoints.auth.staff({ page, limit: PAGE, role: 'ASSISTANT_SUPERVISOR' }),
+  );
+
+const readAllDepots = () =>
+  readAllPages<SupervisedDepot>((page) => endpoints.depots.manage({ page, limit: PAGE }));
+
+/**
  * The supervision map (F3/F4): who supervises whom, and which depots that reaches.
  *
  * This screen is the only way to populate multi-depot scope — with it empty, every
@@ -66,18 +94,12 @@ export default function HqHierarchyPage() {
     () => api.get(endpoints.auth.staff({ limit: SEARCH_LIMIT, search: search || undefined }), true),
     [search],
   );
-  const depots = useAsync<Page<SupervisedDepot>>(
-    () => api.getCached(endpoints.depots.manage({ limit: 200 }), true),
-    [],
-  );
+  const depots = useAsync<SupervisedDepot[]>(() => readAllDepots(), []);
   const detail = useAsync<Described | null>(
     () => (staffId ? api.get<Described>(endpoints.hierarchy.describe(staffId), true) : Promise.resolve(null)),
     [staffId],
   );
-  const assistantPage = useAsync<Page<Customer>>(
-    () => api.get(endpoints.auth.staff({ limit: 200, role: 'ASSISTANT_SUPERVISOR' }), true),
-    [],
-  );
+  const assistantPage = useAsync<Customer[]>(() => readAllAssistants(), []);
 
   const d = detail.data;
   /*
@@ -101,7 +123,7 @@ export default function HqHierarchyPage() {
   const superior = linked.data?.find((p) => p.id === d?.superiorId) ?? null;
 
   const people = useMemo(() => staff.data?.items ?? [], [staff.data]);
-  const depotRows = useMemo(() => depots.data?.items ?? [], [depots.data]);
+  const depotRows = useMemo(() => depots.data ?? [], [depots.data]);
   const nameOf = useMemo(() => {
     const map = new Map(
       [...people, ...(linked.data ?? [])].map((p) => [p.id, p.fullName || p.phone]),
@@ -133,7 +155,7 @@ export default function HqHierarchyPage() {
    * operator happened to have searched an assistant by name — a hard regression against the
    * `limit: 200` this page replaced, on the one control that must always be usable.
    */
-  const assistants = assistantPage.data?.items ?? [];
+  const assistants = assistantPage.data ?? [];
 
   if (!can('hierarchyAdmin', customer?.role)) return <AccessDeniedHq role={customer?.role} />;
 

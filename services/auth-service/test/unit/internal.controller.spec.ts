@@ -16,6 +16,7 @@ describe('InternalAccountController', () => {
     inviteStaff: jest.fn(),
     preRegisterCustomer: jest.fn(),
     lookupByIds: jest.fn(),
+    updateStaffProfileInternal: jest.fn(),
   };
   const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
   const controller = new InternalAccountController(account as never, audit as never);
@@ -92,6 +93,32 @@ describe('InternalAccountController', () => {
       controller.preRegisterCustomer({ phone: '081200001111', fullName: 'Siti' }),
     ).resolves.toEqual({ customerId: 'cust-2', status: 'created' });
     expect(account.preRegisterCustomer).toHaveBeenCalledWith('081200001111', 'Siti');
+  });
+
+  it('forwards a name/phone correction from hr-service', async () => {
+    account.updateStaffProfileInternal.mockResolvedValue({
+      id: 'cust-3',
+      phone: '+628129999999',
+      fullName: 'Budi Santoso',
+      email: null,
+      role: Role.STAFF_DEPOT,
+      status: 'ACTIVE',
+      avatarUrl: null,
+      assignedDepotId: 'depot-1',
+      createdAt: new Date(),
+    });
+
+    const out = await controller.updateStaffProfile({
+      customerId: 'cust-3',
+      fullName: 'Budi Santoso',
+      phone: '08129999999',
+    } as never);
+
+    expect(account.updateStaffProfileInternal).toHaveBeenCalledWith('cust-3', {
+      fullName: 'Budi Santoso',
+      phone: '08129999999',
+    });
+    expect(out).toMatchObject({ fullName: 'Budi Santoso', phone: '+628129999999' });
   });
 
   it('resolves a batch of ids to public profiles', async () => {

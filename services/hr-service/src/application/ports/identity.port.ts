@@ -57,6 +57,25 @@ export interface IdentityPort {
    * between themselves forever.
    */
   setStaffActive(customerId: string, active: boolean): Promise<void>;
+
+  /**
+   * Push a corrected name or phone number onto the existing login.
+   *
+   * Fails hard like the other two. A name that only ever changed here left the HQ staff
+   * directory showing the old one forever; a phone that only ever changed here was worse —
+   * HR displayed the new number while the OTP kept going to the old one, and nothing
+   * anywhere said the two disagreed.
+   */
+  updateStaffProfile(input: UpdateStaffProfileInput): Promise<void>;
+}
+
+export interface UpdateStaffProfileInput {
+  /** auth-service Customer.id (the employee's `authSubjectId`). */
+  customerId: string;
+  /** Omit to leave it alone. */
+  fullName?: string;
+  /** The login number itself. Omit to leave it alone. */
+  phone?: string;
 }
 
 export interface AssignRoleInput {

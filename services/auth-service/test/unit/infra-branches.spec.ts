@@ -15,7 +15,10 @@ import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { Role } from '../../src/domain/customer/role.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Customer } from '../../src/domain/customer/customer.entity';
-import { EmailAlreadyRegisteredError } from '../../src/domain/errors/auth.errors';
+import {
+  EmailAlreadyRegisteredError,
+  PhoneAlreadyRegisteredError,
+} from '../../src/domain/errors/auth.errors';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { S3StorageAdapter } from '../../src/infrastructure/storage/s3-storage.adapter';
 import { LocalDiskStorageAdapter } from '../../src/infrastructure/storage/local-disk-storage.adapter';
@@ -336,6 +339,41 @@ describe('CustomerPrismaRepository branch gaps', () => {
       status: CustomerStatus.ACTIVE,
     });
     await expect(repo.save(customer)).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
+  });
+
+  // The race the service pre-check cannot win: two edits a millisecond apart both read the
+  // number as free and the index decides. It must read as "taken", not as a database error.
+  it('translates a P2002 phone conflict into a domain error', async () => {
+    model.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+        meta: { target: ['phone'] },
+      }),
+    );
+    const customer = Customer.fromPersistence({
+      ...row(),
+      role: Role.CUSTOMER,
+      status: CustomerStatus.ACTIVE,
+    });
+    await expect(repo.save(customer)).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+  });
+
+  // A P2002 on any OTHER column is not one of the two the service knows how to explain.
+  it('rethrows a P2002 on a column it has no sentence for', async () => {
+    model.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+        meta: { target: ['googleSub'] },
+      }),
+    );
+    const customer = Customer.fromPersistence({
+      ...row(),
+      role: Role.CUSTOMER,
+      status: CustomerStatus.ACTIVE,
+    });
+    await expect(repo.save(customer)).rejects.toThrow('dup');
   });
 
   it('rethrows a non-P2002 database error', async () => {
