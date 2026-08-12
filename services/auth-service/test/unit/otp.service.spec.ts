@@ -88,6 +88,36 @@ describe('OtpService', () => {
       expect(delivery.lastCode).toBe('123456');
     });
 
+    // Two binaries, two demo accounts: the customer app needs a CUSTOMER, Ops needs a
+    // staff role, and one phone holds one role. A single slot would force the two Play
+    // reviews to run one after the other.
+    it('gives every nominated number the same fixed code', async () => {
+      const second = '+6282222222222';
+      const many = withReviewer({ REVIEWER_PHONE: `${REVIEWER}, ${second}` });
+
+      // The fake repo keys challenges by customer id and every helper customer shares one,
+      // so clear between issues or the resend cooldown answers instead of the code path.
+      await many.issue(reviewerCustomer(), OtpPurpose.LOGIN);
+      expect(delivery.lastCode).toBe('424242');
+
+      otpRepo.rows.length = 0;
+      await many.issue(activeCustomer(second), OtpPurpose.LOGIN);
+      expect(delivery.lastCode).toBe('424242');
+
+      otpRepo.rows.length = 0;
+      await many.issue(activeCustomer(), OtpPurpose.LOGIN);
+      expect(delivery.lastCode).toBe('123456');
+    });
+
+    it('ignores blank entries rather than matching an empty phone', async () => {
+      await withReviewer({ REVIEWER_PHONE: `${REVIEWER},,` }).issue(
+        activeCustomer(''),
+        OtpPurpose.LOGIN,
+      );
+
+      expect(delivery.lastCode).toBe('123456');
+    });
+
     it('does nothing when only one half is set', async () => {
       await withReviewer({ REVIEWER_OTP_CODE: '' }).issue(reviewerCustomer(), OtpPurpose.LOGIN);
       expect(delivery.lastCode).toBe('123456');

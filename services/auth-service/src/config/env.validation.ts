@@ -50,8 +50,11 @@ export const envValidationSchema = Joi.object({
   // configured, which is the failure you find during review and not before. A code
   // without a phone is inert and matches nothing.
   //
-  // Whoever knows this pair can sign in as this account, so it must be a dedicated demo
-  // customer with no real orders and no staff role — never a real person's number.
+  // Whoever knows this pair can sign in as these accounts, so each must be a dedicated
+  // demo account with no real orders — never a real person's number. The customer binary
+  // needs a CUSTOMER and Ops needs a staff role, and one phone carries one role, so this
+  // is a comma-separated LIST: one number per binary, both reviewable at once. Point the
+  // staff one at a demo depot — a reviewer on a production depot reads live customer PII.
   REVIEWER_PHONE: Joi.string().allow('').default(''),
   REVIEWER_OTP_CODE: Joi.string()
     .allow('')

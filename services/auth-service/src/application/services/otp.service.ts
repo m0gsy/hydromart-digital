@@ -116,7 +116,7 @@ export class OtpService {
    */
   private fixedCodeFor(phone: string): string | null {
     const reviewer = this.config.reviewerOtp;
-    return reviewer && reviewer.phone === phone ? reviewer.code : null;
+    return reviewer?.phones.includes(phone) ? reviewer.code : null;
   }
 
   /** Mask a phone number for safe display: keep country code + last 3 digits. */
