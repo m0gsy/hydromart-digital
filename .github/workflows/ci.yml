@@ -175,6 +175,12 @@ jobs:
       - name: .env doctor self-check
         run: bash scripts/env-doctor.test.sh
 
+      # env-set writes secrets into the live .env from a workflow, so what it must never do
+      # is pinned here too: never print a value, never leave two lines for one key, never
+      # turn one line into two by writing a newline through.
+      - name: .env set self-check
+        run: bash scripts/env-set.test.sh
+
       # The gate that decides whether a tag becomes a signed, publishable AAB. It is the
       # only thing standing between `git tag mobile-v9 && git push --tags` on a scratch
       # branch and the Play Store, so its refusals are pinned rather than assumed.
