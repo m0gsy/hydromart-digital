@@ -6,7 +6,7 @@ import { Suspense, useState } from 'react';
 import { ArrowRight, Drop } from '@phosphor-icons/react';
 
 import { BiometricRetry } from '@/components/biometric-retry';
-import { Button, Card, Skeleton } from '@/components/ui';
+import { BrandMark, Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -30,14 +30,8 @@ function BrandPanel() {
         className="pointer-events-none absolute -right-10 -top-10"
         style={{ color: 'rgba(255,255,255,.05)' }}
       />
-      <Link href="/" className="relative flex items-center gap-2.5">
-        <span
-          className="flex items-center justify-center rounded-full"
-          style={{ width: 38, height: 38, background: '#5ccbdd' }}
-        >
-          <Drop size={20} weight="fill" style={{ color: '#16282e' }} />
-        </span>
-        <span className="text-[20px] font-extrabold tracking-tight">hydromart</span>
+      <Link href="/" className="relative">
+        <BrandMark tone="accent" circlePx={38} dropPx={20} textClass="text-[20px]" />
       </Link>
 
       <div className="relative mt-auto">
@@ -151,7 +145,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-[70dvh] items-center justify-center px-4 py-10">
       <Card className="grid w-full max-w-[1080px] overflow-hidden rounded-[24px] md:min-h-[600px] md:grid-cols-2">
         <BrandPanel />
         <div className="flex items-center justify-center px-6 py-10 md:px-14 md:py-12">

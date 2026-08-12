@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
-import { CaretRight } from '@phosphor-icons/react';
+import { CaretRight, Drop } from '@phosphor-icons/react';
 
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
@@ -263,6 +263,62 @@ export function MemberPrice({ amount, className }: { amount: number; className?:
     <Chip tone="tint" className={cx('min-w-0', className)}>
       Member {formatIDR(amount)}
     </Chip>
+  );
+}
+
+/* ---------- BrandMark ---------- */
+/**
+ * A15 — the logo lockup, in one place.
+ *
+ * Four screens built it by hand (`app-bar`, `footer`, `login`, `onboarding-tour`) and had
+ * already drifted into three circle colours, four sizes, three icon colours and one raw
+ * hex (`#5ccbdd`) that exists nowhere else in the codebase. Nothing was wrong on any single
+ * screen; they simply stopped being the same mark.
+ *
+ * This centralises the STRUCTURE — circle, drop, wordmark, gap, weight — while each caller
+ * keeps its own tone and size. Deliberately not a redesign: making them all identical would
+ * be a visual change on four screens, and a visual change is the one thing that cannot be
+ * verified without looking at a device. What it does buy is that the next one cannot drift.
+ */
+type BrandTone = 'brand' | 'light' | 'accent';
+
+const BRAND_TONE: Record<BrandTone, { circle: string; drop: string }> = {
+  /** Teal circle, white drop — the app bar and the tour. */
+  brand: { circle: 'bg-brand-600', drop: 'text-white' },
+  /** White circle on a dark ground — the footer. */
+  light: { circle: 'bg-white', drop: 'text-deep-teal' },
+  /**
+   * The login hero's lighter mark. The two values were inline hex on that page and appear
+   * nowhere else; parked here so there is exactly one definition of them, and so the day
+   * they become tokens there is one line to change.
+   */
+  accent: { circle: 'bg-[#5ccbdd]', drop: 'text-[#16282e]' },
+};
+
+export function BrandMark({
+  tone = 'brand',
+  circlePx = 36,
+  dropPx = 19,
+  textClass = 'text-[19px]',
+  className,
+}: {
+  tone?: BrandTone;
+  circlePx?: number;
+  dropPx?: number;
+  textClass?: string;
+  className?: string;
+}) {
+  const { circle, drop } = BRAND_TONE[tone];
+  return (
+    <span className={cx('flex items-center gap-2.5 font-extrabold tracking-[-0.02em]', className)}>
+      <span
+        className={cx('flex shrink-0 items-center justify-center rounded-full', circle)}
+        style={{ width: circlePx, height: circlePx }}
+      >
+        <Drop size={dropPx} weight="fill" className={drop} />
+      </span>
+      <span className={textClass}>hydromart</span>
+    </span>
   );
 }
 

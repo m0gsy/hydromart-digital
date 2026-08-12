@@ -26,6 +26,26 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // Every context starts as a returning user, past the first-run tour.
+    //
+    // The tour is a `fixed inset-0` overlay that shows whenever `hydromart.onboarded` is
+    // absent — which is every fresh Playwright context. It was only ever invisible to these
+    // tests because it lacked `aria-modal`: `getByRole` reads the accessibility tree, and
+    // without that attribute the page behind a modal is still in it. The moment the tour
+    // was made a proper modal (E10 — a back press has to close it), every `getByRole` in
+    // every spec started resolving to nothing, and the specs that guard their steps with
+    // `if (await x.isVisible())` skipped those steps SILENTLY and failed later somewhere
+    // else entirely. `walk-in.spec` reported `ORDER_NO_OPEN_SHIFT` from the server.
+    //
+    // So this is not a workaround for the tour: it is the state a test means when it says
+    // "a cashier opens the counter screen". A first-run tour is its own scenario, and
+    // `test/onboarding-tour.test.tsx` is where it is tested.
+    storageState: {
+      cookies: [],
+      origins: [
+        { origin: BASE_URL, localStorage: [{ name: 'hydromart.onboarded', value: '1' }] },
+      ],
+    },
   },
   projects: [
     {

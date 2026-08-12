@@ -255,6 +255,25 @@ export default function ProductDetailPage() {
               )}
             </div>
 
+            {/* A2. These two sat AFTER the sticky bar. The bar is pinned to the bottom of
+                the viewport on mobile, so the confirmation you get for adding to cart — and
+                the error you get when it fails — rendered underneath the very CTA that
+                produced them. Moved above it, where a message about the button belongs.
+
+                The product description below the bar stays where it is on purpose: that is
+                long-form content you scroll through, and keeping the CTA pinned over it is
+                exactly what a sticky action bar is for. */}
+            {added && (
+              <Link href="/cart" className="text-sm font-semibold text-brand-700">
+                {t('shop.pdp.toCart')}
+              </Link>
+            )}
+            {addError && (
+              <p className="text-sm font-medium text-red-600" role="alert">
+                {addError}
+              </p>
+            )}
+
             {/* qty + CTA — sticky on mobile, inline on desktop */}
             <StickyActionBar>
               <QuantityStepper value={qty} onChange={setQty} disabled={adding} />
@@ -276,17 +295,6 @@ export default function ProductDetailPage() {
               </Button>
               <FavoriteButton productId={id} className="h-[54px] w-[54px]" />
             </StickyActionBar>
-
-            {added && (
-              <Link href="/cart" className="text-sm font-semibold text-brand-700">
-                {t('shop.pdp.toCart')}
-              </Link>
-            )}
-            {addError && (
-              <p className="text-sm font-medium text-red-600" role="alert">
-                {addError}
-              </p>
-            )}
 
             {product.description && (
               <p className="text-sm leading-[1.7] text-muted">{product.description}</p>

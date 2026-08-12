@@ -1,6 +1,8 @@
 // Operations console chrome (rail + shell). The ID/EN toggle (12a) localizes the
 // persistent nav here. en/ops.ts mirrors this exact shape.
 export const ops = {
+  // B2: title of the phone sheet that carries the rest of the console.
+  more: { title: 'Menu lainnya' },
   groups: {
     summary: 'Ringkasan',
     daily: 'Operasi harian',

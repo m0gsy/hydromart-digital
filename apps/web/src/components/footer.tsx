@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Drop } from '@phosphor-icons/react';
 
 import { useT } from '@/lib/locale-context';
+import { BrandMark } from '@/components/ui';
 
 // Site footer, rendered once in the root layout below <main>. Deep-teal band
 // (1c Fresh Flow) spanning full width with a centered inner container. Items
@@ -53,12 +53,7 @@ export function Footer() {
       <div className="mx-auto w-full max-w-[1216px] px-5 pb-[30px] pt-11 sm:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white">
-                <Drop size={18} weight="fill" className="text-deep-teal" />
-              </span>
-              <span className="text-base font-extrabold">hydromart</span>
-            </div>
+            <BrandMark tone="light" circlePx={30} dropPx={18} textClass="text-base" className="gap-2" />
             <p className="max-w-[280px] text-[13.5px] leading-[1.55] text-white/65">
               {t('auth.footer.tagline')}
             </p>

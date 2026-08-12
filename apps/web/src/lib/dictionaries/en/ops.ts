@@ -1,4 +1,6 @@
 export const ops = {
+  // B2: title of the phone sheet that carries the rest of the console.
+  more: { title: 'More menu' },
   groups: {
     summary: 'Overview',
     daily: 'Daily operations',

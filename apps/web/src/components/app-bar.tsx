@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Bell, Drop, MagnifyingGlass, ShoppingCartSimple } from '@phosphor-icons/react';
+import { ArrowLeft, Bell, MagnifyingGlass, ShoppingCartSimple } from '@phosphor-icons/react';
 
-import { Input } from '@/components/ui';
+import { BrandMark, Input } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -76,11 +76,8 @@ export function AppBar() {
             {t(chrome.titleKey)}
           </h1>
         ) : (
-          <Link href="/" className="flex items-center gap-2.5 font-extrabold tracking-[-0.02em]">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600">
-              <Drop size={19} weight="fill" className="text-white" />
-            </span>
-            <span className="text-[19px]">hydromart</span>
+          <Link href="/">
+            <BrandMark />
           </Link>
         )}
 

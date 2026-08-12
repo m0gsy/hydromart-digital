@@ -149,7 +149,7 @@ function VerifyForm() {
 
 export default function VerifyPage() {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-[70dvh] items-center justify-center px-4 py-10">
       <div className="w-full max-w-[390px] rounded-[24px] border border-app bg-[color:var(--surface-muted)] p-7 shadow-card">
         <Suspense fallback={<Skeleton className="h-72 w-full rounded-[14px]" />}>
           <VerifyForm />
