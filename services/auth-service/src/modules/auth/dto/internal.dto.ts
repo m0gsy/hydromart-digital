@@ -36,6 +36,28 @@ export class SetStaffActiveDto {
   active!: boolean;
 }
 
+/**
+ * hr-service correcting the name or phone behind a login. Both optional and both
+ * meaningful when absent: an edit that touched neither never reaches this route.
+ */
+export class UpdateStaffProfileDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiPropertyOptional({ example: 'Budi Santoso' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  fullName?: string;
+
+  @ApiPropertyOptional({ example: '081234567890', description: 'The login number itself.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+}
+
 export class AssignStaffRoleDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()

@@ -8,7 +8,10 @@ import {
   CreateCustomerData,
   CustomerRepository,
 } from '../../../application/ports/customer.repository';
-import { EmailAlreadyRegisteredError } from '../../../domain/errors/auth.errors';
+import {
+  EmailAlreadyRegisteredError,
+  PhoneAlreadyRegisteredError,
+} from '../../../domain/errors/auth.errors';
 import { PrismaService } from '../prisma.service';
 import { toCustomerEntity, toPrismaRole, toPrismaStatus } from '../mappers';
 
@@ -140,6 +143,9 @@ export class CustomerPrismaRepository implements CustomerRepository {
       const row = await this.prisma.customer.update({
         where: { id: props.id },
         data: {
+          // Written since HR became the owner of an employee's contact details: without it
+          // `changePhone` was a no-op that reported success.
+          phone: props.phone,
           email: props.email,
           fullName: props.fullName,
           role: toPrismaRole(props.role),
@@ -155,13 +161,15 @@ export class CustomerPrismaRepository implements CustomerRepository {
       });
       return toCustomerEntity(row);
     } catch (err) {
-      // Backstop the email-uniqueness race the service pre-check can't close.
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002' &&
-        (err.meta?.target as string[] | undefined)?.includes('email')
-      ) {
-        throw new EmailAlreadyRegisteredError();
+      // Backstop the uniqueness races the service pre-checks can't close.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const target = err.meta?.target as string[] | undefined;
+        if (target?.includes('email')) {
+          throw new EmailAlreadyRegisteredError();
+        }
+        if (target?.includes('phone')) {
+          throw new PhoneAlreadyRegisteredError();
+        }
       }
       throw err;
     }

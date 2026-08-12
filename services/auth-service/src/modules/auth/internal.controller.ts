@@ -15,6 +15,7 @@ import {
   ProvisionStaffDto,
   PurgeBeforeDto,
   SetStaffActiveDto,
+  UpdateStaffProfileDto,
 } from './dto/internal.dto';
 import { PurgeAuditLogs3ResponseDto } from '../dto/responses.generated.dto';
 
@@ -77,6 +78,24 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Enable/disable a staff login (internal service auth)' })
   async setStaffActive(@Body() dto: SetStaffActiveDto): Promise<PublicCustomerDto> {
     const staff = await this.account.setStaffActiveInternal(dto.customerId, dto.active);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * hr-service correcting an employee's name or phone: the login follows.
+   *
+   * Same write-only split as `staff/status` — HR is the notifying half. 409 when the new
+   * number already belongs to another account; the edit is refused rather than merged.
+   */
+  @ApiOkResponse({ type: PublicCustomerDto })
+  @Post('staff/profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Update a staff login's name/phone (internal service auth)" })
+  async updateStaffProfile(@Body() dto: UpdateStaffProfileDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.updateStaffProfileInternal(dto.customerId, {
+      fullName: dto.fullName,
+      phone: dto.phone,
+    });
     return PublicCustomerDto.from(staff);
   }
 

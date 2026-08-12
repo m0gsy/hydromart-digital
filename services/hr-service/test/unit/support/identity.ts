@@ -3,6 +3,7 @@ import {
   IdentityPort,
   ProvisionManagedStaffInput,
   ProvisionStaffInput,
+  UpdateStaffProfileInput,
 } from '../../../src/application/ports/identity.port';
 
 /**
@@ -46,6 +47,14 @@ export class FakeIdentity implements IdentityPort {
 
   async setStaffActive(customerId: string, active: boolean): Promise<void> {
     this.activeCalls.push({ customerId, active });
+    if (this.error) throw this.error;
+  }
+
+  /** Name/phone corrections pushed onto the login, for the profile-sync specs. */
+  readonly profileCalls: UpdateStaffProfileInput[] = [];
+
+  async updateStaffProfile(input: UpdateStaffProfileInput): Promise<void> {
+    this.profileCalls.push(input);
     if (this.error) throw this.error;
   }
 }

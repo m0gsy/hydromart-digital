@@ -5,6 +5,7 @@ import {
   DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
+  PhoneAlreadyRegisteredError,
   StaffDepotRequiredError,
 } from '../../domain/errors/auth.errors';
 // The locked-role set is the guards' own definition, imported rather than mirrored: the
@@ -454,6 +455,45 @@ export class AccountService {
       await this.hr.setEmployeeActive(staff.id, active);
     }
     return staff;
+  }
+
+  /**
+   * HR correcting an employee's name or phone number, reaching the login behind them.
+   *
+   * The third of the HR → auth pushes, next to role and status. Without it the staff
+   * directory kept whatever name the invite was made with forever, and — worse — a
+   * corrected phone number changed only the HR record while the OTP still went to the old
+   * one, with nothing on either screen saying the two disagreed.
+   *
+   * Writes only, no push back: the HR side is the notifying half (see setStaffActive).
+   *
+   * A phone already belonging to somebody else is a CONFLICT, never a silent skip and
+   * never a merge — the number is the login identity, and moving it onto an account that
+   * exists would hand one person another's session. The repository re-checks on the write
+   * itself, which closes the race this pre-check cannot.
+   */
+  async updateStaffProfileInternal(
+    customerId: string,
+    changes: { fullName?: string | null; phone?: string },
+  ): Promise<PublicCustomer> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    if (changes.phone !== undefined) {
+      const phone = PhoneNumber.create(changes.phone).value;
+      if (phone !== customer.phone) {
+        const owner = await this.customers.findByPhone(phone);
+        if (owner && owner.id !== customerId) {
+          throw new PhoneAlreadyRegisteredError();
+        }
+        customer.changePhone(phone);
+      }
+    }
+    if (changes.fullName !== undefined) {
+      customer.updateProfile(changes.fullName, undefined);
+    }
+    return toPublicCustomer(await this.customers.save(customer));
   }
 
   /** The write half, with no outbound call. Used by the route hr-service calls. */

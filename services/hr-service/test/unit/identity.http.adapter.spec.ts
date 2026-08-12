@@ -109,6 +109,27 @@ describe('IdentityHttpAdapter, the rest of the account writes', () => {
     expect(JSON.parse(options.body)).toEqual(input);
   });
 
+  it('reports a corrected name and phone to the profile route', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    const input = { customerId: 'c1', fullName: 'Budi Santoso', phone: '08129999' };
+
+    await new IdentityHttpAdapter(makeConfig()).updateStaffProfile(input);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://auth:3001/api/v1/auth/internal/staff/profile');
+    expect(JSON.parse(options.body)).toEqual(input);
+  });
+
+  // A 409 here is DATA, not an outage: that number belongs to someone else. "auth-service
+  // menolak (409)" told the person editing to try again later, which would never work.
+  it('turns a taken number into a sentence instead of a 503', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 409 }));
+
+    await expect(
+      new IdentityHttpAdapter(makeConfig()).updateStaffProfile({ customerId: 'c1', phone: '0812' }),
+    ).rejects.toThrow(/sudah dipakai akun lain/);
+  });
+
   it('reports a resignation to the status route', async () => {
     fetchMock.mockResolvedValue(res({ body: {} }));
 

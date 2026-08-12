@@ -3,6 +3,7 @@ import {
   DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
+  PhoneAlreadyRegisteredError,
   StaffDepotRequiredError,
 } from '../../src/domain/errors/auth.errors';
 import { Role } from '../../src/domain/customer/role.enum';
@@ -452,6 +453,54 @@ describe('AccountService', () => {
       const office = await service.inviteStaff('+628990003006', Role.HEAD_OFFICE, 'Kantor');
       const moved = await service.setStaffRole(office.id, Role.FINANCE);
       expect(moved).toMatchObject({ role: Role.FINANCE, assignedDepotId: null });
+    });
+
+    /*
+     * The third HR → auth push, next to role and status. Before it the HQ staff directory
+     * (which reads THIS service, not the HR table) kept the name the invite was made with
+     * forever, and a corrected phone number changed only the HR record while the OTP kept
+     * going to the old one.
+     */
+    describe('updateStaffProfileInternal', () => {
+      it('carries a corrected name and normalises the new login number', async () => {
+        const staff = await service.inviteStaff('+628990004001', Role.STAFF_DEPOT, 'Budi', 'depot-1');
+
+        const updated = await service.updateStaffProfileInternal(staff.id, {
+          fullName: 'Budi Santoso',
+          phone: '08990004009',
+        });
+
+        expect(updated).toMatchObject({ fullName: 'Budi Santoso', phone: '+628990004009' });
+        // The old number is free again — it is the login identity, not a second field.
+        expect(await customers.findByPhone('+628990004001')).toBeNull();
+      });
+
+      it('leaves untouched fields alone, including its own unchanged number', async () => {
+        const staff = await service.inviteStaff('+628990004002', Role.STAFF_DEPOT, 'Rina', 'depot-1');
+
+        const updated = await service.updateStaffProfileInternal(staff.id, {
+          phone: '+628990004002',
+        });
+
+        expect(updated).toMatchObject({ fullName: 'Rina', phone: '+628990004002' });
+      });
+
+      // Never a merge: the number IS the login, so moving it onto an account that exists
+      // would hand one person another's session.
+      it('refuses a number that already belongs to somebody else, and an unknown account', async () => {
+        const staff = await service.inviteStaff('+628990004003', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+        await service.inviteStaff('+628990004004', Role.STAFF_DEPOT, 'Sari', 'depot-1');
+
+        await expect(
+          service.updateStaffProfileInternal(staff.id, { phone: '+628990004004' }),
+        ).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+
+        await expect(
+          service.updateStaffProfileInternal('00000000-0000-4000-8000-000000000000', {
+            fullName: 'X',
+          }),
+        ).rejects.toBeInstanceOf(CustomerNotFoundError);
+      });
     });
 
     /*

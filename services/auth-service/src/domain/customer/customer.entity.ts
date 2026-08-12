@@ -123,6 +123,19 @@ export class Customer {
   }
 
   /**
+   * Move this account to another phone number — the login identity itself.
+   *
+   * HR owns an employee's contact details, and until now a correction there never reached
+   * here: the directory showed the new number while the OTP still went to the old one.
+   * `phoneVerifiedAt` is deliberately left alone for the same reason an invite activates
+   * immediately — staff are pre-trusted, and clearing it would lock out somebody whose
+   * number was fixed on their behalf.
+   */
+  changePhone(phone: string): void {
+    this.props.phone = phone;
+  }
+
+  /**
    * Admin action (staff & roles, PRD Module 7): assign a staff role to this account.
    * An invited/promoted staff member is pre-trusted, so a still-pending account is
    * activated immediately (they sign in by phone OTP; no self-verification needed).

@@ -785,6 +785,29 @@ export class EmployeeService {
       // just minted holding this very role.
     }
 
+    /*
+     * The name and the phone number reach the login too.
+     *
+     * Neither ever did, and the two failures are different sizes. A rename left the HQ
+     * staff directory — which reads auth-service, not this table — showing whatever name
+     * the invite was made with, forever. A corrected phone number was worse: HR showed the
+     * new one and the OTP kept going to the old one, so "nomornya sudah saya betulkan" and
+     * "saya tidak bisa masuk" were both true at once.
+     *
+     * Before the employee write, like the two pushes above: a refused number (it belongs to
+     * another account) fails the whole edit rather than leaving the records disagreeing —
+     * which is the very condition this closes.
+     */
+    const nameMoved = input.fullName !== undefined && input.fullName !== current.fullName;
+    const phoneMoved = input.phone !== undefined && input.phone !== current.phone;
+    if ((nameMoved || phoneMoved) && current.authSubjectId) {
+      await this.identity.updateStaffProfile({
+        customerId: current.authSubjectId,
+        fullName: nameMoved ? input.fullName : undefined,
+        phone: phoneMoved ? input.phone : undefined,
+      });
+    }
+
     // Resigning (or being made inactive) has to reach the LOGIN, or somebody who left on
     // Friday still opens the app on Monday. Same split as the depot/jabatan push above:
     // done before the employee write, so a refused call fails the edit rather than leaving

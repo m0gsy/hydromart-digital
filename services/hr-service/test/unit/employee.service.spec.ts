@@ -371,6 +371,67 @@ describe('EmployeeService (M1)', () => {
     ).resolves.toEqual({ updated: false });
   });
 
+  /*
+   * The bug this closes: HQ's staff directory reads auth-service, not this table, so a
+   * name corrected in HR stayed wrong there forever — and a corrected phone number was
+   * worse, because the OTP kept going to the old one.
+   */
+  describe('a corrected name or phone reaching the login', () => {
+    const accounted = async () => {
+      const made = make();
+      const e = await made.svc.create(hr, {
+        ...baseInput,
+        authSubjectId: '11111111-1111-4111-8111-111111111111',
+      });
+      made.identity.profileCalls.length = 0;
+      return { ...made, id: e.id };
+    };
+
+    it('pushes only the fields that actually changed', async () => {
+      const { svc, identity, id } = await accounted();
+
+      await svc.update(hr, id, { fullName: 'Budi Santoso', phone: baseInput.phone });
+
+      expect(identity.profileCalls).toEqual([
+        {
+          customerId: '11111111-1111-4111-8111-111111111111',
+          fullName: 'Budi Santoso',
+          phone: undefined,
+        },
+      ]);
+    });
+
+    it('carries a new phone number, because that is the login itself', async () => {
+      const { svc, identity, repo, id } = await accounted();
+
+      await svc.update(hr, id, { phone: '08129999' });
+
+      expect(identity.profileCalls[0]?.phone).toBe('08129999');
+      expect(repo.rows[0]?.phone).toBe('08129999');
+    });
+
+    // Refused BEFORE the employee write, or the two records end up disagreeing — which is
+    // the exact condition this push exists to remove.
+    it('fails the whole edit when auth-service refuses the number', async () => {
+      const { svc, identity, repo, id } = await accounted();
+      identity.fail(new BadRequestException('Nomor HP ini sudah dipakai akun lain'));
+
+      await expect(svc.update(hr, id, { phone: '08129999' })).rejects.toThrow(/sudah dipakai/);
+      expect(repo.rows[0]?.phone).toBe(baseInput.phone);
+    });
+
+    it('says nothing when neither changed, and has nobody to tell without an account', async () => {
+      const { svc, identity, repo, id } = await accounted();
+
+      await svc.update(hr, id, { fullName: baseInput.fullName, position: 'Admin' });
+      expect(identity.profileCalls).toEqual([]);
+
+      unlink(repo, id);
+      await svc.update(hr, id, { fullName: 'Budi Santoso' });
+      expect(identity.profileCalls).toEqual([]);
+    });
+  });
+
   // Moving a depot pushes the new depot onto the login, and assignRole carries the role the
   // token must end up with. A row with an account but no jabatan has nothing to send, and
   // guessing one would hand somebody access nobody chose.
@@ -662,6 +723,7 @@ describe('EmployeeService.importMany', () => {
       provisionManagedStaff: async () => ({ customerId: 'auth-same' }),
       assignRole: async () => {},
       setStaffActive: async () => {},
+      updateStaffProfile: async () => {},
     });
 
     await svc.importMany(hr, [row]);
