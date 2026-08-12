@@ -238,6 +238,12 @@ model Employee {
   /// End of a fixed-term contract. Null = open-ended. Never auto-expires anyone: a lapsed
   /// date is a reminder for HR, not a status change.
   contractEndDate  DateTime?        @db.Date
+  /// D3 — the day they actually stopped being owed a wage. Distinct from `contractEndDate`,
+  /// which is when a fixed-term contract is DUE to end and is a reminder, not an event:
+  /// it is null for every open-ended employee and says nothing about a mid-month
+  /// resignation. Payroll clamps its period to `joinDate`..`exitDate` and prorates a
+  /// MONTHLY salary across it, so a leaver is paid for the days worked instead of the month.
+  exitDate         DateTime?        @db.Date
   /// Home depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
   /// Nullable: an Asisten SPV / SPV / Manager / Direktur is a full employee but sits above
   /// any single depot. Null means network-wide, never "every depot" — depot-scoped queries

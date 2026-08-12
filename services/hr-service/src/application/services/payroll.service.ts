@@ -10,7 +10,7 @@ import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
-import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
+import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
 import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../domain/tenure';
 import {
   evalBonusRule,
@@ -123,10 +123,19 @@ export class PayrollService {
         : null,
     ]);
 
+    // D3 — the slice of the period this person was actually on the payroll for.
+    const window = await this.employmentWindow(employee, periodMonth, from, to);
+    if (window.employedDays === 0 && window.periodDays > 0) {
+      throw new BadRequestException(
+        `Karyawan tidak bekerja pada periode ${periodMonth} (masuk ${dayKey(employee.joinDate)}` +
+          `${employee.exitDate ? `, keluar ${dayKey(employee.exitDate)}` : ''})`,
+      );
+    }
+
     const items: PayrollItemInput[] = [];
 
     // BASE
-    const base = this.basePay(employee, presentDays);
+    const base = this.basePay(employee, presentDays, window.fraction);
     items.push({
       kind: 'BASE',
       label: employee.salaryType === 'DAILY' ? `Gaji pokok (${presentDays} hari)` : 'Gaji pokok',
@@ -154,10 +163,13 @@ export class PayrollService {
     // part of `BonusContext.basePay` below: a percent-of-salary rule pays on basic pay only.
     if (this.allowances) {
       for (const a of allowanceRows) {
+        // D6 — the same window as BASE. A monthly transport allowance paid in full to
+        // somebody employed for three days is the identical leak wearing a different label,
+        // and it survived the D3 fix on its own until this line changed too.
         items.push({
           kind: 'ALLOWANCE',
           label: a.note ?? `Tunjangan ${a.type}`,
-          amount: rupiah(a.amount),
+          amount: Math.round(rupiah(a.amount) * window.fraction),
           sourceRef: a.id,
         });
       }
@@ -278,14 +290,13 @@ export class PayrollService {
       // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
       // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
       if (employee.salaryType === 'MONTHLY') {
-        const absentDays = await this.absentDays(
-          periodMonth,
-          employee.depotId,
-          from,
-          to,
-          presentDays,
-          leaveDays,
-          pendingDays,
+        // D3 knock-on: the expectation is the days they were EMPLOYED for, not the days in
+        // the month. Counting the whole month turned a new hire's first payslip into a fine
+        // for every working day before they existed here — measured at Rp 1.000.000 on a
+        // 25th-of-the-month joiner, which is larger than the overpayment D3 fixes.
+        const absentDays = Math.max(
+          0,
+          window.employedDays - presentDays - leaveDays - pendingDays,
         );
         const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
         if (absentDays > 0 && absenceRate > 0) {
@@ -609,6 +620,49 @@ export class PayrollService {
     return { kind: 'BONUS', label: `Lembur (${parts.join(', ')})`, amount };
   }
 
+  /**
+   * D3/D6 — how much of the period this person was actually employed for, as a count of
+   * working days and as the fraction of the period they represent.
+   *
+   * `joinDate` and `exitDate` are `@db.Date`, stored as UTC midnight, and `monthRange`
+   * produces UTC midnights too, so the whole comparison stays on day keys and never meets
+   * a timezone. `workingDaysInRange` yields nothing for an inverted range, which is exactly
+   * the "employed for none of this period" case.
+   *
+   * `contractEndDate` is deliberately NOT a boundary here. The schema calls it "a reminder
+   * for HR, not a status change", and it is null for every open-ended employee — clamping
+   * pay to it would silently stop paying someone whose renewal paperwork is late, which is
+   * a worse failure than the one this fixes. Only a recorded `exitDate` ends the wage.
+   */
+  private async employmentWindow(
+    employee: Employee,
+    periodMonth: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ employedDays: number; periodDays: number; fraction: number }> {
+    const holidayDates = this.holidays
+      ? await this.holidays.listDates(employee.depotId, from, to)
+      : [];
+    const holidays = new Set(holidayDates);
+    const offDays = parseWeeklyOffDays(this.config.weeklyOffDays(employee.depotId));
+
+    const join = employee.joinDate ? dayKey(employee.joinDate) : dayKey(from);
+    const exit = employee.exitDate ? dayKey(employee.exitDate) : dayKey(to);
+    const start = join > dayKey(from) ? join : dayKey(from);
+    const end = exit < dayKey(to) ? exit : dayKey(to);
+
+    const employedDays = workingDaysInRange(start, end, holidays, offDays).length;
+    const [year, month] = periodMonth.split('-').map(Number);
+    const periodDays = workingDaysInMonth(year, month, holidays, offDays);
+    return {
+      employedDays,
+      periodDays,
+      // A period with no working days at all (every day a holiday) must not divide by zero,
+      // and the honest answer there is "a full share of nothing".
+      fraction: periodDays > 0 ? employedDays / periodDays : 1,
+    };
+  }
+
   /** Expected working days in the period: calendar days − weekly-off − holidays. */
   private async workingDays(
     periodMonth: string,
@@ -626,7 +680,7 @@ export class PayrollService {
     );
   }
 
-  private basePay(employee: Employee, presentDays: number): number {
+  private basePay(employee: Employee, presentDays: number, employedFraction = 1): number {
     if (employee.salaryType === 'DAILY') {
       const rate =
         employee.dailyRate != null
@@ -634,9 +688,16 @@ export class PayrollService {
           : employee.employmentStatus === 'TRAINING'
             ? this.config.dailyRateTraining(employee.depotId)
             : 0;
+      // DAILY already pays per day present, so a joiner is prorated by arithmetic that was
+      // always correct. Applying the fraction on top would halve their wage twice.
       return Math.round(rate * presentDays);
     }
-    return employee.monthlyRate != null ? Math.round(Number(employee.monthlyRate)) : 0;
+    // D3 — MONTHLY was a flat rate whatever slice of the month the person was employed for.
+    // Someone joining on the 25th was paid the full month; someone leaving on the 3rd too.
+    // A full-month employee has fraction === 1, so their payslip is unchanged to the rupiah.
+    return employee.monthlyRate != null
+      ? Math.round(Number(employee.monthlyRate) * employedFraction)
+      : 0;
   }
 
   /**
