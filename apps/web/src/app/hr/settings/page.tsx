@@ -75,11 +75,17 @@ export default function HrSettingsPage() {
             <div key={d.key} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="font-medium">{d.label ?? d.key}</p>
-                <p className="text-xs text-muted">efektif: {String(data.effective[d.key])}</p>
+                {/* The format, not only the value: "10000,15000,20000" is unguessable from an
+                    empty box, and the server rejects anything else outright. */}
+                {d.unit && <p className="text-xs text-muted">format: {d.unit}</p>}
+                <p className="text-xs text-muted">
+                  efektif: {String(data.effective[d.key] ?? '') || '(belum diisi)'}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   defaultValue={String(data.effective[d.key] ?? '')}
+                  placeholder={d.unit ?? ''}
                   onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
                   className="w-32"
                 />
