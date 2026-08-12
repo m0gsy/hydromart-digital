@@ -117,3 +117,59 @@ test('the icons sw.js points at are actually in the bundle', async ({ request })
     expect((await request.get(asset)).status(), `${asset} must ship`).toBe(200);
   }
 });
+
+/**
+ * 4.21 — nothing may overflow the narrowest screen this app supports.
+ *
+ * `body { overflow-x: hidden }` (layout.tsx) means an over-wide element does not produce a
+ * scrollbar: it is simply CUT OFF, silently, with no console warning and nothing to notice
+ * on a 412px test device. The PR-0 spike measured what that does and does not hide —
+ * `documentElement.scrollWidth` still grows for content the viewport clips, so this guard
+ * really does fire for an over-wide block, a non-shrinking flex row and an unbreakable
+ * token. It is blind only to content clipped by a local `overflow:hidden` ancestor that is
+ * itself narrower than the viewport.
+ *
+ * An `overflow-x: auto` ancestor is the sanctioned escape — a wide table that the user can
+ * scroll is a decision, not a defect — so anything inside one is skipped.
+ */
+for (const path of SERVED[SURFACE]) {
+  test(`fits 320px: ${path}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'export-320', 'the 320px project only');
+    await page.goto(path);
+    const overflow = await page.evaluate(() => {
+      const de = document.documentElement;
+      const over = de.scrollWidth - de.clientWidth;
+      if (over <= 1) return null;
+      let worst: { right: number; tag: string; cls: string } | null = null;
+      for (const el of Array.from(document.querySelectorAll('body *'))) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.right <= de.clientWidth + 1) continue;
+        let scrollable = false;
+        for (let a = el.parentElement; a; a = a.parentElement) {
+          const ox = getComputedStyle(a).overflowX;
+          if (ox === 'auto' || ox === 'scroll') {
+            scrollable = true;
+            break;
+          }
+        }
+        if (scrollable) continue;
+        if (!worst || r.right > worst.right) {
+          worst = {
+            right: Math.round(r.right),
+            tag: el.tagName.toLowerCase(),
+            cls: String(el.className ?? '').slice(0, 120),
+          };
+        }
+      }
+      return { over, worst };
+    });
+    // Named, not just counted: "something is 40px too wide" sends the next person hunting
+    // through the whole page, and this guard runs on screens nobody has open.
+    expect(
+      overflow,
+      overflow
+        ? `${path} overflows 320px by ${overflow.over}px — widest: ${overflow.worst?.tag}.${overflow.worst?.cls}`
+        : '',
+    ).toBeNull();
+  });
+}

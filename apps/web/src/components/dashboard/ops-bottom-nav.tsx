@@ -56,7 +56,7 @@ export function OpsBottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[8px] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
       aria-label="Navigasi operasi"
     >
       {visible.map((t) => {

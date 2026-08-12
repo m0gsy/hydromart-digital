@@ -20,7 +20,7 @@ const TABS = [
 function ManagerNav() {
   const pathname = usePathname();
   return (
-    <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[env(safe-area-inset-bottom)]">
+    <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = href === '/m/manager' ? pathname === href : pathname.startsWith(href);
         return (

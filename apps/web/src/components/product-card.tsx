@@ -85,8 +85,12 @@ export function ProductCard({
       <div className="flex flex-1 flex-col gap-[3px] p-4">
         <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.3]">{product.name}</h3>
         <p className="text-[13px] text-muted">{product.unit}</p>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex flex-col gap-1">
+        {/* A1. `min-w-0` on the price column: a flex child's default `min-width:auto` refuses
+            to shrink below its content, and that is what pushed the button clean out of the
+            card. `flex-wrap` is the second half — when even the shrunk column plus a 40px
+            button will not fit 104px, the button drops to its own line rather than leaving. */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
             <Money amount={product.basePrice} className="text-[17px] font-extrabold tracking-[-0.01em]" />
             {memberRate > 0 && (
               <MemberPrice amount={memberPrice(product.basePrice, memberRate)} className="px-[9px] py-0.5 text-[11.5px]" />

@@ -13,6 +13,7 @@ import { formatIDR } from '@/lib/format';
 import { canManageEarningRules } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { CourierEarningRule, Depot } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
 const DATE = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' });
 
@@ -21,7 +22,7 @@ function selectClass() {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayWib();
 }
 
 function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }) {

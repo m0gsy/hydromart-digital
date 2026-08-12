@@ -28,6 +28,7 @@ import {
 } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { todayWib } from '@/lib/wib';
 
 /**
  * The roster, kept apart from /hr/calendar (holidays) and from the shift catalogue itself.
@@ -222,7 +223,7 @@ function Assignments({
   const [employeeId, setEmployeeId] = useState('');
   const [mode, setMode] = useState<'shift' | 'rotation'>('shift');
   const [targetId, setTargetId] = useState('');
-  const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(todayWib());
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 

@@ -15,9 +15,10 @@ import { formatIDR } from '@/lib/format';
 import { can, canViewDashboard, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayWib();
 
 /** One order of the exported day, as order-service returns it. */
 interface DailyExportRow {

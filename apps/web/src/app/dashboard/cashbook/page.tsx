@@ -25,6 +25,7 @@ import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { CashDirection, CashbookResponse } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
 const TODAY = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(
   new Date(),
@@ -179,7 +180,7 @@ function CashbookBody() {
       e.direction === 'IN' ? e.amountIdr : '',
       e.direction === 'OUT' ? e.amountIdr : '',
     ]);
-    const day = new Date().toISOString().slice(0, 10);
+    const day = todayWib();
     if (format === 'csv') {
       downloadCsv(`buku-kas-${day}.csv`, toCsv(headers, rows));
       return;

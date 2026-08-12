@@ -16,16 +16,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Broadcast, CourierPerformance, Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
+import { mondayWib } from '@/lib/wib';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
-
-/** YYYY-MM-DD of the WIB (UTC+7) Monday of the current week — matches the performance page. */
-function thisWibMonday(): string {
-  const wib = new Date(Date.now() + 7 * 3600 * 1000);
-  const daysFromMon = (wib.getUTCDay() + 6) % 7;
-  const monday = new Date(Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate() - daysFromMon));
-  return monday.toISOString().slice(0, 10);
-}
 
 function DriverConsole() {
   const router = useRouter();
@@ -35,7 +28,7 @@ function DriverConsole() {
   const shift = useAsync<Shift | null>(() => api.get(endpoints.deliveries.shifts.current, true), []);
   const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
   const perf = useAsync<CourierPerformance>(
-    () => api.get(endpoints.deliveries.performance(thisWibMonday(), depotId), true),
+    () => api.get(endpoints.deliveries.performance(mondayWib(), depotId), true),
     [depotId],
   );
   const broadcasts = useAsync<Broadcast[]>(

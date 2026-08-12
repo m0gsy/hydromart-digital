@@ -13,8 +13,9 @@ import { formatIDR } from '@/lib/format';
 import { canRecordMeterReading, canViewMeterReading } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { MeterHistoryRow, MeterReconciliation } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = todayWib();
 
 const num = (v: number | null | undefined, digits = 0): string =>
   v == null ? '—' : v.toLocaleString('id-ID', { maximumFractionDigits: digits });

@@ -109,7 +109,11 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
 
           <div className="mt-1 border-t border-app pt-1">
             <p className="px-3 py-1 text-xs font-semibold text-muted">{t('home.location.orPickCity')}</p>
-            <ul className="max-h-56 overflow-y-auto">
+            {/* A5. `overscroll-contain`: without it, flicking past the end of this list
+                hands the gesture to the page behind, so the panel stays open while the
+                screen underneath scrolls away — on a phone that reads as the app losing
+                track of the tap. */}
+            <ul className="max-h-56 overflow-y-auto overscroll-contain">
               {(depots?.items ?? []).map((d) => (
                 <li key={d.id}>
                   <button

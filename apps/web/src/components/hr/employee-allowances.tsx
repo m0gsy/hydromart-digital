@@ -14,6 +14,7 @@ import {
   type AllowanceType,
 } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
+import { todayWib } from '@/lib/wib';
 
 /**
  * Recurring pay components. Unlike a bonus (one period, one row) an allowance repeats every
@@ -30,7 +31,7 @@ export function EmployeeAllowances({
   const { toast: notify } = useToast();
   const [type, setType] = useState<AllowanceType>('TRANSPORT');
   const [amount, setAmount] = useState('');
-  const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(todayWib());
   const [to, setTo] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);

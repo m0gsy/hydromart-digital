@@ -11,7 +11,7 @@ import { consoleHome, isStaff } from '@/lib/roles';
 import { useKeyboardOpen } from '@/lib/use-keyboard';
 
 const BAR =
-  'fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-app bg-[color:var(--surface-muted)]/95 px-[22px] pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[8px] sm:hidden';
+  'fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-app bg-[color:var(--surface-muted)]/95 px-[22px] pb-[max(14px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] sm:hidden';
 
 // Mobile-only bottom tab bar (hidden on sm+, where the top nav carries the links).
 // Four slots, and only on the four root screens — `AppShell` does not render this on a

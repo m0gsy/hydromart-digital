@@ -11,12 +11,13 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionScheme, DepotAdmin, Page } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
 // Design 21c — Skema komisi per depot (real payout-service track). Current % comes from
 // commission-service (latest effective scheme per depot); "Apply" POSTs a new scheme for
 // every changed depot with the chosen effective date. The depot list itself is real too.
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayWib();
 }
 
 export default function HqCommissionFormPage() {

@@ -250,9 +250,17 @@ export function RadioCard({
 }
 
 /* ---------- MemberPrice ---------- (teal member-price chip on cards / PDP) */
+/**
+ * A1. No `whitespace-nowrap`. On a 320px screen the product grid gives each card a 136px
+ * box — 104px of content inside `p-4` — and this chip renders ~119.5px at the prices this
+ * shop actually charges. Refusing to wrap pushed the add-to-cart button out of the card's
+ * own `overflow:hidden`: measured at x=144 against a clip edge of x=136, so the button was
+ * not merely cramped, it painted ZERO visible pixels. Wrapping to a second line is the whole
+ * fix, and it costs a taller card on the narrowest phones only.
+ */
 export function MemberPrice({ amount, className }: { amount: number; className?: string }) {
   return (
-    <Chip tone="tint" className={cx('whitespace-nowrap', className)}>
+    <Chip tone="tint" className={cx('min-w-0', className)}>
       Member {formatIDR(amount)}
     </Chip>
   );
@@ -307,6 +315,11 @@ export function Toggle({
       onClick={() => onChange(!on)}
       className={cx(
         'flex h-[27px] w-[46px] flex-shrink-0 items-center rounded-full p-[3px] transition-colors disabled:opacity-50',
+        // A12. 27px is well under the 40px anyone can reliably hit, and this is the control
+        // that turns notifications and subscriptions on and off. The target is grown with a
+        // pseudo-element instead of the box, so the switch looks identical and no layout
+        // that already places one moves by a pixel: 27 + 2×6.5 = 40.
+        'relative before:absolute before:-inset-[6.5px] before:content-[""]',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         on ? 'justify-end bg-brand-600' : 'justify-start bg-[color:var(--surface-soft)]',
       )}
@@ -419,6 +432,11 @@ export function Segmented<T extends string>({
           aria-pressed={option.value === value}
           className={cx(
             'rounded-full px-3.5 py-[5px] text-xs font-extrabold transition-colors',
+            // A12, same reasoning as Toggle: the pill stays its designed size and the tap
+            // target grows past it. These sit in filter rows where the neighbours are
+            // ~6px away, so the pseudo-element is kept to what closes the 40px gap without
+            // two adjacent segments overlapping each other's target.
+            'relative before:absolute before:-inset-y-[7px] before:-inset-x-[2px] before:content-[""]',
             option.value === value ? 'bg-brand-600 text-on-brand' : 'text-muted',
           )}
         >
@@ -526,11 +544,18 @@ export function StickyActionBar({
   return (
     <div
       className={cx(
-        'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 py-3',
+        'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 pt-3',
+        // A3+E0. The gesture bar sits under this. `env(safe-area-inset-bottom)` alone is 0
+        // on a WebView older than 140, which is most of the fleet, so the bar lands under
+        // the system navigation and the CTA — the entire point of the screen — is a strip
+        // the thumb cannot reach. The Capacitor plugin always injects
+        // `--safe-area-inset-bottom`, and nothing in apps/web read it until now. `max()`
+        // keeps the ordinary 0.75rem when the inset is 0 or absent.
+        'pb-[max(0.75rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]',
         '-mx-4',
         unstickAt === 'lg'
-          ? 'lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0'
-          : 'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0',
+          ? 'lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0'
+          : 'sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pb-0',
         !keyboardOpen && 'sticky bottom-0',
         className,
       )}

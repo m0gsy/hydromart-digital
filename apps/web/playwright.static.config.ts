@@ -41,5 +41,18 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'export', use: { ...devices['Pixel 7'] } }],
+  projects: [
+    { name: 'export', use: { ...devices['Pixel 7'] } },
+    // 4.21 — the narrowest screen this app is expected to work on. A Pixel 7 is 412px CSS
+    // wide and hides every one of the failures this project exists to catch; 320×568 is a
+    // Galaxy J2 / A03 Core, which is what a depot hands a new courier.
+    //
+    // Measured in the PR-0 spike, so this is not a guess about what it catches:
+    // `body { overflow-x: hidden }` does NOT suppress `documentElement.scrollWidth`, so an
+    // over-wide block (500/320), a flex row that refuses to shrink (400/320) and an
+    // unbreakable token (374/320) all trip it. What it CANNOT see is content clipped by a
+    // LOCAL `overflow:hidden` narrower than the viewport — the A1 product-card case — which
+    // is why that one has its own test instead of relying on this.
+    { name: 'export-320', use: { ...devices['Pixel 7'], viewport: { width: 320, height: 568 } } },
+  ],
 });

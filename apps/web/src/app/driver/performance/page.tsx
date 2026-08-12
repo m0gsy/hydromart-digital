@@ -16,6 +16,7 @@ import {
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { mondayWib } from '@/lib/wib';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
@@ -24,14 +25,18 @@ import type { CourierPerformance } from '@/lib/types';
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 const RANGE = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' });
 
-/** YYYY-MM-DD of the WIB (UTC+7) Monday `weeksAgo` weeks back. */
+/**
+ * YYYY-MM-DD of the WIB Monday `weeksAgo` weeks back.
+ *
+ * C3: the week boundary now comes from `mondayWib`, which asks `Intl` for the offset
+ * instead of adding seven hours to the clock and reading UTC fields off the result. That
+ * arithmetic was right only while the offset is exactly +7 and the machine is not already
+ * in WIB — and it fails silently, which is the worst way for a date to be wrong.
+ */
 function wibMonday(weeksAgo: number): string {
-  const wib = new Date(Date.now() + 7 * 3600 * 1000);
-  const daysFromMon = (wib.getUTCDay() + 6) % 7;
-  const monday = new Date(
-    Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate() - daysFromMon - weeksAgo * 7),
-  );
-  return monday.toISOString().slice(0, 10);
+  const thisMonday = new Date(`${mondayWib()}T00:00:00.000Z`);
+  thisMonday.setUTCDate(thisMonday.getUTCDate() - weeksAgo * 7);
+  return thisMonday.toISOString().slice(0, 10);
 }
 
 function weekRangeLabel(weekStart: string): string {
