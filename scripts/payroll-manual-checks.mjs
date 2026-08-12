@@ -76,6 +76,10 @@ async function createEmployee(depotId, overrides = {}) {
     fullName: `${STAMP} ${overrides.tag ?? 'Staf'}`,
     phone: `+62811${Math.floor(Math.random() * 9_000_000 + 1_000_000)}`,
     position: 'Staf Depot',
+    // Required, and constrained to the staff roles — CUSTOMER and the head-office roles are
+    // rejected. STAFF_DEPOT is the plainest one: no tenure raise, no depot-head bonus, so
+    // the payroll figures below stay about the employment window and nothing else.
+    role: 'STAFF_DEPOT',
     employmentStatus: 'PERMANENT',
     salaryType: 'MONTHLY',
     monthlyRate: 3_000_000,
@@ -164,6 +168,17 @@ async function main() {
     // `absenceDeductionAmount` is 0 there is no fine to avoid, and "no deductions" proves
     // nothing at all. Seen happening on a stale stack, where it read as a pass while the
     // prorate beside it was plainly broken.
+    // Switch the fine ON for this depot first. Without it there is no fine to escape, and
+    // "no deductions" would read as a pass while proving nothing — which is exactly what
+    // happened the first time this ran. The value is restored below.
+    // `scope` is required and the API rejects the request without it — a per-depot value
+    // and a network-wide one are deliberately different writes.
+    await api('PUT', '/hr/api/v1/hr/settings', {
+      key: 'absenceDeductionAmount',
+      value: '50000',
+      scope: 'DEPOT',
+      depotId: depotA.id,
+    });
     const control = await api('POST', '/hr/api/v1/payroll/generate', {
       employeeId: empA.id,
       periodMonth: PERIOD,
@@ -179,6 +194,13 @@ async function main() {
     } else {
       bad('19 joiner fined for days before joining', `deductions=${deductions}`);
     }
+    // Put the depot back the way it was found. A verification script that leaves a fine
+    // switched on is a verification script that changes somebody's payroll.
+    await api('DELETE', '/hr/api/v1/hr/settings', {
+      key: 'absenceDeductionAmount',
+      scope: 'DEPOT',
+      depotId: depotA.id,
+    });
   }
 
   // ---- 20: net floors at 0 and the unpaid remainder rolls forward ------------------
