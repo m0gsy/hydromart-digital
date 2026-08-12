@@ -162,7 +162,7 @@ Login hanya OTP telepon. Reviewer Play ada di negara lain, tidak akan menerima S
 Indonesia, dan **"tidak bisa masuk" adalah salah satu alasan penolakan paling umum.**
 
 **Mekanismenya sudah ada di kode.** `REVIEWER_PHONE` + `REVIEWER_OTP_CODE` di `.env`
-membuat satu nomor menerima kode tetap, bukan acak. Yang tidak berubah: kode itu tetap
+membuat nomor yang disebut menerima kode tetap, bukan acak. Yang tidak berubah: kode itu tetap
 di-hash, tetap kedaluwarsa, tetap sekali pakai, tetap dibatasi jumlah percobaan. **Tidak
 ada jalan pintas di jalur verifikasi** — yang berubah hanya nilai yang digenerate, dan itu
 disengaja: kredensial yang bisa ditebak berbeda jauh dari kredensial yang tidak diperiksa.
@@ -172,14 +172,30 @@ Aturan yang mengikat:
 - **Dua-duanya kosong = fitur tidak ada.** Mengisi nomor tanpa kode membuat auth-service
   gagal boot — bukan setengah aktif, karena setengah aktif terlihat persis seperti bekerja
   sampai reviewer mencobanya.
-- Arahkan ke **akun demo khusus**: nol pesanan asli, bukan role staf, bukan nomor orang
-  sungguhan. Siapa pun yang tahu pasangan itu bisa masuk sebagai akun tersebut.
+- Arahkan ke **akun demo khusus**: nol pesanan asli, bukan nomor orang sungguhan. Siapa
+  pun yang tahu pasangan itu bisa masuk sebagai akun tersebut.
+- **SMS tidak dikirim ke nomor reviewer.** Reviewer sudah memegang kodenya dari Play
+  Console, jadi pengiriman hanya menagih biaya dan mengetuk ponsel orang yang tidak pernah
+  meminta — nomor demo tidak selalu SIM milik perusahaan. Yang dilewati hanya
+  pengirimannya; tantangannya tetap dibuat, tetap kedaluwarsa, tetap diverifikasi.
 - Ganti kodenya setelah review selesai, atau kosongkan keduanya untuk mematikan fitur.
+
+**Dua nomor, bukan satu.** `REVIEWER_PHONE` menerima daftar dipisah koma. Aplikasi
+pelanggan butuh akun ber-role `CUSTOMER`, Ops butuh akun staf, dan satu nomor hanya
+memikul satu role — dengan satu slot, kedua review harus antre bergantian. Akun stafnya
+tempatkan di **depot demo**: di depot produksi, reviewer membaca nama, alamat, dan telepon
+pelanggan sungguhan.
+
+```bash
+REVIEWER_PHONE=+6281100000098,+6281100000099
+REVIEWER_OTP_CODE=246810
+```
 
 Langkah di Play Console → App content → App access:
 
-1. Buat akun demo dengan nomor itu, isi `REVIEWER_PHONE` + `REVIEWER_OTP_CODE` di `.env`
-   VPS, lalu `docker compose up -d auth`.
+1. Buat akun demo untuk tiap binary, isi `REVIEWER_PHONE` + `REVIEWER_OTP_CODE` di `.env`
+   VPS, lalu `docker compose up -d auth`. Buktikan sendiri dengan login memakai pasangan
+   itu sebelum submit — kalau Anda tidak bisa masuk, reviewer juga tidak.
 2. Nomor + kode itu ditempel di kolom "App access" beserta satu kalimat: aplikasi ini
    memakai OTP, gunakan kode ini.
 3. Untuk **Hydromart Ops**, tambahkan lagi: deskripsi harus jujur bahwa aplikasi ini hanya
@@ -321,6 +337,18 @@ Semuanya ada di [`docs/play-assets/`](play-assets/).
 | Screenshot ponsel         | 1236×2196 | `screenshot-app-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png`  |
 | Screenshot tablet 7 inci  | 1200×2133 | `screenshot-tab7-1-beranda.png`, `-2-belanja.png`, `-3-rewards.png` |
 | Screenshot tablet 10 inci | 1600×2844 | `screenshot-tab10-…` (tiga berkas, nama sama polanya)               |
+| Screenshot ponsel Ops     | 1236×2196 | `screenshot-ops-…` (empat berkas, nama sama polanya)                |
+| Tablet 7 inci Ops         | 1200×2133 | `screenshot-ops-tab7-…` (empat berkas)                              |
+| Tablet 10 inci Ops        | 1600×2400 | `screenshot-ops-tab10-…` (empat berkas)                             |
+
+Ikon dan feature graphic dipakai ulang untuk kedua aplikasi — keduanya murni merek, tanpa
+satu pun elemen khusus pelanggan. Screenshot **tidak** boleh dipakai ulang: listing
+aplikasi staf yang memajang layar belanja pelanggan adalah undangan penolakan. Kedua belas
+berkas Ops di atas dibuat ulang dengan
+[`apps/web/scripts/play-screenshots.mjs`](../apps/web/scripts/play-screenshots.mjs) —
+login kurir (`+6281100000003`) untuk dua yang pertama, kepala depot (`+6281100000005`)
+untuk dua sisanya. Skrip itu membuka shift konter lebih dulu, karena tanpa shift layar
+kasir hanya memperlihatkan "Belum ada shift terbuka".
 
 Tablet opsional di Play — hanya screenshot ponsel yang wajib. Diisi karena tanpanya Play
 menampilkan listing "tidak dioptimalkan untuk tablet" pada perangkat tablet, dan karena

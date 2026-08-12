@@ -43,15 +43,20 @@ export const envValidationSchema = Joi.object({
   // the most common rejection for an app that is entirely behind a login. One nominated
   // phone number gets a FIXED code instead of a random one — issued, hashed, stored,
   // expired, attempt-limited and consumed exactly like any other, because there is no
-  // shortcut in the verify path at all and there must never be one.
+  // shortcut in the verify path at all and there must never be one. It is not delivered:
+  // the reviewer reads the code off the Play listing, and the number may be a SIM nobody
+  // here owns.
   //
   // Both blank = the feature does not exist. A phone WITHOUT a code fails at boot rather
   // than half-enabling — that number would keep getting random codes while looking
   // configured, which is the failure you find during review and not before. A code
   // without a phone is inert and matches nothing.
   //
-  // Whoever knows this pair can sign in as this account, so it must be a dedicated demo
-  // customer with no real orders and no staff role — never a real person's number.
+  // Whoever knows this pair can sign in as these accounts, so each must be a dedicated
+  // demo account with no real orders — never a real person's number. The customer binary
+  // needs a CUSTOMER and Ops needs a staff role, and one phone carries one role, so this
+  // is a comma-separated LIST: one number per binary, both reviewable at once. Point the
+  // staff one at a demo depot — a reviewer on a production depot reads live customer PII.
   REVIEWER_PHONE: Joi.string().allow('').default(''),
   REVIEWER_OTP_CODE: Joi.string()
     .allow('')

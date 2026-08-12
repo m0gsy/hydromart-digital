@@ -56,15 +56,25 @@ export class AuthConfigService {
   }
 
   /**
-   * J6: the one phone number that gets a fixed OTP, so a Play reviewer who cannot receive
-   * an Indonesian SMS can still sign in. Null unless BOTH values are set — the feature has
+   * J6: the phone numbers that get a fixed OTP, so a Play reviewer who cannot receive an
+   * Indonesian SMS can still sign in. Null unless BOTH values are set — the feature has
    * to be impossible to half-enable, because half-enabled looks identical to working right
    * up until a reviewer tries it.
+   *
+   * A comma-separated list, not one number: the two binaries need two demo accounts (the
+   * customer app a CUSTOMER, Ops a staff role) and one phone carries one role. With a
+   * single slot the two Play reviews cannot run at the same time. One code covers all of
+   * them — it is rotated the moment review ends, and per-number codes would only add a
+   * way to mistype one.
    */
-  get reviewerOtp(): { phone: string; code: string } | null {
-    const phone = this.config.get<string>('REVIEWER_PHONE', '').trim();
+  get reviewerOtp(): { phones: string[]; code: string } | null {
+    const phones = this.config
+      .get<string>('REVIEWER_PHONE', '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
     const code = this.config.get<string>('REVIEWER_OTP_CODE', '').trim();
-    return phone && code ? { phone, code } : null;
+    return phones.length && code ? { phones, code } : null;
   }
 
   get otpDeliveryChannel(): OtpDeliveryChannel {

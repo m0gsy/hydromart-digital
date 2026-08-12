@@ -47,18 +47,26 @@ export class OtpService {
       await this.otpTokens.consumeAllForPurpose(customer.id, purpose, now);
     }
 
-    const code = this.fixedCodeFor(customer.phone) ?? this.crypto.generateNumericCode(policy.length);
+    const fixed = this.fixedCodeFor(customer.phone);
+    const code = fixed ?? this.crypto.generateNumericCode(policy.length);
     const codeHash = await this.crypto.hashSecret(code);
     const expiresAt = new Date(now.getTime() + policy.ttlSeconds * 1000);
 
     await this.otpTokens.create({ customerId: customer.id, purpose, codeHash, expiresAt });
 
-    await this.delivery.send({
-      phone: customer.phone,
-      code,
-      purpose,
-      ttlSeconds: policy.ttlSeconds,
-    });
+    // A reviewer number is not sent its code: whoever uses it already has it from the Play
+    // Console listing, so delivery buys nothing and costs something. The demo numbers are
+    // not always SIMs the company holds, and an SMS to one of those rings a stranger's
+    // phone on every sign-in attempt during review. Only the delivery is skipped — the
+    // challenge is stored, expires and is verified exactly like any other.
+    if (!fixed) {
+      await this.delivery.send({
+        phone: customer.phone,
+        code,
+        purpose,
+        ttlSeconds: policy.ttlSeconds,
+      });
+    }
 
     return {
       phoneMasked: OtpService.maskPhone(customer.phone),
@@ -104,7 +112,8 @@ export class OtpService {
    * gets a random one, which is every number when the feature is unconfigured.
    *
    * Note where this sits, and where it deliberately does not. It replaces the value the
-   * generator would have produced, and then nothing else changes: the code is hashed the
+   * generator would have produced and suppresses the SMS for that number, and then nothing
+   * else changes: the code is hashed the
    * same way, stored the same way, expires on the same clock, is consumed on first use and
    * is bounded by the same attempt limit. `verify()` has no idea this exists and must
    * never gain one — a branch there would be a way into the app that skips checking a
@@ -116,7 +125,7 @@ export class OtpService {
    */
   private fixedCodeFor(phone: string): string | null {
     const reviewer = this.config.reviewerOtp;
-    return reviewer && reviewer.phone === phone ? reviewer.code : null;
+    return reviewer?.phones.includes(phone) ? reviewer.code : null;
   }
 
   /** Mask a phone number for safe display: keep country code + last 3 digits. */
