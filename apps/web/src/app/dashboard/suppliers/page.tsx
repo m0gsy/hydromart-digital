@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canManageProcurement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { PurchaseOrder, Supplier } from '@/lib/types';
 
 interface PoStats {
@@ -41,6 +42,7 @@ function initials(name: string): string {
 
 /** Inline add-supplier form (design 11b "Tambah"). */
 function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { t } = useT();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [phone, setPhone] = useState('');
@@ -50,7 +52,7 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
 
   async function submit() {
     if (name.trim().length < 2 || code.trim().length < 2) {
-      setError('Isi nama dan kode pemasok.');
+      setError(t('opsFix.suppliers.nameRequired'));
       return;
     }
     setBusy(true);
@@ -72,26 +74,26 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
       );
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menambah pemasok.');
+      setError(e instanceof ApiError ? e.message : t('opsFix.suppliers.addError'));
       setBusy(false);
     }
   }
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <Field label="Nama pemasok" htmlFor="sup-name">
-        <Input id="sup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. Tirta Makmur" autoFocus />
+      <Field label={t('opsFix.suppliers.name')} htmlFor="sup-name">
+        <Input id="sup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('opsFix.suppliers.namePlaceholder')} autoFocus />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Kode" htmlFor="sup-code">
-          <Input id="sup-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-01" />
+        <Field label={t('opsFix.suppliers.code')} htmlFor="sup-code">
+          <Input id="sup-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('opsFix.suppliers.codePlaceholder')} />
         </Field>
-        <Field label="Telepon" htmlFor="sup-phone">
-          <Input id="sup-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0812…" />
+        <Field label={t('opsFix.suppliers.phone')} htmlFor="sup-phone">
+          <Input id="sup-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('opsFix.suppliers.phonePlaceholder')} />
         </Field>
       </div>
-      <Field label="Kategori (pisahkan dengan koma)" htmlFor="sup-cat">
-        <Input id="sup-cat" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="Galon 19L, Segel, Air baku" />
+      <Field label={t('opsFix.suppliers.categories')} htmlFor="sup-cat">
+        <Input id="sup-cat" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder={t('opsFix.suppliers.categoriesPlaceholder')} />
       </Field>
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -100,10 +102,10 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone} disabled={busy}>
-          Batal
+          {t('opsFix.suppliers.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan pemasok
+          {t('opsFix.suppliers.save')}
         </Button>
       </div>
     </Card>
@@ -111,6 +113,7 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
 }
 
 function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats }) {
+  const { t } = useT();
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start gap-3">
@@ -146,17 +149,17 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
 
       <dl className="grid grid-cols-3 gap-2 border-t border-app pt-2 text-center text-sm">
         <div>
-          <dt className="text-xs text-muted">PO</dt>
+          <dt className="text-xs text-muted">{t('opsFix.suppliers.poCount')}</dt>
           <dd className="font-semibold tabular-nums">{stats.count}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Nilai</dt>
+          <dt className="text-xs text-muted">{t('opsFix.suppliers.poValue')}</dt>
           <dd className="font-semibold tabular-nums">
             <Money amount={stats.value} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">PO terakhir</dt>
+          <dt className="text-xs text-muted">{t('opsFix.suppliers.lastPo')}</dt>
           <dd className="text-xs font-semibold">{stats.lastPo ? formatDateTime(stats.lastPo) : '—'}</dd>
         </div>
       </dl>
@@ -165,6 +168,7 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
 }
 
 function Body() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [adding, setAdding] = useState(false);
 
@@ -197,23 +201,21 @@ function Body() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Storefront size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Pemasok</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.suppliers.title')}</h1>
         </div>
         {scopedId && !adding && (
           <Button onClick={() => setAdding(true)}>
             <Plus size={16} weight="bold" className="mr-1.5" />
-            Tambah
+            {t('opsFix.suppliers.add')}
           </Button>
         )}
       </div>
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">
-          Pemasok untuk{' '}
-          <strong className="text-[color:var(--text)]">
-            {scopedDepot.name} · {scopedDepot.code}
-          </strong>{' '}
-          (dari switcher).
+          {t('opsFix.suppliers.scopeNote', {
+            depot: `${scopedDepot.name} · ${scopedDepot.code}`,
+          })}
         </p>
       )}
 
@@ -228,16 +230,16 @@ function Body() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Storefront size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('opsFix.suppliers.noDepots')} icon={<Storefront size={40} weight="fill" />}>
+          {t('opsFix.suppliers.noDepotsBody')}
         </CenterState>
       ) : suppliers.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : suppliers.error ? (
         <ErrorState message={suppliers.error} onRetry={suppliers.reload} />
       ) : !suppliers.data || suppliers.data.length === 0 ? (
-        <CenterState title="Belum ada pemasok" icon={<Storefront size={40} weight="fill" />}>
-          Tambahkan pemasok pertama depot ini.
+        <CenterState title={t('opsFix.suppliers.empty')} icon={<Storefront size={40} weight="fill" />}>
+          {t('opsFix.suppliers.emptyBody')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -260,11 +262,12 @@ function Body() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageProcurement(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Direktori pemasok tersedia untuk manajer depot dan super admin.
+      <CenterState title={t('opsFix.suppliers.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.suppliers.gateBody')}
       </CenterState>
     );
   }
