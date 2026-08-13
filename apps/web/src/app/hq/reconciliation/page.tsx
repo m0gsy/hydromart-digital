@@ -154,8 +154,12 @@ export default function HqReconciliationPage() {
       [
         scheme
           ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
-          : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`,
-        -(commission ?? 0),
+          : schemes.error
+            ? `${t('hq.reconciliation.lines.commission')} (skema tidak terbaca)`
+            : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`,
+        // Every other unknown cell on this sheet is BLANK. This one alone wrote 0, which is
+        // a number finance adds up — the same fix the screen's other rows already had.
+        commission == null ? '' : -commission,
       ],
       [t('hq.reconciliation.lines.deposit'), gallonDeposit == null ? '' : -gallonDeposit],
       // Blank, not 0. A spreadsheet cell reading 0 is a number somebody adds up.
@@ -229,7 +233,12 @@ export default function HqReconciliationPage() {
               label={
                 scheme
                   ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
-                  : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`
+                  : schemes.error
+                    ? // "Belum ada skema" is a statement about the contract. An unread
+                      // scheme list is a statement about the read, and finance settles on
+                      // this row.
+                      `${t('hq.reconciliation.lines.commission')} (skema tidak terbaca)`
+                    : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`
               }
               value={money(commission == null ? null : -commission)}
             />

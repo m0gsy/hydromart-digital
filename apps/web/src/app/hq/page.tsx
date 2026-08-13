@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { ChartLineUp, Warning } from '@phosphor-icons/react';
 
 import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -158,15 +158,29 @@ export default function HqOverviewPage() {
           value={String(activeDepots)}
           hint={t('hq.overview.kpiHint.depots', { total: depots.length })}
         />
+        {/* The "soon" hint under a dash promises a feature that is already built — say the
+            read failed instead, or somebody waits for a number that is right there. */}
         <Stat
           label={t('hq.overview.kpi.newCustomers')}
           value={newCustomers.data ? newCustomers.data.count.toLocaleString('id-ID') : t('hq.common.dash')}
-          hint={newCustomers.data ? t('hq.overview.kpiHint.newCustomers') : t('hq.overview.kpiHint.soon')}
+          hint={
+            newCustomers.data
+              ? t('hq.overview.kpiHint.newCustomers')
+              : newCustomers.error
+                ? t('common.loadFailed')
+                : t('hq.overview.kpiHint.soon')
+          }
         />
         <Stat
           label={t('hq.overview.kpi.pendingApproval')}
           value={pendingCount != null ? String(pendingCount) : t('hq.common.dash')}
-          hint={pendingCount != null ? t('hq.overview.kpiHint.pendingApproval') : t('hq.overview.kpiHint.soon')}
+          hint={
+            pendingCount != null
+              ? t('hq.overview.kpiHint.pendingApproval')
+              : pendingApps.error
+                ? t('common.loadFailed')
+                : t('hq.overview.kpiHint.soon')
+          }
         />
       </div>
 
@@ -181,7 +195,11 @@ export default function HqOverviewPage() {
           {/* Depot performance table */}
           <Card className="flex flex-col p-5 lg:col-span-2">
             <h2 className="mb-3 font-semibold">{t('hq.overview.perf.title')}</h2>
-            {rows.length === 0 ? (
+            {rollup.error ? (
+              // The whole network table comes from this one read, and its empty copy is
+              // read on the HQ landing page as "no depot traded today".
+              <LoadError onRetry={rollup.reload} />
+            ) : rows.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted">{t('hq.overview.perf.empty')}</p>
             ) : (
               <div className="overflow-x-auto">

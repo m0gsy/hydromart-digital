@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Export } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
@@ -210,6 +210,10 @@ export default function HqReportsExportPage() {
         <h2 className="mb-3 flex items-center gap-2 font-semibold">
           {t('hq.reportsExport.preview')}
         </h2>
+        {/* The names come from a second read; without it the label column falls back to
+            raw depot ids — and the workbook is built from these rows, so the file goes to
+            finance with UUIDs where the depot names belong. */}
+        {isDepot && depots.error && <LoadError onRetry={depots.reload} className="mb-3" />}
         {active.loading || (isDepot && depots.loading) ? (
           <Skeleton className="h-40 w-full" />
         ) : active.error ? (
