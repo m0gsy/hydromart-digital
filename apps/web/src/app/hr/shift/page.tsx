@@ -3,16 +3,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  Field,
-  Input,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -51,6 +42,11 @@ export default function ShiftPage() {
         title="Shift & Rotasi"
         subtitle="Jadwal kerja per karyawan. Absensi menilai terlambat terhadap shift karyawan, bukan shift depot."
       />
+
+      {/* Both panels below take their shift list from here, and every shift dropdown in
+          them is empty without it — which reads as a depot that defined no shifts, the
+          same thing attendance uses to decide who was late. */}
+      {shifts.error && <LoadError onRetry={shifts.reload} />}
 
       <Rotations shifts={shifts.data ?? []} rotations={rotations} isAdmin={isAdmin} />
 

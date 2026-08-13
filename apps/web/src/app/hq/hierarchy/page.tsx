@@ -5,7 +5,7 @@ import { Storefront, TreeStructure, UserGear, X } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { AccessDeniedHq } from '@/components/hq/access-denied';
-import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, LoadError, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -249,6 +249,9 @@ export default function HqHierarchyPage() {
               </option>
             ))}
           </select>
+          {/* An empty picker is indistinguishable from a depot with no staff, and this is
+              the screen that assigns who reports to whom. */}
+          {staff.error && <LoadError onRetry={staff.reload} />}
           {staff.data && staff.data.total > people.length && (
             <span className="text-xs text-muted">
               {t('hq.hierarchy.moreResults', { n: staff.data.total - people.length })}
