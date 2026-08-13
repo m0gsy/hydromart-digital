@@ -4,6 +4,7 @@ import { nextCursor, pageArgs } from '@hydromart/platform';
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
   CashCollectedSummary,
+  OrderCashRow,
   CreatePaymentData,
   DateRange,
   PaymentQuery,
@@ -203,6 +204,28 @@ export class PaymentPrismaRepository implements PaymentRepository {
       _count: { _all: true },
     });
     return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
+  }
+
+  async cashByOrder(orderIds: string[]): Promise<OrderCashRow[]> {
+    if (orderIds.length === 0) {
+      return [];
+    }
+    // groupBy, not findMany: an order can legitimately carry more than one PAID cash row
+    // (a partial settlement, a re-take after a void), and the caller wants one number
+    // per order the same way `sumCashCollected` gives one number per set.
+    const rows = await this.prisma.payment.groupBy({
+      by: ['orderId'],
+      where: {
+        orderId: { in: orderIds },
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+      },
+      _sum: { amount: true },
+    });
+    return rows.map((r) => ({
+      orderId: r.orderId,
+      amountIdr: r._sum.amount ? Math.round(Number(r._sum.amount)) : 0,
+    }));
   }
 
   async sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary> {

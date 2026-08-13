@@ -23,11 +23,13 @@ import {
 import { PaymentService, RefundQueueRow } from '../application/services/payment.service';
 import {
   CashCollectedSummary,
+  OrderCashRow,
   PaymentRecord,
   UnsettledMethodAggregate,
 } from '../application/ports/payment.repository';
 import { Page } from '../application/pagination';
 import {
+  CashByOrderDto,
   CashCollectedQueryDto,
   ConfirmPaymentDto,
   DepotCashQueryDto,
@@ -40,6 +42,7 @@ import {
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
 import {
+  CashByOrderResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
@@ -109,6 +112,22 @@ export class PaymentController {
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });
+  }
+
+  // The depot daily report asks this: of the day's delivery orders, which ones did the
+  // courier actually bring cash back for. Internal-key only, and a POST because the id set
+  // is the request body — see CashByOrderDto. Declared before ':id' so the static wins.
+  @ApiOkResponse({ type: CashByOrderResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @HttpCode(HttpStatus.OK)
+  @Post('internal/cash-collected')
+  @ApiOperation({ summary: 'PAID cash per order over a set of orders (internal service auth)' })
+  cashCollectedByOrder(
+    @Body() dto: CashByOrderDto,
+  ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
+    return this.payments.cashCollectedByOrder(dto.orderIds);
   }
 
   @ApiOkResponse({ type: PagedPaymentResponseDto })

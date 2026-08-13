@@ -13,6 +13,7 @@ export const ORDER_TOKENS = {
   FranchiseRevenue: Symbol('FranchiseRevenue'),
   CashierShift: Symbol('CashierShift'),
   PaymentReversal: Symbol('PaymentReversal'),
+  PaymentCash: Symbol('PaymentCash'),
   Membership: Symbol('Membership'),
   ResellerDiscount: Symbol('ResellerDiscount'),
   CustomerDirectory: Symbol('CustomerDirectory'),

@@ -132,6 +132,17 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
   }
 
+  async cashByOrder(orderIds: string[]): Promise<{ orderId: string; amountIdr: number }[]> {
+    const set = new Set(orderIds);
+    const by = new Map<string, number>();
+    for (const r of this.rows) {
+      if (!set.has(r.orderId)) continue;
+      if (r.method !== PaymentMethod.CASH || r.status !== PaymentStatus.PAID) continue;
+      by.set(r.orderId, (by.get(r.orderId) ?? 0) + r.amount);
+    }
+    return [...by.entries()].map(([orderId, amountIdr]) => ({ orderId, amountIdr }));
+  }
+
   async sumDepotCash(
     depotId: string,
     range: { from?: Date; to?: Date },

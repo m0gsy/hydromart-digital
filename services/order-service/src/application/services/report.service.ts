@@ -16,6 +16,7 @@ import {
 } from '../ports/order.repository';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
+import { PaymentCashPort } from '../ports/payment-cash.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -76,7 +77,8 @@ export interface DepotCourierDaily {
   name: string;
   completed: number;
   failed: number;
-  codIdr: number;
+  /** Null when payment-service could not be read — not 0, which would read as "collected nothing". */
+  codIdr: number | null;
 }
 
 /**
@@ -106,12 +108,14 @@ export interface DepotDailyReport {
   orders: number;
   revenueIdr: number;
   gallonsDelivered: number;
-  // null (not 0) for aggregates order-service can't join — depot-service gallon-returns and
-  // payment-service COD settlement. Consistent with ARCH-1: emit null so the FE renders "—"
-  // rather than a fabricated zero that reads as a real measurement.
+  // null (not 0) when the owning service could not be read. Consistent with ARCH-1: emit
+  // null so the FE renders "—" rather than a fabricated zero that reads as a measurement.
   gallonsReturned: number | null;
   gallonsDamaged: number | null;
+  /** Cash the couriers collected on the day's DELIVERY orders. Excludes counter sales. */
   codCollectedIdr: number | null;
+  /** Counter cash payment-service booked against this depot in the same window. */
+  cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotCourierDaily[];
 }
@@ -223,6 +227,9 @@ export class ReportService {
     @Optional()
     @Inject(ORDER_TOKENS.Notification)
     private readonly notifications?: NotificationPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.PaymentCash)
+    private readonly paymentCash?: PaymentCashPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -408,6 +415,19 @@ export class ReportService {
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const delivered = live.filter((r) => isDelivered(r.status));
+
+    // Courier COD is asked for over the day's DELIVERY orders only. A counter sale's
+    // payment is booked against the depot, and `depotCash` already counts it — asking for
+    // both would put the same rupiah in two columns of the same report.
+    const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
+    const [cashRows, drawer] = await Promise.all([
+      deliveryOrders.length > 0 && this.paymentCash
+        ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
+        : Promise.resolve(this.paymentCash ? [] : null),
+      this.paymentCash ? this.paymentCash.depotCash(depotId, from, to) : Promise.resolve(null),
+    ]);
+    const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
+
     return {
       depotId,
       date: day,
@@ -416,10 +436,46 @@ export class ReportService {
       gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
       gallonsReturned: null, // TODO: join depot-service gallon-returns (retur masuk)
       gallonsDamaged: null, // TODO: join depot-service gallon-returns (rusak)
-      codCollectedIdr: null, // TODO: join payment-service COD settlement
+      codCollectedIdr: cashRows ? cashRows.reduce((s, c) => s + c.amountIdr, 0) : null,
+      cashInDrawerIdr: drawer,
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
-      perCourier: [], // TODO: join delivery-service performance (empty = unavailable, not zero couriers)
+      perCourier: ReportService.perCourier(rows, cashBy),
     };
+  }
+
+  /**
+   * The day's orders grouped by the courier who carried them.
+   *
+   * Grouped on `driverName`, the only courier identity an order carries — the same key
+   * `depotWeekly`/`reportsDepotMonthly` already use for `topCourier`, so the daily
+   * breakdown and the weekly top-courier can never disagree about who did what. Two
+   * couriers sharing a display name would merge; the fix for that is a driver id on the
+   * order, not a second grouping rule here.
+   *
+   * `failed` is the cancelled orders that had already been assigned to that courier, which
+   * is why cancelled rows are grouped too rather than filtered out first.
+   */
+  private static perCourier(
+    rows: OrderRecord[],
+    cashBy: Map<string, number> | null,
+  ): DepotCourierDaily[] {
+    const by = new Map<string, { completed: number; failed: number; codIdr: number }>();
+    for (const o of rows) {
+      if (!o.driverName) continue;
+      const cur = by.get(o.driverName) ?? { completed: 0, failed: 0, codIdr: 0 };
+      if (o.status === OrderStatus.CANCELLED) cur.failed += 1;
+      else if (isDelivered(o.status)) cur.completed += 1;
+      cur.codIdr += cashBy?.get(o.id) ?? 0;
+      by.set(o.driverName, cur);
+    }
+    return [...by.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, c]) => ({
+        name,
+        completed: c.completed,
+        failed: c.failed,
+        codIdr: cashBy ? c.codIdr : null,
+      }));
   }
 
   /**

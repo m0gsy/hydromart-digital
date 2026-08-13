@@ -55,6 +55,24 @@ export class CashCollectedResponseDto {
   count!: number;
 }
 
+/** Mirrors `OrderCashRow` exactly — generated for audit D-6, no field added or removed. */
+export class OrderCashRowResponseDto {
+  @ApiProperty({ type: String })
+  orderId!: string;
+  @ApiProperty({ type: Number })
+  amountIdr!: number;
+}
+
+/** Mirrors `cashCollectedByOrder` exactly — generated for audit D-6, no field added or removed. */
+export class CashByOrderResponseDto {
+  @ApiProperty({ type: Number })
+  total!: number;
+  @ApiProperty({ type: Number })
+  count!: number;
+  @ApiProperty({ type: [OrderCashRowResponseDto] })
+  byOrder!: OrderCashRowResponseDto[];
+}
+
 /** Mirrors `UnsettledMethodAggregate` exactly — generated for audit D-6, no field added or removed. */
 export class UnsettledMethodAggregateResponseDto {
   @ApiProperty({ enum: ['CASH', 'TRANSFER', 'QRIS', 'EWALLET', 'VA'] })

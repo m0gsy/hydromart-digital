@@ -232,6 +232,18 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
 }
 
 /* ---------- Harian ---------- */
+/**
+ * The card used to carry a literal `hint="Selisih —"` under a real COD figure — a variance
+ * label that was never a variance of anything. The two cash buckets are separate on purpose
+ * (a courier's COD is booked to the order, a counter sale to the depot), so the useful
+ * second number is the OTHER bucket, not a subtraction of one from the other.
+ */
+function codHint(d: DepotDailyReport): string {
+  return d.cashInDrawerIdr === null
+    ? 'Kas konter —'
+    : `Kas konter ${formatIDR(d.cashInDrawerIdr)}`;
+}
+
 function Harian({ depotId }: { depotId: string }) {
   const [date, setDate] = useState(today());
   const rep = useAsync<DepotDailyReport>(
@@ -265,7 +277,11 @@ function Harian({ depotId }: { depotId: string }) {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Pesanan selesai" value={String(rep.data.orders)} hint="Diproses hari ini" />
             <StatCard label="Pendapatan" value={formatIDR(rep.data.revenueIdr)} />
-            <StatCard label="COD disetor" value={rep.data.codCollectedIdr === null ? '—' : formatIDR(rep.data.codCollectedIdr)} hint="Selisih —" />
+            <StatCard
+              label="COD disetor"
+              value={rep.data.codCollectedIdr === null ? '—' : formatIDR(rep.data.codCollectedIdr)}
+              hint={codHint(rep.data)}
+            />
             <StatCard label="Gagal antar" value={String(rep.data.failedDeliveries)} />
           </div>
 
@@ -273,7 +289,7 @@ function Harian({ depotId }: { depotId: string }) {
             <div className="border-b border-app px-4 py-3 text-sm font-extrabold">Per kurir</div>
             {rep.data.perCourier.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted">
-                Rincian per kurir belum tersedia untuk depot ini.
+                Belum ada kurir yang ditugaskan pada hari ini.
               </p>
             ) : (
               <table className="w-full text-sm">
@@ -291,7 +307,9 @@ function Harian({ depotId }: { depotId: string }) {
                       <td className="px-4 py-2.5 font-semibold">{c.name}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{c.completed}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{c.failed}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{formatIDR(c.codIdr)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {c.codIdr === null ? '—' : formatIDR(c.codIdr)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

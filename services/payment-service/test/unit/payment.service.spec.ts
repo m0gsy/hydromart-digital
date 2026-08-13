@@ -504,6 +504,33 @@ describe('PaymentService', () => {
       expect(await service.cashCollected([a, b])).toEqual({ total: 75000, count: 2 });
     });
 
+    // S2. The daily report shows a per-courier line, and the courier is on the order — so
+    // the same read has to come back split, not just summed. Same book, same moment: two
+    // reads could disagree, and then the column total would not match its own rows.
+    it('splits the same cash per order, and the split adds up to the total', async () => {
+      const a = await settleCash(45000);
+      const b = await settleCash(30000);
+      const unpaid = randomUUID();
+      await initiate(PaymentMethod.CASH, 99000, unpaid); // stays PENDING
+
+      const out = await service.cashCollectedByOrder([a, b, unpaid]);
+      expect(out.total).toBe(75000);
+      expect(out.count).toBe(2);
+      expect(out.byOrder).toEqual(
+        expect.arrayContaining([
+          { orderId: a, amountIdr: 45000 },
+          { orderId: b, amountIdr: 30000 },
+        ]),
+      );
+      // The unpaid order is absent, not a zero row — "nobody paid yet" is not "paid nothing".
+      expect(out.byOrder.map((r) => r.orderId)).not.toContain(unpaid);
+      expect(out.byOrder.reduce((s, r) => s + r.amountIdr, 0)).toBe(out.total);
+    });
+
+    it('returns an empty split for an empty order set', async () => {
+      expect(await service.cashCollectedByOrder([])).toEqual({ total: 0, count: 0, byOrder: [] });
+    });
+
     it('ignores unpaid cash and non-cash methods', async () => {
       const pendingCash = randomUUID();
       await initiate(PaymentMethod.CASH, 45000, pendingCash); // stays PENDING

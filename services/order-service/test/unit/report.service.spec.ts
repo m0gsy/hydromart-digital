@@ -243,10 +243,149 @@ describe('ReportService', () => {
     expect(rep.revenueIdr).toBe(120000);
     expect(rep.gallonsDelivered).toBe(6); // 3 + 3 on the two delivered orders
     expect(rep.failedDeliveries).toBe(1); // the cancelled order
-    expect(rep.perCourier).toEqual([]); // TODO: delivery-service join
-    expect(rep.codCollectedIdr).toBeNull(); // unwired: payment COD not joinable here
-    expect(rep.gallonsReturned).toBeNull();
+    expect(rep.perCourier).toEqual([]); // no courier was ever assigned, not "unavailable"
+    expect(rep.codCollectedIdr).toBeNull(); // no payment port wired on this instance
+    expect(rep.cashInDrawerIdr).toBeNull();
+    expect(rep.gallonsReturned).toBeNull(); // no depot-returns port wired on this instance
     expect(rep.gallonsDamaged).toBeNull();
+  });
+
+  /*
+   * S2. `perCourier`, `codCollectedIdr` and `cashInDrawerIdr` were literal `[]`/`null`, so
+   * "Rincian per kurir belum tersedia" and `hint="Selisih —"` on the reports screen were
+   * the client honestly rendering a backend that never intended to answer.
+   *
+   * The split matters and is asserted rather than assumed: courier COD is cash on the day's
+   * DELIVERY orders (payment rows carry no depotId), counter cash is what payment-service
+   * booked against the depot. Summing one bucket into the other double-counts a walk-in.
+   */
+  describe('depot daily — courier split and the two cash buckets', () => {
+    const day = '2026-07-15';
+    const gallon = (qty: number) => [
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
+        unitPrice: 20000,
+        quantity: qty,
+        lineTotal: 20000 * qty,
+      },
+    ];
+
+    it('breaks the day down per courier and separates COD from counter cash', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const mk = async (over: {
+        total: number;
+        driver?: string;
+        status?: OrderStatus;
+        walkIn?: boolean;
+      }) => {
+        const o = await r.create({
+          ...orderData({ depotId: depot, total: over.total }),
+          items: gallon(2),
+        });
+        const row = r.rows.find((x) => x.id === o.id)!;
+        row.createdAt = new Date(`${day}T02:00:00.000Z`);
+        row.status = over.status ?? OrderStatus.DELIVERED;
+        row.driverName = over.driver ?? null;
+        row.isWalkIn = over.walkIn === true;
+        return o;
+      };
+      const budiA = await mk({ total: 40000, driver: 'Budi' });
+      const budiB = await mk({ total: 60000, driver: 'Budi' });
+      const budiFailed = await mk({
+        total: 30000,
+        driver: 'Budi',
+        status: OrderStatus.CANCELLED,
+      });
+      const sari = await mk({ total: 50000, driver: 'Sari' });
+      const counter = await mk({ total: 25000, walkIn: true });
+
+      const cash = {
+        cashByOrder: jest.fn(async (ids: string[]) =>
+          [
+            { orderId: budiA.id, amountIdr: 40000 },
+            { orderId: sari.id, amountIdr: 50000 },
+          ].filter((row) => ids.includes(row.orderId)),
+        ),
+        depotCash: jest.fn(async () => 25000),
+      };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        cash as never,
+      );
+
+      const rep = await svc.depotDaily(depot, day);
+
+      // Courier COD is the day's DELIVERY orders only — the counter sale is not a courier's.
+      expect(cash.cashByOrder).toHaveBeenCalledTimes(1);
+      const asked = cash.cashByOrder.mock.calls[0][0];
+      expect(asked).toEqual(expect.arrayContaining([budiA.id, budiB.id, sari.id]));
+      expect(asked).not.toContain(counter.id);
+
+      expect(rep.codCollectedIdr).toBe(90000);
+      expect(rep.cashInDrawerIdr).toBe(25000);
+      expect(rep.perCourier).toEqual([
+        { name: 'Budi', completed: 2, failed: 1, codIdr: 40000 },
+        { name: 'Sari', completed: 1, failed: 0, codIdr: 50000 },
+      ]);
+      // The cancelled order is a failed delivery for Budi and revenue for nobody.
+      expect(rep.failedDeliveries).toBe(1);
+      expect(budiFailed).toBeDefined();
+    });
+
+    it('reports courier COD as null when payment-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const o = await r.create({
+        ...orderData({ depotId: depot, total: 40000 }),
+        items: gallon(2),
+      });
+      const row = r.rows.find((x) => x.id === o.id)!;
+      row.createdAt = new Date(`${day}T02:00:00.000Z`);
+      row.status = OrderStatus.DELIVERED;
+      row.driverName = 'Budi';
+
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, {
+        cashByOrder: async () => null,
+        depotCash: async () => null,
+      } as never);
+
+      const rep = await svc.depotDaily(depot, day);
+      // Null, never 0: "payment-service is down" and "the courier collected nothing" are
+      // different answers, and one of them means somebody is holding cash.
+      expect(rep.codCollectedIdr).toBeNull();
+      expect(rep.cashInDrawerIdr).toBeNull();
+      expect(rep.perCourier).toEqual([{ name: 'Budi', completed: 1, failed: 0, codIdr: null }]);
+    });
+
+    it('skips the payment round-trip entirely on a day with no delivery orders', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const cash = {
+        cashByOrder: jest.fn(async () => []),
+        depotCash: jest.fn(async () => 0),
+      };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        cash as never,
+      );
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(cash.cashByOrder).not.toHaveBeenCalled();
+      expect(rep.codCollectedIdr).toBe(0);
+      expect(rep.cashInDrawerIdr).toBe(0);
+    });
   });
 
   // The export behind the button that used to do nothing. It must show the SAME day the

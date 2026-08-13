@@ -23,6 +23,7 @@ describe('PaymentController', () => {
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
+    cashCollectedByOrder: jest.fn(),
     depotCashCollected: jest.fn(),
     voidForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
@@ -111,6 +112,11 @@ describe('PaymentController', () => {
   it('voidForOrder is attributed to order-service, not a token holder', async () => {
     await controller.voidForOrder({ orderId: 'order-9', reason: 'Salah ukuran' } as never);
     expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');
+  });
+
+  it('cashCollectedByOrder forwards the order ids from the body', async () => {
+    await controller.cashCollectedByOrder({ orderIds: ['o1', 'o2'] } as never);
+    expect(svc.cashCollectedByOrder).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
   it('cashCollected forwards the order ids', async () => {

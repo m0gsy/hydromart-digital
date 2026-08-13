@@ -24,6 +24,7 @@ import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
+import { PaymentCashHttpAdapter } from '../../src/infrastructure/http/payment-cash.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
@@ -761,6 +762,73 @@ describe('PaymentReversalHttpAdapter', () => {
     await expect(reversal().voidForOrder('order-1', 'x')).rejects.toBeInstanceOf(
       PaymentReversalFailedError,
     );
+  });
+});
+
+// S2. The daily report's two cash figures. Unlike the reversal above this fails SOFT: it
+// only reports on money already moved, and a report that refuses to render because one
+// service blinked is worse than one that says "—".
+describe('PaymentCashHttpAdapter', () => {
+  const cash = (over: Partial<Record<string, unknown>> = {}) =>
+    new PaymentCashHttpAdapter(makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }));
+
+  it('POSTs the order ids with the internal key and returns the split', async () => {
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { total: 40000, count: 1, byOrder: [{ orderId: 'o1', amountIdr: 40000 }] } }),
+    );
+    const rows = await cash().cashByOrder(['o1', 'o2']);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payment:3005/api/v1/payments/internal/cash-collected');
+    const sent = init as { method: string; headers: Record<string, string>; body: string };
+    expect(sent.method).toBe('POST');
+    expect(sent.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(sent.body)).toEqual({ orderIds: ['o1', 'o2'] });
+    expect(rows).toEqual([{ orderId: 'o1', amountIdr: 40000 }]);
+  });
+
+  it('short-circuits an empty id set without a round-trip', async () => {
+    expect(await cash().cashByOrder([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reads a body with no byOrder as an empty split, not as an outage', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { total: 0, count: 0 } }));
+    expect(await cash().cashByOrder(['o1'])).toEqual([]);
+  });
+
+  it('GETs the depot window and rounds the total', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { total: 25000.4, count: 2 } }));
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const total = await cash().depotCash('depot-1', from, to);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://payment:3005/api/v1/payments/internal/depot-cash?depotId=depot-1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect(total).toBe(25000);
+  });
+
+  it('reads a body with no total as zero', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: {} }));
+    expect(await cash().depotCash('depot-1', new Date(), new Date())).toBe(0);
+  });
+
+  it.each([
+    ['payment-service is unconfigured', { paymentServiceUrl: '' }],
+    ['there is no internal key', { internalServiceKey: '' }],
+  ])('returns null rather than 0 when %s', async (_label, over) => {
+    expect(await cash(over).cashByOrder(['o1'])).toBeNull();
+    expect(await cash(over).depotCash('depot-1', new Date(), new Date())).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Null, not 0. "payment-service is down" and "the courier collected nothing" are
+  // different answers, and one of them means somebody is holding cash nobody counted.
+  it('returns null on a non-2xx and on an unreachable service', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    expect(await cash().cashByOrder(['o1'])).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await cash().depotCash('depot-1', new Date(), new Date())).toBeNull();
   });
 });
 

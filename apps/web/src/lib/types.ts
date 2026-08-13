@@ -2003,13 +2003,15 @@ export interface DepotCustomerDetail {
 }
 
 // Depot Operator reports (design 2d Laporan harian / 7d Laporan mingguan). orders/
-// revenue/gallonsDelivered/revenueByDay/topProducts are real order-service figures;
-// cod/gallon returned-damaged/perCourier/sla are best-effort or omitted server-side.
+// revenue/gallonsDelivered/revenueByDay/topProducts/perCourier are real order-service
+// figures; the cash columns are read from payment-service and gallon returns from
+// depot-service, each null when its owner could not be read.
 export interface DepotDailyCourier {
   name: string;
   completed: number;
   failed: number;
-  codIdr: number;
+  /** Null = payment-service could not be read; not 0, which reads as "collected nothing". */
+  codIdr: number | null;
 }
 
 export interface DepotDailyReport {
@@ -2022,7 +2024,10 @@ export interface DepotDailyReport {
   // render "—", never a fabricated 0.
   gallonsReturned: number | null;
   gallonsDamaged: number | null;
+  /** Cash the couriers brought back on the day's delivery orders. Excludes counter sales. */
   codCollectedIdr: number | null;
+  /** Counter cash payment-service booked against this depot in the same window. */
+  cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotDailyCourier[];
 }
