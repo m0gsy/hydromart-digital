@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canViewReturns, canWriteReturns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type {
   GallonCondition,
   GallonIssueSummary,
@@ -37,6 +38,7 @@ function num(v: string): number | null {
 
 /** Inline "record return" form. Reloads the ledger + summary on success. */
 function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState('');
   const [deposit, setDeposit] = useState('');
@@ -56,12 +58,12 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
   async function submit() {
     const qty = num(quantity);
     if (qty === null || qty <= 0) {
-      setError('Masukkan jumlah galon (lebih dari 0).');
+      setError(t('opsFix.returns.qtyError'));
       return;
     }
     const dep = deposit.trim() === '' ? 0 : num(deposit);
     if (dep === null || dep < 0) {
-      setError('Deposit harus 0 atau lebih.');
+      setError(t('opsFix.returns.depositError'));
       return;
     }
     setBusy(true);
@@ -76,7 +78,7 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
       setOpen(false);
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan retur.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.returns.saveReturnError'));
     } finally {
       setBusy(false);
     }
@@ -86,47 +88,51 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
     return (
       <Button onClick={() => setOpen(true)}>
         <Plus size={16} weight="bold" className="mr-1.5" />
-        Catat retur
+        {t('opsFix.returns.recordReturn')}
       </Button>
     );
   }
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <p className="font-semibold">Catat retur galon</p>
+      <p className="font-semibold">{t('opsFix.returns.recordReturnTitle')}</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Jumlah galon" htmlFor="ret-qty">
+        <Field label={t('opsFix.returns.qty')} htmlFor="ret-qty">
           <Input
             id="ret-qty"
             inputMode="numeric"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="mis. 3"
+            placeholder={t('opsFix.returns.qtyPlaceholder')}
             autoFocus
           />
         </Field>
-        <Field label="Deposit dikembalikan (IDR)" htmlFor="ret-dep" hint="Kosong = tanpa deposit.">
+        <Field
+          label={t('opsFix.returns.depositRefunded')}
+          htmlFor="ret-dep"
+          hint={t('opsFix.returns.depositHint')}
+        >
           <Input
             id="ret-dep"
             inputMode="numeric"
             value={deposit}
             onChange={(e) => setDeposit(e.target.value)}
-            placeholder="mis. 15000"
+            placeholder={t('opsFix.returns.depositPlaceholder')}
           />
         </Field>
       </div>
-      <Field label="Kondisi" htmlFor="ret-cond">
+      <Field label={t('opsFix.returns.condition')} htmlFor="ret-cond">
         <select
           id="ret-cond"
           value={condition}
           onChange={(e) => setCondition(e.target.value as GallonCondition)}
           className="w-full rounded-xl border border-app bg-transparent px-3 py-2.5 text-sm font-medium"
         >
-          <option value="GOOD">Baik (dipakai ulang)</option>
-          <option value="DAMAGED">Rusak</option>
+          <option value="GOOD">{t('opsFix.returns.conditionGood')}</option>
+          <option value="DAMAGED">{t('opsFix.returns.conditionDamaged')}</option>
         </select>
       </Field>
-      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan (opsional)" />
+      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.returns.notePlaceholder')} />
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}
@@ -141,10 +147,10 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
           }}
           disabled={busy}
         >
-          Batal
+          {t('opsFix.returns.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan retur
+          {t('opsFix.returns.saveReturn')}
         </Button>
       </div>
     </Card>
@@ -155,6 +161,7 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
 // return ledger (galon kembali). Outstanding = at customers = not yet returned.
 /** Inline "record gallon issued on deposit" form (galon keluar). Reloads on success. */
 function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState('');
   const [deposit, setDeposit] = useState('');
@@ -172,12 +179,12 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
   async function submit() {
     const qty = num(quantity);
     if (qty === null || qty <= 0) {
-      setError('Masukkan jumlah galon (lebih dari 0).');
+      setError(t('opsFix.returns.qtyError'));
       return;
     }
     const dep = deposit.trim() === '' ? 0 : num(deposit);
     if (dep === null || dep < 0) {
-      setError('Deposit harus 0 atau lebih.');
+      setError(t('opsFix.returns.depositError'));
       return;
     }
     setBusy(true);
@@ -192,7 +199,7 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
       setOpen(false);
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan galon keluar.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.returns.saveIssueError'));
     } finally {
       setBusy(false);
     }
@@ -202,36 +209,40 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
     return (
       <Button variant="secondary" onClick={() => setOpen(true)}>
         <Plus size={16} weight="bold" className="mr-1.5" />
-        Catat galon keluar
+        {t('opsFix.returns.recordIssue')}
       </Button>
     );
   }
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <p className="font-semibold">Catat galon keluar (deposit)</p>
+      <p className="font-semibold">{t('opsFix.returns.recordIssueTitle')}</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Jumlah galon" htmlFor="iss-qty">
+        <Field label={t('opsFix.returns.qty')} htmlFor="iss-qty">
           <Input
             id="iss-qty"
             inputMode="numeric"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="mis. 3"
+            placeholder={t('opsFix.returns.qtyPlaceholder')}
             autoFocus
           />
         </Field>
-        <Field label="Deposit ditahan (IDR)" htmlFor="iss-dep" hint="Kosong = tanpa deposit.">
+        <Field
+          label={t('opsFix.returns.depositHeldLabel')}
+          htmlFor="iss-dep"
+          hint={t('opsFix.returns.depositHint')}
+        >
           <Input
             id="iss-dep"
             inputMode="numeric"
             value={deposit}
             onChange={(e) => setDeposit(e.target.value)}
-            placeholder="mis. 15000"
+            placeholder={t('opsFix.returns.depositPlaceholder')}
           />
         </Field>
       </div>
-      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan (opsional)" />
+      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.returns.notePlaceholder')} />
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}
@@ -246,10 +257,10 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
           }}
           disabled={busy}
         >
-          Batal
+          {t('opsFix.returns.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan
+          {t('opsFix.returns.save')}
         </Button>
       </div>
     </Card>
@@ -257,43 +268,45 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
 }
 
 function KpiTiles({ issue, ret }: { issue: GallonIssueSummary; ret: GallonReturnSummary }) {
+  const { t } = useT();
   const outstanding = Math.max(0, issue.gallons - ret.gallons);
   const depositHeld = Math.max(0, issue.depositHeld - ret.depositRefunded);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Card className="p-3.5">
-        <p className="text-xs text-muted">Galon di pelanggan</p>
+        <p className="text-xs text-muted">{t('opsFix.returns.atCustomers')}</p>
         <p className="mt-1 text-xl font-bold tabular-nums">{outstanding}</p>
-        <p className="text-[11px] text-muted">belum kembali</p>
+        <p className="text-[11px] text-muted">{t('opsFix.returns.atCustomersHint')}</p>
       </Card>
       <Card className="p-3.5">
-        <p className="text-xs text-muted">Galon keluar</p>
+        <p className="text-xs text-muted">{t('opsFix.returns.issued')}</p>
         <p className="mt-1 text-xl font-bold tabular-nums">{issue.gallons}</p>
-        <p className="text-[11px] text-muted">total dikeluarkan</p>
+        <p className="text-[11px] text-muted">{t('opsFix.returns.issuedHint')}</p>
       </Card>
       <Card className="p-3.5">
-        <p className="text-xs text-muted">Galon kembali</p>
+        <p className="text-xs text-muted">{t('opsFix.returns.returned')}</p>
         <p className="mt-1 text-xl font-bold tabular-nums">{ret.gallons}</p>
-        <p className="text-[11px] text-muted">{ret.damaged} rusak</p>
+        <p className="text-[11px] text-muted">{t('opsFix.returns.returnedDamaged', { n: ret.damaged })}</p>
       </Card>
       <Card className="p-3.5">
-        <p className="text-xs text-muted">Deposit tertahan</p>
+        <p className="text-xs text-muted">{t('opsFix.returns.depositHeld')}</p>
         <Money amount={depositHeld} className="mt-1 block text-xl font-bold" />
-        <p className="text-[11px] text-muted">masih di pelanggan</p>
+        <p className="text-[11px] text-muted">{t('opsFix.returns.depositHeldHint')}</p>
       </Card>
     </div>
   );
 }
 
 function ReturnRow({ r }: { r: GallonReturn }) {
+  const { t } = useT();
   return (
     <Card className="flex items-center justify-between gap-3 p-3.5">
       <div className="min-w-0">
         <p className="font-semibold tabular-nums">
-          {r.quantity} galon
+          {t('opsFix.returns.gallonsSuffix', { n: r.quantity })}
           {r.condition === 'DAMAGED' && (
             <span className="ml-2">
-              <Badge tone="warning">Rusak</Badge>
+              <Badge tone="warning">{t('opsFix.returns.damaged')}</Badge>
             </span>
           )}
         </p>
@@ -308,6 +321,7 @@ function ReturnRow({ r }: { r: GallonReturn }) {
 }
 
 function ReturnsBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const canWrite = canWriteReturns(customer?.role);
   const { scopedId, selected, depots, ready } = useDepot();
@@ -338,7 +352,7 @@ function ReturnsBody() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Recycle size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Retur galon</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.returns.title')}</h1>
         </div>
         {canWrite && scopedId && (
           <div className="flex flex-wrap gap-2">
@@ -350,21 +364,19 @@ function ReturnsBody() {
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">
-          Retur untuk{' '}
-          <strong className="text-[color:var(--text)]">
-            {scopedDepot.name} · {scopedDepot.code}
-          </strong>{' '}
-          (dari switcher).
+          {t('opsFix.returns.scopeNote', {
+            depot: `${scopedDepot.name} · ${scopedDepot.code}`,
+          })}
         </p>
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Recycle size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('opsFix.returns.noDepots')} icon={<Recycle size={40} weight="fill" />}>
+          {t('opsFix.returns.noDepotsBody')}
         </CenterState>
       ) : !scopedId ? (
-        <CenterState title="Pilih depot" icon={<Recycle size={40} weight="fill" />}>
-          Pilih satu depot dari switcher untuk melihat retur galon.
+        <CenterState title={t('opsFix.returns.pickDepot')} icon={<Recycle size={40} weight="fill" />}>
+          {t('opsFix.returns.pickDepotBody')}
         </CenterState>
       ) : (
         <>
@@ -388,8 +400,8 @@ function ReturnsBody() {
           ) : list.error ? (
             <ErrorState message={list.error} onRetry={list.reload} />
           ) : !list.data || list.data.items.length === 0 ? (
-            <CenterState title="Belum ada retur" icon={<Recycle size={40} weight="fill" />}>
-              Retur galon yang dicatat akan muncul di sini.
+            <CenterState title={t('opsFix.returns.empty')} icon={<Recycle size={40} weight="fill" />}>
+              {t('opsFix.returns.emptyBody')}
             </CenterState>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -405,11 +417,12 @@ function ReturnsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewReturns(customer?.role)) {
     return (
-      <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Retur galon tersedia untuk staf depot, head office, dan pemilik waralaba.
+      <CenterState title={t('opsFix.returns.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.returns.gateBody')}
       </CenterState>
     );
   }
