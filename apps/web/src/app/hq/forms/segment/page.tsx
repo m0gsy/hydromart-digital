@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UsersThree, Plus, Trash } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, Input } from '@/components/ui';
+import { Button, Card, Input, LoadError } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -191,7 +191,9 @@ export default function HqSegmentFormPage() {
         <span className="text-2xl font-bold tabular-nums text-brand-700">
           {estimate.loading
             ? '…'
-            : t('hq.forms.segment.people', { n: (estimate.data?.count ?? 0).toLocaleString('id-ID') })}
+            : estimate.error
+              ? t('hq.common.dash')
+              : t('hq.forms.segment.people', { n: (estimate.data?.count ?? 0).toLocaleString('id-ID') })}
         </span>
       </Card>
 
@@ -209,6 +211,9 @@ export default function HqSegmentFormPage() {
             {t('hq.forms.segment.save')}
           </Button>
         </div>
+        {/* The saved list hides itself when empty, so an unread one looks like a console
+            where nobody ever saved a segment — and the same audience gets rebuilt by hand. */}
+        {saved.error && <LoadError onRetry={saved.reload} />}
         {(saved.data ?? []).length > 0 && (
           <ul className="flex flex-col gap-1.5 border-t border-app pt-3">
             {(saved.data ?? []).map((sg) => (
