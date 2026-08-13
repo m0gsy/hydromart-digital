@@ -66,6 +66,16 @@ describe('PaymentController', () => {
     expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
   });
 
+  /*
+   * delivery-service asks this one when it decides cash-on-delivery, and it must be the
+   * SAME read as the staff route — a second query here is a second answer waiting to
+   * disagree about whether the courier collects.
+   */
+  it('the internal twin runs the identical query as the staff route', async () => {
+    expect(await controller.listForOrderInternal('order-9')).toBe('RESULT');
+    expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
+  });
+
   it('unsettledByMethod maps a present from/to window to Dates', async () => {
     await controller.unsettledByMethod({ from: '2026-01-01', to: '2026-01-31' } as never);
     expect(svc.unsettledByMethod).toHaveBeenCalledWith({

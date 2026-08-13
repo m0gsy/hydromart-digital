@@ -11,6 +11,7 @@ import { ContactMethod } from '../../src/domain/no-show';
 import { DeliveryNotActiveError } from '../../src/domain/errors';
 import {
   FakeCourierPayout,
+  FakeOrderPayment,
   FakeDepotLocation,
   FakeOrderCoordination,
   InMemoryDeliveryRepository,
@@ -246,6 +247,7 @@ describe('edges nothing else exercises', () => {
       shifts,
       config,
       new FakeDepotLocation(),
+      new FakeOrderPayment(),
     );
     const driverId = randomUUID();
     await shifts.checkIn(driverId, DEPOT, AT_DEPOT.lat, AT_DEPOT.lng);
@@ -278,6 +280,7 @@ describe('edges nothing else exercises', () => {
       shifts,
       config,
       new FakeDepotLocation(),
+      new FakeOrderPayment(),
     );
     const driverId = randomUUID();
     await shifts.checkIn(driverId, DEPOT, AT_DEPOT.lat, AT_DEPOT.lng);
@@ -310,6 +313,7 @@ describe('edges nothing else exercises', () => {
       shifts,
       config,
       new FakeDepotLocation(),
+      new FakeOrderPayment(),
       storage as never,
     );
     const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);

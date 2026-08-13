@@ -175,6 +175,26 @@ export class PaymentController {
     return this.payments.listAll({ orderId, limit: 20 });
   }
 
+  /*
+   * The same read for delivery-service, which decides cash-on-delivery at assignment.
+   *
+   * It cannot use the staff route above: `paymentSettle` excludes SUPERVISOR and
+   * ASSISTANT_SUPERVISOR, who are allowed to dispatch, so forwarding the dispatcher's
+   * bearer 403s for exactly the callers that need it. Internal key instead, and the SAME
+   * service method — a second query here is a second answer waiting to disagree.
+   */
+  @ApiOkResponse({ type: PagedPaymentResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/for-order/:orderId')
+  @ApiOperation({ summary: "List an order's payments (internal service auth)" })
+  listForOrderInternal(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ): Promise<Page<PaymentRecord>> {
+    return this.payments.listAll({ orderId, limit: 20 });
+  }
+
   // HQ settlement dashboard (design 6a): network-wide unsettled payments grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
   @ApiOkResponse({ type: UnsettledMethodAggregateResponseDto, isArray: true })

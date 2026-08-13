@@ -22,6 +22,7 @@ import {
   FakeDepotLocation,
   FakeCourierPayout,
   FakeOrderCoordination,
+  FakeOrderPayment,
   InMemoryDeliveryRepository,
   InMemoryShiftRepository,
   buildTestConfig,
@@ -52,6 +53,7 @@ describe('DeliveryService', () => {
   /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
   let makeStorageless: () => DeliveryService;
   let events: { publish: jest.Mock };
+  let payments: FakeOrderPayment;
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -64,9 +66,10 @@ describe('DeliveryService', () => {
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
     payout = new FakeCourierPayout();
+    payments = new FakeOrderPayment();
     storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
     makeStorageless = () =>
-      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots, payments);
     events = { publish: jest.fn().mockResolvedValue(undefined) };
     service = new DeliveryService(
       repo,
@@ -75,6 +78,7 @@ describe('DeliveryService', () => {
       shifts,
       config,
       depots,
+      payments,
       storage as never,
       events as never,
     );
@@ -90,6 +94,65 @@ describe('DeliveryService', () => {
       { orderId, orderNumber: 'HM-1', driverId, destinationAddress: 'Jl. Merdeka 10' },
       AUTH,
     );
+
+  /*
+   * COD is decided HERE, not by the console that clicked the button.
+   *
+   * Assignment needs `tracking`; reading an order's payment needs `paymentSettle`.
+   * SUPERVISOR and ASSISTANT_SUPERVISOR hold the first and not the second, so their read
+   * was a 403 on every dispatch — and the client read that as "not a cash order" and sent
+   * the courier out to collect nothing. Every one of those orders was a real cash sale.
+   */
+  describe('cash-on-delivery is resolved server-side', () => {
+    const CASH_ORDER = randomUUID();
+
+    it('charges the payment amount for a CASH order, ignoring what the caller sent', async () => {
+      payments.payments.set(CASH_ORDER, { method: 'CASH', amount: 175_000 });
+      const d = await service.assign(
+        staff,
+        {
+          orderId: CASH_ORDER,
+          orderNumber: 'HM-COD',
+          driverId: driver,
+          destinationAddress: 'Jl. Merdeka 10',
+          // What an old mobile binary still sends. It must not reach the delivery.
+          codAmount: 1,
+        },
+        AUTH,
+      );
+      expect(d.codAmount).toBe(175_000);
+    });
+
+    it('sends no COD for a non-cash payment, and none at all when there is no payment row', async () => {
+      const transfer = randomUUID();
+      payments.payments.set(transfer, { method: 'TRANSFER', amount: 90_000 });
+      const paid = await service.assign(
+        staff,
+        { orderId: transfer, orderNumber: 'HM-TF', driverId: driver, destinationAddress: 'Jl. A' },
+        AUTH,
+      );
+      expect(paid.codAmount).toBeNull();
+    });
+
+    /*
+     * Fail CLOSED. The alternative is what shipped: an unreadable payment becomes a
+     * non-COD delivery, the courier hands over the water, and nobody asks for the money.
+     * Refusing is visible and recoverable; a silent free delivery is neither. The order
+     * must NOT be advanced either — this read happens before that.
+     */
+    it('refuses the assignment when the payment cannot be read, leaving the order alone', async () => {
+      payments.throwOnRead = true;
+      const orderId = randomUUID();
+      await expect(
+        service.assign(
+          staff,
+          { orderId, orderNumber: 'HM-X', driverId: driver, destinationAddress: 'Jl. B' },
+          AUTH,
+        ),
+      ).rejects.toThrow();
+      expect(orders.calls).toHaveLength(0);
+    });
+  });
 
 
   // Defaults nobody passes in the happy-path specs: the courier app omits the note, and the
@@ -120,22 +183,26 @@ describe('DeliveryService', () => {
   });
 
   it('snapshots recipient phone, line-items and COD amount onto the delivery', async () => {
+    const orderId = randomUUID();
+    payments.payments.set(orderId, { method: 'CASH', amount: 84_000 });
     const d = await service.assign(
       staff,
       {
-        orderId: randomUUID(),
+        orderId,
         orderNumber: 'HM-2',
         driverId: driver,
         destinationAddress: 'Jl. Merdeka 10',
         recipientPhone: '081234567890',
         items: [{ name: 'Galon 19L', qty: 2 }],
-        codAmount: 84000,
+        // Deliberately wrong, and deliberately still sent: binaries in Play still carry it.
+        codAmount: 84_000_000,
       },
       AUTH,
     );
     expect(d.recipientPhone).toBe('081234567890');
     expect(d.items).toEqual([{ name: 'Galon 19L', qty: 2 }]);
-    expect(d.codAmount).toBe(84000);
+    // The payment's amount, not the caller's number.
+    expect(d.codAmount).toBe(84_000);
   });
 
   it('leaves snapshot fields null when the assign call omits them', async () => {

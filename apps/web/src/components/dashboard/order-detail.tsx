@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { Sheet } from '@/components/overlay';
-import { Badge, Button, Field, Input, Money } from '@/components/ui';
+import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -21,7 +21,10 @@ const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as 
 function PaymentSettle({ order }: { order: Order }) {
   const { customer } = useAuth();
   const canConfirm = canConfirmPayment(customer?.role);
-  const { data, reload } = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(order.id), true), [order.id]);
+  const { data, error: readError, reload } = useAsync<Page<Payment>>(
+    () => api.get(endpoints.payments.forOrderStaff(order.id), true),
+    [order.id],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cash, setCash] = useState('');
@@ -51,7 +54,9 @@ function PaymentSettle({ order }: { order: Order }) {
     }
   }
 
-  if (!payment) return null;
+  // An unread payment removes the whole settle panel — the same shape as an order that
+  // genuinely has no payment row, except here the cash is real and nobody can confirm it.
+  if (!payment) return readError ? <LoadError onRetry={reload} /> : null;
   const pending = payment.status === 'PENDING';
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-app p-3 text-sm">
@@ -117,13 +122,6 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
       .catch(() => null);
   }, [order.depotId]);
   const onDuty = dispatchableDrivers(shifts ?? []);
-  // The order's payment (staff read) → a CASH order dispatches with the COD amount the
-  // courier collects. Fail-soft: null on error → non-COD.
-  const { data: paymentPage } = useAsync<Page<Payment> | null>(
-    () => api.get(endpoints.payments.forOrderStaff(order.id), true),
-    [order.id],
-  );
-  const payment = paymentPage?.items[0];
   const [driverId, setDriverId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,9 +149,10 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
           destinationLng: order.longitude ?? undefined,
           recipientPhone: order.phone,
           items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
-          // CASH order → the courier collects the order total on delivery (COD). Non-cash
-          // (TRANSFER/QRIS, already settled to the depot) sends nothing → non-COD.
-          codAmount: payment?.method === 'CASH' ? order.total : undefined,
+          // No codAmount: delivery-service reads the payment itself now. This screen could
+          // not — `paymentSettle` excludes SUPERVISOR and ASSISTANT_SUPERVISOR, who are
+          // allowed to dispatch, so their read 403'd and every cash order they sent out
+          // went as non-COD.
           // Snapshot the customer's landmark/note so the courier sees it on the delivery.
           notes: order.notes ?? undefined,
         },

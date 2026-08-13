@@ -15,6 +15,7 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeDepotLocation,
   FakeOrderCoordination,
+  FakeOrderPayment,
   InMemoryDeliveryRepository,
   InMemoryShiftRepository,
 } from '../support/fakes';
@@ -83,6 +84,10 @@ describe('Delivery HTTP flows (e2e)', () => {
       .useValue(new FakeOrderCoordination())
       .overrideProvider(DELIVERY_TOKENS.DepotLocation)
       .useValue(new FakeDepotLocation())
+      // COD is read from payment-service at assignment now; without a stand-in the real
+      // adapter runs and every dispatch 500s on a blank internal key.
+      .overrideProvider(DELIVERY_TOKENS.OrderPayment)
+      .useValue(new FakeOrderPayment())
       .compile();
 
     app = moduleRef.createNestApplication();

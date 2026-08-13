@@ -36,6 +36,7 @@ import {
 import { OrderAdvanceMeta, OrderCoordinationPort } from '../ports/order-coordination.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DepotLocationPort } from '../ports/depot-location.port';
+import { OrderPaymentPort } from '../ports/order-payment.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
@@ -64,6 +65,11 @@ export interface AssignInput {
   recipientPhone?: string;
   driverPhone?: string;
   items?: { name: string; qty: number }[];
+  /**
+   * @deprecated Ignored. COD is read from payment-service here — see `OrderPaymentPort`.
+   * The field survives because binaries already in Play internal testing still send it and
+   * `forbidNonWhitelisted` would 400 them.
+   */
   codAmount?: number;
   notes?: string;
 }
@@ -110,6 +116,7 @@ export class DeliveryService {
     private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
     @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
+    @Inject(DELIVERY_TOKENS.OrderPayment) private readonly payments: OrderPaymentPort,
     // Optional so an environment with storage disabled still boots; the retention sweep
     // then says out loud that the objects were left behind rather than pretending.
     @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
@@ -147,6 +154,19 @@ export class DeliveryService {
       throw new DriverBusyError();
     }
 
+    /*
+     * Whether the courier collects on delivery is decided HERE, from payment-service, and
+     * the caller's `codAmount` is ignored: the console that clicks this button cannot read
+     * payments for two of the five roles allowed to click it (see `OrderPaymentPort`), so
+     * every cash order they dispatched went out as non-COD.
+     *
+     * Read BEFORE the order is advanced. If payment-service cannot answer, this throws and
+     * nothing has happened yet — advancing first would leave an order at DRIVER_ASSIGNED
+     * with no delivery behind it.
+     */
+    const payment = await this.payments.forOrder(input.orderId);
+    const codAmount = payment?.method === 'CASH' ? payment.amount : null;
+
     const assignMeta: OrderAdvanceMeta | undefined =
       input.driverName || input.driverPhone
         ? { driverName: input.driverName, driverPhone: input.driverPhone }
@@ -163,7 +183,7 @@ export class DeliveryService {
       destinationLng: input.destinationLng ?? null,
       recipientPhone: input.recipientPhone ?? null,
       items: input.items ?? null,
-      codAmount: input.codAmount ?? null,
+      codAmount,
       notes: input.notes ?? null,
     };
     const delivery = existing
