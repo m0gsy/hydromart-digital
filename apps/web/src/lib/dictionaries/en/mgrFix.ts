@@ -44,6 +44,7 @@ export const mgrFix = {
     concurrencyHint: 'Going over is refused (DriverBusyError)',
     note: 'Setting changes apply to this depot only & are recorded in the audit log. Deactivate a depot via head office.',
     unread: 'Could not read',
+    km: '{n} km',
     unset: 'Not set',
     gate: 'Depot Manager only',
     gateBody: 'Depot settings require the depotAdmin capability.',

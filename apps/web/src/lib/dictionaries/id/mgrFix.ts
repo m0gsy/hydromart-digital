@@ -47,6 +47,7 @@ export const mgrFix = {
     concurrencyHint: 'Melebihi batas ditolak (DriverBusyError)',
     note: 'Perubahan pengaturan berlaku untuk depot ini saja & tercatat di audit log. Nonaktifkan depot lewat head office.',
     unread: 'Gagal dibaca',
+    km: '{n} km',
     unset: 'Belum diatur',
     gate: 'Khusus Manajer depot',
     gateBody: 'Pengaturan depot butuh hak depotAdmin.',
