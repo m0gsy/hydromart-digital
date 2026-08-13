@@ -1,11 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { UsersThree } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -32,14 +33,42 @@ function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
-// Design 17b — churn & retention. Real: forecast.churn. Re-engage is a stubbed action
-// (no HQ campaign-enrol endpoint) — surfaced via toast, no fabricated numbers.
+// Design 17b — churn & retention. Real: forecast.churn.
+//
+// Re-engage creates and SENDS a real one-customer campaign. It used to toast "sudah
+// dihubungi" and do nothing, so a customer who was never messaged looked exactly like one
+// who was. The audience is `customerIds` rather than an explicit recipient list because
+// this screen has no phone number — the customer directory supplies it, which also means
+// a customer with no reachable number is refused rather than silently skipped.
 export default function HqChurnPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const [busyId, setBusyId] = useState<string | null>(null);
   const data = useAsync<{ customers: ChurnCustomer[] }>(() =>
     api.get(endpoints.forecast.churn({ limit: 100, days: 90 }), true),
   );
+
+  async function reengage(customer: ChurnCustomer) {
+    setBusyId(customer.customerId);
+    try {
+      const created = await api.post<{ id: string }>(
+        endpoints.crm.createCampaign,
+        {
+          name: t('hq.churn.campaignName', { name: customer.customerName ?? shortId(customer.customerId) }),
+          messageTemplate: t('hq.churn.campaignMessage'),
+          segment: { customerIds: [customer.customerId] },
+        },
+        true,
+      );
+      // A draft nobody dispatches is the same dead button one layer down.
+      await api.post(endpoints.crm.sendCampaign(created.id), undefined, true);
+      toast(t('hq.churn.reengaged'), 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.churn.reengageError'), 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const customers = data.data?.customers ?? [];
   const grouped = COHORTS.map((c) => ({
@@ -84,7 +113,8 @@ export default function HqChurnPage() {
                       </div>
                       <Button
                         variant="ghost"
-                        onClick={() => toast(t('hq.churn.reengaged'), 'success')}
+                        loading={busyId === x.customerId}
+                        onClick={() => reengage(x)}
                         className="shrink-0 px-3 py-1.5 text-xs"
                       >
                         {t('hq.churn.reengage')}

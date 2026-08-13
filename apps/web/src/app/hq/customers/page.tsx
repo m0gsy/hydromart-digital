@@ -5,7 +5,8 @@ import { UserCircle } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, Input, Money } from '@/components/ui';
+import { Button, Card, Field, Input, Money } from '@/components/ui';
+import { Sheet } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -16,6 +17,11 @@ import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
 // Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
 // LTV + recent orders are real (order-service reports.customer); loyalty tier + points are
 // real (loyalty-service GET loyalty/customers/:id).
+//
+// "Beri poin" used to toast that points had been given and move nothing. It now posts the
+// staff correction loyalty-service already exposes — which is why it asks for an amount and
+// a reason instead of being one click: the ledger requires both, and a points movement
+// nobody can explain three months later is not a correction.
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -25,6 +31,10 @@ export default function HqCustomersPage() {
   const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [granting, setGranting] = useState(false);
+  const [points, setPoints] = useState('');
+  const [reason, setReason] = useState('');
+  const [grantBusy, setGrantBusy] = useState(false);
 
   async function lookup() {
     if (!phone.trim()) return;
@@ -51,6 +61,35 @@ export default function HqCustomersPage() {
       setError(err instanceof ApiError && err.status === 404 ? t('hq.customers.notFound') : (err as ApiError).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function grantPoints() {
+    const delta = Number(points);
+    // The DTO refuses zero server-side; catching it here keeps the sheet open on the
+    // field the operator has to fix instead of bouncing them off a 400.
+    if (!customer || !Number.isInteger(delta) || delta === 0) {
+      return toast(t('hq.customers.pointsInvalid'), 'error');
+    }
+    if (!reason.trim()) return toast(t('hq.customers.reasonRequired'), 'error');
+    setGrantBusy(true);
+    try {
+      const updated = await api.post<LoyaltyAccount>(
+        endpoints.loyalty.adjust,
+        { customerId: customer.id, points: delta, reason: reason.trim() },
+        true,
+      );
+      // The response IS the new balance, so the card stops showing the old one without a
+      // second read that could disagree with what was just written.
+      setLoyalty(updated);
+      toast(t('hq.customers.gavePoints', { name: customer.fullName || customer.phone }), 'success');
+      setGranting(false);
+      setPoints('');
+      setReason('');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.customers.givePointsError'), 'error');
+    } finally {
+      setGrantBusy(false);
     }
   }
 
@@ -111,7 +150,7 @@ export default function HqCustomersPage() {
               </div>
             </dl>
             <div className="flex flex-wrap gap-2 border-t border-app pt-3">
-              <Button variant="secondary" onClick={() => toast(t('hq.customers.gavePoints', { name: customer.fullName || customer.phone }), 'success')}>
+              <Button variant="secondary" onClick={() => setGranting(true)}>
                 {t('hq.customers.givePoints')}
               </Button>
               <ExternalLink
@@ -170,6 +209,36 @@ export default function HqCustomersPage() {
           </div>
         </div>
       )}
+
+      <Sheet open={granting} onClose={() => setGranting(false)} title={t('hq.customers.givePoints')}>
+        <div className="flex flex-col gap-4">
+          <Field label={t('hq.customers.pointsLabel')} htmlFor="pt-amount" hint={t('hq.customers.pointsHint')}>
+            <Input
+              id="pt-amount"
+              type="number"
+              value={points}
+              onChange={(e) => setPoints(e.target.value)}
+              placeholder="100"
+            />
+          </Field>
+          <Field label={t('hq.customers.reasonLabel')} htmlFor="pt-reason">
+            <Input
+              id="pt-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t('hq.customers.reasonPlaceholder')}
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setGranting(false)} disabled={grantBusy}>
+              {t('hq.common.cancel')}
+            </Button>
+            <Button onClick={grantPoints} loading={grantBusy}>
+              {t('hq.customers.givePoints')}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </div>
   );
 }

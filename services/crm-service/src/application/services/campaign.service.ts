@@ -79,16 +79,21 @@ export class CampaignService {
       // the campaign is the intersection. Before this, an activity segment was SIZED from
       // order-service and SENT as `{tier:'GOLD'}` or `{}` — the screen promised 40 lapsed
       // customers and the blast reached everyone.
-      const { tier, city, ...activityConditions } = segment;
+      const { tier, city, customerIds, ...activityConditions } = segment;
       const inSegment = hasActivityConditions(activityConditions)
         ? new Set(await this.activity.customersIn(activityConditions))
         : null;
+      // A named list narrows the same way a rule does, and for the same reason: the
+      // directory is what turns an id into a reachable phone. An id nobody can be
+      // messaged at simply is not in the audience.
+      const named = customerIds?.length ? new Set(customerIds) : null;
       // ponytail: the intersection is done here rather than pushed into the directory query
       // because the directory read is already whole-audience for an empty filter. If a
       // deployment ever outgrows that, the id list belongs in the directory's WHERE.
       const resolved = await this.directory.resolveSegment({ tier, city }, authorization);
       list = resolved
         .filter((r) => !inSegment || inSegment.has(r.customerId))
+        .filter((r) => !named || named.has(r.customerId))
         .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
     }
 

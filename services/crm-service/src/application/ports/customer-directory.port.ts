@@ -10,6 +10,12 @@ import { ActivityConditions } from './activity-segment.port';
 export interface SegmentFilter extends ActivityConditions {
   tier?: string;
   city?: string;
+  /**
+   * Named customers, when the audience is a list rather than a rule — one at-risk customer
+   * being re-engaged from the churn screen, say. The DIRECTORY still supplies the phone
+   * and the name, so this narrows an audience, it never invents a recipient out of an id.
+   */
+  customerIds?: string[];
 }
 
 /** A broadcast recipient resolved from the customer directory. */

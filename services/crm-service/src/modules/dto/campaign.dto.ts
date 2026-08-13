@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsDateString,
   IsInt,
@@ -93,6 +94,17 @@ export class CampaignSegmentDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description: 'Named customers (e.g. re-engaging one at-risk customer). Bounded at 500.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('4', { each: true })
+  customerIds?: string[];
 }
 
 export class CreateCampaignDto {

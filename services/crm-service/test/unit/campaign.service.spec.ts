@@ -136,6 +136,40 @@ describe('CampaignService', () => {
       expect(activity.lastConditions).toBeUndefined();
     });
 
+    /*
+     * A named list, for the churn screen's "re-engage this one customer". The id alone is
+     * not a recipient — the directory is what supplies a phone to message, so an id it does
+     * not know simply is not in the audience rather than becoming a blank recipient.
+     */
+    it('narrows the audience to a named customer, taking their phone from the directory', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      const c = await service.create('staff-1', 'Re-engage', 'Hi', undefined, { customerIds: ['c2'] }, 'Bearer tok');
+      expect(c.recipients).toHaveLength(1);
+      expect(c.recipients[0]).toMatchObject({ customerId: 'c2', phone: '+628222', name: 'Bima' });
+      // No activity conditions in that filter, so order-service is not consulted at all.
+      expect(activity.lastConditions).toBeUndefined();
+    });
+
+    it('refuses rather than inventing a recipient for an id the directory does not know', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      await expect(
+        service.create('staff-1', 'Re-engage', 'Hi', undefined, { customerIds: ['ghost'] }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+
+    it('combines a named list with an activity condition', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      activity.customerIds = ['c1', 'c2'];
+      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { lapsedDays: 60, customerIds: ['c1'] }, 'Bearer tok');
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+    });
+
     it('fails closed when order-service cannot resolve the activity segment', async () => {
       directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
       activity.down = true;
