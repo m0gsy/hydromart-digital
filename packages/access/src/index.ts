@@ -102,6 +102,12 @@ export const CAPABILITIES = {
   // crm-service — broadcast campaigns: READ adds HEAD_OFFICE for oversight.
   campaignRead: ['MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   campaignWrite: ['MARKETING', 'SUPER_ADMIN'],
+  // A depot blasting its OWN customers. Deliberately NOT campaignWrite: that one takes the
+  // audience from the request body, so granting it to a depot role would let any depot
+  // manager message every customer of every depot. This one only reaches POST
+  // /campaigns/depot, whose segment is pinned to a depotId the DepotScopeGuard has already
+  // checked against the caller's own depots.
+  depotCampaign: ['KEPALA_DEPOT', 'MANAGER', 'MARKETING', 'SUPER_ADMIN'],
   // promo-service — voucher admin.
   voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],

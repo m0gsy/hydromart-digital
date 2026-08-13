@@ -145,6 +145,48 @@ describe('CampaignService', () => {
     });
   });
 
+  /*
+   * The depot blast (11a). Its whole reason to exist is that a depot manager must not be
+   * able to reach another depot's customers, and must not need the head-office right to
+   * read the customer directory in order to message their own.
+   */
+  describe('createForDepot', () => {
+    beforeEach(() => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      activity.customerIds = ['c1'];
+    });
+
+    it('pins the segment to the guarded depot and ignores any depot named in the body', async () => {
+      const c = await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi', {
+        depotId: 'depot-someone-else',
+        lapsedDays: 60,
+      });
+      expect(activity.lastConditions).toEqual({ depotId: 'depot-mine', lapsedDays: 60 });
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+    });
+
+    it('reads the directory as a service, never as the depot manager', async () => {
+      await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+      expect(directory.asService).toBe(true);
+      expect(directory.lastAuth).toBeUndefined();
+    });
+
+    it('defaults to the whole depot when no narrowing segment is given', async () => {
+      await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+      expect(activity.lastConditions).toEqual({ depotId: 'depot-mine' });
+    });
+
+    it('throws NoRecipientsError when the depot has nobody to message', async () => {
+      activity.customerIds = [];
+      await expect(
+        service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi'),
+      ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+  });
+
   // B-17: send() CLAIMS, the sweep DELIVERS. Sending inside the request timed out at the
   // proxy on any real list, and a recycled container stranded the campaign in SENDING
   // with half its customers messaged and no record of which half.

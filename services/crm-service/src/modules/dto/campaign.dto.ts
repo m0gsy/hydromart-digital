@@ -130,6 +130,38 @@ export class CreateCampaignDto {
   segment?: CampaignSegmentDto;
 }
 
+/**
+ * A depot's own customer blast. `depotId` is top-level, not inside `segment`, because
+ * DepotScopeGuard reads the body's top level — nesting it would have moved the tenant
+ * check out of the guard and into somebody's memory.
+ */
+export class CreateDepotCampaignDto {
+  @ApiProperty({ format: 'uuid', description: "The depot whose customers are targeted." })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: 'Promo galon depot Cibubur' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name!: string;
+
+  @ApiProperty({ example: 'Hi {{name}}, ada promo di depot langganan kamu!' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  messageTemplate!: string;
+
+  @ApiPropertyOptional({
+    type: CampaignSegmentDto,
+    description: 'Narrows within the depot (lapsed / new / frequent). Its depotId is ignored.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CampaignSegmentDto)
+  segment?: CampaignSegmentDto;
+}
+
 export class CampaignPageQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()

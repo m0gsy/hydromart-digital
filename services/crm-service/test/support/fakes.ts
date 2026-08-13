@@ -275,10 +275,20 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
   recipients: (DirectoryRecipient & { tier?: string; city?: string })[] = [];
   down = false;
   lastAuth?: string;
+  asService = false;
 
   async resolveSegment(filter: SegmentFilter, authorization: string): Promise<DirectoryRecipient[]> {
-    if (this.down) throw new SegmentUnavailableError('directory down');
     this.lastAuth = authorization;
+    return this.match(filter);
+  }
+
+  async resolveSegmentAsService(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    this.asService = true;
+    return this.match(filter);
+  }
+
+  private match(filter: SegmentFilter): DirectoryRecipient[] {
+    if (this.down) throw new SegmentUnavailableError('directory down');
     return this.recipients
       .filter((r) => !filter.tier || r.tier === filter.tier)
       .filter((r) => !filter.city || r.city?.toLowerCase() === filter.city.toLowerCase())

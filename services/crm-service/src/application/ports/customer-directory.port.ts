@@ -26,4 +26,13 @@ export interface DirectoryRecipient {
  */
 export interface CustomerDirectoryPort {
   resolveSegment(filter: SegmentFilter, authorization: string): Promise<DirectoryRecipient[]>;
+  /**
+   * The same audience, resolved as a SERVICE rather than as the caller.
+   *
+   * A depot manager may compose a blast to their own depot's customers without holding the
+   * head-office right to page through the customer directory, so their token cannot be the
+   * one that opens it. The depot scope is enforced before this is reached; this call only
+   * fetches the attribute half.
+   */
+  resolveSegmentAsService(filter: SegmentFilter): Promise<DirectoryRecipient[]>;
 }

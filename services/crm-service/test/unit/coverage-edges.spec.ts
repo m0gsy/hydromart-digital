@@ -1,7 +1,11 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
-import { CampaignPageQueryDto, CampaignSegmentDto } from '../../src/modules/dto/campaign.dto';
+import {
+  CampaignPageQueryDto,
+  CampaignSegmentDto,
+  CreateDepotCampaignDto,
+} from '../../src/modules/dto/campaign.dto';
 import { CampaignService } from '../../src/application/services/campaign.service';
 import { NotificationController } from '../../src/modules/notification.controller';
 import { NotificationPrismaRepository } from '../../src/infrastructure/prisma/notification.prisma.repository';
@@ -32,6 +36,28 @@ describe('CampaignSegmentDto', () => {
     ['a depotId that is not a uuid', { depotId: 'depot-1' }],
   ])('rejects %s', (_case, q) => {
     expect(validateSync(parse(q)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('CreateDepotCampaignDto', () => {
+  // The nested @Type is what makes `segment` a validated CampaignSegmentDto rather than a
+  // bag of unchecked properties — without it a bad day-window reaches the SQL.
+  it('validates the nested segment and requires a uuid depot', () => {
+    const dto = plainToInstance(CreateDepotCampaignDto, {
+      depotId: '11111111-1111-4111-8111-111111111111',
+      name: 'Promo',
+      messageTemplate: 'Hi',
+      segment: { lapsedDays: '60' },
+    });
+    expect(dto.segment).toBeInstanceOf(CampaignSegmentDto);
+    expect(validateSync(dto)).toHaveLength(0);
+
+    const bad = plainToInstance(CreateDepotCampaignDto, {
+      depotId: 'depot-1',
+      name: 'Promo',
+      messageTemplate: 'Hi',
+    });
+    expect(validateSync(bad).length).toBeGreaterThan(0);
   });
 });
 

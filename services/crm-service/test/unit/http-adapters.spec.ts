@@ -89,6 +89,32 @@ describe('CustomerDirectoryHttpAdapter', () => {
 });
 
 /*
+ * The service-auth twin. A depot manager holds `depotCampaign`, not the head-office right
+ * to page the customer directory, so their token cannot be the one that opens it — the
+ * internal key is. Same query, same fail-closed branches, different door.
+ */
+describe('CustomerDirectoryHttpAdapter as a service', () => {
+  it('fails closed when the internal key is not configured', async () => {
+    await expect(
+      new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).resolveSegmentAsService({}),
+    ).rejects.toBeInstanceOf(SegmentUnavailableError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reads the internal route under the internal key, with the same filter', async () => {
+    const recipients = [{ customerId: 'c1', name: 'Ani', phone: '0811' }];
+    fetchMock.mockResolvedValue(res({ body: recipients }));
+    const out = await new CustomerDirectoryHttpAdapter(
+      makeConfig({ internalServiceKey: 'k' }),
+    ).resolveSegmentAsService({ tier: 'GOLD' });
+    expect(out).toEqual(recipients);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://customer:3002/api/v1/profile/internal/directory?tier=GOLD');
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
+  });
+});
+
+/*
  * The activity half of a segment. Every branch here is a fail-CLOSED one on purpose: a
  * campaign whose audience could not be resolved must be refused, because the alternative
  * — carrying on with whatever the directory returned — sends to a WIDER audience than the

@@ -18,6 +18,7 @@ import {
 } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'internal-key-long-enough-for-tests';
 
 describe('Customer HTTP flows (e2e)', () => {
   let app: INestApplication;
@@ -46,6 +47,7 @@ describe('Customer HTTP flows (e2e)', () => {
               MAX_ADDRESSES_PER_CUSTOMER: 20,
               LOYALTY_SERVICE_URL: 'http://loyalty.test',
               BIRTHDAY_REWARD_POINTS: 250,
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],
         }),
@@ -204,6 +206,22 @@ describe('Customer HTTP flows (e2e)', () => {
     const res = await admin(
       request(server()).get('/api/v1/profile/directory').query({ tier: 'SILVER', city: 'depok' }),
     ).expect(200);
+    expect(res.body).toEqual([{ customerId: 'seg-silver', name: 'Sinta', phone: '+628111' }]);
+  });
+
+  /*
+   * The internal twin. crm resolves a depot manager's audience through it, so it must
+   * answer the SAME rows as the bearer route — and it must refuse without the key, or a
+   * role-guarded directory would have gained an unauthenticated back door.
+   */
+  it('serves the same audience to a service under the internal key, and nobody else', async () => {
+    await request(server()).get('/api/v1/profile/internal/directory').expect(401);
+
+    const res = await request(server())
+      .get('/api/v1/profile/internal/directory')
+      .query({ tier: 'SILVER', city: 'depok' })
+      .set('x-internal-key', INTERNAL_KEY)
+      .expect(200);
     expect(res.body).toEqual([{ customerId: 'seg-silver', name: 'Sinta', phone: '+628111' }]);
   });
 

@@ -98,6 +98,34 @@ export class CampaignService {
     return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
   }
 
+  /**
+   * A depot blasting its OWN customers (design 11a).
+   *
+   * Two things are different from `create`, and both are the reason this is a separate
+   * entry point rather than a flag. The segment's `depotId` is OVERWRITTEN with the one the
+   * DepotScopeGuard already checked against the caller's depots — a body that named another
+   * depot cannot survive here. And the attribute half is read as a SERVICE, because a depot
+   * manager holds `depotCampaign`, not the head-office right to page the customer directory.
+   */
+  async createForDepot(
+    createdBy: string,
+    depotId: string,
+    name: string,
+    messageTemplate: string,
+    segment: SegmentFilter = {},
+  ): Promise<CampaignRecord> {
+    const { tier, city, ...activityConditions } = { ...segment, depotId };
+    const inSegment = new Set(await this.activity.customersIn(activityConditions));
+    const resolved = await this.directory.resolveSegmentAsService({ tier, city });
+    const list = resolved
+      .filter((r) => inSegment.has(r.customerId))
+      .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
+
+    const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
+    if (deduped.length === 0) throw new NoRecipientsError();
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
+  }
+
   // No defaults here on purpose: the only caller already defaults, so a second set
   // would be two places to change and a branch nothing can reach.
   private clampPage(page: number, limit: number): { p: number; l: number } {
