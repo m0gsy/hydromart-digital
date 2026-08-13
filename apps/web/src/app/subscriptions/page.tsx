@@ -5,7 +5,7 @@ import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-ico
 
 import { RequireAuth } from '@/components/require-auth';
 import { ConfirmDialog } from '@/components/overlay';
-import { Button, Chip, ErrorState, Field, LinkButton, Skeleton } from '@/components/ui';
+import { Button, Chip, ErrorState, Field, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -153,6 +153,9 @@ function Panel() {
                 ))}
               </select>
             )}
+            {/* The select is `required`, so an unread catalogue is a form that cannot be
+                submitted and does not say why. */}
+            {products.error && <LoadError onRetry={products.reload} />}
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
