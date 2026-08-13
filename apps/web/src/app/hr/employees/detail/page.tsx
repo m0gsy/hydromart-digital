@@ -9,16 +9,7 @@ import { EmployeeAssets } from '@/components/hr/employee-assets';
 import { EmployeeDocuments } from '@/components/hr/employee-documents';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useToast } from '@/components/toast';
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  LinkButton,
-  Money,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, ErrorState, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -113,7 +104,16 @@ export default function EmployeeDetailPage() {
       <Card className="divide-y divide-[color:var(--border)] p-5">
         <Row label="No. HP" value={e.phone} />
         <Row label="Email" value={e.email ?? '—'} />
-        <Row label="Departemen" value={departmentLabel(departments.data ?? [], e.departmentId)} />
+        {/* departmentLabel() answers "Belum diatur" for an id it cannot resolve, so an
+            unread list tells you this person has no department when they do. */}
+        <Row
+          label="Departemen"
+          value={
+            departments.error
+              ? 'Tidak terbaca'
+              : departmentLabel(departments.data ?? [], e.departmentId)
+          }
+        />
         <Row label="Tanggal masuk" value={fmtDate(e.joinDate)} />
         <Row label="Masa kerja" value={tenureLabel(e.joinDate)} />
         <Row label="Tipe gaji" value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
@@ -195,6 +195,7 @@ export default function EmployeeDetailPage() {
       <Card className="p-5">
         <h3 className="mb-3 font-bold">Riwayat Kepegawaian</h3>
         {history.loading && <Skeleton className="h-20" />}
+        {history.error && <LoadError onRetry={history.reload} />}
         {history.data && history.data.length === 0 && (
           <p className="text-sm text-muted">Belum ada riwayat.</p>
         )}

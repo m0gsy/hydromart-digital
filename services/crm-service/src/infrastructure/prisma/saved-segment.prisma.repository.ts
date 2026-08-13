@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+// The SERVICE-LOCAL client, like every other repository here. `@prisma/client` resolves to
+// the root package, whose `default` entrypoint carries no generated types — which type-checks
+// in the workspace (a sibling service's client is hoisted there) and fails inside the image,
+// where nothing else has generated one.
+import { Prisma } from '../../../prisma/generated/client';
 
 import { SegmentFilter } from '../../application/ports/customer-directory.port';
 import {
@@ -46,7 +50,10 @@ export class SavedSegmentPrismaRepository implements SavedSegmentRepository {
     // The filter is a plain bag of optional scalars, but Prisma's Json input type demands
     // an index signature; the cast says "this is JSON" without widening the domain type,
     // which is what keeps the saved shape and the campaign shape the same one.
-    const conditions = data.conditions as Prisma.InputJsonObject;
+    // `InputJsonValue`, not `InputJsonObject`: the latter is not re-exported by the client's
+    // `default` entrypoint, so it type-checks in the workspace and fails inside the image.
+    // Every other JSON write in this repo already uses InputJsonValue.
+    const conditions = data.conditions as unknown as Prisma.InputJsonValue;
     // One statement, so two people saving the same name concurrently cannot both pass a
     // read-then-write check and leave the unique index to reject the loser with a 500.
     const row = await this.prisma.savedSegment.upsert({
