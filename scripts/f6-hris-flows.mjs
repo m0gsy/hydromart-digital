@@ -183,9 +183,12 @@ async function main() {
     name: `F6H Libur ${stamp}`,
     depotId,
   });
+  // 409 = a previous run already planted this date, which is the state this chain needs
+  // anyway. Demanding a 2xx made the harness pass exactly once per stamp and fail forever
+  // after against the same database.
   check(
-    'a national holiday can be planted inside the range',
-    ok2xx(holidayRes),
+    'a national holiday is planted inside the range (or already was)',
+    ok2xx(holidayRes) || holidayRes.status === 409,
     `got ${holidayRes.status}`,
   );
 
