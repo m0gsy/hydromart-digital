@@ -12,6 +12,7 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canManageEarningRules } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { CourierEarningRule, Depot } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
 
@@ -26,6 +27,7 @@ function todayIso(): string {
 }
 
 function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [depotId, setDepotId] = useState('');
   const [baseFare, setBaseFare] = useState('5000');
@@ -69,7 +71,7 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
       setOpen(false);
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menyimpan aturan.');
+      setError(e instanceof ApiError ? e.message : t('opsFix.earningRules.saveError'));
     } finally {
       setBusy(false);
     }
@@ -86,14 +88,11 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <p className="font-semibold">Terapkan aturan penghasilan baru</p>
-      <p className="text-xs text-muted">
-        Aturan bersifat efektif-tanggal dan tidak menimpa yang lama — pay pengantaran lampau tetap
-        bisa direproduksi.
-      </p>
-      <Field label="Berlaku untuk" htmlFor="er-depot">
+      <p className="font-semibold">{t('opsFix.earningRules.applyTitle')}</p>
+      <p className="text-xs text-muted">{t('opsFix.earningRules.applyHint')}</p>
+      <Field label={t('opsFix.earningRules.scope')} htmlFor="er-depot">
         <select id="er-depot" value={depotId} onChange={(e) => setDepotId(e.target.value)} className={selectClass()}>
-          <option value="">Default jaringan (semua depot)</option>
+          <option value="">{t('opsFix.earningRules.networkDefault')}</option>
           {depots.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -102,37 +101,40 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
         </select>
       </Field>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Ongkos dasar (IDR)" htmlFor="er-base">
+        <Field label={t('opsFix.earningRules.baseFare')} htmlFor="er-base">
           <Input id="er-base" type="number" value={baseFare} onChange={(e) => setBaseFare(e.target.value)} />
         </Field>
-        <Field label="Bonus peak (IDR)" htmlFor="er-peak">
+        <Field label={t('opsFix.earningRules.peakBonus')} htmlFor="er-peak">
           <Input id="er-peak" type="number" value={peakBonus} onChange={(e) => setPeakBonus(e.target.value)} />
         </Field>
-        <Field label="Bonus tepat waktu (IDR)" htmlFor="er-ontime">
+        <Field label={t('opsFix.earningRules.onTimeBonus')} htmlFor="er-ontime">
           <Input id="er-ontime" type="number" value={onTimeBonus} onChange={(e) => setOnTimeBonus(e.target.value)} />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Target bulanan kurir (IDR)" htmlFor="er-target">
+        <Field label={t('opsFix.earningRules.monthlyTarget')} htmlFor="er-target">
           <Input id="er-target" type="number" min={0} value={monthlyTarget} onChange={(e) => setMonthlyTarget(e.target.value)} />
         </Field>
-        <Field label="Peak mulai (jam)" htmlFor="er-start">
+        <Field label={t('opsFix.earningRules.peakStart')} htmlFor="er-start">
           <Input id="er-start" type="number" min={0} max={23} value={peakStartHour} onChange={(e) => setPeakStartHour(e.target.value)} />
         </Field>
-        <Field label="Peak selesai (jam)" htmlFor="er-end">
+        <Field label={t('opsFix.earningRules.peakEnd')} htmlFor="er-end">
           <Input id="er-end" type="number" min={1} max={24} value={peakEndHour} onChange={(e) => setPeakEndHour(e.target.value)} />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Berlaku sejak" htmlFor="er-date">
+        <Field label={t('opsFix.earningRules.effectiveFrom')} htmlFor="er-date">
           <Input id="er-date" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
         </Field>
       </div>
-      <p className="text-xs font-semibold">Tingkat insentif bulanan (kosongkan bila tidak dipakai)</p>
+      <p className="text-xs font-semibold">{t('opsFix.earningRules.tiersTitle')}</p>
       <div className="flex flex-col gap-2">
         {tiers.map((tier, i) => (
           <div key={i} className="grid gap-3 sm:grid-cols-2">
-            <Field label={`Pengiriman tingkat ${i + 1}`} htmlFor={`er-tier-n-${i}`}>
+            <Field
+              label={t('opsFix.earningRules.tierDeliveries', { n: i + 1 })}
+              htmlFor={`er-tier-n-${i}`}
+            >
               <Input
                 id={`er-tier-n-${i}`}
                 type="number"
@@ -141,7 +143,10 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
                 onChange={(e) => setTiers((prev) => prev.map((t, j) => (i === j ? { ...t, deliveries: e.target.value } : t)))}
               />
             </Field>
-            <Field label={`Bonus tingkat ${i + 1} (IDR)`} htmlFor={`er-tier-b-${i}`}>
+            <Field
+              label={t('opsFix.earningRules.tierBonus', { n: i + 1 })}
+              htmlFor={`er-tier-b-${i}`}
+            >
               <Input
                 id={`er-tier-b-${i}`}
                 type="number"
@@ -156,10 +161,10 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-          Batal
+          {t('opsFix.earningRules.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Terapkan
+          {t('opsFix.earningRules.apply')}
         </Button>
       </div>
     </Card>
@@ -167,45 +172,62 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
 }
 
 function RuleRow({ r, depotName }: { r: CourierEarningRule; depotName: string }) {
+  const { t } = useT();
   return (
     <Card className="flex flex-col gap-2 p-4">
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold">{depotName}</span>
-        <Badge tone={r.depotId ? 'brand' : 'neutral'}>{r.depotId ? 'Depot' : 'Default'}</Badge>
+        <Badge tone={r.depotId ? 'brand' : 'neutral'}>
+          {r.depotId ? t('opsFix.earningRules.badgeDepot') : t('opsFix.earningRules.badgeDefault')}
+        </Badge>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <span>Dasar <strong className="tabular-nums">{formatIDR(r.baseFare)}</strong></span>
-        <span>Peak <strong className="tabular-nums">+{formatIDR(r.peakBonus)}</strong> ({r.peakStartHour}–{r.peakEndHour})</span>
-        <span>Tepat waktu <strong className="tabular-nums">+{formatIDR(r.onTimeBonus)}</strong></span>
+        <span>
+          {t('opsFix.earningRules.rowBase')} <strong className="tabular-nums">{formatIDR(r.baseFare)}</strong>
+        </span>
+        <span>
+          {t('opsFix.earningRules.rowPeak')} <strong className="tabular-nums">+{formatIDR(r.peakBonus)}</strong> (
+          {r.peakStartHour}–{r.peakEndHour})
+        </span>
+        <span>
+          {t('opsFix.earningRules.rowOnTime')} <strong className="tabular-nums">+{formatIDR(r.onTimeBonus)}</strong>
+        </span>
       </div>
       {r.monthlyTarget > 0 && (
-        <p className="text-sm">Target bulanan <strong className="tabular-nums">{formatIDR(r.monthlyTarget)}</strong></p>
+        <p className="text-sm">
+          {t('opsFix.earningRules.rowTarget')} <strong className="tabular-nums">{formatIDR(r.monthlyTarget)}</strong>
+        </p>
       )}
       {r.tiers.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
           {r.tiers.map((tier) => (
             <span key={tier.deliveries}>
-              {tier.deliveries} antar <strong className="tabular-nums">+{formatIDR(tier.bonus)}</strong>
+              {t('opsFix.earningRules.rowTier', { n: tier.deliveries })}{' '}
+              <strong className="tabular-nums">+{formatIDR(tier.bonus)}</strong>
             </span>
           ))}
         </div>
       )}
-      <p className="text-xs text-muted">Berlaku sejak {DATE.format(new Date(r.effectiveDate))}</p>
+      <p className="text-xs text-muted">
+        {t('opsFix.earningRules.rowEffective', { date: DATE.format(new Date(r.effectiveDate)) })}
+      </p>
     </Card>
   );
 }
 
 function Body() {
+  const { t } = useT();
   const { depots } = useDepot();
   const list = useAsync<CourierEarningRule[]>(() => api.get(endpoints.earningRules.list, true), []);
-  const depotName = (id: string | null) => (id ? depots.find((d) => d.id === id)?.name ?? id : 'Default jaringan');
+  const depotName = (id: string | null) =>
+    id ? (depots.find((d) => d.id === id)?.name ?? id) : t('opsFix.earningRules.defaultName');
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Coins size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Aturan penghasilan kurir</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.earningRules.title')}</h1>
         </div>
         <ApplyForm depots={depots} onSaved={list.reload} />
       </div>
@@ -215,8 +237,8 @@ function Body() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.length === 0 ? (
-        <CenterState title="Belum ada aturan" icon={<Coins size={40} weight="fill" />}>
-          Terapkan aturan pertama — atau biarkan default jaringan bawaan berlaku.
+        <CenterState title={t('opsFix.earningRules.empty')} icon={<Coins size={40} weight="fill" />}>
+          {t('opsFix.earningRules.emptyBody')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -230,11 +252,12 @@ function Body() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageEarningRules(customer?.role)) {
     return (
-      <CenterState title="Khusus finance" icon={<Lock size={40} weight="fill" />}>
-        Editor aturan penghasilan kurir tersedia untuk finance dan super admin.
+      <CenterState title={t('opsFix.earningRules.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.earningRules.gateBody')}
       </CenterState>
     );
   }
