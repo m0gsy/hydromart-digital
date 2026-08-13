@@ -39,7 +39,10 @@ function History() {
           <div className="text-[10px] font-bold uppercase tracking-wide text-green-700">Selesai</div>
         </div>
         <div className="flex-1 rounded-2xl bg-red-50 px-3 py-2.5">
-          <div className="text-lg font-extrabold text-red-600 tabular-nums">{failed.data?.total ?? 0}</div>
+          {/* "0 gagal" is the number a courier is judged on. An unread count is not zero. */}
+          <div className="text-lg font-extrabold text-red-600 tabular-nums">
+            {failed.error ? '—' : (failed.data?.total ?? 0)}
+          </div>
           <div className="text-[10px] font-bold uppercase tracking-wide text-red-600">Gagal</div>
         </div>
       </div>
