@@ -206,6 +206,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 
 function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function toggle() {
     setBusy(true);
@@ -216,6 +217,11 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
           : endpoints.depotSubscriptions.resume(sub.id);
       await api.patch(url, undefined, true);
       onChanged();
+    } catch (err) {
+      // try/finally with no catch: the spinner stopped, the row did not move, and nothing
+      // said why. Pausing a subscription that quietly stayed active is a delivery the
+      // customer did not want and nobody chose to send.
+      setError(err instanceof ApiError ? err.message : 'Gagal mengubah status langganan.');
     } finally {
       setBusy(false);
     }
@@ -227,7 +233,12 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
   ].join(' · ');
 
   return (
-    <Card className="flex items-center gap-3 p-4">
+    <Card className="flex flex-wrap items-center gap-3 p-4">
+      {error && (
+        <p className="order-last w-full text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 font-bold text-brand-700">
         {sub.customerName.charAt(0)}
       </span>

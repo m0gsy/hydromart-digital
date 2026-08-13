@@ -497,6 +497,7 @@ export const hq = {
     empty: 'Start typing to search across the network.',
     noResults: 'No results for "{q}".',
     searching: 'Searching…',
+    partial: 'Could not search: {sources}. The results below are incomplete.',
     groups: { depots: 'Depots', staff: 'Staff', orders: 'Orders' },
   },
   payments: {

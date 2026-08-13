@@ -1,7 +1,9 @@
 'use client';
 
 import { Badge, Button, Card, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { useState } from 'react';
+
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   ANNOUNCEMENT_LEVEL_LABEL,
@@ -24,9 +26,18 @@ export default function MyAnnouncementsPage() {
     [],
   );
 
+  const [error, setError] = useState<string | null>(null);
+
   async function markRead(id: string) {
-    await api.post(endpoints.hr.readAnnouncement(id), {}, true);
-    feed.reload();
+    setError(null);
+    try {
+      await api.post(endpoints.hr.readAnnouncement(id), {}, true);
+      feed.reload();
+    } catch (err) {
+      // No catch at all before this: a failed receipt threw into the void, the reload never
+      // ran, and the announcement stayed unread with no sign anything had gone wrong.
+      setError(err instanceof ApiError ? err.message : 'Gagal menandai sudah dibaca.');
+    }
   }
 
   return (
@@ -34,6 +45,11 @@ export default function MyAnnouncementsPage() {
       <SectionHeader title="Pengumuman" subtitle="Kabar dari HR untuk Anda" />
       {feed.loading && <Skeleton className="h-32" />}
       {feed.error && <ErrorState message={feed.error} onRetry={feed.reload} />}
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
       {feed.data?.length === 0 && (
         <Card className="p-5 text-sm text-muted">Belum ada pengumuman untuk Anda.</Card>
       )}

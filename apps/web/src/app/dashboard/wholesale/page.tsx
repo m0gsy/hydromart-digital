@@ -148,13 +148,20 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { scopedId } = useDepot();
 
   async function remove() {
     setBusy(true);
+    setError(null);
     try {
       await api.del(endpoints.wholesale.detail(tier.id), true);
       onChanged();
+    } catch (err) {
+      // try/finally with no catch: the tier stayed on screen and the operator was left to
+      // guess whether the delete worked. A price tier that looks deleted and is not is a
+      // discount that keeps applying.
+      setError(err instanceof ApiError ? err.message : 'Gagal menghapus tier.');
     } finally {
       setBusy(false);
     }
@@ -176,10 +183,15 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 rounded-xl border p-4 ${
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
         best ? 'border-2 border-brand-500 bg-brand-50' : 'border-app'
       }`}
     >
+      {error && (
+        <p className="order-last w-full text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
       <div className="min-w-0">
         <p className="font-semibold">{rangeLabel(tier, t)}</p>
         <p className="text-xs text-muted">

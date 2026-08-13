@@ -500,6 +500,7 @@ export const hq = {
     empty: 'Mulai mengetik untuk mencari di seluruh jaringan.',
     noResults: 'Tidak ada hasil untuk "{q}".',
     searching: 'Mencari…',
+    partial: 'Tidak bisa mencari di: {sources}. Hasil di bawah belum lengkap.',
     groups: { depots: 'Depot', staff: 'Staf', orders: 'Pesanan' },
   },
   payments: {

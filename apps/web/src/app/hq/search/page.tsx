@@ -8,7 +8,7 @@ import { Card, Input, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import type { Customer, DepotAdmin, Order, Page } from '@/lib/types';
+import type { Customer, DepotAdmin, Order } from '@/lib/types';
 
 interface Results {
   depots: DepotAdmin[];
@@ -32,6 +32,8 @@ export default function HqSearchPage() {
   const [debounced, setDebounced] = useState('');
   const [results, setResults] = useState<Results>(EMPTY);
   const [loading, setLoading] = useState(false);
+  /** Sources that could not be reached this search — see the note in the effect. */
+  const [unreachable, setUnreachable] = useState<('depots' | 'staff' | 'orders')[]>([]);
 
   // Debounce input.
   useEffect(() => {
@@ -47,22 +49,27 @@ export default function HqSearchPage() {
     }
     let alive = true;
     setLoading(true);
+    /*
+     * Each source is caught so one outage does not blank the whole page — but the failure
+     * is now REMEMBERED. Catching to `[]` and saying nothing turned "we could not search
+     * staff" into "no staff matched", and a search that answers "nothing found" is the one
+     * nobody searches twice.
+     */
+    const failures: ('depots' | 'staff' | 'orders')[] = [];
+    const source = <T,>(label: 'depots' | 'staff' | 'orders', p: Promise<{ items: T[] }>): Promise<T[]> =>
+      p.then((r) => r.items).catch(() => {
+        failures.push(label);
+        return [] as T[];
+      });
+
     Promise.all([
-      api
-        .get<Page<DepotAdmin>>(endpoints.depots.manage({ search: debounced, limit: 10 }), true)
-        .then((p) => p.items)
-        .catch(() => [] as DepotAdmin[]),
-      api
-        .get<Page<Customer>>(endpoints.auth.staff({ search: debounced, limit: 10 }), true)
-        .then((p) => p.items)
-        .catch(() => [] as Customer[]),
-      api
-        .get<Page<Order>>(endpoints.orders.manage({ orderNumber: debounced, limit: 10 }), true)
-        .then((p) => p.items)
-        .catch(() => [] as Order[]),
+      source<DepotAdmin>('depots', api.get(endpoints.depots.manage({ search: debounced, limit: 10 }), true)),
+      source<Customer>('staff', api.get(endpoints.auth.staff({ search: debounced, limit: 10 }), true)),
+      source<Order>('orders', api.get(endpoints.orders.manage({ orderNumber: debounced, limit: 10 }), true)),
     ]).then(([depots, staff, orders]) => {
       if (!alive) return;
       setResults({ depots, staff, orders });
+      setUnreachable(failures);
       setLoading(false);
     });
     return () => {
@@ -71,6 +78,10 @@ export default function HqSearchPage() {
   }, [debounced]);
 
   const total = results.depots.length + results.staff.length + results.orders.length;
+  // Translated at RENDER time, not inside the effect: a label captured in the effect would
+  // pin `t` as a dependency and re-run every search on a language switch.
+  const partial =
+    unreachable.length > 0 ? unreachable.map((k) => t(`hq.search.groups.${k}`)).join(', ') : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -96,6 +107,14 @@ export default function HqSearchPage() {
           aria-label={t('hq.search.placeholder')}
         />
       </div>
+
+      {/* One source down must not read as "nothing matched" — say which one could not be
+          asked, above whatever the reachable ones did find. */}
+      {partial && (
+        <p className="rounded-xl border border-app bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800" role="status">
+          {t('hq.search.partial', { sources: partial })}
+        </p>
+      )}
 
       {!debounced ? (
         <p className="py-12 text-center text-sm text-muted">{t('hq.search.empty')}</p>
