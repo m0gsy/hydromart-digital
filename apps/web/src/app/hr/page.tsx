@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import type { ReactNode } from 'react';
 
 import { Card, CenterState, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -41,6 +42,7 @@ function Groups({ rows, label }: { rows: { key: string; count: number }[]; label
 }
 
 export default function HrDashboardPage() {
+  const { t } = useT();
   const period = currentPeriod();
   const { data, error, loading, reload } = useAsync<HrDashboard>(
     () => api.get<HrDashboard>(endpoints.hr.dashboard({ periodMonth: period }), true),
@@ -68,12 +70,12 @@ export default function HrDashboardPage() {
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">Komposisi Karyawan Aktif</h3>
-            <Groups rows={data.headcount.byEmploymentStatus} label={(k) => EMPLOYMENT_STATUS_LABEL[k as EmploymentStatus] ?? k} />
+            <Groups rows={data.headcount.byEmploymentStatus} label={(k) => t(EMPLOYMENT_STATUS_LABEL[k as EmploymentStatus]) ?? k} />
           </Card>
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">Absensi Hari Ini ({data.workDate})</h3>
-            <Groups rows={data.attendanceToday} label={(k) => ATTENDANCE_STATUS_LABEL[k as AttendanceStatus] ?? k} />
+            <Groups rows={data.attendanceToday} label={(k) => t(ATTENDANCE_STATUS_LABEL[k as AttendanceStatus]) ?? k} />
           </Card>
 
           <Card className="space-y-3 p-5">
@@ -84,7 +86,7 @@ export default function HrDashboardPage() {
               <div><p className="text-muted">Potongan</p><Money amount={data.payroll.totals.totalDeduction} className="font-bold" /></div>
               <div><p className="text-muted">Net</p><Money amount={data.payroll.totals.net} className="font-bold" /></div>
             </div>
-            <Groups rows={data.payroll.byStatus} label={(k) => PAYROLL_STATUS_LABEL[k as PayrollStatus] ?? k} />
+            <Groups rows={data.payroll.byStatus} label={(k) => t(PAYROLL_STATUS_LABEL[k as PayrollStatus]) ?? k} />
           </Card>
 
           <div className="flex flex-wrap gap-3">

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 
 import { Badge, Card, CenterState, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -11,6 +12,7 @@ import { useAsync } from '@/lib/use-async';
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
 
 export default function MyPayrollPage() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<HrPage<Payroll>>(
     () => api.get<HrPage<Payroll>>(endpoints.hr.payrollMe({ pageSize: 24 }), true),
     [],
@@ -32,7 +34,7 @@ export default function MyPayrollPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Money amount={Number(p.net)} className="font-bold" />
-                <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+                <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
               </div>
             </Link>
           ))}

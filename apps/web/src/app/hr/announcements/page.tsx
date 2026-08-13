@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -48,6 +49,7 @@ interface TargetDraft {
 }
 
 export default function AnnouncementsPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isAdmin = canManageHr(customer?.role);
@@ -86,7 +88,7 @@ export default function AnnouncementsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <b>{a.title}</b>
-                      <Badge tone={LEVEL_TONE[a.level]}>{ANNOUNCEMENT_LEVEL_LABEL[a.level]}</Badge>
+                      <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
                       {!a.publishedAt && <Badge tone="neutral">Terjadwal</Badge>}
                     </div>
                     <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
@@ -95,7 +97,9 @@ export default function AnnouncementsPage() {
                         ? `Terkirim ${fmtDate(a.publishedAt)} ke ${a.audienceSize} orang`
                         : `Dijadwalkan ${fmtDate(a.scheduledAt)} — belum terkirim`}
                       {' · '}
-                      {a.targets.map((t) => ANNOUNCEMENT_DIMENSION_LABEL[t.dimension]).join(', ')}
+                      {a.targets
+                        .map((tg) => t(ANNOUNCEMENT_DIMENSION_LABEL[tg.dimension]))
+                        .join(', ')}
                     </p>
                   </div>
                   {a.publishedAt && (
@@ -115,6 +119,7 @@ export default function AnnouncementsPage() {
 }
 
 function ReadStats({ id }: { id: string }) {
+  const { t } = useT();
   const detail = useAsync<AnnouncementDetail>(
     () => api.get<AnnouncementDetail>(endpoints.hr.announcement(id), true),
     [id],
@@ -123,12 +128,13 @@ function ReadStats({ id }: { id: string }) {
   if (!detail.data) return null;
   return (
     <p className="rounded-lg border border-app p-3 text-sm">
-      {announcementReadRate(detail.data.readCount, detail.data.audienceSize)}
+      {announcementReadRate(detail.data.readCount, detail.data.audienceSize, t)}
     </p>
   );
 }
 
 function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string) => void }) {
+  const { t } = useT();
   const { depots } = useDepot();
   const { toast } = useToast();
   const [title, setTitle] = useState('');
@@ -177,10 +183,10 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           body: body.trim(),
           level,
           ...(scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
-          targets: targets.map((t) =>
-            announcementTargetNeedsValue(t.dimension)
-              ? { dimension: t.dimension, value: t.value }
-              : { dimension: t.dimension },
+          targets: targets.map((tg) =>
+            announcementTargetNeedsValue(tg.dimension)
+              ? { dimension: tg.dimension, value: tg.value }
+              : { dimension: tg.dimension },
           ),
         },
         true,
@@ -243,7 +249,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
             >
               {ANNOUNCEMENT_LEVELS.map((l) => (
                 <option key={l} value={l}>
-                  {ANNOUNCEMENT_LEVEL_LABEL[l]}
+                  {t(ANNOUNCEMENT_LEVEL_LABEL[l])}
                 </option>
               ))}
             </select>
@@ -262,10 +268,10 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           <p className="text-xs text-muted">
             Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.
           </p>
-          {targets.map((t, i) => (
+          {targets.map((tg, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <select
-                value={t.dimension}
+                value={tg.dimension}
                 onChange={(e) =>
                   setTarget(i, { dimension: e.target.value as AnnouncementDimension, value: '' })
                 }
@@ -273,18 +279,18 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
               >
                 {ANNOUNCEMENT_DIMENSIONS.map((d) => (
                   <option key={d} value={d}>
-                    {ANNOUNCEMENT_DIMENSION_LABEL[d]}
+                    {t(ANNOUNCEMENT_DIMENSION_LABEL[d])}
                   </option>
                 ))}
               </select>
-              {announcementTargetNeedsValue(t.dimension) && (
+              {announcementTargetNeedsValue(tg.dimension) && (
                 <select
-                  value={t.value}
+                  value={tg.value}
                   onChange={(e) => setTarget(i, { value: e.target.value })}
                   className="surface-elevated min-w-48 rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
                   <option value="">Pilih…</option>
-                  {optionsFor(t.dimension).map((o) => (
+                  {optionsFor(tg.dimension).map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -294,10 +300,10 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
               {/* The DEPARTMENT and EMPLOYEE options come from two lookups. An empty picker
                   is the same shape as "this company has no departments", and the announcement
                   goes out to nobody. */}
-              {((t.dimension === 'DEPARTMENT' && departments.error) ||
-                (t.dimension === 'EMPLOYEE' && employees.error)) && (
+              {((tg.dimension === 'DEPARTMENT' && departments.error) ||
+                (tg.dimension === 'EMPLOYEE' && employees.error)) && (
                 <LoadError
-                  onRetry={t.dimension === 'DEPARTMENT' ? departments.reload : employees.reload}
+                  onRetry={tg.dimension === 'DEPARTMENT' ? departments.reload : employees.reload}
                 />
               )}
               {targets.length > 1 && (

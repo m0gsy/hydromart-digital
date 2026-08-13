@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
 import { Badge, Card, ErrorState, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
@@ -69,6 +70,7 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
 }
 
 export default function EmployeesPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | ''>('');
@@ -126,7 +128,7 @@ export default function EmployeesPage() {
           <option value="">Semua status</option>
           {(Object.keys(EMPLOYEE_STATUS_LABEL) as EmployeeStatus[]).map((s) => (
             <option key={s} value={s}>
-              {EMPLOYEE_STATUS_LABEL[s]}
+              {t(EMPLOYEE_STATUS_LABEL[s])}
             </option>
           ))}
         </select>
@@ -163,10 +165,10 @@ export default function EmployeesPage() {
               <Link href={`/hr/employees/detail?id=${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">
-                  {e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} ·{' '}
+                  {e.employeeCode} · {e.position} · {t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])} ·{' '}
                   {/* Without the list, departmentLabel() answers "Belum diatur" for every
                       row at once — a whole roster claiming no department. */}
-                  {departments.error ? 'Departemen tidak terbaca' : departmentLabel(deptRows, e.departmentId)}
+                  {departments.error ? 'Departemen tidak terbaca' : departmentLabel(deptRows, e.departmentId, t)}
                 </p>
               </Link>
               {/* The safety net: a row with no login is somebody who cannot clock in, and
@@ -174,7 +176,7 @@ export default function EmployeesPage() {
               {!e.authSubjectId && e.status !== 'RESIGNED' && (
                 <CreateAccount employee={e} onCreated={reload} />
               )}
-              <Badge tone={STATUS_TONE[e.status]}>{EMPLOYEE_STATUS_LABEL[e.status]}</Badge>
+              <Badge tone={STATUS_TONE[e.status]}>{t(EMPLOYEE_STATUS_LABEL[e.status])}</Badge>
             </div>
           ))}
         </Card>

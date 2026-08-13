@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -39,6 +40,7 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
 
 /** Employee self-service: apply for leave and follow it through both approval stages. */
 export default function MyLeavePage() {
+  const { t } = useT();
   const { toast } = useToast();
   const [type, setType] = useState<LeaveType>('ANNUAL');
   const [startDate, setStart] = useState('');
@@ -115,10 +117,10 @@ export default function MyLeavePage() {
               onChange={(e) => setType(e.target.value as LeaveType)}
               className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
             >
-              {LEAVE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {LEAVE_TYPE_LABEL[t]}
-                  {leaveDeductsQuota(t) ? ' (potong kuota)' : ''}
+              {LEAVE_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(LEAVE_TYPE_LABEL[ty])}
+                  {leaveDeductsQuota(ty) ? ' (potong kuota)' : ''}
                 </option>
               ))}
             </select>
@@ -160,8 +162,8 @@ export default function MyLeavePage() {
           {requests.data.rows.map((r) => (
             <div key={r.id} className="space-y-1 p-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold">{LEAVE_TYPE_LABEL[r.type]}</span>
-                <Badge tone={TONE[r.status]}>{LEAVE_STATUS_LABEL[r.status]}</Badge>
+                <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
+                <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
               </div>
               <p className="text-sm text-muted">
                 {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja

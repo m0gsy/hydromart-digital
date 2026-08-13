@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
 import { FaceCapture } from '@/components/hr/face-capture';
@@ -39,6 +40,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function EmployeeDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
@@ -96,9 +98,9 @@ export default function EmployeeDetailPage() {
         <Badge
           tone={e.status === 'ACTIVE' ? 'success' : e.status === 'RESIGNED' ? 'danger' : 'neutral'}
         >
-          {EMPLOYEE_STATUS_LABEL[e.status]}
+          {t(EMPLOYEE_STATUS_LABEL[e.status])}
         </Badge>
-        <Badge tone="brand">{EMPLOYMENT_STATUS_LABEL[e.employmentStatus]}</Badge>
+        <Badge tone="brand">{t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])}</Badge>
       </div>
 
       <Card className="divide-y divide-[color:var(--border)] p-5">
@@ -111,11 +113,11 @@ export default function EmployeeDetailPage() {
           value={
             departments.error
               ? 'Tidak terbaca'
-              : departmentLabel(departments.data ?? [], e.departmentId)
+              : departmentLabel(departments.data ?? [], e.departmentId, t)
           }
         />
         <Row label="Tanggal masuk" value={fmtDate(e.joinDate)} />
-        <Row label="Masa kerja" value={tenureLabel(e.joinDate)} />
+        <Row label="Masa kerja" value={tenureLabel(e.joinDate, t)} />
         <Row label="Tipe gaji" value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
         <Row
           label="Nominal gaji"
@@ -133,9 +135,9 @@ export default function EmployeeDetailPage() {
         <Row label="BPJS Ketenagakerjaan" value={e.bpjsTk ?? '—'} />
         <Row label="NIK KTP" value={e.nik ?? '—'} />
         <Row label="Tanggal lahir" value={e.birthDate ? fmtDate(e.birthDate) : '—'} />
-        <Row label="Jenis kelamin" value={e.gender ? GENDER_LABEL[e.gender] : '—'} />
+        <Row label="Jenis kelamin" value={e.gender ? t(GENDER_LABEL[e.gender]) : '—'} />
         <Row label="Alamat" value={e.address ?? '—'} />
-        <Row label="Status PTKP" value={e.ptkpStatus ? PTKP_STATUS_LABEL[e.ptkpStatus] : '—'} />
+        <Row label="Status PTKP" value={e.ptkpStatus ? t(PTKP_STATUS_LABEL[e.ptkpStatus]) : '—'} />
         <Row label="Akhir kontrak" value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
       </Card>
 

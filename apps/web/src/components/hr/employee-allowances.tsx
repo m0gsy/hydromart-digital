@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
@@ -28,6 +29,7 @@ export function EmployeeAllowances({
   employeeId: string;
   isAdmin: boolean;
 }) {
+  const { t } = useT();
   const { toast: notify } = useToast();
   const [type, setType] = useState<AllowanceType>('TRANSPORT');
   const [amount, setAmount] = useState('');
@@ -113,7 +115,7 @@ export function EmployeeAllowances({
                   </Badge>
                 </div>
                 <p className="text-sm text-muted">
-                  {ALLOWANCE_TYPE_LABEL[a.type]} · sejak {fmtDate(a.effectiveFrom)}
+                  {t(ALLOWANCE_TYPE_LABEL[a.type])} · sejak {fmtDate(a.effectiveFrom)}
                   {a.effectiveTo ? ` s/d ${fmtDate(a.effectiveTo)}` : ''}
                   {a.note ? ` · ${a.note}` : ''}
                 </p>
@@ -139,9 +141,9 @@ export function EmployeeAllowances({
               onChange={(e) => setType(e.target.value as AllowanceType)}
               className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
             >
-              {ALLOWANCE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ALLOWANCE_TYPE_LABEL[t]}
+              {ALLOWANCE_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(ALLOWANCE_TYPE_LABEL[ty])}
                 </option>
               ))}
             </select>

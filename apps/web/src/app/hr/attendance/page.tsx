@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { useT } from '@/lib/locale-context';
 import { Suspense, useState } from 'react';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
@@ -72,6 +73,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
 }
 
 function AttendanceInner() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isAdmin = canManageHr(customer?.role);
@@ -128,7 +130,7 @@ function AttendanceInner() {
           <label className="text-sm">Tanggal<Input type="date" value={mDate} onChange={(e) => setMDate(e.target.value)} /></label>
           <label className="text-sm">Status
             <select value={mStatus} onChange={(e) => setMStatus(e.target.value as AttendanceStatus)} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
-              {STATUSES.map((s) => <option key={s} value={s}>{ATTENDANCE_STATUS_LABEL[s]}</option>)}
+              {STATUSES.map((s) => <option key={s} value={s}>{t(ATTENDANCE_STATUS_LABEL[s])}</option>)}
             </select>
           </label>
           <label className="text-sm">Alasan<Input value={mReason} onChange={(e) => setMReason(e.target.value)} className="w-40" /></label>
@@ -153,10 +155,10 @@ function AttendanceInner() {
                   aria-label="Koreksi status"
                   className="surface-elevated rounded-lg border border-app px-2 py-1 text-xs"
                 >
-                  {STATUSES.map((s) => <option key={s} value={s}>{ATTENDANCE_STATUS_LABEL[s]}</option>)}
+                  {STATUSES.map((s) => <option key={s} value={s}>{t(ATTENDANCE_STATUS_LABEL[s])}</option>)}
                 </select>
               ) : (
-                <Badge tone={TONE[a.status]}>{ATTENDANCE_STATUS_LABEL[a.status]}</Badge>
+                <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
               )}
             </div>
           ))}

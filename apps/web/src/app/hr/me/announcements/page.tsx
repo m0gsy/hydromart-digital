@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Button, Card, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
@@ -21,6 +22,7 @@ const LEVEL_TONE: Record<AnnouncementLevel, 'neutral' | 'warning' | 'danger'> = 
 
 /** What HR sent to me. The server decides membership; nothing here filters. */
 export default function MyAnnouncementsPage() {
+  const { t } = useT();
   const feed = useAsync<(Announcement & { read: boolean })[]>(
     () => api.get<(Announcement & { read: boolean })[]>(endpoints.hr.announcementsMe, true),
     [],
@@ -57,7 +59,7 @@ export default function MyAnnouncementsPage() {
         <Card key={a.id} className="space-y-2 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <b>{a.title}</b>
-            <Badge tone={LEVEL_TONE[a.level]}>{ANNOUNCEMENT_LEVEL_LABEL[a.level]}</Badge>
+            <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
             {!a.read && <Badge tone="success">Baru</Badge>}
           </div>
           <p className="whitespace-pre-line text-sm">{a.body}</p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -40,6 +41,7 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
  * decision it is waiting for, so one screen serves both.
  */
 export default function LeaveQueuePage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isHr = canManageHr(customer?.role);
@@ -89,7 +91,7 @@ export default function LeaveQueuePage() {
           <option value="">Semua status</option>
           {(Object.keys(LEAVE_STATUS_LABEL) as LeaveStatus[]).map((s) => (
             <option key={s} value={s}>
-              {LEAVE_STATUS_LABEL[s]}
+              {t(LEAVE_STATUS_LABEL[s])}
             </option>
           ))}
         </select>
@@ -109,8 +111,8 @@ export default function LeaveQueuePage() {
             return (
               <div key={r.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{LEAVE_TYPE_LABEL[r.type]}</span>
-                  <Badge tone={TONE[r.status]}>{LEAVE_STATUS_LABEL[r.status]}</Badge>
+                  <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
+                  <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
                 </div>
                 <p className="text-sm text-muted">
                   {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja

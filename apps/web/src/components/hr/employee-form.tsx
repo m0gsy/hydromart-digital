@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
 import { HR_MANAGED_ROLES, type HrManagedRole } from '@hydromart/access';
@@ -34,6 +35,7 @@ interface DepotOption {
 
 /** Create or edit an employee. `id` present → PATCH; absent → POST. */
 export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
+  const { t } = useT();
   const router = useRouter();
   const { toast: notify } = useToast();
   const [form, setForm] = useState<Form>(initial);
@@ -54,7 +56,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
   const deptOptions = form.depotId ? departmentsForDepot(departments.data ?? [], form.depotId) : [];
 
-  // D-12: `HR_ROLE_LABEL[role as HrManagedRole] ?? role` asserted a type the value usually
+  // D-12: `t(HR_ROLE_LABEL[role as HrManagedRole]) ?? role` asserted a type the value usually
   // is not — this account is nearly always a CUSTOMER. Runtime-safe via the `??`, but the
   // cast defeated the `Record`'s exhaustiveness, which is the only thing making that lookup
   // trustworthy. A plain lookup with a fallback says the same thing and stays honest.
@@ -83,7 +85,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const payload = toEmployeePayload(form, { creating: !id });
+    const payload = toEmployeePayload(form, { creating: !id, t });
     if (!payload.ok) {
       setErr(payload.error);
       return;
@@ -167,7 +169,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             <option value="">{id ? 'Tidak diubah' : 'Pilih jabatan…'}</option>
             {HR_MANAGED_ROLES.map((r) => (
               <option key={r} value={r}>
-                {HR_ROLE_LABEL[r]}
+                {t(HR_ROLE_LABEL[r])}
               </option>
             ))}
           </select>
@@ -181,7 +183,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           >
             {(Object.keys(EMPLOYMENT_STATUS_LABEL) as EmploymentStatus[]).map((s) => (
               <option key={s} value={s}>
-                {EMPLOYMENT_STATUS_LABEL[s]}
+                {t(EMPLOYMENT_STATUS_LABEL[s])}
               </option>
             ))}
           </select>
@@ -288,7 +290,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             <option value="">Tidak diisi</option>
             {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
               <option key={g} value={g}>
-                {GENDER_LABEL[g]}
+                {t(GENDER_LABEL[g])}
               </option>
             ))}
           </select>
@@ -302,7 +304,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             <option value="">Tidak diisi</option>
             {(Object.keys(PTKP_STATUS_LABEL) as PtkpStatus[]).map((p) => (
               <option key={p} value={p}>
-                {PTKP_STATUS_LABEL[p]}
+                {t(PTKP_STATUS_LABEL[p])}
               </option>
             ))}
           </select>
@@ -335,7 +337,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               >
                 {(['ACTIVE', 'INACTIVE', 'RESIGNED'] as const).map((s) => (
                   <option key={s} value={s}>
-                    {EMPLOYEE_STATUS_LABEL[s]}
+                    {t(EMPLOYEE_STATUS_LABEL[s])}
                   </option>
                 ))}
               </select>
@@ -369,7 +371,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           </p>
           <p className="mt-1 text-sm text-amber-900">
             Menyimpan akan mengubah akun itu menjadi{' '}
-            {form.role ? HR_ROLE_LABEL[form.role] : 'jabatan yang dipilih'} — bukan membuat akun
+            {form.role ? t(HR_ROLE_LABEL[form.role]) : 'jabatan yang dipilih'} — bukan membuat akun
             baru. Kalau nomornya salah ketik, betulkan dulu.
           </p>
         </Card>

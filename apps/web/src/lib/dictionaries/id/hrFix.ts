@@ -1,0 +1,155 @@
+/**
+ * HR console — PR-8 i18n.
+ *
+ * `map.*` mirrors the shared label maps in `lib/hr.ts`, which are used across ~15 HR
+ * screens. Those maps hold KEYS now, not Indonesian, and every call site resolves them
+ * through `t()`: translating the pages around them would have left every dropdown, badge
+ * and grid cell in Indonesian while the toggle claimed English.
+ *
+ * Enum member names are the sub-keys on purpose — `map.assetType.MOTORCYCLE` is the value
+ * that reaches the lookup, so a new enum member shows up as a printed key rather than as
+ * silently missing copy.
+ */
+export const hrFix = {
+  map: {
+    gender: { MALE: 'Laki-laki', FEMALE: 'Perempuan' },
+    ptkp: {
+      TK0: 'TK/0 — lajang',
+      TK1: 'TK/1 — lajang, 1 tanggungan',
+      TK2: 'TK/2 — lajang, 2 tanggungan',
+      TK3: 'TK/3 — lajang, 3 tanggungan',
+      K0: 'K/0 — menikah',
+      K1: 'K/1 — menikah, 1 tanggungan',
+      K2: 'K/2 — menikah, 2 tanggungan',
+      K3: 'K/3 — menikah, 3 tanggungan',
+    },
+    leaveType: {
+      ANNUAL: 'Cuti tahunan',
+      SICK: 'Sakit',
+      PERMISSION: 'Izin',
+      EMERGENCY: 'Darurat',
+    },
+    leaveStatus: {
+      PENDING_MANAGER: 'Menunggu atasan',
+      PENDING_HR: 'Menunggu HR',
+      APPROVED: 'Disetujui',
+      REJECTED: 'Ditolak',
+      CANCELLED: 'Dibatalkan',
+    },
+    docType: {
+      KTP: 'KTP',
+      KK: 'Kartu Keluarga',
+      CONTRACT: 'Kontrak Kerja',
+      NPWP: 'NPWP',
+      CERTIFICATE: 'Sertifikat',
+      OTHER: 'Lainnya',
+    },
+    employmentStatus: { TRAINING: 'Training', PROBATION: 'Percobaan', PERMANENT: 'Tetap' },
+    role: {
+      STAFF_DEPOT: 'Staf Depot / Kurir',
+      KEPALA_DEPOT: 'Kepala Depot',
+      ASSISTANT_SUPERVISOR: 'Asisten Supervisor',
+      SUPERVISOR: 'Supervisor',
+      MANAGER: 'Manager',
+    },
+    employeeStatus: { ACTIVE: 'Aktif', INACTIVE: 'Nonaktif', RESIGNED: 'Resign' },
+    attendance: {
+      PRESENT: 'Hadir',
+      LATE: 'Terlambat',
+      ABSENT: 'Absen',
+      LEAVE: 'Cuti',
+      HOLIDAY: 'Libur',
+      PENDING: 'Menunggu persetujuan',
+    },
+    payrollStatus: { DRAFT: 'Draft', APPROVED: 'Disetujui', PAID: 'Dibayar' },
+    allowanceType: {
+      TRANSPORT: 'Transport',
+      MEAL: 'Makan',
+      POSITION: 'Jabatan',
+      HOUSING: 'Perumahan',
+      OTHER: 'Lainnya',
+    },
+    assetType: {
+      MOTORCYCLE: 'Motor',
+      SMARTPHONE: 'Ponsel',
+      UNIFORM: 'Seragam',
+      LAPTOP: 'Laptop',
+      PRINTER: 'Printer',
+      SCANNER: 'Scanner',
+      OTHER: 'Lainnya',
+    },
+    assetStatus: {
+      AVAILABLE: 'Tersedia',
+      ASSIGNED: 'Dipegang',
+      RETURNED: 'Dikembalikan',
+      MAINTENANCE: 'Perbaikan',
+      LOST: 'Hilang',
+    },
+    assetMove: {
+      ASSIGN: 'Serah terima',
+      TRANSFER: 'Pindah tangan',
+      RETURN: 'Pengembalian',
+      MAINTENANCE: 'Masuk perbaikan',
+      LOST: 'Dinyatakan hilang',
+    },
+    announceLevel: { INFO: 'Informasi', WARNING: 'Perhatian', URGENT: 'Mendesak' },
+    announceDim: {
+      COMPANY: 'Seluruh perusahaan',
+      DEPOT: 'Depot',
+      DEPARTMENT: 'Departemen',
+      POSITION: 'Jabatan',
+      EMPLOYEE: 'Karyawan tertentu',
+    },
+    bonusMetric: {
+      ATTENDANCE_RATE: 'Tingkat kehadiran (%)',
+      PRESENT_DAYS: 'Jumlah hari hadir',
+      ZERO_LATE: 'Tanpa terlambat (1=ya)',
+      IS_DEPOT_MANAGER: 'Kepala Depot (1=ya)',
+      SALES_TOTAL: 'Total penjualan depot (Rp)',
+    },
+    rewardKind: { FIXED: 'Nominal (Rp)', PERCENT: '% dari gaji pokok' },
+    weekday: {
+      0: 'Minggu',
+      1: 'Senin',
+      2: 'Selasa',
+      3: 'Rabu',
+      4: 'Kamis',
+      5: 'Jumat',
+      6: 'Sabtu',
+    },
+  },
+  common: {
+    notSet: 'Belum diatur',
+    years: '{n} tahun',
+    readRate: '{read} dari {total} dibaca ({pct}%)',
+    all: 'Semua',
+    allDepots: 'Semua depot',
+    save: 'Simpan',
+    cancel: 'Batal',
+    delete: 'Hapus',
+    edit: 'Ubah',
+    add: 'Tambah',
+    note: 'Catatan',
+    name: 'Nama',
+    date: 'Tanggal',
+    amount: 'Nominal',
+    status: 'Status',
+    type: 'Jenis',
+    employee: 'Karyawan',
+    depot: 'Depot',
+    period: 'Periode',
+    empty: 'Belum ada data.',
+    saveFailed: 'Gagal menyimpan.',
+    optional: 'Opsional',
+  },
+  form: {
+    // Validation refusals from `toEmployeePayload` — they reach the operator as text.
+    roleRequired: 'Jabatan (peran login) wajib diisi.',
+    fieldRequired: '{field} wajib diisi.',
+    dailyRateRequired: 'Gaji harian (dailyRate) wajib > 0.',
+    monthlyRateRequired: 'Gaji bulanan (monthlyRate) wajib > 0.',
+    nikDigits: 'NIK harus 16 digit angka.',
+    contractBeforeJoin: 'Akhir kontrak tidak boleh sebelum tanggal masuk.',
+    exitBeforeJoin: 'Tanggal keluar tidak boleh sebelum tanggal masuk.',
+  },
+};

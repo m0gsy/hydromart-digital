@@ -1,6 +1,7 @@
 'use client';
 
 import { useToast } from '@/components/toast';
+import { useT } from '@/lib/locale-context';
 import { Badge, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
@@ -28,6 +29,7 @@ const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
  * ownership rather than by depot.
  */
 export default function MyPayrollDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
   const { toast } = useToast();
 
@@ -59,7 +61,7 @@ export default function MyPayrollDetailPage() {
       <SectionHeader
         title={`Slip Gaji ${p.periodMonth}`}
         subtitle={`${p.presentDays} hari hadir`}
-        action={<Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>}
+        action={<Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>}
       />
 
       <Card className="p-5">

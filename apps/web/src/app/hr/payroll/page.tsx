@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
@@ -17,6 +18,7 @@ import { useAsync } from '@/lib/use-async';
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
 
 function PayrollInner() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const prefillEmployee = useSearchParams().get('employeeId') ?? '';
@@ -76,7 +78,7 @@ function PayrollInner() {
               </div>
               <div className="flex items-center gap-3">
                 <Money amount={Number(p.net)} className="font-bold" />
-                <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+                <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
               </div>
             </Link>
           ))}

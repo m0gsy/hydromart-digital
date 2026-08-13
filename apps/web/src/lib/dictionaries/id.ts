@@ -26,6 +26,7 @@ import { courierFix } from './id/courierFix';
 import { hqFix } from './id/hqFix';
 import { opsFix } from './id/opsFix';
 import { mgrFix } from './id/mgrFix';
+import { hrFix } from './id/hrFix';
 import { settings } from './id/settings';
 
 export const id = {
@@ -175,6 +176,7 @@ export const id = {
   hqFix,
   opsFix,
   mgrFix,
+  hrFix,
   settings,
 };
 

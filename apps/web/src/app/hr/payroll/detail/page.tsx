@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -16,6 +17,7 @@ import { useQueryParam } from '@/lib/use-query-param';
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
 
 export default function PayrollDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
@@ -57,7 +59,7 @@ export default function PayrollDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={downloadSlip}>Unduh PDF</Button>
-            <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+            <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
           </div>
         }
       />

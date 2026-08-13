@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { id as idDict } from '../src/lib/dictionaries/id';
+
+
 import {
   EMPTY_EMPLOYEE_FORM,
   departmentLabel,
@@ -34,6 +37,21 @@ import {
   type Employee,
   type EmployeeForm,
 } from '@/lib/hr';
+
+/**
+ * The label maps hold dictionary KEYS now (PR-8), so the helpers that build a sentence out
+ * of them take the translator. This is the REAL Indonesian lookup rather than a stub: a key
+ * the dictionary is missing resolves to itself and fails the assertion here, instead of
+ * printing `hrFix.map.…` at an HR admin.
+ */
+const t = (key: string, vars?: Record<string, string | number>): string => {
+  const value = key
+    .split('.')
+    .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], idDict);
+  if (typeof value !== 'string') return key;
+  return vars ? value.replace(/\{(\w+)\}/g, (m, n) => (n in vars ? String(vars[n]) : m)) : value;
+};
+
 
 const employee = (over: Partial<Employee> = {}): Employee => ({
   id: 'e1',
@@ -147,11 +165,11 @@ describe('toEmployeePayload', () => {
    * wrote it — `grep exitDate apps/web/src` was empty, so a leaver kept earning.
    */
   it('sends the exit date on edit, and an explicit null when it is cleared', () => {
-    const withExit = toEmployeePayload(validForm({ exitDate: '2026-08-10' }));
+    const withExit = toEmployeePayload(validForm({ exitDate: '2026-08-10' }), { t });
     expect(withExit.ok).toBe(true);
     if (withExit.ok) expect(withExit.value.exitDate).toBe(new Date('2026-08-10').toISOString());
 
-    const cleared = toEmployeePayload(validForm({ exitDate: '' }));
+    const cleared = toEmployeePayload(validForm({ exitDate: '' }), { t });
     // Null, not omitted: a rehire whose exit date stayed behind is paid for no days at all.
     expect(cleared.ok).toBe(true);
     if (cleared.ok) expect(cleared.value.exitDate).toBeNull();
@@ -160,7 +178,7 @@ describe('toEmployeePayload', () => {
   it('never sends an exit date or a status when creating', () => {
     const r = toEmployeePayload(
       validForm({ role: 'STAFF_DEPOT', exitDate: '2026-08-10', status: 'RESIGNED' }),
-      { creating: true },
+      { creating: true, t },
     );
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -170,13 +188,13 @@ describe('toEmployeePayload', () => {
   });
 
   it('refuses an exit before the join date', () => {
-    const r = toEmployeePayload(validForm({ joinDate: '2026-08-01', exitDate: '2026-07-31' }));
+    const r = toEmployeePayload(validForm({ joinDate: '2026-08-01', exitDate: '2026-07-31' }), { t });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain('keluar');
   });
 
   it('rejects when a required field is blank', () => {
-    const r = toEmployeePayload(validForm({ fullName: '  ' }));
+    const r = toEmployeePayload(validForm({ fullName: '  ' }), { t });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain('fullName');
   });
@@ -184,28 +202,29 @@ describe('toEmployeePayload', () => {
   // Adding an employee mints their login, and no account can be minted without a role.
   it('demands a jabatan when creating, but not when editing', () => {
     const noRole = validForm({ role: '' });
-    const created = toEmployeePayload(noRole, { creating: true });
+    const created = toEmployeePayload(noRole, { creating: true, t });
     expect(created.ok).toBe(false);
     if (!created.ok) expect(created.error).toContain('Jabatan');
 
     // On edit "" means "leave it alone" — and rows written before this release have none.
-    expect(toEmployeePayload(noRole).ok).toBe(true);
+    expect(toEmployeePayload(noRole, { t }).ok).toBe(true);
   });
 
   it('rejects DAILY salary without a positive dailyRate', () => {
-    expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '0' })).ok).toBe(false);
-    expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '' })).ok).toBe(false);
+    expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '0' }), { t }).ok).toBe(false);
+    expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '' }), { t }).ok).toBe(false);
   });
 
   it('rejects MONTHLY salary without a positive monthlyRate', () => {
     const r = toEmployeePayload(
       validForm({ salaryType: 'MONTHLY', dailyRate: '', monthlyRate: '0' }),
+      { t },
     );
     expect(r.ok).toBe(false);
   });
 
   it('builds a DAILY payload with numeric dailyRate and ISO joinDate, omitting blanks', () => {
-    const r = toEmployeePayload(validForm());
+    const r = toEmployeePayload(validForm(), { t });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.dailyRate).toBe(150000);
@@ -226,6 +245,7 @@ describe('toEmployeePayload', () => {
         emergencyName: ' Siti ',
         emergencyPhone: ' 0899 ',
       }),
+      { t },
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -247,6 +267,7 @@ describe('toEmployeePayload', () => {
         address: ' Jl. Melati 3 ',
         ptkpStatus: 'K1',
       }),
+      { t },
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -258,7 +279,7 @@ describe('toEmployeePayload', () => {
     expect(r.value.ptkpStatus).toBe('K1');
 
     // Blank cells are omitted, not sent as empty strings the enum would reject.
-    const blank = toEmployeePayload(validForm());
+    const blank = toEmployeePayload(validForm(), { t });
     expect(blank.ok).toBe(true);
     if (!blank.ok) return;
     for (const key of ['nik', 'birthDate', 'gender', 'address', 'ptkpStatus', 'contractEndDate']) {
@@ -267,19 +288,19 @@ describe('toEmployeePayload', () => {
   });
 
   it('rejects a NIK that is not 16 digits', () => {
-    const r = toEmployeePayload(validForm({ nik: '320101010101' }));
+    const r = toEmployeePayload(validForm({ nik: '320101010101' }), { t });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain('16 digit');
   });
 
   it('rejects a contract that ends before the join date', () => {
-    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2025-12-31' }));
+    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2025-12-31' }), { t });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain('Akhir kontrak');
   });
 
   it('accepts a contract end date on or after the join date', () => {
-    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2027-01-15' }));
+    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2027-01-15' }), { t });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.contractEndDate).toBe(new Date('2027-01-15').toISOString());
@@ -308,17 +329,17 @@ describe('departments (A1)', () => {
   });
 
   it('labels an unassigned or unknown department as "Belum diatur"', () => {
-    expect(departmentLabel(rows, null)).toBe('Belum diatur');
-    expect(departmentLabel(rows, 'ghost')).toBe('Belum diatur');
-    expect(departmentLabel(rows, 'a')).toBe('GDG-A · Gudang A');
+    expect(departmentLabel(rows, null, t)).toBe('Belum diatur');
+    expect(departmentLabel(rows, 'ghost', t)).toBe('Belum diatur');
+    expect(departmentLabel(rows, 'a', t)).toBe('GDG-A · Gudang A');
   });
 
   it('carries departmentId through the form round-trip', () => {
     expect(employeeToForm(employee({ departmentId: 'a' })).departmentId).toBe('a');
     expect(employeeToForm(employee()).departmentId).toBe('');
-    const payload = toEmployeePayload({ ...validForm(), departmentId: ' a ' });
+    const payload = toEmployeePayload({ ...validForm(), departmentId: ' a ' }, { t });
     expect(payload.ok && payload.value.departmentId).toBe('a');
-    const none = toEmployeePayload(validForm());
+    const none = toEmployeePayload(validForm(), { t });
     expect(none.ok && 'departmentId' in none.value).toBe(false);
   });
 });
@@ -392,9 +413,9 @@ describe('announcements (C1)', () => {
   });
 
   it('states the read rate, and says "—" rather than dividing by zero', () => {
-    expect(announcementReadRate(12, 40)).toBe('12 dari 40 dibaca (30%)');
-    expect(announcementReadRate(0, 0)).toBe('—');
-    expect(announcementReadRate(3, 3)).toBe('3 dari 3 dibaca (100%)');
+    expect(announcementReadRate(12, 40, t)).toBe('12 dari 40 dibaca (30%)');
+    expect(announcementReadRate(0, 0, t)).toBe('—');
+    expect(announcementReadRate(3, 3, t)).toBe('3 dari 3 dibaca (100%)');
   });
 
   it('labels every level and dimension the API can return', () => {
@@ -417,8 +438,8 @@ describe('shift rotation (C3)', () => {
 
   it('labels all seven days Sunday-first, matching the server keys', () => {
     expect(WEEKDAY_LABEL).toHaveLength(7);
-    expect(WEEKDAY_LABEL[0]).toBe('Minggu');
-    expect(WEEKDAY_LABEL[6]).toBe('Sabtu');
+    expect(t(WEEKDAY_LABEL[0] as string)).toBe('Minggu');
+    expect(t(WEEKDAY_LABEL[6] as string)).toBe('Sabtu');
   });
 });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
@@ -34,6 +35,7 @@ const EMPTY = {
 };
 
 function RulesBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const admin = canManageHr(customer?.role);
   const { toast: notify } = useToast();
@@ -100,7 +102,7 @@ function RulesBody() {
                   <Badge tone="brand">{r.bonusType}</Badge>
                 </div>
                 <p className="text-sm text-muted">
-                  {BONUS_METRIC_LABEL[r.metric]} {COMPARE_OP_LABEL[r.op]} {r.threshold} →{' '}
+                  {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]} {r.threshold} →{' '}
                   {r.rewardKind === 'FIXED' ? <Money amount={Number(r.rewardValue)} /> : `${r.rewardValue}% gaji pokok`} · {depotName(r.depotId)}
                 </p>
               </div>
@@ -122,7 +124,7 @@ function RulesBody() {
             </Field>
             <Field label="Metrik">
               <select value={form.metric} onChange={(e) => set('metric', e.target.value as BonusMetric)} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm">
-                {METRICS.map((m) => <option key={m} value={m}>{BONUS_METRIC_LABEL[m]}</option>)}
+                {METRICS.map((m) => <option key={m} value={m}>{t(BONUS_METRIC_LABEL[m])}</option>)}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-2">
@@ -135,7 +137,7 @@ function RulesBody() {
             </div>
             <Field label="Jenis reward">
               <select value={form.rewardKind} onChange={(e) => set('rewardKind', e.target.value as RewardKind)} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm">
-                {KINDS.map((k) => <option key={k} value={k}>{REWARD_KIND_LABEL[k]}</option>)}
+                {KINDS.map((k) => <option key={k} value={k}>{t(REWARD_KIND_LABEL[k])}</option>)}
               </select>
             </Field>
             <Field label={form.rewardKind === 'FIXED' ? 'Nilai (Rp)' : 'Persen (%)'}><Input type="number" value={form.rewardValue} onChange={(e) => set('rewardValue', e.target.value)} /></Field>

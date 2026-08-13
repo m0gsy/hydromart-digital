@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Card, LinkButton, LoadError, Money, Skeleton } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { ASSET_STATUS_LABEL, ASSET_TYPE_LABEL, type EmployeeAsset } from '@/lib/hr';
@@ -11,6 +12,7 @@ import { useAsync } from '@/lib/use-async';
  * where the movement log lives — an asset is depot property, not an employee attribute.
  */
 export function EmployeeAssets({ employeeId }: { employeeId: string }) {
+  const { t } = useT();
   const assets = useAsync<{ rows: EmployeeAsset[]; total: number }>(
     () =>
       api.get<{ rows: EmployeeAsset[]; total: number }>(
@@ -43,10 +45,10 @@ export function EmployeeAssets({ employeeId }: { employeeId: string }) {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <b>{a.code}</b>
-                  <Badge tone="warning">{ASSET_STATUS_LABEL[a.status]}</Badge>
+                  <Badge tone="warning">{t(ASSET_STATUS_LABEL[a.status])}</Badge>
                 </div>
                 <p className="text-sm text-muted">
-                  {ASSET_TYPE_LABEL[a.type]} · {a.name}
+                  {t(ASSET_TYPE_LABEL[a.type])} · {a.name}
                   {a.serialNo ? ` · SN ${a.serialNo}` : ''}
                 </p>
               </div>

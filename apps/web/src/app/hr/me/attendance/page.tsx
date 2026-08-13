@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Card, CenterState, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type AttendanceStatus, type HrPage } from '@/lib/hr';
@@ -11,6 +12,7 @@ const TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger' | 'neutral
 };
 
 export default function MyAttendancePage() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<HrPage<Attendance>>(
     () => api.get<HrPage<Attendance>>(endpoints.hr.attendanceMe({ pageSize: 60 }), true),
     [],
@@ -28,7 +30,7 @@ export default function MyAttendancePage() {
             <div key={a.id} className="flex items-center justify-between gap-2 p-3 text-sm">
               <span className="font-medium">{fmtDate(a.workDate)}</span>
               <span className="text-muted">{fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}</span>
-              <Badge tone={TONE[a.status]}>{ATTENDANCE_STATUS_LABEL[a.status]}</Badge>
+              <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
             </div>
           ))}
         </Card>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -37,6 +38,7 @@ const STATUS_TONE: Record<AssetStatus, 'success' | 'warning' | 'neutral' | 'dang
 };
 
 export default function AssetsPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { depots } = useDepot();
   const { toast } = useToast();
@@ -99,7 +101,7 @@ export default function AssetsPage() {
               <option value="">Semua</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {ASSET_STATUS_LABEL[s]}
+                  {t(ASSET_STATUS_LABEL[s])}
                 </option>
               ))}
             </select>
@@ -112,9 +114,9 @@ export default function AssetsPage() {
               className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
             >
               <option value="">Semua</option>
-              {ASSET_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ASSET_TYPE_LABEL[t]}
+              {ASSET_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(ASSET_TYPE_LABEL[ty])}
                 </option>
               ))}
             </select>
@@ -137,10 +139,10 @@ export default function AssetsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <b>{a.code}</b>
-                      <Badge tone={STATUS_TONE[a.status]}>{ASSET_STATUS_LABEL[a.status]}</Badge>
+                      <Badge tone={STATUS_TONE[a.status]}>{t(ASSET_STATUS_LABEL[a.status])}</Badge>
                     </div>
                     <p className="text-sm text-muted">
-                      {ASSET_TYPE_LABEL[a.type]} · {a.name}
+                      {t(ASSET_TYPE_LABEL[a.type])} · {a.name}
                       {a.brand ? ` · ${a.brand}` : ''}
                       {a.serialNo ? ` · SN ${a.serialNo}` : ''} · {depotName(a.depotId)}
                       {a.status === 'ASSIGNED' ? ` · dipegang ${nameOf(a.holderId)}` : ''}
@@ -189,6 +191,7 @@ function AssetPanel({
   isAdmin: boolean;
   onMoved: () => void;
 }) {
+  const { t } = useT();
   const { toast } = useToast();
   const detail = useAsync<AssetDetail>(
     () => api.get<AssetDetail>(endpoints.hr.asset(asset.id), true),
@@ -286,7 +289,7 @@ function AssetPanel({
           )}
           {detail.data.movements.map((m) => (
             <li key={m.id} className="text-muted">
-              <b className="text-app">{ASSET_MOVEMENT_LABEL[m.kind]}</b> · {fmtDate(m.movedAt)}
+              <b className="text-app">{t(ASSET_MOVEMENT_LABEL[m.kind])}</b> · {fmtDate(m.movedAt)}
               {m.fromEmployeeId ? ` · dari ${nameOf(m.fromEmployeeId)}` : ''}
               {m.toEmployeeId ? ` · ke ${nameOf(m.toEmployeeId)}` : ''}
               {m.condition ? ` · kondisi: ${m.condition}` : ''}
@@ -297,7 +300,7 @@ function AssetPanel({
 
       {isAdmin &&
         (editing ? (
-          <form onSubmit={saveDetails} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
+          <form onSubmit={saveDetails} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
             <Field label="Nama aset">
               <Input
                 value={details.name}
@@ -332,7 +335,7 @@ function AssetPanel({
             </div>
           </form>
         ) : moves.length === 0 ? (
-          <div className="space-y-2 border-t border-app pt-3">
+          <div className="space-y-2 border-ty border-app pt-3">
             <p className="text-sm text-muted">
               Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
             </p>
@@ -341,7 +344,7 @@ function AssetPanel({
             </Button>
           </div>
         ) : (
-          <form onSubmit={submit} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
+          <form onSubmit={submit} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
             <Field label="Pergerakan">
               <select
                 value={kind}
@@ -350,7 +353,7 @@ function AssetPanel({
               >
                 {moves.map((k) => (
                   <option key={k} value={k}>
-                    {ASSET_MOVEMENT_LABEL[k]}
+                    {t(ASSET_MOVEMENT_LABEL[k])}
                   </option>
                 ))}
               </select>
@@ -395,6 +398,7 @@ function AssetPanel({
 }
 
 function NewAsset({ onCreated }: { onCreated: () => void }) {
+  const { t } = useT();
   const { depots } = useDepot();
   const { toast } = useToast();
   const [code, setCode] = useState('');
@@ -457,9 +461,9 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setType(e.target.value as AssetType)}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            {ASSET_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {ASSET_TYPE_LABEL[t]}
+            {ASSET_TYPES.map((ty) => (
+              <option key={ty} value={ty}>
+                {t(ASSET_TYPE_LABEL[ty])}
               </option>
             ))}
           </select>

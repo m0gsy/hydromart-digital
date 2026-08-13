@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { ExternalLink } from '@/components/external-link';
 import { useToast } from '@/components/toast';
@@ -29,6 +30,7 @@ export function EmployeeDocuments({
   employeeId: string;
   isAdmin: boolean;
 }) {
+  const { t } = useT();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [type, setType] = useState<EmployeeDocumentType>('KTP');
@@ -86,7 +88,7 @@ export function EmployeeDocuments({
             <div key={d.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">{DOCUMENT_TYPE_LABEL[d.type]}</span>
+                  <span className="font-semibold">{t(DOCUMENT_TYPE_LABEL[d.type])}</span>
                   <Badge tone={d.supersededById ? 'neutral' : 'success'}>
                     {d.supersededById ? `v${d.version} (diganti)` : `v${d.version}`}
                   </Badge>
@@ -118,9 +120,9 @@ export function EmployeeDocuments({
               onChange={(e) => setType(e.target.value as EmployeeDocumentType)}
               className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
             >
-              {DOCUMENT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {DOCUMENT_TYPE_LABEL[t]}
+              {DOCUMENT_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(DOCUMENT_TYPE_LABEL[ty])}
                 </option>
               ))}
             </select>

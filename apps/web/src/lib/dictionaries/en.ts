@@ -24,6 +24,7 @@ import { courierFix } from './en/courierFix';
 import { hqFix } from './en/hqFix';
 import { opsFix } from './en/opsFix';
 import { mgrFix } from './en/mgrFix';
+import { hrFix } from './en/hrFix';
 import { settings } from './en/settings';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
@@ -170,5 +171,6 @@ export const en: Dictionary = {
   hqFix,
   opsFix,
   mgrFix,
+  hrFix,
   settings,
 };
