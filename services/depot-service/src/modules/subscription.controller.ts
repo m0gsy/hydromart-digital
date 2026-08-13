@@ -1,7 +1,30 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  assertDepotAccess,
+} from '@hydromart/platform';
 
 import { SubscriptionService } from '../application/services/subscription.service';
 import { Subscription } from '../domain/subscription';
@@ -15,6 +38,28 @@ import { SubscriptionResponseDto } from './dto/responses.generated.dto';
 @Controller({ path: 'subscriptions', version: '1' })
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}
+
+  /**
+   * Which of this depot's customers actually hold a subscription, for the depot CRM
+   * directory (S2) — where `isSubscriber` was a hardcoded null on every row.
+   *
+   * Ids only: the caller is customer-service filling in one boolean per person, and the
+   * subscription's product, cadence and note are none of its business. Internal key,
+   * `@Public()` short-circuits the class-level @Can. Declared FIRST so the static segment wins.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-ids')
+  @ApiOperation({ summary: "Linked customer ids with an ACTIVE subscription at one depot (internal)" })
+  @ApiOkResponse({ description: 'Distinct customer ids holding an active subscription.' })
+  activeCustomerIds(
+    @Query('depotId', ParseUUIDPipe) depotId: string,
+  ): Promise<{ customerIds: string[] }> {
+    return this.subscriptions
+      .activeCustomerIds(depotId)
+      .then((customerIds) => ({ customerIds }));
+  }
 
   @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })
   @Get()

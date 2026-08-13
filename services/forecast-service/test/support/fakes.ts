@@ -151,6 +151,11 @@ export class FakeForecastRepository implements ForecastRepository {
       .map((c) => ({ depotId: c.depotId, day: c.day, revenue: c.revenue }));
   }
 
+  async findCustomerActivity(customerId: string): Promise<CustomerActivityRow | null> {
+    const row = this.activity.get(customerId);
+    return row ? { ...row } : null;
+  }
+
   async listCustomerActivity(query: {
     depotId?: string | null;
     limit: number;

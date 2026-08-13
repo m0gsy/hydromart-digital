@@ -68,4 +68,7 @@ export const envValidationSchema = Joi.object({
     .allow('')
     .default('')
     .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  // S2: the depot CRM card's churn band. Blank = the card renders "—", which is what it
+  // did unconditionally before — never LOW, which is a claim nobody measured.
+  FORECAST_SERVICE_URL: Joi.string().uri().allow('').default(''),
 });

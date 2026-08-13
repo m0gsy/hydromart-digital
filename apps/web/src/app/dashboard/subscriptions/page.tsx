@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { DepotSubscription, DepotSubscriptionCadence } from '@/lib/types';
+import type { DepotCustomer, DepotSubscription, DepotSubscriptionCadence } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -48,7 +48,15 @@ function Stat({ label, value }: { label: string; value: number }) {
 /** Create a standing order. POSTs then reloads the roster. */
 function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
-  const [customerName, setCustomerName] = useState('');
+  /**
+   * A registered customer, not a typed name (S2).
+   *
+   * The name used to be free text and `customerId` optional, so most rows ended up linked
+   * to nobody — and the depot CRM card could not tell a subscriber from anyone else, which
+   * is why `isSubscriber` was a hardcoded null on every one of them. The directory this
+   * picks from is the same one the CRM screen lists.
+   */
+  const [customerId, setCustomerId] = useState('');
   const [productLabel, setProductLabel] = useState('');
   const [quantity, setQuantity] = useState('');
   const [cadence, setCadence] = useState<DepotSubscriptionCadence>('WEEKLY');
@@ -57,8 +65,13 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const customers = useAsync<DepotCustomer[]>(
+    () => (open ? api.get(endpoints.depotCrm.list(depotId), true) : Promise.resolve([])),
+    [depotId, open],
+  );
+
   function reset() {
-    setCustomerName('');
+    setCustomerId('');
     setProductLabel('');
     setQuantity('');
     setCadence('WEEKLY');
@@ -69,8 +82,9 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 
   async function submit() {
     const qty = Number(quantity);
-    if (!customerName.trim() || !productLabel.trim() || !Number.isFinite(qty) || qty < 1) {
-      setError('Isi nama pelanggan, produk, dan jumlah galon (≥1).');
+    const picked = (customers.data ?? []).find((c) => c.id === customerId);
+    if (!picked || !productLabel.trim() || !Number.isFinite(qty) || qty < 1) {
+      setError('Pilih pelanggan terdaftar, lalu isi produk dan jumlah galon (≥1).');
       return;
     }
     setBusy(true);
@@ -80,7 +94,10 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
         endpoints.depotSubscriptions.create,
         {
           depotId,
-          customerName: customerName.trim(),
+          customerId: picked.id,
+          // Still sent: the roster reads as a list of people, and the account name at the
+          // moment of signing up is what the depot agreed with.
+          customerName: picked.fullName ?? 'Tanpa nama',
           productLabel: productLabel.trim(),
           quantity: qty,
           cadence,
@@ -107,8 +124,24 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
     <Card className="flex flex-col gap-4 p-5">
       <h2 className="font-semibold">Langganan baru</h2>
       <div className="flex flex-wrap gap-3">
-        <Field label="Nama pelanggan" htmlFor="s-name">
-          <Input id="s-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Siti Rahayu" />
+        <Field label="Pelanggan" htmlFor="s-name">
+          <select
+            id="s-name"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+            disabled={customers.loading}
+            className={`${inputClass} min-w-56`}
+          >
+            <option value="">
+              {customers.loading ? 'Memuat pelanggan…' : 'Pilih pelanggan terdaftar'}
+            </option>
+            {(customers.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.fullName ?? 'Tanpa nama'}
+                {c.phone ? ` · ${c.phone}` : ''}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Produk" htmlFor="s-prod">
           <Input id="s-prod" value={productLabel} onChange={(e) => setProductLabel(e.target.value)} placeholder="Galon 19L" />

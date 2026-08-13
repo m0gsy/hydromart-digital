@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { haversineKm } from '@hydromart/platform';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
@@ -6,6 +7,8 @@ import { IdentityPort } from '../ports/identity.port';
 import { OrderCrmPort, DepotCustomerOrderStats } from '../ports/order-crm.port';
 import { DepotLedgerPort } from '../ports/depot-ledger.port';
 import { ProfileRepository } from '../ports/profile.repository';
+import { ChurnRiskPort } from '../ports/churn-risk.port';
+import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
 import { MembershipTier } from '../../domain/membership-tier.enum';
 import {
   classifySegment,
@@ -148,6 +151,16 @@ export class DepotCrmService {
     @Inject(CUSTOMER_TOKENS.DepotLedgerPort) private readonly depotLedger: DepotLedgerPort,
     @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
     private readonly config: CustomerConfigService,
+    // Optional and LAST on purpose: every existing test double builds this service with
+    // seven arguments, and without these two the three fields they feed simply stay null —
+    // exactly what they were before. A required parameter here would have meant editing
+    // dozens of call sites to say "and this one is still unwired".
+    @Optional()
+    @Inject(CUSTOMER_TOKENS.DepotProfilePort)
+    private readonly depotProfile?: DepotProfilePort,
+    @Optional()
+    @Inject(CUSTOMER_TOKENS.ChurnRiskPort)
+    private readonly churn?: ChurnRiskPort,
   ) {}
 
   /**
@@ -170,13 +183,16 @@ export class DepotCrmService {
   }
 
   async listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerListItem[]> {
-    const [profileRows, stats, ledger] = await Promise.all([
+    const [profileRows, stats, ledger, subscriberIds] = await Promise.all([
       this.crm.listDepotCustomers(depotId),
       this.orderCrm.depotCustomerStats(depotId),
       // J-2. `null` (not []) when depot-service is unreachable or unconfigured, so the two
       // columns can say "belum tersambung" instead of printing a zero nobody checked.
       this.depotLedger.gallonsByCustomer(depotId),
+      // S2. One read for the whole directory, not one per row: the answer is a set.
+      this.depotProfile ? this.depotProfile.subscriberIds(depotId) : Promise.resolve(null),
     ]);
+    const subscribers = subscriberIds && new Set(subscriberIds);
     const ledgerBy = ledger && new Map(ledger.map((row) => [row.customerId, row]));
     const statsBy = new Map(stats.map((s) => [s.customerId, s]));
     const known = new Set(profileRows.map((r) => r.customerId));
@@ -215,9 +231,10 @@ export class DepotCrmService {
         // simply owes nothing comes back as 0, and the two are not the same answer.
         gallonsOnLoan: ledgerBy ? (ledgerBy.get(r.customerId)?.gallonsOnLoan ?? 0) : null,
         depositHeldIdr: ledgerBy ? (ledgerBy.get(r.customerId)?.depositHeldIdr ?? 0) : null,
-        // Still unwired: depot subscriptions carry a free-text customerName and a nullable
-        // customerId, so there is no id to match on for most of them.
-        isSubscriber: null,
+        // S2: matched on the linked account id. A subscription typed in as a free-text name
+        // is one nobody linked, not one that does not exist — which is why the create route
+        // now insists on a real customer. Null (not false) when depot-service went quiet.
+        isSubscriber: subscribers ? subscribers.has(r.customerId) : null,
       };
     });
     return q && q.trim() !== '' ? items.filter((i) => matches(i, q.trim())) : items;
@@ -294,7 +311,7 @@ export class DepotCrmService {
    * per-customer variant upstream only if a depot's directory ever gets big enough to hurt.
    */
   async getDepotDetail(customerId: string, depotId: string): Promise<DepotCustomerDetail> {
-    const [profile, addressRecords, identities, stats, ledgerRows, ledger, orders] =
+    const [profile, addressRecords, identities, stats, ledgerRows, ledger, orders, subscriberIds, geo, churnRisk] =
       await Promise.all([
         this.profiles.findByCustomerId(customerId),
         this.addresses.listByCustomer(customerId),
@@ -304,6 +321,10 @@ export class DepotCrmService {
         this.depotLedger.gallonsByCustomer(depotId),
         this.depotLedger.customerLedger(depotId, customerId),
         this.orderCrm.customerOrders(depotId, customerId),
+        this.depotProfile ? this.depotProfile.subscriberIds(depotId) : Promise.resolve(null),
+        // S2. Where the depot is, so each saved address can be judged against its radius.
+        this.depotProfile ? this.depotProfile.geo(depotId) : Promise.resolve(null),
+        this.churn ? this.churn.bandFor(customerId) : Promise.resolve(null),
       ]);
     const primary = addressRecords.find((a) => a.isPrimary) ?? addressRecords[0] ?? null;
     const account = identities.get(customerId);
@@ -323,13 +344,14 @@ export class DepotCrmService {
         totalSpentIdr: stats.length > 0 ? Math.round(stat?.totalSpent ?? 0) : null,
         gallonsOnLoan: ledgerRows ? (gallons?.gallonsOnLoan ?? 0) : null,
         depositHeldIdr: ledgerRows ? (gallons?.depositHeldIdr ?? 0) : null,
-        // Still unwired: depot subscriptions carry a free-text customerName and a nullable
-        // customerId, so there is no id to match on for most of them.
-        isSubscriber: null,
-        // Still unwired: churn scoring lives in forecast-service, which has no port here.
-        churnRisk: null,
+        // Same rule as the directory — see there.
+        isSubscriber: subscriberIds ? subscriberIds.includes(customerId) : null,
+        // S2: scored by forecast-service, one customer at a time. Null covers both "the
+        // service could not be read" and "they have never ordered" — neither of which is
+        // LOW, the one answer a manager acts on by doing nothing.
+        churnRisk,
       },
-      addresses: addressRecords.map((a) => this.toAddress(a)),
+      addresses: addressRecords.map((a) => this.toAddress(a, geo)),
       depositLedger: ledger,
       recentOrders: orders.map((o) => ({
         id: o.id,
@@ -340,7 +362,15 @@ export class DepotCrmService {
     };
   }
 
-  private toAddress(a: AddressRecord): DepotCrmAddress {
+  private toAddress(a: AddressRecord, geo: DepotGeo | null): DepotCrmAddress {
+    // S2. Both null unless BOTH ends have coordinates: an address nobody pinned cannot be
+    // in or out of a radius, and answering "0 km, in range" for it would send a courier to
+    // a place the system does not actually know. Same haversine order-service routes
+    // checkout with (@hydromart/platform), so the shop and the card cannot disagree.
+    const measurable = geo !== null && a.latitude !== null && a.longitude !== null;
+    const distanceKm = measurable
+      ? Math.round(haversineKm(a.latitude as number, a.longitude as number, geo.lat, geo.lng) * 10) / 10
+      : null;
     return {
       id: a.id,
       label: a.label,
@@ -352,9 +382,8 @@ export class DepotCrmService {
       latitude: a.latitude,
       longitude: a.longitude,
       isPrimary: a.isPrimary,
-      // TODO wire depot serviceRadiusKm/location port to compute these.
-      inRadius: null,
-      distanceKm: null,
+      inRadius: distanceKm === null ? null : distanceKm <= (geo as DepotGeo).serviceRadiusKm,
+      distanceKm,
     };
   }
 }

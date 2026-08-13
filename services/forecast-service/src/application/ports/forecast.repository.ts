@@ -112,4 +112,9 @@ export interface ForecastRepository {
     depotId?: string | null;
     limit: number;
   }): Promise<CustomerActivityRow[]>;
+  /**
+   * One customer's activity snapshot, for the depot CRM card (S2). Null when they have
+   * never ordered — which is not low risk, it is no basis for a risk at all.
+   */
+  findCustomerActivity(customerId: string): Promise<CustomerActivityRow | null>;
 }

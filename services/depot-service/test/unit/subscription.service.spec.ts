@@ -38,6 +38,21 @@ class InMemorySubscriptionRepository implements SubscriptionRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async activeCustomerIdsForDepot(depotId: string): Promise<string[]> {
+    return [
+      ...new Set(
+        this.rows
+          .filter(
+            (r) =>
+              r.depotId === depotId &&
+              r.status === SubscriptionStatus.ACTIVE &&
+              r.customerId !== null,
+          )
+          .map((r) => r.customerId as string),
+      ),
+    ];
+  }
+
   async findById(id: string): Promise<Subscription | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
@@ -145,5 +160,51 @@ describe('SubscriptionService', () => {
     expect(sub.customerId).toBe('44444444-4444-4444-4444-444444444444');
     expect(sub.nextRunAt).toEqual(nextRunAt);
     expect(sub.note).toBe('Titip pos satpam');
+  });
+});
+
+/*
+ * S2. `isSubscriber` on the depot CRM card was a hardcoded null because most subscription
+ * rows carried a free-text name and no `customerId`. This is the read that fixes it — and
+ * it deliberately answers about LINKED rows only: a subscription nobody attached to an
+ * account is not evidence that the person does not subscribe, which is why the create
+ * route now insists on a real customer.
+ */
+describe('SubscriptionService.activeCustomerIds', () => {
+  it('returns distinct linked customers with an ACTIVE subscription at this depot', async () => {
+    const repo = new InMemorySubscriptionRepository();
+    const depots = { exists: async () => true } as never;
+    const service = new SubscriptionService(repo, depots);
+    const base = {
+      depotId: 'depot-a',
+      customerName: 'x',
+      productLabel: 'Galon 19L',
+      quantity: 1,
+      cadence: SubscriptionCadence.WEEKLY,
+      nextRunAt: null,
+      note: null,
+    };
+    await service.create({ ...base, customerId: 'c1' });
+    // Same customer twice → one id, not two.
+    await service.create({ ...base, customerId: 'c1' });
+    await service.create({ ...base, customerId: 'c2' });
+    // Unlinked row: it exists, but there is no id to answer with.
+    await service.create({ ...base, customerId: null });
+    // Another depot's subscriber must not leak into this depot's directory.
+    await service.create({ ...base, depotId: 'depot-b', customerId: 'c9' });
+    // Paused: they are not currently subscribing.
+    const paused = await service.create({ ...base, customerId: 'c3' });
+    await service.pause(paused.id);
+
+    const ids = await service.activeCustomerIds('depot-a');
+    expect([...ids].sort()).toEqual(['c1', 'c2']);
+  });
+
+  it('returns an empty set for a depot with no linked subscribers', async () => {
+    const service = new SubscriptionService(
+      new InMemorySubscriptionRepository(),
+      { exists: async () => true } as never,
+    );
+    await expect(service.activeCustomerIds('depot-a')).resolves.toEqual([]);
   });
 });

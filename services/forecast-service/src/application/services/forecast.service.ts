@@ -223,6 +223,34 @@ export class ForecastService {
     };
   }
 
+  /**
+   * One customer's churn band, for the depot CRM card that used to hardcode null (S2).
+   *
+   * Not "look them up in `churnList`": that list is the top-N most at-risk, so a customer
+   * outside it would come back as LOW when the truth is "not in the sample". This scores
+   * the one customer through the same pure `churnRisk()` the list uses, with the same
+   * window and monetary reference — so the card and the at-risk queue can never disagree
+   * about the same person.
+   *
+   * Null when they have never ordered. That is not low risk; it is no basis for a risk.
+   */
+  async churnFor(
+    customerId: string,
+    now?: Date,
+  ): Promise<{ riskBand: ChurnBand; riskScore: number; daysSince: number } | null> {
+    const row = await this.repo.findCustomerActivity(customerId);
+    if (!row) return null;
+    const risk = churnRisk(
+      { lastOrderAt: row.lastOrderAt, orderCount: row.orderCount, totalSpent: row.totalSpent },
+      now ?? new Date(),
+      {
+        windowDays: clamp(this.config.churnWindowDays, MIN_CHURN_WINDOW, MAX_CHURN_WINDOW),
+        monetaryRef: this.config.churnMonetaryRef,
+      },
+    );
+    return { riskBand: risk.riskBand, riskScore: risk.riskScore, daysSince: risk.daysSince };
+  }
+
   async churnList(params: {
     depotId?: string | null;
     limit?: number;

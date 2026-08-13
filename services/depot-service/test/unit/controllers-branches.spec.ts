@@ -1098,11 +1098,20 @@ describe('SubscriptionController', () => {
     get: jest.fn(),
     pause: jest.fn(),
     resume: jest.fn(),
+    activeCustomerIds: jest.fn(),
   };
   const c = new SubscriptionController(svc as never);
   beforeEach(() => {
     jest.clearAllMocks();
     svc.get.mockResolvedValue({ depotId: DEPOT });
+  });
+
+  // S2. Ids only: the caller is customer-service filling in one boolean per person, and the
+  // subscription's product, cadence and note are none of its business.
+  it('answers the internal read with ids alone, wrapped for the caller', async () => {
+    svc.activeCustomerIds.mockResolvedValue(['c1', 'c2']);
+    await expect(c.activeCustomerIds(DEPOT)).resolves.toEqual({ customerIds: ['c1', 'c2'] });
+    expect(svc.activeCustomerIds).toHaveBeenCalledWith(DEPOT);
   });
 
   it('lists, creates with defaults/optionals, pauses and resumes', async () => {

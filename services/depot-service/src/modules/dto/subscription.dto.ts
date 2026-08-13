@@ -18,10 +18,16 @@ export class CreateSubscriptionDto {
   @IsUUID()
   depotId!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Linked customer account, if any.' })
-  @IsOptional()
+  /**
+   * Required (S2). It used to be optional, and most rows were created without it — so the
+   * depot CRM could not tell a subscriber from anyone else, and `isSubscriber` was a
+   * hardcoded null on every card. A free-text name is a note, not a link; the console form
+   * now picks a registered customer. Rows created before this stay unlinked until someone
+   * fixes them by hand.
+   */
+  @ApiProperty({ format: 'uuid', description: 'Linked customer account.' })
   @IsUUID()
-  customerId?: string;
+  customerId!: string;
 
   @ApiProperty({ example: 'Ibu Sari' })
   @IsString()

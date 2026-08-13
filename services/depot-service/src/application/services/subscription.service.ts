@@ -33,6 +33,11 @@ export class SubscriptionService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
   ) {}
 
+  /** Ids of this depot's customers holding an ACTIVE subscription (S2, service-to-service). */
+  activeCustomerIds(depotId: string): Promise<string[]> {
+    return this.subscriptions.activeCustomerIdsForDepot(depotId);
+  }
+
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
