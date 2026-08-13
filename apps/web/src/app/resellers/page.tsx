@@ -2,17 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  Field,
-  Input,
-  LinkButton,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { RemoteImage } from '@/components/remote-image';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -385,6 +375,9 @@ export default function ResellersPage() {
               </option>
             ))}
           </select>
+          {/* Nothing below this picker exists until a depot is chosen, so an unread list is
+              a page that stays empty for a reason it never gives. */}
+          {depotList.error && <LoadError onRetry={depotList.reload} />}
         </Card>
       )}
 
