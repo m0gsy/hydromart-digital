@@ -184,8 +184,9 @@ export class CreateEmployeeDto {
 
   /**
    * Last paid day, for a leaver being imported (or corrected in UPSERT mode). Payroll
-   * clamps the paid period to joinDate..exitDate and never reads `status`, so a spreadsheet
-   * that could not carry this column could not record a leaver at all.
+   * clamps the paid period to joinDate..exitDate, so a spreadsheet that could not carry
+   * this column could not record a leaver at all — and since 2026-08-14 a RESIGNED row
+   * without this date is REFUSED by payroll rather than paid in full.
    */
   @IsOptional()
   @IsISO8601()
@@ -326,8 +327,8 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsEnum(EmployeeStatus) status?: EmployeeStatus;
   /**
    * Last paid day. `null` clears it — a rehire whose exit date stayed behind would be paid
-   * nothing forever, since payroll clamps the period to joinDate..exitDate and never asks
-   * `status`.
+   * nothing forever, since payroll clamps the period to joinDate..exitDate. Clearing it on
+   * a row still marked RESIGNED makes payroll refuse instead: set the status back too.
    */
   @IsOptional()
   @ValidateIf((o: UpdateEmployeeDto) => o.exitDate !== null)

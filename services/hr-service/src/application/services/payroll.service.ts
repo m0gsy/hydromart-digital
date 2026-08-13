@@ -89,6 +89,19 @@ export class PayrollService {
       );
     }
 
+    // D3b — a RESIGNED employee is off the payroll, but only a DATE can say how much of the
+    // period they earned, and `employmentWindow` reads nothing but `joinDate`/`exitDate`. A
+    // resignation recorded without a date used to pay the full month, every month, forever.
+    // User decision 2026-08-14: the status stops the wage — by REFUSING, not by guessing an
+    // exit day. Inventing one is the same leak wearing a date. The status alone stays valid
+    // on the employee record (it switches the login off); it is payroll that needs the date.
+    if (employee.status === 'RESIGNED' && !employee.exitDate) {
+      throw new BadRequestException(
+        'Karyawan berstatus RESIGNED tanpa tanggal keluar. Isi tanggal keluar (exitDate) ' +
+          `dulu sebelum membuat payroll ${periodMonth}.`,
+      );
+    }
+
     const { from, to } = this.monthRange(periodMonth);
     // Depot SOP daily gallon bonus. Parsed BEFORE the reads so the cross-service gallon
     // call is only paid for when a ladder is actually configured — an empty ladder (every
@@ -621,7 +634,9 @@ export class PayrollService {
    * `contractEndDate` is deliberately NOT a boundary here. The schema calls it "a reminder
    * for HR, not a status change", and it is null for every open-ended employee — clamping
    * pay to it would silently stop paying someone whose renewal paperwork is late, which is
-   * a worse failure than the one this fixes. Only a recorded `exitDate` ends the wage.
+   * a worse failure than the one this fixes. Only a recorded `exitDate` ends the wage —
+   * `status: RESIGNED` without one does not shorten the window, it makes `generate` refuse
+   * (see D3b there), because a window needs a day and a status is not one.
    */
   private async employmentWindow(
     employee: Employee,

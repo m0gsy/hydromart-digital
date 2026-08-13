@@ -204,6 +204,15 @@ describe('who may be generated for at all', () => {
     await expect(svc.generate(USER, 'emp_1', PERIOD)).rejects.toThrow(/tidak bekerja/i);
   });
 
+  it('refuses a RESIGNED employee whose exit date was never filled in', async () => {
+    // User decision 2026-08-14: status stops the wage too. But only a DATE says how much of
+    // the period was earned, so the refusal asks for the date instead of guessing one —
+    // paying the full month was the leak, and inventing an exit day is a quieter version of
+    // the same leak.
+    const { svc } = build({ status: 'RESIGNED', exitDate: null });
+    await expect(svc.generate(USER, 'emp_1', PERIOD)).rejects.toThrow(/tanggal keluar/i);
+  });
+
   it('STILL generates the final payslip of someone who left mid-period', async () => {
     // The trap in "reject non-ACTIVE": status flips to RESIGNED the moment they leave, and
     // the final payroll is generated AFTER that. Refusing on status alone makes it
