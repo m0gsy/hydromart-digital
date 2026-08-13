@@ -483,4 +483,16 @@ export const opsFix = {
     gate: 'Khusus Manajer depot',
     gateBody: 'Target & goals depot hanya untuk Manajer depot.',
   },
+  // dashboard/ratings — PR-8. Sebelumnya seluruhnya hardcoded.
+  ratings: {
+    title: 'Rating pelanggan',
+    headerSub: '{n} ulasan · 30 hari',
+    outOfFive: 'dari 5,0',
+    empty: 'Belum ada ulasan',
+    emptyBody: 'Belum ada ulasan pelanggan untuk depot ini dalam 30 hari terakhir.',
+    pickDepot: 'Pilih depot',
+    pickDepotBody: 'Pilih depot di switcher untuk melihat rating pelanggan.',
+    gate: 'Khusus Manajer depot',
+    gateBody: 'Rating & ulasan pelanggan hanya untuk Manajer depot.',
+  },
 };

@@ -482,4 +482,16 @@ export const opsFix = {
     gate: 'Depot managers only',
     gateBody: 'Depot targets and goals are for depot managers only.',
   },
+  // dashboard/ratings — PR-8. Mirrors id/opsFix.ratings key for key.
+  ratings: {
+    title: 'Customer ratings',
+    headerSub: '{n} reviews · 30 days',
+    outOfFive: 'out of 5.0',
+    empty: 'No reviews yet',
+    emptyBody: 'No customer review for this depot in the last 30 days.',
+    pickDepot: 'Pick a depot',
+    pickDepotBody: 'Pick a depot in the switcher to see its customer ratings.',
+    gate: 'Depot managers only',
+    gateBody: 'Customer ratings and reviews are for depot managers only.',
+  },
 };
