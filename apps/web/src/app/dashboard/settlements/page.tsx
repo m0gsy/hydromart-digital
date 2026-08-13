@@ -12,6 +12,7 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canVerifySettlement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
 
 const STATUSES: SettlementStatus[] = ['SUBMITTED', 'VERIFIED', 'DISPUTED'];
@@ -52,6 +53,7 @@ function SettlementRow({
   onDone: () => void;
   driverName: (id: string) => string;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'verify' | 'dispute' | null>(null);
   const [charge, setCharge] = useState(true);
@@ -63,7 +65,7 @@ function SettlementRow({
 
   const act = async (kind: 'verify' | 'dispute') => {
     if (kind === 'dispute' && note.trim() === '') {
-      setError('Isi alasan sengketa.');
+      setError(t('opsFix.settlements.disputeReasonRequired'));
       return;
     }
     setBusy(kind);
@@ -76,7 +78,7 @@ function SettlementRow({
       }
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('opsFix.settlements.actionError'));
     } finally {
       setBusy(null);
     }
@@ -98,12 +100,15 @@ function SettlementRow({
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{driverName(s.driverId)}</p>
             <p className="text-xs text-[color:var(--text-muted)]">
-              {s.orderIds.length} pesanan COD · setor {TIME.format(new Date(s.createdAt))}
+              {t('opsFix.settlements.ordersLine', {
+                n: s.orderIds.length,
+                time: TIME.format(new Date(s.createdAt)),
+              })}
             </p>
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-xs text-[color:var(--text-muted)]">Wajib setor</p>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('opsFix.settlements.expected')}</p>
           <p className="flex items-center justify-end gap-1 text-sm font-bold tabular-nums">
             <Money size={14} weight="fill" />
             {formatIDR(s.expectedAmount)}
@@ -116,7 +121,7 @@ function SettlementRow({
         <>
           {!open ? (
             <Button onClick={() => setOpen(true)} className="w-full">
-              Hitung &amp; verifikasi
+              {t('opsFix.settlements.countVerify')}
             </Button>
           ) : (
             <div className="flex flex-col gap-3 border-t border-app pt-3">
@@ -129,32 +134,34 @@ function SettlementRow({
               >
                 <Money size={16} weight="fill" />
                 <span className="tabular-nums">
-                  Disetor {formatIDR(s.depositedAmount)}
+                  {t('opsFix.settlements.deposited')} {formatIDR(s.depositedAmount)}
                   {' · '}
                   {shortfall
-                    ? `kurang ${formatIDR(Math.abs(s.variance))}`
+                    ? t('opsFix.settlements.short', { amount: formatIDR(Math.abs(s.variance)) })
                     : s.variance > 0
-                      ? `lebih ${formatIDR(s.variance)}`
-                      : 'pas'}
+                      ? t('opsFix.settlements.over', { amount: formatIDR(s.variance) })
+                      : t('opsFix.settlements.exact')}
                 </span>
               </div>
 
               {shortfall && (
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={charge} onChange={(e) => setCharge(e.target.checked)} />
-                  Bebankan selisih {formatIDR(Math.abs(s.variance))} ke saldo kurir
+                  {t('opsFix.settlements.chargeCourier', {
+                    amount: formatIDR(Math.abs(s.variance)),
+                  })}
                 </label>
               )}
-              <Field label="Catatan (opsional untuk verifikasi, wajib untuk sengketa)" htmlFor={`note-${s.id}`}>
-                <Input id={`note-${s.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder="mis. dihitung bersama kasir" />
+              <Field label={t('opsFix.settlements.note')} htmlFor={`note-${s.id}`}>
+                <Input id={`note-${s.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.settlements.notePlaceholder')} />
               </Field>
               {error && <p className="text-sm font-medium text-[color:var(--danger)]">{error}</p>}
               <div className="flex gap-2">
                 <Button onClick={() => act('verify')} loading={busy === 'verify'} className="flex-1">
-                  Verifikasi
+                  {t('opsFix.settlements.verify')}
                 </Button>
                 <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">
-                  Sengketakan
+                  {t('opsFix.settlements.dispute')}
                 </Button>
               </div>
             </div>
@@ -174,35 +181,41 @@ function SettlementRow({
               >
                 {STATUS_LABEL[s.status]}
               </span>
-              <span className="text-sm font-bold tabular-nums">Disetor {formatIDR(s.depositedAmount)}</span>
+              <span className="text-sm font-bold tabular-nums">
+                {t('opsFix.settlements.depositedAmount', { amount: formatIDR(s.depositedAmount) })}
+              </span>
               {shortfall && (
                 <span className="text-sm font-bold tabular-nums text-[color:var(--danger)]">
-                  Kurang {formatIDR(Math.abs(s.variance))}
+                  {t('opsFix.settlements.shortAmount', {
+                    amount: formatIDR(Math.abs(s.variance)),
+                  })}
                 </span>
               )}
             </div>
             <Button variant="secondary" onClick={() => setOpen((v) => !v)} className="px-3 py-1.5 text-xs">
-              Rincian
+              {t('opsFix.settlements.details')}
               <CaretDown size={12} weight="bold" className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
             </Button>
           </div>
           {open && (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-app pt-2 text-xs">
-              <dt className="text-[color:var(--text-muted)]">Wajib setor</dt>
+              <dt className="text-[color:var(--text-muted)]">{t('opsFix.settlements.dtExpected')}</dt>
               <dd className="text-right font-medium tabular-nums">{formatIDR(s.expectedAmount)}</dd>
-              <dt className="text-[color:var(--text-muted)]">Disetor</dt>
+              <dt className="text-[color:var(--text-muted)]">{t('opsFix.settlements.dtDeposited')}</dt>
               <dd className="text-right font-medium tabular-nums">{formatIDR(s.depositedAmount)}</dd>
-              <dt className="text-[color:var(--text-muted)]">Selisih</dt>
+              <dt className="text-[color:var(--text-muted)]">{t('opsFix.settlements.dtVariance')}</dt>
               <dd className="text-right font-medium tabular-nums">{formatIDR(s.variance)}</dd>
               {shortfall && (
                 <>
-                  <dt className="text-[color:var(--text-muted)]">Dibebankan ke kurir</dt>
-                  <dd className="text-right font-medium">{s.chargedToDriver ? 'Ya' : 'Tidak'}</dd>
+                  <dt className="text-[color:var(--text-muted)]">{t('opsFix.settlements.dtCharged')}</dt>
+                  <dd className="text-right font-medium">
+                    {s.chargedToDriver ? t('opsFix.settlements.yes') : t('opsFix.settlements.no')}
+                  </dd>
                 </>
               )}
               {s.note && (
                 <>
-                  <dt className="text-[color:var(--text-muted)]">Catatan</dt>
+                  <dt className="text-[color:var(--text-muted)]">{t('opsFix.settlements.dtNote')}</dt>
                   <dd className="text-right font-medium">{s.note}</dd>
                 </>
               )}
@@ -215,6 +228,7 @@ function SettlementRow({
 }
 
 function Body() {
+  const { t } = useT();
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<SettlementStatus>('SUBMITTED');
   const driverName = useDriverNames();
@@ -230,13 +244,13 @@ function Body() {
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <Wallet size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Verifikasi setoran COD</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.settlements.title')}</h1>
         </div>
         <p className="text-sm text-[color:var(--text-muted)]">
-          Shift {DAY.format(new Date())} · {waiting} setoran menunggu
+          {t('opsFix.settlements.shiftLine', { date: DAY.format(new Date()), n: waiting })}
         </p>
         <p className="text-sm text-[color:var(--text-muted)]">
-          {selected ? `Depot ${selected.name}` : 'Menampilkan depot pertama — pilih depot di switcher untuk memverifikasi setoran.'}
+          {selected ? `Depot ${selected.name}` : t('opsFix.settlements.depotHint')}
         </p>
       </header>
 
@@ -263,8 +277,8 @@ function Body() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.length === 0 ? (
-        <CenterState title="Tidak ada setoran" icon={<Wallet size={40} weight="fill" />}>
-          Belum ada setoran {STATUS_LABEL[status].toLowerCase()} untuk depot ini.
+        <CenterState title={t('opsFix.settlements.empty')} icon={<Wallet size={40} weight="fill" />}>
+          {t('opsFix.settlements.emptyBody', { status: STATUS_LABEL[status].toLowerCase() })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -275,19 +289,19 @@ function Body() {
       )}
 
       <Card className="bg-brand-50 p-4 text-sm text-[color:var(--text-muted)]" elevated={false}>
-        Verifikasi mencocokkan tunai fisik dengan total COD kurir. Selisih tercatat sebagai tanggungan kurir &amp; muncul di
-        riwayat setoran app kurir.
+        {t('opsFix.settlements.footer')}
       </Card>
     </div>
   );
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canVerifySettlement(customer?.role)) {
     return (
-      <CenterState title="Khusus kasir depot" icon={<Lock size={40} weight="fill" />}>
-        Verifikasi setoran COD tersedia untuk operator/manajer depot dan finance.
+      <CenterState title={t('opsFix.settlements.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.settlements.gateBody')}
       </CenterState>
     );
   }
