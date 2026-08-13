@@ -6,16 +6,19 @@ import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { InventoryItem, InventoryItemType, Page, Product } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
-const RAW_TYPES: { value: InventoryItemType; label: string }[] = [
-  { value: 'AIR', label: 'Air (bahan baku)' },
-  { value: 'GALON', label: 'Galon kosong' },
-  { value: 'TUTUP', label: 'Tutup galon' },
-  { value: 'SEGEL', label: 'Segel' },
+// Keys, not labels: this list is rendered through `t()` so the EN toggle reaches the
+// dropdown too.
+const RAW_TYPES: { value: InventoryItemType; key: string }[] = [
+  { value: 'AIR', key: 'typeAir' },
+  { value: 'GALON', key: 'typeGalon' },
+  { value: 'TUTUP', key: 'typeTutup' },
+  { value: 'SEGEL', key: 'typeSegel' },
 ];
 
 /**
@@ -41,6 +44,7 @@ export function NewLineForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 })), []);
   const [itemType, setItemType] = useState<InventoryItemType>('PRODUK');
   const [productId, setProductId] = useState(preselectProductId ?? '');
@@ -60,17 +64,17 @@ export function NewLineForm({
 
   async function submit() {
     if (isProduk && !productId) {
-      setError('Pilih produk dari katalog dulu.');
+      setError(t('opsFix.newLine.pickFromCatalog'));
       return;
     }
     if (!isProduk && !label.trim()) {
-      setError('Isi nama barangnya.');
+      setError(t('opsFix.newLine.nameRequired'));
       return;
     }
     const qty = Number(quantity || 0);
     const min = Number(minimumStock || 0);
     if (!Number.isInteger(qty) || qty < 0 || !Number.isInteger(min) || min < 0) {
-      setError('Jumlah dan stok minimum harus angka bulat 0 atau lebih.');
+      setError(t('opsFix.newLine.numbersRequired'));
       return;
     }
     setBusy(true);
@@ -95,7 +99,7 @@ export function NewLineForm({
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuat baris stok.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.newLine.saveError'));
     } finally {
       setBusy(false);
     }
@@ -104,31 +108,28 @@ export function NewLineForm({
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div>
-        <h2 className="text-lg font-bold">Tambah baris stok</h2>
-        <p className="text-sm text-muted">
-          Baris stok menghubungkan produk katalog dengan depot ini. Tanpa baris, produk tetap
-          bisa dipesan tapi stoknya tidak pernah berkurang.
-        </p>
+        <h2 className="text-lg font-bold">{t('opsFix.newLine.title')}</h2>
+        <p className="text-sm text-muted">{t('opsFix.newLine.subtitle')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Jenis">
+        <Field label={t('opsFix.newLine.kind')}>
           <select
             value={itemType}
             onChange={(e) => setItemType(e.target.value as InventoryItemType)}
             className={inputClass}
           >
-            <option value="PRODUK">Produk jadi (dari katalog)</option>
+            <option value="PRODUK">{t('opsFix.newLine.typeProduk')}</option>
             {RAW_TYPES.map((r) => (
               <option key={r.value} value={r.value}>
-                {r.label}
+                {t(`opsFix.newLine.${r.key}`)}
               </option>
             ))}
           </select>
         </Field>
 
         {isProduk ? (
-          <Field label="Produk">
+          <Field label={t('opsFix.newLine.product')}>
             <select
               value={productId}
               onChange={(e) => setProductId(e.target.value)}
@@ -136,7 +137,7 @@ export function NewLineForm({
               disabled={catalog.loading}
             >
               <option value="">
-                {catalog.loading ? 'Memuat katalog…' : 'Pilih produk…'}
+                {catalog.loading ? t('opsFix.newLine.loadingCatalog') : t('opsFix.newLine.pickProduct')}
               </option>
               {options.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -147,16 +148,16 @@ export function NewLineForm({
           </Field>
         ) : (
           <>
-            <Field label="Nama barang">
-              <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Galon 19L" />
+            <Field label={t('opsFix.newLine.itemName')}>
+              <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('opsFix.newLine.itemNamePlaceholder')} />
             </Field>
-            <Field label="Satuan">
-              <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="unit / liter / pcs" />
+            <Field label={t('opsFix.newLine.unit')}>
+              <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder={t('opsFix.newLine.unitPlaceholder')} />
             </Field>
           </>
         )}
 
-        <Field label="Stok awal">
+        <Field label={t('opsFix.newLine.openingStock')}>
           <Input
             inputMode="numeric"
             value={quantity}
@@ -164,7 +165,7 @@ export function NewLineForm({
             placeholder="0"
           />
         </Field>
-        <Field label="Stok minimum (0 = tanpa alert)">
+        <Field label={t('opsFix.newLine.minStock')}>
           <Input
             inputMode="numeric"
             value={minimumStock}
@@ -173,12 +174,12 @@ export function NewLineForm({
           />
         </Field>
         {isProduk && (
-          <Field label="Harga khusus depot (opsional)">
+          <Field label={t('opsFix.newLine.depotPrice')}>
             <Input
               inputMode="numeric"
               value={sellPrice}
               onChange={(e) => setSellPrice(e.target.value)}
-              placeholder="kosong = harga katalog"
+              placeholder={t('opsFix.newLine.depotPricePlaceholder')}
             />
           </Field>
         )}
@@ -188,9 +189,7 @@ export function NewLineForm({
           product already has a stock row — the one reading that stops somebody adding one. */}
       {isProduk && catalog.error && <LoadError onRetry={catalog.reload} />}
       {isProduk && !catalog.loading && !catalog.error && options.length === 0 && (
-        <p className="text-sm text-muted">
-          Semua produk katalog sudah punya baris stok di depot ini.
-        </p>
+        <p className="text-sm text-muted">{t('opsFix.newLine.allTracked')}</p>
       )}
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -199,10 +198,10 @@ export function NewLineForm({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('opsFix.newLine.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan baris
+          {t('opsFix.newLine.save')}
         </Button>
       </div>
     </Card>
