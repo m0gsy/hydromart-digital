@@ -22,6 +22,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   Money,
   Skeleton,
 } from '@/components/ui';
@@ -315,6 +316,9 @@ function ProductAdmin() {
                   </option>
                 ))}
               </select>
+              {/* An empty list here reads as "this shop has no categories", and the product
+                  gets saved uncategorised because of a read nobody was told about. */}
+              {categories.error && <LoadError onRetry={categories.reload} />}
             </Field>
           </div>
           <Field label="Deskripsi (opsional)">

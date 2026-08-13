@@ -143,6 +143,9 @@ export const id = {
     retry: 'Coba lagi',
     loading: 'Memuat…',
     somethingWrong: 'Ada yang tidak beres',
+    // A lookup that fills a control, not the page. Deliberately not 'kosong': an empty
+    // dropdown and a dropdown that could not be asked are opposite answers.
+    loadFailed: 'Gagal dimuat.',
     // Used by the HQ order queue's assign-depot failure; without it the screen printed
     // the key itself at the user.
     error: 'Ada yang tidak beres.',

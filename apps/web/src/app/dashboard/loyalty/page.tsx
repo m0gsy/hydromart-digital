@@ -3,7 +3,7 @@
 import { Coins, Crown, Gift, Lock, Medal, Sparkle } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, Chip, Skeleton } from '@/components/ui';
+import { Card, CenterState, Chip, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -90,10 +90,22 @@ function LoyaltyBody() {
         <Chip tone="outline">{t('dashB.loyalty.manageRules')}</Chip>
       </div>
 
+      {/* `idr()` floors a missing number to 0, so an unread summary used to report zero
+          members and zero points outstanding — a solvent-looking depot with no liability. */}
+      {summary.error && <LoadError onRetry={summary.reload} />}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label={t('dashB.loyalty.members')} value={summary.loading ? '…' : idr(s?.totalMembers)} />
-        <Stat label={t('dashB.loyalty.pointsOutstanding')} value={summary.loading ? '…' : idr(s?.pointsOutstanding)} />
-        <Stat label={t('dashB.loyalty.redeemedMonth')} value={summary.loading ? '…' : idr(s?.redeemedThisMonth)} />
+        <Stat
+          label={t('dashB.loyalty.members')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.totalMembers)}
+        />
+        <Stat
+          label={t('dashB.loyalty.pointsOutstanding')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.pointsOutstanding)}
+        />
+        <Stat
+          label={t('dashB.loyalty.redeemedMonth')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.redeemedThisMonth)}
+        />
       </div>
 
       <Card className="flex flex-col gap-3 p-5">
@@ -120,6 +132,8 @@ function LoyaltyBody() {
         </h2>
         {tiers.loading ? (
           <Skeleton className="h-28 w-full" />
+        ) : tiers.error ? (
+          <LoadError onRetry={tiers.reload} />
         ) : (
           <div className="grid gap-3 sm:grid-cols-3">
             {cards.map((c) => (

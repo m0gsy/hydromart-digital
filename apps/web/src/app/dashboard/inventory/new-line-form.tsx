@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -184,7 +184,10 @@ export function NewLineForm({
         )}
       </div>
 
-      {isProduk && !catalog.loading && options.length === 0 && (
+      {/* An unread catalog leaves `options` empty, and the line below would then claim every
+          product already has a stock row — the one reading that stops somebody adding one. */}
+      {isProduk && catalog.error && <LoadError onRetry={catalog.reload} />}
+      {isProduk && !catalog.loading && !catalog.error && options.length === 0 && (
         <p className="text-sm text-muted">
           Semua produk katalog sudah punya baris stok di depot ini.
         </p>

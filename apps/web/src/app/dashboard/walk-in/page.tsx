@@ -147,7 +147,12 @@ function WalkIn({ depotId }: { depotId: string }) {
     // The depot can change under a selected method (switcher, or the payment info loading
     // late), and confirming money into an account nobody published is worse than refusing.
     if (!methodReady[method]) {
-      return toast('Depot ini belum mengatur tujuan pembayaran untuk metode itu.', 'error');
+      return toast(
+        payTo.error
+          ? 'Tujuan pembayaran depot tidak terbaca — muat ulang halaman sebelum menerima QRIS/transfer.'
+          : 'Depot ini belum mengatur tujuan pembayaran untuk metode itu.',
+        'error',
+      );
     }
     // A voucher is spent from an account. Without a phone there is no account to spend from,
     // and the server would reject the sale after the buyer already agreed to the price.
@@ -382,6 +387,18 @@ function WalkIn({ depotId }: { depotId: string }) {
             <Money amount={total} />
           </span>
         </div>
+        {/* Unread resolved prices silently fall back to the catalog base price, so the
+            depot's own override and any active rule vanish from the counter total. Not a
+            refusal — the till has to keep working — but the cashier is told which number
+            they are looking at. The struk still comes from `order.total`. */}
+        {resolved.error && (
+          <p className="text-xs font-semibold text-red-600">
+            Harga khusus depot tidak terbaca — total memakai harga dasar katalog.{' '}
+            <button type="button" onClick={resolved.reload} className="underline">
+              Muat ulang
+            </button>
+          </p>
+        )}
         {(voucher.trim() || phone.trim()) && (
           // The counter shows the shelf price. Tier, agen price and voucher are all priced by
           // the server against the buyer's own account (the token here is the cashier's), so

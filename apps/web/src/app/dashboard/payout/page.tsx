@@ -118,7 +118,11 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
     // to send a hardcoded reference, so the request always "worked" and the money had nowhere
     // recorded to go.
     if (!bankAccountRef) {
-      setError('Depot ini belum mengisi rekening bank — atur dulu di Pengaturan pembayaran.');
+      setError(
+        bank.error
+          ? 'Rekening depot tidak terbaca — coba muat ulang sebelum menarik dana.'
+          : 'Depot ini belum mengisi rekening bank — atur dulu di Pengaturan pembayaran.',
+      );
       return;
     }
     setBusy(true);
@@ -171,8 +175,13 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
         <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
           <Bank size={18} weight="fill" className="text-[#8fe3ee]" />
           <div className="leading-tight">
+            {/* "Belum diatur" is an instruction to go and fill a form that is already
+                filled. An unread setting is a different sentence, and the refusal below
+                would otherwise blame the depot for an outage. */}
             <p className="text-xs font-extrabold">
-              {bankAccountRef || 'Rekening belum diatur'}
+              {bank.error
+                ? 'Rekening tidak terbaca'
+                : bankAccountRef || 'Rekening belum diatur'}
             </p>
             <p className="text-[10.5px] text-white/70">{t('dashB.payout.registeredAccount')}</p>
           </div>

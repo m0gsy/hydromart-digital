@@ -285,6 +285,11 @@ function EffectivePreview({ depotId }: { depotId: string }) {
   if (products.length === 0)
     return <p className="text-sm text-muted">{t('dashboard.pricing.noProducts')}</p>;
 
+  // Without the resolved prices every row falls back to the base price and the "efektif"
+  // column states a number this depot does not charge. A missing column is recoverable;
+  // a wrong price on a pricing screen is what somebody quotes a customer.
+  if (resolved.error) return <ErrorState message={resolved.error} onRetry={resolved.reload} />;
+
   const byId = new Map((resolved.data ?? []).map((r) => [r.productId, r]));
 
   return (

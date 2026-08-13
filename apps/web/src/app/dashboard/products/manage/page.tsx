@@ -5,7 +5,18 @@ import { ArrowDown, ArrowUp, Lock, Info, Package, Plus, Trash } from '@phosphor-
 
 import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -298,6 +309,10 @@ function ProductsManageBody() {
           </Button>
         )}
       </div>
+
+      {/* The form's category select is filled from here; empty and unread look the same
+          in a dropdown, and the product is saved uncategorised either way. */}
+      {categories.error && <LoadError onRetry={categories.reload} />}
 
       {creating && (
         <ProductForm

@@ -4,7 +4,17 @@ import { useState } from 'react';
 import { Info, Lock, Megaphone, PaperPlaneTilt, UsersThree, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CenterState,
+  Chip,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -144,6 +154,8 @@ ${body.trim()}`,
             );
           })}
         </div>
+        {/* No chip count is not "nobody is in this segment" — say which one it is. */}
+        {reach.error && <LoadError onRetry={reach.reload} className="mt-2" />}
       </div>
       <div>
         <p className="mb-2 text-[11.5px] font-bold">{t('dashA.broadcast.levelLabel')}</p>

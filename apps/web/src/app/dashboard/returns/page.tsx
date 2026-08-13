@@ -4,7 +4,18 @@ import { useState } from 'react';
 import { Lock, Recycle, Plus } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -361,6 +372,15 @@ function ReturnsBody() {
             <Skeleton className="h-20 w-full" />
           ) : summary.data && issueSummary.data ? (
             <KpiTiles issue={issueSummary.data} ret={summary.data} />
+          ) : summary.error || issueSummary.error ? (
+            // The tiles used to vanish on a failed read, which on a KPI strip reads as
+            // "nothing to report" rather than as a strip that could not be filled.
+            <LoadError
+              onRetry={() => {
+                summary.reload();
+                issueSummary.reload();
+              }}
+            />
           ) : null}
 
           {list.loading ? (

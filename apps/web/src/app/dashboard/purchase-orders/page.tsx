@@ -5,7 +5,18 @@ import Link from 'next/link';
 import { ClipboardText, Lock, Sparkle, Truck, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -162,6 +173,9 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
         <Skeleton className="h-40 w-full" />
       ) : low.error ? (
         <ErrorState message={low.error} onRetry={low.reload} />
+      ) : suppliers.error ? (
+        // Not `noSuppliers`: that sends an operator off to register a supplier that exists.
+        <LoadError onRetry={suppliers.reload} />
       ) : suppliers.data && suppliers.data.length === 0 ? (
         <p className="rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-sm text-muted">{t('opsFix.poDraft.noSuppliers')}</p>
       ) : items.length === 0 ? (
