@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { DepotCustomer, DepotSubscription, DepotSubscriptionCadence } from '@/lib/types';
 
 const inputClass =
@@ -48,6 +49,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 /** Create a standing order. POSTs then reloads the roster. */
 function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   /**
    * A registered customer, not a typed name (S2).
@@ -98,7 +100,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
           customerId: picked.id,
           // Still sent: the roster reads as a list of people, and the account name at the
           // moment of signing up is what the depot agreed with.
-          customerName: picked.fullName ?? 'Tanpa nama',
+          customerName: picked.fullName ?? t('opsFix.subs.noName'),
           productLabel: productLabel.trim(),
           quantity: qty,
           cadence,
@@ -111,21 +113,21 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
       setOpen(false);
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuat langganan.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.subs.createError'));
     } finally {
       setBusy(false);
     }
   }
 
   if (!open) {
-    return <Button onClick={() => setOpen(true)}>Langganan baru</Button>;
+    return <Button onClick={() => setOpen(true)}>{t('opsFix.subs.newSub')}</Button>;
   }
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">Langganan baru</h2>
+      <h2 className="font-semibold">{t('opsFix.subs.newSub')}</h2>
       <div className="flex flex-wrap gap-3">
-        <Field label="Pelanggan" htmlFor="s-name">
+        <Field label={t('opsFix.subs.customer')} htmlFor="s-name">
           <select
             id="s-name"
             value={customerId}
@@ -147,12 +149,12 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
               shorter list — it is a form nobody can submit, for a reason not on screen. */}
           {customers.error && <LoadError onRetry={customers.reload} />}
         </Field>
-        <Field label="Produk" htmlFor="s-prod">
-          <Input id="s-prod" value={productLabel} onChange={(e) => setProductLabel(e.target.value)} placeholder="Galon 19L" />
+        <Field label={t('opsFix.subs.product')} htmlFor="s-prod">
+          <Input id="s-prod" value={productLabel} onChange={(e) => setProductLabel(e.target.value)} placeholder={t('opsFix.subs.productPlaceholder')} />
         </Field>
       </div>
       <div className="flex flex-wrap gap-3">
-        <Field label="Jumlah galon" htmlFor="s-qty">
+        <Field label={t('opsFix.subs.qty')} htmlFor="s-qty">
           <Input
             id="s-qty"
             type="number"
@@ -160,10 +162,10 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             min={1}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="2"
+            placeholder={t('opsFix.subs.qtyPlaceholder')}
           />
         </Field>
-        <Field label="Frekuensi" htmlFor="s-cad">
+        <Field label={t('opsFix.subs.cadence')} htmlFor="s-cad">
           <select
             id="s-cad"
             value={cadence}
@@ -177,12 +179,12 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             ))}
           </select>
         </Field>
-        <Field label="Jalan berikutnya" htmlFor="s-next">
+        <Field label={t('opsFix.subs.nextRun')} htmlFor="s-next">
           <Input id="s-next" type="date" value={nextRunAt} onChange={(e) => setNextRunAt(e.target.value)} />
         </Field>
       </div>
-      <Field label="Catatan" htmlFor="s-note">
-        <Input id="s-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="mis. antar sebelum jam 9 pagi" />
+      <Field label={t('opsFix.subs.note')} htmlFor="s-note">
+        <Input id="s-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.subs.notePlaceholder')} />
       </Field>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
@@ -198,10 +200,10 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
           }}
           disabled={busy}
         >
-          Batal
+          {t('opsFix.subs.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan
+          {t('opsFix.subs.save')}
         </Button>
       </div>
     </Card>
@@ -209,6 +211,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 }
 
 function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => void }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -248,21 +251,22 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-semibold">
-          {sub.customerName} · <span className="tabular-nums">{sub.quantity}</span> galon
+          {sub.customerName} · <span className="tabular-nums">{sub.quantity}</span>{' '}
+          {t('opsFix.subs.gallonsSuffix')}
         </p>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">{sublabel}</p>
       </div>
-      {sub.status === 'ACTIVE' && <Chip tone="success">Auto-order</Chip>}
-      {sub.status === 'PAUSED' && <Chip tone="amber">Dijeda</Chip>}
-      {sub.status === 'CANCELLED' && <Chip tone="outline">Dibatalkan</Chip>}
+      {sub.status === 'ACTIVE' && <Chip tone="success">{t('opsFix.subs.autoOrder')}</Chip>}
+      {sub.status === 'PAUSED' && <Chip tone="amber">{t('opsFix.subs.paused')}</Chip>}
+      {sub.status === 'CANCELLED' && <Chip tone="outline">{t('opsFix.subs.cancelled')}</Chip>}
       {sub.status === 'ACTIVE' && (
         <Button variant="secondary" onClick={toggle} loading={busy}>
-          Jeda
+          {t('opsFix.subs.pause')}
         </Button>
       )}
       {sub.status === 'PAUSED' && (
         <Button variant="secondary" onClick={toggle} loading={busy}>
-          Lanjutkan
+          {t('opsFix.subs.resume')}
         </Button>
       )}
     </Card>
@@ -270,6 +274,7 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
 }
 
 function SubscriptionsBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
 
   const list = useAsync<DepotSubscription[]>(
@@ -291,11 +296,10 @@ function SubscriptionsBody() {
         <div className="flex items-center gap-2">
           <ArrowsClockwise size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Langganan</h1>
+            <h1 className="text-2xl font-bold">{t('opsFix.subs.title')}</h1>
             <p className="text-sm text-[color:var(--text-muted)]">
               {scopedDepot ? `${scopedDepot.name} · ` : ''}
-              <span className="tabular-nums">{activeCount}</span> aktif ·{' '}
-              <span className="tabular-nums">{pausedCount}</span> dijeda
+              {t('opsFix.subs.headline', { active: activeCount, paused: pausedCount })}
             </p>
           </div>
         </div>
@@ -303,25 +307,25 @@ function SubscriptionsBody() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Aktif" value={activeCount} />
-        <Stat label="Dijeda" value={pausedCount} />
+        <Stat label={t('opsFix.subs.statActive')} value={activeCount} />
+        <Stat label={t('opsFix.subs.statPaused')} value={pausedCount} />
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<ArrowsClockwise size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('opsFix.subs.noDepots')} icon={<ArrowsClockwise size={40} weight="fill" />}>
+          {t('opsFix.subs.noDepotsBody')}
         </CenterState>
       ) : list.loading ? (
         <Skeleton className="h-56 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : subs.length === 0 ? (
-        <CenterState title="Belum ada langganan" icon={<ArrowsClockwise size={40} weight="fill" />}>
-          Depot ini belum punya langganan berjalan. Tambahkan yang pertama.
+        <CenterState title={t('opsFix.subs.empty')} icon={<ArrowsClockwise size={40} weight="fill" />}>
+          {t('opsFix.subs.emptyBody')}
         </CenterState>
       ) : (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold text-[color:var(--text-muted)]">Langganan berjalan</h2>
+          <h2 className="text-sm font-bold text-[color:var(--text-muted)]">{t('opsFix.subs.running')}</h2>
           {subs.map((s) => (
             <SubRow key={s.id} sub={s} onChanged={list.reload} />
           ))}
@@ -340,11 +344,12 @@ function SubscriptionsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotSubscriptions', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Langganan pelanggan hanya untuk Manajer depot.
+      <CenterState title={t('opsFix.subs.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.subs.gateBody')}
       </CenterState>
     );
   }
