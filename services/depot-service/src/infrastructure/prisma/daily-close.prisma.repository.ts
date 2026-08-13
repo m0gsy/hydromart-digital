@@ -75,4 +75,12 @@ export class DailyClosePrismaRepository implements DailyCloseRepository {
     });
     return toRecord(row);
   }
+
+  async listForDepotRange(depotId: string, from: Date, to: Date): Promise<DailyCloseRecord[]> {
+    const rows = await this.prisma.depotDailyClose.findMany({
+      where: { depotId, businessDate: { gte: from, lt: to } },
+      orderBy: { businessDate: 'asc' },
+    });
+    return rows.map(toRecord);
+  }
 }

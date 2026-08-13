@@ -18,7 +18,7 @@ import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
 import { DeliverySlaPort } from '../ports/delivery-sla.port';
-import { DepotCostBreakdown, DepotCostsPort } from '../ports/depot-costs.port';
+import { DepotGovernanceFigures, DepotCostBreakdown, DepotCostsPort } from '../ports/depot-costs.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -197,6 +197,14 @@ export interface DepotMonthlyReport {
   /** Gallons per elapsed day of the month — not per 30, which flatters a short month. */
   avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
+  /**
+   * The governance panel: approvals reviewed, stock-count variance, settlement variance.
+   *
+   * NULL means depot-service could not be read — not a clean month. The three used to be
+   * literal '—' strings in the client, which is indistinguishable from a depot that never
+   * closed its books.
+   */
+  governance: DepotGovernanceFigures | null;
 }
 
 /** Depot Operator "Laporan mingguan" composite (design cell 7d). */
@@ -737,7 +745,7 @@ export class ReportService {
     const prevFrom = addLocalMonths(from, -1, tz);
     // Last month is one more read of the same shape — the SOP reads the two side by side,
     // and a month of one depot's orders is far under the 20.000-row range bound.
-    const [rows, prevRows, onTime, costs, payrollIdr] = await Promise.all([
+    const [rows, prevRows, onTime, costs, payrollIdr, governance] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),
       this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
       // Measured in delivery-service, which is the only place that knows when a delivery
@@ -745,6 +753,8 @@ export class ReportService {
       this.deliverySla ? this.deliverySla.onTimeRate(depotId, from, to) : Promise.resolve(null),
       this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
       this.depotCosts ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
+      // Approvals, stock counts and the daily close all live in depot-service; one read.
+      this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
     ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
@@ -786,6 +796,7 @@ export class ReportService {
       growthPct:
         prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
       avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
+      governance,
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
   }

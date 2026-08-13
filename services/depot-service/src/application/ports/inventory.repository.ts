@@ -178,6 +178,18 @@ export interface InventoryRepository {
     range: { from?: Date; to?: Date },
   ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]>;
 
+  /**
+   * OPNAME movements for a depot's lines in the window, joined with the line's sellPrice.
+   *
+   * Both signs, unlike `wastageAdjustments`: a physical count that finds MORE than the
+   * system says is as much a variance as one that finds less, and reporting only the losses
+   * would describe a depot that miscounts in both directions as one that only loses stock.
+   */
+  opnameVariances(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ sellPrice: number | null; delta: number }[]>;
+
   /** The reservation this order holds on this line, if any (any status). */
   findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null>;
   /**

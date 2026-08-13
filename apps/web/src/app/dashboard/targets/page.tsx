@@ -179,6 +179,7 @@ function TargetsBody() {
             gallonsDelta: 0,
             growthPct: null,
             avgGallonsPerDay: 0,
+            governance: null,
           }),
     [scopedId],
   );

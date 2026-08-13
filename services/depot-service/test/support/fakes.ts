@@ -428,6 +428,20 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       }));
   }
 
+  async opnameVariances(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ sellPrice: number | null; delta: number }[]> {
+    return this.moves
+      .filter((m) => m.type === StockMovementType.OPNAME)
+      .filter(
+        (m) => (!range.from || m.createdAt >= range.from) && (!range.to || m.createdAt < range.to),
+      )
+      .map((m) => ({ move: m, item: this.items.find((x) => x.id === m.itemId) }))
+      .filter((x) => x.item?.depotId === depotId)
+      .map(({ move, item }) => ({ sellPrice: item!.sellPrice, delta: move.delta }));
+  }
+
   async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {
     const r = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
     return r ? { ...r } : null;
@@ -583,6 +597,17 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
       if (r.depotId === depotId && r.status === ApprovalStatus.PENDING) counts[r.type] += 1;
     }
     return counts;
+  }
+
+  async countReviewedInRange(depotId: string, from: Date, to: Date): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.decidedBy !== null &&
+        r.decidedAt !== null &&
+        r.decidedAt >= from &&
+        r.decidedAt < to,
+    ).length;
   }
 }
 

@@ -29,6 +29,7 @@ import { PurchaseOrderService } from '../application/services/purchase-order.ser
 import { RosterService } from '../application/services/roster.service';
 import { DepotTargetService } from '../application/services/depot-target.service';
 import { DepotCostsService } from '../application/services/depot-costs.service';
+import { DepotGovernanceService } from '../application/services/depot-governance.service';
 import { CashbookService } from '../application/services/cashbook.service';
 import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { DailyCloseService } from '../application/services/daily-close.service';
@@ -132,6 +133,7 @@ const providers: Provider[] = [
   DepotTargetService,
   CashbookService,
   DepotCostsService,
+  DepotGovernanceService,
   CashierShiftService,
   DailyCloseService,
   DisputeService,

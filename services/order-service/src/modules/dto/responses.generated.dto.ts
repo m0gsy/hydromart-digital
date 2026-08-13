@@ -201,6 +201,17 @@ export class DepotMonthlyReportTopCourierResponseDto {
   delivered!: number;
 }
 
+export class DepotMonthlyReportGovernanceResponseDto {
+  @ApiProperty({ type: Number })
+  approvalsReviewed!: number;
+  @ApiProperty({ type: Number })
+  opnameVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  settlementVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  daysClosed!: number;
+}
+
 /** Mirrors `DepotMonthlyReport` exactly — generated for audit D-6, no field added or removed. */
 export class DepotMonthlyReportResponseDto {
   @ApiProperty({ type: String })
@@ -227,6 +238,8 @@ export class DepotMonthlyReportResponseDto {
   growthPct!: number | null;
   @ApiProperty({ type: Number })
   avgGallonsPerDay!: number;
+  @ApiProperty({ type: DepotMonthlyReportGovernanceResponseDto, nullable: true })
+  governance!: DepotMonthlyReportGovernanceResponseDto | null;
   @ApiProperty({ required: false, type: DepotMonthlyReportTopCourierResponseDto })
   topCourier?: DepotMonthlyReportTopCourierResponseDto;
 }

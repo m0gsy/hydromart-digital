@@ -21,9 +21,30 @@ export interface DepotCostBreakdown {
   payrollIdr: number | null;
 }
 
+/**
+ * The governance half of a depot's month, owned by depot-service: was the paperwork done,
+ * and did the two counts (stock, cash) agree with the system.
+ *
+ * Zeroes are real answers here — a depot with no approvals to decide and no variance had a
+ * clean month — so the NULL that matters is the whole object, meaning depot-service could
+ * not be read at all.
+ */
+export interface DepotGovernanceFigures {
+  /** Approvals a person decided in the window (auto-passes are not review). */
+  approvalsReviewed: number;
+  /** Net rupiah value of the month's stock counts; negative = the shelves held less. */
+  opnameVarianceIdr: number;
+  /** COD deposited minus expected across the days the depot actually closed. */
+  settlementVarianceIdr: number;
+  /** Days closed in the window — the denominator behind the variance above. */
+  daysClosed: number;
+}
+
 export interface DepotCostsPort {
   /** Goods + operating cost for one depot over [from, to). Null when depot-service is unreachable. */
   costs(depotId: string, from: Date, to: Date): Promise<{ cogsIdr: number; opexIdr: number } | null>;
   /** Net payroll for one depot and one 'YYYY-MM' period. Null when hr-service is unreachable. */
   payroll(depotId: string, periodMonth: string): Promise<number | null>;
+  /** Approval/opname/settlement figures for [from, to). Null when depot-service is unreachable. */
+  governance(depotId: string, from: Date, to: Date): Promise<DepotGovernanceFigures | null>;
 }

@@ -979,6 +979,46 @@ describe('DepotCostsHttpAdapter', () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     expect(await costs().payroll('d1', '2026-07')).toBeNull();
   });
+
+  it('reads the governance figures over the internal key', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          approvalsReviewed: 3,
+          opnameVarianceIdr: -40_000,
+          settlementVarianceIdr: -20_000,
+          daysClosed: 30,
+        },
+      }),
+    );
+    const out = await costs().governance('d1', FROM, TO);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/reports/internal/governance?depotId=d1&from=${FROM.toISOString()}&to=${TO.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({
+      approvalsReviewed: 3,
+      opnameVarianceIdr: -40_000,
+      settlementVarianceIdr: -20_000,
+      daysClosed: 30,
+    });
+  });
+
+  it('reads a governance body missing every field as zeroes, not as null', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    await expect(costs().governance('d1', FROM, TO)).resolves.toEqual({
+      approvalsReviewed: 0,
+      opnameVarianceIdr: 0,
+      settlementVarianceIdr: 0,
+      daysClosed: 0,
+    });
+  });
+
+  it('returns null governance without a round-trip when depot-service is unconfigured', async () => {
+    await expect(costs({ depotServiceUrl: '' }).governance('d1', FROM, TO)).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 // Both of these exist because a counter sale runs on the CASHIER's token: quoting or

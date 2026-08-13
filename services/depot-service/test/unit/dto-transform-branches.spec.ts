@@ -13,6 +13,7 @@ import {
   CreateGallonReturnDto,
   ListReturnsQueryDto,
 } from '../../src/modules/dto/gallon-return.dto';
+import { CloseShiftDto, OpenShiftDto } from '../../src/modules/dto/cashier-shift.dto';
 import { CreateHandoverDto } from '../../src/modules/dto/handover.dto';
 import { UpsertHuddleNoteDto } from '../../src/modules/dto/huddle.dto';
 import {
@@ -165,5 +166,27 @@ describe('CreateDepotDto.contactPhone matches crm-service phone validation', () 
     expect(await check('+62 812 3456 7890')).toEqual(['contactPhone']);
     expect(await check('0812')).toEqual(['contactPhone']);
     expect(await check('telp depot')).toEqual(['contactPhone']);
+  });
+});
+
+/*
+ * The till DTOs: a drawer float and a counted total arrive as form strings, so the
+ * `@Type(() => Number)` arrows have to run — and the absurd ceiling exists to reject a
+ * fat-fingered paste, not to cap a real day.
+ */
+describe('cashier shift DTOs', () => {
+  it('coerces a numeric string opening float and accepts it', async () => {
+    const dto = plainToInstance(OpenShiftDto, {
+      depotId: '11111111-1111-4111-8111-111111111111',
+      openingFloat: '200000',
+    });
+    expect(dto.openingFloat).toBe(200000);
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('rejects a pasted amount past the ceiling', async () => {
+    const dto = plainToInstance(CloseShiftDto, { countedCash: '99000000000' });
+    expect(dto.countedCash).toBe(99000000000);
+    await expect(validate(dto)).resolves.not.toHaveLength(0);
   });
 });

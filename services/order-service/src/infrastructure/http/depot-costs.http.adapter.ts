@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { DepotCostsPort } from '../../application/ports/depot-costs.port';
+import { DepotCostsPort, DepotGovernanceFigures } from '../../application/ports/depot-costs.port';
 
 /**
  * The two cost reads behind the monthly review's net profit: goods + till from
@@ -45,6 +45,29 @@ export class DepotCostsHttpAdapter implements DepotCostsPort {
     );
     if (!body) return null;
     return typeof body.payrollMtdNet === 'number' ? Math.round(body.payrollMtdNet) : 0;
+  }
+
+  async governance(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotGovernanceFigures | null> {
+    const query = `depotId=${encodeURIComponent(depotId)}&from=${from.toISOString()}&to=${to.toISOString()}`;
+    const body = await this.get<Partial<DepotGovernanceFigures>>(
+      this.config.depotServiceUrl,
+      `/api/v1/reports/internal/governance?${query}`,
+      `governance for ${depotId}`,
+    );
+    if (!body) return null;
+    // A missing number here is depot-service answering a shape this caller does not know,
+    // which is a deployment skew, not a depot with no approvals — but 0 is still the only
+    // honest reading of "the field is not there", and `daysClosed` shows the month's cover.
+    return {
+      approvalsReviewed: Math.round(body.approvalsReviewed ?? 0),
+      opnameVarianceIdr: Math.round(body.opnameVarianceIdr ?? 0),
+      settlementVarianceIdr: Math.round(body.settlementVarianceIdr ?? 0),
+      daysClosed: Math.round(body.daysClosed ?? 0),
+    };
   }
 
   private async get<T>(baseUrl: string, path: string, what: string): Promise<T | null> {

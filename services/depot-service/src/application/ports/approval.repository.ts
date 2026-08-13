@@ -34,4 +34,12 @@ export interface ApprovalRepository {
   update(id: string, data: UpdateApprovalData): Promise<Approval>;
   /** PENDING counts grouped by type for one depot. */
   pendingCounts(depotId: string): Promise<PendingCounts>;
+  /**
+   * How many of a depot's approvals a PERSON decided in [from, to).
+   *
+   * `decidedBy != null` is the whole point: an amount under the depot's threshold is stored
+   * APPROVED with a `decidedAt` and no decider, so counting timestamps alone would report a
+   * month of automatic passes as a month of review.
+   */
+  countReviewedInRange(depotId: string, from: Date, to: Date): Promise<number>;
 }

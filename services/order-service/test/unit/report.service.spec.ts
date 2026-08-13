@@ -563,10 +563,76 @@ describe('ReportService', () => {
    * HPP is purchases RECEIVED in the month and the breakdown ships with the number so a
    * reader can see that rather than be misled by it.
    */
+  /*
+   * The Governance panel used to be three literal '—' strings in the client. All three
+   * numbers are depot-service's own (approvals, stock counts, the daily close), so they
+   * arrive over the same port the costs do — and a depot-service that cannot be read leaves
+   * the panel null rather than reporting a clean month.
+   */
+  describe('monthly review — governance', () => {
+    const svcWithPort = (r: InMemoryOrderRepository, port: unknown) =>
+      new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        port as never,
+      );
+
+    it('reports the depot figures for the month window', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const governance = jest.fn(async () => ({
+        approvalsReviewed: 3,
+        opnameVarianceIdr: -40_000,
+        settlementVarianceIdr: -20_000,
+        daysClosed: 30,
+      }));
+      const rep = await svcWithPort(r, {
+        costs: async () => null,
+        payroll: async () => null,
+        governance,
+      }).reportsDepotMonthly(depot, '2026-07');
+
+      expect(rep.governance).toEqual({
+        approvalsReviewed: 3,
+        opnameVarianceIdr: -40_000,
+        settlementVarianceIdr: -20_000,
+        daysClosed: 30,
+      });
+      const [askedDepot, from, to] = governance.mock.calls[0] as unknown as [string, Date, Date];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-06-30T17:00:00.000Z'); // 1 Jul 00:00 WIB
+      expect(to.toISOString()).toBe('2026-07-31T17:00:00.000Z');
+    });
+
+    it('leaves governance null when depot-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await svcWithPort(r, {
+        costs: async () => null,
+        payroll: async () => null,
+        governance: async () => null,
+      }).reportsDepotMonthly(randomUUID(), '2026-07');
+      expect(rep.governance).toBeNull();
+    });
+
+    it('leaves governance null when no depot-cost port is wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
+        randomUUID(),
+        '2026-07',
+      );
+      expect(rep.governance).toBeNull();
+    });
+  });
+
   describe('monthly review — net profit', () => {
     const costsPort = (over: Record<string, unknown> = {}) => ({
       costs: async () => ({ cogsIdr: 4_000_000, opexIdr: 1_900_000 }),
       payroll: async () => 3_000_000,
+      governance: async () => null,
       ...over,
     });
     const svcWith = (r: InMemoryOrderRepository, port: unknown) =>

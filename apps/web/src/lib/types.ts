@@ -2170,7 +2170,23 @@ export interface ReportDepotMonthly {
   /** null when last month sold nothing — there is no percentage to report off zero. */
   growthPct: number | null;
   avgGallonsPerDay: number;
+  /**
+   * Approvals reviewed, stock-count variance and settlement variance for the month.
+   * Null = depot-service could not be read; zeroes = a genuinely clean month.
+   */
+  governance: ReportDepotGovernance | null;
   topCourier?: { name: string; delivered: number };
+}
+
+export interface ReportDepotGovernance {
+  /** Approvals a PERSON decided; an auto-passed one is not review. */
+  approvalsReviewed: number;
+  /** Net rupiah value of the month's stock counts; negative = the shelves held less. */
+  opnameVarianceIdr: number;
+  /** COD deposited minus expected, across the days the depot actually closed. */
+  settlementVarianceIdr: number;
+  /** Days closed in the month — the cover behind the variance above. */
+  daysClosed: number;
 }
 
 // Depot wastage summary (depot-service inventory wastage). qty is real lost quantity per

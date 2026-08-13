@@ -43,9 +43,22 @@ describe('ApprovalPrismaRepository', () => {
     findUnique: jest.fn(),
     update: jest.fn(),
     groupBy: jest.fn(),
+    count: jest.fn(),
   };
   const prisma = { approval: model } as unknown as PrismaService;
   const repo = new ApprovalPrismaRepository(prisma);
+
+  it('counts only the approvals a PERSON decided in the window', async () => {
+    const from = new Date('2026-07-01T00:00:00.000Z');
+    const to = new Date('2026-08-01T00:00:00.000Z');
+    model.count.mockResolvedValue(3);
+    await expect(repo.countReviewedInRange('d1', from, to)).resolves.toBe(3);
+    // `decidedBy: not null` is the whole point: an under-threshold approval is stored
+    // APPROVED with a decidedAt and no decider.
+    expect(model.count).toHaveBeenCalledWith({
+      where: { depotId: 'd1', decidedBy: { not: null }, decidedAt: { gte: from, lt: to } },
+    });
+  });
   const row = {
     id: 'ap-1',
     depotId: 'depot-1',
@@ -1346,6 +1359,38 @@ describe('InventoryPrismaRepository', () => {
         }),
       ],
     });
+  });
+
+  it('gathers opname variances over a range, keeping both signs', async () => {
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+    stockMovement.findMany.mockResolvedValue([
+      { delta: -3, item: { sellPrice: 20000 } },
+      { delta: 1, item: { sellPrice: null } },
+    ]);
+    const out = await repo.opnameVariances('depot-1', { from, to });
+    expect(stockMovement.findMany).toHaveBeenCalledWith({
+      where: {
+        type: StockMovementType.OPNAME,
+        item: { depotId: 'depot-1' },
+        createdAt: { gte: from, lt: to },
+      },
+      select: { delta: true, item: { select: { sellPrice: true } } },
+    });
+    expect(out).toEqual([
+      { sellPrice: 20000, delta: -3 },
+      { sellPrice: null, delta: 1 },
+    ]);
+  });
+
+  it('asks for opname movements with no range at all when none is given', async () => {
+    stockMovement.findMany.mockResolvedValue([]);
+    await repo.opnameVariances('depot-1', {});
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { type: StockMovementType.OPNAME, item: { depotId: 'depot-1' } },
+      }),
+    );
   });
 
   it('gathers wastage adjustments over a range, mapping nested item fields', async () => {

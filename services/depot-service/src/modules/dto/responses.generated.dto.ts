@@ -1282,3 +1282,13 @@ export class DepotCostsResponseDto {
   @ApiProperty({ type: Number })
   opexIdr!: number;
 }
+export class DepotGovernanceResponseDto {
+  @ApiProperty({ type: Number })
+  approvalsReviewed!: number;
+  @ApiProperty({ type: Number })
+  opnameVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  settlementVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  daysClosed!: number;
+}

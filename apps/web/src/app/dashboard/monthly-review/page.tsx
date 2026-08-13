@@ -91,12 +91,23 @@ function MonthlyReviewBody() {
     { label: 'Biaya kas keluar', value: idrOrDash(r?.profitBreakdown.opexIdr) },
   ];
 
-  // Governance (approval/opname/setoran) is owned by depot-service/payout — no order-service
-  // source, so these stay "—" until wired.
+  /*
+   * Governance: approvals, stock counts and the daily close, all owned by depot-service and
+   * read over one internal route. These were three literal '—' strings, which reads exactly
+   * like a depot that reviewed nothing and counted nothing — the report the SOP asks for.
+   *
+   * A null `governance` (depot-service unreachable) keeps the dashes AND says so, because
+   * "0 selisih" is the sentence a manager stops reading at.
+   */
+  const g = r?.governance ?? null;
+  const signed = (v: number): string => (v > 0 ? `+${formatIDR(v)}` : formatIDR(v));
   const governance: Row[] = [
-    { label: 'Approval ditinjau', value: '—' },
-    { label: 'Selisih opname nilai', value: '—' },
-    { label: 'Setoran selisih', value: '—' },
+    { label: 'Approval ditinjau', value: g ? g.approvalsReviewed.toLocaleString('id-ID') : '—' },
+    { label: 'Selisih opname nilai', value: g ? signed(g.opnameVarianceIdr) : '—' },
+    { label: 'Setoran selisih', value: g ? signed(g.settlementVarianceIdr) : '—' },
+    // The denominator: a variance of 0 over 2 closed days is not a clean month, it is two
+    // days of bookkeeping and 28 days nobody counted.
+    { label: 'Hari ditutup', value: g ? `${g.daysClosed} hari` : '—' },
   ];
 
   // Depot SOP: the monthly report is read in galon, in this order and with these words.
