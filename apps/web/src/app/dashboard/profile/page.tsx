@@ -8,7 +8,7 @@ import { Button, Card, Chip, CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canUseManagerConsole } from '@/lib/roles';
+import { canUseManagerConsole, staffDoor } from '@/lib/roles';
 import { CAPABILITIES } from '@hydromart/access';
 
 function initials(name: string | null): string {
@@ -39,7 +39,7 @@ function ProfileBody() {
   const logout = () => {
     signOut();
     // Back to the staff door, not the customer one — this account works here.
-    router.replace('/hq/login');
+    router.replace(staffDoor(window.location.pathname));
   };
 
   return (

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -6,7 +6,7 @@ import { AccountService } from '../../application/services/account.service';
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, ImportSummary, Role as PlatformRole, Roles, isDepotLocked } from '@hydromart/platform';
+import { Can, ImportSummary, Roles } from '@hydromart/platform';
 import { Role } from '../../domain/customer/role.enum';
 
 import { getRequestContext } from '../../common/http/request-context';
@@ -137,20 +137,14 @@ export class AccountController {
    *   claim yet, and an account with no depot must deny rather than widen to the network.
    * - everyone else (HQ, direktur, super admin): whatever they asked for, or all.
    */
-  private async scopedDepotFilter(
+  private scopedDepotFilter(
     user: AuthenticatedUser,
     requested?: string,
   ): Promise<string | undefined> {
-    const ownDepotOnly =
-      isDepotLocked(user.role as unknown as PlatformRole) || user.role === Role.MANAGER;
-    if (!ownDepotOnly) {
-      return requested;
-    }
-    const self = await this.account.getProfile(user.sub);
-    if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
-      throw new ForbiddenException('Akun ini hanya boleh melihat staf depot yang ditugaskan padanya.');
-    }
-    return self.assignedDepotId;
+    // The rule itself lives on AccountService now. It was a private method here, which is how
+    // `GET /auth/audit/depot` came to ship without it — a second controller needed the same
+    // narrowing and had no way to reach this one. One copy, two callers.
+    return this.account.resolveScopedDepot(user, requested);
   }
 
   // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the

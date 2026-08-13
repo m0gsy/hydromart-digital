@@ -7,6 +7,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT, type TVars } from '@/lib/locale-context';
+import { staffDoor } from '@/lib/roles';
 
 // "Motor · B 1234 ABC", or "Belum diatur" when the courier has no vehicle on file.
 function vehicleText(
@@ -37,7 +38,7 @@ function Profile() {
   const logout = () => {
     signOut();
     // Back to the staff door, not the customer one — this account works here.
-    router.replace('/hq/login');
+    router.replace(staffDoor(window.location.pathname));
   };
 
   return (

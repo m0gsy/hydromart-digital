@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 
 import { AccountController } from '../../src/modules/auth/account.controller';
+import { AccountService } from '../../src/application/services/account.service';
 import { Role } from '../../src/domain/customer/role.enum';
 
 describe('AccountController.listStaff depot-manager scope', () => {
@@ -9,6 +10,13 @@ describe('AccountController.listStaff depot-manager scope', () => {
 
   const account = {
     getProfile: jest.fn(),
+    // S3: the depot-scoping rule moved to AccountService (two controllers need it). Bound
+
+    // to this mock so these cases still exercise the real rule with a mocked profile read.
+
+    resolveScopedDepot: (u: never, d?: string) =>
+
+      AccountService.prototype.resolveScopedDepot.call(account, u, d),
     listStaff: jest.fn(),
   };
   const controller = new AccountController(account as never, {} as never, {} as never);
@@ -54,7 +62,14 @@ describe('AccountController.listDrivers depot scope', () => {
   const ownDepot = '11111111-1111-4111-8111-111111111111';
   const otherDepot = '22222222-2222-4222-8222-222222222222';
 
-  const account = { getProfile: jest.fn(), listDrivers: jest.fn() };
+  // The real scoping rule, bound to this mock — it lives on AccountService now (two
+  // controllers need it), and these cases are about the rule, not about the delegation.
+  const account = {
+    getProfile: jest.fn(),
+    listDrivers: jest.fn(),
+    resolveScopedDepot: (u: never, d?: string) =>
+      AccountService.prototype.resolveScopedDepot.call(account, u, d),
+  };
   const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {

@@ -1,4 +1,10 @@
-import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import {
   CustomerNotFoundError,
@@ -70,6 +76,35 @@ export class AccountService {
       throw new CustomerNotFoundError();
     }
     return toPublicCustomer(customer);
+  }
+
+  /**
+   * The depot a staff-facing read must be narrowed to, decided from the CALLER — never from
+   * the query alone.
+   *
+   * - depot-locked roles (kepala depot, depot staff) and depot managers: their own depot, and
+   *   asking for another one is refused rather than silently rewritten.
+   * - everyone else (head office, super admin, finance): whatever they asked for.
+   *
+   * Lives here rather than in a controller because two controllers need the same answer and
+   * only one of them had it: `GET /auth/audit/depot` took `depotId` straight off the query with
+   * no ownership check anywhere on the path, so a depot-locked KEPALA_DEPOT could read another
+   * depot's privileged-action trail — actor ids and staff actions — by changing one UUID. Its
+   * siblings `/auth/staff` and `/auth/drivers` were narrowing correctly the whole time, which
+   * is what makes that an omission rather than a decision.
+   */
+  async resolveScopedDepot(
+    user: { sub: string; role: string },
+    requested?: string,
+  ): Promise<string | undefined> {
+    const ownDepotOnly =
+      isDepotLocked(user.role as unknown as PlatformRole) || user.role === Role.MANAGER;
+    if (!ownDepotOnly) return requested;
+    const self = await this.getProfile(user.sub);
+    if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
+      throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+    }
+    return self.assignedDepotId;
   }
 
   /**

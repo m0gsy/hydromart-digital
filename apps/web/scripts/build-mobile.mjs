@@ -279,6 +279,51 @@ if (surface) {
   }
 }
 
+/**
+ * Every literal route the app navigates to must exist in THIS export.
+ *
+ * `SURFACES` above checks the route SET; it says nothing about link TARGETS, and that gap
+ * shipped: `require-auth` sent every expired console session to `/hq/login`, a route the Ops
+ * binary prunes wholesale. Sign-out did the same. The tap landed on a file that is not in the
+ * bundle — no error, no door, no way back in — and no check here could see it, because the set
+ * of exported routes was exactly right.
+ *
+ * Only literals are checked. A path built at runtime (`consoleHome(role)`, a `?id=` detail
+ * link) cannot be read statically; `lib/roles.ts` and `lib/deep-link.ts` guard those against
+ * the same prune list at runtime instead.
+ */
+const NAV_SOURCES = [
+  'src/components/require-auth.tsx',
+  'src/components/console-sign-out.tsx',
+  'src/components/bottom-nav.tsx',
+  'src/components/dashboard/ops-rail.tsx',
+  'src/components/dashboard/ops-bottom-nav.tsx',
+  'src/components/operator/operator-shell.tsx',
+  'src/components/hq/hq-rail.tsx',
+  'src/components/hq/hq-bottom-nav.tsx',
+  'src/components/hr/hr-rail.tsx',
+  'src/lib/roles.ts',
+];
+const dead = [];
+for (const rel of NAV_SOURCES) {
+  const file = join(WEB, rel);
+  if (!existsSync(file)) continue;
+  const text = readFileSync(file, 'utf8');
+  for (const [, route] of text.matchAll(/['"`](\/(?:hq|hr|dashboard|driver|m)(?:\/[a-z0-9-]+)*)['"`]/gi)) {
+    const clean = route.replace(/\/+$/, '');
+    if (existsSync(join(outDir, clean, 'index.html'))) continue;
+    if (existsSync(join(outDir, `${clean}.html`))) continue;
+    dead.push(`${rel} -> ${clean}`);
+  }
+}
+if (dead.length > 0) {
+  console.error(`\n"${target}" navigates to ${dead.length} route(s) it does not serve:`);
+  for (const d of [...new Set(dead)]) console.error(`  - ${d}`);
+  console.error('\nEither keep the route in this binary, or route through a prune-aware helper');
+  console.error('(`staffDoor` / `consoleHome` in lib/roles.ts, `resolveDeepLink` in lib/deep-link.ts).');
+  process.exit(1);
+}
+
 const pages = countHtml(outDir);
 console.log(`\n${relative(WEB, outDir)}: ${pages} pages, ${mb(sizeOf(outDir))}`);
 
