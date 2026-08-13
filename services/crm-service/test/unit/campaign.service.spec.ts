@@ -187,6 +187,37 @@ describe('CampaignService', () => {
     });
   });
 
+  /*
+   * Scheduling. "Jadwalkan" and "Kirim sekarang" used to be the same button: both drafted
+   * immediately, and the compose screens refused a send time with a toast while still
+   * showing the control. A scheduled campaign is CLAIMED the moment staff press send — so
+   * nothing else can claim it — but the sweep is what decides it is due.
+   */
+  describe('scheduling', () => {
+    const DUE = new Date('2026-08-20T02:00:00.000Z');
+
+    it('leaves a scheduled campaign alone until its time, then sends it', async () => {
+      const c = await service.create('staff-1', 'Besok', 'Hi', recipients, undefined, '', DUE);
+      expect(c.scheduledFor).toEqual(DUE);
+      await service.send(c.id);
+
+      const early = await service.processSending(new Date('2026-08-19T23:59:00.000Z'));
+      expect(early.campaigns).toBe(0);
+      expect(whatsapp.sent).toHaveLength(0);
+
+      const onTime = await service.processSending(new Date('2026-08-20T02:00:00.000Z'));
+      expect(onTime.campaigns).toBe(1);
+      expect(whatsapp.sent).toHaveLength(2);
+    });
+
+    it('treats an unscheduled campaign as due immediately, as it always was', async () => {
+      const c = await service.create('staff-1', 'Sekarang', 'Hi', recipients);
+      expect(c.scheduledFor).toBeNull();
+      await service.send(c.id);
+      expect((await service.processSending()).campaigns).toBe(1);
+    });
+  });
+
   // B-17: send() CLAIMS, the sweep DELIVERS. Sending inside the request timed out at the
   // proxy on any real list, and a recycled container stranded the campaign in SENDING
   // with half its customers messaged and no record of which half.

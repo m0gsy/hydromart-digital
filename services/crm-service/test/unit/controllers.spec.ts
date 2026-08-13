@@ -186,6 +186,7 @@ describe('CampaignController', () => {
     sentCount: 0,
     failedCount: 0,
     createdBy: 'staff-1',
+    scheduledFor: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     sentAt: null,
@@ -224,6 +225,7 @@ describe('CampaignController', () => {
       undefined,
       { tier: 'GOLD' },
       'Bearer tok',
+      null,
     );
     expect(out.recipients).toHaveLength(1);
   });
@@ -240,9 +242,14 @@ describe('CampaignController', () => {
       messageTemplate: 'Hi',
       segment: { lapsedDays: 60 },
     } as CreateDepotCampaignDto);
-    expect(campaigns.createForDepot).toHaveBeenCalledWith('user-1', 'depot-mine', 'Promo', 'Hi', {
-      lapsedDays: 60,
-    });
+    expect(campaigns.createForDepot).toHaveBeenCalledWith(
+      'user-1',
+      'depot-mine',
+      'Promo',
+      'Hi',
+      { lapsedDays: 60 },
+      null,
+    );
     expect(out.recipients).toHaveLength(1);
   });
 

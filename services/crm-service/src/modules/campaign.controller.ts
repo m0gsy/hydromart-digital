@@ -61,6 +61,7 @@ export class CampaignController {
       dto.recipients,
       dto.segment,
       authorization,
+      dto.scheduledFor ? new Date(dto.scheduledFor) : null,
     );
     return CampaignDto.from(campaign);
   }
@@ -86,6 +87,7 @@ export class CampaignController {
       dto.name,
       dto.messageTemplate,
       dto.segment,
+      dto.scheduledFor ? new Date(dto.scheduledFor) : null,
     );
     return CampaignDto.from(campaign);
   }

@@ -66,6 +66,7 @@ export class CampaignService {
     recipients: CreateRecipientData[] = [],
     segment?: SegmentFilter,
     authorization = '',
+    scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
     // A segment (FR-087) resolves its own audience from the customer directory; otherwise
     // use the explicit list. A PRESENT segment is always resolved — an EMPTY filter means
@@ -95,7 +96,7 @@ export class CampaignService {
     // unique(campaignId, phone) constraint that would otherwise reject the insert.
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
   }
 
   /**
@@ -113,6 +114,7 @@ export class CampaignService {
     name: string,
     messageTemplate: string,
     segment: SegmentFilter = {},
+    scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
     const { tier, city, ...activityConditions } = { ...segment, depotId };
     const inSegment = new Set(await this.activity.customersIn(activityConditions));
@@ -123,7 +125,7 @@ export class CampaignService {
 
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
   }
 
   // No defaults here on purpose: the only caller already defaults, so a second set
@@ -178,8 +180,8 @@ export class CampaignService {
    * exactly where this one stopped. That resumability is the whole point of putting the
    * cursor in the database.
    */
-  async processSending(): Promise<CampaignSweepResult> {
-    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP);
+  async processSending(now = new Date()): Promise<CampaignSweepResult> {
+    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
     const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
 
     for (const campaign of campaigns) {

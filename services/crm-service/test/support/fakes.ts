@@ -70,6 +70,7 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       createdAt: now,
       updatedAt: now,
       sentAt: null,
+      scheduledFor: data.scheduledFor ?? null,
       recipients,
     };
     this.campaigns.push(campaign);
@@ -109,9 +110,10 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return true;
   }
 
-  async findSending(limit: number): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
     return this.campaigns
       .filter((c) => c.status === CampaignStatus.SENDING)
+      .filter((c) => c.scheduledFor === null || c.scheduledFor <= now)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)
       .map((c) => ({ ...this.clone(c), recipients: [] }));

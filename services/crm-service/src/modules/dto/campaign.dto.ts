@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsDateString,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -128,6 +129,15 @@ export class CreateCampaignDto {
   @ValidateNested()
   @Type(() => CampaignSegmentDto)
   segment?: CampaignSegmentDto;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'When to send. Omit to send as soon as the sweep picks the campaign up.',
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduledFor?: string;
 }
 
 /**
@@ -160,6 +170,15 @@ export class CreateDepotCampaignDto {
   @ValidateNested()
   @Type(() => CampaignSegmentDto)
   segment?: CampaignSegmentDto;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'When to send. Omit to send as soon as the sweep picks the campaign up.',
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduledFor?: string;
 }
 
 export class CampaignPageQueryDto {
@@ -230,6 +249,8 @@ export class CampaignListItemDto {
   createdAt!: Date;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   sentAt!: Date | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time', description: 'Due time; null = immediately.' })
+  scheduledFor!: Date | null;
 
   static from(record: CampaignRecord): CampaignListItemDto {
     return {
@@ -243,6 +264,7 @@ export class CampaignListItemDto {
       createdBy: record.createdBy,
       createdAt: record.createdAt,
       sentAt: record.sentAt,
+      scheduledFor: record.scheduledFor,
     };
   }
 }
