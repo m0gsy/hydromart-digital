@@ -122,10 +122,17 @@ describe('period functions are independent of the machine clock', () => {
   });
 });
 
+/**
+ * `money` rounds to WHOLE rupiah since 2026-08-13 — there is no circulating sub-rupiah coin, no
+ * receipt prints one, and keeping two decimals meant the server stored `4.999,95` while every
+ * price on screen was whole. These three cases used to pin the old contract; the rule itself now
+ * has a spec of its own in test/money.spec.ts, and this keeps the float-drift case that lived
+ * here.
+ */
 describe('money', () => {
-  it('rounds to IDR minor units', () => {
-    expect(money(0.1 + 0.2)).toBe(0.3);
-    expect(money(19_999.994)).toBe(19_999.99);
-    expect(money(19_999.995)).toBe(20_000);
+  it('rounds to whole rupiah and never leaks float drift', () => {
+    expect(money(0.1 + 0.2)).toBe(0);
+    expect(money(19_999.994)).toBe(20_000);
+    expect(money(19_999.4)).toBe(19_999);
   });
 });
