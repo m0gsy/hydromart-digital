@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
@@ -363,6 +364,16 @@ export function RbacMatrix() {
                   >
                     {ROLE_ABBR[r]}
                   </button>
+                  {/* /hq/access/detail was written, gated and reachable only by typing the
+                      URL — the one screen that answers "what may THIS role do" in a readable
+                      list rather than a grid of ticks. */}
+                  <Link
+                    href={`/hq/access/detail?role=${r}`}
+                    title={t('hqFix.roleDetail')}
+                    className="mt-0.5 block text-[10px] font-medium text-brand-600 hover:underline"
+                  >
+                    {t('hqFix.roleDetailShort')}
+                  </Link>
                 </th>
               ))}
             </tr>

@@ -229,6 +229,10 @@ export const GROUPS: RailGroup[] = [
       { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
       { href: '/dashboard/monthly-review', labelKey: 'monthlyReview', icon: ClipboardText, show: canViewDepotFinance },
       { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: canUseManagerConsole },
+      // Built, gated and unreachable: nothing in any nav pointed at these two, so the only
+      // way in was to type the URL. `canViewDashboard` is the gate each page enforces.
+      { href: '/dashboard/monthly-pnl', labelKey: 'monthlyPnl', icon: ChartPieSlice, show: canViewDashboard },
+      { href: '/dashboard/team-performance', labelKey: 'teamPerformance', icon: UsersThree, show: canViewDashboard },
     ],
   },
   {
@@ -237,6 +241,9 @@ export const GROUPS: RailGroup[] = [
       { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
       { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
       { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: canUseManagerConsole },
+      // Also unreachable before: the depot config screen and the staff account screen.
+      { href: '/dashboard/depot-settings', labelKey: 'depotSettings', icon: GearSix, show: canManageDepots },
+      { href: '/dashboard/account', labelKey: 'account', icon: UserGear, show: isStaff },
     ],
   },
 ];
