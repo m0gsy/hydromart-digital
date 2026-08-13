@@ -25,6 +25,7 @@ import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franc
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
 import { PaymentCashHttpAdapter } from '../../src/infrastructure/http/payment-cash.http.adapter';
+import { DeliverySlaHttpAdapter } from '../../src/infrastructure/http/delivery-sla.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
@@ -873,6 +874,53 @@ describe('PaymentCashHttpAdapter', () => {
     expect(await cash().cashByOrder(['o1'])).toBeNull();
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     expect(await cash().depotCash('depot-1', new Date(), new Date())).toBeNull();
+  });
+});
+
+// S2. `slaPct` on the monthly review. order-service has no delivery timings — an order's
+// status says it was delivered, never whether it was late — so this asks the service that
+// measures it, and fails soft rather than inferring a percentage.
+describe('DeliverySlaHttpAdapter', () => {
+  const sla = (over: Partial<Record<string, unknown>> = {}) =>
+    new DeliverySlaHttpAdapter(makeConfig({ deliveryServiceUrl: 'http://delivery:3006', ...over }));
+
+  it('asks for one depot over the window with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { slaRate: 0.876, totalDelivered: 40 } }));
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    expect(await sla().onTimeRate('d1', from, to)).toBe(0.876);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://delivery:3006/api/v1/reports/internal/sla?depotIds=d1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+  });
+
+  // slaRate is 0 when nothing was delivered. That is a true statement about a quiet month
+  // and a false one about a depot's punctuality, so it must not reach the screen as 0%.
+  it('returns null for a window with no deliveries', async () => {
+    fetchMock.mockResolvedValue(res({ body: { slaRate: 0, totalDelivered: 0 } }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+
+  it('returns null when the body carries no rate', async () => {
+    fetchMock.mockResolvedValue(res({ body: { totalDelivered: 12 } }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+
+  it.each([
+    ['delivery-service is unconfigured', { deliveryServiceUrl: '' }],
+    ['there is no internal key', { internalServiceKey: '' }],
+  ])('returns null without a round-trip when %s', async (_label, over) => {
+    expect(await sla(over).onTimeRate('d1', new Date(), new Date())).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null on a non-2xx and when delivery-service is unreachable', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
   });
 });
 

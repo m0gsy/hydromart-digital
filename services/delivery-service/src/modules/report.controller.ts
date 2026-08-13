@@ -1,7 +1,20 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Role, Roles, addLocalMonths, startOfLocalMonth } from '@hydromart/platform';
+import {
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+  addLocalMonths,
+  startOfLocalMonth,
+} from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/delivery.repository';
 import { ReportService } from '../application/services/report.service';
@@ -45,6 +58,26 @@ export class ReportController {
   @Get('sla')
   @ApiOperation({ summary: 'Delivery SLA: on-time vs breached deliveries and failures (M6)' })
   sla(@Query() q: SlaReportQueryDto): Promise<SlaReport> {
+    return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
+  }
+
+  /**
+   * One depot's on-time rate for order-service's monthly review — the `slaPct` that screen
+   * hardcoded to null (S2). order-service holds no delivery timings and must not infer a
+   * percentage from order status alone, so it asks the service that measures it.
+   *
+   * Internal key rather than the class's report roles: the caller is a service composing a
+   * report, holding no token. `@Public()` short-circuits RolesGuard, so the class-level
+   * @Roles cannot 403 a request that has no identity by design. Declared before the
+   * bearer routes so the static `internal` segment wins.
+   */
+  @ApiOkResponse({ type: SlaReportResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/sla')
+  @ApiOperation({ summary: 'On-time SLA for one depot over a window (internal service auth)' })
+  internalSla(@Query() q: SlaReportQueryDto): Promise<SlaReport> {
     return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
   }
 

@@ -100,6 +100,9 @@ services:
       LOYALTY_SERVICE_URL: http://loyalty:3009
       # Counter-void refunds go through here.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # On-time delivery for the monthly review. Blank = slaPct stays null, which is what
+      # it always was — order-service must never infer punctuality from order status.
+      DELIVERY_SERVICE_URL: http://delivery:3006
       CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011

@@ -424,6 +424,55 @@ describe('ReportService', () => {
     });
   });
 
+  /*
+   * S2. `slaPct` was a literal null with a TODO, and `dashboard/compare` + the monthly
+   * review's Governance panel rendered that null as "—". order-service genuinely cannot
+   * derive it — an order's status says it was delivered, never whether it was late — so
+   * the fix is to ask delivery-service, not to infer.
+   */
+  describe('monthly review — on-time rate', () => {
+    it('reads the depot on-time rate for the month window and reports it as a percentage', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const sla = { onTimeRate: jest.fn(async () => 0.876) };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        undefined,
+        sla as never,
+      );
+
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      // One decimal on purpose: whole points turn 87,6% into 88%, right at the band the HQ
+      // dashboard changes colour on.
+      expect(rep.slaPct).toBe(87.6);
+      const [askedDepot, from, to] = sla.onTimeRate.mock.calls[0] as unknown as [
+        string,
+        Date,
+        Date,
+      ];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-06-30T17:00:00.000Z'); // 1 Jul 00:00 WIB
+      expect(to.toISOString()).toBe('2026-07-31T17:00:00.000Z');
+    });
+
+    it('leaves slaPct null when delivery-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, undefined, {
+        onTimeRate: async () => null,
+      } as never);
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+    });
+
+    it('leaves slaPct null when no delivery port is wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+    });
+  });
+
   // The export behind the button that used to do nothing. It must show the SAME day the
   // report shows, and it must carry cancelled orders — a file that drops them silently
   // cannot be reconciled against the till.

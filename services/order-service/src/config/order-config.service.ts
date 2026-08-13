@@ -195,6 +195,14 @@ export class OrderConfigService {
     return this.config.get<string>('PAYMENT_SERVICE_URL', '').replace(/\/+$/, '');
   }
   /**
+   * Where on-time delivery is measured. Blank = the monthly review reports `slaPct` as null,
+   * which is what it did unconditionally before — order-service has no delivery timings of
+   * its own and must not invent a percentage from order status alone.
+   */
+  get deliveryServiceUrl(): string {
+    return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  /**
    * The one business timezone (H-16). Every day/month boundary this service reckons —
    * the counter void window, the order number's date part, the daily/monthly reports —
    * comes from here, so they cannot disagree about which day it is.

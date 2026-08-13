@@ -17,6 +17,7 @@ import {
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
+import { DeliverySlaPort } from '../ports/delivery-sla.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -134,8 +135,9 @@ export interface DepotCompareReport extends ReportRangeView {
 
 /**
  * Depot "Tinjauan ops bulanan" composite for the monthly review screen. orders/revenue/
- * activeCustomers are real order-service figures; netProfit + SLA are null (no source);
- * topCourier is derived from the order's own driverName (delivered count, no rating).
+ * activeCustomers are real order-service figures; SLA is read from delivery-service and
+ * netProfit is still null (see the field); topCourier is derived from the order's own
+ * driverName (delivered count, no rating).
  */
 export interface DepotMonthlyReport {
   depotId: string;
@@ -147,7 +149,11 @@ export interface DepotMonthlyReport {
   activeCustomers: number;
   /** Null — net profit needs cost-of-goods + expenses (payout/procurement), not joinable here. */
   netProfitIdr: number | null;
-  /** Null — SLA on-time needs delivery-service timings, no order-service source. */
+  /**
+   * On-time delivery share for the month, 0..100 with one decimal. Null when
+   * delivery-service could not be read, or when nothing was delivered — a rate of 0 there
+   * would describe a depot in crisis rather than a quiet month.
+   */
   slaPct: number | null;
   // Depot SOP: the monthly review is read in GALLONS, against last month.
   /** Gallons delivered this month. */
@@ -230,6 +236,9 @@ export class ReportService {
     @Optional()
     @Inject(ORDER_TOKENS.PaymentCash)
     private readonly paymentCash?: PaymentCashPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.DeliverySla)
+    private readonly deliverySla?: DeliverySlaPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -592,9 +601,12 @@ export class ReportService {
     const prevFrom = addLocalMonths(from, -1, tz);
     // Last month is one more read of the same shape — the SOP reads the two side by side,
     // and a month of one depot's orders is far under the 20.000-row range bound.
-    const [rows, prevRows] = await Promise.all([
+    const [rows, prevRows, onTime] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),
       this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
+      // Measured in delivery-service, which is the only place that knows when a delivery
+      // actually arrived. An order's status says it was delivered, never whether it was late.
+      this.deliverySla ? this.deliverySla.onTimeRate(depotId, from, to) : Promise.resolve(null),
     ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
@@ -618,8 +630,9 @@ export class ReportService {
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
       // TODO: net profit needs cost-of-goods + expenses (payout/procurement) — not joinable here.
       netProfitIdr: null,
-      // TODO: SLA on-time needs delivery-service timings — no order-service source.
-      slaPct: null,
+      // Percent, to one decimal — the screen prints a percentage, and rounding to whole
+      // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.
+      slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
       gallons,
       prevGallons,
       gallonsDelta: gallons - prevGallons,
