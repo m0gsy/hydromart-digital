@@ -10,7 +10,7 @@ CREATE TABLE "saved_segments" (
   "id"         TEXT NOT NULL,
   "name"       TEXT NOT NULL,
   "conditions" JSONB NOT NULL,
-  /// Auth subject (staff user id) that saved it.
+  -- Auth subject (staff user id) that saved it.
   "createdBy"  TEXT NOT NULL,
   "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"  TIMESTAMP(3) NOT NULL,
