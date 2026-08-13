@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Buildings } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -64,6 +64,18 @@ export default function HqFranchisePage() {
           </div>
         }
       />
+
+      {/* Three side reads feed this screen and each one goes quiet as a claim: no scheme
+          agreed, no owner on file, nothing owed. The card below hides itself at 0. */}
+      {(schemes.error || queue.error || owners.error) && (
+        <LoadError
+          onRetry={() => {
+            if (schemes.error) schemes.reload();
+            if (queue.error) queue.reload();
+            if (owners.error) owners.reload();
+          }}
+        />
+      )}
 
       {pendingTotal > 0 && (
         <Card className="flex items-center justify-between gap-3 p-4">
