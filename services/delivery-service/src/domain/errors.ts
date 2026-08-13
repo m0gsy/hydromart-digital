@@ -77,6 +77,23 @@ export class OrderCoordinationError extends DomainError {
   }
 }
 
+/**
+ * The order's payment could not be read, so whether the courier collects on delivery is
+ * unknown. Refused rather than guessed — a dispatch with no COD amount hands the water over
+ * and asks for nothing. 422 like the order-sync failure next to it: the request was fine,
+ * the world it depends on was not.
+ */
+export class PaymentLookupUnavailableError extends DomainError {
+  readonly code = 'DELIVERY_PAYMENT_LOOKUP_FAILED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Metode pembayaran order ini tidak terbaca, jadi penugasan ditolak — ' +
+        'kalau ini order tunai, kurir akan berangkat tanpa nominal tagihan. Coba lagi.',
+    );
+  }
+}
+
 export class ShiftNotFoundError extends DomainError {
   readonly code = 'SHIFT_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

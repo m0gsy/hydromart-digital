@@ -10,6 +10,7 @@ import {
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
+  PaymentLookupUnavailableError,
 } from '../../domain/errors';
 import {
   DeliveryStatus,
@@ -164,7 +165,11 @@ export class DeliveryService {
      * nothing has happened yet — advancing first would leave an order at DRIVER_ASSIGNED
      * with no delivery behind it.
      */
-    const payment = await this.payments.forOrder(input.orderId);
+    const payment = await this.payments
+      .forOrder(input.orderId)
+      .catch(() => {
+        throw new PaymentLookupUnavailableError();
+      });
     const codAmount = payment?.method === 'CASH' ? payment.amount : null;
 
     const assignMeta: OrderAdvanceMeta | undefined =

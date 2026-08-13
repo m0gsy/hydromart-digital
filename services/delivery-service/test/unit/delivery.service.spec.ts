@@ -12,6 +12,7 @@ import {
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
+  PaymentLookupUnavailableError,
   StaleCaptureError,
 } from '../../src/domain/errors';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
@@ -143,13 +144,15 @@ describe('DeliveryService', () => {
     it('refuses the assignment when the payment cannot be read, leaving the order alone', async () => {
       payments.throwOnRead = true;
       const orderId = randomUUID();
+      // And it says WHY. Runtime showed the raw throw surfacing as a bare 500 "Gagal
+      // menugaskan kurir", which tells the dispatcher nothing about what to do next.
       await expect(
         service.assign(
           staff,
           { orderId, orderNumber: 'HM-X', driverId: driver, destinationAddress: 'Jl. B' },
           AUTH,
         ),
-      ).rejects.toThrow();
+      ).rejects.toBeInstanceOf(PaymentLookupUnavailableError);
       expect(orders.calls).toHaveLength(0);
     });
   });
