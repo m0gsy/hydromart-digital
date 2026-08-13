@@ -1,6 +1,6 @@
 'use client';
 
-import { DownloadSimple, Lock, PaperPlaneTilt } from '@phosphor-icons/react';
+import { Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -167,22 +167,11 @@ function MonthlyReviewBody() {
         </>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-app px-4 py-2.5 text-sm font-semibold hover:bg-brand-50"
-        >
-          <DownloadSimple size={18} weight="bold" />
-          Unduh PDF
-        </button>
-        <button
-          type="button"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-700"
-        >
-          <PaperPlaneTilt size={18} weight="fill" />
-          Kirim ke head office
-        </button>
-      </div>
+      {/* "Unduh PDF" and "Kirim ke head office" were two buttons with no onClick. Neither
+          has anything behind it: this repo has no PDF renderer (the scheduled-reports
+          executor refuses PDF outright rather than shipping an .xlsx under a .pdf name) and
+          no mail transport of any kind. A button that does nothing teaches an operator the
+          console ignores them, which is worse than not offering the action. */}
     </div>
   );
 }

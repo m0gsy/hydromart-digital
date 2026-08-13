@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canUseManagerConsole, staffDoor } from '@/lib/roles';
-import { CAPABILITIES } from '@hydromart/access';
+import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 
 function initials(name: string | null): string {
   if (!name) return 'M';
@@ -21,17 +21,23 @@ function initials(name: string | null): string {
     .toUpperCase();
 }
 
-// Capabilities the MANAGER role holds — read straight off the shared RBAC map
-// so the chip list can never drift from what the Nest guards actually enforce.
-const MANAGER_CAPS = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((cap) =>
-  (CAPABILITIES[cap] as readonly string[]).includes('MANAGER'),
-);
-
 function ProfileBody() {
   const router = useRouter();
   const { customer, signOut } = useAuth();
   const { selected, depots } = useDepot();
   const { locale, setLocale, t } = useT();
+  /*
+   * The chips list what this account may do, and they used to come from the COMPILED
+   * capability map — so an override saved on /hq/access showed here only after a rebuild.
+   * `useEffectiveCapabilities` is the map the guards are enforcing right now (it falls
+   * back to the compiled one when the read fails: stale beats blank). Also: the list was
+   * MANAGER's regardless of who was signed in.
+   */
+  const caps = useEffectiveCapabilities();
+  const role = customer?.role ?? '';
+  const myCaps = (Object.keys(caps) as (keyof typeof caps)[]).filter((cap) =>
+    (caps[cap] as readonly string[]).includes(role),
+  );
 
   // The depot the manager runs — the switcher selection, else the first available.
   const depot = selected ?? depots[0] ?? null;
@@ -74,7 +80,7 @@ function ProfileBody() {
           <p className="font-semibold">{t('dashC.profile.access')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {MANAGER_CAPS.map((cap) => (
+          {myCaps.map((cap) => (
             <Chip key={cap} tone="tint">
               {cap}
             </Chip>
