@@ -25,7 +25,21 @@ import Link from 'next/link';
 
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, Chip, ErrorState, Field, Input, ListRow, Money, RadioCard, Skeleton, StickyActionBar } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  ErrorState,
+  Field,
+  Input,
+  ListRow,
+  LoadError,
+  Money,
+  RadioCard,
+  Skeleton,
+  StickyActionBar,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
@@ -218,7 +232,7 @@ function CheckoutInner() {
   // Delivery windows and express pricing belong to the depot, not to this screen. Read for
   // the depot that will actually fulfil the order, so the surcharge shown is the one
   // order-service will charge — it used to be a constant here and nothing at all there.
-  const { data: options } = useAsync<DeliveryOptions>(
+  const { data: options, error: optionsError, reload: reloadOptions } = useAsync<DeliveryOptions>(
     () => api.get(endpoints.orders.deliveryOptions(depot?.id ?? null), true),
     [depot?.id],
   );
@@ -735,6 +749,11 @@ function CheckoutInner() {
             list used to carry a hardcoded "Penuh" and a hardcoded "Sisa sedikit" that no
             depot had ever set, and a slot that lies about being full is worse than a slot
             that says nothing. */}
+        {/* Not fail-soft like the reads above it: with no options the slot list is empty
+            and express is withdrawn, so the buyer sees a depot that delivers at no time at
+            all. Express staying off is correct (a fee we could not read must not be
+            charged) — the missing windows are what needs saying. */}
+        {optionsError && <LoadError onRetry={reloadOptions} />}
         {delivery.slots.map((slot) => {
           const on = !express && slotTime === slot;
           return (
