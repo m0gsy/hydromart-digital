@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   Bell,
   CaretRight,
@@ -18,6 +17,7 @@ import { Card, CenterState, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
+import { usePushPrefs } from '@/lib/notif-prefs';
 
 const ALERTS: { id: string; icon: Icon; def: boolean }[] = [
   { id: 'approval', icon: Bell, def: true },
@@ -27,10 +27,7 @@ const ALERTS: { id: string; icon: Icon; def: boolean }[] = [
 
 function AccountBody() {
   const { locale, setLocale, t } = useT();
-  // TODO persist via preferences
-  const [alerts, setAlerts] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(ALERTS.map((a) => [a.id, a.def])),
-  );
+  const prefs = usePushPrefs();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -56,8 +53,8 @@ function AccountBody() {
                   <p className="text-[11px] text-[color:var(--text-muted)]">{t(`dashA.account.alerts.${a.id}.sub`)}</p>
                 </div>
                 <Toggle
-                  on={alerts[a.id] ?? a.def}
-                  onChange={(v) => setAlerts((prev) => ({ ...prev, [a.id]: v }))}
+                  on={prefs.isOn(a.id) ?? a.def}
+                  onChange={(v) => void prefs.setOn(a.id, v, t(`dashA.account.alerts.${a.id}.label`))}
                   label={t(`dashA.account.alerts.${a.id}.label`)}
                 />
               </div>

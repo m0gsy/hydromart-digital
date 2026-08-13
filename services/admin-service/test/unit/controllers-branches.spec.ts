@@ -285,21 +285,43 @@ describe('NotificationPrefsController', () => {
   const controller = new NotificationPrefsController(
     prefs as unknown as AdminNotificationPrefService,
   );
-  const user = { sub: 'acc-1' } as AuthenticatedUser;
+  const user = { sub: 'acc-1', role: 'HEAD_OFFICE' } as AuthenticatedUser;
+  const depotUser = { sub: 'acc-2', role: 'KEPALA_DEPOT' } as AuthenticatedUser;
+  const bothUser = { sub: 'acc-3', role: 'SUPER_ADMIN' } as AuthenticatedUser;
   const record: AdminNotificationPrefRecord = { accountId: 'acc-1', channels: [], updatedAt: now };
   beforeEach(() => jest.clearAllMocks());
 
   it('get reads the caller-scoped prefs', async () => {
     prefs.get.mockResolvedValue(record);
     await controller.get(user);
-    expect(prefs.get).toHaveBeenCalledWith('acc-1');
+    expect(prefs.get).toHaveBeenCalledWith('acc-1', 'ALL');
+  });
+
+  it('serves the depot event list to a depot account', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get(depotUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-2', 'DEPOT');
+  });
+
+  it('serves both lists to a super admin too', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get(bothUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-3', 'ALL');
+  });
+
+  // A role with neither capability still owns its own phone: it gets the depot list rather
+  // than an empty one, because that is the console it can actually open.
+  it('falls back to the depot list for a role in neither group', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get({ sub: 'acc-4', role: 'STAFF_DEPOT' } as AuthenticatedUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-4', 'DEPOT');
   });
 
   it('save replaces the caller-scoped prefs', async () => {
     prefs.save.mockResolvedValue(record);
-    const events = [{ id: 'order.new', push: true, email: false, wa: true }];
+    const events = [{ id: 'criticalSla', push: true, email: false, wa: true }];
     await controller.save(user, { events });
-    expect(prefs.save).toHaveBeenCalledWith('acc-1', events);
+    expect(prefs.save).toHaveBeenCalledWith('acc-1', events, 'ALL');
   });
 });
 

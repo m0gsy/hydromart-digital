@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   CaretRight,
   DeviceMobile,
@@ -20,6 +19,7 @@ import { Card, CenterState, Chip, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canUseOperatorConsole } from '@/lib/roles';
+import { usePushPrefs } from '@/lib/notif-prefs';
 
 const OPS_NOTIF: { id: string; icon: Icon; label: string; def: boolean }[] = [
   { id: 'lowStock', icon: Package, label: 'dashB.operatorSettings.notifLowStock', def: true },
@@ -30,9 +30,7 @@ const OPS_NOTIF: { id: string; icon: Icon; label: string; def: boolean }[] = [
 function OperatorSettingsBody() {
   const { signOut } = useAuth();
   const { locale, setLocale, t } = useT();
-  const [notif, setNotif] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(OPS_NOTIF.map((n) => [n.id, n.def])),
-  );
+  const prefs = usePushPrefs();
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -65,8 +63,8 @@ function OperatorSettingsBody() {
                 </span>
                 <span className="flex-1 text-sm font-semibold">{t(n.label)}</span>
                 <Toggle
-                  on={notif[n.id] ?? n.def}
-                  onChange={(v) => setNotif((prev) => ({ ...prev, [n.id]: v }))}
+                  on={prefs.isOn(n.id) ?? n.def}
+                  onChange={(v) => void prefs.setOn(n.id, v, t(n.label))}
                   label={t(n.label)}
                 />
               </div>

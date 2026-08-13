@@ -312,6 +312,25 @@ export const CAPABILITIES = {
   // export logs, incident register, system health, network subscriptions, audit trail.
   // One knob rather than fifteen identical hand-written role pairs.
   hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // admin-service — a staff member's OWN notification channel preferences. Deliberately
+  // the widest capability in this map and safely so: the row is keyed by the caller's auth
+  // `sub`, so holding it lets an account change nothing but what its own phone buzzes for.
+  // It used to be `hqConsole`, which is why the depot consoles' notification toggles were
+  // React state that reset on reload — there was no route a depot account could call.
+  ownNotifPrefs: [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'HEAD_OFFICE',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'SUPER_ADMIN',
+  ],
   // payout-service — READ franchise payout batches. Wider than hqPayout: head office
   // watches the queue, only finance releases money out of it.
   hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
