@@ -108,14 +108,10 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
                 {r.comment && (
                   <p className="mt-1.5 text-sm text-[color:var(--text)]">“{r.comment}”</p>
                 )}
-                {r.stars <= 3 && (
-                  <button
-                    type="button"
-                    className="mt-2 text-sm font-semibold text-brand-600 hover:underline"
-                  >
-                    Balas →
-                  </button>
-                )}
+                {/* "Balas →" was a button with no onClick under every low rating. There is no
+                    reply route to call — order-service has POST :id/review and nothing that
+                    answers one — so an operator who tapped it learned only that the console
+                    ignores them. Gone until a reply endpoint exists. */}
               </div>
             </Card>
           ))}

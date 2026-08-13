@@ -105,13 +105,13 @@ export default function AdjustmentsPage() {
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-green-700">Bonus</h3>
               {bonuses.length === 0 ? <p className="text-sm text-muted">—</p> : bonuses.map((b) => (
-                <div key={b.id} className="flex justify-between py-1 text-sm"><span>{b.type}{b.note ? ` · ${b.note}` : ''}</span><Money amount={Number(b.amount)} /></div>
+                <div key={b.id} className="flex justify-between py-1 text-sm"><span>{b.type}{b.note ? ` · ${b.note}` : ''} <span className="text-muted">· {fmtDate(b.createdAt)}</span></span><Money amount={Number(b.amount)} /></div>
               ))}
             </Card>
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-red-700">Potongan</h3>
               {deductions.length === 0 ? <p className="text-sm text-muted">—</p> : deductions.map((d) => (
-                <div key={d.id} className="flex justify-between py-1 text-sm"><span>{d.type}{d.note ? ` · ${d.note}` : ''}</span><Money amount={Number(d.amount)} /></div>
+                <div key={d.id} className="flex justify-between py-1 text-sm"><span>{d.type}{d.note ? ` · ${d.note}` : ''} <span className="text-muted">· {fmtDate(d.createdAt)}</span></span><Money amount={Number(d.amount)} /></div>
               ))}
             </Card>
           </div>
@@ -137,7 +137,9 @@ export default function AdjustmentsPage() {
               </div>
             </Card>
           )}
-          <p className="text-xs text-muted">Dibuat {fmtDate(new Date().toISOString())} · masuk ke payroll saat digenerate.</p>
+          {/* This line used to stamp TODAY on rows that were entered weeks ago — every
+              adjustment carries its own createdAt, and it is now shown on the row. */}
+          <p className="text-xs text-muted">Masuk ke payroll saat digenerate.</p>
         </>
       )}
     </div>

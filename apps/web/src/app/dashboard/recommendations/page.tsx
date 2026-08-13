@@ -13,12 +13,10 @@ import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Recommendation } from '@/lib/types';
 
-// ponytail: no recommendation-uptake metrics endpoint — static. recommendation-service
-// exposes trending products + a heuristic score, but no "shown/uptake" telemetry.
-const STATS: { labelKey: string; value: string }[] = [
-  { labelKey: 'dashC.recommendations.shown', value: '4.820' },
-  { labelKey: 'dashC.recommendations.uptake', value: '26%' },
-];
+// The two tiles that used to sit above the trending list ("4.820 ditampilkan", "26%
+// uptake") were invented numbers: recommendation-service has trending products and a
+// heuristic score, and no shown/uptake telemetry of any kind. A made-up conversion rate is
+// worse than an empty strip — somebody plans against it.
 
 function RecommendationsBody() {
   const { t } = useT();
@@ -42,15 +40,6 @@ function RecommendationsBody() {
             {scopedDepot ? `${scopedDepot.name} · ` : ''}{t('dashC.recommendations.subtitle')}
           </p>
         </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {STATS.map((s) => (
-          <Card key={s.labelKey} className="flex flex-col gap-1 p-4">
-            <span className="text-xs text-[color:var(--text-muted)]">{t(s.labelKey)}</span>
-            <span className="text-2xl font-bold tabular-nums">{s.value}</span>
-          </Card>
-        ))}
       </div>
 
       <Card className="flex flex-col gap-1 p-5">
