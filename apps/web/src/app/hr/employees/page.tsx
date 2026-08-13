@@ -3,15 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import {
-  Badge,
-  Card,
-  ErrorState,
-  Input,
-  LinkButton,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Card, ErrorState, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -138,6 +130,7 @@ export default function EmployeesPage() {
             </option>
           ))}
         </select>
+        {departments.error && <LoadError onRetry={departments.reload} />}
         <select
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
@@ -171,7 +164,9 @@ export default function EmployeesPage() {
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">
                   {e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} ·{' '}
-                  {departmentLabel(deptRows, e.departmentId)}
+                  {/* Without the list, departmentLabel() answers "Belum diatur" for every
+                      row at once — a whole roster claiming no department. */}
+                  {departments.error ? 'Departemen tidak terbaca' : departmentLabel(deptRows, e.departmentId)}
                 </p>
               </Link>
               {/* The safety net: a row with no login is somebody who cannot clock in, and

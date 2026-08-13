@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from '@phosphor-icons/react';
 
-import { Badge, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -135,6 +135,10 @@ export default function HqOrderDetailPage() {
                   {payment.status}
                 </Badge>
               </div>
+            ) : payments.error ? (
+              // "No payment recorded" on an order detail is what a refund decision is made
+              // against. An unread payment is not an unpaid one.
+              <LoadError onRetry={payments.reload} />
             ) : (
               <p className="text-sm text-muted">{t('hq.orderDetail.noPayment')}</p>
             )}

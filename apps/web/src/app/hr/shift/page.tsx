@@ -296,12 +296,17 @@ function Assignments({
             </option>
           ))}
         </select>
+        {staff.error && <LoadError onRetry={staff.reload} />}
       </Field>
 
       {employeeId && (
         <>
           {history.loading ? (
             <Skeleton className="h-16" />
+          ) : history.error ? (
+            // "Belum pernah ditugaskan — memakai shift depot" decides which hours this
+            // person's lateness is graded against. It must not be what an outage looks like.
+            <LoadError onRetry={history.reload} />
           ) : (
             <ol className="space-y-1 text-sm">
               {(history.data ?? []).length === 0 && (
