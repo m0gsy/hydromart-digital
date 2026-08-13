@@ -92,6 +92,25 @@ describe('PaymentController', () => {
     expect(svc.revenueByMethod).toHaveBeenCalledWith({ from: undefined, to: undefined });
   });
 
+  // The sweep's twin. Same aggregate, flattened to the row shape the spreadsheet writer
+  // takes — if this drifted from order-service's rows the report would have two layouts.
+  it('internalExportRows flattens the method aggregate to label/orders/revenue', async () => {
+    svc.revenueByMethod.mockResolvedValue([{ method: 'CASH', amount: 50000, count: 3 }]);
+    await expect(controller.internalExportRows({} as never)).resolves.toEqual({
+      rows: [{ label: 'CASH', orders: 3, revenue: 50000 }],
+    });
+    expect(svc.revenueByMethod).toHaveBeenLastCalledWith({ from: undefined, to: undefined });
+  });
+
+  it('internalExportRows maps a present window to Dates', async () => {
+    svc.revenueByMethod.mockResolvedValue([]);
+    await controller.internalExportRows({ from: '2026-02-01', to: '2026-02-28' } as never);
+    expect(svc.revenueByMethod).toHaveBeenLastCalledWith({
+      from: new Date('2026-02-01'),
+      to: new Date('2026-02-28'),
+    });
+  });
+
   // Shift close reads this. An open window means "everything so far", which is what a
   // depot's running total is before anyone has closed anything.
   it('depotCash forwards the window, open at both ends when unbounded', async () => {

@@ -24,4 +24,15 @@ export class ExportLogService {
   ingest(data: CreateExportLogData): Promise<ExportLogRecord> {
     return this.repo.create(data);
   }
+
+  /**
+   * The stored file for one export, or null when the row has none.
+   *
+   * Separate from `list` on purpose: a page of the table would otherwise ship every file's
+   * bytes at once, and the point of holding them in the row is that they are fetched one
+   * at a time by somebody who asked for that one.
+   */
+  download(id: string): Promise<{ fileName: string; content: Buffer } | null> {
+    return this.repo.findContent(id);
+  }
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ExportFormat } from '../../domain/export';
 import { ReportCadence } from '../../domain/report-cadence';
+import { ReportDataset } from '../../domain/report-dataset';
 import {
   CreateScheduledReportData,
   ScheduledReportRecord,
@@ -16,7 +17,9 @@ interface ScheduledReportRow {
   cadence: string;
   recipients: string[];
   format: string;
+  dataset: string;
   nextRunAt: Date | null;
+  lastRunAt: Date | null;
   enabled: boolean;
   createdAt: Date;
 }
@@ -30,11 +33,23 @@ export class ScheduledReportPrismaRepository implements ScheduledReportRepositor
       ...row,
       cadence: row.cadence as ReportCadence,
       format: row.format as ExportFormat,
+      dataset: row.dataset as ReportDataset,
     };
   }
 
   async list(): Promise<ScheduledReportRecord[]> {
     const rows = await this.prisma.scheduledReport.findMany({ orderBy: { createdAt: 'desc' } });
+    return rows.map((r) => this.toRecord(r));
+  }
+
+  async findDue(now: Date, limit: number): Promise<ScheduledReportRecord[]> {
+    // NULL counts as due: a schedule written before the executor existed was never
+    // stamped, and reading that as "not yet" would leave it waiting forever.
+    const rows = await this.prisma.scheduledReport.findMany({
+      where: { enabled: true, OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }] },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
     return rows.map((r) => this.toRecord(r));
   }
 

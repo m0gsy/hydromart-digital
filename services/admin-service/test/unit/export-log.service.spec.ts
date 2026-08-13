@@ -45,4 +45,31 @@ describe('ExportLogService', () => {
     const byStatus = await service.list({ page: 1, limit: 20, status: ExportStatus.FAILED });
     expect(byStatus.total).toBe(1);
   });
+
+  /*
+   * A separate read from `list` on purpose: shipping every stored file's bytes inside a
+   * page of the table would turn a screen into a download of everything at once.
+   */
+  it('download returns the stored file, and null when the row has none', async () => {
+    const repo = new InMemoryExportLogRepository();
+    const service = new ExportLogService(repo);
+    const withFile = await repo.create({
+      dataset: 'REVENUE_BY_DEPOT',
+      requestedByEmail: 'scheduler',
+      format: ExportFormat.CSV,
+      content: Buffer.from('hi'),
+      fileName: 'a.csv',
+    });
+    const withoutFile = await repo.create({
+      dataset: 'REVENUE_BY_DEPOT',
+      requestedByEmail: 'scheduler',
+      format: ExportFormat.CSV,
+    });
+
+    await expect(service.download(withFile.id)).resolves.toEqual({
+      fileName: 'a.csv',
+      content: Buffer.from('hi'),
+    });
+    expect(await service.download(withoutFile.id)).toBeNull();
+  });
 });

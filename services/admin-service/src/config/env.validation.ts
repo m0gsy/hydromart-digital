@@ -22,6 +22,10 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret. Present so the platform JwtAuthGuard can accept
   // internal-key system calls; admin's own endpoints are JWT + role gated. Blank = off.
   INTERNAL_SERVICE_KEY: optionalSecret(16),
+  // Peers the scheduled-report sweep reads its rows from (design 15c). Blank = that
+  // dataset's run is recorded FAILED, never an empty file that reads as a quiet month.
+  ORDER_SERVICE_URL: Joi.string().allow('').default(''),
+  PAYMENT_SERVICE_URL: Joi.string().allow('').default(''),
   ...peerUrlSchema,
   // Q-6: shipped to every service by docker-compose's x-shared, and until now
   // validated by none of them. The capability poller reads it; unset, it fails open

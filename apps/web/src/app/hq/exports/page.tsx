@@ -4,17 +4,23 @@ import { useState } from 'react';
 import { FileArrowDown } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
+import { useToast } from '@/components/toast';
 import { agoLabel } from '@/lib/hq/stubs';
-import { api } from '@/lib/api';
+import { api, ApiError, getBlob } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { ExportLogEntry, ExportStatus, Page } from '@/lib/types';
 
-// Design 13c — data-export audit log. Real admin-service track: HEAD_OFFICE + SUPER_ADMIN
-// read, paginated newest-first, filterable by status. Entries are written by export jobs
-// via the internal-key ingest endpoint.
+// Design 13c — data-export audit log. HEAD_OFFICE + SUPER_ADMIN read, paginated
+// newest-first, filterable by status.
+//
+// This screen used to be permanently empty, and the reason was one layer down: nothing
+// wrote an export log because nothing produced an export. The scheduled-report sweep now
+// does both — it stores the file on the row, so a DONE entry is a download rather than a
+// claim that something happened somewhere.
 type Filter = 'all' | ExportStatus;
 
 const STATUS_TONE: Record<ExportStatus, 'success' | 'warning' | 'danger'> = {
@@ -34,11 +40,24 @@ function minutesAgo(iso: string): number {
 
 export default function HqExportsPage() {
   const { t } = useT();
+  const { toast } = useToast();
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const query = useAsync<Page<ExportLogEntry>>(
     () => api.get(endpoints.admin.exportLogs({ limit: 100, status: filter === 'all' ? undefined : filter }), true),
     [filter],
   );
+
+  async function download(id: string, fileName: string) {
+    setBusyId(id);
+    try {
+      downloadBlob(fileName, await getBlob(endpoints.admin.exportLogDownload(id)));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.exportsLog.downloadError'), 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const chips: Filter[] = ['all', 'DONE', 'PENDING', 'FAILED'];
   const label = (f: Filter) => (f === 'all' ? t('hq.exportsLog.all') : t(`hq.exportsLog.${STATUS_KEY[f]}`));
@@ -82,6 +101,7 @@ export default function HqExportsPage() {
                 <th className="px-4 py-2.5">{t('hq.exportsLog.format')}</th>
                 <th className="px-4 py-2.5 text-right">{t('hq.exportsLog.rows')}</th>
                 <th className="px-4 py-2.5">{t('hq.exportsLog.status')}</th>
+                <th className="px-4 py-2.5 text-right">{t('hq.exportsLog.file')}</th>
               </tr>
             </thead>
             <tbody>
@@ -98,6 +118,19 @@ export default function HqExportsPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={STATUS_TONE[r.status]}>{t(`hq.exportsLog.${STATUS_KEY[r.status]}`)}</Badge>
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    {r.hasFile && r.fileName ? (
+                      <Button
+                        variant="secondary"
+                        loading={busyId === r.id}
+                        onClick={() => download(r.id, r.fileName as string)}
+                      >
+                        {t('hq.exportsLog.download')}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

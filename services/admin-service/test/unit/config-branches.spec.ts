@@ -13,6 +13,15 @@ describe('AdminConfigService', () => {
     expect(config.port).toBe(3017);
     expect(config.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
     expect(config.internalServiceKey).toBe('');
+    // Peers the report sweep reads from. Blank = that dataset's run is recorded FAILED,
+    // never an empty spreadsheet that reads as a quiet month.
+    expect(config.paymentServiceUrl).toBe('');
+    const wired = buildTestConfig({
+      ORDER_SERVICE_URL: '  http://order:3004  ',
+      PAYMENT_SERVICE_URL: '  http://payment:3005  ',
+    });
+    expect(wired.orderServiceUrl).toBe('http://order:3004');
+    expect(wired.paymentServiceUrl).toBe('http://payment:3005');
   });
 
   it('isProduction is true when NODE_ENV=production', () => {

@@ -31,6 +31,18 @@ export class AdminConfigService {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
   /** Shared service-to-service secret (blank when unset). */
+  /**
+   * Peers the scheduled-report sweep reads its rows from. Blank either one and that
+   * dataset's run is recorded FAILED — never an empty spreadsheet, which would read as a
+   * quiet month rather than an outage.
+   */
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
+  }
+  get paymentServiceUrl(): string {
+    return this.config.get<string>('PAYMENT_SERVICE_URL', '').trim();
+  }
+
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }

@@ -1,5 +1,6 @@
 import { ExportFormat } from '../../domain/export';
 import { ReportCadence } from '../../domain/report-cadence';
+import { ReportDataset } from '../../domain/report-dataset';
 
 export interface ScheduledReportRecord {
   id: string;
@@ -7,7 +8,9 @@ export interface ScheduledReportRecord {
   cadence: ReportCadence;
   recipients: string[];
   format: ExportFormat;
+  dataset: ReportDataset;
   nextRunAt: Date | null;
+  lastRunAt: Date | null;
   enabled: boolean;
   createdAt: Date;
 }
@@ -17,6 +20,7 @@ export interface CreateScheduledReportData {
   cadence: ReportCadence;
   recipients: string[];
   format?: ExportFormat;
+  dataset?: ReportDataset;
   nextRunAt?: Date | null;
   enabled?: boolean;
 }
@@ -27,12 +31,21 @@ export interface UpdateScheduledReportData {
   cadence?: ReportCadence;
   recipients?: string[];
   format?: ExportFormat;
+  dataset?: ReportDataset;
   nextRunAt?: Date | null;
+  lastRunAt?: Date | null;
   enabled?: boolean;
 }
 
 export interface ScheduledReportRepository {
   list(): Promise<ScheduledReportRecord[]>;
+  /**
+   * Enabled schedules whose time has come, oldest first, bounded per tick.
+   *
+   * A NULL `nextRunAt` counts as due: a schedule created before the executor existed has
+   * never been stamped, and treating it as "not due yet" would leave it never running.
+   */
+  findDue(now: Date, limit: number): Promise<ScheduledReportRecord[]>;
   create(data: CreateScheduledReportData): Promise<ScheduledReportRecord>;
   update(id: string, data: UpdateScheduledReportData): Promise<ScheduledReportRecord | null>;
   remove(id: string): Promise<boolean>;

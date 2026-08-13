@@ -43,6 +43,7 @@ import {
 } from './dto/payment.dto';
 import {
   CashByOrderResponseDto,
+  InternalExportRowsResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
@@ -112,6 +113,30 @@ export class PaymentController {
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });
+  }
+
+  /**
+   * The same collected-by-method aggregate as the bearer route below, for the scheduled
+   * report sweep (design 15c). Internal-key because cron holds no token — not because the
+   * figure is more open than `settlementRead` already makes it.
+   *
+   * Flattened to the label/orders/revenue shape order-service's export rows use, so the
+   * sweep writes one spreadsheet layout no matter which grouping produced the numbers.
+   */
+  @ApiOkResponse({ type: InternalExportRowsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/export-rows')
+  @ApiOperation({ summary: 'Collected revenue per method as report rows (internal service auth)' })
+  async internalExportRows(
+    @Query() query: UnsettledByMethodQueryDto,
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[] }> {
+    const items = await this.payments.revenueByMethod({
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
+    return { rows: items.map((i) => ({ label: i.method, orders: i.count, revenue: i.amount })) };
   }
 
   // The depot daily report asks this: of the day's delivery orders, which ones did the

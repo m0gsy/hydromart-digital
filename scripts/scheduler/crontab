@@ -32,3 +32,8 @@
 # the two runs separate locks, so a slow siang never swallows sore.
 0 13 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/siang
 0 21 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/sore
+# Scheduled reports (15c): produce every report whose time has come. Hourly rather than
+# at midnight because a cadence becomes due at a UTC boundary and one fixed run would mean
+# a single missed tick costs a whole day; the sweep is idempotent — it stamps nextRunAt, so
+# an extra tick finds nothing due. Offset off the hour so it does not pile onto :00.
+17 * * * * sh /scripts/sweep.sh scheduled-reports/internal/run-due admin:3017

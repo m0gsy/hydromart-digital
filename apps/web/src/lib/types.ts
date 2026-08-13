@@ -1676,17 +1676,25 @@ export interface ExportLogEntry {
   format: ExportFormat;
   rowCount: number | null;
   status: ExportStatus;
+  /** Name of the stored file, when the run produced one. */
+  fileName: string | null;
+  /** True when this row has a file to download (13c was a list of claims before). */
+  hasFile: boolean;
   createdAt: string;
 }
 
 export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** What goes IN a scheduled report — the three groupings hq/reports/export really has. */
+export type ReportDataset = 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT' | 'REVENUE_BY_METHOD';
 export interface ScheduledReport {
   id: string;
   name: string;
   cadence: ReportCadence;
   recipients: string[];
   format: ExportFormat;
+  dataset: ReportDataset;
   nextRunAt: string | null;
+  lastRunAt: string | null;
   enabled: boolean;
   createdAt: string;
 }

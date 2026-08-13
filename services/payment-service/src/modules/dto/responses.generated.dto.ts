@@ -134,3 +134,18 @@ export class Webhook3ResponseDto {
   @ApiProperty({ type: Boolean })
   handled!: boolean;
 }
+
+/** One row of a scheduled revenue report — same shape order-service's export rows use. */
+export class ExportRowResponseDto {
+  @ApiProperty({ example: 'CASH' })
+  label!: string;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+export class InternalExportRowsResponseDto {
+  @ApiProperty({ type: [ExportRowResponseDto] })
+  rows!: ExportRowResponseDto[];
+}

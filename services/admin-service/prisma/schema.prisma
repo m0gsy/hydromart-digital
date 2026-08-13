@@ -85,6 +85,15 @@ enum ExportStatus {
   FAILED
 }
 
+/// Which revenue grouping a scheduled report renders. Matches the three groupings
+/// hq/reports/export draws from real endpoints — order-service owns the first two,
+/// payment-service the third.
+enum ReportDataset {
+  REVENUE_BY_DEPOT
+  REVENUE_BY_PRODUCT
+  REVENUE_BY_METHOD
+}
+
 /// Recurrence of a scheduled report.
 enum ReportCadence {
   DAILY
@@ -173,6 +182,11 @@ model ExportLog {
   format           ExportFormat
   rowCount         Int?
   status           ExportStatus @default(PENDING)
+  /// The rendered file. Held in the row rather than a bucket: a revenue aggregate is
+  /// hundreds of KB, it rides the existing DB backup, and it needs no new infrastructure.
+  /// The retention purge that already trims this table is what bounds the growth.
+  content          Bytes?
+  fileName         String?
   createdAt        DateTime     @default(now())
 
   @@index([dataset])
@@ -188,10 +202,16 @@ model ScheduledReport {
   cadence    ReportCadence
   recipients String[]
   format     ExportFormat  @default(XLSX)
+  /// What goes IN the file. Without it the row said when to run and to whom, but never what.
+  dataset    ReportDataset @default(REVENUE_BY_DEPOT)
   nextRunAt  DateTime?
+  /// Stamped by the sweep. `nextRunAt` says when it is due; this says when it last was.
+  lastRunAt  DateTime?
   enabled    Boolean       @default(true)
   createdAt  DateTime      @default(now())
 
+  /// The sweep's query: enabled and due, oldest first.
+  @@index([enabled, nextRunAt])
   @@map("scheduled_reports")
 }
 
