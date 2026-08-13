@@ -257,6 +257,11 @@ export class ReportService {
    * response body. Crossing it is reported, never silently trimmed.
    */
   private static readonly MAX_SEGMENT_CUSTOMERS = 5000;
+  /**
+   * Rows per scheduled export. A report is a spreadsheet somebody reads, not a data dump —
+   * and the aggregates behind it are already top-N, so this is the N.
+   */
+  private static readonly EXPORT_ROWS = 100;
   private readonly logger = new Logger(ReportService.name);
 
   constructor(
@@ -444,6 +449,37 @@ export class ReportService {
       limit,
     );
     return { customerIds, truncated: customerIds.length >= limit };
+  }
+
+  /**
+   * The rows behind a scheduled revenue report (design 15c), for admin-service's sweep.
+   *
+   * Same two aggregates the HQ export screen already draws, flattened to one label/orders/
+   * revenue shape so a spreadsheet does not need to know which grouping produced it. Depot
+   * rows are labelled with the depot's NAME when depot-service can be reached; a UUID in a
+   * report somebody opens next quarter is not a label, but it is better than no report, so
+   * the id is the fallback rather than a failure.
+   */
+  async exportRows(
+    dataset: 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT',
+    range: ReportRange,
+  ): Promise<{ label: string; orders: number; revenue: number }[]> {
+    if (dataset === 'REVENUE_BY_PRODUCT') {
+      const report = await this.revenueByProduct(range, ReportService.EXPORT_ROWS);
+      return report.items.map((i) => ({
+        label: i.productName,
+        orders: i.orderCount,
+        revenue: i.revenue,
+      }));
+    }
+    const { items } = await this.topDepots(range, ReportService.EXPORT_ROWS);
+    const contacts = (await this.depotDirectory?.listContacts()) ?? null;
+    const names = new Map((contacts ?? []).map((d) => [d.id, d.name]));
+    return items.map((i) => ({
+      label: names.get(i.depotId) ?? i.depotId,
+      orders: i.orderCount,
+      revenue: i.revenue,
+    }));
   }
 
   async customerSummary(customerId: string): Promise<CustomerSummary> {

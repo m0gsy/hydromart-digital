@@ -223,6 +223,50 @@ describe('ReportService', () => {
     expect(active.customerIds.sort()).toEqual([CUST_A, CUST_B].sort());
   });
 
+  /*
+   * The rows behind a scheduled report. The depot grouping is the interesting one: the
+   * aggregate knows only depotIds, and a spreadsheet full of UUIDs is not a report — but a
+   * depot-service outage must not stop the report either, so the id is the fallback.
+   */
+  describe('exportRows', () => {
+    it('labels depot rows with the depot name when depot-service answers', async () => {
+      const withNames = new ReportService(repo, reportTestConfig(), {
+        listContacts: async () => [{ id: DEPOT_A, name: 'Depot Cibubur', contactPhone: null }],
+      } as never);
+      const rows = await withNames.exportRows('REVENUE_BY_DEPOT', {});
+      expect(rows.find((r) => r.label === 'Depot Cibubur')).toBeDefined();
+    });
+
+    it('falls back to the depot id rather than dropping the report', async () => {
+      const rows = await reports.exportRows('REVENUE_BY_DEPOT', {});
+      expect(rows.every((r) => r.orders > 0)).toBe(true);
+      expect(rows.some((r) => r.label === DEPOT_A)).toBe(true);
+    });
+
+    it('labels product rows with the product name', async () => {
+      const r2 = new InMemoryOrderRepository();
+      const svc = new ReportService(r2, reportTestConfig());
+      await r2.create({
+        ...orderData({ total: 40000 }),
+        items: [
+          {
+            productId: randomUUID(),
+            productName: 'Galon 19L',
+            sku: 'G19',
+            unit: 'Galon',
+            volumeMl: 19000,
+            isGallon: true,
+            unitPrice: 20000,
+            quantity: 2,
+            lineTotal: 40000,
+          },
+        ],
+      });
+      const rows = await svc.exportRows('REVENUE_BY_PRODUCT', {});
+      expect(rows).toEqual([{ label: 'Galon 19L', orders: 1, revenue: 40000 }]);
+    });
+  });
+
   it('sizes a recency segment (last order within N days)', async () => {
     // All seed orders were just created, so a wide recency window keeps everyone.
     const recent = await reports.segmentEstimate({ recencyDays: 30 });

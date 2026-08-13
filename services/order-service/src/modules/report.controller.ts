@@ -30,6 +30,7 @@ import {
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
   DepotWeeklyQueryDto,
+  ExportRowsQueryDto,
   RangeReportQueryDto,
   ResellerRollupQueryDto,
   SalesReportQueryDto,
@@ -41,6 +42,7 @@ import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } fr
 import {
   InternalDailySalesBroadcastResponseDto,
   InternalDepotDailyGallonsResponseDto,
+  InternalExportRowsResponseDto,
   InternalSegmentCustomersResponseDto,
 } from './dto/responses.generated.dto';
 import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
@@ -237,6 +239,25 @@ export class ReportController {
     @Query() q: SegmentEstimateQueryDto,
   ): Promise<{ customerIds: string[]; truncated: boolean }> {
     return this.reports.segmentCustomers(q);
+  }
+
+  /**
+   * The rows behind a scheduled revenue report, for admin-service's report sweep (15c).
+   *
+   * Internal-key: the caller is cron, which holds no bearer. The same aggregates are
+   * already readable by the reporting roles through the routes above — this route exists
+   * because a scheduler has no token, not because the data is more open.
+   */
+  @ApiOkResponse({ type: InternalExportRowsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/export-rows')
+  @ApiOperation({ summary: 'Revenue rows for a scheduled report (internal service auth)' })
+  async internalExportRows(
+    @Query() q: ExportRowsQueryDto,
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[] }> {
+    return { rows: await this.reports.exportRows(q.dataset, toRange(q)) };
   }
 
   /**

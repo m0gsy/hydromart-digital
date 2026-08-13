@@ -1062,6 +1062,21 @@ export class InternalSegmentCustomersResponseDto {
   truncated!: boolean;
 }
 
+/** One row of a scheduled revenue report — label, order count, revenue (design 15c). */
+export class ExportRowResponseDto {
+  @ApiProperty({ example: 'Depot Cibubur' })
+  label!: string;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+export class InternalExportRowsResponseDto {
+  @ApiProperty({ type: [ExportRowResponseDto] })
+  rows!: ExportRowResponseDto[];
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class Schema3ResponseDto {
   @ApiProperty({ type: [SettingDefResponseDto] })
