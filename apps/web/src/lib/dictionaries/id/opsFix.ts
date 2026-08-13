@@ -553,4 +553,21 @@ export const opsFix = {
     gate: 'Khusus Manajer depot',
     gateBody: 'Buku kas depot hanya untuk Manajer depot.',
   },
+  // dashboard/compare — PR-8. Sebelumnya seluruhnya hardcoded.
+  compare: {
+    title: 'Banding antar depot',
+    subtitle: '{month} · depot yang Anda kelola',
+    noDepots: 'Belum ada depot',
+    noDepotsBody: 'Belum ada depot yang bisa dibandingkan.',
+    colMetric: 'Metrik',
+    mOrders: 'Order',
+    mRevenue: 'Pendapatan',
+    mSla: 'SLA on-time',
+    mWastage: 'Wastage (galon rusak)',
+    mProfit: 'Laba bersih',
+    insight: 'Insight',
+    insightBody: 'Kelima metrik dibaca dari sumbernya masing-masing: order dan pendapatan dari buku pesanan bulan ini, SLA dari delivery-service, wastage dari depot-service, laba bersih dari order-service (omzet − pembelian − gaji − beban). “—” berarti sumbernya tidak terbaca, bukan nol.',
+    gate: 'Khusus Manajer depot',
+    gateBody: 'Banding antar depot hanya untuk Manajer depot.',
+  },
 };

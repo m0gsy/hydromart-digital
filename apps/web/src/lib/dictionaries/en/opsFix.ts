@@ -552,4 +552,21 @@ export const opsFix = {
     gate: 'Depot managers only',
     gateBody: 'The depot cash book is for depot managers only.',
   },
+  // dashboard/compare — PR-8. Mirrors id/opsFix.compare key for key.
+  compare: {
+    title: 'Compare depots',
+    subtitle: '{month} · the depots you run',
+    noDepots: 'No depots yet',
+    noDepotsBody: 'There is no depot to compare yet.',
+    colMetric: 'Metric',
+    mOrders: 'Orders',
+    mRevenue: 'Revenue',
+    mSla: 'On-time SLA',
+    mWastage: 'Wastage (damaged gallons)',
+    mProfit: 'Net profit',
+    insight: 'Insight',
+    insightBody: 'All five metrics come from their own source: orders and revenue from this month’s order book, SLA from delivery-service, wastage from depot-service, net profit from order-service (revenue − purchases − payroll − expenses). A “—” means that source could not be read, not zero.',
+    gate: 'Depot managers only',
+    gateBody: 'Comparing depots is for depot managers only.',
+  },
 };
