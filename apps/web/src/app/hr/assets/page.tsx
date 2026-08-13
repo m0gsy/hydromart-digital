@@ -3,18 +3,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  Field,
-  Input,
-  LinkButton,
-  Money,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -285,6 +274,8 @@ function AssetPanel({
   return (
     <div className="space-y-3 rounded-lg border border-app p-3">
       {detail.loading && <Skeleton className="h-16" />}
+      {/* A hand-over trail that renders nothing is read as an asset nobody moved. */}
+      {detail.error && <LoadError onRetry={detail.reload} />}
       {detail.data && (
         <ol className="space-y-1 text-sm">
           {detail.data.movements.length === 0 && (
