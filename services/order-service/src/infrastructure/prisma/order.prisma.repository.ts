@@ -933,9 +933,19 @@ export class OrderPrismaRepository implements OrderRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
-  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
-    // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
-    // frequency/recency are HAVING predicates over the per-customer aggregate.
+  /**
+   * The predicates behind both segment reads. They are two queries — a count must not
+   * materialise ids, an id list must not be re-counted — but they are ONE segment, and a
+   * campaign sized by the count then broadcast to the ids is exactly where a silent
+   * disagreement would show up as customers who never got the message.
+   *
+   * Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
+   * frequency/recency are HAVING predicates over the per-customer aggregate.
+   */
+  private segmentPredicates(conditions: SegmentConditions): {
+    where: Prisma.Sql;
+    having: Prisma.Sql;
+  } {
     const where: Prisma.Sql[] = [NOT_VOID_SQL];
     if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
     const having: Prisma.Sql[] = [];
@@ -946,18 +956,39 @@ export class OrderPrismaRepository implements OrderRepository {
       having.push(Prisma.sql`MAX("createdAt") < ${conditions.lapsedCutoff}`);
     if (conditions.firstOrderCutoff)
       having.push(Prisma.sql`MIN("createdAt") >= ${conditions.firstOrderCutoff}`);
-    const havingSql = having.length
-      ? Prisma.sql`HAVING ${Prisma.join(having, ' AND ')}`
-      : Prisma.empty;
+    return {
+      where: Prisma.join(where, ' AND '),
+      having: having.length ? Prisma.sql`HAVING ${Prisma.join(having, ' AND ')}` : Prisma.empty,
+    };
+  }
+
+  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    const { where, having } = this.segmentPredicates(conditions);
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
       SELECT COUNT(*)::bigint AS count FROM (
         SELECT "customerId"
         FROM "orders"
-        WHERE ${Prisma.join(where, ' AND ')}
+        WHERE ${where}
         GROUP BY "customerId"
-        ${havingSql}
+        ${having}
       ) t
     `);
     return Number(rows[0]?.count ?? 0);
+  }
+
+  async segmentCustomerIds(conditions: SegmentConditions, limit: number): Promise<string[]> {
+    const { where, having } = this.segmentPredicates(conditions);
+    // Ordered by id so the page is stable, and LIMITed so one segment can never return a
+    // whole customer base in a single response. The caller decides what a full page means.
+    const rows = await this.prisma.$queryRaw<{ customerId: string }[]>(Prisma.sql`
+      SELECT "customerId"
+      FROM "orders"
+      WHERE ${where}
+      GROUP BY "customerId"
+      ${having}
+      ORDER BY "customerId"
+      LIMIT ${limit}
+    `);
+    return rows.map((r) => r.customerId);
   }
 }

@@ -183,6 +183,46 @@ describe('ReportService', () => {
     expect(one.count).toBe(2);
   });
 
+  /*
+   * The count and the id list must agree, because crm sizes an audience with one and
+   * broadcasts to the other — a campaign that shows 300 and messages 40 is the failure
+   * this pair exists to prevent. `truncated` is the honest half: a caller that would have
+   * under-sent must be able to refuse rather than silently reach part of the segment.
+   */
+  it('lists the same customers it counted for a frequency segment', async () => {
+    const { count } = await reports.segmentEstimate({ minOrders: 2 });
+    const listed = await reports.segmentCustomers({ minOrders: 2 });
+    expect(listed.customerIds).toEqual([CUST_A]);
+    expect(listed.customerIds).toHaveLength(count);
+    expect(listed.truncated).toBe(false);
+  });
+
+  it('scopes the id list to a depot the same way the count does', async () => {
+    const listed = await reports.segmentCustomers({ depotId: DEPOT_B });
+    expect(listed.customerIds).toEqual([CUST_B]);
+  });
+
+  it('flags truncation instead of quietly returning a partial audience', async () => {
+    const listed = await reports.segmentCustomers({}, 1);
+    expect(listed.customerIds).toHaveLength(1);
+    expect(listed.truncated).toBe(true);
+  });
+
+  // The three day-windows are the ones the campaign chips actually send (at-risk, new,
+  // still-active), and each is a separate cutoff — a segment that dropped one silently
+  // would broadcast to a wider audience than the screen sized.
+  it('turns every day-window into the same cutoff the estimate uses', async () => {
+    const listed = await reports.segmentCustomers({
+      recencyDays: 30,
+      newWithinDays: 30,
+      lapsedDays: 0.0001, // every seeded order is older than a few seconds ago
+    });
+    expect(listed.customerIds).toEqual([]);
+
+    const active = await reports.segmentCustomers({ recencyDays: 30, newWithinDays: 30 });
+    expect(active.customerIds.sort()).toEqual([CUST_A, CUST_B].sort());
+  });
+
   it('sizes a recency segment (last order within N days)', async () => {
     // All seed orders were just created, so a wide recency window keeps everyone.
     const recent = await reports.segmentEstimate({ recencyDays: 30 });

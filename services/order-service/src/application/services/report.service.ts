@@ -250,6 +250,13 @@ export const isDelivered = (s: OrderStatus): boolean =>
 @Injectable()
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
+  /**
+   * Ceiling on one segment resolution. A broadcast audience is a list of people, not a
+   * report page, so this is sized for a real campaign rather than a screen — but it is
+   * still a ceiling, because "every customer we have ever had" must not arrive as one
+   * response body. Crossing it is reported, never silently trimmed.
+   */
+  private static readonly MAX_SEGMENT_CUSTOMERS = 5000;
   private readonly logger = new Logger(ReportService.name);
 
   constructor(
@@ -404,6 +411,39 @@ export class ReportService {
       minOrders: input.minOrders ?? null,
       depotId: input.depotId ?? null,
     };
+  }
+
+  /**
+   * The customers behind `segmentEstimate`, for crm to broadcast to. Same conditions, same
+   * day arithmetic — the two are deliberately one code path apart so a screen cannot size
+   * an audience one way and message a different one.
+   *
+   * `truncated` is the point of the cap: an audience larger than MAX_SEGMENT_CUSTOMERS is
+   * reported as cut off rather than returned short, so the caller can refuse instead of
+   * reaching part of a segment and calling it sent.
+   */
+  async segmentCustomers(
+    input: {
+      recencyDays?: number;
+      lapsedDays?: number;
+      newWithinDays?: number;
+      minOrders?: number;
+      depotId?: string;
+    },
+    limit = ReportService.MAX_SEGMENT_CUSTOMERS,
+  ): Promise<{ customerIds: string[]; truncated: boolean }> {
+    const daysAgo = (d: number): Date => new Date(Date.now() - d * 24 * 60 * 60 * 1000);
+    const customerIds = await this.orders.segmentCustomerIds(
+      {
+        recencyCutoff: input.recencyDays != null ? daysAgo(input.recencyDays) : undefined,
+        lapsedCutoff: input.lapsedDays != null ? daysAgo(input.lapsedDays) : undefined,
+        firstOrderCutoff: input.newWithinDays != null ? daysAgo(input.newWithinDays) : undefined,
+        minOrders: input.minOrders,
+        depotId: input.depotId,
+      },
+      limit,
+    );
+    return { customerIds, truncated: customerIds.length >= limit };
   }
 
   async customerSummary(customerId: string): Promise<CustomerSummary> {

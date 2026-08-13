@@ -614,6 +614,15 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    return this.segmentMatches(conditions).length;
+  }
+
+  async segmentCustomerIds(conditions: SegmentConditions, limit: number): Promise<string[]> {
+    return this.segmentMatches(conditions).slice(0, limit);
+  }
+
+  /** One matcher behind both segment reads, so the count and the list cannot disagree. */
+  private segmentMatches(conditions: SegmentConditions): string[] {
     const byCustomer = new Map<string, { count: number; first: Date; last: Date }>();
     for (const r of this.rows) {
       if (r.status === OrderStatus.CANCELLED) continue;
@@ -628,15 +637,15 @@ export class InMemoryOrderRepository implements OrderRepository {
       if (r.createdAt < cur.first) cur.first = r.createdAt;
       byCustomer.set(r.customerId, cur);
     }
-    let n = 0;
-    for (const agg of byCustomer.values()) {
+    const matched: string[] = [];
+    for (const [customerId, agg] of byCustomer) {
       if (conditions.minOrders != null && agg.count < conditions.minOrders) continue;
       if (conditions.recencyCutoff && agg.last < conditions.recencyCutoff) continue;
       if (conditions.lapsedCutoff && agg.last >= conditions.lapsedCutoff) continue;
       if (conditions.firstOrderCutoff && agg.first < conditions.firstOrderCutoff) continue;
-      n += 1;
+      matched.push(customerId);
     }
-    return n;
+    return matched.sort();
   }
 }
 

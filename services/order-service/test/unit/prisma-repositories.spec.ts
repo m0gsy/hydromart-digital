@@ -855,6 +855,7 @@ describe('OrderPrismaRepository', () => {
     ['retentionCohort', (r: typeof repo) => r.retentionCohort({}, 'Asia/Jakarta')],
     ['audienceReach', (r: typeof repo) => r.audienceReach()],
     ['segmentEstimate', (r: typeof repo) => r.segmentEstimate({})],
+    ['segmentCustomerIds', (r: typeof repo) => r.segmentCustomerIds({}, 10)],
   ])('excludes both CANCELLED and VOIDED from %s', async (_name, run) => {
     $queryRaw.mockResolvedValue([]);
     await run(repo);
@@ -1119,5 +1120,27 @@ describe('OrderPrismaRepository', () => {
     ).toBe(7);
     $queryRaw.mockResolvedValue([]);
     expect(await repo.segmentEstimate({})).toBe(0);
+  });
+
+  /*
+   * The id list and the count must be the SAME segment. They are two queries because a
+   * count should not materialise ids, so the predicates are built once and shared — this
+   * pins that the conditions really reach the id query, and that the LIMIT is bound
+   * (an unbounded id list is a whole audience in one response).
+   */
+  it('lists a segment’s customer ids under the same conditions, bounded by the limit', async () => {
+    $queryRaw.mockResolvedValue([{ customerId: 'cust-1' }, { customerId: 'cust-2' }]);
+    const out = await repo.segmentCustomerIds(
+      { depotId: 'depot-1', minOrders: 3, lapsedCutoff: new Date('2026-03-01') },
+      2,
+    );
+    expect(out).toEqual(['cust-1', 'cust-2']);
+    const values = ($queryRaw.mock.calls.at(-1)?.[0] as { values: unknown[] }).values;
+    expect(values).toEqual(expect.arrayContaining(['depot-1', 3, new Date('2026-03-01'), 2]));
+  });
+
+  it('returns an empty list when nobody matches', async () => {
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.segmentCustomerIds({}, 10)).toEqual([]);
   });
 });

@@ -1051,6 +1051,17 @@ export class SegmentEstimate3ResponseDto {
   depotId!: string | null;
 }
 
+/** The audience behind a segment estimate — crm's broadcast recipients (design 21d). */
+export class InternalSegmentCustomersResponseDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  customerIds!: string[];
+  @ApiProperty({
+    type: Boolean,
+    description: 'True when the segment outgrew the resolution cap — the list is NOT the whole audience.',
+  })
+  truncated!: boolean;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class Schema3ResponseDto {
   @ApiProperty({ type: [SettingDefResponseDto] })
