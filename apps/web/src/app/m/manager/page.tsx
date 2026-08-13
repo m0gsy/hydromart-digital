@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { CaretRight, Motorcycle, Package, WarningOctagon } from '@phosphor-icons/react';
 
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -110,6 +110,18 @@ export default function ManagerHomePage() {
         <ErrorState message={dash.error ?? 'Gagal memuat'} onRetry={dash.reload} />
       ) : (
         <Kpis d={dash.data} />
+      )}
+
+      {/* The approval banner hides itself at 0 and both tiles fall back to a dash, so a
+          manager whose reads all failed sees a calm depot. */}
+      {(counts.error || lowStock.error || onDelivery.error) && (
+        <LoadError
+          onRetry={() => {
+            if (counts.error) counts.reload();
+            if (lowStock.error) lowStock.reload();
+            if (onDelivery.error) onDelivery.reload();
+          }}
+        />
       )}
 
       {pending > 0 && (

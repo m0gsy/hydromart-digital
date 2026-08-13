@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -167,6 +167,9 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
             </option>
           ))}
         </select>
+        {/* Unread depots leave only "no depot", and the invited staff member lands
+            unscoped — which is a permissions answer, not a blank field. */}
+        {depots.error && <LoadError onRetry={depots.reload} />}
       </Field>
       {/* Hidden for a franchise owner: they are a business counterpart, not headcount. */}
       {!isOwner && (
