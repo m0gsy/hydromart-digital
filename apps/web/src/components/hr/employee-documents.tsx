@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 
 import { ExternalLink } from '@/components/external-link';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Field, LoadError, Skeleton } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -77,7 +77,11 @@ export function EmployeeDocuments({
         <Skeleton className="h-16" />
       ) : (
         <div className="divide-y divide-[color:var(--border)]">
-          {rows.length === 0 && <p className="text-sm text-muted">Belum ada dokumen.</p>}
+          {documents.error ? (
+            <LoadError onRetry={documents.reload} />
+          ) : (
+            rows.length === 0 && <p className="text-sm text-muted">Belum ada dokumen.</p>
+          )}
           {rows.map((d) => (
             <div key={d.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { HR_MANAGED_ROLES, type HrManagedRole } from '@hydromart/access';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -141,6 +141,9 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               </option>
             ))}
           </select>
+          {/* Depot is what scopes this person's whole record. An unread list is an empty
+              dropdown, and the employee gets filed against no depot at all. */}
+          {depots.error && <LoadError onRetry={depots.reload} />}
         </Field>
         <Field label="Tanggal masuk">
           <Input
@@ -247,6 +250,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               </option>
             ))}
           </select>
+          {departments.error && <LoadError onRetry={departments.reload} />}
         </Field>
         <Field label="NPWP (opsional)">
           <Input value={form.npwp} onChange={(e) => set('npwp', e.target.value)} />

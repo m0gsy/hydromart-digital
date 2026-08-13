@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { currentPeriod, type LoanView } from '@/lib/hr';
@@ -57,7 +57,13 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
       <h2 className="text-sm font-semibold">Pinjaman / Kasbon</h2>
       {loans.loading ? <Skeleton className="h-16" /> : (
         <div className="divide-y divide-[color:var(--border)]">
-          {(loans.data ?? []).length === 0 && <p className="text-sm text-muted">Belum ada pinjaman.</p>}
+          {/* "Belum ada pinjaman" is what payroll reads before deciding there is nothing
+              to deduct this month. */}
+          {loans.error ? (
+            <LoadError onRetry={loans.reload} />
+          ) : (
+            (loans.data ?? []).length === 0 && <p className="text-sm text-muted">Belum ada pinjaman.</p>
+          )}
           {(loans.data ?? []).map((l) => (
             <div key={l.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">

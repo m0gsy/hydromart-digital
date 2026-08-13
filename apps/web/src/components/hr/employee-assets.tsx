@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Card, LinkButton, Money, Skeleton } from '@/components/ui';
+import { Badge, Card, LinkButton, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { ASSET_STATUS_LABEL, ASSET_TYPE_LABEL, type EmployeeAsset } from '@/lib/hr';
@@ -31,6 +31,9 @@ export function EmployeeAssets({ employeeId }: { employeeId: string }) {
       </div>
       {assets.loading ? (
         <Skeleton className="h-16" />
+      ) : assets.error ? (
+        // Held company assets decide what an exit interview asks for.
+        <LoadError onRetry={assets.reload} />
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted">Tidak ada aset perusahaan yang dipegang.</p>
       ) : (

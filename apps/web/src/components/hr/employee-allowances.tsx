@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -93,8 +93,13 @@ export function EmployeeAllowances({
         <Skeleton className="h-16" />
       ) : (
         <div className="divide-y divide-[color:var(--border)]">
-          {(allowances.data ?? []).length === 0 && (
-            <p className="text-sm text-muted">Belum ada tunjangan.</p>
+          {/* Allowances are pay. "Belum ada" here is a payroll statement, not a blank list. */}
+          {allowances.error ? (
+            <LoadError onRetry={allowances.reload} />
+          ) : (
+            (allowances.data ?? []).length === 0 && (
+              <p className="text-sm text-muted">Belum ada tunjangan.</p>
+            )
           )}
           {(allowances.data ?? []).map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-3 py-3">
