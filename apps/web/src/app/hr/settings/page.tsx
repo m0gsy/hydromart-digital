@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { useToast } from '@/components/toast';
@@ -26,8 +26,25 @@ export default function HrSettingsPage() {
     [effDepot],
   );
 
+  /**
+   * Typed values belong to the scope they were typed in. Switching GLOBAL→DEPOT (or to another
+   * depot) used to keep them: the box still showed the old number and `save` still read it, so
+   * Simpan wrote a value meant for the whole network as one depot's override. Payroll settings
+   * — late fines, absence rates — with no trace of where the number came from.
+   */
+  useEffect(() => {
+    setDrafts({});
+  }, [scope, depotId]);
+
   async function save(key: string) {
-    const value = drafts[key] ?? String(data?.effective[key] ?? '');
+    // Only what was actually TYPED. Falling back to the effective value made Simpan on an
+    // untouched row persist the INHERITED number as an explicit override — a depot silently
+    // pinned to today's global default, which then stopped following it.
+    const value = drafts[key];
+    if (value === undefined) {
+      toast('Belum ada perubahan pada nilai itu.', 'error');
+      return;
+    }
     if (scope === 'DEPOT' && !depotId) { toast('Isi depotId untuk override DEPOT', 'error'); return; }
     try {
       await api.put(endpoints.hr.putSetting, { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key, value }, true);
@@ -83,8 +100,11 @@ export default function HrSettingsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {/* CONTROLLED, and keyed to the scope: an uncontrolled box kept the previous
+                    scope's number on screen after the switch, which is half of how a GLOBAL
+                    value came to be written as a DEPOT override. */}
                 <Input
-                  defaultValue={String(data.effective[d.key] ?? '')}
+                  value={drafts[d.key] ?? String(data.effective[d.key] ?? '')}
                   placeholder={d.unit ?? ''}
                   onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
                   className="w-32"

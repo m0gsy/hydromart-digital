@@ -10,7 +10,14 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, GallonOutstanding, Page } from '@/lib/types';
+import { downloadXlsx } from '@/lib/xlsx';
+import type {
+  CommissionScheme,
+  DepotAdmin,
+  ExecutiveDashboard,
+  GallonOutstanding,
+  Page,
+} from '@/lib/types';
 
 interface ShippingByDepot {
   items: { depotId: string; shippingBilled: number }[];
@@ -19,6 +26,14 @@ interface ShippingByDepot {
 interface RefundsByDepot {
   items: { depotId: string; refunded: number }[];
 }
+
+/**
+ * Platform fee, the one number on this statement with no configured source. It is a constant
+ * here and labelled as an estimate on screen; the moment a setting or a column exists for it,
+ * this goes away. Named rather than inlined so it cannot be mistaken for a rate that came from
+ * somewhere — which is exactly what happened to the franchise commission next to it.
+ */
+const PLATFORM_FEE_PCT = 0.05;
 
 const SELECT_CLASS =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
@@ -33,7 +48,8 @@ function defaultRange(): { from: string; to: string } {
 // Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (executive topDepots),
 // ongkir (order shipping-by-depot), refunds (order refunds-by-depot, fed by payment-service
 // coordination) and gallon deposit (depot gallon-outstanding netDeposit) are all real;
-// platform fee (5%) & commission (20%) are computed. No stub lines remain.
+// the franchise commission now comes from the depot's own scheme, and the platform fee is the
+// one estimate left (no configured source) — labelled as such on screen.
 export default function HqReconciliationPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -44,6 +60,8 @@ export default function HqReconciliationPage() {
   const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
   const refundsByDepot = useAsync<RefundsByDepot>(() => api.get(endpoints.reports.refundsByDepot(range), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
+  // The agreed franchise cut per depot — the row this statement must bill against.
+  const schemes = useAsync<CommissionScheme[]>(() => api.get(endpoints.commission.schemes, true));
 
   const [depotId, setDepotId] = useState('');
 
@@ -59,9 +77,22 @@ export default function HqReconciliationPage() {
   const topRow = dash.data?.topDepots?.items.find((r) => r.depotId === selected) ?? null;
   const sales = topRow?.revenue ?? null;
 
-  // Computed (derivable — no stub badge).
-  const platformFee = sales != null ? Math.round(sales * 0.05) : null;
-  const commission = sales != null ? Math.round(sales * 0.2) : null;
+  /**
+   * The franchise cut comes from the depot's own commission scheme — the same row
+   * `hq/franchise` shows and `payout-service` charges against. It used to be `sales * 0.2`,
+   * an inline literal, on a statement an owner reads as what they are owed: every depot was
+   * billed 20% whatever HQ had actually agreed with them, and the number carried no stub
+   * badge to say otherwise. `null` when no scheme exists, so the row reads "—" instead of
+   * inventing a rate.
+   */
+  const scheme = schemes.data?.find((s) => s.depotId === selected) ?? null;
+  const commission = sales != null && scheme ? Math.round(sales * (scheme.pct / 100)) : null;
+  /**
+   * The platform fee has no configured source anywhere yet — there is no setting, no column
+   * and no endpoint for it. Kept visible and labelled as an estimate rather than silently
+   * folded into the net, which is what made the whole statement read as authoritative.
+   */
+  const platformFee = sales != null ? Math.round(sales * PLATFORM_FEE_PCT) : null;
 
   // Real lines.
   const shippingBilled = shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled ?? 0;
@@ -79,9 +110,41 @@ export default function HqReconciliationPage() {
   const dash20 = t('hq.common.dash');
   const money = (n: number | null) => (n == null ? <span className="text-muted">{dash20}</span> : <Money amount={n} />);
 
-  function download() {
-    // STUB: no reconciliation-PDF endpoint — Milestone D.
-    toast(t('hq.reconciliation.downloaded'), 'success');
+  /**
+   * The statement as a spreadsheet, built from the rows on screen.
+   *
+   * This used to be a success toast and nothing else (`// STUB: no reconciliation-PDF
+   * endpoint`) — a franchise owner pressed "Unduh" and got a green pill and no file. No server
+   * renderer is needed for what is six labelled numbers: the same XLSX path `hq/reports/export`
+   * uses. A PDF still has no renderer anywhere in the repo, so this is XLSX, honestly labelled.
+   */
+  async function download() {
+    if (!depot) return;
+    const rows: (string | number)[][] = [
+      [t('hq.reconciliation.lines.sales'), sales ?? 0],
+      [`${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`, -(platformFee ?? 0)],
+      [t('hq.reconciliation.lines.shipping'), shippingBilled],
+      [t('hq.reconciliation.lines.refunds'), -refunds],
+      [
+        scheme
+          ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
+          : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`,
+        -(commission ?? 0),
+      ],
+      [t('hq.reconciliation.lines.deposit'), -gallonDeposit],
+      [t('hq.reconciliation.lines.net'), net ?? 0],
+    ];
+    try {
+      await downloadXlsx(
+        `rekonsiliasi-${depot.code}.xlsx`,
+        ['Komponen', 'Jumlah (IDR)'],
+        rows,
+        'Rekonsiliasi',
+      );
+      toast(t('hq.reconciliation.downloaded'), 'success');
+    } catch {
+      toast('Gagal membuat berkas.', 'error');
+    }
   }
 
   return (
@@ -124,10 +187,22 @@ export default function HqReconciliationPage() {
 
           <dl className="flex flex-col divide-y divide-[color:var(--border)]">
             <Line label={t('hq.reconciliation.lines.sales')} value={money(sales)} />
-            <Line label={t('hq.reconciliation.lines.platformFee')} value={money(platformFee == null ? null : -platformFee)} />
+            {/* Labelled as an estimate: it is the one line with no configured source. */}
+            <Line
+              label={`${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`}
+              value={money(platformFee == null ? null : -platformFee)}
+            />
             <Line label={t('hq.reconciliation.lines.shipping')} value={<Money amount={shippingBilled} />} />
             <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-refunds} />} />
-            <Line label={t('hq.reconciliation.lines.commission')} value={money(commission == null ? null : -commission)} />
+            {/* The agreed rate, named. "—" when this depot has no scheme, never a guess. */}
+            <Line
+              label={
+                scheme
+                  ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
+                  : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`
+              }
+              value={money(commission == null ? null : -commission)}
+            />
             <Line label={t('hq.reconciliation.lines.deposit')} value={<Money amount={-gallonDeposit} />} />
           </dl>
 
