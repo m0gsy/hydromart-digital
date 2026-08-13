@@ -23,10 +23,12 @@ const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 // REACH: order-service audience-reach gives a REAL activity-based count for "all" and
 // "per depot" (distinct customers with an order). Loyalty/staff live in loyalty/auth and
 // have no reach endpoint here → badged, never fabricated.
-// SEND: wired to the real crm campaign path (createCampaign + sendCampaign). The crm
-// recipient model only expresses "all reachable" (empty segment) or tier/city, so only the
-// "Semua pelanggan" audience sends for real; depot/loyalty/staff are honestly badged.
-// crm has no scheduling, so "Jadwalkan" is badged too. Channels stay cosmetic (crm = WA only).
+// SEND: wired to the real crm campaign path (createCampaign + sendCampaign). "Semua
+// pelanggan" is an empty segment; "Per depot" now sends for real too, because crm resolves
+// the activity half of a segment from order-service. Loyalty/staff remain honestly badged:
+// their members live in loyalty/auth and are not a customer-directory audience.
+// Scheduling is real now (campaigns carry `scheduledFor`). Channels stay cosmetic — crm is
+// WhatsApp-only by design (see domain/channel.ts), so the checkboxes are not wired.
 export default function HqBroadcastPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -37,6 +39,7 @@ export default function HqBroadcastPage() {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [channels, setChannels] = useState<Set<string>>(new Set(['channelPush', 'channelInApp']));
+  const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
 
   // Reach is real for every audience now: order-service owns all/per-depot activity,
@@ -63,19 +66,29 @@ export default function HqBroadcastPage() {
   async function submit(schedule: boolean) {
     if (!title.trim()) return toast(t('hq.broadcast.needTitle'), 'error');
     if (!message.trim()) return toast(t('hq.broadcast.needMessage'), 'error');
-    if (schedule) return toast(t('hq.broadcast.scheduleUnsupported'), 'error');
-    if (audience !== 'all') return toast(t('hq.broadcast.audienceUnsupported'), 'error');
+    if (schedule && !scheduledFor) return toast(t('hq.broadcast.needSchedule'), 'error');
+    // Loyalty members and staff are not a customer-directory audience — refused, not faked.
+    if (audience === 'loyalty' || audience === 'staff') {
+      return toast(t('hq.broadcast.audienceUnsupported'), 'error');
+    }
+    if (audience === 'depot' && !depotId) return toast(t('hq.broadcast.pickDepot'), 'error');
     setBusy(true);
     try {
-      // Empty segment = all reachable customers (crm SegmentFilter contract). Title rides in
-      // the body since crm's WhatsApp broadcast has no separate title field.
+      // Empty segment = all reachable customers (crm SegmentFilter contract); a depotId
+      // narrows it to that depot's own customers, which crm resolves from order-service.
+      // Title rides in the body since crm's WhatsApp broadcast has no separate title field.
       const created = await api.post<{ id: string }>(
         endpoints.crm.createCampaign,
-        { name: title.trim(), messageTemplate: `${title.trim()}\n\n${message.trim()}`, segment: {} },
+        {
+          name: title.trim(),
+          messageTemplate: `${title.trim()}\n\n${message.trim()}`,
+          segment: audience === 'depot' ? { depotId } : {},
+          ...(schedule ? { scheduledFor: new Date(scheduledFor).toISOString() } : {}),
+        },
         true,
       );
       await api.post(endpoints.crm.sendCampaign(created.id), undefined, true);
-      toast(t('hq.broadcast.sent'), 'success');
+      toast(t(schedule ? 'hq.broadcast.scheduled' : 'hq.broadcast.sent'), 'success');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : t('hq.broadcast.error'), 'error');
     } finally {
@@ -124,6 +137,15 @@ export default function HqBroadcastPage() {
 
         <Field label={t('hq.broadcast.messageLabel')} htmlFor="b-msg" hint={t('hq.broadcast.chars', { n: message.length })}>
           <textarea id="b-msg" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} className={inputClass} placeholder={t('hq.broadcast.messagePh')} />
+        </Field>
+
+        <Field label={t('hq.broadcast.scheduleLabel')} htmlFor="b-when" hint={t('hq.broadcast.scheduleHint')}>
+          <Input
+            id="b-when"
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+          />
         </Field>
 
         {/* Channels */}

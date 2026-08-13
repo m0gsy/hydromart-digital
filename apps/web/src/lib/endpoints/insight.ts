@@ -203,6 +203,10 @@ crm: {
     return `/crm/api/v1/campaigns${qs ? `?${qs}` : ''}`;
   },
   createCampaign: '/crm/api/v1/campaigns',
+  // A depot blasting its OWN customers (11a). Separate route, separate capability
+  // (`depotCampaign`): its segment is pinned server-side to the depotId the
+  // DepotScopeGuard already checked, so a depot cannot reach another depot's customers.
+  createDepotCampaign: '/crm/api/v1/campaigns/depot',
   // Campaign with its per-recipient delivery report (status/error/sentAt).
   campaign: (id: string) => `/crm/api/v1/campaigns/${id}`,
   sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,

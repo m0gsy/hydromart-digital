@@ -253,6 +253,7 @@ export const hq = {
       courierReturn: 'Doorstep gallon returns',
       expenseApprove: 'Approve expense claims',
       depotBroadcast: 'Broadcast to couriers',
+      depotCampaign: "Blast the depot's own customers",
       depotCrm: 'Depot customer CRM',
       incidents: 'Operational incidents',
       auditRead: 'Depot audit log',
@@ -888,6 +889,11 @@ export const hq = {
     schedule: 'Schedule',
     sendNow: 'Send now',
     created: 'Campaign created',
+    sent: 'Campaign sent',
+    scheduled: 'Campaign scheduled',
+    needSchedule: 'Pick a send time first.',
+    scheduleLabel: 'Send time',
+    scheduleHint: 'Leave empty to send now.',
     needName: 'Enter a campaign name.',
     needMessage: 'Enter a campaign message.',
     error: 'Could not create the campaign.',
@@ -1055,11 +1061,13 @@ export const hq = {
     // B-17: delivery runs on the scheduler sweep now, so "sent" would be a claim we
     // cannot make at this point. Progress is visible on the campaign itself.
     sent: 'Broadcast queued — delivery is running now',
-    scheduled: 'Broadcast scheduled (sample)',
+    scheduled: 'Broadcast scheduled',
     error: 'Failed to send the broadcast',
-    scheduleUnsupported: 'Scheduling is not supported yet.',
+    needSchedule: 'Pick a send time first.',
+    scheduleLabel: 'Send time',
+    scheduleHint: 'Leave empty to send now.',
     audienceUnsupported:
-      'This audience is not supported for automated send yet. Use "All customers".',
+      'Loyalty members and staff are not a customer-directory audience — not sendable from here.',
     reachUnavailable: 'Estimate unavailable',
   },
   franchise: {

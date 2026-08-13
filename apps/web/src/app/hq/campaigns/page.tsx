@@ -28,9 +28,11 @@ const SEGMENT_CONDITIONS: Record<Segment, { minOrders?: number; lapsedDays?: num
   new: { newWithinDays: 30 },
 };
 
-// Design 17c — campaign builder. Create is real (crm.createCampaign, same payload shape
-// as dashboard/campaigns). Segment sizing is now real too: order-service segment-estimate
-// with each preset mapped to activity conditions.
+// Design 17c — campaign builder. The estimate and the send now use ONE segment: the same
+// `SEGMENT_CONDITIONS[segment]` that sizes the audience is what the campaign is created
+// with. They used to disagree — the chip was sized from order-service activity while the
+// POST sent `{tier:'GOLD'}` or `{}` (= everyone) — and neither button sent at all: "Kirim
+// sekarang" and "Jadwalkan" both only drafted.
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -38,6 +40,7 @@ export default function HqCampaignBuilderPage() {
   const [segment, setSegment] = useState<Segment>('all');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
+  const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
 
   const estimateQ = useAsync<{ count: number }>(
@@ -46,20 +49,35 @@ export default function HqCampaignBuilderPage() {
   );
   const estimate = estimateQ.data?.count ?? 0;
 
-  // Both "Send now" and "Schedule" create the campaign as a DRAFT (dispatch is a
-  // separate sendCampaign step); the builder's job is the real create.
-  async function create() {
+  /**
+   * Create AND queue. A draft nobody dispatches is a button that promises a send and does
+   * not send; the claim is a separate call because dispatch runs on the sweep (B-17), not
+   * inside this request. A scheduled campaign is claimed now and becomes due later.
+   */
+  async function create(schedule: boolean) {
     if (!name.trim()) return toast(t('hq.campaigns.needName'), 'error');
     if (!message.trim()) return toast(t('hq.campaigns.needMessage'), 'error');
+    if (schedule && !scheduledFor) return toast(t('hq.campaigns.needSchedule'), 'error');
     setBusy(true);
     try {
-      // Loyalty maps to a concrete tier segment; the other presets target all customers.
-      const seg = segment === 'loyalty' ? { tier: 'GOLD' } : {};
-      await api.post(endpoints.crm.createCampaign, { name: name.trim(), messageTemplate: message, segment: seg }, true);
-      toast(t('hq.campaigns.created'), 'success');
+      const created = await api.post<{ id: string }>(
+        endpoints.crm.createCampaign,
+        {
+          name: name.trim(),
+          messageTemplate: message,
+          // The same conditions the estimate above showed. Anything else and the number on
+          // screen belongs to a different audience than the one being messaged.
+          segment: SEGMENT_CONDITIONS[segment],
+          ...(schedule ? { scheduledFor: new Date(scheduledFor).toISOString() } : {}),
+        },
+        true,
+      );
+      await api.post(endpoints.crm.sendCampaign(created.id), undefined, true);
+      toast(t(schedule ? 'hq.campaigns.scheduled' : 'hq.campaigns.sent'), 'success');
       setStep(0);
       setName('');
       setMessage('');
+      setScheduledFor('');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : t('hq.campaigns.error'), 'error');
     } finally {
@@ -143,6 +161,14 @@ export default function HqCampaignBuilderPage() {
             <p><span className="text-muted">{t('hq.campaigns.segmentLabel')}:</span> <strong>{t(`hq.campaigns.chips.${segment}`)}</strong></p>
             <p><span className="text-muted">{t('hq.campaigns.nameLabel')}:</span> <strong>{name || '—'}</strong></p>
             <p className="whitespace-pre-wrap rounded-xl border border-app p-3 text-muted">{message || '—'}</p>
+            <Field label={t('hq.campaigns.scheduleLabel')} htmlFor="c-when" hint={t('hq.campaigns.scheduleHint')}>
+              <Input
+                id="c-when"
+                type="datetime-local"
+                value={scheduledFor}
+                onChange={(e) => setScheduledFor(e.target.value)}
+              />
+            </Field>
           </div>
         )}
 
@@ -154,10 +180,10 @@ export default function HqCampaignBuilderPage() {
             <Button onClick={() => setStep((s) => s + 1)}>{t('hq.campaigns.next')}</Button>
           ) : (
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={create} loading={busy}>
+              <Button variant="secondary" onClick={() => create(true)} loading={busy}>
                 {t('hq.campaigns.schedule')}
               </Button>
-              <Button onClick={create} loading={busy}>
+              <Button onClick={() => create(false)} loading={busy}>
                 {t('hq.campaigns.sendNow')}
               </Button>
             </div>
