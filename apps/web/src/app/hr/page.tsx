@@ -29,7 +29,8 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function Groups({ rows, label }: { rows: { key: string; count: number }[]; label: (k: string) => string }) {
-  if (rows.length === 0) return <p className="text-sm text-muted">Belum ada data.</p>;
+  const { t } = useT();
+  if (rows.length === 0) return <p className="text-sm text-muted">{t('hrFix.home.empty')}</p>;
   return (
     <div className="flex flex-wrap gap-2">
       {rows.map((r) => (
@@ -51,7 +52,7 @@ export default function HrDashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <SectionHeader title="HR Dashboard" subtitle={`Periode ${period}`} />
+      <SectionHeader title={t('hrFix.home.title')} subtitle={`Periode ${period}`} />
 
       {loading && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -62,14 +63,14 @@ export default function HrDashboardPage() {
       {data && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Total Karyawan" value={data.headcount.total} />
-            <Stat label="Payroll (net)" value={<Money amount={data.payroll.totals.net} />} />
-            <Stat label="Run Payroll" value={data.payroll.totals.count} />
-            <Stat label="Hadir Hari Ini" value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0} />
+            <Stat label={t('hrFix.home.totalEmployees')} value={data.headcount.total} />
+            <Stat label={t('hrFix.home.payrollNet')} value={<Money amount={data.payroll.totals.net} />} />
+            <Stat label={t('hrFix.home.runPayroll')} value={data.payroll.totals.count} />
+            <Stat label={t('hrFix.home.presentToday')} value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0} />
           </div>
 
           <Card className="space-y-3 p-5">
-            <h3 className="font-bold">Komposisi Karyawan Aktif</h3>
+            <h3 className="font-bold">{t('hrFix.home.headcountMix')}</h3>
             <Groups rows={data.headcount.byEmploymentStatus} label={(k) => t(EMPLOYMENT_STATUS_LABEL[k as EmploymentStatus]) ?? k} />
           </Card>
 
@@ -81,23 +82,23 @@ export default function HrDashboardPage() {
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">Payroll {data.periodMonth}</h3>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div><p className="text-muted">Gross</p><Money amount={data.payroll.totals.gross} className="font-bold" /></div>
-              <div><p className="text-muted">Bonus</p><Money amount={data.payroll.totals.totalBonus} className="font-bold" /></div>
-              <div><p className="text-muted">Potongan</p><Money amount={data.payroll.totals.totalDeduction} className="font-bold" /></div>
-              <div><p className="text-muted">Net</p><Money amount={data.payroll.totals.net} className="font-bold" /></div>
+              <div><p className="text-muted">{t('hrFix.home.gross')}</p><Money amount={data.payroll.totals.gross} className="font-bold" /></div>
+              <div><p className="text-muted">{t('hrFix.home.bonus')}</p><Money amount={data.payroll.totals.totalBonus} className="font-bold" /></div>
+              <div><p className="text-muted">{t('hrFix.home.deduction')}</p><Money amount={data.payroll.totals.totalDeduction} className="font-bold" /></div>
+              <div><p className="text-muted">{t('hrFix.home.net')}</p><Money amount={data.payroll.totals.net} className="font-bold" /></div>
             </div>
             <Groups rows={data.payroll.byStatus} label={(k) => t(PAYROLL_STATUS_LABEL[k as PayrollStatus]) ?? k} />
           </Card>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/hr/employees" className="text-sm font-semibold text-brand-700 hover:underline">Kelola Karyawan →</Link>
-            <Link href="/hr/payroll" className="text-sm font-semibold text-brand-700 hover:underline">Jalankan Payroll →</Link>
-            <Link href="/hr/reports" className="text-sm font-semibold text-brand-700 hover:underline">Unduh Laporan →</Link>
+            <Link href="/hr/employees" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.manageEmployees')}</Link>
+            <Link href="/hr/payroll" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.runPayrollLink')}</Link>
+            <Link href="/hr/reports" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.downloadReport')}</Link>
           </div>
         </>
       )}
       {data && data.headcount.total === 0 && (
-        <CenterState title="Belum ada karyawan">Tambahkan karyawan pertama di menu Karyawan.</CenterState>
+        <CenterState title={t('hrFix.home.noEmployees')}>{t('hrFix.home.addFirst')}</CenterState>
       )}
     </div>
   );
