@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Field, Input, Money, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -144,6 +144,9 @@ function RulesBody() {
                 <option value="">Semua depot (global)</option>
                 {depots.data?.items.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
+              {/* With the list unread the only option left is "Semua depot (global)", so a
+                  rule meant for ONE depot quietly becomes a network-wide one. */}
+              {depots.error && <LoadError onRetry={depots.reload} />}
             </Field>
             {err && <p className="col-span-full text-sm font-medium text-red-600" role="alert">{err}</p>}
             <div className="col-span-full"><Button type="submit" loading={saving}>Tambah Rule</Button></div>

@@ -94,6 +94,9 @@ export default function CalendarPage() {
       <Card className="space-y-3 p-5">
         <h3 className="font-bold">Shift</h3>
         {shifts.loading && <Skeleton className="h-20" />}
+        {/* The holiday list above already reports its own failure; this one said nothing,
+            and "belum ada shift" is read as a depot that runs on the default hours. */}
+        {shifts.error && <ErrorState message={shifts.error} onRetry={shifts.reload} />}
         {shifts.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {shifts.data.length === 0 && <li className="py-2 text-sm text-muted">Belum ada shift (pakai default {`{workStartTime}`}).</li>}

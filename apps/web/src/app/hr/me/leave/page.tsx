@@ -101,7 +101,9 @@ export default function MyLeavePage() {
         subtitle={
           balance.data
             ? `Kuota ${balance.data.quotaDays} hari · terpakai ${balance.data.usedDays} · sisa ${balance.data.quotaDays - balance.data.usedDays}`
-            : 'Ajukan cuti dan pantau persetujuannya'
+            : balance.error
+              ? 'Sisa kuota cuti tidak terbaca — muat ulang halaman.'
+              : 'Ajukan cuti dan pantau persetujuannya'
         }
       />
 
