@@ -10,6 +10,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
@@ -289,6 +290,15 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
                     </option>
                   ))}
                 </select>
+              )}
+              {/* The DEPARTMENT and EMPLOYEE options come from two lookups. An empty picker
+                  is the same shape as "this company has no departments", and the announcement
+                  goes out to nobody. */}
+              {((t.dimension === 'DEPARTMENT' && departments.error) ||
+                (t.dimension === 'EMPLOYEE' && employees.error)) && (
+                <LoadError
+                  onRetry={t.dimension === 'DEPARTMENT' ? departments.reload : employees.reload}
+                />
               )}
               {targets.length > 1 && (
                 <Button
