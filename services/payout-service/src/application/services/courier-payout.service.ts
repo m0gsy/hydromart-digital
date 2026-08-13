@@ -109,10 +109,29 @@ export class CourierPayoutService {
     // could be paid twice or skipped entirely once the real month's deliveries arrived.
     const tz = this.config.businessTimeZone;
     const monthStart = startOfLocalMonth(deliveredAt, tz);
-    const delivered = await this.ledger.countByType(event.courierId, 'EARNING', monthStart);
+    // Counted AT THIS DEPOT. The ladder belongs to the depot's earning rule and the depot pays
+    // the bonus, so a courier's deliveries elsewhere must not walk it up: 30 at depot A plus 30
+    // at depot B used to fire depot B's 50-delivery rung on the 50th combined delivery.
+    // A delivery with no depot on it cannot be counted per depot; it falls back to the
+    // courier-wide tally, which is what the whole ladder used to be.
+    const scope = event.depotId ?? undefined;
+    const delivered = await this.ledger.countByType(
+      event.courierId,
+      'EARNING',
+      monthStart,
+      scope,
+    );
     const month = localMonthKey(deliveredAt, tz);
     for (const tier of tiersReached(rule.tiers, delivered)) {
-      const sourceRef = `incentive:${rule.id}:${event.courierId}:${month}:${tier.deliveries}`;
+      // NOT keyed by rule id. `applyEarningRule` appends a row rather than editing one, so the
+      // rule in force gets a fresh id every time HQ touches the ladder — and a key carrying it
+      // made every rung already paid this month look unpaid, paying it again on the courier's
+      // next delivery. What must happen once is "this courier, this month, this rung", whoever
+      // configured it: a mid-month change to the bonus AMOUNT leaves rungs already paid alone,
+      // which is also the honest answer (the courier earned them under the old ladder).
+      // Keyed by depot too, now that the rungs are counted per depot: the same courier can
+      // legitimately reach depot A's 50-rung and depot B's, and each depot pays its own.
+      const sourceRef = `incentive:${event.courierId}:${scope ?? 'nodepot'}:${month}:${tier.deliveries}`;
       if (await this.ledger.findBySourceRef(sourceRef)) continue;
       await this.ledger.create({
         courierId: event.courierId,

@@ -385,6 +385,41 @@ describe('PayoutService.recordOrderRevenue', () => {
     orderNumber: 'HM-20260728-000123',
   };
 
+  /**
+   * The credit and the commission base are two different numbers.
+   *
+   * The commission used to come off `amountIdr` — the order total, i.e. goods + ongkir −
+   * discount. So HQ took a cut of the delivery fee, which is money the depot pays a courier
+   * rather than margin, and forfeited its cut of every voucher HQ itself had funded. The owner
+   * is still credited the full total: that is the money that actually arrived.
+   */
+  it('charges commission on the goods subtotal, not on the order total', async () => {
+    const ledger = new FakeLedger();
+    const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 10 }]);
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig());
+
+    // Goods 100.000, ongkir 10.000, a 20.000 voucher → total 90.000.
+    const out = await svc.recordOrderRevenue({
+      ...order,
+      amountIdr: 90_000,
+      commissionBaseIdr: 100_000,
+    });
+
+    expect(out.commission).toBe(10_000); // 10% of the goods, not 9.000 of the total
+    expect(out.revenue).toBe(90_000); // credited what was actually taken
+  });
+
+  it('falls back to the order total when no commission base is sent', async () => {
+    // An order-service that predates the field must behave exactly as it did.
+    const ledger = new FakeLedger();
+    const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 10 }]);
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig());
+
+    const out = await svc.recordOrderRevenue({ ...order, amountIdr: 90_000 });
+
+    expect(out.commission).toBe(9_000);
+  });
+
   it('credits the sale and debits commission at the depot scheme rate', async () => {
     const ledger = new FakeLedger();
     const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);

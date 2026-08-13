@@ -70,9 +70,18 @@ class FakeCourierLedger implements CourierLedgerRepository {
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
-  async countByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number> {
+  async countByType(
+    courierId: string,
+    type: CourierLedgerEntryType,
+    since: Date,
+    depotId?: string,
+  ): Promise<number> {
     return this.entries.filter(
-      (e) => e.courierId === courierId && e.type === type && e.occurredAt >= since,
+      (e) =>
+        e.courierId === courierId &&
+        e.type === type &&
+        e.occurredAt >= since &&
+        (depotId === undefined || e.depotId === depotId),
     ).length;
   }
   async currentRule(): Promise<CourierEarningRuleRecord | null> {
@@ -167,9 +176,14 @@ const COURIER = '11111111-1111-4111-8111-111111111111';
 const PEAK_UTC = '2026-07-18T11:00:00.000Z';
 const OFFPEAK_UTC = '2026-07-18T03:00:00.000Z';
 
-const event = (deliveryId: string, deliveredAt: string, onTime: boolean) => ({
+const event = (
+  deliveryId: string,
+  deliveredAt: string,
+  onTime: boolean,
+  depotId: string | null = null,
+) => ({
   courierId: COURIER,
-  depotId: null,
+  depotId,
   deliveryId,
   deliveredAt,
   onTime,
@@ -391,6 +405,57 @@ describe('CourierPayoutService', () => {
       await service.recordDeliveryEarning(event('d2', day(2), true));
       await service.recordDeliveryEarning(event('d2', day(2), true));
       expect(incentives()).toHaveLength(1);
+    });
+
+    /**
+     * `applyEarningRule` APPENDS a rule row rather than editing one, so the rule in force gets
+     * a new id whenever HQ touches the ladder. The incentive key carried that id, which made
+     * every rung already paid this month look unpaid the moment the ladder was re-applied — a
+     * courier at the 2-delivery rung got its bonus a second time on their next delivery.
+     */
+    it('does not re-pay a rung when the ladder is re-applied mid-month', async () => {
+      await service.recordDeliveryEarning(event('d1', day(1), true));
+      await service.recordDeliveryEarning(event('d2', day(2), true)); // rung 2 paid
+      expect(incentives()).toHaveLength(1);
+
+      // HQ re-applies the same ladder: a new rule row, hence a new rule id.
+      ledger.rule = { ...ledger.rule!, id: 'rule-v2' };
+      await service.recordDeliveryEarning(event('d3', day(3), true)); // rung 3 is new, 2 is not
+
+      expect(incentives().map((e) => e.amount)).toEqual([25_000, 60_000]);
+    });
+
+    /**
+     * The ladder belongs to a depot's earning rule and that depot pays the bonus, but the tally
+     * counted every depot the courier worked: 1 delivery at depot A plus 1 at depot B fired
+     * depot B's 2-delivery rung on the second COMBINED delivery, with depot B paying for depot
+     * A's work. Counted per depot now, and each depot's rung is keyed separately so a courier
+     * can legitimately earn both.
+     */
+    it('does not walk one depot ladder up with another depot deliveries', async () => {
+      await service.recordDeliveryEarning(event('a1', day(1), true, 'depot-a'));
+      await service.recordDeliveryEarning(event('b1', day(2), true, 'depot-b'));
+      // One delivery each: neither depot has reached its own 2-delivery rung.
+      expect(incentives()).toHaveLength(0);
+
+      await service.recordDeliveryEarning(event('b2', day(3), true, 'depot-b'));
+      expect(incentives()).toHaveLength(1);
+      expect(incentives()[0].sourceRef).toContain(':depot-b:');
+      expect(incentives()[0].depotId).toBe('depot-b');
+    });
+
+    it('lets each depot pay its own rung for the same courier and month', async () => {
+      for (const id of ['a1', 'a2']) {
+        await service.recordDeliveryEarning(event(id, day(1), true, 'depot-a'));
+      }
+      for (const id of ['b1', 'b2']) {
+        await service.recordDeliveryEarning(event(id, day(2), true, 'depot-b'));
+      }
+      const refs = incentives().map((e) => e.sourceRef);
+      expect(refs).toEqual([
+        expect.stringContaining(':depot-a:2026-07:2'),
+        expect.stringContaining(':depot-b:2026-07:2'),
+      ]);
     });
 
     it('restarts the ladder in a new month', async () => {

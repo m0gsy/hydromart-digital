@@ -35,8 +35,17 @@ export interface OrderRevenueInput {
   orderId: string;
   franchiseOwnerId: string;
   depotId: string | null;
-  /** Order total in whole IDR; must be positive. */
+  /** Order total in whole IDR; must be positive. This is what the owner is CREDITED. */
   amountIdr: number;
+  /**
+   * What the commission is CHARGED on: the goods subtotal before discount.
+   *
+   * It used to be `amountIdr` — the order total, which is subtotal + ongkir − discount. So HQ
+   * took a cut of the delivery fee (a cost the depot pays out again, not margin) and forfeited
+   * its cut of any voucher HQ itself funded. Absent = fall back to `amountIdr`, so an
+   * order-service that predates the field behaves exactly as before.
+   */
+  commissionBaseIdr?: number;
   occurredAt?: Date;
   orderNumber?: string | null;
 }
@@ -70,7 +79,10 @@ export class PayoutService {
   async recordOrderRevenue(input: OrderRevenueInput): Promise<OrderRevenueResult> {
     const saleRef = `order:${input.orderId}:SALE`;
     const pct = await this.commissionPctFor(input.depotId);
-    const commission = Math.round((input.amountIdr * pct) / 100);
+    // Charged on the goods, credited on the total: ongkir is money the depot pays a courier,
+    // not margin HQ has a claim on, and a voucher HQ funded must not shrink HQ's own cut.
+    const commissionBase = input.commissionBaseIdr ?? input.amountIdr;
+    const commission = Math.round((commissionBase * pct) / 100);
 
     if (!(input.amountIdr > 0)) throw new InvalidRevenueAmountError();
     if (await this.ledger.findBySourceRef(saleRef)) {

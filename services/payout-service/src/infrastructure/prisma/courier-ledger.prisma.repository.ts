@@ -105,9 +105,14 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     return Number(agg._sum.amount ?? 0);
   }
 
-  async countByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number> {
+  async countByType(
+    courierId: string,
+    type: CourierLedgerEntryType,
+    since: Date,
+    depotId?: string,
+  ): Promise<number> {
     return this.prisma.courierLedgerEntry.count({
-      where: { courierId, type, occurredAt: { gte: since } },
+      where: { courierId, type, occurredAt: { gte: since }, ...(depotId ? { depotId } : {}) },
     });
   }
 
