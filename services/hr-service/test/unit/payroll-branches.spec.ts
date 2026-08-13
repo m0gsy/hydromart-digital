@@ -101,6 +101,8 @@ function build(opts: {
   deductionRows?: { id: string; type: string; amount: number; note: string | null }[];
   /** Deploys without the holiday table wired (the port is optional). */
   noHolidays?: boolean;
+  /** Depot SOP §2 tiered fines, `tier1,tier2,absent`. Empty = the flat branch. */
+  fines?: string;
 }) {
   const repo = new FakePayrollRepo();
   if (opts.repaid) repo.repaid = new Map(Object.entries(opts.repaid));
@@ -142,8 +144,8 @@ function build(opts: {
     overtimeOffDayMultiplierPct: () => 200,
     // Depot SOP settings stay off here — these fixtures pin the OLD payroll.
     dailySalesBonusTiers: () => '',
-    lateFineCsv: () => '',
-    lateTier2AfterMinutes: () => 0,
+    lateFineCsv: () => opts.fines ?? '',
+    lateTier2AfterMinutes: () => 30,
     absentAfterMinutes: () => 0,
     // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the

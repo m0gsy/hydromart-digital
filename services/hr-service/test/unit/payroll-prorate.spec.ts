@@ -35,6 +35,8 @@ interface Overrides {
   status?: 'ACTIVE' | 'INACTIVE' | 'RESIGNED';
   presentDays?: number;
   allowance?: number;
+  /** Depot SOP §2 tiered fines, `tier1,tier2,absent`. Empty = the flat branch. */
+  lateFineCsv?: string;
 }
 
 function build(o: Overrides = {}) {
@@ -86,7 +88,8 @@ function build(o: Overrides = {}) {
       absentAfterMinutes: () => 0,
       dailySalesBonusTiers: () => '',
       dailyRateTraining: () => 0,
-      lateFineCsv: () => '',
+      lateFineCsv: () => o.lateFineCsv ?? '',
+      lateTier2AfterMinutes: () => 30,
       lateTier: () => '',
       overtimeMultiplierPct: () => 0,
       overtimeOffDayMultiplierPct: () => 0,
@@ -147,6 +150,30 @@ describe('D3 — proration by employment window', () => {
     const { svc, created } = build({ presentDays: 24 });
     await svc.generate(USER, 'emp_1', PERIOD);
     expect(amountOf(created.items, 'DEDUCTION')).toBe(2 * 50_000);
+  });
+
+  /**
+   * The same window, on the OTHER branch. This file pinned `lateFineCsv: ''` — which is the
+   * flat branch — and `payroll.service.spec.ts` pins `joinDate` to a full month, so the
+   * tiered branch (Depot SOP §2) was never asked the prorate question by either file. It
+   * answered it wrongly: `absentDays()` counts the whole month's working days, so the D3
+   * knock-on the flat branch was fixed for was still live here.
+   */
+  it('does not fine a joiner on the TIERED branch either (Depot SOP §2)', async () => {
+    const { svc, created } = build({
+      joinDate: '2026-03-25T00:00:00.000Z',
+      presentDays: 6,
+      lateFineCsv: '10000,15000,20000',
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'DEDUCTION')).toBe(0);
+  });
+
+  it('still fines a full-month employee on the TIERED branch', async () => {
+    // 26 working days, present 24 → 2 unattended days at the "tidak absen" rate.
+    const { svc, created } = build({ presentDays: 24, lateFineCsv: '10000,15000,20000' });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'DEDUCTION')).toBe(2 * 20_000);
   });
 });
 
