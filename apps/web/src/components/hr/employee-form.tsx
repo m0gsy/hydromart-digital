@@ -106,11 +106,11 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     try {
       if (id) await api.patch(endpoints.hr.updateEmployee(id), payload.value, true);
       else await api.post(endpoints.hr.createEmployee, payload.value, true);
-      notify(id ? 'Karyawan diperbarui' : 'Karyawan ditambahkan');
+      notify(id ? t('hrFix.employeeForm.updated') : t('hrFix.employeeForm.added'));
       router.push(id ? `/hr/employees/detail?id=${id}` : '/hr/employees');
       router.refresh();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Gagal menyimpan.');
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.employeeForm.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -119,26 +119,26 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <Card className="grid gap-4 p-5 sm:grid-cols-2">
-        <Field label="Nama lengkap">
+        <Field label={t('hrFix.employeeForm.fullName')}>
           <Input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
         </Field>
-        <Field label="Posisi">
+        <Field label={t('hrFix.employeeForm.position')}>
           <Input value={form.position} onChange={(e) => set('position', e.target.value)} />
         </Field>
-        <Field label="No. HP">
+        <Field label={t('hrFix.employeeForm.phone')}>
           <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
         </Field>
-        <Field label="Email (opsional)">
+        <Field label={t('hrFix.employeeForm.emailOpt')}>
           <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
         </Field>
 
-        <Field label="Depot">
+        <Field label={t('hrFix.employeeForm.depot')}>
           <select
             value={form.depotId}
             onChange={(e) => set('depotId', e.target.value)}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">Pilih depot…</option>
+            <option value="">{t('hrFix.employeeForm.pickDepot')}</option>
             {depots.data?.items.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -149,7 +149,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               dropdown, and the employee gets filed against no depot at all. */}
           {depots.error && <LoadError onRetry={depots.reload} />}
         </Field>
-        <Field label="Tanggal masuk">
+        <Field label={t('hrFix.employeeForm.joinDate')}>
           <Input
             type="date"
             value={form.joinDate}
@@ -159,14 +159,14 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
 
         {/* Changing this re-roles the person's LOGIN, not just their file — which is the
             point: a promotion that only changed the title left the old access in place. */}
-        <Field label="Jabatan (peran login)">
+        <Field label={t('hrFix.employeeForm.role')}>
           <select
             value={form.role}
             onChange={(e) => set('role', e.target.value as HrManagedRole | '')}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
             {/* Required when adding: the login account is created with this role. */}
-            <option value="">{id ? 'Tidak diubah' : 'Pilih jabatan…'}</option>
+            <option value="">{id ? t('hrFix.employeeForm.unchanged') : t('hrFix.employeeForm.pickRole')}</option>
             {HR_MANAGED_ROLES.map((r) => (
               <option key={r} value={r}>
                 {t(HR_ROLE_LABEL[r])}
@@ -175,7 +175,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           </select>
         </Field>
 
-        <Field label="Status kepegawaian">
+        <Field label={t('hrFix.employeeForm.employmentStatus')}>
           <select
             value={form.employmentStatus}
             onChange={(e) => set('employmentStatus', e.target.value as EmploymentStatus)}
@@ -188,19 +188,19 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             ))}
           </select>
         </Field>
-        <Field label="Tipe gaji">
+        <Field label={t('hrFix.employeeForm.salaryType')}>
           <select
             value={form.salaryType}
             onChange={(e) => set('salaryType', e.target.value as SalaryType)}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="DAILY">Harian</option>
-            <option value="MONTHLY">Bulanan</option>
+            <option value="DAILY">{t('hrFix.employeeForm.daily')}</option>
+            <option value="MONTHLY">{t('hrFix.employeeForm.monthly')}</option>
           </select>
         </Field>
 
         {form.salaryType === 'DAILY' ? (
-          <Field label="Gaji harian (Rp)">
+          <Field label={t('hrFix.employeeForm.dailyRate')}>
             <Input
               type="number"
               value={form.dailyRate}
@@ -208,7 +208,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             />
           </Field>
         ) : (
-          <Field label="Gaji bulanan (Rp)">
+          <Field label={t('hrFix.employeeForm.monthlyRate')}>
             <Input
               type="number"
               value={form.monthlyRate}
@@ -217,19 +217,19 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           </Field>
         )}
 
-        <Field label="Nama bank (opsional)">
+        <Field label={t('hrFix.employeeForm.bankNameOpt')}>
           <Input value={form.bankName} onChange={(e) => set('bankName', e.target.value)} />
         </Field>
-        <Field label="No. rekening (opsional)">
+        <Field label={t('hrFix.employeeForm.bankAccountOpt')}>
           <Input value={form.bankAccount} onChange={(e) => set('bankAccount', e.target.value)} />
         </Field>
-        <Field label="Kontak darurat (opsional)">
+        <Field label={t('hrFix.employeeForm.emergencyNameOpt')}>
           <Input
             value={form.emergencyName}
             onChange={(e) => set('emergencyName', e.target.value)}
           />
         </Field>
-        <Field label="No. kontak darurat (opsional)">
+        <Field label={t('hrFix.employeeForm.emergencyPhoneOpt')}>
           <Input
             value={form.emergencyPhone}
             onChange={(e) => set('emergencyPhone', e.target.value)}
@@ -240,14 +240,14 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             person could have one superior in HR and another in the hierarchy map. The
             reporting line is recorded once, at /hq/hierarchy, and shown read-only on the
             employee's detail page. */}
-        <Field label="Departemen (opsional)">
+        <Field label={t('hrFix.employeeForm.departmentOpt')}>
           <select
             value={form.departmentId}
             onChange={(e) => set('departmentId', e.target.value)}
             disabled={!form.depotId}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
           >
-            <option value="">{form.depotId ? 'Belum diatur' : 'Pilih depot dulu…'}</option>
+            <option value="">{form.depotId ? t('hrFix.employeeForm.notSet') : t('hrFix.employeeForm.pickDepotFirst')}</option>
             {deptOptions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.code} — {d.name}
@@ -256,17 +256,17 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           </select>
           {departments.error && <LoadError onRetry={departments.reload} />}
         </Field>
-        <Field label="NPWP (opsional)">
+        <Field label={t('hrFix.employeeForm.npwpOpt')}>
           <Input value={form.npwp} onChange={(e) => set('npwp', e.target.value)} />
         </Field>
-        <Field label="BPJS Kesehatan (opsional)">
+        <Field label={t('hrFix.employeeForm.bpjsKesOpt')}>
           <Input value={form.bpjsKes} onChange={(e) => set('bpjsKes', e.target.value)} />
         </Field>
-        <Field label="BPJS Ketenagakerjaan (opsional)">
+        <Field label={t('hrFix.employeeForm.bpjsTkOpt')}>
           <Input value={form.bpjsTk} onChange={(e) => set('bpjsTk', e.target.value)} />
         </Field>
 
-        <Field label="NIK KTP (opsional)">
+        <Field label={t('hrFix.employeeForm.nikOpt')}>
           <Input
             value={form.nik}
             inputMode="numeric"
@@ -274,20 +274,20 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             onChange={(e) => set('nik', e.target.value)}
           />
         </Field>
-        <Field label="Tanggal lahir (opsional)">
+        <Field label={t('hrFix.employeeForm.birthDateOpt')}>
           <Input
             type="date"
             value={form.birthDate}
             onChange={(e) => set('birthDate', e.target.value)}
           />
         </Field>
-        <Field label="Jenis kelamin (opsional)">
+        <Field label={t('hrFix.employeeForm.genderOpt')}>
           <select
             value={form.gender}
             onChange={(e) => set('gender', e.target.value as Gender | '')}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">Tidak diisi</option>
+            <option value="">{t('hrFix.employeeForm.notFilled')}</option>
             {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
               <option key={g} value={g}>
                 {t(GENDER_LABEL[g])}
@@ -295,13 +295,13 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             ))}
           </select>
         </Field>
-        <Field label="Status PTKP (opsional)">
+        <Field label={t('hrFix.employeeForm.ptkpOpt')}>
           <select
             value={form.ptkpStatus}
             onChange={(e) => set('ptkpStatus', e.target.value as PtkpStatus | '')}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">Tidak diisi</option>
+            <option value="">{t('hrFix.employeeForm.notFilled')}</option>
             {(Object.keys(PTKP_STATUS_LABEL) as PtkpStatus[]).map((p) => (
               <option key={p} value={p}>
                 {t(PTKP_STATUS_LABEL[p])}
@@ -309,7 +309,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             ))}
           </select>
         </Field>
-        <Field label="Akhir kontrak (opsional)">
+        <Field label={t('hrFix.employeeForm.contractEndOpt')}>
           <Input
             type="date"
             value={form.contractEndDate}
@@ -322,14 +322,14 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             the status to RESIGNED does NOT stop the wage on its own. */}
         {id && (
           <>
-            <Field label="Tanggal keluar (kosongkan bila masih bekerja)">
+            <Field label={t('hrFix.employeeForm.exitDate')}>
               <Input
                 type="date"
                 value={form.exitDate}
                 onChange={(e) => set('exitDate', e.target.value)}
               />
             </Field>
-            <Field label="Status">
+            <Field label={t('hrFix.employeeForm.status')}>
               <select
                 className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
                 value={form.status}
@@ -350,7 +350,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             )}
           </>
         )}
-        <Field label="Alamat (opsional)">
+        <Field label={t('hrFix.employeeForm.addressOpt')}>
           <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
         </Field>
       </Card>
@@ -367,11 +367,11 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         <Card className="border-amber-300 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900" role="alert">
             Nomor {form.phone} sudah dipakai akun atas nama{' '}
-            {confirmOwner.fullName || '(tanpa nama)'} ({roleLabel(confirmOwner.role)}).
+            {confirmOwner.fullName || t('hrFix.employeeForm.noName')} ({roleLabel(confirmOwner.role)}).
           </p>
           <p className="mt-1 text-sm text-amber-900">
             Menyimpan akan mengubah akun itu menjadi{' '}
-            {form.role ? t(HR_ROLE_LABEL[form.role]) : 'jabatan yang dipilih'} — bukan membuat akun
+            {form.role ? t(HR_ROLE_LABEL[form.role]) : t('hrFix.employeeForm.chosenRole')} — bukan membuat akun
             baru. Kalau nomornya salah ketik, betulkan dulu.
           </p>
         </Card>
@@ -380,10 +380,10 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
       <div className="flex gap-3">
         <Button type="submit" loading={saving}>
           {confirmOwner
-            ? 'Ya, gunakan akun itu'
+            ? t('hrFix.employeeForm.useThatAccount')
             : id
-              ? 'Simpan Perubahan'
-              : 'Tambah Karyawan'}
+              ? t('hrFix.employeeForm.saveChanges')
+              : t('hrFix.employeeForm.addEmployee')}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Batal
