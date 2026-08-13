@@ -218,6 +218,10 @@ function RosterBody() {
         <Skeleton className="h-64 w-full" />
       ) : roster.error ? (
         <ErrorState message={roster.error} onRetry={roster.reload} />
+      ) : drivers.error ? (
+        // Without the roster of couriers `staff` is empty, and the branch below then says
+        // the depot has no active couriers to schedule — an answer, not an outage.
+        <ErrorState message={drivers.error} onRetry={drivers.reload} />
       ) : staff.length === 0 ? (
         <CenterState title="Belum ada kurir" icon={<UsersThree size={40} weight="fill" />}>
           Belum ada kurir aktif untuk dijadwalkan di depot ini.

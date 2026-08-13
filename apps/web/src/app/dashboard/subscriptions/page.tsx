@@ -12,6 +12,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -142,6 +143,9 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
               </option>
             ))}
           </select>
+          {/* customerId is REQUIRED on this form now, so an unread directory is not a
+              shorter list — it is a form nobody can submit, for a reason not on screen. */}
+          {customers.error && <LoadError onRetry={customers.reload} />}
         </Field>
         <Field label="Produk" htmlFor="s-prod">
           <Input id="s-prod" value={productLabel} onChange={(e) => setProductLabel(e.target.value)} placeholder="Galon 19L" />

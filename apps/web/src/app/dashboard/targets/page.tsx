@@ -11,6 +11,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -254,6 +255,10 @@ function TargetsBody() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       {header}
+
+      {/* The target column survives an unread `actuals`; the achievement column does not,
+          and a bar at zero progress against a target is a judgement about the depot. */}
+      {actuals.error && <LoadError onRetry={actuals.reload} />}
 
       {editing && scopedId ? (
         <TargetForm
