@@ -34,6 +34,7 @@ const STATUS_TONE: Record<EmployeeStatus, 'success' | 'neutral' | 'danger'> = {
  * create the account with), and the refusal is shown here rather than swallowed.
  */
 function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated: () => void }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +45,7 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
       await api.post(endpoints.hr.createEmployeeAccount(employee.id), {}, true);
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuat akun.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.employees.accountFailed'));
     } finally {
       setBusy(false);
     }
@@ -99,7 +100,7 @@ export default function EmployeesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <SectionHeader
-        title="Karyawan"
+        title={t('hrFix.employees.title')}
         subtitle={data ? `${data.total} karyawan` : undefined}
         action={
           canManageHr(customer?.role) ? (
@@ -107,7 +108,7 @@ export default function EmployeesPage() {
               <LinkButton href="/hr/employees/import" variant="secondary">
                 Import Excel
               </LinkButton>
-              <LinkButton href="/hr/employees/new">+ Tambah</LinkButton>
+              <LinkButton href="/hr/employees/new">{t('hrFix.employees.add')}</LinkButton>
             </div>
           ) : undefined
         }
@@ -115,7 +116,7 @@ export default function EmployeesPage() {
 
       <div className="flex flex-wrap gap-3">
         <Input
-          placeholder="Cari nama / kode / posisi…"
+          placeholder={t('hrFix.employees.searchHint')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -125,7 +126,7 @@ export default function EmployeesPage() {
           onChange={(e) => setStatus(e.target.value as EmployeeStatus | '')}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
         >
-          <option value="">Semua status</option>
+          <option value="">{t('hrFix.employees.allStatuses')}</option>
           {(Object.keys(EMPLOYEE_STATUS_LABEL) as EmployeeStatus[]).map((s) => (
             <option key={s} value={s}>
               {t(EMPLOYEE_STATUS_LABEL[s])}
@@ -138,7 +139,7 @@ export default function EmployeesPage() {
           onChange={(e) => setDepartmentId(e.target.value)}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
         >
-          <option value="">Semua departemen</option>
+          <option value="">{t('hrFix.employees.allDepartments')}</option>
           {deptRows.map((d) => (
             <option key={d.id} value={d.id}>
               {d.code} · {d.name}
@@ -156,7 +157,7 @@ export default function EmployeesPage() {
       )}
       {error && <ErrorState message={error} onRetry={reload} />}
       {data && data.rows.length === 0 && (
-        <Card className="p-8 text-center text-sm text-muted">Tidak ada karyawan.</Card>
+        <Card className="p-8 text-center text-sm text-muted">{t('hrFix.employees.empty')}</Card>
       )}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
@@ -168,7 +169,7 @@ export default function EmployeesPage() {
                   {e.employeeCode} · {e.position} · {t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])} ·{' '}
                   {/* Without the list, departmentLabel() answers "Belum diatur" for every
                       row at once — a whole roster claiming no department. */}
-                  {departments.error ? 'Departemen tidak terbaca' : departmentLabel(deptRows, e.departmentId, t)}
+                  {departments.error ? t('hrFix.employees.departmentUnreadable') : departmentLabel(deptRows, e.departmentId, t)}
                 </p>
               </Link>
               {/* The safety net: a row with no login is somebody who cannot clock in, and
