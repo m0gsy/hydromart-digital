@@ -48,16 +48,47 @@ function MonthlyReviewBody() {
   );
 
   const r = review.data;
-  // orders/revenue/activeCustomers/topCourier are real; SLA + net profit have no source ("—").
+  /**
+   * "—" here now means one named service could not be read, not "nobody ever built this".
+   * The caption says which, because a manager who can see that payroll is the missing term
+   * can go and ask for it; a bare dash sends them nowhere.
+   */
+  const missingTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
+    if (!b) return 'butuh data biaya';
+    const missing = [
+      b.cogsIdr === null ? 'pembelian' : null,
+      b.payrollIdr === null ? 'gaji' : null,
+      b.opexIdr === null ? 'biaya kas' : null,
+    ].filter(Boolean);
+    return missing.length > 0 ? `belum terbaca: ${missing.join(', ')}` : 'omzet − pembelian − gaji − biaya';
+  };
   const stats: Stat[] = [
     { label: 'Order', value: r ? r.orders.toLocaleString('id-ID') : '—', caption: 'bulan berjalan' },
     { label: 'Pendapatan', value: r ? formatIDR(r.revenueIdr) : '—', caption: 'non-batal' },
-    { label: 'SLA rata2', value: r?.slaPct != null ? `${r.slaPct}%` : '—', caption: 'butuh data pengiriman' },
+    {
+      label: 'SLA rata2',
+      value: r?.slaPct != null ? `${r.slaPct}%` : '—',
+      caption: r?.slaPct != null ? 'pengiriman tepat waktu' : 'belum ada pengiriman terhitung',
+    },
     {
       label: 'Laba bersih',
       value: r?.netProfitIdr != null ? formatIDR(r.netProfitIdr) : '—',
-      caption: 'butuh HPP + biaya',
+      caption: missingTerms(r?.profitBreakdown),
     },
+  ];
+
+  /**
+   * The arithmetic behind "Laba bersih", spelled out. A net profit nobody can decompose is
+   * a number nobody can dispute — and these two costs come from two places that CAN
+   * overlap (a purchase order in the system plus a "bayar supplier" line in the cash book),
+   * so showing the terms is what makes a double count visible instead of silent.
+   */
+  const idrOrDash = (v: number | null | undefined): string => (v == null ? '—' : formatIDR(v));
+  const profit: Row[] = [
+    { label: 'Omzet (non-batal)', value: r ? formatIDR(r.revenueIdr) : '—' },
+    { label: 'Pembelian diterima', value: idrOrDash(r?.profitBreakdown.cogsIdr) },
+    { label: 'Gaji (net)', value: idrOrDash(r?.profitBreakdown.payrollIdr) },
+    { label: 'Biaya kas keluar', value: idrOrDash(r?.profitBreakdown.opexIdr) },
   ];
 
   // Governance (approval/opname/setoran) is owned by depot-service/payout — no order-service
@@ -126,6 +157,8 @@ function MonthlyReviewBody() {
           </div>
 
           <Panel title="Penjualan galon" rows={galon} />
+
+          <Panel title="Rincian laba" rows={profit} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Panel title="Governance" rows={governance} />

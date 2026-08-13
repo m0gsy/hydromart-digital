@@ -153,8 +153,15 @@ describe('CashierShiftController', () => {
 
 describe('CashbookController', () => {
   const svc = { list: jest.fn(), record: jest.fn() };
-  const c = new CashbookController(svc as never);
+  const costs = { costsInRange: jest.fn().mockResolvedValue({ cogsIdr: 0, opexIdr: 0 }) };
+  const c = new CashbookController(svc as never, costs as never);
   beforeEach(() => jest.clearAllMocks());
+
+  // S2: the cost side of the monthly review, read service-to-service.
+  it('parses both bounds for the internal depot-costs read', async () => {
+    await c.depotCosts({ depotId: DEPOT, from: ISO, to: ISO } as never);
+    expect(costs.costsInRange).toHaveBeenCalledWith(DEPOT, new Date(ISO), new Date(ISO));
+  });
 
   it('lists with and without a date window', async () => {
     await c.list({ depotId: DEPOT } as never);

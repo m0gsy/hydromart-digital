@@ -1274,3 +1274,11 @@ export class GallonReturnRangeResponseDto {
   @ApiProperty({ type: Number })
   damaged!: number;
 }
+
+/** Mirrors `DepotCosts` exactly — generated for audit D-6, no field added or removed. */
+export class DepotCostsResponseDto {
+  @ApiProperty({ type: Number })
+  cogsIdr!: number;
+  @ApiProperty({ type: Number })
+  opexIdr!: number;
+}

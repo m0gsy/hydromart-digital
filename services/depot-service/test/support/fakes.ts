@@ -613,6 +613,15 @@ export class InMemorySupplierRepository implements SupplierRepository {
 export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository {
   rows: PurchaseOrder[] = [];
 
+  async receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number> {
+    // By receivedAt: a PO raised in June and delivered in July is July's stock.
+    return this.rows
+      .filter(
+        (r) => r.depotId === depotId && r.receivedAt !== null && r.receivedAt >= from && r.receivedAt < to,
+      )
+      .reduce((sum, r) => sum + r.totalIdr, 0);
+  }
+
   async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {
     const row: PurchaseOrder = {
       id: randomUUID(),

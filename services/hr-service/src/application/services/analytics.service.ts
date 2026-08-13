@@ -124,9 +124,18 @@ export class AnalyticsService {
     }));
   }
 
-  async depotSummary(depotId: string): Promise<HrDepotSummary> {
+  /**
+   * `periodMonth` ('YYYY-MM') overrides which month the payroll total is read for.
+   *
+   * The owner dashboard wants the running month and passes nothing. order-service's monthly
+   * review asks about a month that has usually already closed, and reading THIS month's
+   * payroll into a report headed "Juli" is how a P&L quietly becomes fiction. The attendance
+   * counts stay "today" either way — they are a live queue, not a period figure — and the
+   * response says which month it answered for.
+   */
+  async depotSummary(depotId: string, month?: string): Promise<HrDepotSummary> {
     const workDate = this.today();
-    const periodMonth = workDate.slice(0, 7);
+    const periodMonth = month ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
     const [attendanceToday, payroll, headcount] = await Promise.all([
       this.repo.attendanceByStatus(workDateUtc, [depotId]),

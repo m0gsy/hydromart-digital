@@ -587,7 +587,20 @@ describe('ReportsController', () => {
     c.dashboard(q, user);
     expect(analytics.dashboard).toHaveBeenCalledWith(user, q);
     c.depotSummary('d1');
-    expect(analytics.depotSummary).toHaveBeenCalledWith('d1');
+    expect(analytics.depotSummary).toHaveBeenCalledWith('d1', undefined);
+  });
+
+  // 'YYYY-MM' or nothing. Anything else falls back to the running month rather than 400 —
+  // this route feeds a dashboard card, and a blanked panel is the worse failure.
+  it.each([
+    ['2026-07', '2026-07'],
+    ['juli', undefined],
+    ['2026-7', undefined],
+    ['', undefined],
+  ])('passes a period of %s through as %s', (given, expected) => {
+    const { analytics, c } = make();
+    c.depotSummary('d1', given);
+    expect(analytics.depotSummary).toHaveBeenCalledWith('d1', expected);
   });
 
   // The many-depot variant takes one comma list instead of N round trips; blanks and

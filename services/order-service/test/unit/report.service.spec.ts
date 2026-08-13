@@ -473,6 +473,99 @@ describe('ReportService', () => {
     });
   });
 
+  /*
+   * S2 + the user's 2026-08-13 decision: net profit = omzet − HPP − gaji − beban. The data
+   * to do it properly does not exist (no per-unit cost price anywhere in the catalog), so
+   * HPP is purchases RECEIVED in the month and the breakdown ships with the number so a
+   * reader can see that rather than be misled by it.
+   */
+  describe('monthly review — net profit', () => {
+    const costsPort = (over: Record<string, unknown> = {}) => ({
+      costs: async () => ({ cogsIdr: 4_000_000, opexIdr: 1_900_000 }),
+      payroll: async () => 3_000_000,
+      ...over,
+    });
+    const svcWith = (r: InMemoryOrderRepository, port: unknown) =>
+      new ReportService(r, reportTestConfig(), undefined, undefined, undefined, undefined, port as never);
+
+    const withRevenue = async (r: InMemoryOrderRepository, depot: string, total: number) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-07-10T02:00:00.000Z');
+      r.rows.find((x) => x.id === o.id)!.status = OrderStatus.DELIVERED;
+    };
+
+    it('subtracts goods, payroll and operating cost, and shows the arithmetic', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.revenueIdr).toBe(12_000_000);
+      expect(rep.netProfitIdr).toBe(12_000_000 - 4_000_000 - 3_000_000 - 1_900_000);
+      expect(rep.profitBreakdown).toEqual({
+        revenueIdr: 12_000_000,
+        cogsIdr: 4_000_000,
+        payrollIdr: 3_000_000,
+        opexIdr: 1_900_000,
+      });
+    });
+
+    it('asks hr for the reported month, not for whatever month it is today', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const payroll = jest.fn(async () => 3_000_000);
+      await svcWith(r, costsPort({ payroll })).reportsDepotMonthly(depot, '2026-07');
+      expect(payroll).toHaveBeenCalledWith(depot, '2026-07');
+    });
+
+    /*
+     * Fail-closed, and this is the test that matters. Reading an unreachable hr-service as
+     * "payroll was zero" publishes a profit inflated by the depot's entire wage bill — and
+     * it looks exactly like a good month.
+     */
+    it.each([
+      ['depot-service could not answer', { costs: async () => null }],
+      ['hr-service could not answer', { payroll: async () => null }],
+    ])('reports null net profit when %s, never a partial subtraction', async (_label, over) => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+
+      const rep = await svcWith(r, costsPort(over)).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.netProfitIdr).toBeNull();
+      // The breakdown still ships: knowing WHICH half failed is what turns "—" from a dead
+      // end into something an operator can chase.
+      expect(rep.profitBreakdown.revenueIdr).toBe(12_000_000);
+      const missing = [rep.profitBreakdown.cogsIdr, rep.profitBreakdown.payrollIdr].filter(
+        (v) => v === null,
+      );
+      expect(missing.length).toBeGreaterThan(0);
+    });
+
+    it('reports null with no cost port wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
+        randomUUID(),
+        '2026-07',
+      );
+      expect(rep.netProfitIdr).toBeNull();
+      expect(rep.profitBreakdown).toEqual({
+        revenueIdr: 0,
+        cogsIdr: null,
+        opexIdr: null,
+        payrollIdr: null,
+      });
+    });
+
+    it('reports a loss as a negative number rather than flooring at zero', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 1_000_000);
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.netProfitIdr).toBe(1_000_000 - 8_900_000);
+    });
+  });
+
   // The export behind the button that used to do nothing. It must show the SAME day the
   // report shows, and it must carry cancelled orders — a file that drops them silently
   // cannot be reconciled against the till.

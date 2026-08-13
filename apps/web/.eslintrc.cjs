@@ -21,5 +21,5 @@ module.exports = {
   // `mobile-out-*/` is a build artefact, not source. Anyone who runs `build:mobile` before
   // linting otherwise gets ~200 files of minified chunk noise; CI never saw it only because
   // the export step runs after lint.
-  ignorePatterns: ['.next/', 'node_modules/', 'next-env.d.ts', 'mobile-out/', 'mobile-out-*/'],
+  ignorePatterns: ['.next/', 'node_modules/', 'next-env.d.ts', 'mobile-out/', 'mobile-out-*/', 'coverage/'],
 };

@@ -2090,15 +2090,28 @@ export interface DepotRatingsReport {
   recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
 }
 
+/** The four terms behind `netProfitIdr`; each null when its owning service could not be read. */
+export interface ReportProfitBreakdown {
+  revenueIdr: number;
+  /** Purchases RECEIVED in the month, not accrual cost of goods sold — the catalog has no unit cost. */
+  cogsIdr: number | null;
+  opexIdr: number | null;
+  payrollIdr: number | null;
+}
+
 // One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
-// activeCustomers are real; netProfitIdr/slaPct are null (no source); topCourier from driverName.
+// activeCustomers are real; slaPct comes from delivery-service and netProfitIdr from
+// depot-service + hr-service — each null when its source could not be read, never 0.
 export interface ReportDepotMonthly {
   depotId: string;
   month: string;
   orders: number;
   revenueIdr: number;
   activeCustomers: number;
+  /** Null the moment ANY term is missing — see `profitBreakdown` for which one. */
   netProfitIdr: number | null;
+  profitBreakdown: ReportProfitBreakdown;
+  /** On-time share for the month, 0..100 with one decimal. Null when nothing was delivered. */
   slaPct: number | null;
   // Depot SOP: the monthly review is read in galon, against last month.
   gallons: number;

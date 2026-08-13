@@ -103,6 +103,9 @@ services:
       # On-time delivery for the monthly review. Blank = slaPct stays null, which is what
       # it always was — order-service must never infer punctuality from order status.
       DELIVERY_SERVICE_URL: http://delivery:3006
+      # Payroll for the monthly review's net profit. Blank = netProfitIdr stays null; the
+      # report never substitutes 0 for a wage bill it could not read.
+      HR_SERVICE_URL: http://hr:3018
       CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011

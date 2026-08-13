@@ -26,6 +26,7 @@ import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-s
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
 import { PaymentCashHttpAdapter } from '../../src/infrastructure/http/payment-cash.http.adapter';
 import { DeliverySlaHttpAdapter } from '../../src/infrastructure/http/delivery-sla.http.adapter';
+import { DepotCostsHttpAdapter } from '../../src/infrastructure/http/depot-costs.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
@@ -921,6 +922,62 @@ describe('DeliverySlaHttpAdapter', () => {
     expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+});
+
+// S2. The cost side of net profit: goods + till from depot-service, payroll from hr-service.
+// One adapter for two services because it is one question — splitting it would let a caller
+// fetch half a P&L and believe it had one.
+describe('DepotCostsHttpAdapter', () => {
+  const costs = (over: Partial<Record<string, unknown>> = {}) =>
+    new DepotCostsHttpAdapter(makeConfig({ hrServiceUrl: 'http://hr:3018', ...over }));
+  const FROM = new Date('2026-06-30T17:00:00.000Z');
+  const TO = new Date('2026-07-31T17:00:00.000Z');
+
+  it('reads goods and till from depot-service over the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { cogsIdr: 4_000_000, opexIdr: 1_900_000 } }));
+    const out = await costs().costs('d1', FROM, TO);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/cashbook/internal/depot-costs?depotId=d1&from=${FROM.toISOString()}&to=${TO.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({ cogsIdr: 4_000_000, opexIdr: 1_900_000 });
+  });
+
+  it('reads payroll for the REPORTED month, not for today', async () => {
+    fetchMock.mockResolvedValue(res({ body: { payrollMtdNet: 3_000_000 } }));
+    expect(await costs().payroll('d1', '2026-07')).toBe(3_000_000);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://hr:3018/api/v1/hr-reports/internal/depot-summary?depotId=d1&periodMonth=2026-07',
+    );
+  });
+
+  it('reads a partial body as zeroes once the service did answer', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(await costs().costs('d1', FROM, TO)).toEqual({ cogsIdr: 0, opexIdr: 0 });
+    expect(await costs().payroll('d1', '2026-07')).toBe(0);
+  });
+
+  // Null per source, so the SERVICE can refuse to publish a partial profit. This layer only
+  // says honestly which half it could not get.
+  it.each([
+    ['depot-service is unconfigured', { depotServiceUrl: '' }, 'costs'],
+    ['hr-service is unconfigured', { hrServiceUrl: '' }, 'payroll'],
+    ['there is no internal key', { internalServiceKey: '' }, 'costs'],
+  ])('returns null without a round-trip when %s', async (_label, over, which) => {
+    const a = costs(over);
+    const out = which === 'costs' ? await a.costs('d1', FROM, TO) : await a.payroll('d1', '2026-07');
+    expect(out).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null on a non-2xx and when the service is unreachable', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await costs().costs('d1', FROM, TO)).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await costs().payroll('d1', '2026-07')).toBeNull();
   });
 });
 

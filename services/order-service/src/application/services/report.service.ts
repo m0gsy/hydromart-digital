@@ -18,6 +18,7 @@ import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
 import { DeliverySlaPort } from '../ports/delivery-sla.port';
+import { DepotCostBreakdown, DepotCostsPort } from '../ports/depot-costs.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -147,8 +148,24 @@ export interface DepotMonthlyReport {
   revenueIdr: number;
   /** Distinct customers with a non-cancelled order in the month. */
   activeCustomers: number;
-  /** Null — net profit needs cost-of-goods + expenses (payout/procurement), not joinable here. */
+  /**
+   * Revenue − goods − payroll − operating cost, whole rupiah.
+   *
+   * **Null when ANY input is missing**, never a partial subtraction: a profit computed from
+   * a payroll nobody could fetch is not a small error, it is the wrong number with a
+   * confident face. `profitBreakdown` carries the four terms so the screen can show the
+   * arithmetic rather than assert a conclusion.
+   */
   netProfitIdr: number | null;
+  /**
+   * The terms behind `netProfitIdr`, each null when its owning service could not be read.
+   *
+   * Present even when the net is null — knowing WHICH half failed is what turns "—" from a
+   * dead end into something an operator can chase. `cogsIdr` is purchases received in the
+   * month, not accrual cost of goods sold: the catalog has no per-unit cost price, and the
+   * screen labels it as such rather than implying an accounting nobody performed.
+   */
+  profitBreakdown: DepotCostBreakdown & { revenueIdr: number };
   /**
    * On-time delivery share for the month, 0..100 with one decimal. Null when
    * delivery-service could not be read, or when nothing was delivered — a rate of 0 there
@@ -239,6 +256,9 @@ export class ReportService {
     @Optional()
     @Inject(ORDER_TOKENS.DeliverySla)
     private readonly deliverySla?: DeliverySlaPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.DepotCosts)
+    private readonly depotCosts?: DepotCostsPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -601,12 +621,14 @@ export class ReportService {
     const prevFrom = addLocalMonths(from, -1, tz);
     // Last month is one more read of the same shape — the SOP reads the two side by side,
     // and a month of one depot's orders is far under the 20.000-row range bound.
-    const [rows, prevRows, onTime] = await Promise.all([
+    const [rows, prevRows, onTime, costs, payrollIdr] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),
       this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
       // Measured in delivery-service, which is the only place that knows when a delivery
       // actually arrived. An order's status says it was delivered, never whether it was late.
       this.deliverySla ? this.deliverySla.onTimeRate(depotId, from, to) : Promise.resolve(null),
+      this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
+      this.depotCosts ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
     ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
@@ -622,14 +644,21 @@ export class ReportService {
       rs.filter((r) => isDelivered(r.status)).reduce((sum, r) => sum + gallonQty(r), 0);
     const gallons = gallonsOf(rows);
     const prevGallons = gallonsOf(prevRows);
+    const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
+    const breakdown: DepotCostBreakdown = {
+      cogsIdr: costs ? costs.cogsIdr : null,
+      opexIdr: costs ? costs.opexIdr : null,
+      payrollIdr,
+    };
+
     return {
       depotId,
       month,
       orders: live.length,
-      revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+      revenueIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      // TODO: net profit needs cost-of-goods + expenses (payout/procurement) — not joinable here.
-      netProfitIdr: null,
+      netProfitIdr: ReportService.netProfit(revenueIdr, breakdown),
+      profitBreakdown: { revenueIdr, ...breakdown },
       // Percent, to one decimal — the screen prints a percentage, and rounding to whole
       // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.
       slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
@@ -643,6 +672,24 @@ export class ReportService {
       avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
+  }
+
+  /**
+   * Revenue minus every cost term — or null the moment one term is missing.
+   *
+   * **Fail-closed on purpose.** Treating an unreachable hr-service as "payroll was zero"
+   * would publish a profit inflated by the depot's entire wage bill, and it would look
+   * exactly like a good month. The screen showing "—" next to a breakdown that names the
+   * missing half is the honest version of not knowing.
+   *
+   * `cogsIdr` is purchases RECEIVED in the month, not accrual cost of goods sold — the
+   * catalog carries no per-unit cost price, so a month with one big delivery reads as a
+   * thin month. The breakdown is what lets a reader see that rather than be misled by it.
+   */
+  private static netProfit(revenueIdr: number, costs: DepotCostBreakdown): number | null {
+    const terms = [costs.cogsIdr, costs.payrollIdr, costs.opexIdr];
+    if (terms.some((t) => t === null)) return null;
+    return terms.reduce((net: number, t) => net - (t as number), revenueIdr);
   }
 
   /**

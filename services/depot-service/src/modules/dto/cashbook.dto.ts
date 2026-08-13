@@ -64,3 +64,23 @@ export class CreateCashbookDto {
   @IsDateString()
   occurredAt?: string;
 }
+
+/**
+ * Monthly review (S2): the cost side of one depot's window. Both bounds required — an
+ * open-ended range here would charge one month with the depot's whole history.
+ */
+export class DepotCostsQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Start of the window (inclusive).' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'End of the window (exclusive).' })
+  @IsDateString()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
+}

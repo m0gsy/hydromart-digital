@@ -171,6 +171,7 @@ function TargetsBody() {
             revenueIdr: 0,
             activeCustomers: 0,
             netProfitIdr: null,
+            profitBreakdown: { revenueIdr: 0, cogsIdr: null, opexIdr: null, payrollIdr: null },
             slaPct: null,
             gallons: 0,
             prevGallons: 0,
