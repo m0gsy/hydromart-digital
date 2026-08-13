@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { Sheet } from '@/components/overlay';
 import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
@@ -19,6 +20,7 @@ const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as 
 
 /** Payment status + staff "confirm received" for cash/transfer/QRIS (settlement). */
 function PaymentSettle({ order }: { order: Order }) {
+  const { t } = useT();
   const { customer } = useAuth();
   const canConfirm = canConfirmPayment(customer?.role);
   const { data, error: readError, reload } = useAsync<Page<Payment>>(
@@ -48,7 +50,7 @@ function PaymentSettle({ order }: { order: Order }) {
       setCash('');
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal konfirmasi pembayaran.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.payFailed'));
     } finally {
       setBusy(false);
     }
@@ -71,9 +73,9 @@ function PaymentSettle({ order }: { order: Order }) {
       )}
       {canConfirm && pending && isCash && (
         <Field
-          label="Uang tunai diterima (opsional)"
+          label={t('hrFix.orderDetail.cashReceived')}
           htmlFor={`settle-cash-${payment.id}`}
-          hint="Diisi = kembalian ikut tercatat pada pembayaran."
+          hint={t('hrFix.orderDetail.cashHint')}
         >
           <Input
             id={`settle-cash-${payment.id}`}
@@ -99,6 +101,7 @@ function PaymentSettle({ order }: { order: Order }) {
  * (GET /auth/drivers, dispatch-accessible).
  */
 function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) {
+  const { t } = useT();
   const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
   // Who may actually be handed a delivery right now. delivery-service refuses an
   // assignment to a courier with no open shift, so offering them here only produced a
@@ -128,7 +131,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
 
   async function submit() {
     if (driverId === '') {
-      setError('Pilih kurir.');
+      setError(t('hrFix.orderDetail.pickCourierFirst'));
       return;
     }
     const driver = drivers.data?.find((d) => d.id === driverId);
@@ -160,7 +163,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menugaskan kurir.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.assignFailed'));
     } finally {
       setBusy(false);
     }
@@ -168,26 +171,26 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
 
   return (
     <div className="flex flex-col gap-2 border-t border-app pt-3">
-      <p className="text-sm font-semibold">Tugaskan kurir</p>
+      <p className="text-sm font-semibold">{t('hrFix.orderDetail.assignCourier')}</p>
       {drivers.loading ? (
-        <p className="text-sm text-muted">Memuat kurir…</p>
+        <p className="text-sm text-muted">{t('hrFix.orderDetail.loadingCouriers')}</p>
       ) : drivers.error ? (
         <p className="text-sm font-medium text-red-600">{drivers.error}</p>
       ) : !drivers.data || drivers.data.length === 0 ? (
-        <p className="text-sm text-muted">Belum ada kurir aktif. Undang kurir di menu Staf &amp; peran.</p>
+        <p className="text-sm text-muted">{t('hrFix.orderDetail.noCouriers')}</p>
       ) : (
-        <Field label="Kurir" htmlFor="d-id">
+        <Field label={t('hrFix.orderDetail.courier')} htmlFor="d-id">
           <select
             id="d-id"
             value={driverId}
             onChange={(e) => setDriverId(e.target.value)}
             className="w-full rounded-xl border border-app bg-transparent px-3 py-2.5 text-sm font-medium"
           >
-            <option value="">Pilih kurir…</option>
+            <option value="">{t('hrFix.orderDetail.pickCourier')}</option>
             {drivers.data.map((d) => (
               <option key={d.id} value={d.id} disabled={shifts != null && !onDuty.has(d.id)}>
                 {d.fullName || d.phone}
-                {shifts != null && !onDuty.has(d.id) ? ' — belum buka shift' : ''}
+                {shifts != null && !onDuty.has(d.id) ? ` ${t('hrFix.orderDetail.noShift')}` : ''}
               </option>
             ))}
           </select>
@@ -209,6 +212,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
 
 /** Full order drill-down (7a/3i): items, address, status timeline, advance + assign. */
 export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClose: () => void; onChanged: () => void }) {
+  const { t } = useT();
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = nextStatus(order.status);
@@ -224,7 +228,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
       onChanged();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memperbarui pesanan.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.updateFailed'));
       setAdvancing(false);
     }
   }
@@ -241,7 +245,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           <div className="text-sm text-muted">{formatDateTime(order.createdAt)}</div>
           <div className="flex items-center gap-2">
             {/* A zero-fee, already-COMPLETED order is a counter sale, not a broken delivery. */}
-            {order.isWalkIn && <Badge tone="neutral">Walk-in</Badge>}
+            {order.isWalkIn && <Badge tone="neutral">{t('hrFix.orderDetail.walkIn')}</Badge>}
             <Badge tone={TONE_BADGE[tone(order.status)]}>{statusLabel(order.status)}</Badge>
           </div>
         </div>
@@ -258,7 +262,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
         </div>
 
         <div>
-          <p className="mb-1.5 text-sm font-semibold">Item</p>
+          <p className="mb-1.5 text-sm font-semibold">{t('hrFix.orderDetail.items')}</p>
           <ul className="flex flex-col gap-1.5 text-sm">
             {order.items.map((it) => (
               <li key={it.id} className="flex justify-between gap-3">
@@ -271,27 +275,27 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           </ul>
           <dl className="mt-2 border-t border-app pt-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted">Subtotal</dt>
+              <dt className="text-muted">{t('hrFix.orderDetail.subtotal')}</dt>
               <dd className="tabular-nums">
                 <Money amount={order.subtotal} />
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted">Ongkir</dt>
+              <dt className="text-muted">{t('hrFix.orderDetail.deliveryFee')}</dt>
               <dd className="tabular-nums">
                 <Money amount={order.deliveryFee} />
               </dd>
             </div>
             {order.discount > 0 && (
               <div className="flex justify-between">
-                <dt className="text-muted">Diskon</dt>
+                <dt className="text-muted">{t('hrFix.orderDetail.discount')}</dt>
                 <dd className="tabular-nums text-emerald-700">
                   −<Money amount={order.discount} />
                 </dd>
               </div>
             )}
             <div className="flex justify-between font-semibold">
-              <dt>Total</dt>
+              <dt>{t('hrFix.orderDetail.total')}</dt>
               <dd className="tabular-nums">
                 <Money amount={order.total} />
               </dd>
@@ -306,7 +310,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           // payment-by-order endpoint (payment reads are customer-scoped today).
           // Surface the cancellation + the refund rule honestly instead of faking it.
           <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-950/20">
-            <p className="font-semibold text-red-700">Pesanan dibatalkan</p>
+            <p className="font-semibold text-red-700">{t('hrFix.orderDetail.cancelled')}</p>
             <p className="text-red-700/80">
               Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service
               (belum tersambung ke antrean ini).
@@ -316,7 +320,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
 
         {order.history.length > 0 && (
           <div>
-            <p className="mb-1.5 text-sm font-semibold">Riwayat status</p>
+            <p className="mb-1.5 text-sm font-semibold">{t('hrFix.orderDetail.statusHistory')}</p>
             <ol className="flex flex-col gap-2">
               {order.history.map((h, i) => (
                 <li key={`${h.status}-${i}`} className="flex gap-2.5 text-sm">

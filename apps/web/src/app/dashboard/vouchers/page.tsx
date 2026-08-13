@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Lock, Ticket } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -104,6 +105,7 @@ function VoucherEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [form, setForm] = useState<VoucherForm>(voucher ? formFrom(voucher) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,11 +116,11 @@ function VoucherEditor({
 
   async function submit() {
     if (!voucher && !form.code.trim()) {
-      setError('Kode voucher wajib diisi.');
+      setError(t('hrFix.vouchers.codeRequired'));
       return;
     }
     if (!form.value.trim() || Number(form.value) <= 0) {
-      setError('Nilai diskon harus lebih dari 0.');
+      setError(t('hrFix.vouchers.valuePositive'));
       return;
     }
     setBusy(true);
@@ -131,7 +133,7 @@ function VoucherEditor({
       }
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan voucher.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.vouchers.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -142,47 +144,47 @@ function VoucherEditor({
       <h2 className="text-lg font-bold">{voucher ? `Edit ${voucher.code}` : 'Voucher baru'}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         {!voucher && (
-          <Field label="Kode" hint="Otomatis huruf besar, unik">
+          <Field label={t('hrFix.vouchers.code')} hint={t('hrFix.vouchers.codeHint')}>
             <Input value={form.code} onChange={set('code')} placeholder="HEMAT10" />
           </Field>
         )}
-        <Field label="Deskripsi">
-          <Input value={form.description} onChange={set('description')} placeholder="Diskon 10% untuk isi ulang" />
+        <Field label={t('hrFix.vouchers.description')}>
+          <Input value={form.description} onChange={set('description')} placeholder={t('hrFix.vouchers.descriptionHint')} />
         </Field>
-        <Field label="Tipe diskon">
+        <Field label={t('hrFix.vouchers.discountType')}>
           <select value={form.discountType} onChange={set('discountType')} className={SELECT_CLASS}>
-            <option value="PERCENTAGE">Persentase (%)</option>
-            <option value="FIXED">Potongan tetap (Rp)</option>
+            <option value="PERCENTAGE">{t('hrFix.vouchers.percentage')}</option>
+            <option value="FIXED">{t('hrFix.vouchers.fixedAmount')}</option>
           </select>
         </Field>
         <Field
-          label={form.discountType === 'PERCENTAGE' ? 'Nilai (%)' : 'Nilai (Rp)'}
-          hint={form.discountType === 'PERCENTAGE' ? '1–100' : 'Rupiah dipotong'}
+          label={form.discountType === 'PERCENTAGE' ? t('hrFix.vouchers.valuePercent') : t('hrFix.vouchers.valueRupiah')}
+          hint={form.discountType === 'PERCENTAGE' ? '1–100' : t('hrFix.vouchers.rupiahOff')}
         >
           <Input type="number" value={form.value} onChange={set('value')} placeholder="10" />
         </Field>
         {form.discountType === 'PERCENTAGE' && (
-          <Field label="Maks diskon (Rp)" hint="Batas atas untuk diskon persentase">
+          <Field label={t('hrFix.vouchers.maxDiscount')} hint={t('hrFix.vouchers.maxDiscountHint')}>
             <Input type="number" value={form.maxDiscount} onChange={set('maxDiscount')} placeholder="20000" />
           </Field>
         )}
-        <Field label="Min belanja (Rp)" hint="Kosongkan = tanpa minimum">
+        <Field label={t('hrFix.vouchers.minSpend')} hint={t('hrFix.vouchers.minSpendHint')}>
           <Input type="number" value={form.minSpend} onChange={set('minSpend')} placeholder="50000" />
         </Field>
-        <Field label="Kuota total" hint="Kosongkan = tanpa batas">
+        <Field label={t('hrFix.vouchers.totalQuota')} hint={t('hrFix.vouchers.totalQuotaHint')}>
           <Input type="number" value={form.usageLimit} onChange={set('usageLimit')} placeholder="1000" />
         </Field>
-        <Field label="Kuota per pelanggan">
+        <Field label={t('hrFix.vouchers.perCustomerQuota')}>
           <Input type="number" value={form.perCustomerLimit} onChange={set('perCustomerLimit')} placeholder="1" />
         </Field>
-        <Field label="Berlaku mulai" hint="Kosongkan untuk langsung aktif">
+        <Field label={t('hrFix.vouchers.validFrom')} hint={t('hrFix.vouchers.validFromHint')}>
           <Input type="date" value={form.validFrom} onChange={set('validFrom')} />
         </Field>
-        <Field label="Berlaku sampai" hint="Kosongkan untuk tanpa batas">
+        <Field label={t('hrFix.vouchers.validUntil')} hint={t('hrFix.vouchers.validUntilHint')}>
           <Input type="date" value={form.validUntil} onChange={set('validUntil')} />
         </Field>
         {voucher && (
-          <Field label="Aktif" hint="Nonaktifkan untuk menghentikan voucher">
+          <Field label={t('hrFix.vouchers.active')} hint={t('hrFix.vouchers.activeHint')}>
             <label className="flex items-center gap-2 py-2 text-sm">
               <input
                 type="checkbox"
@@ -197,7 +199,7 @@ function VoucherEditor({
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
-          {voucher ? 'Simpan' : 'Buat voucher'}
+          {voucher ? t('hrFix.vouchers.save') : t('hrFix.vouchers.create')}
         </Button>
         <Button variant="ghost" onClick={onCancel}>
           Batal
@@ -208,6 +210,7 @@ function VoucherEditor({
 }
 
 function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => void }) {
+  const { t } = useT();
   const [phone, setPhone] = useState('');
   const [found, setFound] = useState<Customer | null>(null);
   const [searching, setSearching] = useState(false);
@@ -217,7 +220,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
 
   async function search() {
     if (!phone.trim()) {
-      setError('Nomor HP wajib diisi.');
+      setError(t('hrFix.vouchers.phoneRequired'));
       return;
     }
     setSearching(true);
@@ -230,9 +233,9 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
       setError(
         err instanceof ApiError
           ? err.status === 404
-            ? 'Pelanggan dengan nomor itu tidak ditemukan.'
+            ? t('hrFix.vouchers.customerNotFound')
             : err.message
-          : 'Gagal mencari pelanggan.',
+          : t('hrFix.vouchers.searchFailed'),
       );
     } finally {
       setSearching(false);
@@ -251,7 +254,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
       );
       setDone(res.granted);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memberi voucher.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.vouchers.grantFailed'));
     } finally {
       setBusy(false);
     }
@@ -265,7 +268,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
           <p className="text-sm text-muted">
             {done
               ? `Voucher masuk ke dompet ${found?.fullName ?? found?.phone ?? 'pelanggan'}.`
-              : 'Pelanggan sudah punya voucher ini.'}
+              : t('hrFix.vouchers.alreadyHas')}
           </p>
           <div>
             <Button variant="ghost" onClick={onClose}>
@@ -275,7 +278,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
         </>
       ) : (
         <>
-          <Field label="Nomor HP pelanggan" hint="Format 0812…, +62…, atau 62…">
+          <Field label={t('hrFix.vouchers.customerPhone')} hint={t('hrFix.vouchers.phoneHint')}>
             <div className="flex gap-2">
               <Input
                 value={phone}
@@ -293,7 +296,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
           </Field>
           {found && (
             <p className="text-sm">
-              Ditemukan: <span className="font-semibold">{found.fullName ?? '(tanpa nama)'}</span>{' '}
+              Ditemukan: <span className="font-semibold">{found.fullName ?? t('hrFix.vouchers.noName')}</span>{' '}
               <span className="text-muted">{found.phone}</span>
             </p>
           )}
@@ -313,6 +316,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
 }
 
 function VouchersAdmin() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const canWrite = canManageVouchers(customer?.role);
@@ -325,7 +329,7 @@ function VouchersAdmin() {
 
   if (customer && !canViewVouchers(customer.role)) {
     return (
-      <CenterState icon={<Lock size={48} weight="thin" />} title="Akses ditolak">
+      <CenterState icon={<Lock size={48} weight="thin" />} title={t('hrFix.vouchers.denied')}>
         Halaman voucher hanya untuk tim marketing dan admin depot.
       </CenterState>
     );
@@ -337,7 +341,7 @@ function VouchersAdmin() {
     try {
       await api.del(endpoints.vouchers.detail(v.id), true);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menonaktifkan voucher.', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.vouchers.deactivateFailed'), 'error');
     }
     reload();
   }
@@ -350,7 +354,7 @@ function VouchersAdmin() {
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Ticket size={24} weight="fill" className="text-brand-600" /> Voucher
         </h1>
-        {canWrite && editing === undefined && <Button onClick={() => setEditing(null)}>Voucher baru</Button>}
+        {canWrite && editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.vouchers.newVoucher')}</Button>}
       </div>
 
       {editing !== undefined && (
@@ -369,8 +373,8 @@ function VouchersAdmin() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : vouchers.length === 0 ? (
-        <CenterState icon={<Ticket size={48} weight="thin" />} title="Belum ada voucher">
-          {canWrite ? 'Buat voucher pertama untuk pelangganmu.' : 'Belum ada voucher yang dibuat.'}
+        <CenterState icon={<Ticket size={48} weight="thin" />} title={t('hrFix.vouchers.emptyTitle')}>
+          {canWrite ? t('hrFix.vouchers.emptyBody') : t('hrFix.vouchers.noneCreated')}
         </CenterState>
       ) : (
         <div className="flex flex-col divide-y divide-[color:var(--border)]">
@@ -380,7 +384,7 @@ function VouchersAdmin() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2 font-semibold">
                     {v.code}
-                    <Badge tone={v.active ? 'success' : 'neutral'}>{v.active ? 'Aktif' : 'Nonaktif'}</Badge>
+                    <Badge tone={v.active ? 'success' : 'neutral'}>{v.active ? 'Aktif' : t('hrFix.vouchers.inactive')}</Badge>
                   </span>
                   <span className="truncate text-sm text-muted">
                     {discountLabel(v)}
