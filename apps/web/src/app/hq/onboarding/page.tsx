@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowRight, Check, ListChecks } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -87,6 +87,9 @@ export default function HqOnboardingPage() {
           </option>
         ))}
       </select>
+      {/* An unread depot list is a picker with one option: nothing. The checklist below
+          then never runs for any depot, which looks like a screen with no work to do. */}
+      {depots.error && <LoadError onRetry={depots.reload} />}
 
       {!depotId ? (
         <p className="py-6 text-center text-sm text-muted">{t('hq.onboarding.pickPrompt')}</p>

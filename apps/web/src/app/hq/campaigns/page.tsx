@@ -164,7 +164,12 @@ export default function HqCampaignBuilderPage() {
                 {t('hq.campaigns.estimate')}
               </span>
               <span className="text-lg font-bold tabular-nums text-brand-700">
-                {estimateQ.loading ? '…' : t('hq.campaigns.people', { n: estimate.toLocaleString('id-ID') })}
+                {/* "0 orang" is a decision to not send. An unread estimate is not zero. */}
+                {estimateQ.loading
+                  ? '…'
+                  : estimateQ.error
+                    ? t('hq.common.dash')
+                    : t('hq.campaigns.people', { n: estimate.toLocaleString('id-ID') })}
               </span>
             </div>
           </>
