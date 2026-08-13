@@ -104,41 +104,41 @@ export default function EmployeeDetailPage() {
       </div>
 
       <Card className="divide-y divide-[color:var(--border)] p-5">
-        <Row label="No. HP" value={e.phone} />
-        <Row label="Email" value={e.email ?? '—'} />
+        <Row label={t('hrFix.employeeDetail.phone')} value={e.phone} />
+        <Row label={t('hrFix.employeeDetail.email')} value={e.email ?? '—'} />
         {/* departmentLabel() answers "Belum diatur" for an id it cannot resolve, so an
             unread list tells you this person has no department when they do. */}
         <Row
-          label="Departemen"
+          label={t('hrFix.employeeDetail.department')}
           value={
             departments.error
               ? 'Tidak terbaca'
               : departmentLabel(departments.data ?? [], e.departmentId, t)
           }
         />
-        <Row label="Tanggal masuk" value={fmtDate(e.joinDate)} />
-        <Row label="Masa kerja" value={tenureLabel(e.joinDate, t)} />
-        <Row label="Tipe gaji" value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
+        <Row label={t('hrFix.employeeDetail.joinDate')} value={fmtDate(e.joinDate)} />
+        <Row label={t('hrFix.employeeDetail.tenure')} value={tenureLabel(e.joinDate, t)} />
+        <Row label={t('hrFix.employeeDetail.salaryType')} value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
         <Row
-          label="Nominal gaji"
+          label={t('hrFix.employeeDetail.salaryAmount')}
           value={
             <Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />
           }
         />
-        <Row label="Bank" value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'} />
+        <Row label={t('hrFix.employeeDetail.bank')} value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'} />
         <Row
-          label="Kontak darurat"
+          label={t('hrFix.employeeDetail.emergency')}
           value={e.emergencyName ? `${e.emergencyName} · ${e.emergencyPhone ?? ''}` : '—'}
         />
         <Row label="NPWP" value={e.npwp ?? '—'} />
-        <Row label="BPJS Kesehatan" value={e.bpjsKes ?? '—'} />
-        <Row label="BPJS Ketenagakerjaan" value={e.bpjsTk ?? '—'} />
-        <Row label="NIK KTP" value={e.nik ?? '—'} />
-        <Row label="Tanggal lahir" value={e.birthDate ? fmtDate(e.birthDate) : '—'} />
-        <Row label="Jenis kelamin" value={e.gender ? t(GENDER_LABEL[e.gender]) : '—'} />
-        <Row label="Alamat" value={e.address ?? '—'} />
-        <Row label="Status PTKP" value={e.ptkpStatus ? t(PTKP_STATUS_LABEL[e.ptkpStatus]) : '—'} />
-        <Row label="Akhir kontrak" value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
+        <Row label={t('hrFix.employeeDetail.bpjsKes')} value={e.bpjsKes ?? '—'} />
+        <Row label={t('hrFix.employeeDetail.bpjsTk')} value={e.bpjsTk ?? '—'} />
+        <Row label={t('hrFix.employeeDetail.nik')} value={e.nik ?? '—'} />
+        <Row label={t('hrFix.employeeDetail.birthDate')} value={e.birthDate ? fmtDate(e.birthDate) : '—'} />
+        <Row label={t('hrFix.employeeDetail.gender')} value={e.gender ? t(GENDER_LABEL[e.gender]) : '—'} />
+        <Row label={t('hrFix.employeeDetail.address')} value={e.address ?? '—'} />
+        <Row label={t('hrFix.employeeDetail.ptkp')} value={e.ptkpStatus ? t(PTKP_STATUS_LABEL[e.ptkpStatus]) : '—'} />
+        <Row label={t('hrFix.employeeDetail.contractEnd')} value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
       </Card>
 
       <EmployeeAllowances employeeId={id} isAdmin={isAdmin} />
@@ -170,7 +170,7 @@ export default function EmployeeDetailPage() {
 
       {isAdmin && (
         <Card className="space-y-3 p-5">
-          <h3 className="font-bold">Enroll Wajah</h3>
+          <h3 className="font-bold">{t('hrFix.employeeDetail.enrollFace')}</h3>
           <p className="text-xs text-muted">
             Ambil 1–3 foto wajah yang jelas untuk verifikasi absensi.
           </p>
@@ -195,11 +195,11 @@ export default function EmployeeDetailPage() {
       )}
 
       <Card className="p-5">
-        <h3 className="mb-3 font-bold">Riwayat Kepegawaian</h3>
+        <h3 className="mb-3 font-bold">{t('hrFix.employeeDetail.history')}</h3>
         {history.loading && <Skeleton className="h-20" />}
         {history.error && <LoadError onRetry={history.reload} />}
         {history.data && history.data.length === 0 && (
-          <p className="text-sm text-muted">Belum ada riwayat.</p>
+          <p className="text-sm text-muted">{t('hrFix.employeeDetail.noHistory')}</p>
         )}
         {history.data && history.data.length > 0 && (
           <ul className="space-y-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { RemoteImage } from '@/components/remote-image';
@@ -28,6 +29,7 @@ const EMPTY_DEPOTS: Page<DepotAdmin> = { items: [], total: 0, page: 1, limit: 10
 // Register a customer (by phone) as a reseller for the picked depot. Resolves phone → customerId
 // via the same staff-only lookup the voucher-grant panel uses, then POSTs the registry entry.
 function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { t } = useT();
   const { toast: notify } = useToast();
   const [phone, setPhone] = useState('');
   const [target, setTarget] = useState('');
@@ -40,19 +42,19 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!phone.trim() || !target.trim() || !joinDate) {
-      setError('Nomor HP, target bulanan, dan tanggal bergabung wajib diisi.');
+      setError(t('hrFix.resellers.required'));
       return;
     }
     if (!(Number(target) >= 0)) {
-      setError('Target bulanan harus berupa angka 0 atau lebih.');
+      setError(t('hrFix.resellers.targetNumber'));
       return;
     }
     if (discount !== '' && !(Number(discount) >= 0 && Number(discount) <= 100)) {
-      setError('Diskon harus 0–100.');
+      setError(t('hrFix.resellers.discountRange'));
       return;
     }
     if (flatPrice !== '' && !(Number(flatPrice) >= 0)) {
-      setError('Harga flat per galon harus berupa angka 0 atau lebih.');
+      setError(t('hrFix.resellers.flatNumber'));
       return;
     }
     setBusy(true);
@@ -71,7 +73,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
         },
         true,
       );
-      notify('Reseller ditambahkan');
+      notify(t('hrFix.resellers.added'));
       setPhone('');
       setTarget('');
       setDiscount('');
@@ -82,13 +84,13 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       setError(
         err instanceof ApiError
           ? err.status === 404
-            ? 'Pelanggan dengan nomor itu tidak ditemukan.'
+            ? t('hrFix.resellers.phoneNotFound')
             : err.status === 400
-              ? 'Nomor tersebut bukan pelanggan terdaftar.'
+              ? t('hrFix.resellers.notACustomer')
               : err.status === 409
-                ? 'Pelanggan ini sudah menjadi reseller.'
+                ? t('hrFix.resellers.alreadyReseller')
                 : err.message
-          : 'Gagal menambahkan reseller.',
+          : t('hrFix.resellers.addFailed'),
       );
     } finally {
       setBusy(false);
@@ -97,18 +99,18 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
 
   return (
     <Card className="p-4">
-      <h2 className="mb-3 font-semibold">Tambah reseller</h2>
+      <h2 className="mb-3 font-semibold">{t('hrFix.resellers.add')}</h2>
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-3">
-        <Field label="Nomor HP pelanggan" hint="Format 0812…, +62…, atau 62…">
+        <Field label={t('hrFix.resellers.phone')} hint={t('hrFix.resellers.phoneHint')}>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="081234567890" />
         </Field>
-        <Field label="Target bulanan (galon)">
+        <Field label={t('hrFix.resellers.monthlyTarget')}>
           <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="100" />
         </Field>
-        <Field label="Diskon reseller (%)" hint="0–100, kosong = 0">
+        <Field label={t('hrFix.resellers.discount')} hint={t('hrFix.resellers.discountHint')}>
           <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" />
         </Field>
-        <Field label="Harga flat per galon (Rp)" hint="Isi untuk memakai harga tetap, bukan diskon persen">
+        <Field label={t('hrFix.resellers.flatPrice')} hint={t('hrFix.resellers.flatPriceHint')}>
           <Input
             type="number"
             value={flatPrice}
@@ -116,7 +118,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
             placeholder="5000"
           />
         </Field>
-        <Field label="Tanggal bergabung">
+        <Field label={t('hrFix.resellers.joinDate')}>
           <Input type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
         </Field>
         {error && <p className="text-sm text-red-600 sm:col-span-3">{error}</p>}
@@ -145,6 +147,7 @@ function ResellerRow({
   name: string | undefined;
   onChanged: () => void;
 }) {
+  const { t } = useT();
   const { toast: notify } = useToast();
   const [editing, setEditing] = useState(false);
   const [target, setTarget] = useState(String(r.monthlyTargetQty));
@@ -171,15 +174,15 @@ function ResellerRow({
 
   async function saveEdit() {
     if (!(Number(target) >= 0)) {
-      notify('Target bulanan harus berupa angka 0 atau lebih.', 'error');
+      notify(t('hrFix.resellers.targetNumber'), 'error');
       return;
     }
     if (!(Number(discount) >= 0 && Number(discount) <= 100)) {
-      notify('Diskon harus 0–100.', 'error');
+      notify(t('hrFix.resellers.discountRange'), 'error');
       return;
     }
     if (!(Number(flatPrice) >= 0)) {
-      notify('Harga flat per galon harus berupa angka 0 atau lebih.', 'error');
+      notify(t('hrFix.resellers.flatNumber'), 'error');
       return;
     }
     setSaving(true);
@@ -194,11 +197,11 @@ function ResellerRow({
         },
         true,
       );
-      notify('Reseller diperbarui');
+      notify(t('hrFix.resellers.updated'));
       setEditing(false);
       onChanged();
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : 'Gagal memperbarui reseller.', 'error');
+      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.updateFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -208,10 +211,10 @@ function ResellerRow({
     setToggling(true);
     try {
       await api.patch(endpoints.resellers.detail(r.customerId), { active: !r.active }, true);
-      notify(r.active ? 'Reseller dinonaktifkan' : 'Reseller diaktifkan kembali');
+      notify(r.active ? t('hrFix.resellers.deactivated') : t('hrFix.resellers.reactivated'));
       onChanged();
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : 'Gagal mengubah status reseller.', 'error');
+      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.statusFailed'), 'error');
     } finally {
       setToggling(false);
     }
@@ -221,16 +224,16 @@ function ResellerRow({
     return (
       <div className="p-4 text-sm">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Target bulanan (galon)">
+          <Field label={t('hrFix.resellers.monthlyTarget')}>
             <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} />
           </Field>
-          <Field label="Diskon (%)">
+          <Field label={t('hrFix.resellers.discountShort')}>
             <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
           </Field>
-          <Field label="Harga flat/galon (Rp)" hint="0 = pakai diskon persen">
+          <Field label={t('hrFix.resellers.flatPriceShort')} hint={t('hrFix.resellers.flatPriceShortHint')}>
             <Input type="number" value={flatPrice} onChange={(e) => setFlatPrice(e.target.value)} />
           </Field>
-          <Field label="Catatan (opsional)">
+          <Field label={t('hrFix.resellers.noteOpt')}>
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
         </div>
@@ -263,8 +266,8 @@ function ResellerRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!r.active && <Badge tone="neutral">Nonaktif</Badge>}
-        {r.active && m.pasif && <Badge tone="danger">Pasif</Badge>}
+        {!r.active && <Badge tone="neutral">{t('hrFix.resellers.inactive')}</Badge>}
+        {r.active && m.pasif && <Badge tone="danger">{t('hrFix.resellers.dormant')}</Badge>}
         <Badge
           tone={
             m.status === 'lampaui' || m.status === 'tercapai'
@@ -286,7 +289,7 @@ function ResellerRow({
           onClick={toggleActive}
           className="px-3 py-1.5 text-xs"
         >
-          {r.active ? 'Nonaktifkan' : 'Aktifkan'}
+          {r.active ? t('hrFix.resellers.deactivate') : t('hrFix.resellers.activate')}
         </Button>
       </div>
     </div>
@@ -297,6 +300,7 @@ function ResellerRow({
 // order-service rollup (actual volume/growth) for one depot + month. HQ picks the depot
 // via a select; a depot manager is pinned to their own (customer.assignedDepotId).
 export default function ResellersPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const canView = canViewResellers(customer?.role);
   const hq = isHq(customer?.role);
@@ -346,7 +350,7 @@ export default function ResellersPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <SectionHeader
-        title="Reseller (Agen)"
+        title={t('hrFix.resellers.title')}
         subtitle={`Pencapaian ${month}`}
         action={
           canManageResellers(customer?.role) ? (
@@ -368,7 +372,7 @@ export default function ResellersPage() {
             onChange={(e) => setPickedDepotId(e.target.value)}
             className="surface-elevated w-full max-w-xs rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600"
           >
-            <option value="">Pilih depot…</option>
+            <option value="">{t('hrFix.resellers.pickDepot')}</option>
             {(depotList.data?.items ?? []).map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -388,11 +392,11 @@ export default function ResellersPage() {
       {rollup.error && <ErrorState message={rollup.error} onRetry={rollup.reload} />}
       {!depotId && !registry.loading && (
         <p className="text-sm text-muted">
-          {hq ? 'Pilih depot untuk melihat reseller.' : 'Depot belum ditentukan.'}
+          {hq ? t('hrFix.resellers.pickDepotToView') : t('hrFix.resellers.noDepot')}
         </p>
       )}
       {registry.data && registry.data.length === 0 && depotId && (
-        <p className="text-sm text-muted">Belum ada reseller di depot ini.</p>
+        <p className="text-sm text-muted">{t('hrFix.resellers.empty')}</p>
       )}
       {registry.data && registry.data.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)] p-0">
@@ -416,6 +420,7 @@ export default function ResellersPage() {
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChanged: () => void }) {
+  const { t } = useT();
   const { toast: notify } = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -424,16 +429,16 @@ function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChang
     e.target.value = ''; // allow re-picking the same file
     if (!file) return;
     if (file.size > PHOTO_MAX_BYTES) {
-      notify('Foto melebihi 5MB.', 'error');
+      notify(t('hrFix.resellers.photoTooBig'), 'error');
       return;
     }
     setBusy(true);
     try {
       await uploadFile(endpoints.resellers.uploadPhoto(r.customerId), file);
-      notify('Foto agen tersimpan');
+      notify(t('hrFix.resellers.photoSaved'));
       onChanged();
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : 'Gagal mengunggah foto.', 'error');
+      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.photoFailed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -444,7 +449,7 @@ function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChang
       className={`relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-app bg-[color:var(--surface-muted)] text-[10px] font-semibold text-muted ${
         busy ? 'opacity-60' : ''
       }`}
-      title={r.photoUrl ? 'Ganti foto agen' : 'Unggah foto agen'}
+      title={r.photoUrl ? t('hrFix.resellers.replacePhoto') : t('hrFix.resellers.uploadPhoto')}
     >
       <RemoteImage
         src={mediaUrl(r.photoUrl)}
@@ -452,7 +457,7 @@ function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChang
         width={48}
         height={48}
         className="h-full w-full object-cover"
-        fallback={<span>Foto</span>}
+        fallback={<span>{t('hrFix.resellers.photo')}</span>}
       />
       <input
         type="file"
