@@ -66,5 +66,9 @@ export async function renderReport(
 /** `laporan-harian-2026-08-12.xlsx` — the window, not the run time, so reruns collide by name. */
 export function reportFileName(name: string, from: Date, format: ExportFormat): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'laporan';
+  // tz-ok: `from` is a period boundary this service built with Date.UTC in reportWindow(),
+  // so it is already a day key sitting at UTC midnight — slicing it re-reads the same day
+  // it was constructed as. Passing it through localDayKey would SHIFT it into WIB and name
+  // the file after the day before.
   return `${slug}-${from.toISOString().slice(0, 10)}.${format.toLowerCase()}`;
 }
