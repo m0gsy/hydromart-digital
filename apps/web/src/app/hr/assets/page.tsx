@@ -123,6 +123,9 @@ export default function AssetsPage() {
 
         {assets.loading && <Skeleton className="h-32" />}
         {assets.error && <ErrorState message={assets.error} onRetry={assets.reload} />}
+        {/* The roster names every holder and fills the hand-over picker. Unread, an assigned
+            asset reads as held by nobody and there is no one to hand it to. */}
+        {employees.error && <LoadError onRetry={employees.reload} />}
         {assets.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {assets.data.rows.length === 0 && (

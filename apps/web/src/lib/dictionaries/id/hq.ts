@@ -452,6 +452,7 @@ export const hq = {
     linkGrants: 'Tautan ini juga memberi akses depot (rantai Asisten SPV → SPV → Manager).',
     linkReportsOnly: 'Tautan ini hanya garis pelaporan — tidak menambah depot yang bisa dilihat.',
     linkNone: 'Belum punya atasan. Semua staf boleh punya atasan, termasuk kurir.',
+    linkUnknown: 'Data orang ini gagal dibaca — belum ketahuan apakah tautan ini menambah akses depot.',
   },
   staff: {
     title: 'Direktori staf',

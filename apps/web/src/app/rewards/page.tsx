@@ -105,11 +105,14 @@ function Hero({
               <strong className="text-white">{progress.next.tier}</strong>.
             </p>
           </div>
-        ) : (
+        ) : ladder.length > 0 ? (
+          /* Only a ladder that was actually read can say "you are at the top" — with the
+             tier list unread there is no next tier to find, and a BRONZE member would be
+             crowned. */
           <p className="relative z-10 mt-6 flex items-center gap-1.5 text-sm font-bold text-[#8fe3ee]">
             <Crown size={18} weight="fill" /> {t('profile.rewards.hero.topTier')}
           </p>
-        )}
+        ) : null}
 
         <Drop size={200} weight="fill" className="pointer-events-none absolute -bottom-10 -right-8" style={{ color: 'rgba(255,255,255,.06)' }} />
       </div>

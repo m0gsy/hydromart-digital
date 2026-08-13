@@ -449,6 +449,7 @@ export const hq = {
     linkGrants: 'This link also grants depot access (the assistant → SPV → manager chain).',
     linkReportsOnly: 'This link is a reporting line only — it grants no extra depots.',
     linkNone: 'No superior yet. Any staff member may have one, couriers included.',
+    linkUnknown: 'Could not read this person — whether the link widens depot access is unknown.',
   },
   staff: {
     title: 'Staff directory',

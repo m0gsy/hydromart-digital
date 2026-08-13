@@ -115,7 +115,7 @@ export default function HqHierarchyPage() {
   const linked = useAsync<Customer[]>(
     () =>
       linkedIds.length > 0
-        ? api.get<Customer[]>(endpoints.auth.customersByIds(linkedIds), true).catch(() => [])
+        ? api.get<Customer[]>(endpoints.auth.customersByIds(linkedIds), true)
         : Promise.resolve([]),
     [linkedIds.join(',')],
   );
@@ -190,6 +190,9 @@ export default function HqHierarchyPage() {
           <ErrorState message={depots.error} onRetry={depots.reload} />
         ) : (
           <div className="flex flex-col gap-2">
+            {/* Without the assistant roster every picker below is empty, which reads as a
+                network with no assistant supervisors to assign. */}
+            {assistantPage.error && <LoadError onRetry={assistantPage.reload} />}
             {depotRows.map((depot) => (
               <DepotRow
                 key={depot.id}
@@ -297,11 +300,16 @@ export default function HqHierarchyPage() {
               {/* The honest answer to "does saving this change what they can see?". Only the
                   assistant → supervisor → manager chain widens depot scope; every other link
                   is a reporting line and nothing more. */}
+              {/* An unread `linked` leaves `selected` null, and `grantsDepots('')` is false —
+                  which lands on exactly the reassuring answer the comment above forbids. Say
+                  the read failed instead of answering "reporting line only" out of thin air. */}
               <span className="text-xs text-muted">
                 {d.superiorId
-                  ? grantsDepots(selected?.role ?? '')
-                    ? t('hq.hierarchy.linkGrants')
-                    : t('hq.hierarchy.linkReportsOnly')
+                  ? linked.error || !selected
+                    ? t('hq.hierarchy.linkUnknown')
+                    : grantsDepots(selected.role)
+                      ? t('hq.hierarchy.linkGrants')
+                      : t('hq.hierarchy.linkReportsOnly')
                   : t('hq.hierarchy.linkNone')}
               </span>
             </label>

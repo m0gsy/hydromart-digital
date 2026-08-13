@@ -204,6 +204,10 @@ function Panel() {
 
           {addresses.loading ? (
             <Skeleton className="h-14 w-full rounded-xl" />
+          ) : addresses.error ? (
+            /* "Belum ada alamat" sends a shopper who HAS one off to add a duplicate, and the
+               submit button stays disabled either way. Say the read failed. */
+            <LoadError onRetry={addresses.reload} className="rounded-[14px] border border-app px-3.5 py-3" />
           ) : primaryAddress ? (
             <div className="rounded-[14px] border border-app px-3.5 py-3 text-[12.5px]">
               <div className="font-extrabold text-muted">{copy.deliverTo}</div>

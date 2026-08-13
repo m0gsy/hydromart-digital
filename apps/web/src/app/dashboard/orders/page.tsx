@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
+import type { Customer, Delivery, Order, Page } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -97,14 +97,6 @@ function AssignPanel({
   const [busy, setBusy] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  // The order's payment (staff read) so a CASH order dispatches with a COD amount for
-  // the courier to collect. Fail-soft: null on error → treated as non-COD.
-  const { data: paymentPage } = useAsync<Page<Payment> | null>(
-    () => (order ? api.get(endpoints.payments.forOrderStaff(order.id), true) : Promise.resolve(null)),
-    [order?.id],
-  );
-  const payment = paymentPage?.items[0];
-
   // Reset the picked courier + error whenever the target order changes.
   useEffect(() => {
     setDriverId('');
@@ -134,9 +126,9 @@ function AssignPanel({
           destinationLng: order.longitude ?? undefined,
           recipientPhone: order.phone,
           items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
-          // CASH order → the courier collects the order total on delivery (COD). Non-cash
-          // (TRANSFER/QRIS, already settled to the depot) sends nothing → non-COD.
-          codAmount: payment?.method === 'CASH' ? order.total : undefined,
+          // No codAmount: delivery-service reads the payment itself and ignores whatever
+          // the client sends. Deciding it here required a staff payment read the two
+          // supervisor roles are not granted, so their dispatches went out as non-COD.
           // Snapshot the customer's landmark/note so the courier sees it on the delivery.
           notes: order.notes ?? undefined,
         },
