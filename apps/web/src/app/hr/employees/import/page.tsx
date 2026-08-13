@@ -107,6 +107,9 @@ export default function ImportEmployeesPage() {
       { key: 'joinDate', required: true, example: '2026-01-01', text: true, parse: dateCell },
       // Only a reminder for whoever renews it — nothing expires anybody automatically.
       { key: 'contractEndDate', example: '', text: true, parse: dateCell },
+      // The leaver column. This is the date payroll stops at — a RESIGNED status alone does
+      // not end a wage — so an import that closes a batch of leavers must be able to say it.
+      { key: 'exitDate', example: '', text: true, parse: dateCell },
       { key: 'salaryType', required: true, example: 'DAILY', options: ['DAILY', 'MONTHLY'] },
       { key: 'dailyRate', example: '150000', parse: intCell },
       { key: 'monthlyRate', example: '', parse: intCell },

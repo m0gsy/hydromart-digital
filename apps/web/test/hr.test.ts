@@ -67,6 +67,7 @@ const employee = (over: Partial<Employee> = {}): Employee => ({
   address: null,
   ptkpStatus: null,
   contractEndDate: null,
+  exitDate: null,
   status: 'ACTIVE',
   createdAt: '2026-01-15T00:00:00.000Z',
   updatedAt: '2026-01-15T00:00:00.000Z',
@@ -141,6 +142,39 @@ describe('employeeToForm', () => {
 });
 
 describe('toEmployeePayload', () => {
+  /*
+   * PR-6. `exitDate` is what payroll clamps the paid period to, and nothing in the console
+   * wrote it — `grep exitDate apps/web/src` was empty, so a leaver kept earning.
+   */
+  it('sends the exit date on edit, and an explicit null when it is cleared', () => {
+    const withExit = toEmployeePayload(validForm({ exitDate: '2026-08-10' }));
+    expect(withExit.ok).toBe(true);
+    if (withExit.ok) expect(withExit.value.exitDate).toBe(new Date('2026-08-10').toISOString());
+
+    const cleared = toEmployeePayload(validForm({ exitDate: '' }));
+    // Null, not omitted: a rehire whose exit date stayed behind is paid for no days at all.
+    expect(cleared.ok).toBe(true);
+    if (cleared.ok) expect(cleared.value.exitDate).toBeNull();
+  });
+
+  it('never sends an exit date or a status when creating', () => {
+    const r = toEmployeePayload(
+      validForm({ role: 'STAFF_DEPOT', exitDate: '2026-08-10', status: 'RESIGNED' }),
+      { creating: true },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect('exitDate' in r.value).toBe(false);
+      expect('status' in r.value).toBe(false);
+    }
+  });
+
+  it('refuses an exit before the join date', () => {
+    const r = toEmployeePayload(validForm({ joinDate: '2026-08-01', exitDate: '2026-07-31' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('keluar');
+  });
+
   it('rejects when a required field is blank', () => {
     const r = toEmployeePayload(validForm({ fullName: '  ' }));
     expect(r.ok).toBe(false);

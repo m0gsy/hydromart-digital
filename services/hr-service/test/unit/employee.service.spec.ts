@@ -312,6 +312,70 @@ describe('EmployeeService (M1)', () => {
     expect((await svc.getById(hr, e.id)).role).toBe('STAFF_DEPOT');
   });
 
+  /*
+   * PR-6. `exitDate` is the ONE field payroll clamps the paid period to
+   * (`payroll.service.ts` reads it and never asks `status`) — and until now nothing in the
+   * console could write it: `grep exitDate apps/web/src` came back empty. A depot head who
+   * resigned on the 10th was paid the whole month, every month, forever.
+   */
+  describe('exitDate — the field payroll actually stops at', () => {
+    it('records the last paid day', async () => {
+      const { repo, svc } = make();
+      const e = await svc.create(hr, baseInput);
+      await svc.update(hr, e.id, { exitDate: '2026-08-10T00:00:00.000Z' });
+      expect(repo.rows.find((r) => r.id === e.id)!.exitDate).toEqual(
+        new Date('2026-08-10T00:00:00.000Z'),
+      );
+    });
+
+    it('clears it on a rehire rather than leaving the person unpayable', async () => {
+      const { repo, svc } = make();
+      const e = await svc.create(hr, baseInput);
+      await svc.update(hr, e.id, { exitDate: '2026-08-10T00:00:00.000Z' });
+      await svc.update(hr, e.id, { exitDate: null });
+      expect(repo.rows.find((r) => r.id === e.id)!.exitDate).toBeNull();
+    });
+
+    it('records an exit date that arrives with a new row (an imported leaver)', async () => {
+      const { repo, svc } = make();
+      const e = await svc.create(hr, { ...baseInput, exitDate: '2026-08-10T00:00:00.000Z' });
+      expect(repo.rows.find((r) => r.id === e.id)!.exitDate).toEqual(
+        new Date('2026-08-10T00:00:00.000Z'),
+      );
+    });
+
+    it('refuses a new row whose exit precedes its own join date', async () => {
+      const { svc } = make();
+      await expect(
+        svc.create(hr, { ...baseInput, exitDate: '2000-01-01T00:00:00.000Z' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('refuses an exit before the join date', async () => {
+      const { svc } = make();
+      const e = await svc.create(hr, baseInput);
+      await expect(
+        svc.update(hr, e.id, { exitDate: '2000-01-01T00:00:00.000Z' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('refuses a join date moved past an exit already recorded', async () => {
+      const { svc } = make();
+      const e = await svc.create(hr, baseInput);
+      await svc.update(hr, e.id, { exitDate: '2026-08-10T00:00:00.000Z' });
+      await expect(
+        svc.update(hr, e.id, { joinDate: '2026-09-01T00:00:00.000Z' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('leaves a history row, like every other field a payslip dispute turns on', async () => {
+      const { repo, svc } = make();
+      const e = await svc.create(hr, baseInput);
+      await svc.update(hr, e.id, { exitDate: '2026-08-10T00:00:00.000Z' });
+      expect(repo.history.some((h) => h.changeType === 'exitDate')).toBe(true);
+    });
+  });
+
   // Somebody who resigned on Friday could still open the app on Monday: the employee row
   // said RESIGNED and the login knew nothing about it.
   it('switches the login off when the employee stops being active, and back on', async () => {

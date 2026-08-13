@@ -76,6 +76,8 @@ export interface Employee {
   address: string | null;
   ptkpStatus: PtkpStatus | null;
   contractEndDate: string | null;
+  /** Last paid day; payroll clamps the period to joinDate..exitDate. */
+  exitDate: string | null;
   status: EmployeeStatus;
   createdAt: string;
   updatedAt: string;
@@ -739,6 +741,13 @@ export interface EmployeeForm {
   address: string;
   ptkpStatus: PtkpStatus | '';
   contractEndDate: string;
+  /**
+   * Last paid day. Blank = still employed. This is the field payroll stops at — `status`
+   * alone does not end a wage — and nothing in the console could write it before.
+   */
+  exitDate: string;
+  /** Lifecycle status; edit-only (a new hire is ACTIVE). */
+  status: EmployeeStatus | '';
 }
 
 export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
@@ -768,6 +777,8 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   address: '',
   ptkpStatus: '',
   contractEndDate: '',
+  exitDate: '',
+  status: '',
 };
 
 export function employeeToForm(e: Employee): EmployeeForm {
@@ -798,6 +809,8 @@ export function employeeToForm(e: Employee): EmployeeForm {
     address: e.address ?? '',
     ptkpStatus: e.ptkpStatus ?? '',
     contractEndDate: e.contractEndDate?.slice(0, 10) ?? '',
+    exitDate: e.exitDate?.slice(0, 10) ?? '',
+    status: e.status,
   };
 }
 
@@ -865,6 +878,24 @@ export function toEmployeePayload(
       return { ok: false, error: 'Akhir kontrak tidak boleh sebelum tanggal masuk.' };
     }
     value.contractEndDate = new Date(f.contractEndDate).toISOString();
+  }
+  /*
+   * Only on edit, and null when cleared.
+   *
+   * The exit date is what payroll clamps the paid period to, so leaving it behind on a
+   * rehire pays the person for no days at all — which is why the cleared case sends an
+   * explicit null instead of simply omitting the field.
+   */
+  if (!opts.creating) {
+    if (f.exitDate.trim()) {
+      if (f.exitDate < f.joinDate) {
+        return { ok: false, error: 'Tanggal keluar tidak boleh sebelum tanggal masuk.' };
+      }
+      value.exitDate = new Date(f.exitDate).toISOString();
+    } else {
+      value.exitDate = null;
+    }
+    if (f.status) value.status = f.status;
   }
   return { ok: true, value };
 }

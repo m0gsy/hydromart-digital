@@ -61,6 +61,9 @@ const TRACKED: readonly (keyof Employee)[] = [
   'position',
   'role',
   'status',
+  // The last paid day belongs in the history for the same reason a salary change does:
+  // it is the field a payslip dispute turns on.
+  'exitDate',
   'salaryType',
   'dailyRate',
   'monthlyRate',
@@ -110,10 +113,14 @@ export interface CreateEmployeeInput {
   address?: string;
   ptkpStatus?: PtkpStatus;
   contractEndDate?: string;
+  /** Last paid day for a leaver arriving through an import. */
+  exitDate?: string;
 }
 
-export type UpdateEmployeeInput = Partial<CreateEmployeeInput> & {
+export type UpdateEmployeeInput = Omit<Partial<CreateEmployeeInput>, 'exitDate'> & {
   status?: Employee['status'];
+  /** Last paid day; `null` clears it (a rehire). See `assertExitWindow`. */
+  exitDate?: string | null;
 };
 
 /**
@@ -258,6 +265,7 @@ export class EmployeeService {
     assertDepotAccess(user, input.depotId);
     const rates = this.salaryRates(input.salaryType, input.dailyRate, input.monthlyRate);
     this.assertContractWindow(input.joinDate, input.contractEndDate);
+    this.assertExitWindow(input.joinDate, input.exitDate ?? null);
     await this.assertDepartmentFits(input.departmentId, input.depotId ?? null);
 
     // Everything that can reject this row is asked BEFORE auth-service is called, because
@@ -275,6 +283,7 @@ export class EmployeeService {
       role: input.role ?? null,
       employmentStatus: input.employmentStatus,
       joinDate: new Date(input.joinDate),
+      exitDate: input.exitDate ? new Date(input.exitDate) : null,
       salaryType: input.salaryType,
       dailyRate: rates.dailyRate,
       monthlyRate: rates.monthlyRate,
@@ -703,6 +712,12 @@ export class EmployeeService {
       input.joinDate ?? current.joinDate.toISOString(),
       input.contractEndDate ?? current.contractEndDate?.toISOString(),
     );
+    // The exit date is the one field payroll clamps the paid period to, so a typo here does
+    // not read as a typo — it reads as a month of wages that never existed.
+    this.assertExitWindow(
+      input.joinDate ?? current.joinDate.toISOString(),
+      input.exitDate === undefined ? (current.exitDate?.toISOString() ?? null) : input.exitDate,
+    );
     // Re-check on a depot move too: the employee's current department may belong to the depot
     // they are leaving.
     await this.assertDepartmentFits(
@@ -740,6 +755,11 @@ export class EmployeeService {
       if (input[key] !== undefined) (data as Record<string, unknown>)[key] = input[key];
     }
     if (input.joinDate !== undefined) data.joinDate = new Date(input.joinDate);
+    // Explicit null clears it: an employee who came back and still carried an exit date
+    // would be paid for no days at all, and nothing on the screen would say why.
+    if (input.exitDate !== undefined) {
+      data.exitDate = input.exitDate === null ? null : new Date(input.exitDate);
+    }
     if (input.birthDate !== undefined) data.birthDate = new Date(input.birthDate);
     if (input.contractEndDate !== undefined) {
       data.contractEndDate = new Date(input.contractEndDate);
@@ -898,6 +918,12 @@ export class EmployeeService {
    * the enum has no CONTRACT value yet (that redesign is still open), so the date stands on
    * its own as a reminder for whoever renews it.
    */
+  private assertExitWindow(joinDate: string, exitDate: string | null): void {
+    if (exitDate && new Date(exitDate) < new Date(joinDate)) {
+      throw new BadRequestException('exitDate tidak boleh sebelum joinDate');
+    }
+  }
+
   private assertContractWindow(joinDate: string, contractEndDate?: string): void {
     if (contractEndDate && new Date(contractEndDate) < new Date(joinDate)) {
       throw new BadRequestException('contractEndDate tidak boleh sebelum joinDate');

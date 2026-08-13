@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
+  EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
   GENDER_LABEL,
   HR_ROLE_LABEL,
@@ -16,6 +17,7 @@ import {
   departmentsForDepot,
   type Department,
   type EmployeeForm as Form,
+  type EmployeeStatus,
   type EmploymentStatus,
   type Gender,
   type PtkpStatus,
@@ -312,6 +314,40 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             onChange={(e) => set('contractEndDate', e.target.value)}
           />
         </Field>
+        {/* Edit only, and deliberately next to the contract end date: this is the field
+            payroll clamps the paid period to. Until now nothing in the console wrote it, so
+            somebody who left on the 10th kept earning a full month, every month. Setting
+            the status to RESIGNED does NOT stop the wage on its own. */}
+        {id && (
+          <>
+            <Field label="Tanggal keluar (kosongkan bila masih bekerja)">
+              <Input
+                type="date"
+                value={form.exitDate}
+                onChange={(e) => set('exitDate', e.target.value)}
+              />
+            </Field>
+            <Field label="Status">
+              <select
+                className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+                value={form.status}
+                onChange={(e) => set('status', e.target.value as EmployeeStatus)}
+              >
+                {(['ACTIVE', 'INACTIVE', 'RESIGNED'] as const).map((s) => (
+                  <option key={s} value={s}>
+                    {EMPLOYEE_STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {form.status === 'RESIGNED' && !form.exitDate.trim() && (
+              <p className="text-xs text-amber-700">
+                Status RESIGNED tidak menghentikan gaji — isi tanggal keluar, itu yang dibaca
+                payroll.
+              </p>
+            )}
+          </>
+        )}
         <Field label="Alamat (opsional)">
           <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
         </Field>
