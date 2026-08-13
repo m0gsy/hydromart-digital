@@ -31,11 +31,18 @@ type CompareMetric = {
 const METRICS: CompareMetric[] = [
   { label: 'Order', value: (r) => r?.orders ?? 0, format: (n) => n.toLocaleString('id-ID'), higherIsBetter: true },
   { label: 'Pendapatan', value: (r) => r?.revenueIdr ?? 0, format: formatIDR, higherIsBetter: true },
-  // SLA on-time needs delivery-service; wastage needs depot-service; net profit needs payout —
-  // none joinable in order-service, so the compare endpoint omits them and the column shows "—".
-  { label: 'SLA on-time', value: () => null, format: () => '—', higherIsBetter: true },
-  { label: 'Wastage', value: () => null, format: () => '—', higherIsBetter: false },
-  { label: 'Laba bersih', value: () => null, format: () => '—', higherIsBetter: true },
+  // S2: these three used to be `value: () => null` — three of five rows permanently "—",
+  // which is a comparison screen nobody opens. order-service still cannot join them; it
+  // asks delivery-service, depot-service and hr-service per depot instead. Null survives
+  // as "—" when a source could not be read, and is never rendered as a zero.
+  { label: 'SLA on-time', value: (r) => r?.slaPct ?? null, format: (n) => `${n}%`, higherIsBetter: true },
+  {
+    label: 'Wastage (galon rusak)',
+    value: (r) => r?.wastageGallons ?? null,
+    format: (n) => n.toLocaleString('id-ID'),
+    higherIsBetter: false,
+  },
+  { label: 'Laba bersih', value: (r) => r?.netProfitIdr ?? null, format: formatIDR, higherIsBetter: true },
 ];
 
 function CompareBody() {

@@ -127,9 +127,22 @@ export interface DepotCompareRow {
   depotId: string;
   orders: number;
   revenueIdr: number;
+  /** On-time share, 0..100 with one decimal. Null when delivery-service could not be read. */
+  slaPct: number | null;
+  /** Gallons that came back damaged in the window (depot-service). Null when unreadable. */
+  wastageGallons: number | null;
+  /** Revenue − goods − payroll − till. Null the moment any term is missing. */
+  netProfitIdr: number | null;
 }
 
-/** Cross-depot comparison over a window (design 14d). SLA/wastage are omitted — no order source. */
+/**
+ * Cross-depot comparison over a window (design 14d).
+ *
+ * The three columns beyond orders/revenue used to be `value: () => null` in the CLIENT,
+ * with a comment saying order-service could not join them. It still cannot — so it asks
+ * the three services that own them, per depot, the same way the monthly review does. A
+ * comparison screen where three of five rows are permanently "—" is a screen nobody opens.
+ */
 export interface DepotCompareReport extends ReportRangeView {
   depots: DepotCompareRow[];
 }
@@ -595,14 +608,41 @@ export class ReportService {
    * every requested column renders. SLA/wastage are intentionally absent (no order source).
    */
   async reportsDepotCompare(depotIds: string[], range: ReportRange): Promise<DepotCompareReport> {
+    // The window has to be closed to ask anyone else about it: SLA, costs and returns are
+    // all range reads. An open-ended compare keeps the two real columns and leaves the
+    // other three null rather than quietly reporting one depot's whole history.
+    const bounded = range.from != null && range.to != null;
+    const from = range.from as Date;
+    const to = range.to as Date;
+
     const depots = await Promise.all(
       depotIds.map(async (depotId) => {
-        const rows = await this.orders.ordersForDepot(depotId, range);
+        const [rows, onTime, costs, payrollIdr, returns] = await Promise.all([
+          this.orders.ordersForDepot(depotId, range),
+          bounded && this.deliverySla
+            ? this.deliverySla.onTimeRate(depotId, from, to)
+            : Promise.resolve(null),
+          bounded && this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
+          bounded && this.depotCosts
+            ? this.depotCosts.payroll(depotId, localDayKey(from, this.config.businessTimeZone).slice(0, 7))
+            : Promise.resolve(null),
+          bounded && this.depotDirectory?.gallonReturns
+            ? this.depotDirectory.gallonReturns(depotId, from, to)
+            : Promise.resolve(null),
+        ]);
         const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+        const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
         return {
           depotId,
           orders: live.length,
-          revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+          revenueIdr,
+          slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
+          wastageGallons: returns ? returns.damaged : null,
+          netProfitIdr: ReportService.netProfit(revenueIdr, {
+            cogsIdr: costs ? costs.cogsIdr : null,
+            opexIdr: costs ? costs.opexIdr : null,
+            payrollIdr,
+          }),
         };
       }),
     );

@@ -566,6 +566,93 @@ describe('ReportService', () => {
     });
   });
 
+  /*
+   * S2. `dashboard/compare` had three of its five rows as `value: () => null` in the CLIENT,
+   * with a comment saying order-service could not join them. It still cannot — so it asks
+   * the three services that own them. A comparison screen where three of five rows are
+   * permanently "—" is a screen nobody opens.
+   */
+  describe('cross-depot compare — the three columns that were permanently "—"', () => {
+    const RANGE = { from: new Date('2026-06-30T17:00:00.000Z'), to: new Date('2026-07-31T17:00:00.000Z') };
+
+    const build = (r: InMemoryOrderRepository) =>
+      new ReportService(
+        r,
+        reportTestConfig(),
+        { gallonReturns: async () => ({ gallons: 20, damaged: 4 }) } as never,
+        undefined,
+        undefined,
+        { onTimeRate: async () => 0.912 } as never,
+        {
+          costs: async () => ({ cogsIdr: 4_000_000, opexIdr: 1_900_000 }),
+          payroll: async () => 3_000_000,
+        } as never,
+      );
+
+    it('fills SLA, wastage and net profit per depot', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const o = await r.create({ ...orderData({ depotId: depot, total: 12_000_000 }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-07-10T02:00:00.000Z');
+
+      const rep = await build(r).reportsDepotCompare([depot], RANGE);
+      expect(rep.depots[0]).toEqual({
+        depotId: depot,
+        orders: 1,
+        revenueIdr: 12_000_000,
+        slaPct: 91.2,
+        wastageGallons: 4,
+        netProfitIdr: 12_000_000 - 4_000_000 - 3_000_000 - 1_900_000,
+      });
+    });
+
+    /*
+     * An open window cannot be asked about. SLA, costs and returns are all range reads, and
+     * an unbounded compare would quietly charge one column with a depot's whole history
+     * while the revenue beside it covered every order ever placed — two columns describing
+     * different spans of time, side by side, with nothing saying so.
+     */
+    it('keeps the two order-owned columns and nulls the rest when the window is open', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await r.create({ ...orderData({ depotId: depot, total: 50_000 }) });
+
+      const rep = await build(r).reportsDepotCompare([depot], {});
+      expect(rep.depots[0]).toMatchObject({
+        orders: 1,
+        revenueIdr: 50_000,
+        slaPct: null,
+        wastageGallons: null,
+        netProfitIdr: null,
+      });
+    });
+
+    it('nulls a depot column whose owning service went quiet, without dropping the row', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        { gallonReturns: async () => null } as never,
+        undefined,
+        undefined,
+        { onTimeRate: async () => null } as never,
+        { costs: async () => null, payroll: async () => null } as never,
+      );
+
+      const rep = await svc.reportsDepotCompare([depot], RANGE);
+      // The row is still there — a depot missing from a comparison reads as a depot that
+      // sold nothing, which is a different and much worse claim.
+      expect(rep.depots).toHaveLength(1);
+      expect(rep.depots[0]).toMatchObject({
+        orders: 0,
+        slaPct: null,
+        wastageGallons: null,
+        netProfitIdr: null,
+      });
+    });
+  });
+
   // The export behind the button that used to do nothing. It must show the SAME day the
   // report shows, and it must carry cancelled orders — a file that drops them silently
   // cannot be reconciled against the till.

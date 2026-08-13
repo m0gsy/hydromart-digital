@@ -2051,6 +2051,13 @@ export interface ReportDepotCompareRow {
   depotId: string;
   orders: number;
   revenueIdr: number;
+  // Read from delivery-service / depot-service / hr-service. Null when a source could not
+  // be read, or when the window is open-ended (they are all range reads) — never 0.
+  /** On-time share, 0..100 with one decimal. */
+  slaPct: number | null;
+  /** Gallons that came back damaged in the window. */
+  wastageGallons: number | null;
+  netProfitIdr: number | null;
 }
 export interface ReportDepotCompare {
   from: string | null;
