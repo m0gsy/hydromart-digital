@@ -9,7 +9,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
-import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -112,6 +112,9 @@ function DriverConsole() {
           </div>
         </Link>
       )}
+      {/* An URGENT depot broadcast is the one thing on this screen a courier must not miss,
+          and the banner simply does not render when the read fails. */}
+      {broadcasts.error && <LoadError onRetry={broadcasts.reload} />}
       {!urgent && (broadcasts.data?.length ?? 0) > 0 && (
         <Link
           href="/driver/announcements"
