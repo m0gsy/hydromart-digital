@@ -9,6 +9,7 @@ const HTTP = {
   CONFLICT: 409,
   UNPROCESSABLE: 422,
   TOO_MANY: 429,
+  UNAVAILABLE: 503,
 } as const;
 
 export class InvalidPhoneNumberError extends DomainError {
@@ -97,6 +98,21 @@ export class OtpResendCooldownError extends DomainError {
   readonly status = HTTP.TOO_MANY;
   constructor(retryAfterSeconds: number) {
     super(`Please wait ${retryAfterSeconds}s before requesting another code.`);
+  }
+}
+
+/**
+ * The code was minted and stored, and the gateway that carries it did not answer.
+ *
+ * A distinct error rather than letting the adapter's `fetch failed` fall through: the
+ * signup screen used to show a bare 500 for an outage that is neither the caller's fault
+ * nor permanent, and "try again" is the one thing that actually helps here.
+ */
+export class OtpDeliveryUnavailableError extends DomainError {
+  readonly code = 'AUTH_OTP_UNDELIVERABLE';
+  readonly status = HTTP.UNAVAILABLE;
+  constructor() {
+    super('Kode OTP tidak bisa dikirim sekarang. Coba lagi sebentar lagi.');
   }
 }
 

@@ -3,6 +3,7 @@ import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Role } from '../../src/domain/customer/role.enum';
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import {
+  OtpDeliveryUnavailableError,
   OtpInvalidError,
   OtpMaxAttemptsError,
   OtpResendCooldownError,
@@ -268,5 +269,28 @@ describe('OtpService', () => {
     await expect(
       service.verify(activeCustomer(), OtpPurpose.LOGIN, '123456'),
     ).rejects.toBeInstanceOf(OtpInvalidError);
+  });
+  /*
+   * Found at runtime: with `OTP_DELIVERY_CHANNEL=sms` and the SMS gateway unreachable,
+   * `POST /auth/register` came back as a bare 500 — `TypeError: fetch failed` straight out of
+   * the adapter, through AllExceptionsFilter, onto a signup screen that could only say
+   * "terjadi kesalahan". The challenge row is already written by then, so the honest answer is
+   * "could not send it, try again", not "something broke".
+   */
+  describe('OtpService — the SMS gateway is down', () => {
+    it('refuses with a service-unavailable the caller can act on, not a 500', async () => {
+      delivery.shouldFail = true;
+      await expect(service.issue(activeCustomer(), OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+        OtpDeliveryUnavailableError,
+      );
+    });
+
+    it('still stores the challenge, so a retry is a fresh code and not a dead end', async () => {
+      delivery.shouldFail = true;
+      await expect(service.issue(activeCustomer(), OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+        OtpDeliveryUnavailableError,
+      );
+      expect(otpRepo.rows).toHaveLength(1);
+    });
   });
 });
