@@ -8,6 +8,7 @@ import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
+import { useT } from '@/lib/locale-context';
 import {
   Button,
   Card,
@@ -47,6 +48,7 @@ type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
  * land on a real account; left blank the sale is anonymous, which earns nothing.
  */
 function WalkIn({ depotId }: { depotId: string }) {
+  const { t } = useT();
   const { toast } = useToast();
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
@@ -140,7 +142,7 @@ function WalkIn({ depotId }: { depotId: string }) {
   };
 
   async function submit() {
-    if (lines.length === 0) return toast('Pilih produk dulu.', 'error');
+    if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
     if (method === 'CASH' && cashReceived < total) {
       return toast('Uang tunai kurang dari total.', 'error');
     }
@@ -184,7 +186,7 @@ function WalkIn({ depotId }: { depotId: string }) {
       attemptKey.current = '';
     } catch (e) {
       setBusy(false);
-      return toast(e instanceof ApiError ? e.message : 'Gagal menyimpan penjualan.', 'error');
+      return toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.saveError'), 'error');
     }
 
     // The sale is recorded and the goods are gone; a payment hiccup must not lose the
@@ -246,7 +248,7 @@ function WalkIn({ depotId }: { depotId: string }) {
       // Stock came back, so what the counter may sell changed with it.
       await stock.reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal membatalkan penjualan.', 'error');
+      toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.voidError'), 'error');
     } finally {
       setBusy(false);
     }
@@ -260,14 +262,14 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title="Penjualan di depot" subtitle="Pembeli datang langsung, bayar tunai." />
+      <SectionHeader title={t('opsFix.walkIn.title')} subtitle={t('opsFix.walkIn.subtitle')} />
 
       <CashierShiftBar depotId={depotId} onChange={(s) => setShiftOpen(!!s)} />
 
       {lastSale && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm">
-            Penjualan terakhir <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
+            {t('opsFix.walkIn.lastSale')} <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
             <Money amount={lastSale.order.total} />
           </p>
           <div className="flex flex-wrap gap-2">
@@ -276,13 +278,13 @@ function WalkIn({ depotId }: { depotId: string }) {
               onClick={() => printReceipt(lastSale.order, lastSale.cash, lastSale.method)}
             >
               <Printer size={18} className="mr-1" />
-              Cetak ulang struk
+              {t('opsFix.walkIn.reprint')}
             </Button>
             {/* Only the sale still on screen can be voided from here. Anything older is a
                 different day's drawer or someone else's shift — that goes through refunds. */}
             <Button variant="ghost" onClick={() => setVoiding(true)} disabled={busy}>
               <ArrowUUpLeft size={18} className="mr-1" />
-              Batalkan penjualan
+              {t('opsFix.walkIn.voidSale')}
             </Button>
           </div>
         </Card>
@@ -291,25 +293,31 @@ function WalkIn({ depotId }: { depotId: string }) {
       {lastSale && voiding && (
         <Card className="space-y-3 p-4">
           <div>
-            <p className="font-semibold">Batalkan {lastSale.order.orderNumber}?</p>
+            <p className="font-semibold">
+              {t('opsFix.walkIn.voidConfirm', { order: lastSale.order.orderNumber })}
+            </p>
             <p className="text-sm text-muted">
-              Uang dikembalikan ke pembeli, barang masuk stok lagi, dan poin ditarik kembali.
+              {t('opsFix.walkIn.voidBody')}
             </p>
           </div>
-          <Field label="Alasan" htmlFor="wi-void-reason" hint="Wajib — laci akan berkurang sebesar penjualan ini.">
+          <Field
+            label={t('opsFix.walkIn.voidReason')}
+            htmlFor="wi-void-reason"
+            hint={t('opsFix.walkIn.voidReasonHint')}
+          >
             <Input
               id="wi-void-reason"
               value={voidReason}
               onChange={(e) => setVoidReason(e.target.value)}
-              placeholder="Pembeli salah pilih ukuran galon"
+              placeholder={t('opsFix.walkIn.voidReasonPlaceholder')}
             />
           </Field>
           <div className="flex gap-2">
             <Button onClick={() => void voidSale()} disabled={busy || !voidReason.trim()}>
-              Ya, batalkan
+              {t('opsFix.walkIn.voidYes')}
             </Button>
             <Button variant="ghost" onClick={() => setVoiding(false)} disabled={busy}>
-              Tidak jadi
+              {t('opsFix.walkIn.voidNo')}
             </Button>
           </div>
         </Card>
@@ -336,7 +344,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         ))}
         {products.length === 0 && (
           <p className="p-6 text-center text-sm text-muted">
-            Tidak ada produk siap jual di depot ini. Isi stok dulu lewat Inventory.
+            {t('opsFix.walkIn.noProducts')}
           </p>
         )}
       </Card>
@@ -345,31 +353,31 @@ function WalkIn({ depotId }: { depotId: string }) {
         <div className="grid gap-3 sm:grid-cols-2">
           {/* htmlFor/id on every field: without it the <label> is only nearby text, so a screen
               reader announces an unnamed box and the cashier tabbing in hears nothing. */}
-          <Field label="Nama pembeli (opsional)" htmlFor="wi-name">
+          <Field label={t('opsFix.walkIn.buyerName')} htmlFor="wi-name">
             <Input
               id="wi-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Budi"
+              placeholder={t('opsFix.walkIn.buyerNamePlaceholder')}
             />
           </Field>
           <Field
-            label="Nomor HP (opsional)"
+            label={t('opsFix.walkIn.buyerPhone')}
             htmlFor="wi-phone"
-            hint="Diisi = pembeli dapat poin dan masuk daftar pelanggan depot."
+            hint={t('opsFix.walkIn.buyerPhoneHint')}
           >
             <Input
               id="wi-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               inputMode="tel"
-              placeholder="08123456789"
+              placeholder={t('opsFix.walkIn.buyerPhonePlaceholder')}
             />
           </Field>
         </div>
 
         <Field
-          label="Kode voucher (opsional)"
+          label={t('opsFix.walkIn.voucher')}
           htmlFor="wi-voucher"
           hint="Voucher milik pembeli. Butuh nomor HP; potongan dihitung server saat disimpan."
         >
@@ -377,7 +385,7 @@ function WalkIn({ depotId }: { depotId: string }) {
             id="wi-voucher"
             value={voucher}
             onChange={(e) => setVoucher(e.target.value.toUpperCase())}
-            placeholder="HEMAT10"
+            placeholder={t('opsFix.walkIn.voucherPlaceholder')}
           />
         </Field>
 
@@ -437,7 +445,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           // whitelisted per depot storage bucket for no gain on a print-once QR.
           <RemoteImage
             src={qrisUrl}
-            alt="Kode QRIS depot untuk dipindai pembeli"
+            alt={t('opsFix.walkIn.qrisAlt')}
             className="mx-auto max-h-64 w-auto rounded-xl border border-app"
           />
         )}
@@ -445,24 +453,28 @@ function WalkIn({ depotId }: { depotId: string }) {
           <div className="rounded-xl border border-app p-3 text-sm">
             <p className="font-medium">{payTo.data?.paymentBankName}</p>
             <p className="font-mono text-lg font-bold">{bankAccount}</p>
-            <p className="text-muted">a.n. {payTo.data?.paymentBankAccountHolder}</p>
+            <p className="text-muted">
+              {t('opsFix.walkIn.accountHolder', {
+                name: payTo.data?.paymentBankAccountHolder ?? '—',
+              })}
+            </p>
           </div>
         )}
 
         {method === 'CASH' && (
-          <Field label="Uang tunai diterima" htmlFor="wi-cash">
+          <Field label={t('opsFix.walkIn.cashReceived')} htmlFor="wi-cash">
             <Input
               id="wi-cash"
               value={cash}
               onChange={(e) => setCash(e.target.value)}
               inputMode="numeric"
-              placeholder="50000"
+              placeholder={t('opsFix.walkIn.cashPlaceholder')}
             />
           </Field>
         )}
         {method === 'CASH' && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">Kembalian</span>
+            <span className="text-muted">{t('opsFix.walkIn.change')}</span>
             <span className={change < 0 ? 'font-bold text-red-600' : 'font-bold'}>
               <Money amount={Math.max(0, change)} />
             </span>
@@ -476,10 +488,10 @@ function WalkIn({ depotId }: { depotId: string }) {
         >
           <Printer size={18} className="mr-1" />
           {shiftOpen === false
-            ? 'Buka shift dulu'
+            ? t('opsFix.walkIn.openShiftFirst')
             : method === 'CASH'
-              ? 'Simpan & cetak struk'
-              : 'Pembayaran diterima & cetak struk'}
+              ? t('opsFix.walkIn.saveAndPrint')
+              : t('opsFix.walkIn.paidAndPrint')}
         </Button>
       </Card>
     </div>
@@ -487,6 +499,7 @@ function WalkIn({ depotId }: { depotId: string }) {
 }
 
 export default function WalkInPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { scopedId, ready, error: depotError, reload: reloadDepots } = useDepot();
   // A depot-locked operator sells for their OWN depot — the switcher falls back to the first
@@ -496,8 +509,8 @@ export default function WalkInPage() {
   return (
     <RequireAuth>
       {!canRecordWalkInSale(customer?.role) ? (
-        <CenterState icon={<Lock size={32} />} title="Akses terbatas">
-          Hanya operator dan kepala depot yang bisa mencatat penjualan di konter.
+        <CenterState icon={<Lock size={32} />} title={t('opsFix.walkIn.gate')}>
+          {t('opsFix.walkIn.gateBody')}
         </CenterState>
       ) : !ready ? (
         <Skeleton className="h-64" />
@@ -506,8 +519,8 @@ export default function WalkInPage() {
         // nothing in the picker to pick.
         <ErrorState message={depotError} onRetry={reloadDepots} />
       ) : !depotId ? (
-        <CenterState icon={<MoneyIcon size={32} />} title="Belum ada depot">
-          Pilih depot dulu dari pemilih depot.
+        <CenterState icon={<MoneyIcon size={32} />} title={t('opsFix.walkIn.noDepot')}>
+          {t('opsFix.walkIn.noDepotBody')}
         </CenterState>
       ) : (
         <WalkIn depotId={depotId} />
