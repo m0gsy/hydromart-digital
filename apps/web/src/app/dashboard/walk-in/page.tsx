@@ -94,9 +94,16 @@ function WalkIn({ depotId }: { depotId: string }) {
     [catalog.data, availableById],
   );
   const ids = products.map((p) => p.id);
+  // Quantities go with the ids so a wholesale band is priced for what is actually being sold
+  // (design 16b). Without them the till quoted the list price for a 20-galon sale the order
+  // then stored at the bulk price — the cashier collected Rp60.000 too much.
+  const askQty = products.map((p) => qty[p.id] ?? 0);
   const resolved = useAsync<ResolvedPrice[]>(
-    () => (ids.length ? api.get(endpoints.inventory.prices(depotId, ids)) : Promise.resolve([])),
-    [depotId, ids.join(',')],
+    () =>
+      ids.length
+        ? api.get(endpoints.inventory.prices(depotId, ids, askQty))
+        : Promise.resolve([]),
+    [depotId, ids.join(','), askQty.join(',')],
   );
 
   // Prices shown here are the same ones checkout would charge: depot override + active rule.
@@ -376,10 +383,12 @@ function WalkIn({ depotId }: { depotId: string }) {
           </span>
         </div>
         {(voucher.trim() || phone.trim()) && (
-          // The counter shows the shelf price. Tier and voucher are priced by the server
-          // against the buyer's own account, so promising a number here could be a lie.
+          // The counter shows the shelf price. Tier, agen price and voucher are all priced by
+          // the server against the buyer's own account (the token here is the cashier's), so
+          // promising a number on this screen could be a lie. The struk and the change come
+          // from `order.total`, which is the one that counted.
           <p className="text-xs text-muted">
-            Potongan tier/voucher dihitung saat disimpan dan tercetak di struk.
+            Potongan tier/harga agen/voucher dihitung saat disimpan dan tercetak di struk.
           </p>
         )}
 

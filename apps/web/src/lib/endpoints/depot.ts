@@ -120,8 +120,18 @@ inventory: {
     return `/depots/api/v1/inventory/wastage?${p}`;
   },
   // Per-depot resolved prices (override + winning active rule) for products.
-  prices: (depotId: string, productIds: string[]) =>
-    `/depots/api/v1/depots/${depotId}/inventory/prices?productIds=${encodeURIComponent(productIds.join(','))}`,
+  /**
+   * `quantities` is positional against `productIds` and opts the caller into wholesale bands
+   * (design 16b): pass the quantity actually being sold and the answer carries `tierPrice`,
+   * an ABSOLUTE unit price that wins over `sellPrice` and the rule for that line. Omitting it
+   * is what made the till show Rp380.000 for twenty galon the order then stored at Rp320.000 —
+   * the band existed, the screen just never asked for it.
+   */
+  prices: (depotId: string, productIds: string[], quantities?: number[]) => {
+    const qs = new URLSearchParams({ productIds: productIds.join(',') });
+    if (quantities?.length) qs.set('quantities', quantities.join(','));
+    return `/depots/api/v1/depots/${depotId}/inventory/prices?${qs.toString()}`;
+  },
 },
 
 maintenance: {

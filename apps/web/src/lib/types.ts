@@ -185,6 +185,8 @@ export interface CartLine {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /** Catalog flag delivery is charged on — see `galonQuantity` in lib/pricing.ts. */
+  isGallon: boolean;
 }
 
 export interface Cart {
@@ -351,7 +353,12 @@ export interface PointsTransaction {
 
 export interface VoucherQuote {
   code: string;
-  discountType: 'PERCENTAGE' | 'FIXED';
+  /**
+   * FREE_SHIPPING was missing here while promo-service has always been able to return it, so
+   * the checkout summary folded a delivery waiver into the goods discount and capped it at the
+   * subtotal. It discounts the ongkir instead — see the split in app/checkout/page.tsx.
+   */
+  discountType: 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
   discount: number;
   valid: true;
 }
@@ -1422,6 +1429,12 @@ export interface ResolvedPrice {
   sellPrice?: number;
   adjustType?: PricingAdjustType;
   value?: number;
+  /**
+   * Wholesale band price for the quantity asked about (design 16b) — an ABSOLUTE unit price,
+   * so a line that has one ignores `sellPrice` and the rule adjustment. Only present when the
+   * caller sent `quantities`; see `computeEffective` in lib/pricing.ts.
+   */
+  tierPrice?: number;
 }
 
 /* ---------- Demand forecast (staff-facing planning) ---------- */

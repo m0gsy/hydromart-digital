@@ -4,8 +4,16 @@ export interface OrderRevenueEvent {
   orderNumber: string;
   franchiseOwnerId: string;
   depotId: string | null;
-  /** Order total in whole IDR. */
+  /** Order total in whole IDR — what the owner is credited. */
   amountIdr: number;
+  /**
+   * Goods subtotal BEFORE discount — what payout-service charges the franchise commission on.
+   *
+   * The commission used to be taken off `amountIdr`, i.e. subtotal + ongkir − discount, so HQ
+   * took a cut of the delivery fee (money the depot pays a courier, not margin) and gave up its
+   * cut of every voucher HQ itself funded.
+   */
+  commissionBaseIdr: number;
   completedAt: string;
 }
 

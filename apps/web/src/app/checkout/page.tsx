@@ -34,7 +34,7 @@ import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
-import { galonQuantity } from '@/lib/pricing';
+import { shippingFeeFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -229,6 +229,12 @@ function CheckoutInner() {
   // the one that actually withdraws it.
   const depotState = depotOpenState(depot?.operatingHours, depot?.holidays);
 
+  // Ongkir estimate, charged per galon exactly as order.service.ts does it. Declared up here
+  // because the voucher quote below needs it too: a FREE_SHIPPING voucher is priced against
+  // the shipping fee, and quoting it without one made promo-service compute the waiver against
+  // 0 — the screen showed "diskon Rp0" for a voucher the order then honoured in full.
+  const shippingFeeEstimate = shippingFeeFor(depot?.deliveryFee ?? 0, cart?.items ?? []);
+
   // A depot that stops offering express while this screen is open must not leave a
   // selection that checkout would now reject.
   useEffect(() => {
@@ -292,7 +298,7 @@ function CheckoutInner() {
     try {
       const result = await api.post<VoucherQuote>(
         endpoints.vouchers.quote,
-        { code, subtotal: cart.subtotal },
+        { code, subtotal: cart.subtotal, shippingFee: shippingFeeEstimate },
         true,
       );
       setQuote(result);
@@ -409,10 +415,11 @@ function CheckoutInner() {
   // taught us once. The agen discount itself cannot be previewed honestly here: the flat
   // price applies per galon line and excludes wholesale-band lines, and the cart carries
   // neither flag. So the summary shows list price and says the agen price lands at checkout.
-  const membershipDiscount = isReseller ? 0 : Math.floor(cart.subtotal * membershipRate);
-  const voucherDiscount = quote?.discount ?? 0;
-  const totalDiscount = Math.min(cart.subtotal, membershipDiscount + voucherDiscount);
-  const estimatedTotal = cart.subtotal - totalDiscount;
+  // `Math.round`, not `Math.floor`: order-service prices this through `money()`, which rounds
+  // to whole rupiah. Flooring here showed Rp4.999 for a discount the order stored as Rp5.000 —
+  // a preview that contradicts the bill, which is the defect the express fee taught us once.
+  // Pinned by "membership discount rounds exactly like the server" in test/pricing.test.ts.
+  const membershipDiscount = isReseller ? 0 : Math.round(cart.subtotal * membershipRate);
 
   // Advisory only: display-only ongkir estimate, never part of the API payload.
   // order-service computes the authoritative delivery fee + order total from the
@@ -420,10 +427,25 @@ function CheckoutInner() {
   // Charged per galon, exactly as order.service.ts does it — a flat per-order preview
   // under-quoted every cart with more than one galon. `depot` is resolved further up,
   // because the membership-rate lookup needs it too.
-  const deliveryFee = (depot?.deliveryFee ?? 0) * galonQuantity(cart.items);
+  const deliveryFee = shippingFeeEstimate;
   // ponytail: express surcharge is display-only until a depot express-pricing API exists.
   const expressFee = express ? delivery.expressFee : 0;
-  const displayedTotal = estimatedTotal + deliveryFee + expressFee;
+
+  // A voucher discounts EITHER the goods or the delivery fee, never both — the same split
+  // order.service.ts makes, capped against the bill component it belongs to. Folding a
+  // FREE_SHIPPING waiver into the goods discount would cap it at the subtotal and show the
+  // wrong number on a small order with a big fee. Express is excluded on purpose: the voucher
+  // waives delivery, not a speed upgrade.
+  const isFreeShipping = quote?.discountType === 'FREE_SHIPPING';
+  const voucherValueDiscount = isFreeShipping ? 0 : quote?.discount ?? 0;
+  const shippingDiscount = isFreeShipping ? Math.min(deliveryFee, quote?.discount ?? 0) : 0;
+  /** What the voucher is worth on this bill, whichever component it lands on. */
+  const voucherEffect = voucherValueDiscount + shippingDiscount;
+  // Capped at the goods, exactly as order.service.ts caps it: a discount on what was bought may
+  // never eat into the delivery fee. The shipping waiver is applied separately below.
+  const goodsDiscount = Math.min(cart.subtotal, membershipDiscount + voucherValueDiscount);
+  const estimatedTotal = cart.subtotal - goodsDiscount;
+  const displayedTotal = estimatedTotal + deliveryFee + expressFee - shippingDiscount;
 
   // 13n — when a voucher fails, surface how far the cart is from eligibility. minSpend
   // comes from the wallet voucher matching the typed code (the value already in scope).
@@ -914,11 +936,11 @@ function CheckoutInner() {
             <span className="text-xs font-semibold">dihitung saat pesanan dibuat</span>
           </div>
         )}
-        {voucherDiscount > 0 && (
+        {voucherEffect > 0 && (
           <div className="flex justify-between text-[color:var(--success)]">
             <span>{t('order.checkout.voucherLabel', { code: quote?.code ?? '' })}</span>
             <span className="font-bold">
-              −<Money amount={voucherDiscount} />
+              −<Money amount={voucherEffect} />
             </span>
           </div>
         )}

@@ -312,6 +312,8 @@ describe('FranchiseRevenueHttpAdapter', () => {
     franchiseOwnerId: 'owner-9',
     depotId: 'd1',
     amountIdr: 240000,
+    // Goods before discount — the commission base, separate from the credited total.
+    commissionBaseIdr: 200000,
     completedAt: '2026-07-28T00:00:00.000Z',
   };
 
@@ -326,6 +328,7 @@ describe('FranchiseRevenueHttpAdapter', () => {
     expect(JSON.parse(init.body)).toMatchObject({
       orderId: 'o1',
       amountIdr: 240000,
+      commissionBaseIdr: 200000,
       franchiseOwnerId: 'owner-9',
     });
   });

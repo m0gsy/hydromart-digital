@@ -1009,7 +1009,13 @@ export class FakeMembership implements MembershipPort {
 
 export class FakeResellerDiscount implements ResellerDiscountPort {
   result: ResellerDiscount | null = null;
+  /** Counter sales resolve by buyer id; recorded so a test can prove WHOSE status was read. */
+  readonly byCustomerCalls: string[] = [];
   async get(_authorization: string): Promise<ResellerDiscount | null> {
+    return this.result;
+  }
+  async getFor(customerId: string, _authorization: string): Promise<ResellerDiscount | null> {
+    this.byCustomerCalls.push(customerId);
     return this.result;
   }
 }

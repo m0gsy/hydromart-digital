@@ -371,6 +371,8 @@ export class CartLineResponseDto {
   quantity!: number;
   @ApiProperty({ type: Number })
   lineTotal!: number;
+  @ApiProperty({ type: Boolean })
+  isGallon!: boolean;
 }
 
 /** Mirrors `CartView` exactly — generated for audit D-6, no field added or removed. */
