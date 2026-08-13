@@ -138,6 +138,9 @@ export default function HqDepotDetailPage() {
       )}
 
       {/* KPI tiles */}
+      {/* All four fall back to a dash together, which reads as a depot with no trade
+          rather than as four numbers nobody could fetch. */}
+      {rollup.error && <LoadError onRetry={rollup.reload} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={t('hq.depotDetail.kpi.revenue')}
