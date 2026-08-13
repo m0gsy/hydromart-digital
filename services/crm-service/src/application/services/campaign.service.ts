@@ -15,6 +15,10 @@ import {
   CreateRecipientData,
 } from '../ports/campaign.repository';
 import {
+  ActivitySegmentPort,
+  hasActivityConditions,
+} from '../ports/activity-segment.port';
+import {
   CustomerDirectoryPort,
   SegmentFilter,
 } from '../ports/customer-directory.port';
@@ -52,6 +56,7 @@ export class CampaignService {
     @Inject(CRM_TOKENS.CampaignRepository) private readonly repo: CampaignRepository,
     @Inject(CRM_TOKENS.WhatsappBroadcast) private readonly whatsapp: WhatsappBroadcastPort,
     @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
+    @Inject(CRM_TOKENS.ActivitySegment) private readonly activity: ActivitySegmentPort,
   ) {}
 
   async create(
@@ -68,8 +73,22 @@ export class CampaignService {
     // not "fall back to the explicit list". Resolution throws if the directory is unreachable.
     let list: CreateRecipientData[] = recipients;
     if (segment) {
-      const resolved = await this.directory.resolveSegment(segment, authorization);
-      list = resolved.map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
+      // Two owners, one audience. The directory answers tier/city (customer attributes) and
+      // order-service answers the activity half (lapsed, new, frequent, ordered-at-depot);
+      // the campaign is the intersection. Before this, an activity segment was SIZED from
+      // order-service and SENT as `{tier:'GOLD'}` or `{}` — the screen promised 40 lapsed
+      // customers and the blast reached everyone.
+      const { tier, city, ...activityConditions } = segment;
+      const inSegment = hasActivityConditions(activityConditions)
+        ? new Set(await this.activity.customersIn(activityConditions))
+        : null;
+      // ponytail: the intersection is done here rather than pushed into the directory query
+      // because the directory read is already whole-audience for an empty filter. If a
+      // deployment ever outgrows that, the id list belongs in the directory's WHERE.
+      const resolved = await this.directory.resolveSegment({ tier, city }, authorization);
+      list = resolved
+        .filter((r) => !inSegment || inSegment.has(r.customerId))
+        .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
     }
 
     // Dedupe by phone (last wins) — a pasted list often repeats numbers, and the DB has a

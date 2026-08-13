@@ -63,6 +63,12 @@ describe('CrmConfigService', () => {
 
   it('trims the customer-service URL', () => {
     expect(cfg({ CUSTOMER_SERVICE_URL: '  http://cust  ' }).customerServiceUrl).toBe('http://cust');
+    // The activity half of a segment. Blank either one and the resolution fails closed,
+    // which is why both are read as trimmed strings rather than getOrThrow.
+    expect(cfg({ ORDER_SERVICE_URL: '  http://order  ' }).orderServiceUrl).toBe('http://order');
+    expect(cfg({}).orderServiceUrl).toBe('');
+    expect(cfg({ INTERNAL_SERVICE_KEY: ' sekret ' }).internalServiceKey).toBe('sekret');
+    expect(cfg({}).internalServiceKey).toBe('');
   });
 
   it('reads and trims the VAPID keypair, defaulting the subject', () => {

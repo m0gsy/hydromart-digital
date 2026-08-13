@@ -10,6 +10,7 @@ import {
 } from '../../src/domain/errors';
 import { CampaignService } from '../../src/application/services/campaign.service';
 import {
+  FakeActivitySegment,
   FakeCustomerDirectory,
   FakeWhatsappBroadcast,
   InMemoryCampaignRepository,
@@ -19,13 +20,15 @@ describe('CampaignService', () => {
   let repo: InMemoryCampaignRepository;
   let whatsapp: FakeWhatsappBroadcast;
   let directory: FakeCustomerDirectory;
+  let activity: FakeActivitySegment;
   let service: CampaignService;
 
   beforeEach(() => {
     repo = new InMemoryCampaignRepository();
     whatsapp = new FakeWhatsappBroadcast();
     directory = new FakeCustomerDirectory();
-    service = new CampaignService(repo, whatsapp, directory);
+    activity = new FakeActivitySegment();
+    service = new CampaignService(repo, whatsapp, directory, activity);
   });
 
   const recipients = [
@@ -88,6 +91,57 @@ describe('CampaignService', () => {
       await expect(
         service.create('staff-1', 'Blast', 'Hi', undefined, { tier: 'GOLD' }, 'Bearer tok'),
       ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+
+    /*
+     * The activity half. The screens size these segments from order-service (at-risk, new,
+     * frequent, "customers of this depot") and used to send `{tier:'GOLD'}` or `{}` instead
+     * — an estimate of 40 lapsed customers followed by a blast to everyone. The directory
+     * still owns tier/city; order-service now says who is in the activity segment, and the
+     * campaign is the intersection.
+     */
+    it('narrows a segment to the customers order-service says are in it', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+        { customerId: 'c3', name: 'Cita', phone: '+628333' },
+      ];
+      activity.customerIds = ['c1', 'c3'];
+
+      const c = await service.create('staff-1', 'Lapsed', 'Hi', undefined, { lapsedDays: 60 }, 'Bearer tok');
+
+      expect(c.recipients.map((r) => r.customerId).sort()).toEqual(['c1', 'c3']);
+      expect(activity.lastConditions).toEqual({ lapsedDays: 60 });
+    });
+
+    it('combines the activity segment with the attribute one', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'GOLD' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC' },
+      ];
+      activity.customerIds = ['c1', 'c2'];
+
+      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { tier: 'GOLD', minOrders: 5 }, 'Bearer tok');
+
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+      // tier must NOT be sent to order-service — it does not know tiers, and a stray
+      // property on that query is a 400 behind forbidNonWhitelisted.
+      expect(activity.lastConditions).toEqual({ minOrders: 5 });
+    });
+
+    it('never asks order-service when the segment has no activity condition', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      const c = await service.create('staff-1', 'All', 'Hi', undefined, {}, 'Bearer tok');
+      expect(c.totalRecipients).toBe(1);
+      expect(activity.lastConditions).toBeUndefined();
+    });
+
+    it('fails closed when order-service cannot resolve the activity segment', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      activity.down = true;
+      await expect(
+        service.create('staff-1', 'Lapsed', 'Hi', undefined, { lapsedDays: 60 }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(SegmentUnavailableError);
     });
   });
 

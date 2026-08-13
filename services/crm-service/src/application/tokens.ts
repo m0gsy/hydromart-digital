@@ -4,6 +4,7 @@ export const CRM_TOKENS = {
   NotificationRepository: Symbol('NotificationRepository'),
   WhatsappBroadcast: Symbol('WhatsappBroadcast'),
   CustomerDirectory: Symbol('CustomerDirectory'),
+  ActivitySegment: Symbol('ActivitySegment'),
   PushSubscriptionRepository: Symbol('PushSubscriptionRepository'),
   PushSender: Symbol('PushSender'),
 } as const;

@@ -16,6 +16,10 @@ import {
   CreateBroadcastData,
 } from '../../src/application/ports/broadcast.repository';
 import { SegmentUnavailableError } from '../../src/domain/errors';
+import {
+  ActivityConditions,
+  ActivitySegmentPort,
+} from '../../src/application/ports/activity-segment.port';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
 import {
   CustomerDirectoryPort,
@@ -279,6 +283,19 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
       .filter((r) => !filter.tier || r.tier === filter.tier)
       .filter((r) => !filter.city || r.city?.toLowerCase() === filter.city.toLowerCase())
       .map(({ customerId, name, phone }) => ({ customerId, name, phone }));
+  }
+}
+
+/** Activity-segment fake: returns a seeded id list. Throws if `down` (order-service is out). */
+export class FakeActivitySegment implements ActivitySegmentPort {
+  customerIds: string[] = [];
+  down = false;
+  lastConditions?: ActivityConditions;
+
+  async customersIn(conditions: ActivityConditions): Promise<string[]> {
+    if (this.down) throw new SegmentUnavailableError('order-service down');
+    this.lastConditions = conditions;
+    return this.customerIds;
   }
 }
 

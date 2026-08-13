@@ -1,6 +1,7 @@
 import { CrmConfigService } from '../../src/config/crm-config.service';
 import { SegmentUnavailableError } from '../../src/domain/errors';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
+import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activity-segment.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
 // header, res.ok branch, fail-CLOSED catch, response parsing) against a mocked global.fetch —
@@ -83,6 +84,59 @@ describe('CustomerDirectoryHttpAdapter', () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(
       new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({}, AUTH),
+    ).rejects.toBeInstanceOf(SegmentUnavailableError);
+  });
+});
+
+/*
+ * The activity half of a segment. Every branch here is a fail-CLOSED one on purpose: a
+ * campaign whose audience could not be resolved must be refused, because the alternative
+ * — carrying on with whatever the directory returned — sends to a WIDER audience than the
+ * one the screen sized. `truncated` is the subtle one: the response is a valid 200 with a
+ * real list, and taking it at face value under-sends while reporting success.
+ */
+describe('ActivitySegmentHttpAdapter', () => {
+  const activityConfig = (over: Partial<Record<string, unknown>> = {}): CrmConfigService =>
+    ({ orderServiceUrl: 'http://order:3003', internalServiceKey: 'k', ...over }) as unknown as CrmConfigService;
+
+  it.each([
+    ['order-service url is not configured', { orderServiceUrl: '' }],
+    ['the internal key is not configured', { internalServiceKey: '' }],
+  ])('fails closed when %s', async (_case, over) => {
+    await expect(
+      new ActivitySegmentHttpAdapter(activityConfig(over)).customersIn({ lapsedDays: 60 }),
+    ).rejects.toBeInstanceOf(SegmentUnavailableError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends every condition as a query param under the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerIds: ['c1', 'c2'], truncated: false } }));
+    const out = await new ActivitySegmentHttpAdapter(activityConfig()).customersIn({
+      lapsedDays: 60,
+      depotId: 'depot-1',
+    });
+    expect(out).toEqual(['c1', 'c2']);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/reports/internal/segment-customers?');
+    expect(url).toContain('lapsedDays=60');
+    expect(url).toContain('depotId=depot-1');
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
+  });
+
+  it('refuses a truncated segment instead of broadcasting to part of it', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerIds: ['c1'], truncated: true } }));
+    await expect(
+      new ActivitySegmentHttpAdapter(activityConfig()).customersIn({ minOrders: 1 }),
+    ).rejects.toBeInstanceOf(SegmentUnavailableError);
+  });
+
+  it.each([
+    ['a non-2xx answer', () => fetchMock.mockResolvedValue(res({ ok: false, status: 503 }))],
+    ['a network error', () => fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))],
+  ])('fails closed on %s', async (_case, arrange) => {
+    arrange();
+    await expect(
+      new ActivitySegmentHttpAdapter(activityConfig()).customersIn({ minOrders: 1 }),
     ).rejects.toBeInstanceOf(SegmentUnavailableError);
   });
 });

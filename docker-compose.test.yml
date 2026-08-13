@@ -276,6 +276,8 @@ services:
       WHATSAPP_API_URL: ""
       WHATSAPP_API_TOKEN: ""
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Activity half of a broadcast segment; blank would fail closed, not send wider.
+      ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3012/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

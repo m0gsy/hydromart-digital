@@ -47,6 +47,19 @@ export class CrmConfigService {
   }
 
   /**
+   * order-service base URL + the shared internal key, for resolving the ACTIVITY half of a
+   * broadcast segment (lapsed / new / frequent / ordered-at-depot). Blank either one and an
+   * activity segment fails closed — the campaign is refused rather than sent to a wider
+   * audience than the one that was sized.
+   */
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
+  }
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '').trim();
+  }
+
+  /**
    * VAPID keypair + subject for Web Push (design 7b transport). Blank public/private keys
    * disable push (the adapter no-ops); the app still stores notifications + sends WhatsApp.
    */

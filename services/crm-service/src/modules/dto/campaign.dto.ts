@@ -54,6 +54,44 @@ export class CampaignSegmentDto {
   @IsString()
   @MaxLength(120)
   city?: string;
+
+  /*
+   * The activity half (design 21d), resolved from order-service. These are the conditions
+   * the console screens already SIZE an audience with; before they were accepted here the
+   * estimate and the send were two different segments.
+   */
+  @ApiPropertyOptional({ minimum: 1, description: 'Last order within this many days (still active).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  recencyDays?: number;
+
+  @ApiPropertyOptional({ minimum: 1, description: 'Last order OLDER than this many days (lapsed / at-risk).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  lapsedDays?: number;
+
+  @ApiPropertyOptional({ minimum: 1, description: 'First order within this many days (newly acquired).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  newWithinDays?: number;
+
+  @ApiPropertyOptional({ minimum: 1, description: 'At least this many non-cancelled orders.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  minOrders?: number;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Customers who have ordered at this depot.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }
 
 export class CreateCampaignDto {

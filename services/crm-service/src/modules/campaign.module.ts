@@ -20,6 +20,7 @@ import { WebPushSenderAdapter } from '../infrastructure/webpush/web-push.sender.
 import { FcmSenderAdapter } from '../infrastructure/fcm/fcm.sender.adapter';
 import { CompositePushSender } from '../infrastructure/push/composite-push.sender';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
+import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
 import { CampaignController } from './campaign.controller';
 import { NotificationController } from './notification.controller';
 import { BroadcastController } from './broadcast.controller';
@@ -37,6 +38,7 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.BroadcastRepository, useClass: BroadcastPrismaRepository },
   { provide: CRM_TOKENS.WhatsappBroadcast, useClass: WhatsappBroadcastHttpAdapter },
   { provide: CRM_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
+  { provide: CRM_TOKENS.ActivitySegment, useClass: ActivitySegmentHttpAdapter },
   { provide: CRM_TOKENS.PushSubscriptionRepository, useClass: PushSubscriptionPrismaRepository },
   // Both transports are always constructed; the composite routes per subscription by the
   // endpoint prefix. Each disables itself when its own credentials are unset, so a
