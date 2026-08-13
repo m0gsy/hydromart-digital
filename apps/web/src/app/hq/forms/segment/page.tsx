@@ -6,10 +6,12 @@ import { UsersThree, Plus, Trash } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Input } from '@/components/ui';
-import { api } from '@/lib/api';
+import { useToast } from '@/components/toast';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import type { SavedSegment } from '@/lib/types';
 
 type ConditionField = 'recency' | 'frequency' | 'tier' | 'depot';
 interface Condition {
@@ -27,12 +29,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // counts distinct customers by activity (recency = last order within N days, frequency = >= N
 // orders, depot = ordered at a depot id). Loyalty TIER lives in loyalty-service and is not
 // joinable here, so a tier condition is honestly badged as "not applied" rather than faked.
-// "Pakai di campaign" carries the resolved conditions to the 17c builder via the query string.
+// "Pakai di campaign" carries the resolved conditions to the 17c builder via the query
+// string — which that builder now reads (it used to drop them and start from "all" again).
+//
+// Saving is an upsert BY NAME: the same label saved twice is one person refining one
+// audience, and two rows sharing a name is how two people message different lists while
+// believing they picked the same one.
 export default function HqSegmentFormPage() {
   const { t } = useT();
+  const { toast } = useToast();
   const router = useRouter();
   const [conditions, setConditions] = useState<Condition[]>([]);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
   const nextId = useRef(1);
+  const saved = useAsync<SavedSegment[]>(() => api.get(endpoints.crm.savedSegments, true));
 
   function addCondition() {
     setConditions((c) => [...c, { id: nextId.current++, field: 'recency', value: '' }]);
@@ -69,6 +80,46 @@ export default function HqSegmentFormPage() {
     () => api.get<{ count: number }>(endpoints.segments.estimate(resolved.q), true),
     [JSON.stringify(resolved.q)],
   );
+
+  async function save() {
+    if (!name.trim()) return toast(t('hq.forms.segment.needName'), 'error');
+    // An audience with no conditions is "everyone", which the campaign builder already
+    // offers as a chip. Saving it under a name only makes the list harder to read.
+    if (Object.keys(resolved.q).length === 0) return toast(t('hq.forms.segment.needCondition'), 'error');
+    setSaving(true);
+    try {
+      await api.post(endpoints.crm.savedSegments, { name: name.trim(), conditions: resolved.q }, true);
+      toast(t('hq.forms.segment.saved'), 'success');
+      setName('');
+      saved.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.forms.segment.saveError'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeSaved(id: string) {
+    try {
+      await api.del(endpoints.crm.savedSegment(id), true);
+      saved.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.forms.segment.saveError'), 'error');
+    }
+  }
+
+  /** Reopen a saved audience as editable conditions — the point of saving one. */
+  function load(segment: SavedSegment) {
+    const next: Condition[] = [];
+    const add = (field: ConditionField, value: unknown) => {
+      if (value != null) next.push({ id: nextId.current++, field, value: String(value) });
+    };
+    add('recency', segment.conditions.recencyDays);
+    add('frequency', segment.conditions.minOrders);
+    add('depot', segment.conditions.depotId);
+    setConditions(next);
+    setName(segment.name);
+  }
 
   function useInCampaign() {
     const p = new URLSearchParams();
@@ -142,6 +193,45 @@ export default function HqSegmentFormPage() {
             ? '…'
             : t('hq.forms.segment.people', { n: (estimate.data?.count ?? 0).toLocaleString('id-ID') })}
         </span>
+      </Card>
+
+      <Card className="flex flex-col gap-3 p-5">
+        <span className="text-sm font-medium">{t('hq.forms.segment.saveTitle')}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="min-w-0 flex-1"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('hq.forms.segment.namePh')}
+            aria-label={t('hq.forms.segment.saveTitle')}
+          />
+          <Button variant="secondary" onClick={save} loading={saving}>
+            {t('hq.forms.segment.save')}
+          </Button>
+        </div>
+        {(saved.data ?? []).length > 0 && (
+          <ul className="flex flex-col gap-1.5 border-t border-app pt-3">
+            {(saved.data ?? []).map((sg) => (
+              <li key={sg.id} className="flex items-center justify-between gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={() => load(sg)}
+                  className="min-w-0 flex-1 truncate text-left font-medium text-brand-700 hover:underline"
+                >
+                  {sg.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeSaved(sg.id)}
+                  aria-label={t('hq.forms.segment.remove')}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <Trash size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <div className="flex flex-wrap justify-end gap-2">

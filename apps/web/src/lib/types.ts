@@ -1683,6 +1683,25 @@ export interface ExportLogEntry {
   createdAt: string;
 }
 
+/** The conditions behind a saved audience — the same shape a campaign segment takes. */
+export interface SegmentConditions {
+  tier?: string;
+  city?: string;
+  recencyDays?: number;
+  lapsedDays?: number;
+  newWithinDays?: number;
+  minOrders?: number;
+  depotId?: string;
+  customerIds?: string[];
+}
+export interface SavedSegment {
+  id: string;
+  name: string;
+  conditions: SegmentConditions;
+  createdBy: string;
+  createdAt: string;
+}
+
 export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 /** What goes IN a scheduled report — the three groupings hq/reports/export really has. */
 export type ReportDataset = 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT' | 'REVENUE_BY_METHOD';

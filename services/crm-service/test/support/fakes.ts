@@ -22,6 +22,10 @@ import {
 } from '../../src/application/ports/activity-segment.port';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
 import {
+  SavedSegmentRecord,
+  SavedSegmentRepository,
+} from '../../src/application/ports/saved-segment.repository';
+import {
   CustomerDirectoryPort,
   DirectoryRecipient,
   SegmentFilter,
@@ -324,5 +328,53 @@ export class FakeWhatsappBroadcast implements WhatsappBroadcastPort {
     this.sent.push({ phone, message });
     if (this.failPhones.has(phone)) return { ok: false, error: 'simulated failure' };
     return { ok: true };
+  }
+}
+
+/** Saved-segment fake: upsert by name, newest first. Mirrors the unique index. */
+export class InMemorySavedSegmentRepository implements SavedSegmentRepository {
+  rows: SavedSegmentRecord[] = [];
+
+  async list(limit: number): Promise<SavedSegmentRecord[]> {
+    return [...this.rows]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+
+  async findById(id: string): Promise<SavedSegmentRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+
+  async upsertByName(data: {
+    name: string;
+    conditions: SegmentFilter;
+    createdBy: string;
+  }): Promise<SavedSegmentRecord> {
+    const existing = this.rows.find((r) => r.name === data.name);
+    if (existing) {
+      existing.conditions = data.conditions;
+      existing.createdBy = data.createdBy;
+      existing.updatedAt = nextDate();
+      return { ...existing };
+    }
+    const now = nextDate();
+    const record: SavedSegmentRecord = {
+      id: randomUUID(),
+      name: data.name,
+      conditions: data.conditions,
+      createdBy: data.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(record);
+    return { ...record };
+  }
+
+  async remove(id: string): Promise<boolean> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((r) => r.id !== id);
+    return this.rows.length < before;
   }
 }

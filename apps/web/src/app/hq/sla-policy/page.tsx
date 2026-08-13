@@ -12,25 +12,56 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { SlaPolicy } from '@/lib/types';
 
-// Design 19d — SLA policy editor. Real admin-service track: GET /sla-policy loads the
-// on-time threshold + healthy/critical bands; PUT saves them. NOTE: delivery-service still
-// grades on-time delivery with its OWN threshold and does not yet read this policy.
+/**
+ * Design 19d — SLA policy editor.
+ *
+ * There were TWO thresholds. This screen wrote `onTimeThresholdMinutes` to admin-service
+ * while delivery-service graded every delivery against its own `slaMinutes` setting — so
+ * the number HQ edited changed nothing, and the number that decided courier commission was
+ * only reachable from the depot settings screen.
+ *
+ * The threshold shown and saved here is now delivery-service's GLOBAL `slaMinutes`, the one
+ * `onTime` is actually computed against. The healthy/critical bands stay in admin: they
+ * colour HQ dashboards and delivery-service has no use for them. A depot may still override
+ * the threshold for itself — this edits the value every depot falls back to.
+ */
 export default function HqSlaPolicyPage() {
   const { t } = useT();
   const { toast } = useToast();
   const query = useAsync<SlaPolicy>(() => api.get(endpoints.admin.slaPolicy, true));
+  const effective = useAsync<{ effective: Record<string, number | string> }>(() =>
+    api.get(endpoints.deliverySettings.schema(), true),
+  );
   const [draft, setDraft] = useState<SlaPolicy | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (query.loading) return <Skeleton className="h-96 w-full" />;
+  if (query.loading || effective.loading) return <Skeleton className="h-96 w-full" />;
   if (query.error) return <ErrorState message={t('hq.slaPolicy.loadError')} onRetry={query.reload} />;
+  if (effective.error) {
+    return <ErrorState message={t('hq.slaPolicy.loadError')} onRetry={effective.reload} />;
+  }
 
-  const policy = draft ?? query.data!;
+  // The effective threshold is delivery-service's, not admin's — admin's copy is what was
+  // wrong. Falling back to it only when delivery has no value keeps the field populated.
+  const liveSla = Number(effective.data?.effective?.slaMinutes);
+  const stored = query.data!;
+  const policy =
+    draft ??
+    (Number.isFinite(liveSla) ? { ...stored, onTimeThresholdMinutes: liveSla } : stored);
   const set = (patch: Partial<SlaPolicy>) => setDraft({ ...policy, ...patch });
 
   async function save() {
     setBusy(true);
     try {
+      // The behaviour-changing write goes FIRST. If it is refused there is nothing to
+      // celebrate, and saving the bands anyway would leave the screen showing a threshold
+      // that never took — exactly the split this change exists to close. Global settings
+      // are SUPER_ADMIN-only (`settingsGlobal`), so a 403 here is a real answer to report.
+      await api.put(
+        endpoints.deliverySettings.put,
+        { scope: 'GLOBAL', key: 'slaMinutes', value: policy.onTimeThresholdMinutes },
+        true,
+      );
       const saved = await api.put<SlaPolicy>(
         endpoints.admin.slaPolicy,
         {
@@ -41,9 +72,18 @@ export default function HqSlaPolicyPage() {
         true,
       );
       setDraft(saved);
+      effective.reload();
       toast(t('hq.slaPolicy.saved'), 'success');
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : t('hq.slaPolicy.saveError'), 'error');
+      const forbidden = err instanceof ApiError && err.status === 403;
+      toast(
+        forbidden
+          ? t('hq.slaPolicy.globalForbidden')
+          : err instanceof ApiError
+            ? err.message
+            : t('hq.slaPolicy.saveError'),
+        'error',
+      );
     } finally {
       setBusy(false);
     }
@@ -78,6 +118,7 @@ export default function HqSlaPolicyPage() {
             <span>{t('hq.slaPolicy.minutes', { n: 180 })}</span>
           </div>
           <p className="mt-2 text-xs text-muted">{t('hq.slaPolicy.thresholdHint')}</p>
+          <p className="mt-1 text-xs text-muted">{t('hq.slaPolicy.thresholdNote')}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

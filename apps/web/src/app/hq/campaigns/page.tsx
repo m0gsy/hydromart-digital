@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Megaphone } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
@@ -36,16 +37,41 @@ const SEGMENT_CONDITIONS: Record<Segment, { minOrders?: number; lapsedDays?: num
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const params = useSearchParams();
   const [step, setStep] = useState(0);
   const [segment, setSegment] = useState<Segment>('all');
+
+  /**
+   * Conditions handed over by the segment builder (`/hq/forms/segment` → "Pakai di
+   * campaign"). That screen has always appended them to the URL; this one never read them,
+   * so the whole handoff ended at a builder that quietly started from "all customers"
+   * again. When they are present they REPLACE the chip preset — the operator picked those
+   * conditions on the previous screen, and a chip silently overriding them would be the
+   * same disagreement between what is shown and what is sent, one screen over.
+   */
+  const handoff = useMemo(() => {
+    const num = (k: string): number | undefined => {
+      const n = Number.parseInt(params.get(k) ?? '', 10);
+      return Number.isInteger(n) && n > 0 ? n : undefined;
+    };
+    const q = {
+      recencyDays: num('recencyDays'),
+      minOrders: num('minOrders'),
+      depotId: params.get('depotId') ?? undefined,
+    };
+    const used = Object.values(q).some((v) => v != null);
+    return used ? q : null;
+  }, [params]);
+
+  const conditions = handoff ?? SEGMENT_CONDITIONS[segment];
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
 
   const estimateQ = useAsync<{ count: number }>(
-    () => api.get(endpoints.segments.estimate(SEGMENT_CONDITIONS[segment]), true),
-    [segment],
+    () => api.get(endpoints.segments.estimate(conditions), true),
+    [JSON.stringify(conditions)],
   );
   const estimate = estimateQ.data?.count ?? 0;
 
@@ -67,7 +93,7 @@ export default function HqCampaignBuilderPage() {
           messageTemplate: message,
           // The same conditions the estimate above showed. Anything else and the number on
           // screen belongs to a different audience than the one being messaged.
-          segment: SEGMENT_CONDITIONS[segment],
+          segment: conditions,
           ...(schedule ? { scheduledFor: new Date(scheduledFor).toISOString() } : {}),
         },
         true,
@@ -112,13 +138,19 @@ export default function HqCampaignBuilderPage() {
         {step === 0 && (
           <>
             <span className="text-sm font-medium">{t('hq.campaigns.segmentLabel')}</span>
-            <div className="flex flex-wrap gap-2">
+            {handoff && (
+              <p className="rounded-xl border border-app bg-brand-50 px-3.5 py-2.5 text-xs text-brand-800">
+                {t('hq.campaigns.fromSegmentBuilder')}
+              </p>
+            )}
+            <div className={`flex flex-wrap gap-2 ${handoff ? 'opacity-40' : ''}`}>
               {SEGMENTS.map((s) => (
                 <button
                   key={s}
                   type="button"
+                  disabled={handoff !== null}
                   onClick={() => setSegment(s)}
-                  aria-pressed={segment === s}
+                  aria-pressed={handoff === null && segment === s}
                   className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
                     segment === s ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
@@ -158,7 +190,10 @@ export default function HqCampaignBuilderPage() {
 
         {step === 2 && (
           <div className="flex flex-col gap-2 text-sm">
-            <p><span className="text-muted">{t('hq.campaigns.segmentLabel')}:</span> <strong>{t(`hq.campaigns.chips.${segment}`)}</strong></p>
+            <p>
+              <span className="text-muted">{t('hq.campaigns.segmentLabel')}:</span>{' '}
+              <strong>{handoff ? t('hq.campaigns.fromSegmentBuilder') : t(`hq.campaigns.chips.${segment}`)}</strong>
+            </p>
             <p><span className="text-muted">{t('hq.campaigns.nameLabel')}:</span> <strong>{name || '—'}</strong></p>
             <p className="whitespace-pre-wrap rounded-xl border border-app p-3 text-muted">{message || '—'}</p>
             <Field label={t('hq.campaigns.scheduleLabel')} htmlFor="c-when" hint={t('hq.campaigns.scheduleHint')}>

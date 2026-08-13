@@ -196,3 +196,20 @@ model WebPushSubscription {
   @@index([customerId])
   @@map("web_push_subscriptions")
 }
+
+/// A named audience definition (design 21d "Buat segment"). The conditions are the
+/// SegmentFilter contract as JSON rather than a column each: that contract already grew
+/// twice (activity conditions, then named customerIds), and a column per condition means a
+/// migration every time it grows again — plus rows written under the older shape.
+model SavedSegment {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  conditions Json
+  /// Auth subject (staff user id) that saved it.
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("saved_segments")
+}
