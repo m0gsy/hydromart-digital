@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { LockKey, LockKeyOpen } from '@phosphor-icons/react';
 
 import { useToast } from '@/components/toast';
-import { Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -112,7 +112,11 @@ export function CashierShiftBar({
         </div>
       )}
 
-      {!current ? (
+      {shift.error ? (
+        // "Belum ada shift terbuka" invites the cashier to open a SECOND one. An unread
+        // shift is not an absent shift, and the till is the thing being counted.
+        <LoadError onRetry={shift.reload} />
+      ) : !current ? (
         <div className="space-y-3">
           <div>
             <p className="font-semibold">Belum ada shift terbuka</p>

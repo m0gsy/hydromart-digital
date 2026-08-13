@@ -4,7 +4,18 @@ import { useState } from 'react';
 import { Lock, Phone, Plus, Storefront } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -230,6 +241,11 @@ function Body() {
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
+          {/* Every card's PO count, value and last-order date come from ONE read, and each
+              falls back to 0/—. A supplier the depot buys from weekly then reads as dormant. */}
+          {orders.error && (
+            <LoadError onRetry={orders.reload} className="sm:col-span-2" />
+          )}
           {suppliers.data.map((s) => (
             <SupplierCard
               key={s.id}
