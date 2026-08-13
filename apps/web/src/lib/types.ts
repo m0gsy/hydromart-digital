@@ -1683,6 +1683,22 @@ export interface ExportLogEntry {
   createdAt: string;
 }
 
+/** A computed (unsaved) performance score for one employee in one month. */
+export interface ScoredEmployee {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  depotId: string | null;
+  position: string;
+  score: {
+    attendance: number | null;
+    discipline: number | null;
+    sales: number | null;
+    /** Weighted mean of the components that could be measured; null when none could. */
+    final: number | null;
+  };
+}
+
 /** The conditions behind a saved audience — the same shape a campaign segment takes. */
 export interface SegmentConditions {
   tier?: string;

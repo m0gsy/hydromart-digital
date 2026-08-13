@@ -43,6 +43,21 @@ export default function CalendarPage() {
       toast('Shift ditambahkan'); setSName(''); shifts.reload();
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Gagal', 'error'); }
   }
+  /**
+   * Deactivate rather than delete, when the shift has been used.
+   *
+   * `PATCH /hr-shifts/:id` has always existed and nothing called it, so the only way to
+   * retire a shift was to delete it — and shift times feed late-arrival and absence
+   * deductions, so removing one rewrites how past days are read. Toggling `active` keeps
+   * the row for that history while taking it out of every future rota.
+   */
+  async function toggleShift(id: string, active: boolean) {
+    try {
+      await api.patch(endpoints.hr.updateShift(id), { active: !active }, true);
+      toast(active ? 'Shift dinonaktifkan' : 'Shift diaktifkan');
+      shifts.reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Gagal', 'error'); }
+  }
   async function delShift(id: string) {
     try { await api.del(endpoints.hr.deleteShift(id), true); toast('Dihapus'); shifts.reload(); }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Gagal', 'error'); }
@@ -85,7 +100,14 @@ export default function CalendarPage() {
             {shifts.data.map((s) => (
               <li key={s.id} className="flex items-center justify-between py-2 text-sm">
                 <span><b>{s.name}</b> · {s.startTime}–{s.endTime}{s.active ? '' : ' (nonaktif)'}{s.depotId ? ' · depot' : ''}</span>
-                {isAdmin && <Button variant="ghost" onClick={() => delShift(s.id)}>Hapus</Button>}
+                {isAdmin && (
+                  <span className="flex shrink-0 gap-1">
+                    <Button variant="ghost" onClick={() => toggleShift(s.id, s.active)}>
+                      {s.active ? 'Nonaktifkan' : 'Aktifkan'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => delShift(s.id)}>Hapus</Button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

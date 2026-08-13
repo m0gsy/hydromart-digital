@@ -32,6 +32,8 @@ function PerformanceInner() {
   const [score, setScore] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scoring, setScoring] = useState(false);
+  const [computed, setComputed] = useState<ScoredEmployee | null>(null);
 
   async function load() {
     if (!employeeId) {
@@ -43,6 +45,38 @@ function PerformanceInner() {
       setLoaded(true);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Gagal memuat', 'error');
+    }
+  }
+
+  /**
+   * Pull the COMPUTED score for this employee and period, and put it in the field.
+   *
+   * `GET /performance/score` has always existed and nothing called it, so the review form
+   * asked for a 0–100 with nothing to base it on — a monthly verdict typed from memory.
+   * It saves nothing on its own: the reviewer still decides what to record, they just
+   * start from the measurement rather than from a blank box.
+   */
+  async function computeScore() {
+    if (!employeeId) {
+      toast('Isi employeeId', 'error');
+      return;
+    }
+    setScoring(true);
+    try {
+      const scored = await api.get<ScoredEmployee>(
+        endpoints.hr.performanceScore(employeeId, period),
+        true,
+      );
+      if (scored.score.final == null) {
+        toast('Belum ada data yang bisa diukur untuk periode ini', 'error');
+        return;
+      }
+      setScore(String(Math.round(scored.score.final)));
+      setComputed(scored);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Gagal menghitung skor', 'error');
+    } finally {
+      setScoring(false);
     }
   }
 
@@ -126,9 +160,19 @@ function PerformanceInner() {
                 Catatan
                 <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" />
               </label>
+              <Button variant="secondary" onClick={computeScore} loading={scoring}>
+                Hitung skor
+              </Button>
               <Button onClick={save} loading={busy}>
                 Simpan manual
               </Button>
+              {computed?.score.final != null && (
+                <p className="w-full text-xs text-muted">
+                  Terukur: absensi {computed.score.attendance ?? '—'} · disiplin{' '}
+                  {computed.score.discipline ?? '—'} · penjualan {computed.score.sales ?? '—'} · akhir{' '}
+                  {computed.score.final}. Komponen yang tidak terukur tidak ikut dihitung.
+                </p>
+              )}
             </Card>
           )}
         </>

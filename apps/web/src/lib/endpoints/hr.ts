@@ -266,6 +266,10 @@ hr: {
     return `/performance/api/v1/performance/dashboard?${p}`;
   },
   generatePerformance: '/performance/api/v1/performance/generate',
+  // Score ONE employee for a period without saving anything. The manual review form used
+  // to ask for a number with nothing to base it on; this is what the number is.
+  performanceScore: (employeeId: string, periodMonth: string) =>
+    `/performance/api/v1/performance/score?employeeId=${encodeURIComponent(employeeId)}&periodMonth=${encodeURIComponent(periodMonth)}`,
   shiftRotations: (depotId?: string) =>
     `/shift-rotations/api/v1/shift-rotations${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   createShiftRotation: '/shift-rotations/api/v1/shift-rotations',

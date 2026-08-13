@@ -207,6 +207,50 @@ function AssetPanel({
   const [to, setTo] = useState('');
   const [condition, setCondition] = useState('');
   const [saving, setSaving] = useState(false);
+  // Editing the asset's own details. `PATCH /employee-assets/:id` has always existed and
+  // nothing called it, so a serial typed wrong at registration could only be fixed in the
+  // database. Status and holder are deliberately NOT here — those move via /movements, so
+  // that every change of hands leaves a trail.
+  const [editing, setEditing] = useState(false);
+  const [details, setDetails] = useState({ name: '', brand: '', serialNo: '', note: '' });
+  const [editSaving, setEditSaving] = useState(false);
+
+  function startEdit() {
+    setDetails({
+      name: asset.name,
+      brand: asset.brand ?? '',
+      serialNo: asset.serialNo ?? '',
+      note: asset.note ?? '',
+    });
+    setEditing(true);
+  }
+
+  async function saveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!details.name.trim()) {
+      toast('Nama aset wajib diisi', 'error');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await api.patch(
+        endpoints.hr.asset(asset.id),
+        {
+          name: details.name.trim(),
+          brand: details.brand.trim(),
+          serialNo: details.serialNo.trim(),
+          note: details.note.trim(),
+        },
+        true,
+      );
+      setEditing(false);
+      onMoved();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Gagal menyimpan detail aset', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -258,10 +302,50 @@ function AssetPanel({
       )}
 
       {isAdmin &&
-        (moves.length === 0 ? (
-          <p className="text-sm text-muted">
-            Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
-          </p>
+        (editing ? (
+          <form onSubmit={saveDetails} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
+            <Field label="Nama aset">
+              <Input
+                value={details.name}
+                onChange={(e) => setDetails((d) => ({ ...d, name: e.target.value }))}
+              />
+            </Field>
+            <Field label="Merek">
+              <Input
+                value={details.brand}
+                onChange={(e) => setDetails((d) => ({ ...d, brand: e.target.value }))}
+              />
+            </Field>
+            <Field label="Nomor seri">
+              <Input
+                value={details.serialNo}
+                onChange={(e) => setDetails((d) => ({ ...d, serialNo: e.target.value }))}
+              />
+            </Field>
+            <Field label="Catatan">
+              <Input
+                value={details.note}
+                onChange={(e) => setDetails((d) => ({ ...d, note: e.target.value }))}
+              />
+            </Field>
+            <div className="col-span-full flex gap-2">
+              <Button type="submit" loading={editSaving}>
+                Simpan Detail
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={editSaving}>
+                Batal
+              </Button>
+            </div>
+          </form>
+        ) : moves.length === 0 ? (
+          <div className="space-y-2 border-t border-app pt-3">
+            <p className="text-sm text-muted">
+              Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
+            </p>
+            <Button variant="secondary" onClick={startEdit}>
+              Ubah Detail
+            </Button>
+          </div>
         ) : (
           <form onSubmit={submit} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
             <Field label="Pergerakan">
@@ -302,9 +386,12 @@ function AssetPanel({
                 placeholder="lecet di spakbor"
               />
             </Field>
-            <div className="col-span-full">
+            <div className="col-span-full flex gap-2">
               <Button type="submit" loading={saving}>
                 Catat Pergerakan
+              </Button>
+              <Button type="button" variant="secondary" onClick={startEdit} disabled={saving}>
+                Ubah Detail
               </Button>
             </div>
           </form>
