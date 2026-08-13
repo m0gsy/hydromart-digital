@@ -761,6 +761,34 @@ describe('GallonReturnPrismaRepository', () => {
     expect(out).toEqual({ returns: 0, gallons: 0, damaged: 0, depositRefunded: 0 });
   });
 
+  // S2. Gallons, not slips, and half-open [from, to) — the daily report's own window, so a
+  // return recorded at the stroke of midnight belongs to exactly one day.
+  it('sums returned and damaged GALLONS over a half-open window', async () => {
+    model.aggregate
+      .mockResolvedValueOnce({ _sum: { quantity: 14 } })
+      .mockResolvedValueOnce({ _sum: { quantity: 3 } });
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const out = await repo.gallonsInRange('depot-1', from, to);
+    expect(model.aggregate).toHaveBeenNthCalledWith(1, {
+      where: { depotId: 'depot-1', createdAt: { gte: from, lt: to } },
+      _sum: { quantity: true },
+    });
+    expect(model.aggregate).toHaveBeenNthCalledWith(2, {
+      where: { depotId: 'depot-1', createdAt: { gte: from, lt: to }, condition: GallonCondition.DAMAGED },
+      _sum: { quantity: true },
+    });
+    expect(out).toEqual({ gallons: 14, damaged: 3 });
+  });
+
+  it('reads a window with no returns as zero, not as null', async () => {
+    model.aggregate.mockResolvedValue({ _sum: { quantity: null } });
+    expect(await repo.gallonsInRange('depot-1', new Date(), new Date())).toEqual({
+      gallons: 0,
+      damaged: 0,
+    });
+  });
+
   it('rolls up a network summary per depot', async () => {
     model.groupBy.mockResolvedValue([
       { depotId: 'depot-1', _sum: { quantity: 4, depositRefunded: decimal(80000) } },

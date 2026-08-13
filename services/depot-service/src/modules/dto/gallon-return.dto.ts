@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 import {
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -98,4 +100,25 @@ export class ListReturnsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+/**
+ * Daily report (S2): gallons handed back at one depot over one window. Both bounds are
+ * required — an open-ended range here would quietly hand a day's report the depot's
+ * whole history.
+ */
+export class GallonReturnRangeQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Start of the window (inclusive).' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'End of the window (exclusive).' })
+  @IsDateString()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
 }

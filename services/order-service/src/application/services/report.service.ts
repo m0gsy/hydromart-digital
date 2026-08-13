@@ -420,11 +420,14 @@ export class ReportService {
     // payment is booked against the depot, and `depotCash` already counts it — asking for
     // both would put the same rupiah in two columns of the same report.
     const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
-    const [cashRows, drawer] = await Promise.all([
+    const [cashRows, drawer, returns] = await Promise.all([
       deliveryOrders.length > 0 && this.paymentCash
         ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
         : Promise.resolve(this.paymentCash ? [] : null),
       this.paymentCash ? this.paymentCash.depotCash(depotId, from, to) : Promise.resolve(null),
+      this.depotDirectory?.gallonReturns
+        ? this.depotDirectory.gallonReturns(depotId, from, to)
+        : Promise.resolve(null),
     ]);
     const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
 
@@ -434,8 +437,8 @@ export class ReportService {
       orders: live.length,
       revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
       gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
-      gallonsReturned: null, // TODO: join depot-service gallon-returns (retur masuk)
-      gallonsDamaged: null, // TODO: join depot-service gallon-returns (rusak)
+      gallonsReturned: returns ? returns.gallons : null,
+      gallonsDamaged: returns ? returns.damaged : null,
       codCollectedIdr: cashRows ? cashRows.reduce((s, c) => s + c.amountIdr, 0) : null,
       cashInDrawerIdr: drawer,
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,

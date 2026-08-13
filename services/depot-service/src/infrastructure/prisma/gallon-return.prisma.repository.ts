@@ -7,6 +7,7 @@ import {
   GallonReturnDepotRow,
   GallonReturnRecord,
   GallonReturnRepository,
+  GallonReturnRangeSummary,
   GallonReturnSummary,
 } from '../../application/ports/gallon-return.repository';
 import { PrismaService } from './prisma.service';
@@ -85,6 +86,23 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
       gallons: agg._sum.quantity ?? 0,
       damaged,
       depositRefunded: Number(agg._sum.depositRefunded ?? 0),
+    };
+  }
+
+  async gallonsInRange(depotId: string, from: Date, to: Date): Promise<GallonReturnRangeSummary> {
+    // Half-open [from, to): the daily report's own window, so a return recorded at the
+    // stroke of midnight belongs to exactly one day rather than to two or to neither.
+    const where = { depotId, createdAt: { gte: from, lt: to } };
+    const [all, damaged] = await Promise.all([
+      this.prisma.gallonReturn.aggregate({ where, _sum: { quantity: true } }),
+      this.prisma.gallonReturn.aggregate({
+        where: { ...where, condition: GallonCondition.DAMAGED },
+        _sum: { quantity: true },
+      }),
+    ]);
+    return {
+      gallons: all._sum.quantity ?? 0,
+      damaged: damaged._sum.quantity ?? 0,
     };
   }
 

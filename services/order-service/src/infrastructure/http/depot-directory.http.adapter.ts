@@ -4,6 +4,7 @@ import { OrderConfigService } from '../../config/order-config.service';
 import {
   DepotContact,
   DepotDirectoryPort,
+  DepotGallonReturns,
   DepotLocation,
   DepotOwnership,
 } from '../../application/ports/depot-directory.port';
@@ -95,6 +96,37 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
       return Array.isArray(body.depots) ? body.depots : null;
     } catch (error) {
       this.logger.warn(`Depot contacts unavailable: ${(error as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async gallonReturns(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotGallonReturns | null> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) return null;
+    const query = `depotId=${encodeURIComponent(depotId)}&from=${from.toISOString()}&to=${to.toISOString()}`;
+    const url = `${this.config.depotServiceUrl}/api/v1/gallon-outstanding/internal/returns-range?${query}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json', 'x-internal-key': internalServiceKey },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`depot-service responded ${res.status}`);
+      }
+      const body = (await res.json()) as Partial<DepotGallonReturns>;
+      return { gallons: body.gallons ?? 0, damaged: body.damaged ?? 0 };
+    } catch (error) {
+      // Null, not zero: "no empties came back today" is a real operational fact and must
+      // not be indistinguishable from "depot-service did not answer".
+      this.logger.warn(`Gallon returns unavailable for ${depotId}: ${(error as Error).message}`);
       return null;
     } finally {
       clearTimeout(timer);

@@ -44,6 +44,7 @@ import {
 import {
   DepotContact,
   DepotDirectoryPort,
+  DepotGallonReturns,
   DepotLocation,
   DepotOwnership,
 } from '../../src/application/ports/depot-directory.port';
@@ -754,6 +755,12 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
       ownerId,
       ownershipType: this.ownershipTypes.get(depotId) ?? (ownerId ? 'WARALABA' : 'HKP'),
     };
+  }
+  /** depotId -> empties handed back; unset reads as a day with no returns recorded. */
+  returns = new Map<string, DepotGallonReturns>();
+  async gallonReturns(depotId: string): Promise<DepotGallonReturns | null> {
+    if (this.unreachable) return null;
+    return this.returns.get(depotId) ?? { gallons: 0, damaged: 0 };
   }
 }
 

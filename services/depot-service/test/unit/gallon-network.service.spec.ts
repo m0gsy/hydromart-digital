@@ -198,3 +198,22 @@ describe('GallonNetworkService.customerLedger', () => {
     ).resolves.toHaveLength(1);
   });
 });
+
+// S2. The daily report asks for one depot's day; the service is a straight pass-through
+// to the repository, and this pins that it does not quietly widen the window.
+describe('GallonNetworkService.gallonsInRange', () => {
+  it('passes the depot and both bounds through untouched', async () => {
+    const gallonsInRange = jest.fn().mockResolvedValue({ gallons: 14, damaged: 3 });
+    const service = new GallonNetworkService(
+      {} as unknown as GallonIssueRepository,
+      { gallonsInRange } as unknown as GallonReturnRepository,
+    );
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    await expect(service.gallonsInRange('d1', from, to)).resolves.toEqual({
+      gallons: 14,
+      damaged: 3,
+    });
+    expect(gallonsInRange).toHaveBeenCalledWith('d1', from, to);
+  });
+});

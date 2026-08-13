@@ -366,6 +366,42 @@ describe('ReportService', () => {
       expect(rep.perCourier).toEqual([{ name: 'Budi', completed: 1, failed: 0, codIdr: null }]);
     });
 
+    // The return slip is written in depot-service, so order-service cannot know this on its
+    // own — but "nothing came back today" is a real operational fact and must not be
+    // indistinguishable from "depot-service did not answer".
+    it('reads gallons returned and damaged from depot-service', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const directory = {
+        gallonReturns: jest.fn(async () => ({ gallons: 14, damaged: 3 })),
+      };
+      const svc = new ReportService(r, reportTestConfig(), directory as never);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.gallonsReturned).toBe(14);
+      expect(rep.gallonsDamaged).toBe(3);
+      // Same window the orders were counted in — a returns figure from a different day
+      // next to this day's sales is a reconciliation that cannot be closed.
+      const [askedDepot, from, to] = directory.gallonReturns.mock.calls[0] as unknown as [
+        string,
+        Date,
+        Date,
+      ];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-07-14T17:00:00.000Z'); // 00:00 WIB on the 15th
+      expect(to.toISOString()).toBe('2026-07-15T17:00:00.000Z');
+    });
+
+    it('leaves both gallon columns null when depot-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig(), {
+        gallonReturns: async () => null,
+      } as never);
+      const rep = await svc.depotDaily(randomUUID(), day);
+      expect(rep.gallonsReturned).toBeNull();
+      expect(rep.gallonsDamaged).toBeNull();
+    });
+
     it('skips the payment round-trip entirely on a day with no delivery orders', async () => {
       const r = new InMemoryOrderRepository();
       const depot = randomUUID();

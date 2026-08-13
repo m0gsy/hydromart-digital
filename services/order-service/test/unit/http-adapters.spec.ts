@@ -304,6 +304,50 @@ describe('DepotDirectoryHttpAdapter', () => {
       ownershipType: 'HKP',
     });
   });
+
+  // S2. `gallonsReturned`/`gallonsDamaged` were hardcoded null in the daily report; the
+  // slip that answers them is written in depot-service.
+  it('reads gallons returned over a window with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { gallons: 14, damaged: 3 } }));
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', from, to);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/gallon-outstanding/internal/returns-range?depotId=d1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({ gallons: 14, damaged: 3 });
+  });
+
+  it('reads a partial returns body as zeroes, not as an outage', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', new Date(), new Date()),
+    ).toEqual({ gallons: 0, damaged: 0 });
+  });
+
+  // Null, not zero: "no empties came back today" is a real operational fact.
+  it.each([
+    ['there is no internal key', { internalServiceKey: '' }, false],
+    ['depot-service answers non-2xx', {}, true],
+  ])('returns null when %s', async (_label, over, callsFetch) => {
+    if (callsFetch) fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig(over)).gallonReturns(
+      'd1',
+      new Date(),
+      new Date(),
+    );
+    expect(out).toBeNull();
+    if (!callsFetch) expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when depot-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', new Date(), new Date()),
+    ).toBeNull();
+  });
 });
 
 describe('FranchiseRevenueHttpAdapter', () => {

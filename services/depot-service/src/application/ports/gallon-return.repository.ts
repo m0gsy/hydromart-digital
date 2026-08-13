@@ -33,6 +33,19 @@ export interface GallonReturnSummary {
   depositRefunded: number;
 }
 
+/**
+ * Empties handed back at one depot over a window, counted in GALLONS.
+ *
+ * Deliberately not `GallonReturnSummary`: that one's `damaged` is a ROW count (how many
+ * return slips mentioned damage), which is the right answer for the returns list and the
+ * wrong one for a report whose other columns are all gallons. `damaged` here is the
+ * subset of `gallons`, not a separate bucket beside it.
+ */
+export interface GallonReturnRangeSummary {
+  gallons: number;
+  damaged: number;
+}
+
 /** One depot's all-time return totals (network rollup). */
 export interface GallonReturnDepotRow {
   depotId: string;
@@ -48,6 +61,8 @@ export interface GallonReturnRepository {
     limit: number,
   ): Promise<{ items: GallonReturnRecord[]; total: number }>;
   summaryForDepot(depotId: string): Promise<GallonReturnSummary>;
+  /** Gallons returned at one depot in [from, to), with the damaged subset. */
+  gallonsInRange(depotId: string, from: Date, to: Date): Promise<GallonReturnRangeSummary>;
   /** Per-depot return totals across the network (SUM quantity, depositRefunded). */
   networkSummary(): Promise<GallonReturnDepotRow[]>;
   /** Return totals per CUSTOMER at one depot (J-2); rows with no customer are excluded. */

@@ -21,7 +21,10 @@ import {
   CustomerGallonLedgerEntryResponseDto,
   CustomerGallonRowResponseDto,
   GallonOutstandingRowResponseDto,
+  GallonReturnRangeResponseDto,
 } from './dto/responses.generated.dto';
+import { GallonReturnRangeQueryDto } from './dto/gallon-return.dto';
+import { GallonReturnRangeSummary } from '../application/ports/gallon-return.repository';
 
 /**
  * Network gallon rollup (HQ compare 14d + reconciliation 22a). Distinct static path so
@@ -70,6 +73,23 @@ export class GallonNetworkController {
     @Query('customerId', ParseUUIDPipe) customerId: string,
   ): Promise<CustomerGallonLedgerEntry[]> {
     return this.gallon.customerLedger(depotId, customerId);
+  }
+
+  /**
+   * Gallons handed back at one depot on one day, for order-service's daily report — the
+   * `gallonsReturned`/`gallonsDamaged` columns that used to be hardcoded null (S2).
+   *
+   * Internal key for the same reason as the two routes above: the caller is a service
+   * composing a report, holding no token for this depot's staff.
+   */
+  @ApiOkResponse({ type: GallonReturnRangeResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/returns-range')
+  @ApiOperation({ summary: "Gallons returned at one depot over a window (internal)" })
+  returnsInRange(@Query() query: GallonReturnRangeQueryDto): Promise<GallonReturnRangeSummary> {
+    return this.gallon.gallonsInRange(query.depotId, new Date(query.from), new Date(query.to));
   }
 
   @ApiOkResponse({ type: GallonOutstandingRowResponseDto, isArray: true })

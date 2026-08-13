@@ -1266,3 +1266,11 @@ export class CustomerGallonLedgerEntryResponseDto {
   @ApiProperty({ type: String })
   at!: string;
 }
+
+/** Mirrors `GallonReturnRangeSummary` exactly — generated for audit D-6, no field added or removed. */
+export class GallonReturnRangeResponseDto {
+  @ApiProperty({ type: Number })
+  gallons!: number;
+  @ApiProperty({ type: Number })
+  damaged!: number;
+}
