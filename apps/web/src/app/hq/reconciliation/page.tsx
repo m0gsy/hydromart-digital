@@ -94,16 +94,39 @@ export default function HqReconciliationPage() {
    */
   const platformFee = sales != null ? Math.round(sales * PLATFORM_FEE_PCT) : null;
 
-  // Real lines.
-  const shippingBilled = shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled ?? 0;
-  const gallonDeposit = gallon.data?.find((r) => r.depotId === selected)?.netDeposit ?? 0;
+  /*
+   * Real lines — and NULL when their source could not be read.
+   *
+   * These used to fall to `?? 0` on failure and go straight into the settlement below, so
+   * an unreachable order-service produced a statement claiming a depot billed no ongkir and
+   * was owed no refunds. A zero is a claim about the month; only null says "not measured".
+   * Same rule the monthly review already follows: no half number.
+   */
+  const line = (err: string | null, value: number | undefined): number | null =>
+    err ? null : (value ?? 0);
+  const shippingBilled = line(
+    shipping.error,
+    shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled,
+  );
+  const gallonDeposit = line(gallon.error, gallon.data?.find((r) => r.depotId === selected)?.netDeposit);
   // Real: refunds settled on this depot's orders in the window (payment-service → order-service).
-  const refunds = refundsByDepot.data?.items.find((r) => r.depotId === selected)?.refunded ?? 0;
+  const refunds = line(
+    refundsByDepot.error,
+    refundsByDepot.data?.items.find((r) => r.depotId === selected)?.refunded,
+  );
 
   // ponytail: illustrative payout formula — owner keeps sales + ongkir, less platform
   // fee, franchise commission, refunds and the deposit held. Server is authority later.
+  //
+  // Null the moment ANY term is: a settlement figure computed from a term nobody could
+  // fetch is not a small error, it is the wrong number with a confident face.
   const net =
-    sales != null && platformFee != null && commission != null
+    sales != null &&
+    platformFee != null &&
+    commission != null &&
+    shippingBilled != null &&
+    refunds != null &&
+    gallonDeposit != null
       ? sales - platformFee - commission + shippingBilled - refunds - gallonDeposit
       : null;
 
@@ -121,18 +144,22 @@ export default function HqReconciliationPage() {
   async function download() {
     if (!depot) return;
     const rows: (string | number)[][] = [
-      [t('hq.reconciliation.lines.sales'), sales ?? 0],
-      [`${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`, -(platformFee ?? 0)],
-      [t('hq.reconciliation.lines.shipping'), shippingBilled],
-      [t('hq.reconciliation.lines.refunds'), -refunds],
+      [t('hq.reconciliation.lines.sales'), sales ?? ''],
+      [
+        `${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`,
+        platformFee == null ? '' : -platformFee,
+      ],
+      [t('hq.reconciliation.lines.shipping'), shippingBilled ?? ''],
+      [t('hq.reconciliation.lines.refunds'), refunds == null ? '' : -refunds],
       [
         scheme
           ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
           : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`,
         -(commission ?? 0),
       ],
-      [t('hq.reconciliation.lines.deposit'), -gallonDeposit],
-      [t('hq.reconciliation.lines.net'), net ?? 0],
+      [t('hq.reconciliation.lines.deposit'), gallonDeposit == null ? '' : -gallonDeposit],
+      // Blank, not 0. A spreadsheet cell reading 0 is a number somebody adds up.
+      [t('hq.reconciliation.lines.net'), net ?? ''],
     ];
     try {
       await downloadXlsx(
@@ -192,8 +219,11 @@ export default function HqReconciliationPage() {
               label={`${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`}
               value={money(platformFee == null ? null : -platformFee)}
             />
-            <Line label={t('hq.reconciliation.lines.shipping')} value={<Money amount={shippingBilled} />} />
-            <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-refunds} />} />
+            <Line label={t('hq.reconciliation.lines.shipping')} value={money(shippingBilled)} />
+            <Line
+              label={t('hq.reconciliation.lines.refunds')}
+              value={money(refunds == null ? null : -refunds)}
+            />
             {/* The agreed rate, named. "—" when this depot has no scheme, never a guess. */}
             <Line
               label={
@@ -203,7 +233,10 @@ export default function HqReconciliationPage() {
               }
               value={money(commission == null ? null : -commission)}
             />
-            <Line label={t('hq.reconciliation.lines.deposit')} value={<Money amount={-gallonDeposit} />} />
+            <Line
+              label={t('hq.reconciliation.lines.deposit')}
+              value={money(gallonDeposit == null ? null : -gallonDeposit)}
+            />
           </dl>
 
           <div className="mt-4 flex items-center justify-between rounded-xl bg-deep-teal px-4 py-4 text-white">

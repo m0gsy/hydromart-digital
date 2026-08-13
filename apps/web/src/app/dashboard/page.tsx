@@ -38,7 +38,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 function ApprovalsWidget() {
   const { t } = useT();
   const { scopedId } = useDepot();
-  const { data, loading } = useAsync<Approval[]>(
+  const { data, loading, error, reload } = useAsync<Approval[]>(
     () => (scopedId ? api.get(endpoints.approvals.list({ depotId: scopedId, status: 'PENDING' }), true) : Promise.resolve([])),
     [scopedId],
   );
@@ -58,6 +58,11 @@ function ApprovalsWidget() {
       </div>
       {loading ? (
         <Skeleton className="h-24 w-full" />
+      ) : error ? (
+        // "Tidak ada approval menunggu" and "we could not ask" are opposite answers, and
+        // this widget rendered the first for both. An approval queue that looks empty is
+        // the one a manager stops checking.
+        <ErrorState message={error} onRetry={reload} />
       ) : items.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.approvals.empty')}</p>
       ) : (
@@ -85,7 +90,7 @@ function ApprovalsWidget() {
 function LowStockWidget() {
   const { t } = useT();
   const { scopedId } = useDepot();
-  const { data, loading } = useAsync<InventoryItem[]>(
+  const { data, loading, error, reload } = useAsync<InventoryItem[]>(
     () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: true }), true) : Promise.resolve([])),
     [scopedId],
   );
@@ -103,6 +108,9 @@ function LowStockWidget() {
       </div>
       {loading ? (
         <Skeleton className="h-24 w-full" />
+      ) : error ? (
+        // A low-stock widget that reads empty says "nothing is running out". A failed read says nothing at all, and the two must not look the same.
+        <ErrorState message={error} onRetry={reload} />
       ) : items.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.lowStock.empty')}</p>
       ) : (
@@ -130,7 +138,7 @@ function LowStockWidget() {
 // Couriers currently on delivery (network-wide).
 function ActiveCouriersWidget() {
   const { t } = useT();
-  const { data, loading } = useAsync<Page<Delivery>>(
+  const { data, loading, error, reload } = useAsync<Page<Delivery>>(
     () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
     [],
   );
@@ -148,6 +156,9 @@ function ActiveCouriersWidget() {
       </div>
       {loading ? (
         <Skeleton className="h-24 w-full" />
+      ) : error ? (
+        // "Nobody is out delivering" and "we could not ask" are opposite answers on a depot at 9am.
+        <ErrorState message={error} onRetry={reload} />
       ) : items.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.couriers.empty')}</p>
       ) : (

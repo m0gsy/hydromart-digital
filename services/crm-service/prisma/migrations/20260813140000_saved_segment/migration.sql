@@ -14,10 +14,14 @@ CREATE TABLE "saved_segments" (
   "createdBy"  TEXT NOT NULL,
   "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"  TIMESTAMP(3) NOT NULL,
-  CONSTRAINT "saved_segments_pkey" PRIMARY KEY ("id")
+  CONSTRAINT "saved_segments_pkey" PRIMARY KEY ("id"),
+  -- Two segments with the same name are two people meaning the same audience and getting
+  -- different ones. Declared INLINE rather than as a separate CREATE INDEX so there is no
+  -- index statement here at all: create-indexes.sh runs BEFORE the migration and cannot
+  -- build one on a table that does not exist yet (audit H-39's check is right to say so).
+  CONSTRAINT "saved_segments_name_key" UNIQUE ("name")
 );
 
--- Two segments with the same name are two people meaning the same audience and getting
--- different ones. The list is short and human-curated, so uniqueness is affordable here.
-CREATE UNIQUE INDEX "saved_segments_name_key" ON "saved_segments"("name");
-CREATE INDEX "saved_segments_createdAt_idx" ON "saved_segments"("createdAt");
+-- ponytail: no index on createdAt. This list is human-curated and capped at 200 rows in
+-- the service; sorting tens of rows needs no index, and one would be a statement the
+-- concurrency rule then has to reason about for nothing.

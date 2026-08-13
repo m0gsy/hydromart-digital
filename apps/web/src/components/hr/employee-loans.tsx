@@ -46,7 +46,9 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
       await api.patch(endpoints.hr.deactivateLoan(id), {}, true);
       loans.reload();
     } catch {
-      notify('Gagal menghentikan pinjaman');
+      // `toast()` defaults to tone 'success' — a failure that says nothing about its tone
+      // renders GREEN with a tick, which is the one thing a failed write must not look like.
+      notify('Gagal menghentikan pinjaman', 'error');
     }
   }
 

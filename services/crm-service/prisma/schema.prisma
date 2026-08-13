@@ -210,6 +210,5 @@ model SavedSegment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@index([createdAt])
   @@map("saved_segments")
 }

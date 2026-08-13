@@ -76,7 +76,9 @@ function RulesBody() {
       await api.patch(endpoints.hr.updateBonusRule(r.id), { active: !r.active }, true);
       rules.reload();
     } catch {
-      notify('Gagal mengubah status rule');
+      // Same trap as employee-loans: `toast()` defaults to 'success', so this failure
+      // used to render green with a tick.
+      notify('Gagal mengubah status rule', 'error');
     }
   }
 
