@@ -231,4 +231,22 @@ describe('ScheduledReportRunnerService', () => {
     await runner.runDue(WED);
     expect((await schedules.list())[0].lastRunAt).toEqual(WED);
   });
+  /*
+   * The cron entry calls `runDue()` with no argument, so the default `new Date()` is the
+   * arm the SWEEP actually takes and every test above passes an explicit date. CI counts
+   * that default as an uncovered branch — and it is the one path production runs.
+   */
+  it('sweeps against the current clock when called with no argument', async () => {
+    const { schedules, logs, runner } = makeRunner(jest.fn().mockResolvedValue([]));
+    await schedules.create({
+      name: 'Tanpa jam',
+      cadence: ReportCadence.DAILY,
+      recipients: ['a@b.c'],
+      format: ExportFormat.CSV,
+      dataset: ReportDataset.REVENUE_BY_PRODUCT,
+    });
+    const result = await runner.runDue();
+    expect(result.due).toBe(1);
+    expect(logs.rows).toHaveLength(1);
+  });
 });
