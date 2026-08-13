@@ -10,6 +10,7 @@ import {
   phoneCell,
   type ImportColumn,
 } from '@/components/csv-import';
+import { LoadError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -142,6 +143,18 @@ export default function ImportEmployeesPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
+      {/* Department and shift columns are validated AGAINST these two lists, so an unread
+          list rejects every row with "kode departemen tidak dikenal" — which reads as a bad
+          spreadsheet, and the operator edits a file that was right all along. */}
+      {(departments.error || shifts.error) && (
+        <LoadError
+          onRetry={() => {
+            if (departments.error) departments.reload();
+            if (shifts.error) shifts.reload();
+          }}
+        />
+      )}
+
       <label className="flex items-start gap-3 rounded-lg border border-app p-4 text-sm">
         <input
           type="checkbox"

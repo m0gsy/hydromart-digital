@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Broadcast } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -129,6 +129,9 @@ export default function HqBroadcastPage() {
               ))}
             </select>
           )}
+          {audience === 'depot' && depots.error && (
+            <LoadError onRetry={depots.reload} className="mt-1" />
+          )}
         </div>
 
         <Field label={t('hq.broadcast.titleLabel')} htmlFor="b-title">
@@ -182,7 +185,9 @@ export default function HqBroadcastPage() {
           <span className="text-2xl font-bold tabular-nums text-brand-700">
             {reach.loading
               ? '…'
-              : t('hq.broadcast.people', { n: (reach.data?.count ?? 0).toLocaleString('id-ID') })}
+              : reach.error
+                ? t('hq.common.dash')
+                : t('hq.broadcast.people', { n: (reach.data?.count ?? 0).toLocaleString('id-ID') })}
           </span>
         ) : (
           <span className="text-sm text-muted">{t('hq.broadcast.pickDepot')}</span>
