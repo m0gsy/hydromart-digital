@@ -53,6 +53,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { isServedHere } from '@/lib/deep-link';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -120,7 +121,16 @@ export const GROUPS: RailGroup[] = [
       // The way back out. Console routes carry no shop nav, so without this an HQ account
       // that stepped into the depot console had no link home either — the same missing
       // door as the /dashboard entry in the HQ rail, in the other direction.
-      { href: '/hq', labelKey: 'hqConsole', icon: Buildings, show: isHq },
+      //
+      // Gated on the binary actually serving `/hq`: the Ops app prunes the whole HQ console,
+      // so this door led an HQ account to a route that is not in the bundle — the S1 bug one
+      // surface over. `consoleHome()` already falls through for the same reason.
+      {
+        href: '/hq',
+        labelKey: 'hqConsole',
+        icon: Buildings,
+        show: (role) => isHq(role) && isServedHere('/hq'),
+      },
     ],
   },
   {
