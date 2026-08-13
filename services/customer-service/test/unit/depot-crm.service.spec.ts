@@ -356,6 +356,28 @@ describe('DepotCrmService.getDepotDetail', () => {
     expect(d.profile.churnRisk).toBeNull();
   });
 
+  // The pre-S2 shape: neither optional port injected at all. It must behave exactly as it
+  // did before — three nulls — rather than throw on a service built the old way.
+  it('reports all three as null when neither optional port is wired', async () => {
+    const profiles = { findByCustomerId: async () => null } as unknown as ProfileRepository;
+    const addressRepo = { listByCustomer: async () => [addr({})] } as unknown as AddressRepository;
+    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => [], customerOrders: async () => [] };
+    const svc = new DepotCrmService(
+      new FakeDepotCrmRepository(),
+      addressRepo,
+      profiles,
+      orderCrm,
+      { gallonsByCustomer: async () => null, customerLedger: async () => [] } as never,
+      new FakeIdentity(),
+      {} as never,
+    );
+
+    const d = await svc.getDepotDetail('c1', 'depot-a');
+    expect(d.profile.isSubscriber).toBeNull();
+    expect(d.profile.churnRisk).toBeNull();
+    expect(d.addresses[0]).toMatchObject({ distanceKm: null, inRadius: null });
+  });
+
   it('carries the churn band forecast-service scored', async () => {
     const d = await service(null, [], new FakeIdentity(), { churn: 'HIGH' }).getDepotDetail(
       'c1',

@@ -219,6 +219,16 @@ describe('ForecastService', () => {
     expect(await service.churnFor('never-ordered', NOW)).toBeNull();
   });
 
+  // The production path takes no `now`: it reads the clock. A customer who ordered a moment
+  // ago has zero recency, so their risk must be LOW against a real wall clock too.
+  it('churnFor reads the clock when no now is passed', async () => {
+    await service.ingest(makeIngest({ orderId: 'o-now', customerId: 'fresh', at: new Date() }));
+    const risk = await service.churnFor('fresh');
+    expect(risk).not.toBeNull();
+    expect(risk!.daysSince).toBe(0);
+    expect(risk!.riskBand).toBe('LOW');
+  });
+
   // §G-3: a re-engage list nobody can put a name to is a list nobody calls.
   it('churnList carries the account name, and only asks about the rows it kept', async () => {
     const asked: string[][] = [];

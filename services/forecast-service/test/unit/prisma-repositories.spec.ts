@@ -18,7 +18,7 @@ describe('ForecastPrismaRepository', () => {
   const productDailyDemand = { findMany: jest.fn() };
   const productRef = { findMany: jest.fn() };
   const depotDailyRevenue = { findMany: jest.fn() };
-  const customerActivity = { findMany: jest.fn() };
+  const customerActivity = { findMany: jest.fn(), findUnique: jest.fn() };
 
   // Write-path models (tx.* inside the transaction callback)
   const tx = {
@@ -227,5 +227,33 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
       orderBy: { lastOrderAt: 'asc' },
       take: 10,
     });
+  });
+
+  // S2. The depot CRM card scores one customer, so it reads one row by primary key rather
+  // than filtering the at-risk list — which would report LOW for anyone outside the top-N.
+  it('finds one customer activity row by primary key', async () => {
+    const lastOrderAt = new Date('2026-01-10T00:00:00Z');
+    customerActivity.findUnique.mockResolvedValue({
+      customerId: 'cust-1',
+      depotId: 'depot-1',
+      lastOrderAt,
+      orderCount: 5,
+      totalSpent: 500000,
+    });
+    await expect(repo.findCustomerActivity('cust-1')).resolves.toEqual({
+      customerId: 'cust-1',
+      depotId: 'depot-1',
+      lastOrderAt,
+      orderCount: 5,
+      totalSpent: 500000,
+    });
+    expect(customerActivity.findUnique).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
+  });
+
+  // Null, not a zeroed row: a customer who has never ordered has no recency, so there is
+  // no risk to report about them.
+  it('returns null for a customer with no activity row', async () => {
+    customerActivity.findUnique.mockResolvedValue(null);
+    await expect(repo.findCustomerActivity('nobody')).resolves.toBeNull();
   });
 });

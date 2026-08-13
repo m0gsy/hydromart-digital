@@ -63,6 +63,15 @@ describe('DepotProfileHttpAdapter', () => {
     });
   });
 
+  it('returns null for geo without a round-trip when depot-service is unconfigured', async () => {
+    const fetchMock = jest.fn();
+    setFetch(fetchMock);
+    await expect(
+      new DepotProfileHttpAdapter(buildTestConfig({ INTERNAL_SERVICE_KEY: 'k' })).geo(DEPOT),
+    ).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reads subscriber ids over the internal key', async () => {
     const fetchMock = jest
       .fn()
@@ -139,12 +148,13 @@ describe('ChurnRiskHttpAdapter', () => {
     await expect(new ChurnRiskHttpAdapter(configured).bandFor(CUSTOMER)).resolves.toBeNull();
   });
 
-  it('returns null without a round-trip when forecast-service is unconfigured', async () => {
+  it.each([
+    ['forecast-service is unconfigured', { INTERNAL_SERVICE_KEY: 'k' }],
+    ['there is no internal key', { FORECAST_SERVICE_URL: 'http://forecast:3014' }],
+  ])('returns null without a round-trip when %s', async (_label, env) => {
     const fetchMock = jest.fn();
     setFetch(fetchMock);
-    await expect(
-      new ChurnRiskHttpAdapter(buildTestConfig({ INTERNAL_SERVICE_KEY: 'k' })).bandFor(CUSTOMER),
-    ).resolves.toBeNull();
+    await expect(new ChurnRiskHttpAdapter(buildTestConfig(env)).bandFor(CUSTOMER)).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
