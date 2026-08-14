@@ -1,0 +1,44 @@
+﻿signed in as customer (+6281298765432) → /products
+sample ids: {"/products/detail":"09170b44-d893-45f2-b974-a1fdcbf806fa","/orders/detail":"dcd5042f-2ad0-4bd2-a1f9-97d79986b003"}
+..........................
+[id done]
+
+customer: 26 page loads × 1 widths — 30 findings
+
+### TAP SMALL (24)
+  id  320  /  a "hydromart" — 143x36 < 44
+  id  320  /  button.flex.h-10.w-10 — 40x40 < 44
+  id  320  /  a.inline-flex.self-start.rounded-full "Lihat rewards" — 135x42 < 44
+  id  320  /  button.flex.items-center.gap-2 "Pilih lokasi pengiriman" — 222x38 < 44
+  id  320  /products/detail  a.hover:text-brand-700 "Belanja" — 46x20 < 44
+  id  320  /orders  button.flex.h-10.w-10 — 40x40 < 44
+  id  320  /orders/detail  a.flex.h-10.w-10 — 40x40 < 44
+  id  320  /orders/detail/review  button — 34x34 < 44
+  id  320  /orders/detail/review  button.rounded-lg.px-2.5.py-1.5 "—" — 32x31 < 44
+  id  320  /orders/detail/review  button.rounded-lg.px-2.5.py-1.5 "2rb" — 41x31 < 44
+  id  320  /orders/detail/review  button.rounded-lg.px-2.5.py-1.5 "5rb" — 41x31 < 44
+  id  320  /account  a.flex.items-center.gap-1.5 "Ubah" — 79x28 < 44
+  id  320  /account/edit  button.absolute.bottom-0.right-0 — 30x30 < 44
+  id  320  /account/edit  button.text-[12.5px].font-bold.text-brand-700 "Ganti foto" — 61x19 < 44
+  id  320  /notifications  button.text-xs.font-bold.text-brand-700 "Tandai dibaca" — 80x16 < 44
+  id  320  /promo  a.text-[13px].font-bold.text-brand-600 "Lihat semua" — 75x20 < 44
+  id  320  /promo  button.flex.h-10.w-10 — 40x40 < 44
+  id  320  /subscriptions  button.h-11.w-11.rounded-full "−" — 42x44 < 44
+  id  320  /subscriptions  button.h-11.w-11.rounded-full "+" — 42x44 < 44
+  id  320  /hapus-akun  a.font-bold.text-brand-600.hover:underline "Kebijakan Privasi" — 106x16 < 44
+  id  320  /login  a.font-bold.text-brand-700.hover:underline "Daftar sekarang" — 109x36 < 44
+  id  320  /register  a.text-[13px].font-bold.text-muted "Lewati" — 42x20 < 44
+  id  320  /register  a.font-bold.text-brand-600.hover:underline "Kebijakan Privasi" — 158x36 < 44
+  id  320  /register  a.font-bold.text-brand-700.hover:underline "Masuk" — 41x16 < 44
+
+### REQUEST (2)
+  id    -  /checkout  404 /customers/api/v1/resellers/me
+  id    -  /orders/detail  404 /depots/api/v1/depots/ba459d72-612b-48c3-9f88-c4f1fd5cb167/payment-info
+
+### CONSOLE (2)
+  id    -  /checkout  Failed to load resource: the server responded with a status of 404 (Not Found)
+  id    -  /orders/detail  Failed to load resource: the server responded with a status of 404 (Not Found)
+
+### CLIPPED (decorative) (2)
+  id  320  /promo  32px past div.relative.overflow-hidden.rounded-3xl "Berakhir 23 Agu 2026Promo Fase 0 p" (288px) — div.pointer-events-none.absolute.-right-8
+  id  320  /rewards  32px past div.relative.overflow-hidden.rounded-3xl "KeanggotaanSILVERDiskon 2% tiap pe" (288px) — svg

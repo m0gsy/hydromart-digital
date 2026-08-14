@@ -101,6 +101,17 @@ export class AssignDeliveryDto {
   @MaxLength(30)
   recipientPhone?: string;
 
+  /**
+   * The customer this order belongs to, snapshotted so a delivery notification can thread
+   * into their in-app feed rather than only reaching their phone. Optional: a counter sale
+   * has no account behind it, and every binary already in Play sends this payload without
+   * the field.
+   */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
   @ApiPropertyOptional({
     example: '081298765432',
     description: "Courier's phone, forwarded to order-service so the customer can call the driver.",

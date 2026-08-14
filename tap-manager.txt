@@ -1,0 +1,22 @@
+﻿signed in as manager (+6281100000002) → /dashboard
+sample ids: {}
+........
+[id done]
+
+manager: 8 page loads × 1 widths — 6 findings
+
+### NO SAMPLE ROW (1)
+  id    -  /m/manager/approvals  no <a href="/m/manager/approvals/detail?id=…"> on /m/manager/approvals
+
+### TAP SMALL (2)
+  id  320  /m/manager/account  button.min-h-11.px-3.py-1.5 "id" — 36x44 < 44
+  id  320  /m/manager/account  button.min-h-11.px-3.py-1.5 "en" — 40x44 < 44
+
+### REQUEST (1)
+  id    -  /m/manager/approvals/detail  400 /approvals/api/v1/approvals/
+
+### CONSOLE (1)
+  id    -  /m/manager/approvals/detail  Failed to load resource: the server responded with a status of 400 (Bad Request)
+
+### CLIPPED (decorative) (1)
+  id  320  /m/manager/login  32px past div.relative.overflow-hidden.px-7 "HydromartKonsol Manajer Depot" (320px) — svg

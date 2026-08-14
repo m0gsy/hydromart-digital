@@ -120,6 +120,11 @@ model Delivery {
   // [{name, qty}] line-item snapshot. codAmount is whole-IDR cash to collect;
   // null = non-COD / unknown (legacy rows, or payment method not yet joined).
   recipientPhone String?
+  // The customer this delivery belongs to, snapshotted at assignment. Nullable and staying
+  // that way: every row assigned before the column existed has no owner recorded, and
+  // guessing one is worse than admitting we do not know. A notification with a null owner
+  // reaches the phone but does not thread into the in-app feed.
+  customerId     String?        @db.Uuid
   items          Json?
   codAmount      Int?
   // Delivery note / landmark (patokan) snapshotted from the order at assignment so the
@@ -163,6 +168,8 @@ model Delivery {
   // Every SLA aggregate filters on deliveredAt (+ depot scope); back it (audit DB-4).
   @@index([deliveredAt])
   @@index([depotId, deliveredAt])
+  // The customer feed read: this person's deliveries, newest first.
+  @@index([customerId, createdAt(sort: Desc)])
   @@map("deliveries")
 }
 

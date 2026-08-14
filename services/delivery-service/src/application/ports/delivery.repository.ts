@@ -35,6 +35,12 @@ export interface DeliveryRecord {
   destinationLat: number | null;
   destinationLng: number | null;
   recipientPhone: string | null;
+  /**
+   * Snapshotted at assignment. OPTIONAL rather than nullable-required: a row written before
+   * the column existed has no owner recorded, and the field being absent says that more
+   * honestly than a null every fixture has to spell out.
+   */
+  customerId?: string | null;
   items: DeliveryItem[] | null;
   codAmount: number | null;
   notes: string | null;
@@ -66,6 +72,7 @@ export interface CreateDeliveryData {
   destinationLat: number | null;
   destinationLng: number | null;
   recipientPhone: string | null;
+  customerId?: string | null;
   items: DeliveryItem[] | null;
   codAmount: number | null;
   notes: string | null;

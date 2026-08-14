@@ -65,6 +65,12 @@ export interface AssignInput {
   destinationLat?: number;
   destinationLng?: number;
   recipientPhone?: string;
+  /**
+   * Snapshotted so a notification about this delivery can thread into the customer's
+   * in-app feed. Absent for a counter sale, and for every binary released before the
+   * field existed — the notification then reaches the phone with a null owner.
+   */
+  customerId?: string;
   driverPhone?: string;
   items?: { name: string; qty: number }[];
   /**
@@ -194,6 +200,7 @@ export class DeliveryService {
       destinationLat: input.destinationLat ?? null,
       destinationLng: input.destinationLng ?? null,
       recipientPhone: input.recipientPhone ?? null,
+      customerId: input.customerId ?? null,
       items: input.items ?? null,
       codAmount,
       notes: input.notes ?? null,

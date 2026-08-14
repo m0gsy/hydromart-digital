@@ -1,0 +1,484 @@
+﻿signed in as operator (+6281100000005) → /dashboard
+sample ids: {}
+......................................................................
+[id done]
+
+operator: 70 page loads × 1 widths — 428 findings
+
+### NO SAMPLE ROW (4)
+  id    -  /dashboard/approvals  no <a href="/dashboard/approvals/detail?id=…"> on /dashboard/approvals
+  id    -  /dashboard/customers  no <a href="/dashboard/customers/detail?id=…"> on /dashboard/customers
+  id    -  /dashboard/promotions  no <a href="/dashboard/promotions/detail?id=…"> on /dashboard/promotions
+  id    -  /dashboard/purchase-orders  no <a href="/dashboard/purchase-orders/detail?id=…"> on /dashboard/purchase-orders
+
+### TAP SMALL (381)
+  id  320  /dashboard  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard  a.text-xs.font-bold.text-brand-800 "Lihat antrean" — 76x16 < 44
+  id  320  /dashboard  a.mt-1.flex.h-9 "Verifikasi setoran" — 254x36 < 44
+  id  320  /dashboard/account  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard/account  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard/account  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard/account  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard/account  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard/account  button.min-h-11.px-3.py-1.5 "id" — 36x44 < 44
+  id  320  /dashboard/account  button.min-h-11.px-3.py-1.5 "en" — 40x44 < 44
+  id  320  /dashboard/approvals  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard/approvals  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard/approvals  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard/approvals  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard/approvals  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard/approvals/detail  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard/approvals/detail  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard/approvals/detail  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard/approvals/detail  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard/approvals/detail  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard/audit  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard/audit  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard/audit  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard/audit  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard/audit  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard/audit  button.rounded-full.border.px-3 "Semua" — 73x30 < 44
+  id  320  /dashboard/audit  button.rounded-full.border.px-3 "Opname" — 85x30 < 44
+  id  320  /dashboard/audit  button.rounded-full.border.px-3 "Penerimaan" — 105x30 < 44
+  id  320  /dashboard/audit  button.rounded-full.border.px-3 "Harga" — 67x30 < 44
+  id  320  /dashboard/audit  button.rounded-full.border.px-3 "Setoran" — 79x30 < 44
+  id  320  /dashboard/broadcast  a.relative.flex.h-9 — 36x36 < 44
+  id  320  /dashboard/broadcast  a.shrink-0.rounded-lg.px-3 "Ringkasan" — 86x35 < 44
+  id  320  /dashboard/broadcast  a.shrink-0.rounded-lg.px-3 "Antrean" — 72x35 < 44
+  id  320  /dashboard/broadcast  a.shrink-0.rounded-lg.px-3 "Penjualan" — 82x35 < 44
+  id  320  /dashboard/broadcast  a.shrink-0.rounded-lg.px-3 "Kurir" — 52x35 < 44
+  id  320  /dashboard/broadcast  button.rounded-xl.border.px-3 "Kurir aktif" — 83x36 < 44
+  … 341 more
+
+### DENIED (27)
+  id    -  /dashboard/approvals  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/approvals/detail  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/campaigns  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/cashbook  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/churn  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/commission  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/compare  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/depot-settings  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/expense-claims  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/loyalty  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/monthly-pnl  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/monthly-review  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/onboarding  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/pricing  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/profile  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/purchase-orders  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/purchase-orders/detail  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/ratings  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/recommendations  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/referral  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/settings  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/subscriptions  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/suppliers  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/targets  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/team-performance  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/vouchers  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+  id    -  /dashboard/wastage  Depot Dago
+KD
+Ringkasan
+Antrean
+Penjualan
+Kurir
+Inventory
+Retur
+Setoran
+Pelanggan
+Insiden
+Promo
+Hadiah
+Broadcast
+Absen s
+
+### REQUEST (6)
+  id    -  /dashboard/audit  403 /auth/api/v1/auth/audit/depot
+  id    -  /dashboard/customers/detail  404 /customers/api/v1/customers//depot-detail
+  id    -  /dashboard/products  404 /dashboard/products
+  id    -  /dashboard/promotions/detail  404 /dashboard/promotions/detail
+  id    -  /dashboard/roles  403 /auth/api/v1/access/matrix
+  id    -  /dashboard/vouchers  403 /vouchers/api/v1/vouchers
+
+### CONSOLE (8)
+  id    -  /dashboard/audit  Failed to load resource: the server responded with a status of 403 (Forbidden)
+  id    -  /dashboard/customers/detail  Failed to load resource: the server responded with a status of 404 (Not Found)
+  id    -  /dashboard/products  Failed to load resource: the server responded with a status of 404 (Not Found)
+  id    -  /dashboard/products  pageerror: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+  id    -  /dashboard/promotions/detail  Failed to load resource: the server responded with a status of 404 (Not Found)
+  id    -  /dashboard/promotions/detail  pageerror: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+  id    -  /dashboard/roles  Failed to load resource: the server responded with a status of 403 (Forbidden)
+  id    -  /dashboard/vouchers  Failed to load resource: the server responded with a status of 403 (Forbidden)
+
+### HTTP (2)
+  id    -  /dashboard/products  404
+  id    -  /dashboard/promotions/detail  404

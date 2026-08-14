@@ -151,6 +151,9 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
           destinationLat: order.latitude ?? undefined,
           destinationLng: order.longitude ?? undefined,
           recipientPhone: order.phone,
+          // Snapshotted so a notification about this delivery can thread into the
+          // customer's in-app feed, not only reach their phone.
+          customerId: order.customerId,
           items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
           // No codAmount: delivery-service reads the payment itself now. This screen could
           // not — `paymentSettle` excludes SUPERVISOR and ASSISTANT_SUPERVISOR, who are
