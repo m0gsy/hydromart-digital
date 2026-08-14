@@ -236,6 +236,34 @@ describe('DeliveryService', () => {
 
     // A counter sale has nobody to call. Sending crm an empty string would be a 400 the
     // adapter swallows — silence that looks like success.
+    // Rilis 2: the owner snapshotted at assignment reaches crm, so the notice threads into
+    // that customer's in-app feed and not only into WhatsApp.
+    it('passes the customer the delivery belongs to, so the notice reaches their feed', async () => {
+      const customerId = randomUUID();
+      const d = await withNotifier.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-11',
+          driverId: driver,
+          destinationAddress: 'Jl. Merdeka 10',
+          recipientPhone: '081234567890',
+          customerId,
+        },
+        AUTH,
+      );
+      await withNotifier.pickup(driver, d.id, AUTH);
+      await withNotifier.reschedule(driver, d.id, {
+        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+      });
+      expect(notify).toHaveBeenCalledWith(
+        'DELIVERY_RESCHEDULED',
+        '081234567890',
+        expect.anything(),
+        customerId,
+      );
+    });
+
     it('says so rather than calling crm when the delivery has no phone', async () => {
       const d = await withNotifier.assign(
         staff,

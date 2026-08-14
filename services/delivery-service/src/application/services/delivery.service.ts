@@ -476,9 +476,11 @@ export class DeliveryService {
    * absence is reported as itself rather than sent to crm as an empty string, which crm
    * would 400 and the adapter would swallow.
    *
-   * `customerId` is snapshotted at assignment but NOT read here yet: the column ships one
-   * release before the code that uses it, so this release still sends a null owner and the
-   * notice is phone-only. Release 2 passes it.
+   * `customerId` is snapshotted at assignment — the column shipped two releases before this
+   * line, and its index one — so the notice threads into that customer's in-app feed as well
+   * as reaching their phone. A delivery assigned before the column existed, or a counter sale
+   * with no account behind it, carries null: crm stores a null owner and the notice is
+   * phone-only, which is the honest outcome rather than a guessed one.
    */
   private async notifyRescheduled(
     delivery: { id: string; orderNumber: string; recipientPhone: string | null; customerId?: string | null },
@@ -503,8 +505,7 @@ export class DeliveryService {
         slot: input.slot ?? '',
         note: input.note ?? '',
       },
-      // Release 2 replaces this with `delivery.customerId ?? null`.
-      null,
+      delivery.customerId ?? null,
     );
   }
 
