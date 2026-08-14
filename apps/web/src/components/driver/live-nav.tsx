@@ -88,7 +88,7 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
       {geoError ? (
         <div className="flex items-center gap-2 text-sm font-bold text-amber-700">
           <WarningCircle size={18} weight="fill" />
-          Lokasi GPS tidak aktif — nyalakan izin lokasi untuk pelacakan langsung.
+          {t('hrFix.liveNav.gpsOff')}
         </div>
       ) : (
         <div className="flex items-center gap-2 text-sm">
@@ -106,7 +106,7 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
         </div>
       )}
       <Button className="w-full" onClick={onArrive}>
-        Sampai tujuan · ambil bukti
+        {t('hrFix.liveNav.arrived2')}
       </Button>
     </div>
   );

@@ -39,10 +39,10 @@ function BrandPanel() {
         <h2 className="font-extrabold" style={{ fontSize: 34, lineHeight: 1.15 }}>
           Air minum,
           <br />
-          diantar dalam menit.
+          {t('auth.login.heroLine2')}
         </h2>
         <p className="mt-4 max-w-[340px]" style={{ fontSize: 14.5, color: 'rgba(255,255,255,.72)' }}>
-          Galon isi ulang, air botol, dan dispenser dari depot terdekat. Masuk untuk pesan ulang sekali ketuk.
+          {t('auth.login.heroBody')}
         </p>
         <div className="mt-7 flex gap-[22px]">
           <div>

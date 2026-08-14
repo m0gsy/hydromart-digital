@@ -403,7 +403,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           <p className="text-xs font-semibold text-red-600">
             Harga khusus depot tidak terbaca — total memakai harga dasar katalog.{' '}
             <button type="button" onClick={resolved.reload} className="underline">
-              Muat ulang
+              {t('opsFix.walkIn.reload')}
             </button>
           </p>
         )}
@@ -413,7 +413,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           // promising a number on this screen could be a lie. The struk and the change come
           // from `order.total`, which is the one that counted.
           <p className="text-xs text-muted">
-            Potongan tier/harga agen/voucher dihitung saat disimpan dan tercetak di struk.
+            {t('opsFix.walkIn.discountHint')}
           </p>
         )}
 
@@ -435,7 +435,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
           {(!methodReady.QRIS || !methodReady.TRANSFER) && (
             <p className="text-xs text-muted">
-              Metode yang mati belum diatur depot — isi QRIS/rekening di halaman Depot.
+              {t('opsFix.walkIn.methodOffHint')}
             </p>
           )}
         </fieldset>

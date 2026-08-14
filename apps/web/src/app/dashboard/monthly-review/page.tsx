@@ -205,7 +205,7 @@ function Gate() {
   if (!canViewDepotFinance(customer?.role)) {
     return (
       <CenterState title={t('hrFix.monthlyReview.managerOnly')} icon={<Lock size={40} weight="fill" />}>
-        Tinjauan ops bulanan hanya untuk Manajer depot.
+        {t('hrFix.monthlyReview.gateBody2')}
       </CenterState>
     );
   }

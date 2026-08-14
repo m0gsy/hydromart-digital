@@ -201,7 +201,7 @@ function Rotations({
             ))}
           </div>
           <Button onClick={create} loading={saving}>
-            Buat Rotasi
+            {t('hrFix.shift.createRotation2')}
           </Button>
         </div>
       )}

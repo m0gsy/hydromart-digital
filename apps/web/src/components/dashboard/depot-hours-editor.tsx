@@ -160,7 +160,7 @@ export function DepotHoursEditor({
             <p className="text-sm font-bold">{t('hrFix.depotHours.holidays')}</p>
             <Button variant="ghost" onClick={addHoliday} className="px-2 py-1 text-xs">
               <Plus size={14} weight="bold" />
-              Tambah
+              {t('hrFix.depotHours.add2')}
             </Button>
           </div>
           {holidays.length === 0 ? (
@@ -204,7 +204,7 @@ export function DepotHoursEditor({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('hrFix.depotHours.cancel2')}
         </Button>
         <Button onClick={save} loading={busy}>
           Simpan jam &amp; libur

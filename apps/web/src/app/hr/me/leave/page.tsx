@@ -144,10 +144,10 @@ export default function MyLeavePage() {
             </p>
           )}
           <Button type="submit" loading={saving} className="w-full">
-            Ajukan Cuti
+            {t('hrFix.myLeave.apply2')}
           </Button>
           <p className="text-xs text-muted">
-            Hari libur nasional dan libur mingguan di dalam rentang tidak memotong kuota.
+            {t('hrFix.myLeave.holidayHint')}
           </p>
         </form>
       </Card>

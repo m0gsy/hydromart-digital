@@ -66,7 +66,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
 
       {c.receiptUrl && (
         <ExternalLink href={c.receiptUrl} className="text-xs font-bold text-brand-600 underline">
-          Lihat struk
+          {t('hrFix.expenseClaims.viewReceipt')}
         </ExternalLink>
       )}
 
@@ -78,10 +78,10 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex gap-2">
             <Button onClick={() => act('approve')} loading={busy === 'approve'} className="flex-1">
-              Setujui
+              {t('hrFix.expenseClaims.approve')}
             </Button>
             <Button variant="danger" onClick={() => act('reject')} loading={busy === 'reject'} className="flex-1">
-              Tolak
+              {t('hrFix.expenseClaims.reject')}
             </Button>
           </div>
         </>
@@ -154,7 +154,7 @@ function Gate() {
   if (!canApproveExpense(customer?.role)) {
     return (
       <CenterState title={t('hrFix.expenseClaims.restricted')} icon={<Lock size={40} weight="fill" />}>
-        Persetujuan klaim pengeluaran tersedia untuk manajer depot dan finance.
+        {t('hrFix.expenseClaims.gateBody2')}
       </CenterState>
     );
   }

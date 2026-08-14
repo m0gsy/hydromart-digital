@@ -245,7 +245,7 @@ function CartInner() {
                 {/* ponytail: cart lines carry no depot, so the label is fixed. Add an
                     i18n key + real depot label when the cart exposes stock-by-depot. */}
                 <span className="mt-1.5 inline-flex rounded-full bg-brand-50 px-[9px] py-0.5 text-[11px] font-bold text-brand-800">
-                  Stok tersedia
+                  {t('order.cart.inStock')}
                 </span>
               </div>
               <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-start">

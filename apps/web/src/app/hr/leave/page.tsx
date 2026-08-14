@@ -76,7 +76,7 @@ export default function LeaveQueuePage() {
         action={
           isHr ? (
             <LinkButton href="/hr/leave/balances-import" variant="secondary">
-              Import Saldo Cuti
+              {t('hrFix.leave.importBalances')}
             </LinkButton>
           ) : undefined
         }
@@ -129,7 +129,7 @@ export default function LeaveQueuePage() {
                     />
                     <Button onClick={() => decide(r, true)}>{t('hrFix.leave.approve')}</Button>
                     <Button variant="secondary" onClick={() => decide(r, false)}>
-                      Tolak
+                      {t('hrFix.leave.reject2')}
                     </Button>
                   </div>
                 )}

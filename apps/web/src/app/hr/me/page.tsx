@@ -60,7 +60,7 @@ export default function MePage() {
         href={consoleHome(customer?.role)}
         className="block py-2 text-center text-sm font-semibold text-muted hover:text-brand-700"
       >
-        ← Kembali ke konsol
+        {t('hrFix.me.backToConsole2')}
       </Link>
     </div>
   );

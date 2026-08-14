@@ -123,7 +123,7 @@ export function CashierShiftBar({
           <div>
             <p className="font-semibold">{t('hrFix.cashierShift.noneOpen')}</p>
             <p className="text-sm text-muted">
-              Buka shift dulu — penjualan konter ditolak selama laci belum ada penanggung jawabnya.
+              {t('hrFix.cashierShift.openFirst')}
             </p>
           </div>
           <Field label={t('hrFix.cashierShift.openingFloat')} htmlFor="shift-float">
@@ -156,7 +156,7 @@ export function CashierShiftBar({
             {!closing && (
               <Button variant="ghost" onClick={() => setClosing(true)}>
                 <LockKey size={18} className="mr-1" />
-                Tutup shift
+                {t('hrFix.cashierShift.closeShift2')}
               </Button>
             )}
           </div>
@@ -191,7 +191,7 @@ export function CashierShiftBar({
                   Tutup &amp; hitung selisih
                 </Button>
                 <Button variant="ghost" onClick={() => setClosing(false)} disabled={busy}>
-                  Batal
+                  {t('hrFix.cashierShift.cancel2')}
                 </Button>
               </div>
             </div>

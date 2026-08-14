@@ -520,7 +520,7 @@ function Gate() {
   if (!isStaff(customer?.role) && !canViewDashboard(customer?.role)) {
     return (
       <CenterState title={t('hrFix.depotReports.staffOnly')} icon={<Lock size={40} weight="fill" />}>
-        Laporan operasional depot tersedia untuk operator dan manajer depot.
+        {t('opsFix.reports.gateBody2')}
       </CenterState>
     );
   }

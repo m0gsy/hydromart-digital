@@ -66,7 +66,7 @@ export default function MyAnnouncementsPage() {
           <p className="text-xs text-muted">{fmtDate(a.publishedAt)}</p>
           {!a.read && (
             <Button variant="secondary" onClick={() => markRead(a.id)}>
-              Tandai sudah dibaca
+              {t('hrFix.myAnnouncements.markRead2')}
             </Button>
           )}
         </Card>

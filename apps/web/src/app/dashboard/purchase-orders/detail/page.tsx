@@ -85,7 +85,7 @@ function Detail({ id }: { id: string }) {
     return (
       <CenterState title={t('hrFix.poDetail.notFound')}>
         <Link href="/dashboard/purchase-orders" className="font-bold text-brand-700">
-          Kembali ke daftar
+          {t('hrFix.poDetail.backToList')}
         </Link>
       </CenterState>
     );
@@ -174,13 +174,13 @@ function Detail({ id }: { id: string }) {
 
       {po.status === 'DRAFT' && (
         <Button onClick={() => act('send')} loading={busy} className="w-full">
-          Kirim ke pemasok
+          {t('hrFix.poDetail.sendToSupplier')}
         </Button>
       )}
       {po.status === 'SENT' && (
         <Button onClick={() => act('receive')} loading={busy} className="w-full">
           <CheckCircle size={18} weight="fill" className="mr-1.5" />
-          Terima barang → RECEIPT
+          {t('hrFix.poDetail.receiveGoods')}
         </Button>
       )}
       {po.status === 'RECEIVED' && po.receivedAt && (
@@ -196,7 +196,7 @@ function Gate({ id }: { id: string }) {
   if (!canManageProcurement(customer?.role)) {
     return (
       <CenterState title={t('hrFix.poDetail.managerOnly')} icon={<Lock size={40} weight="fill" />}>
-        Pengadaan tersedia untuk manajer depot dan super admin.
+        {t('hrFix.poDetail.gateBody2')}
       </CenterState>
     );
   }

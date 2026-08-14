@@ -43,7 +43,7 @@ export default function HrCustomersPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Users size={24} weight="fill" className="text-brand-500" />
-            Pelanggan
+            {t('hrFix.hrCustomers.customers2')}
           </h1>
           <p className="mt-1 text-[13px] text-muted">
             Hanya lihat. Data dibaca langsung dari direktori depot.

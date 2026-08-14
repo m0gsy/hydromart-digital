@@ -123,7 +123,7 @@ export default function ManagerAccountPage() {
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 p-3.5 text-sm font-extrabold text-red-600"
       >
         <SignOut size={17} />
-        Keluar
+        {t('mgrFix.mMgr.signOut')}
       </button>
       <p className="text-center text-[11px] text-[color:var(--text-muted)]">
         Hydromart Manajer · v1.0.0

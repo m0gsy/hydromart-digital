@@ -143,7 +143,7 @@ function Gate() {
   if (!canViewDepotFinance(customer?.role)) {
     return (
       <CenterState title={t('hrFix.commission.managerOnly')} icon={<Lock size={40} weight="fill" />}>
-        Pembayaran komisi kurir hanya untuk Manajer depot.
+        {t('hrFix.commission.gateBody2')}
       </CenterState>
     );
   }

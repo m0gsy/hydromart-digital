@@ -344,7 +344,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
 
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={() => printReceipt(order, { t, locale })}>
-            Cetak struk
+            {t('hrFix.orderDetail.printReceipt2')}
           </Button>
           {canAdvance && (
             <Button onClick={advance} loading={advancing}>

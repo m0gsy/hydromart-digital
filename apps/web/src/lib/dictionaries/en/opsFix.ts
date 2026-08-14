@@ -104,6 +104,12 @@ export const opsFix = {
     error: 'Could not save the reorder point.',
   },
   poDraft: {
+    sendToSupplier: "Send to supplier",
+    receive: "Receive → RECEIPT",
+    fromForecast: "Create from forecast",
+    noDepots2: "No depot has been configured yet.",
+    noOrders: "No purchase orders match this filter.",
+    gateBody2: "Procurement is for depot managers and super admins.",
     open: 'Create PO from low stock',
     title: 'PO draft from low stock',
     subtitle: 'Pick items below their reorder point, choose a supplier, then create a draft PO.',
@@ -182,6 +188,7 @@ export const opsFix = {
   },
   // dashboard/reports — mirrors id/opsFix.reports key for key.
   reports: {
+    gateBody2: "Depot ops reports are for depot operators and managers.",
     exportExcel: 'Export Excel',
     exportCsv: 'CSV',
     exportError: 'Could not export the report.',
@@ -277,6 +284,9 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Mirrors id/opsFix.walkIn key for key.
   walkIn: {
+    reload: "Reload",
+    discountHint: "Tier, reseller and voucher discounts are computed on save and printed on the receipt.",
+    methodOffHint: "A greyed-out method is one this depot has not set up — add QRIS or a bank account on the Depot page.",
     title: 'Counter sale',
     subtitle: 'Walk-in buyer, paying at the depot.',
     pickProductFirst: 'Pick a product first.',
@@ -376,6 +386,7 @@ export const opsFix = {
   },
   // dashboard/earning-rules — PR-8. Mirrors id/opsFix.earningRules key for key.
   earningRules: {
+    newRule: "New rule",
     title: 'Courier earning rules',
     applyTitle: 'Apply a new earning rule',
     applyHint: 'Rules are effective-dated and never overwrite an older one — past delivery pay stays reproducible.',
@@ -462,6 +473,7 @@ export const opsFix = {
   },
   // dashboard/targets — PR-8. Mirrors id/opsFix.targets key for key.
   targets: {
+    editTarget: "Edit target",
     title: 'Depot targets',
     headerSub: '{month} · day {day} of {days}',
     editTitle: 'Edit the {month} target',
@@ -531,6 +543,8 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Mirrors id/opsFix.cashbook key for key.
   cashbook: {
+    exportExcel: "Export to Excel",
+    dailyReport: "Daily report",
     title: 'Cash book',
     today: 'Today',
     in: 'In',

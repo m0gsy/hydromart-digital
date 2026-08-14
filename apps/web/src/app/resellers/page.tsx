@@ -124,7 +124,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
         {error && <p className="text-sm text-red-600 sm:col-span-3">{error}</p>}
         <div className="sm:col-span-3">
           <Button type="submit" loading={busy}>
-            Tambah reseller
+            {t('hrFix.resellers.addReseller2')}
           </Button>
         </div>
       </form>
@@ -239,10 +239,10 @@ function ResellerRow({
         </div>
         <div className="mt-3 flex gap-2">
           <Button type="button" loading={saving} onClick={saveEdit}>
-            Simpan
+            {t('hrFix.resellers.save2')}
           </Button>
           <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(false)}>
-            Batal
+            {t('hrFix.resellers.cancel2')}
           </Button>
         </div>
       </div>
@@ -280,7 +280,7 @@ function ResellerRow({
           {RESELLER_STATUS_LABEL[m.status]}
         </Badge>
         <Button type="button" variant="secondary" onClick={openEdit} className="px-3 py-1.5 text-xs">
-          Ubah
+          {t('hrFix.resellers.edit2')}
         </Button>
         <Button
           type="button"
@@ -364,7 +364,7 @@ export default function ResellersPage() {
       {hq && (
         <Card className="p-4">
           <label className="mb-1.5 block text-sm font-medium" htmlFor="reseller-depot">
-            Depot
+            {t('hrFix.resellers.depot2')}
           </label>
           <select
             id="reseller-depot"

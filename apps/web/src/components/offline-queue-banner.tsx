@@ -76,7 +76,7 @@ export function OfflineQueueBanner() {
       </ul>
       <Button variant="secondary" onClick={() => void sendNow()} disabled={busy}>
         <ArrowsClockwise size={16} className="mr-1" />
-        Kirim sekarang
+        {t('hrFix.offlineBanner.sendNow2')}
       </Button>
     </div>
   );

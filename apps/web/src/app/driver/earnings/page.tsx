@@ -124,7 +124,7 @@ function Earnings() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => { setWithdrawing(false); setError(null); }}>
-              Batal
+              {t('hrFix.earnings.cancel2')}
             </Button>
             <Button
               loading={busy}
@@ -151,7 +151,7 @@ function Earnings() {
       <div className="text-sm font-extrabold">{t('hrFix.earnings.breakdown')}</div>
       {recentEntries.length === 0 ? (
         <CenterState icon={<Coins size={32} />} title={t('hrFix.earnings.emptyTitle')}>
-          Ongkos antar akan muncul di sini setelah kamu menyelesaikan pengantaran.
+          {t('hrFix.earnings.emptyBody2')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2">

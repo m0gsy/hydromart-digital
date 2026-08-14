@@ -98,6 +98,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    signOut: "Sign out",
     stockCritical: 'Critical stock',
     stockHint: 'Items below minimum',
     activeCouriers: 'Active couriers',
@@ -109,5 +110,9 @@ export const mgrFix = {
       STOCK_LOW: 'Critical stock',
       COURIER_INCIDENT: 'Courier incident',
     },
+  },
+  login: {
+    subtitle: 'Depot manager console',
+    staffOnly: 'Hydromart staff only.',
   },
 };

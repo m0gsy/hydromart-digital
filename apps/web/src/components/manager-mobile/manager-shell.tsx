@@ -59,7 +59,7 @@ export function ManagerShell({
   if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState icon={<House size={32} />} title={t('hrFix.managerShell.managerOnly')}>
-        Akun ini bukan manajer depot. Masuk dengan akun manajer untuk membuka konsol ini.
+        {t('hrFix.managerShell.notManager')}
       </CenterState>
     );
   }

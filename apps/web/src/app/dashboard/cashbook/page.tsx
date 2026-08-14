@@ -283,7 +283,7 @@ function CashbookBody() {
           disabled={entries.length === 0}
         >
           <Export size={16} weight="bold" />
-          Ekspor Excel
+          {t('opsFix.cashbook.exportExcel')}
         </Button>
         <Button
           variant="secondary"
@@ -305,7 +305,7 @@ function CashbookBody() {
       <p className="text-center text-[12.5px] text-[color:var(--text-muted)]">
         Tutup buku harian ada di{' '}
         <Link href="/dashboard/reports" className="font-semibold text-brand-600 hover:underline">
-          Laporan harian
+          {t('opsFix.cashbook.dailyReport')}
         </Link>
         .
       </p>

@@ -88,7 +88,7 @@ export default function AdjustmentsPage() {
         action={
           isAdmin ? (
             <LinkButton href="/hr/adjustments/import" variant="secondary">
-              Import Potongan
+              {t('hrFix.adjustments.importDeductions')}
             </LinkButton>
           ) : undefined
         }

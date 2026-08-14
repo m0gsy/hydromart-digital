@@ -12,7 +12,7 @@ export default function NotFound() {
     <main className="mx-auto flex min-h-[60dvh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.notFound.title')}</h1>
       <p className="text-sm text-muted">
-        Halaman yang kamu cari tidak ada atau sudah dipindahkan.
+        {t('hrFix.notFound.body2')}
       </p>
       <LinkButton href="/products">{t('hrFix.notFound.toCatalog')}</LinkButton>
     </main>

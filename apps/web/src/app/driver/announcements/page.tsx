@@ -52,7 +52,7 @@ function Announcements({ depotId }: { depotId: string }) {
       <h1 className="text-lg font-extrabold tracking-tight">{t('hrFix.driverAnnouncements.title')}</h1>
       {items.length === 0 ? (
         <CenterState icon={<Megaphone size={32} />} title={t('hrFix.driverAnnouncements.empty')}>
-          Info operasional dari depot akan muncul di sini.
+          {t('hrFix.driverAnnouncements.emptyBody2')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -97,7 +97,7 @@ export default function AnnouncementsPage() {
         <div className="px-4 py-6">
           <h1 className="text-lg font-extrabold tracking-tight">{t('hrFix.driverAnnouncements.title')}</h1>
           <CenterState icon={<Megaphone size={32} />} title={t('hrFix.driverAnnouncements.noDepot')}>
-            Pengumuman muncul setelah kamu ditempatkan di depot.
+            {t('hrFix.driverAnnouncements.noDepotBody')}
           </CenterState>
         </div>
       )}

@@ -50,7 +50,7 @@ function History() {
 
       {items.length === 0 ? (
         <CenterState icon={<Wallet size={32} />} title={t('hrFix.settlementHistory.empty')}>
-          Setoran tunai COD-mu akan muncul di sini.
+          {t('hrFix.settlementHistory.emptyBody2')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">

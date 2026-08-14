@@ -2,6 +2,7 @@
 // Bahasa Indonesia — source of truth for keys. en/order.ts mirrors this shape.
 export const order = {
   cart: {
+    inStock: "Stok tersedia",
     title: 'Keranjang',
     itemCount: '— {n} item',
     emptyTitle: 'Keranjang masih kosong',
@@ -24,6 +25,7 @@ export const order = {
     trustSealed: 'Tersegel',
   },
   checkout: {
+    resellerNoVoucher: "Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.",
     stepCart: 'Keranjang',
     stepCheckout: 'Checkout',
     stepDone: 'Selesai',

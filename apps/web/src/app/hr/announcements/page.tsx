@@ -266,7 +266,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         <div className="space-y-2">
           <p className="text-sm font-medium">{t('hrFix.announcements.audience')}</p>
           <p className="text-xs text-muted">
-            Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.
+            {t('hrFix.announcements.mergedTargets')}
           </p>
           {targets.map((tg, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
@@ -312,7 +312,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
                   type="button"
                   onClick={() => setTargets(targets.filter((_, j) => j !== i))}
                 >
-                  Hapus
+                  {t('hrFix.announcements.delete2')}
                 </Button>
               )}
             </div>
@@ -322,7 +322,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
             type="button"
             onClick={() => setTargets([...targets, { dimension: 'DEPOT', value: '' }])}
           >
-            Tambah target
+            {t('hrFix.announcements.addTarget')}
           </Button>
         </div>
 

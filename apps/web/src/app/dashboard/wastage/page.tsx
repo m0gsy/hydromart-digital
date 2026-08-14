@@ -77,7 +77,7 @@ function WastageBody() {
           <Card className="flex flex-col gap-1 p-5">
             <h2 className="mb-2 flex items-center gap-2 font-semibold">
               <Drop size={18} weight="fill" className="text-brand-500" />
-              Rincian
+              {t('hrFix.wastage.details')}
             </h2>
             {items.length === 0 ? (
               <p className="py-3 text-sm text-[color:var(--text-muted)]">
@@ -122,7 +122,7 @@ function Gate() {
   if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title={t('hrFix.wastage.managerOnly')} icon={<Lock size={40} weight="fill" />}>
-        Pelacakan wastage hanya untuk Manajer depot.
+        {t('hrFix.wastage.gateBody2')}
       </CenterState>
     );
   }

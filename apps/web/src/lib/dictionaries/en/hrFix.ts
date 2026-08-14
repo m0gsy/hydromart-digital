@@ -141,6 +141,12 @@ export const hrFix = {
     exitBeforeJoin: 'Exit date cannot be before the join date.',
   },
   assets: {
+    editDetail2: "Edit details",
+    kind2: "Type",
+    saveDetail: "Save details",
+    cancel2: "Cancel",
+    writtenOff: "This asset is written off. If it turns up, register it as a new asset.",
+    editDetail: "Edit details",
     title: "Assets",
     subtitle: "Company property held by staff. The handover history is never deleted.",
     all: "All",
@@ -176,6 +182,7 @@ export const hrFix = {
     registerFailed: "Could not register the asset",
   },
   shift: {
+    createRotation2: "Create rotation",
     title: "Shifts & rotations",
     subtitle: "Working hours per employee. Attendance judges lateness against the employee's shift, not the depot's.",
     rotations: "Weekly rotation patterns",
@@ -214,6 +221,7 @@ export const hrFix = {
     rotation: "Rotation",
   },
   employeeForm: {
+    cancel2: "Cancel",
     pickDepot: "Select a depot…",
     daily: "Daily",
     monthly: "Monthly",
@@ -288,6 +296,7 @@ export const hrFix = {
     activate: "Activate",
   },
   adjustments: {
+    importDeductions: "Import deductions",
     title: "Bonuses & deductions",
     subtitle: "Per employee, per period",
     period: "Period",
@@ -367,6 +376,10 @@ export const hrFix = {
     saveFailed: "Could not save",
   },
   departments: {
+    emptyBody2: "No departments yet — employees show as “Not set”.",
+    delete2: "Delete",
+    name2: "Name",
+    depot2: "Depot",
     title: "Departments",
     subtitle: "The unit an employee works in. No depot means it spans them all (Finance, HR).",
     allDepots: "All depots",
@@ -383,6 +396,9 @@ export const hrFix = {
     activate: "Activate",
   },
   reports: {
+    from2: "From",
+    period2: "Period",
+    scoreHint: "Scores per period. A component that could not be measured shows blank, not zero.",
     title: "Reports",
     subtitle: "Export as CSV, Excel or PDF",
     directory: "Employee directory",
@@ -404,6 +420,7 @@ export const hrFix = {
     announcementsBody: "Reach and read rate for each announcement.",
   },
   me: {
+    backToConsole2: "← Back to the console",
     subtitle: "Employee self-service",
     punchNow: "Clock in now",
     punchBody: "Check in and out with face verification",
@@ -439,6 +456,7 @@ export const hrFix = {
     corrected: "Corrected",
   },
   employees: {
+    noAccountCreate: "No account yet · create one",
     title: "Employees",
     searchHint: "Search by name, code or position…",
     add: "+ Add",
@@ -449,6 +467,8 @@ export const hrFix = {
     departmentUnreadable: "Departments could not be read",
   },
   leave: {
+    importBalances: "Import leave balances",
+    reject2: "Reject",
     title: "Leave requests",
     subtitle: "Stage 1 the manager, stage 2 HR. HR's approval writes the attendance as leave.",
     noteHint: "Note (required when rejecting)",
@@ -461,6 +481,14 @@ export const hrFix = {
     failed: "Could not process it",
   },
   performance: {
+    period3: "Period",
+    loadHistory: "Load history",
+    period2: "Period",
+    note2: "Note",
+    saveManual: "Save manually",
+    depot2: "Depot",
+    noActiveEmployees: "No active employees in this scope.",
+    save2: "Save",
     title: "Performance",
     subtitle: "A monthly score from attendance, discipline and sales",
     empty: "No reviews yet.",
@@ -478,6 +506,10 @@ export const hrFix = {
     saved: "Review saved",
   },
   employeeDetail: {
+    viewPayroll: "View payroll →",
+    viewAttendance: "Attendance history →",
+    enrolHint: "Take 1–3 clear face photos for attendance verification.",
+    saveEnrol: "Save enrolment",
     enrollFace: "Enrol face",
     history: "Employment history",
     noHistory: "No history yet.",
@@ -500,6 +532,11 @@ export const hrFix = {
     contractEnd: "Contract end",
   },
   resellers: {
+    addReseller2: "Add reseller",
+    save2: "Save",
+    cancel2: "Cancel",
+    edit2: "Edit",
+    depot2: "Depot",
     title: "Resellers (agents)",
     add: "Add reseller",
     inactive: "Inactive",
@@ -544,6 +581,7 @@ export const hrFix = {
     uploadPhoto: "Upload an agent photo",
   },
   orderDetail: {
+    printReceipt2: "Print receipt",
     assignCourier: "Assign a courier",
     loadingCouriers: "Loading couriers…",
     noCouriers: "No active couriers. Invite one from Staff &amp; roles.",
@@ -566,6 +604,12 @@ export const hrFix = {
     updateFailed: "Could not update the order.",
   },
   vouchers: {
+    cancel3: "Cancel",
+    activeVouchers: "Active vouchers",
+    cancel2: "Cancel",
+    close2: "Close",
+    search2: "Search",
+    gateBody2: "Vouchers are for the marketing team and depot admins.",
     percentage: "Percentage (%)",
     fixedAmount: "Fixed amount (Rp)",
     newVoucher: "New voucher",
@@ -611,6 +655,12 @@ export const hrFix = {
     inactive: "Inactive",
   },
   settlement: {
+    checkOutFirst: "Finish and check out of your shift first. The deposit appears after you check out.",
+    viewHistory: "View deposit history",
+    countHint: "Count all the COD cash you collected this shift, then enter the amount you hand to the cashier.",
+    handToCashier: "Hand over to the cashier",
+    cashierMatchHint: "The cashier will match your deposit against the COD total.",
+    done2: "Done",
     title: "Cash settlement (COD)",
     nothingToSettle: "No shift to settle",
     shiftDone: "Shift finished",
@@ -628,6 +678,8 @@ export const hrFix = {
     difference: "Difference",
   },
   earnings: {
+    cancel2: "Cancel",
+    emptyBody2: "Delivery fees appear here once you complete a delivery.",
     title: "Earnings",
     available: "Available balance",
     shiftTarget: "Shift target",
@@ -646,6 +698,8 @@ export const hrFix = {
     withdrawFailed: "Could not withdraw. Try again.",
   },
   expenses: {
+    submitClaim: "Submit claim",
+    emptyBody2: "Expense claims you submit will appear here.",
     title: "Expense claims",
     history: "Claim history",
     kind: "Expense type",
@@ -674,6 +728,9 @@ export const hrFix = {
     failedDeliveries: "Failed deliveries",
   },
   cashierShift: {
+    openFirst: "Open a shift first — counter sales are refused while nobody owns the drawer.",
+    closeShift2: "Close shift",
+    cancel2: "Cancel",
     closed: "Shift closed",
     expected: "Expected",
     counted: "Counted",
@@ -689,6 +746,10 @@ export const hrFix = {
     closeFailed: "Could not close the shift.",
   },
   operatorSummary: {
+    viewQueue2: "View the queue",
+    noUnassigned: "No orders are waiting to be assigned.",
+    verifyDeposit: "Verify deposit",
+    pickDepot2: "Pick a depot you run to see today's summary.",
     today: "Today at a glance",
     needsAssigning: "Needs assigning",
     allAboveThreshold: "Every item is above its threshold.",
@@ -699,6 +760,8 @@ export const hrFix = {
     pickDepot: "Select a depot",
   },
   depotHours: {
+    add2: "Add",
+    cancel2: "Cancel",
     breakStart: "Break starts",
     breakEnd: "Break ends",
     title: "Opening hours &amp; closures",
@@ -744,6 +807,10 @@ export const hrFix = {
     finish: "Complete delivery",
   },
   poDetail: {
+    backToList: "Back to the list",
+    sendToSupplier: "Send to supplier",
+    receiveGoods: "Receive goods → RECEIPT",
+    gateBody2: "Procurement is for depot managers and super admins.",
     items: "Items",
     qtyPrice: "Qty × price",
     subtotal: "Subtotal",
@@ -758,6 +825,8 @@ export const hrFix = {
     actionFailed: "That did not work. Try again.",
   },
   approvalDetail: {
+    backToList2: "Back to the list",
+    note2: "Note",
     notFound: "Approval not found",
     backAria: "Back",
     system: "System",
@@ -771,6 +840,9 @@ export const hrFix = {
     received: "Received",
   },
   announcements: {
+    mergedTargets: "Targets are merged. Someone in two targets still receives one message.",
+    delete2: "Delete",
+    addTarget: "Add target",
     title: "Announcements",
     subtitle: "One message, delivered once. Overlapping targets do not send twice.",
     history: "History",
@@ -794,6 +866,7 @@ export const hrFix = {
     sendNow: "Send now",
   },
   hrCustomers: {
+    customers2: "Customers",
     name: "Name",
     phone: "Phone",
     tier: "Tier",
@@ -805,6 +878,8 @@ export const hrFix = {
     noCustomers: "No customers yet",
   },
   myLeave: {
+    apply2: "Request leave",
+    holidayHint: "Public holidays and weekly days off inside the range do not count against your quota.",
     title: "My leave",
     empty: "No leave requests yet.",
     type: "Leave type",
@@ -834,6 +909,8 @@ export const hrFix = {
     generateFailed: "Could not generate it",
   },
   allowances: {
+    fixedHint: "A fixed component paid every period. It is not part of the overtime wage base.",
+    addAllowance2: "Add allowance",
     title: "Allowances",
     empty: "No allowances yet.",
     type: "Type",
@@ -863,6 +940,9 @@ export const hrFix = {
     added: "Loan added",
   },
   promotions: {
+    cancel2: "Cancel",
+    emptyBody: "Create the first promotion to show on the customer home page.",
+    delete2: "Delete",
     deniedBody: "Promotions are for the marketing team and depot leads.",
     newPromo: "New promotion",
     headline: "Headline",
@@ -915,6 +995,7 @@ export const hrFix = {
     actionFailed: "That did not work. Try again.",
   },
   settlementHistory: {
+    emptyBody2: "Your COD cash deposits will appear here.",
     title: "Settlement history",
     youHandedOver: "You handed over",
     totalDue: "Total due",
@@ -936,6 +1017,7 @@ export const hrFix = {
     enrollFailed: "Enrolment failed",
   },
   commission: {
+    gateBody2: "Courier commission payouts are for depot managers only.",
     title: "Courier commission",
     periodTotal: "Commission this period",
     franchiseShare: "franchise revenue share",
@@ -946,6 +1028,10 @@ export const hrFix = {
     payAll: "Pay all",
   },
   expenseClaims: {
+    viewReceipt: "View receipt",
+    approve: "Approve",
+    reject: "Reject",
+    gateBody2: "Expense-claim approvals are for depot managers and finance.",
     title: "Courier expense claims",
     reviewNote: "Reviewer note (optional)",
     reviewNoteHint: "e.g. matches the receipt",
@@ -959,6 +1045,10 @@ export const hrFix = {
     allDepots: "All depots — pick one in the switcher to filter.",
   },
   meter: {
+    noClosedDays: "No day has had its meter closed yet.",
+    twiceHint: "Enter the morning reading at opening and the evening one at closing. The same form is used twice.",
+    varianceHistory: "Variance history",
+    gateBody2: "Water-meter reconciliation is for depot staff and above.",
     title: "Water meter",
     record: "Record a reading",
     morning: "Morning reading (m³)",
@@ -977,6 +1067,8 @@ export const hrFix = {
     save: "Save",
   },
   wastage: {
+    details: "Details",
+    gateBody2: "Wastage tracking is for depot managers only.",
     title: "Wastage",
     value: "Wastage value",
     units: "Units written off",
@@ -1001,6 +1093,9 @@ export const hrFix = {
     inactive: "Inactive",
   },
   managerTeam: {
+    subtitle2: "Couriers assigned to your depot.",
+    emptyBody2: "Couriers assigned to this depot will appear here.",
+    active2: "Active",
     title: "Courier team",
     empty: "No couriers yet",
     total: "Total couriers",
@@ -1033,6 +1128,7 @@ export const hrFix = {
     ownerHint: "PT Hydromart Cikini",
   },
   monthlyReview: {
+    gateBody2: "The monthly ops review is for depot managers only.",
     title: "Ops review",
     gallonSales: "Gallon sales",
     profitBreakdown: "Profit breakdown",
@@ -1072,6 +1168,8 @@ export const hrFix = {
     winBack: "Won back from churn",
   },
   driverAnnouncements: {
+    emptyBody2: "Operational notices from the depot will appear here.",
+    noDepotBody: "Announcements appear once you are assigned to a depot.",
     title: "Announcements",
     empty: "No announcements yet",
     unreadAria: "Unread",
@@ -1081,6 +1179,12 @@ export const hrFix = {
     info: "Info",
   },
   deliveryDetail: {
+    startDelivery: "Start delivery",
+    arrived: "Arrived · capture proof",
+    returnEmpties: "Return empty gallons",
+    noShow: "Nobody home",
+    reschedule: "Reschedule",
+    failed2: "Failed",
     title: "Delivery detail",
     landmark: "Landmark:",
     orderDetail: "Order detail",
@@ -1095,6 +1199,7 @@ export const hrFix = {
     actionFailed: "That did not work. Try again.",
   },
   myAnnouncements: {
+    markRead2: "Mark as read",
     title: "Announcements",
     subtitle: "News from HR for you",
     empty: "No announcements for you yet.",
@@ -1107,6 +1212,8 @@ export const hrFix = {
     emptyBody: "Your payslips will appear here.",
   },
   managerPricing: {
+    noDepots2: "No depot has been configured yet.",
+    emptyBody2: "Depot pricing rules will appear here.",
     title: "Dynamic pricing",
     noDepot: "No depot yet",
     empty: "No pricing rules yet",
@@ -1129,6 +1236,7 @@ export const hrFix = {
     depot: "Depot",
   },
   documents: {
+    view2: "View",
     title: "Documents",
     empty: "No documents yet.",
     docType: "Document type",
@@ -1152,10 +1260,13 @@ export const hrFix = {
     failed: "Could not clock in",
   },
   notFound: {
+    body2: "The page you are looking for does not exist, or has moved.",
     title: "Page not found",
     toCatalog: "Go to the catalogue",
   },
   referral: {
+    yourCode: "Your referral code",
+    shareHint: "Share this code. Your friend gets money off their first order, and you get points when it completes.",
     title: "Invite a friend",
     accountAria: "Account",
     copyAria: "Copy the code",
@@ -1189,6 +1300,7 @@ export const hrFix = {
     title: "Import depot prices",
   },
   errorPage: {
+    body2: "Something unexpected went wrong. Try again, or go back to the catalogue.",
     title: "Something went wrong",
     retry: "Try again",
   },
@@ -1213,16 +1325,22 @@ export const hrFix = {
     title: "Import opening leave balances",
   },
   managerApprovals: {
+    subtitle2: "Requests that need a manager's approval.",
+    allDone: "Every request has been dealt with.",
     title: "Approvals",
     empty: "No approvals",
   },
   liveNav: {
+    gpsOff: "GPS is off — turn on location permission for live tracking.",
+    arrived2: "Arrived · capture proof",
     locating: "Finding your location…",
   },
   managerShell: {
+    notManager: "This account is not a depot manager. Sign in with a manager account to open this console.",
     managerOnly: "Depot managers only",
   },
   offlineBanner: {
+    sendNow2: "Send now",
     clearAria: "Clear the offline data",
   },
   operatorShell: {
@@ -1332,6 +1450,7 @@ export const hrFix = {
     unreadable: "Could not be read",
   },
   myPayrollDetail: {
+    downloadPdf2: "Download PDF",
     downloadFailed: "Download failed",
     netPay: "Net pay",
   },
@@ -1356,6 +1475,7 @@ export const hrFix = {
     addPhoto: "Add a photo (optional)",
   },
   assets2: {
+    manageAssets: "Manage assets",
     none: "No company property is held.",
   },
   documents2: {

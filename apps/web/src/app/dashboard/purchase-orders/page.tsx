@@ -84,12 +84,12 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
       )}
       {po.status === 'DRAFT' && (
         <Button onClick={() => act('send')} loading={busy} className="w-full">
-          Kirim ke pemasok
+          {t('opsFix.poDraft.sendToSupplier')}
         </Button>
       )}
       {po.status === 'SENT' && (
         <Button onClick={() => act('receive')} loading={busy} className="w-full">
-          Terima → RECEIPT
+          {t('opsFix.poDraft.receive')}
         </Button>
       )}
     </Card>
@@ -298,7 +298,7 @@ function Body() {
           <Link href="/dashboard/forecast">
             <Button variant="secondary">
               <Sparkle size={16} weight="fill" className="mr-1.5" />
-              Buat dari forecast
+              {t('opsFix.poDraft.fromForecast')}
             </Button>
           </Link>
         </div>
@@ -335,7 +335,7 @@ function Body() {
 
       {ready && depots.length === 0 ? (
         <CenterState title={t('hrFix.purchaseOrders.noDepot')} icon={<Truck size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+          {t('opsFix.poDraft.noDepots2')}
         </CenterState>
       ) : orders.loading ? (
         <Skeleton className="h-64 w-full" />
@@ -343,7 +343,7 @@ function Body() {
         <ErrorState message={orders.error} onRetry={orders.reload} />
       ) : !orders.data || orders.data.length === 0 ? (
         <CenterState title={t('hrFix.purchaseOrders.empty')} icon={<ClipboardText size={40} weight="fill" />}>
-          Belum ada pesanan pembelian untuk filter ini.
+          {t('opsFix.poDraft.noOrders')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -362,7 +362,7 @@ function Gate() {
   if (!canManageProcurement(customer?.role)) {
     return (
       <CenterState title={t('hrFix.purchaseOrders.managerOnly')} icon={<Lock size={40} weight="fill" />}>
-        Pengadaan tersedia untuk manajer depot dan super admin.
+        {t('opsFix.poDraft.gateBody2')}
       </CenterState>
     );
   }

@@ -156,7 +156,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
           {promo ? t('hrFix.promotions.save') : t('hrFix.promotions.create')}
         </Button>
         <Button variant="ghost" onClick={onCancel}>
-          Batal
+          {t('hrFix.promotions.cancel2')}
         </Button>
       </div>
     </Card>
@@ -355,7 +355,7 @@ function PromotionsAdmin() {
         <ErrorState message={error} onRetry={reload} />
       ) : !data || data.length === 0 ? (
         <CenterState icon={<Megaphone size={48} weight="thin" />} title={t('hrFix.promotions.empty')}>
-          Buat promo pertama untuk ditampilkan di beranda pelanggan.
+          {t('hrFix.promotions.emptyBody')}
         </CenterState>
       ) : (
         <div className="flex flex-col divide-y divide-[color:var(--border)]">
@@ -375,7 +375,7 @@ function PromotionsAdmin() {
                 Edit
               </Button>
               <Button variant="danger" onClick={() => remove(p.id)}>
-                Hapus
+                {t('hrFix.promotions.delete2')}
               </Button>
             </div>
           ))}

@@ -92,7 +92,7 @@ export default function DepartmentsPage() {
           <ul className="divide-y divide-[color:var(--border)]">
             {departments.data.length === 0 && (
               <li className="py-2 text-sm text-muted">
-                Belum ada departemen — karyawan tampil “Belum diatur”.
+                {t('hrFix.departments.emptyBody2')}
               </li>
             )}
             {departments.data.map((d) => (
@@ -107,7 +107,7 @@ export default function DepartmentsPage() {
                       {d.active ? t('hrFix.departments.deactivate') : t('hrFix.departments.activate')}
                     </Button>
                     <Button variant="ghost" onClick={() => remove(d.id)}>
-                      Hapus
+                      {t('hrFix.departments.delete2')}
                     </Button>
                   </span>
                 )}
@@ -128,7 +128,7 @@ export default function DepartmentsPage() {
               />
             </label>
             <label className="text-sm">
-              Nama
+              {t('hrFix.departments.name2')}
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -136,7 +136,7 @@ export default function DepartmentsPage() {
               />
             </label>
             <label className="text-sm">
-              Depot
+              {t('hrFix.departments.depot2')}
               <select
                 value={depotId}
                 onChange={(e) => setDepotId(e.target.value)}

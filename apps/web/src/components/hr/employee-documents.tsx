@@ -102,7 +102,7 @@ export function EmployeeDocuments({
                 href={d.fileUrl}
                 className="shrink-0 text-sm font-semibold text-brand-700 hover:underline"
               >
-                Lihat
+                {t('hrFix.documents.view2')}
               </ExternalLink>
             </div>
           ))}

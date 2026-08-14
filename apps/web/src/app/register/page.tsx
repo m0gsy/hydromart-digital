@@ -168,7 +168,7 @@ function RegisterForm() {
               className="h-full w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-[color:var(--text-muted)]"
             />
             <span className="whitespace-nowrap rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-800">
-              +50 poin
+              {t('auth.register.bonusPoints')}
             </span>
           </div>
         </div>

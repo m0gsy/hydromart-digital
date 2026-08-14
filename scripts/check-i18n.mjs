@@ -62,6 +62,13 @@ function isCode(s) {
 const SKIP_DIR = new Set(['node_modules', 'dictionaries', '__tests__', '__mocks__']);
 /** Files that hold literals on purpose — a value sent to an API, not something read. */
 const SKIP_FILE = /\.(test|spec)\.tsx?$/;
+/**
+ * `app/global-error.tsx` catches a failure in the ROOT layout — which is where
+ * LocaleProvider lives. It renders its own <html>/<body> with inline styles precisely
+ * because nothing around it can be trusted to work, so there is no translator to call
+ * and never will be. Skipped by path rather than by three JSX comments inside it.
+ */
+const SKIP_PATH = new Set(['app/global-error.tsx']);
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -97,6 +104,7 @@ const PATTERNS = [
 const results = [];
 const wrappedResults = [];
 for (const file of walk(ROOT)) {
+  if (SKIP_PATH.has(relative(ROOT, file).replace(/\\/g, '/'))) continue;
   const src = readFileSync(file, 'utf8');
   const lines = src.split(/\r?\n/);
   const hits = new Map(); // string -> line
@@ -169,11 +177,11 @@ for (const locale of ['id', 'en']) {
     });
 }
 
-// The wrapped-JSX scan found 144 more the day it was written — real copy, in 64 files,
-// none of it ever counted by the "478 → 0" sweep. Fixing them all is its own batch of work,
-// and a gate that fails on day one is a gate somebody deletes. So they are a RATCHET: the
-// number may fall, never rise. Lower it when you fix some; it is not allowed to grow.
-const WRAPPED_BASELINE = 144;
+// The wrapped-JSX scan found 144 strings the day it was written — real copy in 62 files,
+// none of it ever counted by the "478 → 0" sweep. All 144 are translated now, so the
+// baseline is ZERO and this is a plain gate again: a sentence long enough for prettier to
+// wrap onto its own line is still copy, and it fails the build like any other.
+const WRAPPED_BASELINE = 0;
 const wrappedTotal = wrappedResults.reduce((n, r) => n + r.hits.length, 0);
 if (wrappedTotal > WRAPPED_BASELINE) {
   console.error(

@@ -3,6 +3,7 @@ import { order as base } from '../id/order';
 // English — mirrors the shape of id/order.ts (the source of truth for keys).
 export const order: typeof base = {
   cart: {
+    inStock: "In stock",
     title: 'Cart',
     itemCount: '— {n} item',
     emptyTitle: 'Your cart is empty',
@@ -25,6 +26,7 @@ export const order: typeof base = {
     trustSealed: 'Sealed',
   },
   checkout: {
+    resellerNoVoucher: "The reseller discount applies automatically. Vouchers cannot be combined with reseller pricing.",
     stepCart: 'Cart',
     stepCheckout: 'Checkout',
     stepDone: 'Done',

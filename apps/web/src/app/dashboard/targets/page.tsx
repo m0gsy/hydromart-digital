@@ -289,7 +289,7 @@ function TargetsBody() {
 
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setEditing(true)}>
-              Ubah target
+              {t('opsFix.targets.editTarget')}
             </Button>
           </div>
 
