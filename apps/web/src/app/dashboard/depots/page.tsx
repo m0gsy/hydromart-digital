@@ -192,10 +192,10 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
       <h2 className="font-semibold">{depot ? `${t('dashboard.depots.editPrefix')}${depot.name}` : t('dashboard.depots.newTitle')}</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t('dashboard.depots.code')} htmlFor="d-code">
-          <Input id="d-code" value={form.code} onChange={set('code')} placeholder="JKT-01" />
+          <Input id="d-code" value={form.code} onChange={set('code')} placeholder={t('hrFix.depots.codeHint')} />
         </Field>
         <Field label={t('dashboard.depots.name')} htmlFor="d-name">
-          <Input id="d-name" value={form.name} onChange={set('name')} placeholder="Depot Cikini" />
+          <Input id="d-name" value={form.name} onChange={set('name')} placeholder={t('hrFix.depots.nameHint')} />
         </Field>
         <Field label={t('dashboard.depots.ownership')} htmlFor="d-own">
           <select id="d-own" value={form.ownershipType} onChange={set('ownershipType')} className={inputClass}>
@@ -207,13 +207,13 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
           <OwnerSelect value={form.ownerId} onChange={set('ownerId')} id="d-owner-ops" />
         )}
         <Field label={t('dashboard.depots.city')} htmlFor="d-city">
-          <Input id="d-city" value={form.city} onChange={set('city')} placeholder="Jakarta Pusat" />
+          <Input id="d-city" value={form.city} onChange={set('city')} placeholder={t('hrFix.depots.cityHint')} />
         </Field>
         <Field label={t('dashboard.depots.province')} htmlFor="d-prov">
-          <Input id="d-prov" value={form.province} onChange={set('province')} placeholder="DKI Jakarta" />
+          <Input id="d-prov" value={form.province} onChange={set('province')} placeholder={t('hrFix.depots.provinceHint')} />
         </Field>
         <Field label={t('dashboard.depots.address')} htmlFor="d-addr">
-          <Input id="d-addr" value={form.address} onChange={set('address')} placeholder="Jl. Cikini Raya No. 1" />
+          <Input id="d-addr" value={form.address} onChange={set('address')} placeholder={t('hrFix.depots.addressHint')} />
         </Field>
         <Field label={t('dashboard.depots.latitude')} htmlFor="d-lat">
           <Input id="d-lat" inputMode="decimal" value={form.lat} onChange={set('lat')} placeholder="-6.1944" />
@@ -233,11 +233,11 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
       </div>
 
       <div className="border-t border-app pt-3">
-        <p className="mb-1 text-sm font-semibold">Kontak depot</p>
+        <p className="mb-1 text-sm font-semibold">{t('hrFix.depots.contact')}</p>
         <Field
-          label="Nomor WhatsApp depot"
+          label={t('hrFix.depots.whatsapp')}
           htmlFor="d-phone"
-          hint="Tujuan laporan penjualan siang & sore. Angka saja (boleh diawali +). Kosong = dikirim ke nomor ops pusat."
+          hint={t('hrFix.depots.whatsappHint')}
         >
           <Input
             id="d-phone"
@@ -250,19 +250,19 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
       </div>
 
       <div className="border-t border-app pt-3">
-        <p className="mb-1 text-sm font-semibold">Info pembayaran depot</p>
+        <p className="mb-1 text-sm font-semibold">{t('hrFix.depots.payment')}</p>
         <p className="mb-3 text-xs text-muted">
           Ditampilkan ke pelanggan saat bayar transfer/QRIS. Uang masuk langsung ke depot; staf konfirmasi manual.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Nama bank" htmlFor="d-bank" hint="mis. BCA">
+          <Field label={t('hrFix.depots.bankName')} htmlFor="d-bank" hint={t('hrFix.depots.bankNameHint')}>
             <Input id="d-bank" value={form.paymentBankName} onChange={set('paymentBankName')} placeholder="BCA" />
           </Field>
-          <Field label="Nomor rekening" htmlFor="d-acc">
+          <Field label={t('hrFix.depots.bankAccount')} htmlFor="d-acc">
             <Input id="d-acc" inputMode="numeric" value={form.paymentBankAccountNumber} onChange={set('paymentBankAccountNumber')} placeholder="1234567890" />
           </Field>
-          <Field label="Atas nama" htmlFor="d-holder">
-            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder="Depot Cikini" />
+          <Field label={t('hrFix.depots.bankHolder')} htmlFor="d-holder">
+            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder={t('hrFix.depots.nameHint')} />
           </Field>
         </div>
         <QrisUploader
