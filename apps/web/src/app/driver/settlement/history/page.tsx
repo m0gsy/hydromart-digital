@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/locale-context';
 import { ArrowLeft, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -18,13 +19,15 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
   minute: '2-digit',
 });
 
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const STATUS: Record<SettlementStatus, { label: string; cls: string }> = {
-  SUBMITTED: { label: 'Menunggu verifikasi', cls: 'bg-amber-100 text-amber-800' },
-  VERIFIED: { label: 'Terverifikasi', cls: 'bg-green-100 text-green-800' },
-  DISPUTED: { label: 'Sengketa', cls: 'bg-red-100 text-red-800' },
+  SUBMITTED: { label: 'hrFix.settlementHistory.awaiting', cls: 'bg-amber-100 text-amber-800' },
+  VERIFIED: { label: 'hrFix.settlementHistory.verified', cls: 'bg-green-100 text-green-800' },
+  DISPUTED: { label: 'hrFix.settlementHistory.disputed', cls: 'bg-red-100 text-red-800' },
 };
 
 function History() {
+  const { t } = useT();
   const router = useRouter();
   const load = useAsync<CashSettlement[]>(
     () => api.get(endpoints.deliveries.settlement.history, true),
@@ -42,11 +45,11 @@ function History() {
         <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Riwayat setoran</div>
+        <div className="flex-1 text-sm font-extrabold">{t('hrFix.settlementHistory.title')}</div>
       </header>
 
       {items.length === 0 ? (
-        <CenterState icon={<Wallet size={32} />} title="Belum ada setoran">
+        <CenterState icon={<Wallet size={32} />} title={t('hrFix.settlementHistory.empty')}>
           Setoran tunai COD-mu akan muncul di sini.
         </CenterState>
       ) : (
@@ -61,20 +64,20 @@ function History() {
                     {WHEN.format(new Date(s.createdAt))}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${badge.cls}`}>
-                    {badge.label}
+                    {t(badge.label)}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-[color:var(--muted)]">Kamu setor</span>
+                  <span className="text-[color:var(--muted)]">{t('hrFix.settlementHistory.youHandedOver')}</span>
                   <Money amount={s.depositedAmount} className="font-bold" />
                 </div>
                 <div className="mt-1 flex items-center justify-between text-sm">
-                  <span className="text-[color:var(--muted)]">Total tagihan</span>
+                  <span className="text-[color:var(--muted)]">{t('hrFix.settlementHistory.totalDue')}</span>
                   <Money amount={s.expectedAmount} className="font-bold" />
                 </div>
                 {s.variance !== 0 && (
                   <div className="mt-1 flex items-center justify-between text-sm">
-                    <span className="font-bold">{short ? 'Kurang' : 'Lebih'}</span>
+                    <span className="font-bold">{short ? t('hrFix.settlementHistory.short') : t('hrFix.settlementHistory.over')}</span>
                     <Money
                       amount={Math.abs(s.variance)}
                       className={`font-extrabold ${short ? 'text-red-600' : 'text-amber-600'}`}
@@ -82,7 +85,7 @@ function History() {
                   </div>
                 )}
                 {s.chargedToDriver && (
-                  <p className="mt-2 text-[12px] text-red-600">Selisih dibebankan ke kamu.</p>
+                  <p className="mt-2 text-[12px] text-red-600">{t('hrFix.settlementHistory.chargedToYou')}</p>
                 )}
                 {s.note && <p className="mt-1 text-[12px] text-black/60">Catatan kasir: {s.note}</p>}
               </Card>

@@ -144,22 +144,22 @@ function WalkIn({ depotId }: { depotId: string }) {
   async function submit() {
     if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
     if (method === 'CASH' && cashReceived < total) {
-      return toast('Uang tunai kurang dari total.', 'error');
+      return toast(t('hrFix.walkIn.cashShort'), 'error');
     }
     // The depot can change under a selected method (switcher, or the payment info loading
     // late), and confirming money into an account nobody published is worse than refusing.
     if (!methodReady[method]) {
       return toast(
         payTo.error
-          ? 'Tujuan pembayaran depot tidak terbaca — muat ulang halaman sebelum menerima QRIS/transfer.'
-          : 'Depot ini belum mengatur tujuan pembayaran untuk metode itu.',
+          ? t('hrFix.walkIn.payTargetUnreadable')
+          : t('hrFix.walkIn.noPayTarget'),
         'error',
       );
     }
     // A voucher is spent from an account. Without a phone there is no account to spend from,
     // and the server would reject the sale after the buyer already agreed to the price.
     if (voucher.trim() && !phone.trim()) {
-      return toast('Isi nomor HP pembeli dulu — voucher menempel pada akun.', 'error');
+      return toast(t('hrFix.walkIn.phoneFirst'), 'error');
     }
 
     setBusy(true);
@@ -214,14 +214,14 @@ function WalkIn({ depotId }: { depotId: string }) {
       );
       toast(`Penjualan ${order.orderNumber} tersimpan.`);
     } catch {
-      toast('Pesanan tersimpan, pembayaran belum tercatat — selesaikan dari antrian pesanan.', 'error');
+      toast(t('hrFix.walkIn.orderSavedNoPayment'), 'error');
     }
 
     const receipt =
       method === 'CASH' ? { cashReceived, change: cashReceived - order.total } : undefined;
     setLastSale({ order, cash: receipt, method });
     if (!printReceipt(order, receipt, method)) {
-      toast('Struk tidak bisa dibuka — izinkan popup, lalu tekan "Cetak ulang struk".', 'error');
+      toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
     setQty({});
     setName('');
@@ -379,7 +379,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         <Field
           label={t('opsFix.walkIn.voucher')}
           htmlFor="wi-voucher"
-          hint="Voucher milik pembeli. Butuh nomor HP; potongan dihitung server saat disimpan."
+          hint={t('hrFix.walkIn.voucherHint')}
         >
           <Input
             id="wi-voucher"
@@ -390,7 +390,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         </Field>
 
         <div className="flex items-center justify-between text-sm">
-          <span className="font-bold">Total</span>
+          <span className="font-bold">{t('hrFix.walkIn.total')}</span>
           <span className="text-lg font-extrabold">
             <Money amount={total} />
           </span>
@@ -418,7 +418,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         )}
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Metode pembayaran</legend>
+          <legend className="text-sm font-medium">{t('hrFix.walkIn.paymentMethod')}</legend>
           <div className="flex flex-wrap gap-2">
             {(['CASH', 'QRIS', 'TRANSFER'] as const).map((m) => (
               <Button
@@ -429,7 +429,7 @@ function WalkIn({ depotId }: { depotId: string }) {
                 aria-pressed={method === m}
                 onClick={() => setMethod(m)}
               >
-                {m === 'CASH' ? 'Tunai' : m}
+                {m === 'CASH' ? t('hrFix.walkIn.cash') : m}
               </Button>
             ))}
           </div>
