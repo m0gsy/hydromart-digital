@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/locale-context';
+
 import {
   Buildings,
   CalendarCheck,
@@ -26,34 +28,36 @@ import { canManageHr } from '@/lib/roles';
 
 interface NavItem {
   href: string;
+  /** Dictionary KEY — resolved where the item is rendered. */
   label: string;
   icon: Icon;
   adminOnly?: boolean;
 }
 
 const ITEMS: NavItem[] = [
-  { href: '/hr', label: 'Dashboard', icon: Gauge },
-  { href: '/hr/employees', label: 'Karyawan', icon: Users },
-  { href: '/hr/departments', label: 'Departemen', icon: Buildings },
-  { href: '/hr/customers', label: 'Pelanggan', icon: Users },
-  { href: '/hr/resellers', label: 'Reseller / Agen', icon: Storefront },
-  { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },
-  { href: '/hr/leave', label: 'Pengajuan Cuti', icon: CalendarCheck },
-  { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
-  { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },
-  { href: '/hr/allowances', label: 'Tunjangan', icon: CurrencyCircleDollar },
-  { href: '/hr/assets', label: 'Aset', icon: Package },
-  { href: '/hr/announcements', label: 'Pengumuman', icon: Megaphone },
-  { href: '/hr/rules', label: 'Rule Bonus', icon: Sparkle, adminOnly: true },
-  { href: '/hr/performance', label: 'Kinerja', icon: Star },
-  { href: '/hr/shift', label: 'Shift & Rotasi', icon: Clock },
-  { href: '/hr/calendar', label: 'Kalender Kerja', icon: CalendarCheck },
-  { href: '/hr/reports', label: 'Laporan', icon: ChartBar },
-  { href: '/hr/settings', label: 'Konfigurasi Gaji', icon: GearSix, adminOnly: true },
-  { href: '/hr/audit', label: 'Log Audit', icon: ClipboardText, adminOnly: true },
+  { href: '/hr', label: 'hrFix.nav.dashboard', icon: Gauge },
+  { href: '/hr/employees', label: 'hrFix.nav.employees', icon: Users },
+  { href: '/hr/departments', label: 'hrFix.nav.departments', icon: Buildings },
+  { href: '/hr/customers', label: 'hrFix.nav.customers', icon: Users },
+  { href: '/hr/resellers', label: 'hrFix.nav.resellers', icon: Storefront },
+  { href: '/hr/attendance', label: 'hrFix.nav.attendance', icon: CalendarCheck },
+  { href: '/hr/leave', label: 'hrFix.nav.leave', icon: CalendarCheck },
+  { href: '/hr/payroll', label: 'hrFix.nav.payroll', icon: CurrencyCircleDollar },
+  { href: '/hr/adjustments', label: 'hrFix.nav.adjustments', icon: ClipboardText },
+  { href: '/hr/allowances', label: 'hrFix.nav.allowances', icon: CurrencyCircleDollar },
+  { href: '/hr/assets', label: 'hrFix.nav.assets', icon: Package },
+  { href: '/hr/announcements', label: 'hrFix.nav.announcements', icon: Megaphone },
+  { href: '/hr/rules', label: 'hrFix.nav.rules', icon: Sparkle, adminOnly: true },
+  { href: '/hr/performance', label: 'hrFix.nav.performance', icon: Star },
+  { href: '/hr/shift', label: 'hrFix.nav.shift', icon: Clock },
+  { href: '/hr/calendar', label: 'hrFix.nav.calendar', icon: CalendarCheck },
+  { href: '/hr/reports', label: 'hrFix.nav.reports', icon: ChartBar },
+  { href: '/hr/settings', label: 'hrFix.nav.settings', icon: GearSix, adminOnly: true },
+  { href: '/hr/audit', label: 'hrFix.nav.audit', icon: ClipboardText, adminOnly: true },
 ];
 
 export function HrRail() {
+  const { t } = useT();
   const pathname = usePathname();
   const { customer } = useAuth();
   const isAdmin = canManageHr(customer?.role);
@@ -79,7 +83,7 @@ export function HrRail() {
             }`}
           >
             <Icon size={20} weight={active ? 'fill' : 'regular'} />
-            {label}
+            {t(label)}
           </Link>
         );
       })}

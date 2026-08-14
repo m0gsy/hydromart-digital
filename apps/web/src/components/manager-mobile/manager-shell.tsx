@@ -10,15 +10,16 @@ import { useAuth } from '@/lib/auth-context';
 import { canUseManagerConsole } from '@/lib/roles';
 
 const TABS = [
-  { href: '/m/manager', label: 'Beranda', icon: House },
-  { href: '/m/manager/approvals', label: 'Approval', icon: Gavel },
-  { href: '/m/manager/notifications', label: 'Notif', icon: Bell },
-  { href: '/m/manager/team', label: 'Tim', icon: ChartBar },
-  { href: '/m/manager/account', label: 'Akun', icon: User },
+  { href: '/m/manager', label: 'hrFix.mgrNav.home', icon: House },
+  { href: '/m/manager/approvals', label: 'hrFix.mgrNav.approvals', icon: Gavel },
+  { href: '/m/manager/notifications', label: 'hrFix.mgrNav.notifications', icon: Bell },
+  { href: '/m/manager/team', label: 'hrFix.mgrNav.team', icon: ChartBar },
+  { href: '/m/manager/account', label: 'hrFix.mgrNav.account', icon: User },
 ] as const;
 
 /** Bottom tab bar — 5 tabs per the Depot Manager Mobile design (cells 1b–3a). */
 function ManagerNav() {
+  const { t } = useT();
   const pathname = usePathname();
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
@@ -33,7 +34,7 @@ function ManagerNav() {
             }`}
           >
             <Icon size={22} weight={active ? 'fill' : 'regular'} />
-            {label}
+            {t(label)}
           </Link>
         );
       })}

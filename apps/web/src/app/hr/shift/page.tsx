@@ -149,7 +149,7 @@ function Rotations({
               </div>
               <p className="text-sm text-muted">
                 {WEEKDAY_LABEL.map(
-                  (label, d) => `${label}: ${shiftName(rotationShiftForDay(r.pattern, d))}`,
+                  (dayKey, d) => `${t(dayKey)}: ${shiftName(rotationShiftForDay(r.pattern, d))}`,
                 ).join(' · ')}
               </p>
             </li>
@@ -183,8 +183,8 @@ function Rotations({
             </Field>
           </div>
           <div className="grid gap-2 sm:grid-cols-4">
-            {WEEKDAY_LABEL.map((label, d) => (
-              <Field key={d} label={label}>
+            {WEEKDAY_LABEL.map((dayKey, d) => (
+              <Field key={d} label={t(dayKey)}>
                 <select
                   value={pattern[String(d)] ?? ''}
                   onChange={(e) => setPattern({ ...pattern, [String(d)]: e.target.value })}

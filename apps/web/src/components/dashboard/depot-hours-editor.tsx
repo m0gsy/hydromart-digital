@@ -11,13 +11,13 @@ import type { DepotAdmin, DepotHoliday, DepotHours } from '@/lib/types';
 
 // Day keys match the operatingHours JSON blob the depot-service stores.
 const DAYS: { key: string; label: string }[] = [
-  { key: 'mon', label: 'Senin' },
-  { key: 'tue', label: 'Selasa' },
-  { key: 'wed', label: 'Rabu' },
-  { key: 'thu', label: 'Kamis' },
-  { key: 'fri', label: 'Jumat' },
-  { key: 'sat', label: 'Sabtu' },
-  { key: 'sun', label: 'Minggu' },
+  { key: 'mon', label: 'hrFix.weekdayLong.mon' },
+  { key: 'tue', label: 'hrFix.weekdayLong.tue' },
+  { key: 'wed', label: 'hrFix.weekdayLong.wed' },
+  { key: 'thu', label: 'hrFix.weekdayLong.thu' },
+  { key: 'fri', label: 'hrFix.weekdayLong.fri' },
+  { key: 'sat', label: 'hrFix.weekdayLong.sat' },
+  { key: 'sun', label: 'hrFix.weekdayLong.sun' },
 ];
 
 const DEFAULT_HOURS: DepotHours = { open: '08:00', close: '20:00' };
@@ -93,7 +93,7 @@ export function DepotHoursEditor({
             const dh = hours[d.key];
             return (
               <div key={d.key} className="flex items-center gap-3 border-t border-app py-2.5 first:border-0">
-                <span className="w-16 text-sm font-semibold">{d.label}</span>
+                <span className="w-16 text-sm font-semibold">{t(d.label)}</span>
                 {dh ? (
                   <div className="flex flex-1 flex-col gap-1.5">
                     <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export function DepotHoursEditor({
                       <span className="w-14 shrink-0 text-xs text-muted">{t('hrFix.depotHours.break')}</span>
                       <Input
                         type="time"
-                        aria-label={`Mulai istirahat ${d.label}`}
+                        aria-label={`${t("hrFix.depotHours.breakStart")} ${t(d.label)}`}
                         value={dh.breakStart ?? ''}
                         onChange={(e) => setTime(d.key, 'breakStart', e.target.value)}
                         className="py-1.5"
@@ -125,7 +125,7 @@ export function DepotHoursEditor({
                       <span className="text-muted">–</span>
                       <Input
                         type="time"
-                        aria-label={`Selesai istirahat ${d.label}`}
+                        aria-label={`${t("hrFix.depotHours.breakEnd")} ${t(d.label)}`}
                         value={dh.breakEnd ?? ''}
                         onChange={(e) => setTime(d.key, 'breakEnd', e.target.value)}
                         className="py-1.5"

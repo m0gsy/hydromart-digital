@@ -23,12 +23,13 @@ function initials(name: string | null): string {
 
 // "Buka di desktop" — deep links into the full ops console (desktop-only tools).
 const DESKTOP_LINKS = [
-  { href: '/dashboard/franchise', icon: ChartLineUp, label: 'Laporan L/R' },
-  { href: '/dashboard/inventory', icon: ShoppingBag, label: 'Pesanan pembelian' },
-  { href: '/dashboard/staff', icon: UsersThree, label: 'Kelola tim' },
+  { href: '/dashboard/franchise', icon: ChartLineUp, label: 'hrFix.mgrAccount.pnl' },
+  { href: '/dashboard/inventory', icon: ShoppingBag, label: 'hrFix.mgrAccount.purchaseOrders' },
+  { href: '/dashboard/staff', icon: UsersThree, label: 'hrFix.mgrAccount.manageTeam' },
 ] as const;
 
 export default function ManagerAccountPage() {
+  const { t } = useT();
   const router = useRouter();
   const { customer, signOut } = useAuth();
   const { selected, depots } = useDepot();
@@ -75,7 +76,7 @@ export default function ManagerAccountPage() {
               <span className="flex size-8 items-center justify-center rounded-xl bg-black/5 text-brand-700">
                 <Icon size={19} weight="fill" />
               </span>
-              <span className="flex-1 text-sm font-medium">{label}</span>
+              <span className="flex-1 text-sm font-medium">{t(label)}</span>
               <CaretRight size={15} className="text-[color:var(--text-muted)]" />
             </button>
           ))}

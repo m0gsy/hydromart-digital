@@ -28,39 +28,40 @@ function initials(name: string): string {
 type Tab = { label: string; href: string; match: (p: string) => boolean };
 
 const primaryTabs: Tab[] = [
-  { label: 'Ringkasan', href: '/dashboard', match: (p) => p === '/dashboard' },
-  { label: 'Antrean', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders') },
+  { label: 'hrFix.opNav.summary', href: '/dashboard', match: (p) => p === '/dashboard' },
+  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders') },
   // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
   // manager's left rail (which this role never sees).
-  { label: 'Penjualan', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
-  { label: 'Kurir', href: '/dashboard/tracking', match: (p) => p.startsWith('/dashboard/tracking') },
-  { label: 'Inventory', href: '/dashboard/inventory', match: (p) => p.startsWith('/dashboard/inventory') },
-  { label: 'Retur', href: '/dashboard/returns', match: (p) => p.startsWith('/dashboard/returns') },
-  { label: 'Setoran', href: '/dashboard/settlements', match: (p) => p.startsWith('/dashboard/settlements') },
+  { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
+  { label: 'hrFix.opNav.couriers', href: '/dashboard/tracking', match: (p) => p.startsWith('/dashboard/tracking') },
+  { label: 'hrFix.opNav.inventory', href: '/dashboard/inventory', match: (p) => p.startsWith('/dashboard/inventory') },
+  { label: 'hrFix.opNav.returns', href: '/dashboard/returns', match: (p) => p.startsWith('/dashboard/returns') },
+  { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements', match: (p) => p.startsWith('/dashboard/settlements') },
 ];
 
 const manageTabs: Tab[] = [
-  { label: 'Pelanggan', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
-  { label: 'Insiden', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
-  { label: 'Promo', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
-  { label: 'Hadiah', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
-  { label: 'Broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
+  { label: 'hrFix.opNav.customers', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
+  { label: 'hrFix.opNav.incidents', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
+  { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
+  { label: 'hrFix.opNav.rewards', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
+  { label: 'hrFix.opNav.broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
   // Self-service absen (HRIS). This shell only ever renders for KEPALA_DEPOT, so the tab
   // needs no role check of its own — /hr/me answers for the linked employee behind it.
-  { label: 'Absen saya', href: '/hr/me', match: (p) => p.startsWith('/hr/me') },
-  { label: 'Shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
-  { label: 'Huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },
-  { label: 'Serah terima', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },
-  { label: 'Perawatan', href: '/dashboard/maintenance', match: (p) => p.startsWith('/dashboard/maintenance') },
-  { label: 'Kelola depot', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
-  { label: 'Pembayaran', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments') },
-  { label: 'Notifikasi', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
-  { label: 'Laporan', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
-  { label: 'Audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
-  { label: 'Pengaturan', href: '/dashboard/operator-settings', match: (p) => p.startsWith('/dashboard/operator-settings') },
+  { label: 'hrFix.opNav.myAttendance', href: '/hr/me', match: (p) => p.startsWith('/hr/me') },
+  { label: 'hrFix.opNav.shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
+  { label: 'hrFix.opNav.huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },
+  { label: 'hrFix.opNav.handover', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },
+  { label: 'hrFix.opNav.maintenance', href: '/dashboard/maintenance', match: (p) => p.startsWith('/dashboard/maintenance') },
+  { label: 'hrFix.opNav.depots', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
+  { label: 'hrFix.opNav.payments', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments') },
+  { label: 'hrFix.opNav.notifications', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
+  { label: 'hrFix.opNav.reports', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
+  { label: 'hrFix.opNav.audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
+  { label: 'hrFix.opNav.settings', href: '/dashboard/operator-settings', match: (p) => p.startsWith('/dashboard/operator-settings') },
 ];
 
 function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
+  const { t } = useT();
   return (
     <Link
       href={tab.href}
@@ -70,7 +71,7 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
           : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-soft)]'
       }`}
     >
-      {tab.label}
+      {t(tab.label)}
     </Link>
   );
 }
