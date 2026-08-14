@@ -395,7 +395,16 @@ async function seedHrMasterData(depotByCode) {
  * singleton row that PATCH toggles).
  */
 async function seedAdminMasterData() {
-  const reports = rows(ok(await api('GET', '/admin/api/v1/scheduled-reports'), 'list scheduled reports'));
+  // admin-service is not in every stack this seed runs against — the e2e compose brings up
+  // 17 services and admin is not one of them, so the gateway answers 500 for its whole
+  // segment. A service that is not deployed is not a broken seed: the first read decides,
+  // and skipping says so out loud rather than failing the run at the last step.
+  const probe = await api('GET', '/admin/api/v1/scheduled-reports');
+  if (probe.status < 200 || probe.status >= 300) {
+    console.log(`- admin master data skipped: /admin unreachable (HTTP ${probe.status})`);
+    return;
+  }
+  const reports = rows(probe.body);
   const haveReport = new Set(reports.map((r) => r.name));
   for (const r of SCHEDULED_REPORTS) {
     if (haveReport.has(r.name)) continue;
@@ -432,7 +441,12 @@ async function seedDepotMasterData(depotByCode) {
   const depotId = [...depotByCode.values()][0];
   if (!depotId) return;
 
-  const existing = rows(ok(await api('GET', `/depots/api/v1/subscriptions?depotId=${depotId}`), 'list subscriptions'));
+  const probe = await api('GET', `/depots/api/v1/subscriptions?depotId=${depotId}`);
+  if (probe.status < 200 || probe.status >= 300) {
+    console.log(`- depot master data skipped: subscriptions unreachable (HTTP ${probe.status})`);
+    return;
+  }
+  const existing = rows(probe.body);
   if (existing.length === 0) {
     const customers = rows(
       ok(await api('GET', `/customers/api/v1/customers/depot?depotId=${depotId}`), 'list depot customers'),
