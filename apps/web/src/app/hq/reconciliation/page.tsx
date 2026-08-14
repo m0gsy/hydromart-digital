@@ -155,8 +155,8 @@ export default function HqReconciliationPage() {
         scheme
           ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
           : schemes.error
-            ? `${t('hq.reconciliation.lines.commission')} (skema tidak terbaca)`
-            : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`,
+            ? t('hqFix.recon.schemeUnreadable')
+            : t('hqFix.recon.schemeMissing'),
         // Every other unknown cell on this sheet is BLANK. This one alone wrote 0, which is
         // a number finance adds up — the same fix the screen's other rows already had.
         commission == null ? '' : -commission,
@@ -237,8 +237,8 @@ export default function HqReconciliationPage() {
                     ? // "Belum ada skema" is a statement about the contract. An unread
                       // scheme list is a statement about the read, and finance settles on
                       // this row.
-                      `${t('hq.reconciliation.lines.commission')} (skema tidak terbaca)`
-                    : `${t('hq.reconciliation.lines.commission')} (belum ada skema)`
+                      t('hqFix.recon.schemeUnreadable')
+                    : t('hqFix.recon.schemeMissing')
               }
               value={money(commission == null ? null : -commission)}
             />

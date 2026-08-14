@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useT } from '@/lib/locale-context';
+import { useT, type TVars } from '@/lib/locale-context';
+
+/** The `t` a pure parser is handed. Mirrors `lib/hr.ts`'s Translate, for the same reason. */
+type Translate = (key: string, vars?: TVars) => string;
 import { CheckCircle, DownloadSimple, UploadSimple, Warning } from '@phosphor-icons/react';
 
 import { Badge, Button, Card } from '@/components/ui';
@@ -11,6 +14,13 @@ import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords, toXlsxBlob } f
 
 /** Server-side row cap — mirrors @ArrayMaxSize(500) on every import DTO. */
 export const MAX_IMPORT_ROWS = 500;
+
+/**
+ * The translator, or the identity when a parser is called outside a component (a test, a
+ * script). Returning the KEY is deliberate: a raw key in an error column is a visible
+ * "nobody translated this", which is easier to notice than an English sentence.
+ */
+const passthrough: Translate = (key) => key;
 
 export interface ImportColumn {
   /** Column header in the file — what the person filling it in reads. */
@@ -29,7 +39,11 @@ export interface ImportColumn {
    * Convert a raw cell into the value sent to the API. Throw an Error to reject
    * the row with that message. Defaults to the `options` check, else the trimmed string.
    */
-  parse?: (raw: string) => unknown;
+  /**
+   * `t` is passed so a rejection reason is copy, not a hardcoded Indonesian sentence. A
+   * parser that needs no words simply ignores it — TypeScript allows the shorter signature.
+   */
+  parse?: (raw: string, t: Translate) => unknown;
 }
 
 type RowStatus = 'created' | 'updated' | 'skipped' | 'failed';
@@ -64,18 +78,19 @@ export interface PreparedRow {
  * ("150.000" / "150,000") and rejects anything else — Number('150.000') is 150,
  * so a silent coercion here would quietly underpay someone by 1000x.
  */
-export function intCell(raw: string): number {
+export function intCell(raw: string, t: Translate = passthrough): number {
   const s = raw.replace(/\s/g, '');
   if (!/^-?\d{1,3}([.,]\d{3})*$/.test(s) && !/^-?\d+$/.test(s)) {
-    throw new Error(`"${raw}" bukan angka bulat`);
+    throw new Error(t('opsFix.import.notAnInteger', { value: raw }));
   }
   return Number(s.replace(/[.,]/g, ''));
 }
 
 /** Decimal cell (percentage). Dot is the decimal point; no thousand separators. */
-export function numberCell(raw: string): number {
+export function numberCell(raw: string, t: Translate = passthrough): number {
   const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
-  if (!Number.isFinite(n) || raw.trim() === '') throw new Error(`"${raw}" bukan angka`);
+  if (!Number.isFinite(n) || raw.trim() === '')
+    throw new Error(t('opsFix.import.notANumber', { value: raw }));
   return n;
 }
 
@@ -84,26 +99,26 @@ export function numberCell(raw: string): number {
  * cell back as YYYY-MM-DD (see xlsx.ts cellText), and anything else is a typist's format
  * we refuse to guess at: 03/04 is two different days depending on who typed it.
  */
-export function dateCell(raw: string): string {
+export function dateCell(raw: string, t: Translate = passthrough): string {
   const value = raw.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`"${raw}" harus format YYYY-MM-DD`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(t('opsFix.import.dateFormat', { value: raw }));
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) throw new Error(`"${raw}" bukan tanggal yang sah`);
+  if (Number.isNaN(parsed.getTime())) throw new Error(t('opsFix.import.dateInvalid', { value: raw }));
   return parsed.toISOString();
 }
 
 /** Payroll period cell, "YYYY-MM" — the same shape the server's PERIOD regex accepts. */
-export function periodCell(raw: string): string {
+export function periodCell(raw: string, t: Translate = passthrough): string {
   const value = raw.trim();
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error(`"${raw}" harus format YYYY-MM`);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error(t('opsFix.import.periodFormat', { value: raw }));
   return value;
 }
 
 /** Enum cell factory: upper-cases and checks membership. */
 export function enumCell(allowed: readonly string[]) {
-  return (raw: string): string => {
+  return (raw: string, t: Translate = passthrough): string => {
     const value = raw.toUpperCase();
-    if (!allowed.includes(value)) throw new Error(`harus salah satu dari ${allowed.join('/')}`);
+    if (!allowed.includes(value)) throw new Error(t('opsFix.import.oneOf', { allowed: allowed.join('/') }));
     return value;
   };
 }
@@ -116,7 +131,7 @@ export function enumCell(allowed: readonly string[]) {
  * but a long one flips to scientific notation and genuinely loses digits. That case
  * is rejected loudly rather than guessed at — the fix belongs in the spreadsheet.
  */
-export function phoneCell(raw: string): string {
+export function phoneCell(raw: string, t: Translate = passthrough): string {
   const cleaned = raw.replace(/[\s\-().]/g, '');
   if (/e[+-]?\d+$/i.test(cleaned)) {
     throw new Error(
@@ -133,31 +148,35 @@ export function phoneCell(raw: string): string {
           ? `+62${cleaned}`
           : cleaned;
   if (!/^\+628\d{7,11}$/.test(e164)) {
-    throw new Error(`"${raw}" bukan nomor HP Indonesia yang sah`);
+    throw new Error(t('opsFix.import.phoneInvalid', { value: raw }));
   }
   return e164;
 }
 
 /** The parser a column uses: explicit `parse`, else its `options`, else raw text. */
-function parserFor(column: ImportColumn): (raw: string) => unknown {
+function parserFor(column: ImportColumn): (raw: string, t: Translate) => unknown {
   if (column.parse) return column.parse;
   if (column.options) return enumCell(column.options);
   return (raw) => raw;
 }
 
 /** Validate + shape each record into the JSON payload; a rejected row carries its reason. */
-export function prepareRows(records: CsvRecord[], columns: ImportColumn[]): PreparedRow[] {
+export function prepareRows(
+  records: CsvRecord[],
+  columns: ImportColumn[],
+  t: Translate = passthrough,
+): PreparedRow[] {
   return records.map((raw, i) => {
     const row = i + 1;
     const payload: Record<string, unknown> = {};
     for (const col of columns) {
       const cell = raw[col.key] ?? '';
       if (cell === '') {
-        if (col.required) return { row, raw, error: `kolom "${col.key}" wajib diisi` };
+        if (col.required) return { row, raw, error: t('opsFix.import.columnRequired', { column: col.key }) };
         continue;
       }
       try {
-        payload[col.field ?? col.key] = parserFor(col)(cell);
+        payload[col.field ?? col.key] = parserFor(col)(cell, t);
       } catch (err) {
         return {
           row,
@@ -232,7 +251,7 @@ export function CsvImport({
       return;
     }
     if (kind === 'unsupported') {
-      setFileError(`"${file.name}" bukan file Excel atau CSV. Pilih file .xlsx atau .csv.`);
+      setFileError(t('opsFix.import.wrongFileType', { name: file.name }));
       return;
     }
 
@@ -248,19 +267,19 @@ export function CsvImport({
 
     const first = records[0];
     if (!first) {
-      setFileError('File kosong atau tidak punya baris data.');
+      setFileError(t('opsFix.import.emptyFile'));
       return;
     }
     if (records.length > MAX_IMPORT_ROWS) {
-      setFileError(`Maksimal ${MAX_IMPORT_ROWS} baris per file (file ini ${records.length}).`);
+      setFileError(t('opsFix.import.tooManyRows', { max: MAX_IMPORT_ROWS, count: records.length }));
       return;
     }
     const missing = columns.filter((c) => c.required && !(c.key in first));
     if (missing.length > 0) {
-      setFileError(`Kolom wajib hilang: ${missing.map((c) => c.key).join(', ')}.`);
+      setFileError(t('opsFix.import.missingColumns', { columns: missing.map((c) => c.key).join(', ') }));
       return;
     }
-    setRows(prepareRows(records, columns));
+    setRows(prepareRows(records, columns, t));
   }
 
   async function submit() {
@@ -299,11 +318,13 @@ export function CsvImport({
     ]);
     try {
       downloadBlob(
+        // i18n-ok: download filename — what lands in the user's Downloads folder.
         `gagal-${templateName}.xlsx`,
         await toXlsxBlob(failedHeaders, failedRows, templateName),
       );
     } catch {
       // Excel writer unavailable (offline chunk) — CSV still gets the rows back to them.
+      // i18n-ok: download filename.
       downloadCsv(`gagal-${templateName}.csv`, toCsv(failedHeaders, failedRows));
     }
   }

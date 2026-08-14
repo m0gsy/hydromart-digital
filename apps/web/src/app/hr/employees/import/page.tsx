@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useT } from '@/lib/locale-context';
+import { useT, type TVars } from '@/lib/locale-context';
 
 import { STAFF_IMPORT_ROLES } from '@hydromart/access';
 import {
@@ -38,12 +38,15 @@ const GENDERS = Object.keys(GENDER_LABEL) as Gender[];
 const PTKP_STATUSES = Object.keys(PTKP_STATUS_LABEL) as PtkpStatus[];
 
 /** 16-digit KTP number. Excel turns it into 3.2E+15 unless the column is Text. */
-function nikCell(raw: string): string {
+/** Same shape `csv-import.tsx` hands a parser. */
+type Translate = (key: string, vars?: TVars) => string;
+
+function nikCell(raw: string, t: Translate): string {
   const value = raw.replace(/\s/g, '');
   if (/e[+-]?\d+$/i.test(value)) {
-    throw new Error(`"${raw}" rusak jadi notasi ilmiah oleh Excel — format kolom NIK sebagai Teks`);
+    throw new Error(t('opsFix.import.nikScientific', { value: raw }));
   }
-  if (!/^\d{16}$/.test(value)) throw new Error(`"${raw}" harus 16 digit angka`);
+  if (!/^\d{16}$/.test(value)) throw new Error(t('opsFix.import.nik16Digits', { value: raw }));
   return value;
 }
 
@@ -76,12 +79,13 @@ export default function ImportEmployeesPage() {
         example: depots[0]?.code ?? 'JKT-01',
         text: true,
         options: depots.map((d) => d.code),
-        parse: (raw) => {
+        parse: (raw, t) => {
           const match = depots.find((d) => d.code.toUpperCase() === raw.toUpperCase());
-          if (!match) throw new Error(`kode depot "${raw}" tidak dikenal`);
+          if (!match) throw new Error(t('opsFix.import.unknownDepotCode', { value: raw }));
           return match.id;
         },
       },
+      // i18n-ok: sample cell value in the column guide — what the file must literally say.
       { key: 'position', required: true, example: 'Kurir' },
       // Optional, same code-not-UUID trick as depotCode. Blank = "Belum diatur"; the server
       // still rejects a unit that belongs to another depot.
@@ -91,9 +95,9 @@ export default function ImportEmployeesPage() {
         example: deptRows[0]?.code ?? '',
         text: true,
         options: deptRows.map((d) => d.code),
-        parse: (raw) => {
+        parse: (raw, t) => {
           const match = deptRows.find((d) => d.code.toUpperCase() === raw.toUpperCase());
-          if (!match) throw new Error(`kode departemen "${raw}" tidak dikenal`);
+          if (!match) throw new Error(t('opsFix.import.unknownDepartmentCode', { value: raw }));
           return match.id;
         },
       },
@@ -125,7 +129,7 @@ export default function ImportEmployeesPage() {
         options: shiftRows.map((s) => s.name),
         parse: (raw) => {
           const match = shiftRows.find((s) => s.name.toUpperCase() === raw.toUpperCase());
-          if (!match) throw new Error(`shift "${raw}" tidak dikenal`);
+          if (!match) throw new Error(t('opsFix.import.unknownShift', { value: raw }));
           return match.id;
         },
       },
@@ -143,7 +147,7 @@ export default function ImportEmployeesPage() {
       { key: 'emergencyName', example: '' },
       { key: 'emergencyPhone', example: '', text: true, parse: phoneCell },
     ],
-    [depots, deptRows, shiftRows],
+    [depots, deptRows, shiftRows, t],
   );
 
   return (

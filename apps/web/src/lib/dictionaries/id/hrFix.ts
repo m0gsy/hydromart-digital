@@ -11,6 +11,9 @@
  * silently missing copy.
  */
 export const hrFix = {
+  notifPrefs: {
+    saveFailed: "Gagal menyimpan {label}",
+  },
   myHome: {
     greeting: "Halo, {name}",
     employee: "Karyawan",
@@ -123,6 +126,7 @@ export const hrFix = {
     },
   },
   common: {
+    periodLabel: "Periode {period}",
     notSet: 'Belum diatur',
     years: '{n} tahun',
     readRate: '{read} dari {total} dibaca ({pct}%)',
@@ -157,6 +161,7 @@ export const hrFix = {
     exitBeforeJoin: 'Tanggal keluar tidak boleh sebelum tanggal masuk.',
   },
   assets: {
+    movedFrom: " · dari {name}",
     editDetail2: "Ubah Detail",
     kind2: "Jenis",
     saveDetail: "Simpan Detail",
@@ -333,6 +338,7 @@ export const hrFix = {
     saveFailed: "Gagal menyimpan",
   },
   rules: {
+    pctOfBase: "{pct}% gaji pokok",
     title: "Rule Bonus Otomatis",
     subtitle: "Bonus dihitung otomatis saat payroll dibuat",
     empty: "Belum ada rule.",
@@ -380,6 +386,7 @@ export const hrFix = {
     noEmployees: "Belum ada karyawan",
   },
   settings: {
+    notFilled: "(belum diisi)",
     title: "Konfigurasi Gaji",
     subtitle: "Default GLOBAL (SUPER_ADMIN) atau override per depot",
     globalOnly: "Hanya SUPER_ADMIN yang dapat mengubah default GLOBAL.",
@@ -497,6 +504,7 @@ export const hrFix = {
     failed: "Gagal memproses",
   },
   performance: {
+    savedFor: "Penilaian {name} tersimpan",
     period3: "Periode",
     loadHistory: "Muat riwayat",
     period2: "Periode",
@@ -548,6 +556,7 @@ export const hrFix = {
     contractEnd: "Akhir kontrak",
   },
   resellers: {
+    perGallon: "Rp{amount}/galon",
     addReseller2: "Tambah reseller",
     save2: "Simpan",
     cancel2: "Batal",
@@ -858,6 +867,7 @@ export const hrFix = {
     received: "Diterima",
   },
   announcements: {
+    scheduledNotSent: "Dijadwalkan {at} — belum terkirim",
     mergedTargets: "Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.",
     delete2: "Hapus",
     addTarget: "Tambah target",

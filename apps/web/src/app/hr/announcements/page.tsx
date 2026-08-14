@@ -95,7 +95,7 @@ export default function AnnouncementsPage() {
                     <p className="text-xs text-muted">
                       {a.publishedAt
                         ? `Terkirim ${fmtDate(a.publishedAt)} ke ${a.audienceSize} orang`
-                        : `Dijadwalkan ${fmtDate(a.scheduledAt)} — belum terkirim`}
+                        : t('hrFix.announcements.scheduledNotSent', { at: fmtDate(a.scheduledAt) })}
                       {' · '}
                       {a.targets
                         .map((tg) => t(ANNOUNCEMENT_DIMENSION_LABEL[tg.dimension]))

@@ -54,7 +54,7 @@ export default function PayrollDetailPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <SectionHeader
-        title={`Slip Gaji ${p.periodMonth}`}
+        title={t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })}
         subtitle={t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}
         action={
           <div className="flex items-center gap-2">

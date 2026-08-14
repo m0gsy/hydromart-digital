@@ -52,7 +52,7 @@ export function HqBottomNav() {
             href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex flex-col items-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
+              'flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
               (on ? 'text-brand-600' : 'text-[color:var(--text-muted)]')
             }
           >

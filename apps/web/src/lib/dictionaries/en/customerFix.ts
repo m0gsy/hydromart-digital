@@ -1,5 +1,8 @@
 // English mirror of id/customerFix.ts — SAME keys, English values.
 export const customerFix = {
+  address: {
+    pinRequired: "A map pin is required — tap \"Use my location\".",
+  },
   depotOpen: {
     buka: "Open",
     istirahat: "On break",

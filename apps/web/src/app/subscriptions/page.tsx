@@ -161,11 +161,11 @@ function Panel() {
           <div className="grid grid-cols-2 gap-4">
             <Field label={copy.quantity} htmlFor="sub-qty">
               <div className="flex h-12 items-center justify-between rounded-[14px] border-[1.5px] border-app px-2">
-                <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="h-8 w-8 rounded-full bg-brand-50 font-bold text-brand-700">
+                <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700">
                   −
                 </button>
                 <span className="text-sm font-extrabold tabular-nums">{quantity}</span>
-                <button type="button" onClick={() => setQuantity((q) => q + 1)} className="h-8 w-8 rounded-full bg-brand-50 font-bold text-brand-700">
+                <button type="button" onClick={() => setQuantity((q) => q + 1)} className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700">
                   +
                 </button>
               </div>

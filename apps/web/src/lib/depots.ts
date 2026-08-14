@@ -1,3 +1,5 @@
+import type { Translate } from './addresses';
+
 // Pure helpers for the depot admin console. Covered by test/depots.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
@@ -70,7 +72,10 @@ function numOrNull(v: string): number | null {
  * lat/lng (valid ranges), deliveryFee (≥0). Optional: serviceRadiusKm (>0),
  * minOrderAmount (≥0; blank → null clears it).
  */
-export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload } | { ok: false; error: string } {
+export function toDepotPayload(
+  form: DepotForm,
+  t: Translate,
+): { ok: true; value: DepotPayload } | { ok: false; error: string } {
   const text = {
     code: form.code.trim(),
     name: form.name.trim(),
@@ -88,7 +93,7 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
   // silently. depot-service rejects it too; this is the same rule stated early.
   const owner = form.ownerId.trim();
   if (form.ownershipType === 'WARALABA' && !owner) {
-    return { ok: false, error: 'A franchise depot must have an owner.' };
+    return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
   }
   const lat = numOrNull(form.lat);
   if (lat === null || lat < -90 || lat > 90) return { ok: false, error: 'Latitude must be between -90 and 90.' };
@@ -101,7 +106,7 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
   // depot silently never receives its sales report. Caught at the form, not at 13:00.
   const phone = form.contactPhone.trim() || null;
   if (phone !== null && !/^\+?[0-9]{8,15}$/.test(phone)) {
-    return { ok: false, error: 'Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.' };
+    return { ok: false, error: t('opsFix.depotForm.whatsappFormat') };
   }
 
   const value: DepotPayload = {

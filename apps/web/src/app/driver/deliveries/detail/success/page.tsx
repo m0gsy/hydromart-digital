@@ -92,7 +92,7 @@ function Success() {
         <button
           type="button"
           onClick={() => router.replace('/driver')}
-          className="w-full text-center text-[13px] font-bold text-[color:var(--muted)]"
+          className="min-h-11 w-full text-center text-[13px] font-bold text-[color:var(--muted)]"
         >
           {t('courierFix.podSuccess.backToList')}
         </button>

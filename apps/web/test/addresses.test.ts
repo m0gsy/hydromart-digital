@@ -9,6 +9,9 @@ import {
 } from '@/lib/addresses';
 import type { Address } from '@/lib/types';
 
+/** The key is what the test asserts: it names the rejection more precisely than copy. */
+const t = (key: string) => key;
+
 const make = (over: Partial<Address> & { id: string }): Address => ({
   label: 'Rumah',
   recipientName: 'Budi',
@@ -59,7 +62,7 @@ describe('toAddressPayload', () => {
   };
 
   it('rejects a missing required field', () => {
-    const r = toAddressPayload({ ...base, city: '  ' });
+    const r = toAddressPayload({ ...base, city: '  ' }, t);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/city/);
   });
@@ -67,8 +70,8 @@ describe('toAddressPayload', () => {
   // The pin is required now (UAT-M2-06): depot routing is by distance, so an address
   // with no coordinates cannot be matched to a depot at all.
   it('rejects a blank pin and omits only the blank postal code', () => {
-    expect(toAddressPayload(base).ok).toBe(false);
-    const r = toAddressPayload({ ...base, latitude: '-6.9147', longitude: '107.6098' });
+    expect(toAddressPayload(base, t).ok).toBe(false);
+    const r = toAddressPayload({ ...base, latitude: '-6.9147', longitude: '107.6098' }, t);
     expect(r).toEqual({
       ok: true,
       value: {
@@ -85,19 +88,19 @@ describe('toAddressPayload', () => {
   });
 
   it('parses coords when both are provided and in range', () => {
-    const r = toAddressPayload({ ...base, latitude: '-6.9', longitude: '107.6', postalCode: '40111' });
+    const r = toAddressPayload({ ...base, latitude: '-6.9', longitude: '107.6', postalCode: '40111' }, t);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value).toMatchObject({ latitude: -6.9, longitude: 107.6, postalCode: '40111' });
   });
 
   it('rejects a half-filled pin', () => {
-    const r = toAddressPayload({ ...base, latitude: '-6.9' });
+    const r = toAddressPayload({ ...base, latitude: '-6.9' }, t);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/[Tt]itik peta/);
+    if (!r.ok) expect(r.error).toMatch(/pinRequired/);
   });
 
   it('rejects an out-of-range latitude', () => {
-    const r = toAddressPayload({ ...base, latitude: '99', longitude: '107.6' });
+    const r = toAddressPayload({ ...base, latitude: '99', longitude: '107.6' }, t);
     expect(r.ok).toBe(false);
   });
 });

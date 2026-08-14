@@ -111,7 +111,7 @@ function NewIncident() {
                 key={c}
                 type="button"
                 onClick={() => setCategory(c)}
-                className={`rounded-xl px-3 py-2.5 text-left text-sm font-bold ${c === category ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
+                className={`min-h-11 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${c === category ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
               >
                 {t(`driver.incidentNew.categories.${c}`)}
               </button>
@@ -126,7 +126,7 @@ function NewIncident() {
                 key={s}
                 type="button"
                 onClick={() => setSeverity(s)}
-                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-bold ${
+                className={`flex-1 min-h-11 min-h-11 rounded-xl px-3 py-2.5 text-sm font-bold ${
                   s === severity
                     ? s === 'HIGH'
                       ? 'bg-red-600 text-white'

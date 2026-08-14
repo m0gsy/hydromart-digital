@@ -199,7 +199,7 @@ function ProductsCatalog() {
             <Link
               key={c.id}
               href={`/products?category=${c.id}`}
-              className={`flex-none snap-start whitespace-nowrap rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
+              className={`min-h-11 flex-none snap-start whitespace-nowrap rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
                 c.id === categoryId
                   ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
                   : 'surface border border-app text-muted hover:border-brand-600'

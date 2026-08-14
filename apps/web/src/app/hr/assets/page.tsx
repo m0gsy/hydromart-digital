@@ -290,7 +290,7 @@ function AssetPanel({
           {detail.data.movements.map((m) => (
             <li key={m.id} className="text-muted">
               <b className="text-app">{t(ASSET_MOVEMENT_LABEL[m.kind])}</b> · {fmtDate(m.movedAt)}
-              {m.fromEmployeeId ? ` · dari ${nameOf(m.fromEmployeeId)}` : ''}
+              {m.fromEmployeeId ? t('hrFix.assets.movedFrom', { name: nameOf(m.fromEmployeeId) }) : ''}
               {m.toEmployeeId ? ` · ke ${nameOf(m.toEmployeeId)}` : ''}
               {m.condition ? ` · kondisi: ${m.condition}` : ''}
             </li>

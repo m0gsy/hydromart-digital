@@ -94,7 +94,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
             <Link
               key={c.href}
               href={c.href}
-              className="text-deep-teal rounded-full bg-white/75 px-[15px] py-2 text-[13px] font-bold transition-colors hover:bg-white"
+              className="text-deep-teal min-h-11 rounded-full bg-white/75 px-[15px] py-2 text-[13px] font-bold transition-colors hover:bg-white"
             >
               {c.label}
             </Link>

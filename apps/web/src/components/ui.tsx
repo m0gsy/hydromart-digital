@@ -371,11 +371,11 @@ export function Toggle({
       onClick={() => onChange(!on)}
       className={cx(
         'flex h-[27px] w-[46px] flex-shrink-0 items-center rounded-full p-[3px] transition-colors disabled:opacity-50',
-        // A12. 27px is well under the 40px anyone can reliably hit, and this is the control
-        // that turns notifications and subscriptions on and off. The target is grown with a
+        // A12. 27px is well under what anyone can reliably hit, and this is the control that
+        // turns notifications and subscriptions on and off. The target is grown with a
         // pseudo-element instead of the box, so the switch looks identical and no layout
-        // that already places one moves by a pixel: 27 + 2×6.5 = 40.
-        'relative before:absolute before:-inset-[6.5px] before:content-[""]',
+        // that already places one moves by a pixel: 27 + 2×8.5 = 44, the touch floor.
+        'relative before:absolute before:-inset-[8.5px] before:content-[""]',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         on ? 'justify-end bg-brand-600' : 'justify-start bg-[color:var(--surface-soft)]',
       )}

@@ -1,6 +1,29 @@
 // Depot-operator design-fidelity fixes (batch AB). Private fragment consumed via t('opsFix.*').
 // NO `as const` — values must widen to string so the en/ mirror stays assignable.
 export const opsFix = {
+  depotForm: {
+    ownerRequired: "Depot waralaba wajib punya pemilik.",
+    whatsappFormat: "Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.",
+  },
+  import: {
+    notANumber: "\"{value}\" bukan angka",
+    nikScientific: "\"{value}\" rusak jadi notasi ilmiah oleh Excel — format kolom NIK sebagai Teks",
+    notAnInteger: "\"{value}\" bukan angka bulat",
+    dateFormat: "\"{value}\" harus format YYYY-MM-DD",
+    dateInvalid: "\"{value}\" bukan tanggal yang sah",
+    periodFormat: "\"{value}\" harus format YYYY-MM",
+    oneOf: "harus salah satu dari {allowed}",
+    phoneInvalid: "\"{value}\" bukan nomor HP Indonesia yang sah",
+    columnRequired: "kolom \"{column}\" wajib diisi",
+    emptyFile: "File kosong atau tidak punya baris data.",
+    tooManyRows: "Maksimal {max} baris per file (file ini {count}).",
+    missingColumns: "Kolom wajib hilang: {columns}.",
+    wrongFileType: "\"{name}\" bukan file Excel atau CSV. Pilih file .xlsx atau .csv.",
+    unknownDepotCode: "kode depot \"{value}\" tidak dikenal",
+    unknownDepartmentCode: "kode departemen \"{value}\" tidak dikenal",
+    unknownShift: "shift \"{value}\" tidak dikenal",
+    nik16Digits: "\"{value}\" harus 16 digit angka",
+  },
   wastage: {
     allDepots: "Semua depot",
     pricedItems: "dari item ber-harga jual",

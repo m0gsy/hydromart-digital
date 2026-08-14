@@ -340,7 +340,20 @@ const MEASURE = ({ tapMin }) => {
     )) {
       if (!visible(el)) continue;
       if (el.hasAttribute('disabled') || el.getAttribute('aria-hidden') === 'true') continue;
-      const r = el.getBoundingClientRect();
+      let r = el.getBoundingClientRect();
+      // A control may grow its TOUCH area with a `::before` inset without moving its box —
+      // `ui.tsx`'s switch does exactly that, on purpose, so the layout around it does not
+      // shift. Measuring the box alone reported a 44px target as 27px.
+      const before = getComputedStyle(el, '::before');
+      if (before.content && before.content !== 'none' && before.position === 'absolute') {
+        const grow = Math.max(
+          -parseFloat(before.top || '0') || 0,
+          -parseFloat(before.left || '0') || 0,
+        );
+        if (grow > 0) {
+          r = new DOMRect(r.left - grow, r.top - grow, r.width + grow * 2, r.height + grow * 2);
+        }
+      }
       const key = sel(el);
       if (r.width === 0 || r.height === 0) {
         if (!tapBad.has(key)) tapBad.set(key, { el: key, kind: 'blocked', why: 'zero-size' });

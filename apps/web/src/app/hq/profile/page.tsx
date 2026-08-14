@@ -121,7 +121,7 @@ export default function HqProfilePage() {
                 type="button"
                 onClick={() => setLocale(lng)}
                 aria-pressed={locale === lng}
-                className={`rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${
+                className={`min-h-11 rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${
                   locale === lng ? 'bg-brand-600 text-on-brand' : 'text-muted'
                 }`}
               >

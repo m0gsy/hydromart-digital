@@ -1,6 +1,29 @@
 // Depot-operator design-fidelity fixes (batch AB) — English mirror of id/opsFix.ts.
 // NO `as const` — values must widen to string so both locales share one key shape.
 export const opsFix = {
+  depotForm: {
+    ownerRequired: "A franchise depot must have an owner.",
+    whatsappFormat: "The depot WhatsApp number must be 8–15 digits, optionally +-prefixed.",
+  },
+  import: {
+    notANumber: "\"{value}\" is not a number",
+    nikScientific: "\"{value}\" was mangled into scientific notation by Excel — format the NIK column as Text",
+    notAnInteger: "\"{value}\" is not a whole number",
+    dateFormat: "\"{value}\" must be YYYY-MM-DD",
+    dateInvalid: "\"{value}\" is not a valid date",
+    periodFormat: "\"{value}\" must be YYYY-MM",
+    oneOf: "must be one of {allowed}",
+    phoneInvalid: "\"{value}\" is not a valid Indonesian mobile number",
+    columnRequired: "column \"{column}\" is required",
+    emptyFile: "The file is empty or has no data rows.",
+    tooManyRows: "At most {max} rows per file (this one has {count}).",
+    missingColumns: "Required columns missing: {columns}.",
+    wrongFileType: "\"{name}\" is not an Excel or CSV file. Pick a .xlsx or .csv.",
+    unknownDepotCode: "unknown depot code \"{value}\"",
+    unknownDepartmentCode: "unknown department code \"{value}\"",
+    unknownShift: "unknown shift \"{value}\"",
+    nik16Digits: "\"{value}\" must be 16 digits",
+  },
   wastage: {
     allDepots: "All depots",
     pricedItems: "from items with a sale price",

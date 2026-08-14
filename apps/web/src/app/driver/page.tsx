@@ -82,7 +82,7 @@ function DriverConsole() {
         </div>
         <Link
           href="/driver/shift/status"
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+          className={`inline-flex items-center gap-1.5 min-h-11 rounded-full px-3 py-1.5 text-xs font-bold ${
             onBreak ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
           }`}
         >

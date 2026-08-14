@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useToast } from '@/components/toast';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { AdminNotificationPrefs, NotificationChannelPref } from '@/lib/types';
 
@@ -22,6 +23,7 @@ import type { AdminNotificationPrefs, NotificationChannelPref } from '@/lib/type
  */
 export function usePushPrefs() {
   const { toast } = useToast();
+  const { t } = useT();
   const query = useAsync<AdminNotificationPrefs>(() => api.get(endpoints.admin.notifPrefs, true));
   const [rows, setRows] = useState<NotificationChannelPref[] | null>(null);
 
@@ -46,7 +48,7 @@ export function usePushPrefs() {
       // Roll the switch back: a toggle that stays where it was put is a preference the user
       // believes is saved.
       setRows(events);
-      toast(err instanceof ApiError ? err.message : `Gagal menyimpan ${label}`, 'error');
+      toast(err instanceof ApiError ? err.message : t('hrFix.notifPrefs.saveFailed', { label }), 'error');
     }
   }
 

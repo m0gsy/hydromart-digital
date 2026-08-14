@@ -52,15 +52,16 @@ export default function HqStaffImportPage() {
         example: depotRows[0]?.code ?? 'JKT-01',
         text: true,
         options: depotRows.map((d) => d.code),
-        parse: (raw) => {
+        parse: (raw, t) => {
           const match = depotRows.find((d) => d.code.toUpperCase() === raw.toUpperCase());
-          if (!match) throw new Error(`kode depot "${raw}" tidak dikenal`);
+          if (!match) throw new Error(t('opsFix.import.unknownDepotCode', { value: raw }));
           return match.id;
         },
       },
       // Employment columns: an invited account now opens an employee record too, so the
       // file has to carry what HR needs to pay and roster the person. Required, because a
       // spreadsheet that omits them would create exactly the half-people this replaces.
+      // i18n-ok: sample cell value in the column guide — what the file must literally say.
       { key: 'position', required: true, example: 'Kurir' },
       { key: 'joinDate', required: true, example: '2026-08-04', text: true },
       {

@@ -1,5 +1,8 @@
 /** HR console — EN mirror of id/hrFix.ts. Same shape, key for key. */
 export const hrFix = {
+  notifPrefs: {
+    saveFailed: "Could not save {label}",
+  },
   myHome: {
     greeting: "Hi, {name}",
     employee: "Employee",
@@ -112,6 +115,7 @@ export const hrFix = {
     },
   },
   common: {
+    periodLabel: "Period {period}",
     notSet: 'Not set',
     years: '{n} years',
     readRate: '{read} of {total} read ({pct}%)',
@@ -145,6 +149,7 @@ export const hrFix = {
     exitBeforeJoin: 'Exit date cannot be before the join date.',
   },
   assets: {
+    movedFrom: " · from {name}",
     editDetail2: "Edit details",
     kind2: "Type",
     saveDetail: "Save details",
@@ -321,6 +326,7 @@ export const hrFix = {
     saveFailed: "Could not save",
   },
   rules: {
+    pctOfBase: "{pct}% of base pay",
     title: "Automatic bonus rules",
     subtitle: "Bonuses are worked out automatically when payroll is generated",
     empty: "No rules yet.",
@@ -368,6 +374,7 @@ export const hrFix = {
     noEmployees: "No employees yet",
   },
   settings: {
+    notFilled: "(not filled in)",
     title: "Payroll configuration",
     subtitle: "GLOBAL defaults (SUPER_ADMIN) or a per-depot override",
     globalOnly: "Only a SUPER_ADMIN can change the GLOBAL defaults.",
@@ -485,6 +492,7 @@ export const hrFix = {
     failed: "Could not process it",
   },
   performance: {
+    savedFor: "Review for {name} saved",
     period3: "Period",
     loadHistory: "Load history",
     period2: "Period",
@@ -536,6 +544,7 @@ export const hrFix = {
     contractEnd: "Contract end",
   },
   resellers: {
+    perGallon: "Rp{amount}/gallon",
     addReseller2: "Add reseller",
     save2: "Save",
     cancel2: "Cancel",
@@ -846,6 +855,7 @@ export const hrFix = {
     received: "Received",
   },
   announcements: {
+    scheduledNotSent: "Scheduled {at} — not sent yet",
     mergedTargets: "Targets are merged. Someone in two targets still receives one message.",
     delete2: "Delete",
     addTarget: "Add target",

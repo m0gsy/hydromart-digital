@@ -1,3 +1,8 @@
+import type { TVars } from './locale-context';
+
+/** The translator, passed in: a pure validator that produces COPY cannot call a hook. */
+export type Translate = (key: string, vars?: TVars) => string;
+
 import type { Address } from './types';
 
 export interface AddressForm {
@@ -100,6 +105,7 @@ function numOrNull(v: string): number | null {
  */
 export function toAddressPayload(
   form: AddressBookForm,
+  t: Translate,
 ): { ok: true; value: AddressPayload } | { ok: false; error: string } {
   const text = {
     label: form.label.trim(),
@@ -123,7 +129,7 @@ export function toAddressPayload(
   // be matched to any depot. It used to save fine and then fail at checkout, which reads
   // as a broken order rather than an incomplete address. Mirrors CreateAddressDto.
   if (form.latitude.trim() === '' || form.longitude.trim() === '') {
-    return { ok: false, error: 'Titik peta wajib diisi — tekan "Gunakan lokasi saya".' };
+    return { ok: false, error: t('customerFix.address.pinRequired') };
   }
   const lat = numOrNull(form.latitude);
   if (lat === null || lat < -90 || lat > 90) {

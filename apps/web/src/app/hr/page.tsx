@@ -52,7 +52,7 @@ export default function HrDashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <SectionHeader title={t('hrFix.home.title')} subtitle={`Periode ${period}`} />
+      <SectionHeader title={t('hrFix.home.title')} subtitle={t('hrFix.common.periodLabel', { period })} />
 
       {loading && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

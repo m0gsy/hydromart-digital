@@ -103,7 +103,7 @@ function RulesBody() {
                 </div>
                 <p className="text-sm text-muted">
                   {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]} {r.threshold} →{' '}
-                  {r.rewardKind === 'FIXED' ? <Money amount={Number(r.rewardValue)} /> : `${r.rewardValue}% gaji pokok`} · {depotName(r.depotId)}
+                  {r.rewardKind === 'FIXED' ? <Money amount={Number(r.rewardValue)} /> : t('hrFix.rules.pctOfBase', { pct: r.rewardValue })} · {depotName(r.depotId)}
                 </p>
               </div>
               {admin && <Button variant="secondary" onClick={() => toggle(r)}>{r.active ? t('hrFix.rules.deactivate') : t('hrFix.rules.activate')}</Button>}

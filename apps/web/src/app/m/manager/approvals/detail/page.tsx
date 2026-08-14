@@ -81,7 +81,7 @@ export default function ApprovalDetailPage() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex size-9 items-center justify-center rounded-xl border border-app"
+          className="flex size-11 items-center justify-center rounded-xl border border-app"
           aria-label={t('hrFix.approvalDetail.backAria')}
         >
           <ArrowLeft size={18} />

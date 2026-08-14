@@ -40,7 +40,7 @@ function DriverNav() {
           <Link
             key={href}
             href={href}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-bold ${
+            className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold ${
               active ? 'text-brand-700' : 'text-[color:var(--muted)]'
             }`}
           >

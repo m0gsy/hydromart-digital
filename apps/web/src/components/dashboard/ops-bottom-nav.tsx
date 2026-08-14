@@ -77,7 +77,7 @@ export function OpsBottomNav() {
             href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex min-w-0 flex-1 flex-col items-center gap-[3px] px-0.5 text-center text-[10px] font-extrabold leading-tight transition-colors ' +
+              'flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] px-0.5 text-center text-[10px] font-extrabold leading-tight transition-colors ' +
               (on ? 'text-brand-600' : 'text-[color:var(--text-muted)]')
             }
           >
@@ -120,7 +120,7 @@ function MoreSheetTab() {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex flex-col items-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
+        className="flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
       >
         <DotsThreeOutline size={21} />
         Lainnya

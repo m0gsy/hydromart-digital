@@ -50,7 +50,7 @@ function PayrollInner() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SectionHeader title={t('hrFix.payroll.title')} subtitle={`Periode ${period}`} />
+      <SectionHeader title={t('hrFix.payroll.title')} subtitle={t('hrFix.common.periodLabel', { period })} />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
         <label className="text-sm">{t('hrFix.payroll.period')}<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>

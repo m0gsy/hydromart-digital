@@ -53,7 +53,7 @@ function AddressesInner() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const result = toAddressPayload(form);
+    const result = toAddressPayload(form, t);
     if (!result.ok) {
       setFormError(result.error);
       return;

@@ -66,7 +66,7 @@ function Reschedule() {
                 key={s.key}
                 type="button"
                 onClick={() => setSlot(s.value === slot ? '' : s.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold ${s.value === slot ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
+                className={`min-h-11 rounded-full px-3 py-1.5 text-xs font-bold ${s.value === slot ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
               >
                 {t(`driver.reschedule.slots.${s.key}`)}
               </button>

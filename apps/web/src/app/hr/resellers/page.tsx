@@ -92,7 +92,7 @@ export default function HrResellersPage() {
                   </td>
                   <td className="px-4 py-2.5 tabular-nums">
                     {r.flatGallonPriceIdr > 0
-                      ? `Rp${r.flatGallonPriceIdr.toLocaleString('id-ID')}/galon`
+                      ? t('hrFix.resellers.perGallon', { amount: r.flatGallonPriceIdr.toLocaleString('id-ID') })
                       : `${r.discountPct}%`}
                   </td>
                   <td className="px-4 py-2.5 tabular-nums">{r.monthlyTargetQty}</td>

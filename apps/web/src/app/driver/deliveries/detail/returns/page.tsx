@@ -120,7 +120,7 @@ function Returns() {
                     key={c}
                     type="button"
                     onClick={() => setCondition(c)}
-                    className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-bold ${
+                    className={`flex-1 min-h-11 min-h-11 rounded-xl px-3 py-2.5 text-sm font-bold ${
                       c === condition ? (c === 'DAMAGED' ? 'bg-red-600 text-white' : 'bg-brand-600 text-white') : 'bg-black/5'
                     }`}
                   >

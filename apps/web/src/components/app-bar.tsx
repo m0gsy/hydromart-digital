@@ -51,7 +51,7 @@ export function AppBar() {
               type="button"
               onClick={goBack}
               aria-label={t('common.back')}
-              className="-ml-2 flex h-10 w-10 flex-none items-center justify-center rounded-full text-[color:var(--text)] transition-colors hover:bg-brand-50"
+              className="-ml-2 flex h-11 w-11 flex-none items-center justify-center rounded-full text-[color:var(--text)] transition-colors hover:bg-brand-50"
             >
               <ArrowLeft size={22} />
             </button>

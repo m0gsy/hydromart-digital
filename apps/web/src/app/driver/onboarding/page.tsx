@@ -82,7 +82,7 @@ export default function DriverOnboardingPage() {
           ))}
         </div>
         {!last && (
-          <button type="button" className="text-sm font-bold text-white/80" onClick={finish}>
+          <button type="button" className="min-h-11 px-2 text-sm font-bold text-white/80" onClick={finish}>
             {t('driver.onboarding.skip')}
           </button>
         )}

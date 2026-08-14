@@ -146,7 +146,7 @@ function NoShow() {
           type="button"
           onClick={() => attempt('CALL')}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
         >
           <Phone size={17} weight="fill" />
           {t('courierFix.noShow.call')}
@@ -155,7 +155,7 @@ function NoShow() {
           type="button"
           onClick={() => attempt('CHAT')}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
         >
           <ChatCircleText size={17} weight="fill" />
           {t('courierFix.noShow.chat')}
@@ -173,7 +173,7 @@ function NoShow() {
 
       <p className="text-center text-xs text-[color:var(--muted)]">
         {t('courierFix.noShow.customerArrived')}{' '}
-        <Link href={`/driver/deliveries/detail?id=${id}`} className="font-extrabold text-brand-700">
+        <Link href={`/driver/deliveries/detail?id=${id}`} className="inline-flex min-h-11 items-center font-extrabold text-brand-700">
           {t('courierFix.noShow.continueHandover')}
         </Link>
       </p>

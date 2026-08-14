@@ -31,9 +31,9 @@ export default function ImportAssetsPage() {
         example: depots[0]?.code ?? 'JKT-01',
         text: true,
         options: depots.map((d) => d.code),
-        parse: (raw) => {
+        parse: (raw, t) => {
           const match = depots.find((d) => d.code.toUpperCase() === raw.toUpperCase());
-          if (!match) throw new Error(`kode depot "${raw}" tidak dikenal`);
+          if (!match) throw new Error(t('opsFix.import.unknownDepotCode', { value: raw }));
           return match.id;
         },
       },

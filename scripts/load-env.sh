@@ -22,6 +22,9 @@
   return 1 2>/dev/null || exit 1
 }
 
+# A literal CR, built once. This file is POSIX sh, where $'\r' is not an escape
+# sequence but the four characters you can see — so stripping that strips nothing.
+__le_cr=$(printf '\r')
 __le_skipped=''
 __le_drops=0
 __le_n=0
@@ -42,6 +45,12 @@ while IFS= read -r __le_line || [ -n "$__le_line" ]; do
       ;;
   esac
   __le_val=${__le_line#*=}
+  # A .env written on Windows ends every line with CR, and CR is a control
+  # character: it survives into the value, then into a JSON body, and the server
+  # answers "Bad control character in string literal" — which reads as a broken
+  # request rather than a broken file. `scripts/smoke.sh` died at its OTP step on
+  # exactly this.
+  __le_val=${__le_val%"$__le_cr"}
   # One layer of surrounding quotes, the way the .env format writes them.
   case "$__le_val" in
     \"*\") __le_val=${__le_val#\"} && __le_val=${__le_val%\"} ;;

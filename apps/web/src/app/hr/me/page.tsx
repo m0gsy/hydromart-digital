@@ -58,7 +58,7 @@ export default function MePage() {
           dead end for anyone who arrived from a console. */}
       <Link
         href={consoleHome(customer?.role)}
-        className="block py-2 text-center text-sm font-semibold text-muted hover:text-brand-700"
+        className="block min-h-11 py-3 text-center text-sm font-semibold text-muted hover:text-brand-700"
       >
         {t('hrFix.me.backToConsole2')}
       </Link>

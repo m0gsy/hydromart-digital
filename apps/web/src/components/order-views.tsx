@@ -97,7 +97,7 @@ export function OrderProgress({
                 />
               )}
               <span
-                className={`relative flex h-10 w-10 items-center justify-center rounded-full ${
+                className={`relative flex h-11 w-11 items-center justify-center rounded-full ${
                   isDone
                     ? 'bg-brand-600 text-on-brand'
                     : isCurrent

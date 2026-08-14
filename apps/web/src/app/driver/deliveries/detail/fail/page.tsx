@@ -59,7 +59,7 @@ function Fail() {
                 key={r.key}
                 type="button"
                 onClick={() => setReason(r.value)}
-                className={`rounded-xl px-3.5 py-2.5 text-left text-sm font-bold ${r.value === reason ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
+                className={`min-h-11 rounded-xl px-3.5 py-2.5 text-left text-sm font-bold ${r.value === reason ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
               >
                 {t(`driver.deliveryFail.reasons.${r.key}`)}
               </button>

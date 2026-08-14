@@ -99,6 +99,7 @@ async function loadFixture() {
   };
   return {
     byCode,
+    byPhone,
     asv1: account('+6281199000001'),
     asv2: account('+6281199000002'),
     spv: account('+6281199000003'),
@@ -198,12 +199,31 @@ const ROUTE_MATRIX = [
   },
 ];
 
-async function roleMatrix() {
+async function roleMatrix(fixture) {
+  /**
+   * A depot-RESOLVED role (MANAGER, SUPERVISOR, ASSISTANT_SUPERVISOR) has its depot set
+   * looked up by `sub`, so a random uuid resolves to NO depots and the scope guard refuses
+   * the request — 403 for a reason that has nothing to do with the capability under test.
+   * That is what made `staffDirectory: MANAGER is allowed` fail against a healthy stack.
+   *
+   * NOT the HIER-* fixture accounts either: those are built to oversee MANY depots, and a
+   * multi-depot account is refused a second, deliberate way — "name the depotId you want".
+   * Both refusals are the scope guard working; neither says anything about the capability.
+   * So these probes use the ORDINARY seeded staff, who each oversee one depot.
+   */
+  const seeded = (phone) => fixture.byPhone.get(phone)?.id ?? crypto.randomUUID();
+  const RESOLVED_SUB = {
+    MANAGER: seeded('+6281100000002'),
+    SUPERVISOR: seeded('+6281100000007'),
+    ASSISTANT_SUPERVISOR: seeded('+6281100000006'),
+  };
+  const subFor = (role) => RESOLVED_SUB[role] ?? crypto.randomUUID();
+
   for (const route of ROUTE_MATRIX) {
     for (const role of route.allow) {
       // A depot-locked role still needs a depot on its token to get past the scope guard.
       const depot = role === 'STAFF_DEPOT' || role === 'KEPALA_DEPOT' ? crypto.randomUUID() : null;
-      const res = await call(route.path, tokenFor(role, crypto.randomUUID(), depot));
+      const res = await call(route.path, tokenFor(role, subFor(role), depot));
       check(
         `${route.label}: ${role} is allowed`,
         res.status !== 403 && res.status !== 401,
@@ -212,7 +232,7 @@ async function roleMatrix() {
     }
     for (const role of route.deny) {
       const depot = role === 'STAFF_DEPOT' || role === 'KEPALA_DEPOT' ? crypto.randomUUID() : null;
-      const res = await call(route.path, tokenFor(role, crypto.randomUUID(), depot));
+      const res = await call(route.path, tokenFor(role, subFor(role), depot));
       check(`${route.label}: ${role} is REFUSED`, res.status === 403, `got ${res.status}`);
     }
   }
@@ -263,7 +283,7 @@ async function main() {
   check('HQ CAN open the orphan depot', hqSeesOrphan.status === 200, `got ${hqSeesOrphan.status}`);
 
   console.log('— item 2: role/route matrix');
-  await roleMatrix();
+  await roleMatrix(fx);
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

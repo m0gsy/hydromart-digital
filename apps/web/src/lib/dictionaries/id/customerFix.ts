@@ -2,6 +2,9 @@
 // Kept in its own fragment so parallel batches don't collide in id.ts / en.ts.
 // Wire once: import + spread `customerFix` into dictionaries/id.ts and en.ts.
 export const customerFix = {
+  address: {
+    pinRequired: "Titik peta wajib diisi — tekan \"Gunakan lokasi saya\".",
+  },
   depotOpen: {
     buka: "Buka",
     istirahat: "Istirahat",

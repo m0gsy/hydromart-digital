@@ -98,7 +98,7 @@ function Detail({ id }: { id: string }) {
       <header className="flex items-center gap-3">
         <Link
           href="/dashboard/purchase-orders"
-          className="flex size-9 items-center justify-center rounded-xl border border-app"
+          className="flex size-11 items-center justify-center rounded-xl border border-app"
           aria-label={t('hrFix.poDetail.backAria')}
         >
           <ArrowLeft size={18} />

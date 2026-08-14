@@ -49,7 +49,7 @@ describe('prepareRows', () => {
   it('rejects a row missing a required column', () => {
     const row = firstRow([{ fullName: '', phone: '0812', salaryType: 'DAILY' }], COLUMNS);
     expect(row.payload).toBeUndefined();
-    expect(row.error).toContain('fullName');
+    expect(row.error).toContain('columnRequired');
   });
 
   it('rejects a row whose enum cell is out of range', () => {
@@ -57,7 +57,7 @@ describe('prepareRows', () => {
       [{ fullName: 'Budi', phone: '0812', salaryType: 'WEEKLY' }],
       COLUMNS,
     );
-    expect(row.error).toBe('salaryType: harus salah satu dari DAILY/MONTHLY');
+    expect(row.error).toBe('salaryType: opsFix.import.oneOf');
   });
 
   it('rejects a non-numeric number cell rather than coercing it to 0', () => {
@@ -65,7 +65,7 @@ describe('prepareRows', () => {
       [{ fullName: 'Budi', phone: '0812', salaryType: 'DAILY', dailyRate: 'seratus' }],
       COLUMNS,
     );
-    expect(row.error).toContain('bukan angka');
+    expect(row.error).toContain('notAnInteger');
   });
 
   it('rejects a decimal in a whole-number cell instead of truncating it', () => {
@@ -73,7 +73,7 @@ describe('prepareRows', () => {
       [{ fullName: 'Budi', phone: '0812', salaryType: 'DAILY', dailyRate: '150.0' }],
       COLUMNS,
     );
-    expect(row.error).toContain('bukan angka bulat');
+    expect(row.error).toContain('notAnInteger');
   });
 
   it('numbers rows from 1 and keeps good rows alongside bad ones', () => {
@@ -133,8 +133,8 @@ describe('phoneCell', () => {
   });
 
   it('rejects a landline or a number that is too short', () => {
-    expect(() => phoneCell('02112345678')).toThrow(/bukan nomor HP/);
-    expect(() => phoneCell('0812345')).toThrow(/bukan nomor HP/);
+    expect(() => phoneCell('02112345678')).toThrow(/phoneInvalid/);
+    expect(() => phoneCell('0812345')).toThrow(/phoneInvalid/);
   });
 });
 
@@ -145,20 +145,20 @@ describe('dateCell', () => {
   });
 
   it('refuses an ambiguous local format instead of guessing the day', () => {
-    expect(() => dateCell('31/01/2026')).toThrow(/YYYY-MM-DD/);
-    expect(() => dateCell('Jan 31 2026')).toThrow(/YYYY-MM-DD/);
+    expect(() => dateCell('31/01/2026')).toThrow(/dateFormat/);
+    expect(() => dateCell('Jan 31 2026')).toThrow(/dateFormat/);
   });
 
   it('refuses a well-shaped date that does not exist', () => {
-    expect(() => dateCell('2026-13-40')).toThrow(/bukan tanggal/);
+    expect(() => dateCell('2026-13-40')).toThrow(/dateInvalid/);
   });
 });
 
 describe('periodCell', () => {
   it('accepts a payroll period and rejects a 13th month', () => {
     expect(periodCell('2026-07')).toBe('2026-07');
-    expect(() => periodCell('2026-13')).toThrow(/YYYY-MM/);
-    expect(() => periodCell('Juli 2026')).toThrow(/YYYY-MM/);
+    expect(() => periodCell('2026-13')).toThrow(/periodFormat/);
+    expect(() => periodCell('Juli 2026')).toThrow(/periodFormat/);
   });
 });
 
@@ -184,8 +184,10 @@ describe('column options and field alias', () => {
     expect(firstRow([{ depotCode: 'JKT-01', itemType: 'galon' }], columns).payload).toMatchObject({
       itemType: 'GALON',
     });
+    // The allowed set reaches the key as a var, so the message is the key here; the set
+    // itself is asserted where the column is declared, not through a translated sentence.
     expect(firstRow([{ depotCode: 'JKT-01', itemType: 'AIR' }], columns).error).toContain(
-      'GALON/TUTUP',
+      'oneOf',
     );
   });
 

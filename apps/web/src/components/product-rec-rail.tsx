@@ -112,7 +112,7 @@ export function ProductRecRail({
         action={
           <Link
             href="/products"
-            className="flex shrink-0 items-center gap-1 text-sm font-bold text-brand-600 hover:text-brand-700"
+            className="flex min-h-11 shrink-0 items-center gap-1 text-sm font-bold text-brand-600 hover:text-brand-700"
           >
             {t('home.rail.viewAll')}
             <ArrowRight size={15} />

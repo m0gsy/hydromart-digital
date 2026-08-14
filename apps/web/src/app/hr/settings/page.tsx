@@ -98,7 +98,7 @@ export default function HrSettingsPage() {
                     empty box, and the server rejects anything else outright. */}
                 {d.unit && <p className="text-xs text-muted">format: {d.unit}</p>}
                 <p className="text-xs text-muted">
-                  efektif: {String(data.effective[d.key] ?? '') || '(belum diisi)'}
+                  efektif: {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
                 </p>
               </div>
               <div className="flex items-center gap-2">

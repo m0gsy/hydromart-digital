@@ -169,7 +169,7 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
-    const parsed = toDepotPayload(form);
+    const parsed = toDepotPayload(form, t);
     if (!parsed.ok) {
       setError(parsed.error);
       return;

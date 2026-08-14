@@ -74,7 +74,7 @@ export default function ManagerNotificationsPage() {
           <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">{t('mgrFix.mMgr.notifSubtitle')}</p>
         </div>
         {unreadCount > 0 && (
-          <button type="button" onClick={markAllRead} className="shrink-0 text-xs font-semibold text-brand-700">
+          <button type="button" onClick={markAllRead} className="min-h-11 shrink-0 px-2 text-xs font-semibold text-brand-700">
             {t('opsFix.notif.markAllRead')}
           </button>
         )}
@@ -86,7 +86,7 @@ export default function ManagerNotificationsPage() {
             key={f.key}
             type="button"
             onClick={() => setFilter(f.key)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               filter === f.key ? 'bg-brand-800 text-on-brand' : 'border border-app text-[color:var(--text-muted)]'
             }`}
           >

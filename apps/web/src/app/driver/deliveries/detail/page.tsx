@@ -84,7 +84,7 @@ function Detail() {
         <div className="mt-3 flex gap-2">
           <ExternalLink
             href={`https://maps.google.com/?q=${delivery.destinationLat ?? ''},${delivery.destinationLng ?? ''}`}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
           >
             <NavigationArrow size={16} className="text-brand-700" weight="fill" />
             Navigasi
@@ -92,7 +92,7 @@ function Detail() {
           {delivery.recipientPhone ? (
             <ExternalLink
               href={`tel:${delivery.recipientPhone}`}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
+              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
             >
               <Phone size={16} weight="fill" className="text-brand-700" />
               Telepon

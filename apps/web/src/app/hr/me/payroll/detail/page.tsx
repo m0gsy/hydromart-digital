@@ -108,7 +108,7 @@ export default function MyPayrollDetailPage() {
       <button
         type="button"
         onClick={downloadSlip}
-        className="w-full rounded-lg border border-app px-4 py-2.5 text-sm font-semibold hover:bg-brand-50"
+        className="min-h-11 w-full rounded-lg border border-app px-4 py-2.5 text-sm font-semibold hover:bg-brand-50"
       >
         {t('hrFix.myPayrollDetail.downloadPdf2')}
       </button>

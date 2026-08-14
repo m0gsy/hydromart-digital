@@ -219,7 +219,7 @@ function ScoreDashboard({
         { employeeId: row.employeeId, periodMonth: period },
         true,
       );
-      toast(`Penilaian ${row.fullName} tersimpan`);
+      toast(t('hrFix.performance.savedFor', { name: row.fullName }));
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Gagal menyimpan', 'error');
     } finally {

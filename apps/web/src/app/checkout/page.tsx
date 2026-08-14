@@ -1097,7 +1097,7 @@ function CheckoutInner() {
         <button
           type="button"
           onClick={() => setShowSummary(true)}
-          className="flex min-w-0 flex-col items-start"
+          className="flex min-h-11 min-w-0 flex-col items-start justify-center"
         >
           <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-muted">
             {t('order.checkout.orderSummary')}

@@ -234,10 +234,10 @@ if (wrappedTotal > WRAPPED_BASELINE) {
  * already been written to them: interpolated template literals, `??` fallbacks, ternary
  * branches, bare string arrays and object keys outside the original thirteen names.
  *
- * Widening the patterns surfaced 80 strings in one run. Everything that ships inside the
- * two Android binaries is translated; what is listed in `scripts/i18n-baseline.json` is
- * the remainder — the `/hq` and `/hr` consoles (web only) and three pure validator modules
- * whose messages need a translator threaded through call sites rather than a wrapper.
+ * Widening the patterns surfaced 80 strings in one run. 77 are translated. The three left
+ * in `scripts/i18n-baseline.json` are NOT copy: they are the failure reasons stored on a
+ * delivery record (`value:` in the courier's fail screen), and the file says so beside
+ * them — the label above each one is translated, the stored value is deliberately stable.
  *
  * The list may SHRINK on its own and never grows: a string not in it fails the build, and
  * `--update-baseline` is a deliberate, reviewable act.

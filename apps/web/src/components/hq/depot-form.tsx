@@ -59,7 +59,7 @@ export function DepotForm({
   const setOwnership = (v: string) => setForm((f) => ({ ...f, ownershipType: v }));
 
   async function submit() {
-    const parsed = toDepotPayload(form);
+    const parsed = toDepotPayload(form, t);
     if (!parsed.ok) {
       setError(parsed.error);
       return;

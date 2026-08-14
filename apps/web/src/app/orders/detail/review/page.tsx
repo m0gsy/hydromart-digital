@@ -109,7 +109,7 @@ function Form({ order }: { order: Order }) {
               type="button"
               onClick={() => toggleAspect(a)}
               aria-pressed={on}
-              className={`rounded-full border-[1.5px] px-[15px] py-2 text-[12.5px] font-bold transition-colors ${
+              className={`min-h-11 rounded-full border-[1.5px] px-[15px] py-2 text-[12.5px] font-bold transition-colors ${
                 on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app surface text-muted'
               }`}
             >

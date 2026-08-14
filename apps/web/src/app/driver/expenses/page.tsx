@@ -88,7 +88,7 @@ function Expenses() {
                 key={c.value}
                 type="button"
                 onClick={() => setCategory(c.value)}
-                className={`rounded-xl border p-2.5 text-sm font-bold ${
+                className={`min-h-11 rounded-xl border p-2.5 text-sm font-bold ${
                   category === c.value
                     ? 'border-brand-600 bg-brand-50 text-brand-700'
                     : 'border-[color:var(--border)]'
