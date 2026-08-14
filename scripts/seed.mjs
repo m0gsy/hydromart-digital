@@ -233,8 +233,106 @@ async function seedEmployees(depotByCode) {
   const existing = new Set((listed.rows ?? []).map((e) => e.phone));
   for (const e of EMPLOYEES) {
     if (existing.has(e.phone)) continue;
-    ok(await api('POST', '/employees/api/v1/employees', { ...e, depotId, joinDate: '2026-01-06T00:00:00.000Z' }), `employee ${e.fullName}`);
+    const res = await api('POST', '/employees/api/v1/employees', {
+      ...e,
+      depotId,
+      joinDate: '2026-01-06T00:00:00.000Z',
+    });
+    // The list above is depot-scoped, so a person seeded at ANOTHER depot is absent from
+    // it and the POST is the first thing that notices. hr-service answers 400 "nomor
+    // telepon sudah dipakai" — which is the same fact the skip above is testing for, and
+    // failing the whole seed on it made re-running impossible.
+    if (res.status === 400 && String(JSON.stringify(res.body)).includes('sudah dipakai')) {
+      console.log(`= employee ${e.fullName} (sudah ada)`);
+      continue;
+    }
+    ok(res, `employee ${e.fullName}`);
     console.log(`+ employee ${e.fullName}`);
+  }
+}
+
+// HR master data. Empty here and a browser pass cannot tell "not seeded" from "broken":
+// a shift dropdown with no options and a shift dropdown that failed to load look the same.
+const DEPARTMENTS = [
+  { code: 'OPS', name: 'Operasional' },
+  { code: 'KEU', name: 'Keuangan' },
+  { code: 'HRD', name: 'Sumber Daya Manusia' },
+];
+const SHIFTS = [
+  { name: 'Pagi', startTime: '07:00', endTime: '15:00' },
+  { name: 'Siang', startTime: '15:00', endTime: '23:00' },
+];
+
+async function seedHrMasterData(depotByCode) {
+  const depotId = [...depotByCode.values()][0];
+  if (!depotId) return;
+
+  // Departments: network-wide (no depotId), so every depot's staff can sit in them.
+  const deptRows = rows(ok(await api('GET', '/departments/api/v1/departments'), 'list departments'));
+  const haveDept = new Set(deptRows.map((d) => d.code));
+  for (const d of DEPARTMENTS) {
+    if (haveDept.has(d.code)) continue;
+    ok(await api('POST', '/departments/api/v1/departments', d), `department ${d.code}`);
+    console.log(`+ department ${d.code}`);
+  }
+
+  const shiftRows = rows(ok(await api('GET', '/hr-shifts/api/v1/hr-shifts'), 'list shifts'));
+  const shiftByName = new Map(shiftRows.map((sh) => [sh.name, sh.id]));
+  for (const sh of SHIFTS) {
+    if (shiftByName.has(sh.name)) continue;
+    const created = ok(await api('POST', '/hr-shifts/api/v1/hr-shifts', { ...sh, depotId }), `shift ${sh.name}`);
+    shiftByName.set(sh.name, created.id);
+    console.log(`+ shift ${sh.name}`);
+  }
+
+  // One rotation, Sunday off: the pattern keys are weekday numbers with 0 = Sunday, and a
+  // MISSING key is a day off rather than a guess at the nearest shift.
+  const rotRows = rows(ok(await api('GET', '/shift-rotations/api/v1/shift-rotations'), 'list rotations'));
+  let rotationId = rotRows.find((r) => r.name === 'Rotasi Depot')?.id;
+  if (!rotationId) {
+    const pattern = {};
+    for (const day of [1, 2, 3, 4, 5, 6]) {
+      pattern[String(day)] = shiftByName.get(day % 2 ? 'Pagi' : 'Siang') ?? null;
+    }
+    rotationId = ok(
+      await api('POST', '/shift-rotations/api/v1/shift-rotations', { name: 'Rotasi Depot', depotId, pattern }),
+      'create rotation',
+    ).id;
+    console.log('+ rotation Rotasi Depot');
+  }
+
+  const listed = ok(await api('GET', '/employees/api/v1/employees?pageSize=100'), 'list employees for HR seed');
+  const first = (listed.rows ?? [])[0];
+  if (!first) return;
+
+  const assigned = rows(
+    ok(await api('GET', `/shift-rotations/api/v1/shift-rotations/assignments?employeeId=${first.id}`), 'list assignments'),
+  );
+  if (assigned.length === 0) {
+    ok(
+      await api('POST', '/shift-rotations/api/v1/shift-rotations/assignments', {
+        employeeId: first.id,
+        rotationId,
+        effectiveFrom: '2026-01-06T00:00:00.000Z',
+      }),
+      'assign rotation',
+    );
+    console.log(`+ shift assignment ${first.fullName}`);
+  }
+
+  const loans = rows(ok(await api('GET', `/loans/api/v1/loans?employeeId=${first.id}`), 'list loans'));
+  if (loans.length === 0) {
+    ok(
+      await api('POST', '/loans/api/v1/loans', {
+        employeeId: first.id,
+        principal: 1_500_000,
+        installmentAmount: 250_000,
+        startPeriod: '2026-02',
+        note: 'Kasbon contoh (seed)',
+      }),
+      'create loan',
+    );
+    console.log(`+ loan ${first.fullName}`);
   }
 }
 
@@ -247,6 +345,7 @@ async function main() {
   await seedStock(depotByCode, productBySku);
   await seedStaff(depotByCode);
   await seedEmployees(depotByCode);
+  await seedHrMasterData(depotByCode);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);
 }
