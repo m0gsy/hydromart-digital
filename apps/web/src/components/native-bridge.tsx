@@ -41,6 +41,11 @@ interface Block {
   target: string;
 }
 
+// NativeBridge is mounted OUTSIDE LocaleProvider in layout.tsx, deliberately — this screen
+// has to render when the app shell itself cannot. There is no translator in scope, and
+// moving the bridge inside the provider to get one would make the blocking screen depend
+// on the very thing it exists to survive.
+// i18n-ok: title and message, for the reason above.
 const WEBVIEW_BLOCK: Block = {
   title: 'Perbarui Android System WebView',
   message:
@@ -167,6 +172,7 @@ async function minimumVersionBlock(): Promise<Block | null> {
   if (!Number.isFinite(minimum) || installed >= minimum) return null;
 
   return {
+    // i18n-ok: same reason as WEBVIEW_BLOCK — no LocaleProvider above this component.
     title: 'Versi aplikasi sudah usang',
     message:
       config?.updateMessage ||

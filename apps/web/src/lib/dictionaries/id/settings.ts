@@ -21,4 +21,10 @@ export const settings = {
   globalOnlyDeliveryFee:
     'Ini hanya nilai cadangan global. Ongkir per galon yang sebenarnya diatur per depot di halaman Depot.',
   globalWriteDenied: 'Hanya SUPER_ADMIN yang dapat mengubah default global.',
+  svcDelivery: 'Pengiriman & Kurir',
+  svcOrder: 'Order & Ongkir',
+  svcPayout: 'Payout & Komisi',
+  svcLoyalty: 'Loyalty / Poin',
+  svcReferral: 'Referral',
+  svcDepot: 'Depot & Galon',
 };

@@ -1,11 +1,16 @@
 import type { Order, Payment, PaymentMethod } from './types';
 
+/**
+ * Dictionary KEYS, not copy. This was five English labels that no toggle could change, on
+ * the checkout screen of an Indonesian app — a module-level constant cannot call a hook,
+ * so the keys resolve at the two call sites (checkout, order detail).
+ */
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string; hint: string }[] = [
-  { value: 'CASH', label: 'Cash on delivery', hint: 'Pay the driver when your order arrives.' },
-  { value: 'TRANSFER', label: 'Bank transfer', hint: 'Transfer manually, confirmed by the depot.' },
-  { value: 'QRIS', label: 'QRIS', hint: 'Scan to pay with any QRIS app.' },
-  { value: 'EWALLET', label: 'E-wallet', hint: 'GoPay, OVO, DANA, and more.' },
-  { value: 'VA', label: 'Virtual account', hint: 'Pay to a one-time bank account number.' },
+  { value: 'CASH', label: 'order.payMethod.cash', hint: 'order.payMethod.cashHint' },
+  { value: 'TRANSFER', label: 'order.payMethod.transfer', hint: 'order.payMethod.transferHint' },
+  { value: 'QRIS', label: 'order.payMethod.qris', hint: 'order.payMethod.qrisHint' },
+  { value: 'EWALLET', label: 'order.payMethod.ewallet', hint: 'order.payMethod.ewalletHint' },
+  { value: 'VA', label: 'order.payMethod.va', hint: 'order.payMethod.vaHint' },
 ];
 
 /**

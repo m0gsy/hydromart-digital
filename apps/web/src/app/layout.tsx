@@ -37,7 +37,10 @@ const jakarta = localFont({
 });
 
 export const metadata: Metadata = {
+  // i18n-ok: static route metadata, resolved on the server before any locale exists —
+  // the choice is stored in localStorage. Indonesian is the primary market's default.
   title: 'Hydromart — Pesan air minum',
+  // i18n-ok: same reason as the title above.
   description: 'Pesan galon isi ulang dan air kemasan dari depot terdekat, diantar ke rumahmu.',
   // A static file rather than the app/manifest.ts convention: that convention is a
   // generated route, and the mobile build has to stay free of routes to export.

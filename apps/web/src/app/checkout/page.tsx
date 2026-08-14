@@ -652,8 +652,8 @@ function CheckoutInner() {
                 <Icon size={18} weight="fill" className="text-brand-600" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-extrabold">{m.label}</span>
-                <span className="block text-xs text-muted">{m.hint}</span>
+                <span className="block text-[13.5px] font-extrabold">{t(m.label)}</span>
+                <span className="block text-xs text-muted">{t(m.hint)}</span>
               </span>
             </RadioCard>
           );
@@ -905,7 +905,8 @@ function CheckoutInner() {
   );
 
   const pickedDepot = depotChoices?.items.find((d) => d.id === pickedDepotId) ?? null;
-  const methodLabel = PAYMENT_METHODS.find((m) => m.value === method)?.label;
+  const methodLabelKey = PAYMENT_METHODS.find((m) => m.value === method)?.label;
+  const methodLabel = methodLabelKey ? t(methodLabelKey) : undefined;
   const PayIcon = PAY_ICONS[method];
   const savedSelected = savedAddresses?.find((a) => a.id === selection) ?? null;
   const addressSummary = savedSelected

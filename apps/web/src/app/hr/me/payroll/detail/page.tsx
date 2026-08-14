@@ -100,7 +100,7 @@ export default function MyPayrollDetailPage() {
           <Money amount={Number(p.totalBonus)} className="font-bold" />
         </Card>
         <Card className="p-3">
-          <p className="text-muted">Potongan</p>
+          <p className="text-muted">{t('hrFix.payrollDetail.deduction')}</p>
           <Money amount={Number(p.totalDeduction)} className="font-bold" />
         </Card>
       </div>

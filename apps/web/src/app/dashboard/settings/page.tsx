@@ -184,7 +184,7 @@ function ServiceSection({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-lg font-bold">{label}</h2>
+      <h2 className="text-lg font-bold">{t(label)}</h2>
       {schema.loading ? (
         <Skeleton className="h-40 w-full" />
       ) : schema.error ? (

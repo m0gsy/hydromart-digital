@@ -171,4 +171,16 @@ export const order: typeof base = {
     cancelled: 'Order cancelled',
     itemsAdded: 'Items added to cart',
   },
+  payMethod: {
+    cash: 'Cash on delivery',
+    cashHint: 'Pay the driver when your order arrives.',
+    transfer: 'Bank transfer',
+    transferHint: 'Transfer manually, confirmed by the depot.',
+    qris: 'QRIS',
+    qrisHint: 'Scan to pay with any QRIS app.',
+    ewallet: 'E-wallet',
+    ewalletHint: 'GoPay, OVO, DANA, and more.',
+    va: 'Virtual account',
+    vaHint: 'Pay to a one-time bank account number.',
+  },
 };

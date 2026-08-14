@@ -459,8 +459,8 @@ function OrderDetailInner({ id }: { id: string }) {
                       {payMethod === m.value && <span className="h-2 w-2 rounded-full bg-brand-600" />}
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold">{m.label}</span>
-                      <span className="block text-[12.5px] text-muted">{m.hint}</span>
+                      <span className="block text-sm font-bold">{t(m.label)}</span>
+                      <span className="block text-[12.5px] text-muted">{t(m.hint)}</span>
                     </span>
                   </RadioCard>
                 ))}

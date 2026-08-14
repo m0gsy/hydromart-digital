@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 
 // Overlay primitives — a bottom-sheet-on-mobile / centered-dialog-on-desktop
 // Sheet, and a small ConfirmDialog built on the same shell. Dependency-free:
@@ -71,6 +72,7 @@ export function Sheet({
   footer?: React.ReactNode;
 }) {
   useOverlay(open, onClose);
+  const { t } = useT();
   const [dragY, setDragY] = useState(0);
   useEffect(() => {
     if (!open) setDragY(0);
@@ -106,7 +108,7 @@ export function Sheet({
       >
         <button
           type="button"
-          aria-label="Tutup"
+          aria-label={t('common.close')}
           onClick={onClose}
           className="absolute inset-0 bg-[color:var(--text)]/40"
           style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
@@ -133,7 +135,7 @@ export function Sheet({
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
             <button
               type="button"
-              aria-label="Tutup"
+              aria-label={t('common.close')}
               onClick={onClose}
               className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
             >
@@ -157,8 +159,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Konfirmasi',
-  cancelLabel = 'Batal',
+  confirmLabel,
+  cancelLabel,
   tone = 'danger',
   loading,
   onConfirm,
@@ -175,6 +177,7 @@ export function ConfirmDialog({
   onClose: () => void;
 }) {
   useOverlay(open, onClose);
+  const { t } = useT();
   if (!open) return null;
 
   return (
@@ -187,7 +190,7 @@ export function ConfirmDialog({
       >
         <button
           type="button"
-          aria-label="Tutup"
+          aria-label={t('common.close')}
           onClick={onClose}
           className="absolute inset-0 bg-[color:var(--text)]/40"
         />
@@ -199,10 +202,10 @@ export function ConfirmDialog({
           <p className="text-sm text-muted">{message}</p>
           <div className="mt-2 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
-              {cancelLabel}
+              {cancelLabel ?? t('common.cancel')}
             </Button>
             <Button type="button" variant={tone} onClick={onConfirm} loading={loading}>
-              {confirmLabel}
+              {confirmLabel ?? t('common.confirm')}
             </Button>
           </div>
         </div>

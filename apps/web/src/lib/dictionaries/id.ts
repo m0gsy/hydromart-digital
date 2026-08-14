@@ -140,6 +140,9 @@ export const id = {
     theme_system: 'Sistem',
   },
   common: {
+    confirm: 'Konfirmasi',
+    cancel: 'Batal',
+    close: 'Tutup',
     back: 'Kembali',
     retry: 'Coba lagi',
     loading: 'Memuat…',

@@ -102,6 +102,7 @@ export const mgrFix = {
     stockHint: 'Items below minimum',
     activeCouriers: 'Active couriers',
     couriersHint: 'View team performance',
+    accountTitle: 'Account',
     notifTitle: 'Ops notifications',
     notifSubtitle: 'Latest operational alerts.',
     events: {

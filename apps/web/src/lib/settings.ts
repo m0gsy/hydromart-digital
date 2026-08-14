@@ -23,13 +23,15 @@ export interface SettingsSchema {
 export type SettingScope = 'GLOBAL' | 'DEPOT';
 
 // One row per service that exposes GET /settings/schema behind the gateway.
+// `label` is a dictionary key, resolved by whichever settings screen renders the row —
+// a module-level constant has no translator of its own.
 export const SETTINGS_SERVICES = [
-  { id: 'delivery', label: 'Pengiriman & Kurir', base: '/deliveries/api/v1' },
-  { id: 'order', label: 'Order & Ongkir', base: '/orders/api/v1' },
-  { id: 'payout', label: 'Payout & Komisi', base: '/payout/api/v1' },
-  { id: 'loyalty', label: 'Loyalty / Poin', base: '/loyalty/api/v1' },
-  { id: 'referral', label: 'Referral', base: '/referrals/api/v1' },
-  { id: 'depot', label: 'Depot & Galon', base: '/depots/api/v1' },
+  { id: 'delivery', label: 'settings.svcDelivery', base: '/deliveries/api/v1' },
+  { id: 'order', label: 'settings.svcOrder', base: '/orders/api/v1' },
+  { id: 'payout', label: 'settings.svcPayout', base: '/payout/api/v1' },
+  { id: 'loyalty', label: 'settings.svcLoyalty', base: '/loyalty/api/v1' },
+  { id: 'referral', label: 'settings.svcReferral', base: '/referrals/api/v1' },
+  { id: 'depot', label: 'settings.svcDepot', base: '/depots/api/v1' },
 ] as const;
 
 export function fetchSettingsSchema(base: string, depotId: string | null): Promise<SettingsSchema> {
