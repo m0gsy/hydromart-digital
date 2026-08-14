@@ -476,10 +476,9 @@ export class DeliveryService {
    * absence is reported as itself rather than sent to crm as an empty string, which crm
    * would 400 and the adapter would swallow.
    *
-   * `customerId` is not on the delivery record, so the notification goes out by phone with
-   * a null owner: it reaches WhatsApp but does not thread into that customer's in-app
-   * feed. Threading it needs the id snapshotted onto the delivery at assignment — a
-   * migration, and a separate change from telling people their delivery moved.
+   * `customerId` is snapshotted at assignment but NOT read here yet: the column ships one
+   * release before the code that uses it, so this release still sends a null owner and the
+   * notice is phone-only. Release 2 passes it.
    */
   private async notifyRescheduled(
     delivery: { id: string; orderNumber: string; recipientPhone: string | null; customerId?: string | null },
@@ -504,7 +503,8 @@ export class DeliveryService {
         slot: input.slot ?? '',
         note: input.note ?? '',
       },
-      delivery.customerId ?? null,
+      // Release 2 replaces this with `delivery.customerId ?? null`.
+      null,
     );
   }
 

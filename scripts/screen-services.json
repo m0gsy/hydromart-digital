@@ -1,0 +1,124 @@
+{
+  "/driver": [
+    "auth",
+    "crm",
+    "deliveries"
+  ],
+  "/driver/announcements": [
+    "auth",
+    "crm"
+  ],
+  "/driver/deliveries/detail": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/deliveries/detail/fail": [
+    "auth"
+  ],
+  "/driver/deliveries/detail/no-show": [
+    "auth"
+  ],
+  "/driver/deliveries/detail/pay": [
+    "auth",
+    "deliveries",
+    "payments"
+  ],
+  "/driver/deliveries/detail/reschedule": [
+    "auth"
+  ],
+  "/driver/deliveries/detail/returns": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/deliveries/detail/success": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/earnings": [
+    "auth",
+    "payout"
+  ],
+  "/driver/expenses": [
+    "auth",
+    "payout"
+  ],
+  "/driver/goal": [
+    "auth",
+    "deliveries",
+    "payout"
+  ],
+  "/driver/help": [
+    "auth"
+  ],
+  "/driver/history": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/incidents/new": [
+    "auth"
+  ],
+  "/driver/onboarding": [
+    "auth"
+  ],
+  "/driver/performance": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/profile": [
+    "auth"
+  ],
+  "/driver/route": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/settings": [
+    "auth",
+    "customers"
+  ],
+  "/driver/settlement": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/settlement/history": [
+    "auth",
+    "deliveries"
+  ],
+  "/driver/shift/check-in": [
+    "auth",
+    "crm",
+    "deliveries"
+  ],
+  "/driver/shift/status": [
+    "auth",
+    "deliveries"
+  ],
+  "/hr/me": [
+    "auth"
+  ],
+  "/hr/me/announcements": [
+    "announcements",
+    "auth"
+  ],
+  "/hr/me/attendance": [
+    "attendance",
+    "auth"
+  ],
+  "/hr/me/check-in": [
+    "auth"
+  ],
+  "/hr/me/enroll": [
+    "auth"
+  ],
+  "/hr/me/leave": [
+    "auth",
+    "leave"
+  ],
+  "/hr/me/payroll": [
+    "auth",
+    "payroll"
+  ],
+  "/hr/me/payroll/detail": [
+    "auth",
+    "payroll"
+  ]
+}

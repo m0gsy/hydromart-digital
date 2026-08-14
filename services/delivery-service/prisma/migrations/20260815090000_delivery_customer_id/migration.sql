@@ -11,10 +11,7 @@
 -- Schema release order: this column lands one release BEFORE the code that reads it.
 ALTER TABLE "deliveries" ADD COLUMN "customerId" UUID;
 
--- The feed read is "this customer's deliveries, newest first".
---
--- IF NOT EXISTS, because `scripts/create-indexes.sh` builds it CONCURRENTLY before the
--- migration runs: a plain build takes a lock that blocks writes to `deliveries` for as long
--- as it lasts, and CONCURRENTLY cannot run inside the transaction Prisma wraps this file in.
--- `check-index-concurrency.mjs` is the gate that made this the only way in.
-CREATE INDEX IF NOT EXISTS "deliveries_customerId_createdAt_idx" ON "deliveries" ("customerId", "createdAt" DESC);
+-- No index here, deliberately. `scripts/create-indexes.sh` runs BEFORE migrations, so an
+-- index on a column this same release is about to add cannot be pre-built concurrently —
+-- the deploy proved it: "column customerId does not exist … refusing to let the migration
+-- build it under a lock". The index ships in the NEXT release, once the column is there.

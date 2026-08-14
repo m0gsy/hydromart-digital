@@ -44,7 +44,6 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # name identical to the one the migration creates, or the migration will build a second
 # copy under Prisma's default name.
 INDEXES='
-delivery|deliveries_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "deliveries_customerId_createdAt_idx" ON "deliveries"("customerId", "createdAt" DESC)
 order|orders_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_customerId_createdAt_idx" ON "orders"("customerId", "createdAt")
 depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_itemId_createdAt_idx" ON "stock_movements"("itemId", "createdAt")
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")

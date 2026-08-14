@@ -29,7 +29,7 @@
 //    to `driver`, `hq`, `shop`, `order`, `home`, `profile` — i.e. to every route this
 //    sweep most needed to read. The list is now read off the dictionary directory.
 import { chromium } from 'playwright';
-import { readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const CODE = process.env.CODE ?? '424242';
@@ -184,6 +184,26 @@ const DENIED_RE = /Akses ditolak|Access denied|tidak punya akses|not authorized|
 // placeholder included, so a text match called it a sign-in wall and aborted the run.
 const isLoginWall = (url, route) =>
   /\/(login|verify)/.test(new URL(url).pathname) && !/\/(login|verify)/.test(route);
+
+/**
+ * The services each screen actually calls, RECORDED rather than guessed.
+ *
+ * The first version of this was a hand-written map of route prefix to expected segment, and
+ * every one of its eleven findings was the map being wrong, not the app: `/hr/me/payroll`
+ * calls `/payroll`, not `/hr`; `/driver/expenses` calls `/payout`; and three courier detail
+ * screens legitimately call nothing but `/auth/me` because their data comes from the screen
+ * that pushed them. A guessed expectation produces findings nobody can act on.
+ *
+ * So this is a snapshot: `scripts/screen-services.json` holds the segment set each screen
+ * was seen to call on a green run, and the sweep reports a screen that STOPS calling one
+ * (a read that silently died) or STARTS calling a new one (a screen reaching somewhere it
+ * did not before). Re-record deliberately with `--update-services`.
+ */
+const SERVICES_FILE = 'scripts/screen-services.json';
+const recordedServices = existsSync(SERVICES_FILE)
+  ? JSON.parse(readFileSync(SERVICES_FILE, 'utf8'))
+  : {};
+const observedServices = {};
 
 const findings = [];
 const note = (route, locale, kind, detail, width = null) =>
@@ -519,8 +539,12 @@ for (const locale of LOCALES) {
     const p = await ctx.newPage();
     p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     p.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    const segmentsHit = new Set();
     p.on('request', (r) => {
-      if (/:8080\//.test(r.url())) apiCalls += 1;
+      if (!/:8080\//.test(r.url())) return;
+      apiCalls += 1;
+      const seg = new URL(r.url()).pathname.split('/').filter(Boolean)[0];
+      if (seg) segmentsHit.add(seg);
     });
     p.on('response', (r) => {
       const s = r.status();
@@ -553,6 +577,20 @@ for (const locale of LOCALES) {
       if (DENIED_RE.test(text)) note(route, locale, 'DENIED', text.trim().slice(0, 120));
       // A data screen that asks the gateway nothing is not wired to anything.
       if (apiCalls === 0) note(route, locale, 'NO API CALL', 'zero gateway requests');
+      // …and one that stops calling a service it used to, or starts calling a new one, has
+      // been rewired — in one direction a read died, in the other a screen reached somewhere
+      // new. Only recorded on the `id` pass: the second locale asks the same services.
+      if (locale === 'id') {
+        const seen = [...segmentsHit].sort();
+        observedServices[route] = seen;
+        const before = recordedServices[route];
+        if (before) {
+          const gone = before.filter((x) => !seen.includes(x));
+          const extra = seen.filter((x) => !before.includes(x));
+          if (gone.length) note(route, locale, 'SERVICE GONE', `no longer calls ${gone.join(', ')}`);
+          if (extra.length) note(route, locale, 'SERVICE NEW', `now also calls ${extra.join(', ')}`);
+        }
+      }
       for (const b of [...new Set(bad)].slice(0, 3)) note(route, locale, 'REQUEST', b);
       for (const e of [...new Set(errors)].slice(0, 2)) {
         if (!/favicon|ResizeObserver|Download the React|hydration/i.test(e))
@@ -602,6 +640,65 @@ for (const locale of LOCALES) {
   process.stdout.write(`\n[${locale} done]\n`);
 }
 
+// ---- the offline queue, once, on the courier ---------------------------------
+/**
+ * The one thing a phone does that a desktop browser never tests by accident: capture
+ * something with no signal and expect it back when the signal returns. `offline-queue.ts`
+ * puts a punch, a shift check-in or a proof photo in IndexedDB and flushes on `online`.
+ *
+ * There is a Playwright e2e for the punch path; this is the same question asked inside the
+ * sweep, so a regression shows up next to the screen it breaks. Courier only — it is the
+ * role that works out of signal.
+ */
+if (roleName === 'courier' && !process.env.ROUTES) {
+  const p = await ctx.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await p.addInitScript(() => {
+      localStorage.setItem('hydromart.locale', 'id');
+      localStorage.setItem('hydromart_driver_onboarded', '1');
+    });
+    await p.goto(`${BASE}/hr/me/check-in`, { waitUntil: 'networkidle', timeout: 45_000 });
+
+    // What this can honestly assert, and no more: the store the queue writes to exists and
+    // is readable, and losing then regaining the network does not break the screen. Actually
+    // ENQUEUEING needs a camera frame, which headless does not have — that path is driven by
+    // `e2e/hr-checkin.spec.ts` with a fake media device, and stays there.
+    const depth = await p.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const req = indexedDB.open('hm.offline', 1);
+          req.onsuccess = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('jobs')) return resolve(-1);
+            const count = db.transaction('jobs').objectStore('jobs').count();
+            count.onsuccess = () => resolve(count.result);
+            count.onerror = () => resolve(-2);
+          };
+          req.onerror = () => resolve(-3);
+          req.onblocked = () => resolve(-4);
+        }),
+    );
+    if (depth < 0) {
+      note('/hr/me/check-in', 'id', 'OFFLINE QUEUE', `store unusable (${depth})`);
+    } else {
+      await p.context().setOffline(true);
+      await p.waitForTimeout(600);
+      await p.context().setOffline(false);
+      // The flush runs on the `online` event; a throw there is the failure that loses work.
+      await p.waitForTimeout(1500);
+      const fatal = errors.filter((e) => !/favicon|ResizeObserver|NetworkError|Failed to fetch/i.test(e));
+      if (fatal.length) note('/hr/me/check-in', 'id', 'OFFLINE QUEUE', fatal[0]);
+      else console.log(`offline queue store OK (depth ${depth}), online flush raised nothing`);
+    }
+  } catch (e) {
+    note('/hr/me/check-in', 'id', 'OFFLINE QUEUE', e.message);
+  } finally {
+    await p.close();
+  }
+}
+
 await browser.close();
 
 // ---- report -----------------------------------------------------------------
@@ -617,6 +714,15 @@ for (const [kind, list] of Object.entries(byKind)) {
 }
 
 writeFileSync(`role-pass-${roleName}.json`, JSON.stringify(findings, null, 2));
+
+// `--update-services` re-records this role's screens, merging into whatever the other roles
+// already recorded — one file for the whole app, written one role at a time.
+if (process.argv.includes('--update-services')) {
+  const merged = { ...recordedServices, ...observedServices };
+  writeFileSync(SERVICES_FILE, `${JSON.stringify(merged, Object.keys(merged).sort(), 2)}
+`);
+  console.log(`recorded services for ${Object.keys(observedServices).length} screen(s)`);
+}
 // One file per width, as asked: a responsive defect is a fact about a width, and reading
 // it means reading only that width's file.
 for (const { w } of WIDTHS) {
