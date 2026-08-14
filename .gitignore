@@ -78,3 +78,6 @@ role-pass-*.json
 fase0-*.txt
 probe.mjs
 cart-seed.mjs
+verify-*.txt
+cov-*.txt
+next-start.log
