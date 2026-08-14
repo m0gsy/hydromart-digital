@@ -139,6 +139,39 @@ const EMPLOYEES = [
   { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', role: 'STAFF_DEPOT', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
 ];
 
+// Head-office fixtures. `nextRunAt` is left to the server: the executor computes it from
+// the cadence, and a seeded one would be wrong the day after it was written.
+const SCHEDULED_REPORTS = [
+  {
+    name: 'Ringkasan omzet harian',
+    cadence: 'DAILY',
+    recipients: ['finance@hydromart.id'],
+    format: 'XLSX',
+    dataset: 'REVENUE_BY_DEPOT',
+  },
+  {
+    name: 'Rekap performa depot mingguan',
+    cadence: 'WEEKLY',
+    recipients: ['ops@hydromart.id', 'direktur@hydromart.id'],
+    format: 'CSV',
+    dataset: 'REVENUE_BY_DEPOT',
+  },
+];
+
+const INCIDENTS = [
+  {
+    title: 'Latensi settlement meningkat',
+    severity: 'WARNING',
+    affectedService: 'payment-service',
+    note: 'Contoh insiden (seed) — dipakai untuk menguji papan insiden.',
+  },
+];
+
+// The customer a seeded depot subscription is linked to when the depot's own CRM directory
+// is still empty. Not created here — a customer is a real signup, and inventing one would
+// put a phone number nobody owns into the auth table.
+const DEMO_CUSTOMER_PHONE = '+6281298765432';
+
 const STOCK_QTY = 200;
 const STOCK_MIN = 20;
 
@@ -336,6 +369,101 @@ async function seedHrMasterData(depotByCode) {
   }
 }
 
+/**
+ * Head-office master data. These three tables were the last empty ones in admin-service,
+ * so /hq/scheduled-reports, /hq/onboarding and /hq/incidents all rendered their
+ * empty-state — which reads exactly like a screen that was never wired up.
+ *
+ * Idempotent on natural keys: report name, incident title, and the wizard step (a
+ * singleton row that PATCH toggles).
+ */
+async function seedAdminMasterData() {
+  const reports = rows(ok(await api('GET', '/admin/api/v1/scheduled-reports'), 'list scheduled reports'));
+  const haveReport = new Set(reports.map((r) => r.name));
+  for (const r of SCHEDULED_REPORTS) {
+    if (haveReport.has(r.name)) continue;
+    ok(await api('POST', '/admin/api/v1/scheduled-reports', r), `scheduled report ${r.name}`);
+    console.log(`+ scheduled report ${r.name}`);
+  }
+
+  const incidents = rows(ok(await api('GET', '/admin/api/v1/incidents'), 'list incidents'));
+  const haveIncident = new Set(incidents.map((i) => i.title));
+  for (const i of INCIDENTS) {
+    if (haveIncident.has(i.title)) continue;
+    ok(await api('POST', '/admin/api/v1/incidents', i), `incident ${i.title}`);
+    console.log(`+ incident ${i.title}`);
+  }
+
+  // The wizard state is a singleton the GET creates on first read; PATCH is what puts a
+  // row's steps somewhere other than "nothing done". Two of five, so the screen shows
+  // both a done step and a pending one.
+  const state = ok(await api('GET', '/admin/api/v1/onboarding'), 'read onboarding state');
+  for (const step of ['verify2fa', 'addDepot']) {
+    if (state?.steps?.[step]) continue;
+    ok(await api('PATCH', '/admin/api/v1/onboarding', { step, done: true }), `onboarding ${step}`);
+    console.log(`+ onboarding step ${step}`);
+  }
+}
+
+/**
+ * Depot master data that only the console could create until now: a recurring order and a
+ * closed book. `customerId` is REQUIRED on a subscription (S2) — a free-text name is a
+ * note, not a link — so this picks a real customer out of the depot's own CRM directory
+ * and skips the row entirely when the directory is empty rather than inventing one.
+ */
+async function seedDepotMasterData(depotByCode) {
+  const depotId = [...depotByCode.values()][0];
+  if (!depotId) return;
+
+  const existing = rows(ok(await api('GET', `/depots/api/v1/subscriptions?depotId=${depotId}`), 'list subscriptions'));
+  if (existing.length === 0) {
+    const customers = rows(
+      ok(await api('GET', `/customers/api/v1/customers/depot?depotId=${depotId}`), 'list depot customers'),
+    );
+    // The depot directory only holds customers who have ordered from THIS depot, and the
+    // seed creates no orders — so on a fresh stack it is empty. Falling back to a lookup by
+    // phone keeps the fixture honest: it links a customer that exists, or seeds nothing.
+    let customer = customers[0];
+    if (!customer) {
+      const found = await api('GET', `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(DEMO_CUSTOMER_PHONE)}`);
+      if (found.status >= 200 && found.status < 300) customer = found.body;
+    }
+    if (!customer) {
+      console.log(`- subscription skipped: no customer in the depot directory and no ${DEMO_CUSTOMER_PHONE}`);
+    } else {
+      ok(
+        await api('POST', '/depots/api/v1/subscriptions', {
+          depotId,
+          customerId: customer.id,
+          customerName: customer.fullName ?? customer.name ?? 'Pelanggan',
+          productLabel: 'Galon 19L',
+          quantity: 2,
+          cadence: 'WEEKLY',
+          note: 'Langganan contoh (seed)',
+        }),
+        'create subscription',
+      );
+      console.log(`+ subscription ${customer.fullName ?? customer.id}`);
+    }
+  }
+
+  // A day that is over: yesterday in the business zone, never today — closing the current
+  // day would refuse anything the rest of the seed still wants to record against it.
+  const businessDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const close = ok(
+    await api('GET', `/depots/api/v1/depots/${depotId}/daily-close?businessDate=${businessDate}`),
+    'read daily close',
+  );
+  if (!close?.closedAt) {
+    const res = await api('POST', `/depots/api/v1/depots/${depotId}/daily-close`, {
+      businessDate,
+      note: 'Tutup buku contoh (seed)',
+    });
+    if (res.status >= 200 && res.status < 300) console.log(`+ daily close ${businessDate}`);
+    else console.log(`- daily close skipped: HTTP ${res.status} ${JSON.stringify(res.body).slice(0, 120)}`);
+  }
+}
+
 async function main() {
   console.log(`Seeding ${GATEWAY} ...`);
   const catBySlug = await seedCategories();
@@ -346,6 +474,8 @@ async function main() {
   await seedStaff(depotByCode);
   await seedEmployees(depotByCode);
   await seedHrMasterData(depotByCode);
+  await seedAdminMasterData();
+  await seedDepotMasterData(depotByCode);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);
 }
