@@ -129,7 +129,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold">{t('hrFix.operatorSummary.needsAssigning')}</span>
-            <Link href="/dashboard/orders" className="text-xs font-bold text-brand-800 hover:underline">
+            <Link href="/dashboard/orders" className="inline-flex min-h-11 items-center text-xs font-bold text-brand-800 hover:underline">
               {t('hrFix.operatorSummary.viewQueue2')}
             </Link>
           </div>

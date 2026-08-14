@@ -65,7 +65,7 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
   return (
     <Link
       href={tab.href}
-      className={`shrink-0 rounded-lg px-3 py-2 text-[12.5px] font-semibold transition ${
+      className={`inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 py-2 text-[12.5px] font-semibold transition ${
         active
           ? 'bg-brand-50 text-brand-800'
           : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-soft)]'
@@ -106,7 +106,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/dashboard/notifications"
               aria-label={unread > 0 ? t('hrFix.operatorShell.notifUnreadAria', { n: unread }) : t('hrFix.operatorShell.notifAria')}
-              className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
+              className="relative flex h-11 w-11 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
             >
               <Bell size={18} className="text-[color:var(--text-muted)]" />
               {unread > 0 && (

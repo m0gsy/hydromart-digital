@@ -142,7 +142,7 @@ function ChipButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+      className={`min-h-11 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
         active
           ? 'border-brand-600 bg-brand-600 text-white'
           : 'border-app text-muted hover:text-[color:var(--text)]'

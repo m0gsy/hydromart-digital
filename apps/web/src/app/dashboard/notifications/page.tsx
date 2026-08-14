@@ -63,7 +63,7 @@ function FilterChip({ active, count, onClick, children }: { active: boolean; cou
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+      className={`inline-flex items-center gap-1.5 min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
         active ? 'bg-brand-800 text-on-brand' : 'border border-app text-[color:var(--text-muted)] hover:bg-brand-50'
       }`}
     >

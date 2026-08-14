@@ -211,7 +211,7 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
         <button
           type="button"
           onClick={() => setAmount(String(balance))}
-          className="flex-1 rounded-lg border border-brand-600 bg-brand-50 py-2 text-xs font-bold text-brand-800"
+          className="flex-1 rounded-lg border border-brand-600 bg-brand-50 py-2 inline-flex min-h-11 items-center text-xs font-bold text-brand-800"
         >
           {t('dashB.payout.all')}
         </button>

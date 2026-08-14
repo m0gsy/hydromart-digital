@@ -498,7 +498,7 @@ function Body() {
           <button
             key={name}
             onClick={() => setTab(name)}
-            className={`rounded-lg px-4 py-1.5 text-sm font-semibold capitalize transition ${
+            className={`min-h-11 rounded-lg px-4 py-1.5 text-sm font-semibold capitalize transition ${
               tab === name ? 'bg-brand-600 text-white' : 'text-muted'
             }`}
           >

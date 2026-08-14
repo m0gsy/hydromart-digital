@@ -523,7 +523,7 @@ function Chip({
   onClick: () => void;
   children: React.ReactNode;
 }) {
-  const base = 'inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors';
+  const base = 'inline-flex items-center gap-1 min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors';
   const tone = danger
     ? active
       ? 'bg-[color:var(--danger)] text-white'
@@ -896,7 +896,7 @@ function InventoryBody() {
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 transition-colors ${
+                className={`min-h-11 px-3 py-1.5 transition-colors ${
                   view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
                 }`}
               >

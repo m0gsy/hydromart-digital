@@ -35,7 +35,7 @@ function initials(name: string | null): string {
 
 function Avatar({ name }: { name: string | null }) {
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-800">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 inline-flex min-h-11 items-center text-xs font-bold text-brand-800">
       {initials(name)}
     </span>
   );

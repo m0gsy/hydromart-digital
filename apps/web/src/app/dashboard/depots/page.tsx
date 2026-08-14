@@ -424,7 +424,7 @@ function DepotsBody() {
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 transition-colors ${
+                className={`min-h-11 px-3 py-1.5 transition-colors ${
                   view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
                 }`}
               >
