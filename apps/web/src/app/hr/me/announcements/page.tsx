@@ -38,13 +38,13 @@ export default function MyAnnouncementsPage() {
     } catch (err) {
       // No catch at all before this: a failed receipt threw into the void, the reload never
       // ran, and the announcement stayed unread with no sign anything had gone wrong.
-      setError(err instanceof ApiError ? err.message : 'Gagal menandai sudah dibaca.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.myAnnouncements.markFailed'));
     }
   }
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title="Pengumuman" subtitle="Kabar dari HR untuk Anda" />
+      <SectionHeader title={t('hrFix.myAnnouncements.title')} subtitle={t('hrFix.myAnnouncements.subtitle')} />
       {feed.loading && <Skeleton className="h-32" />}
       {feed.error && <ErrorState message={feed.error} onRetry={feed.reload} />}
       {error && (
@@ -53,14 +53,14 @@ export default function MyAnnouncementsPage() {
         </p>
       )}
       {feed.data?.length === 0 && (
-        <Card className="p-5 text-sm text-muted">Belum ada pengumuman untuk Anda.</Card>
+        <Card className="p-5 text-sm text-muted">{t('hrFix.myAnnouncements.empty')}</Card>
       )}
       {(feed.data ?? []).map((a) => (
         <Card key={a.id} className="space-y-2 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <b>{a.title}</b>
             <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
-            {!a.read && <Badge tone="success">Baru</Badge>}
+            {!a.read && <Badge tone="success">{t('hrFix.myAnnouncements.new')}</Badge>}
           </div>
           <p className="whitespace-pre-line text-sm">{a.body}</p>
           <p className="text-xs text-muted">{fmtDate(a.publishedAt)}</p>

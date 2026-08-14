@@ -1,6 +1,7 @@
 'use client';
 
 import { Storefront } from '@phosphor-icons/react';
+import { useT } from '@/lib/locale-context';
 
 import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { RemoteImage } from '@/components/remote-image';
@@ -17,6 +18,7 @@ import type { Reseller } from '@/lib/reseller';
  * console writes to — HR holds `resellerView` only, so nothing here edits a discount.
  */
 export default function HrResellersPage() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
 
   const rows = useAsync<Reseller[]>(
@@ -48,24 +50,24 @@ export default function HrResellersPage() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Storefront size={40} weight="fill" />} />
+        <CenterState title={t('hrFix.hrResellers.noDepot')} icon={<Storefront size={40} weight="fill" />} />
       ) : rows.loading ? (
         <Skeleton className="h-64 w-full rounded-2xl" />
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : (rows.data ?? []).length === 0 ? (
-        <CenterState title="Belum ada reseller" icon={<Storefront size={40} weight="fill" />} />
+        <CenterState title={t('hrFix.hrResellers.empty')} icon={<Storefront size={40} weight="fill" />} />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-[12.5px] text-muted">
-                <th className="px-4 py-2.5 font-semibold">Foto</th>
-                <th className="px-4 py-2.5 font-semibold">Customer</th>
-                <th className="px-4 py-2.5 font-semibold">Diskon</th>
-                <th className="px-4 py-2.5 font-semibold">Target / bulan</th>
-                <th className="px-4 py-2.5 font-semibold">Bergabung</th>
-                <th className="px-4 py-2.5 font-semibold">Status</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.photo')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.customer')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.discount')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.monthlyTarget')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.joined')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +99,7 @@ export default function HrResellersPage() {
                   <td className="px-4 py-2.5 text-muted">{formatDateTime(r.joinDate)}</td>
                   <td className="px-4 py-2.5">
                     <Badge tone={r.active ? 'success' : 'neutral'}>
-                      {r.active ? 'Aktif' : 'Nonaktif'}
+                      {r.active ? t('hrFix.hrResellers.active') : t('hrFix.hrResellers.inactive')}
                     </Badge>
                   </td>
                 </tr>

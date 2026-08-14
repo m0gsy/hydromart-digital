@@ -70,7 +70,7 @@ export function EmployeeDocuments({
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Dokumen</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.documents.title')}</h2>
       <p className="text-xs text-muted">
         Unggah ulang jenis yang sama akan membuat versi baru; versi lama tetap tersimpan.
       </p>
@@ -82,7 +82,7 @@ export function EmployeeDocuments({
           {documents.error ? (
             <LoadError onRetry={documents.reload} />
           ) : (
-            rows.length === 0 && <p className="text-sm text-muted">Belum ada dokumen.</p>
+            rows.length === 0 && <p className="text-sm text-muted">{t('hrFix.documents.empty')}</p>
           )}
           {rows.map((d) => (
             <div key={d.id} className="flex items-center justify-between gap-3 py-3">
@@ -114,7 +114,7 @@ export function EmployeeDocuments({
           onSubmit={upload}
           className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2"
         >
-          <Field label="Jenis dokumen">
+          <Field label={t('hrFix.documents.docType')}>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as EmployeeDocumentType)}

@@ -85,10 +85,10 @@ export function DepotForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t('hq.depots.form.code')} htmlFor="d-code">
-          <Input id="d-code" value={form.code} onChange={set('code')} placeholder="JKT-01" />
+          <Input id="d-code" value={form.code} onChange={set('code')} placeholder={t('hrFix.hqDepotForm.codeHint')} />
         </Field>
         <Field label={t('hq.depots.form.name')} htmlFor="d-name">
-          <Input id="d-name" value={form.name} onChange={set('name')} placeholder="Depot Cikini" />
+          <Input id="d-name" value={form.name} onChange={set('name')} placeholder={t('hrFix.hqDepotForm.nameHint')} />
         </Field>
       </div>
 
@@ -114,15 +114,15 @@ export function DepotForm({
       )}
 
       <Field label={t('hq.depots.form.address')} htmlFor="d-addr">
-        <Input id="d-addr" value={form.address} onChange={set('address')} placeholder="Jl. Cikini Raya No. 1" />
+        <Input id="d-addr" value={form.address} onChange={set('address')} placeholder={t('hrFix.hqDepotForm.addressHint')} />
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t('hq.depots.form.city')} htmlFor="d-city">
-          <Input id="d-city" value={form.city} onChange={set('city')} placeholder="Jakarta Pusat" />
+          <Input id="d-city" value={form.city} onChange={set('city')} placeholder={t('hrFix.hqDepotForm.cityHint')} />
         </Field>
         <Field label={t('hq.depots.form.province')} htmlFor="d-prov">
-          <Input id="d-prov" value={form.province} onChange={set('province')} placeholder="DKI Jakarta" />
+          <Input id="d-prov" value={form.province} onChange={set('province')} placeholder={t('hrFix.hqDepotForm.provinceHint')} />
         </Field>
         <Field label={t('hq.depots.form.lat')} htmlFor="d-lat">
           <Input id="d-lat" inputMode="decimal" value={form.lat} onChange={set('lat')} placeholder="-6.1944" />
@@ -142,9 +142,9 @@ export function DepotForm({
       </div>
 
       <Field
-        label="Nomor WhatsApp depot"
+        label={t('hrFix.hqDepotForm.whatsapp')}
         htmlFor="d-phone"
-        hint="Tujuan laporan penjualan siang & sore. Angka saja (boleh diawali +). Kosong = dikirim ke nomor ops pusat."
+        hint={t('hrFix.hqDepotForm.whatsappHint')}
       >
         <Input
           id="d-phone"
@@ -166,7 +166,7 @@ export function DepotForm({
             <Input id="d-acct" inputMode="numeric" value={form.paymentBankAccountNumber} onChange={set('paymentBankAccountNumber')} placeholder="1234567890" />
           </Field>
           <Field label={t('hq.depots.form.accountHolder')} htmlFor="d-holder">
-            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder="PT Hydromart Cikini" />
+            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder={t('hrFix.hqDepotForm.ownerHint')} />
           </Field>
           <Field label={t('hq.depots.form.qris')} htmlFor="d-qris" hint={t('hq.depots.form.qrisHint')}>
             <Input id="d-qris" value={form.paymentQrisImageUrl} onChange={set('paymentQrisImageUrl')} placeholder="https://…/qris.png" />

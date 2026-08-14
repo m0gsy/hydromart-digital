@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 import { ArrowLeft, Check, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
@@ -20,15 +21,17 @@ import { useQueryParam } from '@/lib/use-query-param';
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
 const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 const STAMP = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+// Dictionary KEYS — module scope, so t() runs where each step is rendered.
 const STEPS: { status: DeliveryStatus; label: string; at: keyof Delivery }[] = [
-  { status: 'ASSIGNED', label: 'Ditugaskan', at: 'assignedAt' },
-  { status: 'PICKED_UP', label: 'Diambil', at: 'pickedUpAt' },
-  { status: 'ON_DELIVERY', label: 'Diantar', at: 'startedAt' },
-  { status: 'DELIVERED', label: 'Selesai', at: 'deliveredAt' },
+  { status: 'ASSIGNED', label: 'hrFix.deliveryDetail.assigned', at: 'assignedAt' },
+  { status: 'PICKED_UP', label: 'hrFix.deliveryDetail.pickedUp', at: 'pickedUpAt' },
+  { status: 'ON_DELIVERY', label: 'hrFix.deliveryDetail.delivering', at: 'startedAt' },
+  { status: 'DELIVERED', label: 'hrFix.deliveryDetail.done', at: 'deliveredAt' },
 ];
 const ORDER: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED'];
 
 function Detail() {
+  const { t } = useT();
   const router = useRouter();
   const id = useQueryParam('id');
   const d = useAsync<Delivery>(() => api.get(endpoints.deliveries.driver.get(id), true), [id]);
@@ -37,7 +40,7 @@ function Detail() {
   const [capturing, setCapturing] = useState(false);
 
   if (d.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
-  if (d.error || !d.data) return <div className="p-5"><ErrorState message={d.error ?? 'Tidak ditemukan'} onRetry={d.reload} /></div>;
+  if (d.error || !d.data) return <div className="p-5"><ErrorState message={d.error ?? t('hrFix.deliveryDetail.notFound')} onRetry={d.reload} /></div>;
 
   const delivery = d.data;
   const reached = ORDER.indexOf(delivery.status);
@@ -49,7 +52,7 @@ function Detail() {
       await fn();
       d.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.deliveryDetail.actionFailed'));
     } finally {
       setBusy(false);
     }
@@ -62,7 +65,7 @@ function Detail() {
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
-          <div className="text-sm font-extrabold">Detail pengantaran</div>
+          <div className="text-sm font-extrabold">{t('hrFix.deliveryDetail.title')}</div>
           <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
         </div>
         <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{DELIVERY_STATUS_LABEL[delivery.status]}</Badge>
@@ -74,7 +77,7 @@ function Detail() {
         <div className="text-sm font-bold">{delivery.destinationAddress}</div>
         {delivery.notes && (
           <div className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-[12.5px] text-brand-900">
-            <span className="font-bold">Patokan: </span>
+            <span className="font-bold">{t('hrFix.deliveryDetail.landmark')} </span>
             {delivery.notes}
           </div>
         )}
@@ -108,7 +111,7 @@ function Detail() {
       {(delivery.items?.length || (delivery.codAmount != null && delivery.codAmount > 0)) && (
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">Rincian pesanan</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.orderDetail')}</div>
             {delivery.codAmount != null && delivery.codAmount > 0 && (
               <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-800">
                 <Coins size={13} weight="fill" />
@@ -130,7 +133,7 @@ function Detail() {
       )}
 
       <Card className="p-4">
-        <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">Riwayat status</div>
+        <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.statusHistory')}</div>
         <ol className="flex flex-col gap-0">
           {STEPS.map((step, i) => {
             const done = i <= reached;
@@ -144,7 +147,7 @@ function Detail() {
                   {i < STEPS.length - 1 && <span className={`w-0.5 flex-1 ${done ? 'bg-green-600' : 'bg-[color:var(--border)]'}`} style={{ minHeight: 20 }} />}
                 </div>
                 <div className="pb-3">
-                  <div className={`text-sm font-bold ${done ? '' : 'text-[color:var(--muted)]'}`}>{step.label}</div>
+                  <div className={`text-sm font-bold ${done ? '' : 'text-[color:var(--muted)]'}`}>{t(step.label)}</div>
                   {at && <div className="text-[11px] text-[color:var(--muted)]">{TIME.format(new Date(at))}</div>}
                 </div>
               </li>
@@ -217,7 +220,7 @@ function Detail() {
         <Card className="p-4 text-sm">
           {delivery.status === 'RESCHEDULED' ? (
             <div>
-              <div className="font-bold">Dijadwalkan ulang</div>
+              <div className="font-bold">{t('hrFix.deliveryDetail.rescheduled')}</div>
               {delivery.rescheduledFor && (
                 <div className="text-[color:var(--muted)]">
                   {new Date(delivery.rescheduledFor).toLocaleString('id-ID')}
@@ -243,7 +246,7 @@ function Detail() {
           />
           <dl className="grid grid-cols-2 gap-2 text-[11px]">
             <div>
-              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">Waktu</dt>
+              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.time')}</dt>
               <dd className="tabular-nums">{STAMP.format(new Date(delivery.proof.capturedAt))}</dd>
             </div>
             <div>

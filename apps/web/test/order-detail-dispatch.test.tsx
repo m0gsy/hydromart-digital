@@ -17,6 +17,7 @@ vi.mock('@/lib/auth-context', () => ({
 }));
 
 import { OrderDetail } from '@/components/dashboard/order-detail';
+import { LocaleProvider } from '@/lib/locale-context';
 
 const DRIVERS = [
   { id: 'drv-1', fullName: 'Budi', phone: '0811', role: 'STAFF_DEPOT', status: 'ACTIVE' },
@@ -64,10 +65,19 @@ afterEach(() => vi.clearAllMocks());
  * shift" — so one transient 5xx disabled every courier and labelled them all "belum buka
  * shift". The guard reads `shifts != null`, so the catch has to produce null.
  */
+// The component reads copy through useT(), which needs the provider — rendering it bare
+// throws before a single assertion runs.
+const renderDetail = () =>
+  render(
+    <LocaleProvider>
+      <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
+    </LocaleProvider>,
+  );
+
 describe('OrderDetail courier assignment when the shift view fails', () => {
   it('leaves every courier selectable when the shift read is rejected', async () => {
     routeReads(() => Promise.reject(new Error('503')));
-    render(<OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />);
+    renderDetail();
 
     const budi = (await screen.findByRole('option', { name: /Budi/ })) as HTMLOptionElement;
     const sari = (await screen.findByRole('option', { name: /Sari/ })) as HTMLOptionElement;
@@ -80,7 +90,7 @@ describe('OrderDetail courier assignment when the shift view fails', () => {
   // the fix above could have been "never disable anything", which is a different bug.
   it('still disables a courier when the service really says nobody is on shift', async () => {
     routeReads(() => Promise.resolve([]));
-    render(<OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />);
+    renderDetail();
 
     await waitFor(async () => {
       const budi = (await screen.findByRole('option', { name: /Budi/ })) as HTMLOptionElement;
@@ -94,7 +104,7 @@ describe('OrderDetail courier assignment when the shift view fails', () => {
         { driverId: 'drv-1', depotId: 'depot-a', status: 'ONLINE', acceptsAssignments: true },
       ]),
     );
-    render(<OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />);
+    renderDetail();
 
     const budi = (await screen.findByRole('option', { name: /Budi/ })) as HTMLOptionElement;
     const sari = (await screen.findByRole('option', { name: /Sari/ })) as HTMLOptionElement;

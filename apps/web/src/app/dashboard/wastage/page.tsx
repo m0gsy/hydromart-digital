@@ -1,6 +1,7 @@
 'use client';
 
 import { Drop, Info, Lock, Warning } from '@phosphor-icons/react';
+import { useT } from '@/lib/locale-context';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -21,6 +22,7 @@ const MONTH_FROM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
 const MONTH_TO = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 
 function WastageBody() {
+  const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
   const depotName = depot?.name ?? 'Semua depot';
@@ -42,7 +44,7 @@ function WastageBody() {
       <div className="flex items-center gap-2">
         <Warning size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Wastage</h1>
+          <h1 className="text-2xl font-bold">{t('hrFix.wastage.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {depotName} · {MONTH} · dari pergerakan ADJUSTMENT
           </p>
@@ -57,7 +59,7 @@ function WastageBody() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="flex flex-col gap-1 p-5">
-              <span className="text-xs text-[color:var(--text-muted)]">Nilai wastage</span>
+              <span className="text-xs text-[color:var(--text-muted)]">{t('hrFix.wastage.value')}</span>
               <span className="text-3xl font-bold tabular-nums text-[color:var(--danger)]">
                 {data?.totalLossIdr != null ? formatIDR(data.totalLossIdr) : '—'}
               </span>
@@ -66,7 +68,7 @@ function WastageBody() {
               </span>
             </Card>
             <Card className="flex flex-col gap-1 p-5">
-              <span className="text-xs text-[color:var(--text-muted)]">Total unit terbuang</span>
+              <span className="text-xs text-[color:var(--text-muted)]">{t('hrFix.wastage.units')}</span>
               <span className="text-3xl font-bold tabular-nums">{totalUnits.toLocaleString('id-ID')}</span>
               <span className="text-xs text-[color:var(--text-muted)]">{items.length} jenis item</span>
             </Card>
@@ -115,10 +117,11 @@ function WastageBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canUseManagerConsole(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.wastage.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         Pelacakan wastage hanya untuk Manajer depot.
       </CenterState>
     );

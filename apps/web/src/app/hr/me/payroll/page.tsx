@@ -20,10 +20,10 @@ export default function MyPayrollPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title="Slip Gaji Saya" />
+      <SectionHeader title={t('hrFix.myPayroll.title')} />
       {loading && <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <CenterState title="Belum ada slip gaji">Slip gaji kamu akan muncul di sini.</CenterState>}
+      {data && data.rows.length === 0 && <CenterState title={t('hrFix.myPayroll.empty')}>{t('hrFix.myPayroll.emptyBody')}</CenterState>}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((p) => (

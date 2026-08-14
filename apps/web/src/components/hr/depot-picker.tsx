@@ -1,6 +1,7 @@
 'use client';
 
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 
 /**
  * Depot chooser for the two depot-scoped HR reads (pelanggan, reseller).
@@ -15,14 +16,14 @@ import { useDepot } from '@/lib/depot-context';
  */
 /**
  * G-1: `value`/`onChange` make this a controlled FORM field as well as a page switcher.
- * `/hr/settings` had a `placeholder="UUID depot"` text box for the same choice, next to a
+ * `/hr/settings` had a `placeholder={t('hrFix.depotPicker.hint')}` text box for the same choice, next to a
  * depot list this component already holds. Uncontrolled (no props) it behaves exactly as
  * before — the pages that switch scope are untouched.
  */
 export function HrDepotPicker({
   value,
   onChange,
-  label = 'Depot',
+  label,
   includeEmpty,
 }: {
   value?: string;
@@ -31,6 +32,7 @@ export function HrDepotPicker({
   /** Offer a blank option — for a form field that may legitimately be left unset. */
   includeEmpty?: string;
 } = {}) {
+  const { t } = useT();
   const { depots, scopedId, setSelected } = useDepot();
   const controlled = onChange != null;
 
@@ -40,11 +42,11 @@ export function HrDepotPicker({
 
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-muted">{label}</span>
+      <span className="text-muted">{label ?? t('hrFix.depotPicker.depot')}</span>
       <select
         value={controlled ? (value ?? '') : (scopedId ?? '')}
         onChange={(e) => (controlled ? onChange(e.target.value) : setSelected(e.target.value))}
-        aria-label="Pilih depot"
+        aria-label={t('hrFix.depotPicker.aria')}
         className="surface-elevated rounded-lg border border-app px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
       >
         {includeEmpty !== undefined && <option value="">{includeEmpty}</option>}

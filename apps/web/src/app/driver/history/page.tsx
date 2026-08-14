@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckCircle, XCircle } from '@phosphor-icons/react';
+import { useT } from '@/lib/locale-context';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -12,6 +13,7 @@ import type { Delivery, Page } from '@/lib/types';
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
 
 function History() {
+  const { t } = useT();
   const delivered = useAsync<Page<Delivery>>(
     () => api.get(endpoints.deliveries.driver.list('DELIVERED'), true),
     [],
@@ -32,23 +34,23 @@ function History() {
 
   return (
     <div className="space-y-4 px-4 py-6">
-      <h1 className="text-lg font-extrabold tracking-tight">Riwayat</h1>
+      <h1 className="text-lg font-extrabold tracking-tight">{t('hrFix.driverHistory.title')}</h1>
       <div className="flex gap-2">
         <div className="flex-1 rounded-2xl bg-green-50 px-3 py-2.5">
           <div className="text-lg font-extrabold text-green-700 tabular-nums">{delivered.data?.total ?? 0}</div>
-          <div className="text-[10px] font-bold uppercase tracking-wide text-green-700">Selesai</div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-green-700">{t('hrFix.driverHistory.done')}</div>
         </div>
         <div className="flex-1 rounded-2xl bg-red-50 px-3 py-2.5">
           {/* "0 gagal" is the number a courier is judged on. An unread count is not zero. */}
           <div className="text-lg font-extrabold text-red-600 tabular-nums">
             {failed.error ? '—' : (failed.data?.total ?? 0)}
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-wide text-red-600">Gagal</div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-red-600">{t('hrFix.driverHistory.failed')}</div>
         </div>
       </div>
 
       {rows.length === 0 ? (
-        <CenterState icon={<CheckCircle size={32} />} title="Belum ada riwayat" />
+        <CenterState icon={<CheckCircle size={32} />} title={t('hrFix.driverHistory.empty')} />
       ) : (
         <div className="flex flex-col gap-2.5">
           {rows.map((d) => {
@@ -65,7 +67,7 @@ function History() {
                     {ok ? d.destinationAddress : (d.failureReason ?? 'Gagal')} · {when ? TIME.format(new Date(when)) : ''}
                   </div>
                 </div>
-                {!ok && <span className="text-[11px] font-extrabold text-red-600">Gagal</span>}
+                {!ok && <span className="text-[11px] font-extrabold text-red-600">{t('hrFix.driverHistory.failed')}</span>}
               </div>
             );
           })}
