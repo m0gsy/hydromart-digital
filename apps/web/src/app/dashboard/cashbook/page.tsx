@@ -24,6 +24,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { CashDirection, CashbookResponse } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
 
@@ -68,6 +69,7 @@ function StatCard({
 
 /** Inline "Catat kas" form → POST an entry, then reload the ledger. */
 function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { t } = useT();
   const [direction, setDirection] = useState<CashDirection>('IN');
   const [category, setCategory] = useState('');
   const [label, setLabel] = useState('');
@@ -78,7 +80,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
   async function submit() {
     const amountIdr = Number(amount);
     if (!category.trim() || !label.trim() || !Number.isFinite(amountIdr) || amountIdr <= 0) {
-      setError('Isi kategori, keterangan, dan nominal (> 0).');
+      setError(t('opsFix.cashbook.required'));
       return;
     }
     setBusy(true);
@@ -91,7 +93,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mencatat kas.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.cashbook.saveError'));
     } finally {
       setBusy(false);
     }
@@ -102,34 +104,36 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       <div className="flex gap-2">
         {(['IN', 'OUT'] as const).map((d) => (
           <button key={d} type="button" onClick={() => setDirection(d)} aria-pressed={direction === d}>
-            <Chip tone={direction === d ? 'ink' : 'outline'}>{d === 'IN' ? 'Masuk' : 'Keluar'}</Chip>
+            <Chip tone={direction === d ? 'ink' : 'outline'}>
+              {d === 'IN' ? t('opsFix.cashbook.in') : t('opsFix.cashbook.out')}
+            </Chip>
           </button>
         ))}
       </div>
-      <Field label="Kategori" htmlFor="cb-category">
+      <Field label={t('opsFix.cashbook.category')} htmlFor="cb-category">
         <Input
           id="cb-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          placeholder="mis. Penjualan, Belanja"
+          placeholder={t('opsFix.cashbook.categoryPlaceholder')}
         />
       </Field>
-      <Field label="Keterangan" htmlFor="cb-label">
+      <Field label={t('opsFix.cashbook.note')} htmlFor="cb-label">
         <Input
           id="cb-label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="mis. Penjualan galon tunai"
+          placeholder={t('opsFix.cashbook.notePlaceholder')}
         />
       </Field>
-      <Field label="Nominal (Rp)" htmlFor="cb-amount">
+      <Field label={t('opsFix.cashbook.amount')} htmlFor="cb-amount">
         <Input
           id="cb-amount"
           type="number"
           inputMode="numeric"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
+          placeholder={t('opsFix.cashbook.amountPlaceholder')}
         />
       </Field>
       {error && (
@@ -139,7 +143,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       )}
       <div className="flex justify-end">
         <Button onClick={submit} loading={busy}>
-          Simpan
+          {t('opsFix.cashbook.save')}
         </Button>
       </div>
     </Card>
@@ -147,6 +151,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
 }
 
 function CashbookBody() {
+  const { t } = useT();
   const { scopedId } = useDepot();
   const [showForm, setShowForm] = useState(false);
 
@@ -194,25 +199,25 @@ function CashbookBody() {
         <div className="flex items-center gap-2">
           <BookOpen size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Buku kas</h1>
+            <h1 className="text-2xl font-bold">{t('opsFix.cashbook.title')}</h1>
             <p className="text-sm text-[color:var(--text-muted)]">{TODAY}</p>
           </div>
         </div>
-        <Chip tone="tint">Hari ini</Chip>
+        <Chip tone="tint">{t('opsFix.cashbook.today')}</Chip>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Masuk" amount={summary.inIdr} variant="in" />
-        <StatCard label="Keluar" amount={summary.outIdr} variant="out" />
+        <StatCard label={t('opsFix.cashbook.in')} amount={summary.inIdr} variant="in" />
+        <StatCard label={t('opsFix.cashbook.out')} amount={summary.outIdr} variant="out" />
         {/* ponytail: opening balance not tracked server-side, so this is net today (in − out), not a running balance. */}
-        <StatCard label="Kas bersih" amount={summary.netIdr} variant="balance" />
+        <StatCard label={t('opsFix.cashbook.net')} amount={summary.netIdr} variant="balance" />
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Transaksi hari ini</p>
+        <p className="text-sm font-semibold">{t('opsFix.cashbook.todayTx')}</p>
         <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
           <Plus size={16} weight="bold" />
-          Catat kas
+          {t('opsFix.cashbook.record')}
         </Button>
       </div>
 
@@ -231,8 +236,8 @@ function CashbookBody() {
       ) : book.error ? (
         <ErrorState message={book.error} onRetry={book.reload} />
       ) : entries.length === 0 ? (
-        <CenterState title="Belum ada transaksi" icon={<BookOpen size={40} weight="fill" />}>
-          Belum ada kas masuk atau keluar yang tercatat hari ini.
+        <CenterState title={t('opsFix.cashbook.empty')} icon={<BookOpen size={40} weight="fill" />}>
+          {t('opsFix.cashbook.emptyBody')}
         </CenterState>
       ) : (
         <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
@@ -309,11 +314,12 @@ function CashbookBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotFinance', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Buku kas depot hanya untuk Manajer depot.
+      <CenterState title={t('opsFix.cashbook.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.cashbook.gateBody')}
       </CenterState>
     );
   }

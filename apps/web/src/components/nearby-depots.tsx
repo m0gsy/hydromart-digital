@@ -7,7 +7,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
-import { Chip, Money, Skeleton } from '@/components/ui';
+import { Chip, LoadError, Money, Skeleton } from '@/components/ui';
 import { DEPOT_OPEN_LABEL, depotOpenState } from '@/lib/opening-hours';
 import { LocationSelector } from '@/components/location-selector';
 import type { NearbyDepot } from '@/lib/types';
@@ -21,7 +21,7 @@ export function NearbyDepots() {
   const { location, ready } = useLocation();
   const { t } = useT();
 
-  const { data, loading } = useAsync<NearbyDepot[]>(
+  const { data, loading, error, reload } = useAsync<NearbyDepot[]>(
     () =>
       location
         ? api.getCached<NearbyDepot[]>(endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 2 }))
@@ -50,6 +50,10 @@ export function NearbyDepots() {
               <Skeleton key={i} className="h-[70px] w-full rounded-2xl" />
             ))}
           </div>
+        ) : error ? (
+          /* "Belum ada depot di sekitarmu" is a statement about coverage — a shopper who
+             reads it once does not come back to check. */
+          <LoadError onRetry={reload} />
         ) : !data || data.length === 0 ? (
           <p className="text-sm text-muted">{t('home.depots.empty')}</p>
         ) : (

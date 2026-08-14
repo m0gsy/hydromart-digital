@@ -89,6 +89,7 @@ describe('DailyClosePrismaRepository', () => {
   };
   const depotDailyClose = {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     // Declared with its argument: a zero-arg `jest.fn` types `mock.calls` as `[][]`, and the
     // assertion below reads calls[0][0] to check the upsert key.
     upsert: jest.fn(async (_args: unknown) => row),
@@ -110,6 +111,19 @@ describe('DailyClosePrismaRepository', () => {
   it('reports an unclosed day as null', async () => {
     depotDailyClose.findUnique.mockResolvedValue(null);
     await expect(repo.find('d1', '2026-08-04')).resolves.toBeNull();
+  });
+
+  it('lists a range of closed days oldest first, mapping each business date', async () => {
+    const from = new Date('2026-08-01T00:00:00.000Z');
+    const to = new Date('2026-09-01T00:00:00.000Z');
+    depotDailyClose.findMany.mockResolvedValue([row]);
+    await expect(repo.listForDepotRange('d1', from, to)).resolves.toEqual([
+      expect.objectContaining({ businessDate: '2026-08-04', codExpectedIdr: 520_000 }),
+    ]);
+    expect(depotDailyClose.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1', businessDate: { gte: from, lt: to } },
+      orderBy: { businessDate: 'asc' },
+    });
   });
 
   // Upsert, so re-closing a reopened day replaces the snapshot instead of adding a second

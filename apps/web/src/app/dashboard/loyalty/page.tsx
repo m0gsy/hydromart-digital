@@ -3,7 +3,7 @@
 import { Coins, Crown, Gift, Lock, Medal, Sparkle } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, Chip, Skeleton } from '@/components/ui';
+import { Card, CenterState, Chip, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -11,6 +11,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import type { DepotLoyaltySummary, TierBenefit } from '@/lib/types';
 
 // Tier thresholds come from loyalty.tiers for THIS depot (real); per-tier member counts +
@@ -42,6 +43,15 @@ function Stat({ label, value }: { label: string; value: string }) {
 function LoyaltyBody() {
   const { t } = useT();
   const { scopedId, selected, depots } = useDepot();
+  // The earning rules on the card below, from the same schema endpoint the settings editor edits.
+  const cfg = useAsync<SettingsSchema>(() => fetchSettingsSchema('/loyalty/api/v1', scopedId ?? null), [scopedId]);
+  const numOf = (key: string): number | null => {
+    const v = cfg.data?.effective[key];
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  const earnRate = numOf('earnRateRupiah');
+  const expiryMonths = numOf('pointExpiryMonths');
   const depotName = (selected ?? depots.find((d) => d.id === scopedId) ?? depots[0])?.name ?? t('dashB.loyalty.depotFallback');
 
   const summary = useAsync<DepotLoyaltySummary | null>(
@@ -90,10 +100,22 @@ function LoyaltyBody() {
         <Chip tone="outline">{t('dashB.loyalty.manageRules')}</Chip>
       </div>
 
+      {/* `idr()` floors a missing number to 0, so an unread summary used to report zero
+          members and zero points outstanding — a solvent-looking depot with no liability. */}
+      {summary.error && <LoadError onRetry={summary.reload} />}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label={t('dashB.loyalty.members')} value={summary.loading ? '…' : idr(s?.totalMembers)} />
-        <Stat label={t('dashB.loyalty.pointsOutstanding')} value={summary.loading ? '…' : idr(s?.pointsOutstanding)} />
-        <Stat label={t('dashB.loyalty.redeemedMonth')} value={summary.loading ? '…' : idr(s?.redeemedThisMonth)} />
+        <Stat
+          label={t('dashB.loyalty.members')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.totalMembers)}
+        />
+        <Stat
+          label={t('dashB.loyalty.pointsOutstanding')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.pointsOutstanding)}
+        />
+        <Stat
+          label={t('dashB.loyalty.redeemedMonth')}
+          value={summary.loading ? '…' : summary.error ? '—' : idr(s?.redeemedThisMonth)}
+        />
       </div>
 
       <Card className="flex flex-col gap-3 p-5">
@@ -101,16 +123,26 @@ function LoyaltyBody() {
           <Coins size={18} weight="fill" className="text-brand-500" />
           {t('dashB.loyalty.earningRules')}
         </h2>
+        {/* These two rows used to read "tiap galon 19L +10 poin" and "100 poin = Rp5.000".
+            Neither is a rule this system has: points are earned per rupiah spent
+            (`earnRateRupiah`, a per-depot tunable) and there is no fixed cash value for a
+            point at all — a reward costs whatever its catalog row says. Read the real
+            settings for this depot instead of restating a rule nobody enforces. */}
         <ul className="flex flex-col gap-2 text-sm">
           <li className="flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface-soft)] px-4 py-3">
-            <span>{t('dashB.loyalty.perGallon')}</span>
-            <span className="font-bold text-brand-700">{t('dashB.loyalty.perGallonPoints')}</span>
+            <span>{t('dashB.loyalty.earnRate')}</span>
+            <span className="font-bold text-brand-700">
+              {earnRate != null ? t('dashB.loyalty.earnRateValue', { n: earnRate.toLocaleString('id-ID') }) : '—'}
+            </span>
           </li>
           <li className="flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface-soft)] px-4 py-3">
-            <span>{t('dashB.loyalty.hundredPoints')}</span>
-            <span className="font-bold text-brand-700">{t('dashB.loyalty.hundredPointsValue')}</span>
+            <span>{t('dashB.loyalty.expiry')}</span>
+            <span className="font-bold text-brand-700">
+              {expiryMonths != null ? t('dashB.loyalty.expiryValue', { n: expiryMonths }) : '—'}
+            </span>
           </li>
         </ul>
+        {cfg.error && <LoadError onRetry={cfg.reload} />}
       </Card>
 
       <div className="flex flex-col gap-3">
@@ -120,6 +152,8 @@ function LoyaltyBody() {
         </h2>
         {tiers.loading ? (
           <Skeleton className="h-28 w-full" />
+        ) : tiers.error ? (
+          <LoadError onRetry={tiers.reload} />
         ) : (
           <div className="grid gap-3 sm:grid-cols-3">
             {cards.map((c) => (

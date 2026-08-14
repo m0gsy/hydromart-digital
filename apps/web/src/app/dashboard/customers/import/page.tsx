@@ -1,6 +1,7 @@
 'use client';
 
 import { CsvImport, phoneCell, type ImportColumn } from '@/components/csv-import';
+import { useT } from '@/lib/locale-context';
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -15,18 +16,19 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportCustomersPage() {
+  const { t } = useT();
   const { selectedId, ready } = useDepot();
 
   // selectedId, NOT scopedId. An import writes into exactly one depot, and scopedId falls
   // back to depots[0] whenever the switcher says "Semua depot" — which would file every
   // row under whichever depot happened to sort first, with nothing on screen saying so.
   if (!selectedId) {
-    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
+    return <CenterState title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')} />;
   }
 
   return (
     <CsvImport
-      title="Import Pelanggan"
+      title="hrFix.imports.customers"
       description="Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota dan provinsi wajib diisi."
       columns={COLUMNS}
       endpoint={endpoints.depotCrm.import}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
@@ -13,6 +14,7 @@ import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
 export default function DepartmentsPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { depots } = useDepot();
   const { toast } = useToast();
@@ -28,12 +30,12 @@ export default function DepartmentsPage() {
   const [depotId, setDepotId] = useState('');
 
   function fail(e: unknown) {
-    toast(e instanceof ApiError ? e.message : 'Gagal', 'error');
+    toast(e instanceof ApiError ? e.message : t('hrFix.departments.failed'), 'error');
   }
 
   async function add() {
     if (!code.trim() || !name.trim()) {
-      toast('Isi kode & nama', 'error');
+      toast(t('hrFix.departments.fillCodeName'), 'error');
       return;
     }
     try {
@@ -42,7 +44,7 @@ export default function DepartmentsPage() {
         { code: code.trim(), name: name.trim(), ...(depotId ? { depotId } : {}) },
         true,
       );
-      toast('Departemen ditambahkan');
+      toast(t('hrFix.departments.added'));
       setCode('');
       setName('');
       departments.reload();
@@ -54,7 +56,7 @@ export default function DepartmentsPage() {
   async function toggle(d: Department) {
     try {
       await api.patch(endpoints.hr.updateDepartment(d.id), { active: !d.active }, true);
-      toast(d.active ? 'Dinonaktifkan' : 'Diaktifkan');
+      toast(d.active ? t('hrFix.departments.deactivated') : t('hrFix.departments.activated'));
       departments.reload();
     } catch (e) {
       fail(e);
@@ -64,7 +66,7 @@ export default function DepartmentsPage() {
   async function remove(id: string) {
     try {
       await api.del(endpoints.hr.deleteDepartment(id), true);
-      toast('Dihapus');
+      toast(t('hrFix.departments.deleted'));
       departments.reload();
     } catch (e) {
       fail(e);
@@ -72,13 +74,13 @@ export default function DepartmentsPage() {
   }
 
   const depotName = (id: string | null) =>
-    id ? (depots.find((d) => d.id === id)?.code ?? 'depot') : 'semua depot';
+    id ? (depots.find((d) => d.id === id)?.code ?? 'depot') : t('hrFix.departments.allDepotsLower');
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <SectionHeader
-        title="Departemen"
-        subtitle="Unit kerja karyawan. Tanpa depot = berlaku lintas depot (Keuangan, HR)."
+        title={t('hrFix.departments.title')}
+        subtitle={t('hrFix.departments.subtitle')}
       />
 
       <Card className="space-y-3 p-5">
@@ -102,7 +104,7 @@ export default function DepartmentsPage() {
                 {isAdmin && (
                   <span className="flex shrink-0 gap-1">
                     <Button variant="ghost" onClick={() => toggle(d)}>
-                      {d.active ? 'Nonaktifkan' : 'Aktifkan'}
+                      {d.active ? t('hrFix.departments.deactivate') : t('hrFix.departments.activate')}
                     </Button>
                     <Button variant="ghost" onClick={() => remove(d.id)}>
                       Hapus
@@ -130,7 +132,7 @@ export default function DepartmentsPage() {
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Keuangan"
+                placeholder={t('hrFix.departments.nameHint')}
               />
             </label>
             <label className="text-sm">
@@ -140,7 +142,7 @@ export default function DepartmentsPage() {
                 onChange={(e) => setDepotId(e.target.value)}
                 className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
               >
-                <option value="">Semua depot</option>
+                <option value="">{t('hrFix.departments.allDepots')}</option>
                 {depots.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.code}
@@ -148,7 +150,7 @@ export default function DepartmentsPage() {
                 ))}
               </select>
             </label>
-            <Button onClick={add}>Tambah</Button>
+            <Button onClick={add}>{t('hrFix.departments.add')}</Button>
           </div>
         )}
       </Card>

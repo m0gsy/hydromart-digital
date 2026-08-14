@@ -55,6 +55,18 @@ export class OrderRevenueDto {
   amountIdr!: number;
 
   @ApiPropertyOptional({
+    example: 200000,
+    description:
+      'Goods subtotal before discount, in whole IDR — what the commission is charged on. ' +
+      'Falls back to amountIdr when absent (an order-service that predates this field).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  commissionBaseIdr?: number;
+
+  @ApiPropertyOptional({
     example: 'HM-20260728-000123',
     description: 'Shown in the ledger description.',
   })

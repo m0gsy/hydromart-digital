@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Lock, Receipt } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
@@ -21,15 +22,17 @@ const STATUS_TONE: Record<ExpenseClaimStatus, 'brand' | 'success' | 'danger'> = 
   APPROVED: 'success',
   REJECTED: 'danger',
 };
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const CATEGORY_LABELS: Record<string, string> = {
-  FUEL: 'Bensin',
-  PARKING_TOLL: 'Parkir / tol',
-  VEHICLE_REPAIR: 'Servis kendaraan',
-  OTHER: 'Lainnya',
+  FUEL: 'hrFix.expenseClaims.fuel',
+  PARKING_TOLL: 'hrFix.expenseClaims.parking',
+  VEHICLE_REPAIR: 'hrFix.expenseClaims.service',
+  OTHER: 'hrFix.expenseClaims.other',
 };
 const DATE = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
 function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
+  const { t } = useT();
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
       await api.post(url, { note: note.trim() || undefined }, true);
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.expenseClaims.actionFailed'));
     } finally {
       setBusy(null);
     }
@@ -53,7 +56,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold tabular-nums">{formatIDR(c.amount)}</p>
-          <p className="text-xs font-medium">{CATEGORY_LABELS[c.category] ?? c.category}</p>
+          <p className="text-xs font-medium">{t(CATEGORY_LABELS[c.category] ?? c.category)}</p>
           <p className="mt-0.5 text-xs text-muted">
             {c.description} · {DATE.format(new Date(c.createdAt))}
           </p>
@@ -69,8 +72,8 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
 
       {c.status === 'PENDING' ? (
         <>
-          <Field label="Catatan reviewer (opsional)" htmlFor={`note-${c.id}`}>
-            <Input id={`note-${c.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder="mis. sesuai bukti" />
+          <Field label={t('hrFix.expenseClaims.reviewNote')} htmlFor={`note-${c.id}`}>
+            <Input id={`note-${c.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('hrFix.expenseClaims.reviewNoteHint')} />
           </Field>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex gap-2">
@@ -90,6 +93,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
 }
 
 function Body() {
+  const { t } = useT();
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<ExpenseClaimStatus>('PENDING');
   const list = useAsync<Page<ExpenseClaim>>(
@@ -101,10 +105,10 @@ function Body() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <Receipt size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Klaim pengeluaran kurir</h1>
+        <h1 className="text-2xl font-bold">{t('hrFix.expenseClaims.title')}</h1>
       </div>
       <p className="text-sm text-muted">
-        {selected ? `Depot ${selected.name}` : 'Semua depot — pilih depot di switcher untuk menyaring.'}
+        {selected ? `Depot ${selected.name}` : t('hrFix.expenseClaims.allDepots')}
       </p>
 
       <div className="flex items-center gap-2">
@@ -130,7 +134,7 @@ function Body() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.items.length === 0 ? (
-        <CenterState title="Tidak ada klaim" icon={<Receipt size={40} weight="fill" />}>
+        <CenterState title={t('hrFix.expenseClaims.empty')} icon={<Receipt size={40} weight="fill" />}>
           Belum ada klaim {status.toLowerCase()}.
         </CenterState>
       ) : (
@@ -145,10 +149,11 @@ function Body() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canApproveExpense(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer / finance" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.expenseClaims.restricted')} icon={<Lock size={40} weight="fill" />}>
         Persetujuan klaim pengeluaran tersedia untuk manajer depot dan finance.
       </CenterState>
     );

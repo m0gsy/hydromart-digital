@@ -42,6 +42,9 @@ export default function HqComparePage() {
 
   if (dash.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
   if (depotList.error) return <ErrorState message={depotList.error} onRetry={depotList.reload} />;
+  // Every metric below falls back to 0 when the performance read is missing, and this screen
+  // then names a winner out of three depots it knows nothing about.
+  if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
   const depots = depotList.data?.items ?? [];
   const perf = new Map((dash.data?.depots ?? []).map((d) => [d.depotId, d]));

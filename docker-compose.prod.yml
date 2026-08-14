@@ -173,6 +173,9 @@ services:
       # zeros too. It fails soft, so nothing ever logged.
       ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
+      # S2: the depot CRM card's churn band. Blank = the card renders "—" rather than LOW,
+      # which is the one answer a manager acts on by doing nothing.
+      FORECAST_SERVICE_URL: http://forecast:3014
       # Object storage for agen registration photos (SOP §7). BiznetGio NEO (S3-compatible).
       #
       # Falls back to the AUTH bucket AS A SET — bucket, both keys and the public base URL
@@ -232,6 +235,12 @@ services:
       # Voiding a counter sale refunds through here. Without it a void is refused rather
       # than recorded against money payment-service still holds.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # On-time delivery for the monthly review. Blank = slaPct stays null, which is what
+      # it always was — order-service must never infer punctuality from order status.
+      DELIVERY_SERVICE_URL: http://delivery:3006
+      # Payroll for the monthly review's net profit. Blank = netProfitIdr stays null; the
+      # report never substitutes 0 for a wage bill it could not read.
+      HR_SERVICE_URL: http://hr:3018
       CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011
@@ -444,6 +453,10 @@ services:
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # The ACTIVITY half of a broadcast segment (lapsed / new / frequent / ordered-at-depot)
+      # is resolved from order-service under the shared internal key. Blank = an activity
+      # segment fails closed, which is the safe direction: refused, never sent wider.
+      ORDER_SERVICE_URL: http://order:3004
       # Web Push (design 7b). Blank = push disabled; the app still stores + WhatsApps.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

@@ -62,6 +62,10 @@ export class CustomerConfigService {
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').trim();
   }
+  /** forecast-service, for the depot CRM card's churn band (S2). Blank = the card says "—". */
+  get forecastServiceUrl(): string {
+    return this.config.get<string>('FORECAST_SERVICE_URL', '').trim();
+  }
   /** CRM lifecycle thresholds (Fase 4). Env-overridable; company-policy defaults. */
   get crmThresholds(): { newDays: number; activeDays: number; followUpDays: number } {
     return {

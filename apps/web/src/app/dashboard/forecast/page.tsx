@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChartLineUp, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, ErrorState, Field, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Field, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -148,6 +148,11 @@ function ForecastBody() {
           </div>
 
           <RevenueCard sales={sales} horizonDays={horizonDays} />
+
+          {/* The stock column comes from a SECOND read. Without this, a dead inventory
+              service turns every "days to stockout" into "—", which reads as a product
+              nobody stocks rather than as a question nobody could ask. */}
+          {inventory.error && <LoadError onRetry={inventory.reload} />}
 
           {rows.loading ? (
             <Skeleton className="h-64 w-full" />

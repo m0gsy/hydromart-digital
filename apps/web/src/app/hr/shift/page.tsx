@@ -3,16 +3,8 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  Field,
-  Input,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { useT } from '@/lib/locale-context';
+import { Badge, Button, Card, ErrorState, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -36,6 +28,7 @@ import { todayWib } from '@/lib/wib';
  * because a disputed late deduction has to be answerable months later.
  */
 export default function ShiftPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const isAdmin = canManageHr(customer?.role);
 
@@ -48,9 +41,14 @@ export default function ShiftPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <SectionHeader
-        title="Shift & Rotasi"
-        subtitle="Jadwal kerja per karyawan. Absensi menilai terlambat terhadap shift karyawan, bukan shift depot."
+        title={t('hrFix.shift.title')}
+        subtitle={t('hrFix.shift.subtitle')}
       />
+
+      {/* Both panels below take their shift list from here, and every shift dropdown in
+          them is empty without it — which reads as a depot that defined no shifts, the
+          same thing attendance uses to decide who was late. */}
+      {shifts.error && <LoadError onRetry={shifts.reload} />}
 
       <Rotations shifts={shifts.data ?? []} rotations={rotations} isAdmin={isAdmin} />
 
@@ -70,17 +68,18 @@ function Rotations({
 }) {
   const { depots } = useDepot();
   const { toast } = useToast();
+  const { t } = useT();
   const [name, setName] = useState('');
   const [depotId, setDepotId] = useState('');
   const [pattern, setPattern] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const shiftName = (id: string | null) =>
-    id ? (shifts.find((s) => s.id === id)?.name ?? 'shift terhapus') : 'Libur';
+    id ? (shifts.find((s) => s.id === id)?.name ?? t('hrFix.shift.shiftDeleted')) : 'Libur';
 
   async function create() {
     if (!name.trim()) {
-      toast('Isi nama rotasi', 'error');
+      toast(t('hrFix.shift.nameRequired'), 'error');
       return;
     }
     setSaving(true);
@@ -97,12 +96,12 @@ function Rotations({
         },
         true,
       );
-      toast('Rotasi dibuat');
+      toast(t('hrFix.shift.rotationCreated'));
       setName('');
       setPattern({});
       rotations.reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal membuat rotasi', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.shift.createFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -113,20 +112,20 @@ function Rotations({
       await api.patch(endpoints.hr.updateShiftRotation(r.id), { active: !r.active }, true);
       rotations.reload();
     } catch {
-      toast('Gagal mengubah rotasi', 'error');
+      toast(t('hrFix.shift.updateFailed'), 'error');
     }
   }
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Pola Rotasi Mingguan</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.shift.rotations')}</h2>
 
       {rotations.loading && <Skeleton className="h-24" />}
       {rotations.error && <ErrorState message={rotations.error} onRetry={rotations.reload} />}
       {rotations.data && (
         <ul className="divide-y divide-[color:var(--border)]">
           {rotations.data.length === 0 && (
-            <li className="py-2 text-sm text-muted">Belum ada pola rotasi.</li>
+            <li className="py-2 text-sm text-muted">{t('hrFix.shift.noRotations')}</li>
           )}
           {rotations.data.map((r) => (
             <li key={r.id} className="space-y-1 py-3">
@@ -134,17 +133,17 @@ function Rotations({
                 <span className="flex items-center gap-2">
                   <b>{r.name}</b>
                   <Badge tone={r.active ? 'success' : 'neutral'}>
-                    {r.active ? 'Aktif' : 'Nonaktif'}
+                    {r.active ? t('hrFix.shift.active') : t('hrFix.shift.inactive')}
                   </Badge>
                   <span className="text-xs text-muted">
                     {r.depotId
                       ? (depots.find((d) => d.id === r.depotId)?.code ?? 'depot')
-                      : 'semua depot'}
+                      : t('hrFix.shift.allDepotsLower')}
                   </span>
                 </span>
                 {isAdmin && (
                   <Button variant="ghost" onClick={() => toggle(r)}>
-                    {r.active ? 'Nonaktifkan' : 'Aktifkan'}
+                    {r.active ? t('hrFix.shift.deactivate') : t('hrFix.shift.activate')}
                   </Button>
                 )}
               </div>
@@ -161,20 +160,20 @@ function Rotations({
       {isAdmin && (
         <div className="space-y-3 border-t border-app pt-4">
           <div className="flex flex-wrap items-end gap-2">
-            <Field label="Nama rotasi">
+            <Field label={t('hrFix.shift.rotationName')}>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Rotasi Gudang"
+                placeholder={t('hrFix.shift.rotationNameHint')}
               />
             </Field>
-            <Field label="Depot">
+            <Field label={t('hrFix.shift.depot')}>
               <select
                 value={depotId}
                 onChange={(e) => setDepotId(e.target.value)}
                 className="surface-elevated w-full rounded-lg border border-app px-3 py-2.5 text-sm"
               >
-                <option value="">Semua depot</option>
+                <option value="">{t('hrFix.shift.allDepots')}</option>
                 {depots.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.code}
@@ -191,7 +190,7 @@ function Rotations({
                   onChange={(e) => setPattern({ ...pattern, [String(d)]: e.target.value })}
                   className="surface-elevated w-full rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
-                  <option value="">Libur</option>
+                  <option value="">{t('hrFix.shift.dayOff')}</option>
                   {shifts.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.startTime})
@@ -220,6 +219,7 @@ function Assignments({
   isAdmin: boolean;
 }) {
   const { toast } = useToast();
+  const { t } = useT();
   const [employeeId, setEmployeeId] = useState('');
   const [mode, setMode] = useState<'shift' | 'rotation'>('shift');
   const [targetId, setTargetId] = useState('');
@@ -244,17 +244,17 @@ function Assignments({
   );
 
   const label = (a: ShiftAssignment) => {
-    if (a.shiftId) return shifts.find((s) => s.id === a.shiftId)?.name ?? 'shift terhapus';
-    if (a.rotationId) return rotations.find((r) => r.id === a.rotationId)?.name ?? 'rotasi terhapus';
+    if (a.shiftId) return shifts.find((s) => s.id === a.shiftId)?.name ?? t('hrFix.shift.shiftDeleted');
+    if (a.rotationId) return rotations.find((r) => r.id === a.rotationId)?.name ?? t('hrFix.shift.rotationDeleted');
     // Neither is set. The B2 migration cleared the shift id on rows that named a shift
     // somebody had deleted, and wrote which one into the note — so this is not "rotasi
     // terhapus", which is what the old two-branch version called it.
-    return 'tanpa shift — lihat catatan';
+    return t('hrFix.shift.noShiftSeeNote');
   };
 
   async function assign() {
     if (!employeeId || !targetId) {
-      toast('Pilih karyawan dan shift/rotasi', 'error');
+      toast(t('hrFix.shift.pickBoth'), 'error');
       return;
     }
     setSaving(true);
@@ -269,11 +269,11 @@ function Assignments({
         },
         true,
       );
-      toast('Penugasan shift dicatat');
+      toast(t('hrFix.shift.assigned'));
       setNote('');
       history.reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menugaskan', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.shift.assignFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -281,35 +281,40 @@ function Assignments({
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Penugasan Karyawan</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.shift.assignments')}</h2>
       <p className="text-xs text-muted">
         Penugasan bersifat tambah — penugasan lama tetap tersimpan sebagai riwayat. Karyawan tanpa
         penugasan tetap dinilai terhadap shift depot seperti sebelumnya.
       </p>
 
-      <Field label="Karyawan">
+      <Field label={t('hrFix.shift.employee')}>
         <select
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
           className="surface-elevated w-full rounded-lg border border-app px-3 py-2.5 text-sm"
         >
-          <option value="">Pilih karyawan</option>
+          <option value="">{t('hrFix.shift.pickEmployee')}</option>
           {(staff.data?.rows ?? []).map((e) => (
             <option key={e.id} value={e.id}>
               {e.employeeCode} · {e.fullName}
             </option>
           ))}
         </select>
+        {staff.error && <LoadError onRetry={staff.reload} />}
       </Field>
 
       {employeeId && (
         <>
           {history.loading ? (
             <Skeleton className="h-16" />
+          ) : history.error ? (
+            // "Belum pernah ditugaskan — memakai shift depot" decides which hours this
+            // person's lateness is graded against. It must not be what an outage looks like.
+            <LoadError onRetry={history.reload} />
           ) : (
             <ol className="space-y-1 text-sm">
               {(history.data ?? []).length === 0 && (
-                <li className="text-muted">Belum pernah ditugaskan — memakai shift depot.</li>
+                <li className="text-muted">{t('hrFix.shift.neverAssigned')}</li>
               )}
               {(history.data ?? []).map((a) => (
                 <li key={a.id} className="text-muted">
@@ -322,7 +327,7 @@ function Assignments({
 
           {isAdmin && (
             <div className="grid gap-3 border-t border-app pt-4 sm:grid-cols-2">
-              <Field label="Jenis">
+              <Field label={t('hrFix.shift.kind')}>
                 <select
                   value={mode}
                   onChange={(e) => {
@@ -331,17 +336,17 @@ function Assignments({
                   }}
                   className="surface-elevated w-full rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
-                  <option value="shift">Shift tetap</option>
-                  <option value="rotation">Rotasi mingguan</option>
+                  <option value="shift">{t('hrFix.shift.fixedShift')}</option>
+                  <option value="rotation">{t('hrFix.shift.weeklyRotation')}</option>
                 </select>
               </Field>
-              <Field label={mode === 'shift' ? 'Shift' : 'Rotasi'}>
+              <Field label={mode === 'shift' ? t('hrFix.shift.shift') : t('hrFix.shift.rotation')}>
                 <select
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
                   className="surface-elevated w-full rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
-                  <option value="">Pilih…</option>
+                  <option value="">{t('hrFix.shift.pick')}</option>
                   {mode === 'shift'
                     ? shifts.map((s) => (
                         <option key={s.id} value={s.id}>
@@ -357,10 +362,10 @@ function Assignments({
                         ))}
                 </select>
               </Field>
-              <Field label="Berlaku mulai">
+              <Field label={t('hrFix.shift.effectiveFrom')}>
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
               </Field>
-              <Field label="Catatan (opsional)">
+              <Field label={t('hrFix.shift.noteOpt')}>
                 <Input value={note} onChange={(e) => setNote(e.target.value)} />
               </Field>
               <div className="col-span-full">

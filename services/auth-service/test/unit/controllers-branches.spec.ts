@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
   PayloadTooLargeException,
   ServiceUnavailableException,
@@ -8,6 +9,7 @@ import { Request } from 'express';
 
 import { AccessController } from '../../src/modules/auth/access.controller';
 import { AccountController } from '../../src/modules/auth/account.controller';
+import { AccountService } from '../../src/application/services/account.service';
 import { AuditController } from '../../src/modules/auth/audit.controller';
 import { AvatarController } from '../../src/modules/auth/avatar.controller';
 import { InternalAccountController } from '../../src/modules/auth/internal.controller';
@@ -35,6 +37,13 @@ const req = { headers: {}, ip: '127.0.0.1', socket: {} } as unknown as Request;
 describe('AccountController delegation', () => {
   const account = {
     getProfile: jest.fn(),
+    // S3: the depot-scoping rule moved to AccountService (two controllers need it). Bound
+
+    // to this mock so these cases still exercise the real rule with a mocked profile read.
+
+    resolveScopedDepot: (u: never, d?: string) =>
+
+      AccountService.prototype.resolveScopedDepot.call(account, u, d),
     updateProfile: jest.fn(),
     lookupByPhone: jest.fn(),
     listDrivers: jest.fn(),
@@ -182,7 +191,11 @@ describe('AuditController delegation', () => {
     ...overrides,
   });
   const audit = { list: jest.fn(), ingest: jest.fn() };
-  const controller = new AuditController(audit as never);
+  // S3: the depot trail is narrowed from the CALLER now, so the controller needs the account
+  // service that owns that rule. HQ here (head office asks for a depot and gets it).
+  const accounts = { resolveScopedDepot: jest.fn(async (_u: unknown, d?: string) => d) };
+  const hqUser = { sub: 'u1', role: Role.SUPER_ADMIN } as never;
+  const controller = new AuditController(audit as never, accounts as never);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -211,7 +224,7 @@ describe('AuditController delegation', () => {
       page: 1,
       limit: 50,
     });
-    const result = await controller.listForDepot({ depotId: 'depot-1' });
+    const result = await controller.listForDepot({ depotId: 'depot-1' }, hqUser);
     expect(result.items[0].target).toBeNull();
     expect(audit.list).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, limit: 50, depotId: 'depot-1' }),
@@ -220,13 +233,45 @@ describe('AuditController delegation', () => {
 
   it('honours explicit depot pagination + type', async () => {
     audit.list.mockResolvedValue({ items: [], total: 0, page: 3, limit: 10 });
-    await controller.listForDepot({ depotId: 'depot-1', type: 'depot', page: 3, limit: 10 });
+    await controller.listForDepot({ depotId: 'depot-1', type: 'depot', page: 3, limit: 10 }, hqUser);
     expect(audit.list).toHaveBeenCalledWith({
       page: 3,
       limit: 10,
       depotId: 'depot-1',
       type: 'depot',
     });
+  });
+
+  /**
+   * S3. `auditRead` spans the depot chain (kepala depot, manager, supervisor, asisten), and
+   * this route passed `query.depotId` straight to the repository with no ownership check
+   * anywhere on the path — auth-service registers no DepotScopeGuard. One changed UUID and a
+   * depot-locked account was reading another depot's privileged-action trail: actor ids, staff
+   * actions, the lot. The narrowing is the caller's own depot now, exactly as `/auth/staff` and
+   * `/auth/drivers` have always done it.
+   */
+  it('narrows the depot trail from the caller, not from the query', async () => {
+    accounts.resolveScopedDepot.mockResolvedValueOnce('own-depot');
+    audit.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 });
+    const lockedUser = { sub: 'kd1', role: Role.KEPALA_DEPOT } as never;
+
+    await controller.listForDepot({ depotId: 'someone-elses-depot' }, lockedUser);
+
+    expect(accounts.resolveScopedDepot).toHaveBeenCalledWith(lockedUser, 'someone-elses-depot');
+    expect(audit.list).toHaveBeenCalledWith(
+      expect.objectContaining({ depotId: 'own-depot' }),
+    );
+  });
+
+  it('refuses when the caller may not read the depot it asked for', async () => {
+    accounts.resolveScopedDepot.mockRejectedValueOnce(new ForbiddenException('nope'));
+    await expect(
+      controller.listForDepot({ depotId: 'someone-elses-depot' }, {
+        sub: 'kd1',
+        role: Role.KEPALA_DEPOT,
+      } as never),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(audit.list).not.toHaveBeenCalled();
   });
 
   it('ingests a cross-service event with an actor', async () => {

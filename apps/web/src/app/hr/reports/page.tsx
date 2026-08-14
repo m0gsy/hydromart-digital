@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Button, Card, Input, SectionHeader } from '@/components/ui';
@@ -23,6 +24,7 @@ async function download(path: string, filename: string): Promise<void> {
 }
 
 export default function ReportsPage() {
+  const { t } = useT();
   const { toast } = useToast();
   const [period, setPeriod] = useState(currentPeriod());
   const [from, setFrom] = useState('');
@@ -34,7 +36,7 @@ export default function ReportsPage() {
     try {
       await download(path, filename);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal mengunduh', 'error');
+      toast(e instanceof Error ? e.message : t('hrFix.reports.downloadFailed'), 'error');
     } finally {
       setBusy('');
     }
@@ -44,7 +46,7 @@ export default function ReportsPage() {
   function rangeReport(prefix: string, path: (f: Format) => string, base: string) {
     return (format: Format) => {
       if (!from || !to) {
-        toast('Isi rentang tanggal', 'error');
+        toast(t('hrFix.reports.fillRange'), 'error');
         return;
       }
       run(`${prefix}-${format}`, path(format), `${base}-${from}_${to}.${format}`);
@@ -54,29 +56,29 @@ export default function ReportsPage() {
   const rangeCards = [
     {
       key: 'att',
-      label: 'Absensi',
-      hint: 'Seluruh kehadiran pada rentang tanggal.',
+      label: t('hrFix.reports.attendance'),
+      hint: t('hrFix.reports.attendanceBody'),
       base: 'attendance',
       path: (f: Format) => endpoints.hr.reportAttendance(from, to, undefined, f),
     },
     {
       key: 'late',
-      label: 'Keterlambatan',
-      hint: 'Hanya hari yang benar-benar terlambat, terbesar dulu.',
+      label: t('hrFix.reports.lateness'),
+      hint: t('hrFix.reports.latenessBody'),
       base: 'late',
       path: (f: Format) => endpoints.hr.hrReport('late', { from, to, format: f }),
     },
     {
       key: 'leave',
-      label: 'Cuti',
-      hint: 'Termasuk cuti yang melewati batas rentang.',
+      label: t('hrFix.reports.leave'),
+      hint: t('hrFix.reports.leaveBody'),
       base: 'leave',
       path: (f: Format) => endpoints.hr.hrReport('leave', { from, to, format: f }),
     },
     {
       key: 'ann',
-      label: 'Pengumuman',
-      hint: 'Jangkauan dan tingkat baca tiap pengumuman.',
+      label: t('hrFix.reports.announcements'),
+      hint: t('hrFix.reports.announcementsBody'),
       base: 'announcements',
       path: (f: Format) => endpoints.hr.hrReport('announcements', { from, to, format: f }),
     },
@@ -84,7 +86,7 @@ export default function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title="Laporan" subtitle="Ekspor CSV, Excel, atau PDF" />
+      <SectionHeader title={t('hrFix.reports.title')} subtitle={t('hrFix.reports.subtitle')} />
 
       <Card className="space-y-2 p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -109,8 +111,8 @@ export default function ReportsPage() {
 
       <Card className="space-y-3 p-4">
         <div>
-          <p className="font-semibold">Direktori Karyawan</p>
-          <p className="text-xs text-muted">Semua karyawan (sesuai cakupan depot).</p>
+          <p className="font-semibold">{t('hrFix.reports.directory')}</p>
+          <p className="text-xs text-muted">{t('hrFix.reports.directoryBody')}</p>
         </div>
         <Formats
           busy={busy}
@@ -138,8 +140,8 @@ export default function ReportsPage() {
 
       <Card className="space-y-3 p-4">
         <div>
-          <p className="font-semibold">Payroll</p>
-          <p className="text-xs text-muted">Gaji per periode beserta bonus dan potongan.</p>
+          <p className="font-semibold">{t('hrFix.reports.payroll')}</p>
+          <p className="text-xs text-muted">{t('hrFix.reports.payrollBody')}</p>
         </div>
         <Formats
           busy={busy}
@@ -156,7 +158,7 @@ export default function ReportsPage() {
 
       <Card className="space-y-3 p-4">
         <div>
-          <p className="font-semibold">Kinerja</p>
+          <p className="font-semibold">{t('hrFix.reports.performance')}</p>
           <p className="text-xs text-muted">
             Skor per periode. Komponen yang tidak terukur tampil kosong, bukan nol.
           </p>
@@ -176,8 +178,8 @@ export default function ReportsPage() {
 
       <Card className="space-y-3 p-4">
         <div>
-          <p className="font-semibold">Aset</p>
-          <p className="text-xs text-muted">Daftar aset beserta pemegangnya saat ini.</p>
+          <p className="font-semibold">{t('hrFix.reports.assets')}</p>
+          <p className="text-xs text-muted">{t('hrFix.reports.assetsBody')}</p>
         </div>
         <Formats
           busy={busy}

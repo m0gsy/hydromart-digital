@@ -23,11 +23,13 @@ import {
 import { PaymentService, RefundQueueRow } from '../application/services/payment.service';
 import {
   CashCollectedSummary,
+  OrderCashRow,
   PaymentRecord,
   UnsettledMethodAggregate,
 } from '../application/ports/payment.repository';
 import { Page } from '../application/pagination';
 import {
+  CashByOrderDto,
   CashCollectedQueryDto,
   ConfirmPaymentDto,
   DepotCashQueryDto,
@@ -40,6 +42,8 @@ import {
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
 import {
+  CashByOrderResponseDto,
+  InternalExportRowsResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
@@ -111,6 +115,46 @@ export class PaymentController {
     });
   }
 
+  /**
+   * The same collected-by-method aggregate as the bearer route below, for the scheduled
+   * report sweep (design 15c). Internal-key because cron holds no token — not because the
+   * figure is more open than `settlementRead` already makes it.
+   *
+   * Flattened to the label/orders/revenue shape order-service's export rows use, so the
+   * sweep writes one spreadsheet layout no matter which grouping produced the numbers.
+   */
+  @ApiOkResponse({ type: InternalExportRowsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/export-rows')
+  @ApiOperation({ summary: 'Collected revenue per method as report rows (internal service auth)' })
+  async internalExportRows(
+    @Query() query: UnsettledByMethodQueryDto,
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[] }> {
+    const items = await this.payments.revenueByMethod({
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
+    return { rows: items.map((i) => ({ label: i.method, orders: i.count, revenue: i.amount })) };
+  }
+
+  // The depot daily report asks this: of the day's delivery orders, which ones did the
+  // courier actually bring cash back for. Internal-key only, and a POST because the id set
+  // is the request body — see CashByOrderDto. Declared before ':id' so the static wins.
+  @ApiOkResponse({ type: CashByOrderResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @HttpCode(HttpStatus.OK)
+  @Post('internal/cash-collected')
+  @ApiOperation({ summary: 'PAID cash per order over a set of orders (internal service auth)' })
+  cashCollectedByOrder(
+    @Body() dto: CashByOrderDto,
+  ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
+    return this.payments.cashCollectedByOrder(dto.orderIds);
+  }
+
   @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get()
   @ApiOperation({ summary: "List the current customer's payments" })
@@ -128,6 +172,26 @@ export class PaymentController {
   @Can('paymentSettle')
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
   listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
+    return this.payments.listAll({ orderId, limit: 20 });
+  }
+
+  /*
+   * The same read for delivery-service, which decides cash-on-delivery at assignment.
+   *
+   * It cannot use the staff route above: `paymentSettle` excludes SUPERVISOR and
+   * ASSISTANT_SUPERVISOR, who are allowed to dispatch, so forwarding the dispatcher's
+   * bearer 403s for exactly the callers that need it. Internal key instead, and the SAME
+   * service method — a second query here is a second answer waiting to disagree.
+   */
+  @ApiOkResponse({ type: PagedPaymentResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/for-order/:orderId')
+  @ApiOperation({ summary: "List an order's payments (internal service auth)" })
+  listForOrderInternal(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ): Promise<Page<PaymentRecord>> {
     return this.payments.listAll({ orderId, limit: 20 });
   }
 

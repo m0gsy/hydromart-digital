@@ -16,7 +16,15 @@ import {
   CreateBroadcastData,
 } from '../../src/application/ports/broadcast.repository';
 import { SegmentUnavailableError } from '../../src/domain/errors';
+import {
+  ActivityConditions,
+  ActivitySegmentPort,
+} from '../../src/application/ports/activity-segment.port';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
+import {
+  SavedSegmentRecord,
+  SavedSegmentRepository,
+} from '../../src/application/ports/saved-segment.repository';
 import {
   CustomerDirectoryPort,
   DirectoryRecipient,
@@ -66,6 +74,7 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       createdAt: now,
       updatedAt: now,
       sentAt: null,
+      scheduledFor: data.scheduledFor ?? null,
       recipients,
     };
     this.campaigns.push(campaign);
@@ -105,9 +114,10 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return true;
   }
 
-  async findSending(limit: number): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
     return this.campaigns
       .filter((c) => c.status === CampaignStatus.SENDING)
+      .filter((c) => c.scheduledFor === null || c.scheduledFor <= now)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)
       .map((c) => ({ ...this.clone(c), recipients: [] }));
@@ -271,14 +281,37 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
   recipients: (DirectoryRecipient & { tier?: string; city?: string })[] = [];
   down = false;
   lastAuth?: string;
+  asService = false;
 
   async resolveSegment(filter: SegmentFilter, authorization: string): Promise<DirectoryRecipient[]> {
-    if (this.down) throw new SegmentUnavailableError('directory down');
     this.lastAuth = authorization;
+    return this.match(filter);
+  }
+
+  async resolveSegmentAsService(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    this.asService = true;
+    return this.match(filter);
+  }
+
+  private match(filter: SegmentFilter): DirectoryRecipient[] {
+    if (this.down) throw new SegmentUnavailableError('directory down');
     return this.recipients
       .filter((r) => !filter.tier || r.tier === filter.tier)
       .filter((r) => !filter.city || r.city?.toLowerCase() === filter.city.toLowerCase())
       .map(({ customerId, name, phone }) => ({ customerId, name, phone }));
+  }
+}
+
+/** Activity-segment fake: returns a seeded id list. Throws if `down` (order-service is out). */
+export class FakeActivitySegment implements ActivitySegmentPort {
+  customerIds: string[] = [];
+  down = false;
+  lastConditions?: ActivityConditions;
+
+  async customersIn(conditions: ActivityConditions): Promise<string[]> {
+    if (this.down) throw new SegmentUnavailableError('order-service down');
+    this.lastConditions = conditions;
+    return this.customerIds;
   }
 }
 
@@ -295,5 +328,53 @@ export class FakeWhatsappBroadcast implements WhatsappBroadcastPort {
     this.sent.push({ phone, message });
     if (this.failPhones.has(phone)) return { ok: false, error: 'simulated failure' };
     return { ok: true };
+  }
+}
+
+/** Saved-segment fake: upsert by name, newest first. Mirrors the unique index. */
+export class InMemorySavedSegmentRepository implements SavedSegmentRepository {
+  rows: SavedSegmentRecord[] = [];
+
+  async list(limit: number): Promise<SavedSegmentRecord[]> {
+    return [...this.rows]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+
+  async findById(id: string): Promise<SavedSegmentRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+
+  async upsertByName(data: {
+    name: string;
+    conditions: SegmentFilter;
+    createdBy: string;
+  }): Promise<SavedSegmentRecord> {
+    const existing = this.rows.find((r) => r.name === data.name);
+    if (existing) {
+      existing.conditions = data.conditions;
+      existing.createdBy = data.createdBy;
+      existing.updatedAt = nextDate();
+      return { ...existing };
+    }
+    const now = nextDate();
+    const record: SavedSegmentRecord = {
+      id: randomUUID(),
+      name: data.name,
+      conditions: data.conditions,
+      createdBy: data.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(record);
+    return { ...record };
+  }
+
+  async remove(id: string): Promise<boolean> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((r) => r.id !== id);
+    return this.rows.length < before;
   }
 }

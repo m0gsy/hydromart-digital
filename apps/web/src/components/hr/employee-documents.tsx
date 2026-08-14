@@ -1,10 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { ExternalLink } from '@/components/external-link';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Field, LoadError, Skeleton } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -29,6 +30,7 @@ export function EmployeeDocuments({
   employeeId: string;
   isAdmin: boolean;
 }) {
+  const { t } = useT();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [type, setType] = useState<EmployeeDocumentType>('KTP');
@@ -45,7 +47,7 @@ export function EmployeeDocuments({
     e.preventDefault();
     setErr(null);
     const file = fileRef.current?.files?.[0];
-    if (!file) return setErr('Pilih file dulu.');
+    if (!file) return setErr(t('hrFix.documents2.pickFile'));
     setSaving(true);
     try {
       await uploadFile(endpoints.hr.uploadEmployeeDocument, file, {
@@ -58,7 +60,7 @@ export function EmployeeDocuments({
       setExpiresAt('');
       documents.reload();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Gagal mengunggah dokumen.');
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.documents2.uploadFailed'));
     } finally {
       setSaving(false);
     }
@@ -68,7 +70,7 @@ export function EmployeeDocuments({
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Dokumen</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.documents.title')}</h2>
       <p className="text-xs text-muted">
         Unggah ulang jenis yang sama akan membuat versi baru; versi lama tetap tersimpan.
       </p>
@@ -77,12 +79,16 @@ export function EmployeeDocuments({
         <Skeleton className="h-16" />
       ) : (
         <div className="divide-y divide-[color:var(--border)]">
-          {rows.length === 0 && <p className="text-sm text-muted">Belum ada dokumen.</p>}
+          {documents.error ? (
+            <LoadError onRetry={documents.reload} />
+          ) : (
+            rows.length === 0 && <p className="text-sm text-muted">{t('hrFix.documents.empty')}</p>
+          )}
           {rows.map((d) => (
             <div key={d.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">{DOCUMENT_TYPE_LABEL[d.type]}</span>
+                  <span className="font-semibold">{t(DOCUMENT_TYPE_LABEL[d.type])}</span>
                   <Badge tone={d.supersededById ? 'neutral' : 'success'}>
                     {d.supersededById ? `v${d.version} (diganti)` : `v${d.version}`}
                   </Badge>
@@ -108,20 +114,20 @@ export function EmployeeDocuments({
           onSubmit={upload}
           className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2"
         >
-          <Field label="Jenis dokumen">
+          <Field label={t('hrFix.documents.docType')}>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as EmployeeDocumentType)}
               className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
             >
-              {DOCUMENT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {DOCUMENT_TYPE_LABEL[t]}
+              {DOCUMENT_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(DOCUMENT_TYPE_LABEL[ty])}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Berlaku sampai (opsional)">
+          <Field label={t('hrFix.documents3.expiresOpt')}>
             <input
               type="date"
               value={expiresAt}

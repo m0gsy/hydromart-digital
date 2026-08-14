@@ -279,6 +279,72 @@ if (surface) {
   }
 }
 
+/**
+ * Every literal route the app navigates to must exist in THIS export.
+ *
+ * `SURFACES` above checks the route SET; it says nothing about link TARGETS, and that gap
+ * shipped: `require-auth` sent every expired console session to `/hq/login`, a route the Ops
+ * binary prunes wholesale. Sign-out did the same. The tap landed on a file that is not in the
+ * bundle — no error, no door, no way back in — and no check here could see it, because the set
+ * of exported routes was exactly right.
+ *
+ * Only literals are checked. A path built at runtime (`consoleHome(role)`, a `?id=` detail
+ * link) cannot be read statically; `lib/roles.ts` and `lib/deep-link.ts` guard those against
+ * the same prune list at runtime instead.
+ */
+/**
+ * `livesUnder` is the surface a file can only ever be rendered from. When THAT surface is
+ * pruned the file goes with it, and its links are unreachable rather than broken — the HQ
+ * rail pointing at `/hq/depots` in the customer binary is not a dead tap, it is a rail
+ * nobody in that binary can reach. Scanning it anyway reported 60 "dead" links per build
+ * and would have trained everyone to ignore this check.
+ *
+ * `null` means the file survives in every binary, and those are the ones that mattered:
+ * `require-auth` and `console-sign-out` are exactly where the Ops door died.
+ *
+ * `lib/roles.ts` and `lib/deep-link.ts` are deliberately NOT here. They are the prune-aware
+ * helpers this check tells you to route through — their literals ARE the prune table, so
+ * scanning them flags the mechanism as the defect. Their behaviour is pinned by unit tests
+ * (`test/roles.test.ts`, `test/deep-link.test.ts`) against the same env var instead.
+ */
+const NAV_SOURCES = [
+  { rel: 'src/components/require-auth.tsx', livesUnder: null },
+  { rel: 'src/components/console-sign-out.tsx', livesUnder: null },
+  { rel: 'src/components/bottom-nav.tsx', livesUnder: null },
+  { rel: 'src/components/dashboard/ops-rail.tsx', livesUnder: '/dashboard' },
+  { rel: 'src/components/dashboard/ops-bottom-nav.tsx', livesUnder: '/dashboard' },
+  { rel: 'src/components/operator/operator-shell.tsx', livesUnder: '/dashboard' },
+  { rel: 'src/components/hq/hq-rail.tsx', livesUnder: '/hq' },
+  { rel: 'src/components/hq/hq-bottom-nav.tsx', livesUnder: '/hq' },
+  { rel: 'src/components/hr/hr-rail.tsx', livesUnder: '/hr' },
+];
+const served = (route) =>
+  existsSync(join(outDir, route, 'index.html')) || existsSync(join(outDir, `${route}.html`));
+const dead = [];
+for (const { rel, livesUnder } of NAV_SOURCES) {
+  const file = join(WEB, rel);
+  if (!existsSync(file)) continue;
+  if (livesUnder && !served(livesUnder)) continue;
+  const text = readFileSync(file, 'utf8');
+  for (const [, route] of text.matchAll(/['"`](\/(?:hq|hr|dashboard|driver|m)(?:\/[a-z0-9-]+)*)['"`]/gi)) {
+    const clean = route.replace(/\/+$/, '');
+    if (served(clean)) continue;
+    // A literal the file itself gates on `isServedHere('<that exact route>')` cannot be
+    // tapped into nothing. The guard has to name the very route it protects, so it cannot
+    // drift away from that link the way a general "trust me" marker would.
+    if (text.includes(`isServedHere('${clean}')`)) continue;
+    dead.push(`${rel} -> ${clean}`);
+  }
+}
+const deadOnce = [...new Set(dead)];
+if (deadOnce.length > 0) {
+  console.error(`\n"${target}" navigates to ${deadOnce.length} route(s) it does not serve:`);
+  for (const d of deadOnce) console.error(`  - ${d}`);
+  console.error('\nEither keep the route in this binary, or route through a prune-aware helper');
+  console.error('(`staffDoor` / `consoleHome` in lib/roles.ts, `resolveDeepLink` in lib/deep-link.ts).');
+  process.exit(1);
+}
+
 const pages = countHtml(outDir);
 console.log(`\n${relative(WEB, outDir)}: ${pages} pages, ${mb(sizeOf(outDir))}`);
 

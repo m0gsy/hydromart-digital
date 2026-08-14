@@ -53,6 +53,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { isServedHere } from '@/lib/deep-link';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -120,7 +121,16 @@ export const GROUPS: RailGroup[] = [
       // The way back out. Console routes carry no shop nav, so without this an HQ account
       // that stepped into the depot console had no link home either — the same missing
       // door as the /dashboard entry in the HQ rail, in the other direction.
-      { href: '/hq', labelKey: 'hqConsole', icon: Buildings, show: isHq },
+      //
+      // Gated on the binary actually serving `/hq`: the Ops app prunes the whole HQ console,
+      // so this door led an HQ account to a route that is not in the bundle — the S1 bug one
+      // surface over. `consoleHome()` already falls through for the same reason.
+      {
+        href: '/hq',
+        labelKey: 'hqConsole',
+        icon: Buildings,
+        show: (role) => isHq(role) && isServedHere('/hq'),
+      },
     ],
   },
   {
@@ -219,6 +229,10 @@ export const GROUPS: RailGroup[] = [
       { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
       { href: '/dashboard/monthly-review', labelKey: 'monthlyReview', icon: ClipboardText, show: canViewDepotFinance },
       { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: canUseManagerConsole },
+      // Built, gated and unreachable: nothing in any nav pointed at these two, so the only
+      // way in was to type the URL. `canViewDashboard` is the gate each page enforces.
+      { href: '/dashboard/monthly-pnl', labelKey: 'monthlyPnl', icon: ChartPieSlice, show: canViewDashboard },
+      { href: '/dashboard/team-performance', labelKey: 'teamPerformance', icon: UsersThree, show: canViewDashboard },
     ],
   },
   {
@@ -227,6 +241,9 @@ export const GROUPS: RailGroup[] = [
       { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
       { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
       { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: canUseManagerConsole },
+      // Also unreachable before: the depot config screen and the staff account screen.
+      { href: '/dashboard/depot-settings', labelKey: 'depotSettings', icon: GearSix, show: canManageDepots },
+      { href: '/dashboard/account', labelKey: 'account', icon: UserGear, show: isStaff },
     ],
   },
 ];

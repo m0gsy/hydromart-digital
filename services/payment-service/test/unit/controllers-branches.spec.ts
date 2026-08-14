@@ -23,6 +23,7 @@ describe('PaymentController', () => {
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
+    cashCollectedByOrder: jest.fn(),
     depotCashCollected: jest.fn(),
     voidForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
@@ -65,6 +66,16 @@ describe('PaymentController', () => {
     expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
   });
 
+  /*
+   * delivery-service asks this one when it decides cash-on-delivery, and it must be the
+   * SAME read as the staff route — a second query here is a second answer waiting to
+   * disagree about whether the courier collects.
+   */
+  it('the internal twin runs the identical query as the staff route', async () => {
+    expect(await controller.listForOrderInternal('order-9')).toBe('RESULT');
+    expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
+  });
+
   it('unsettledByMethod maps a present from/to window to Dates', async () => {
     await controller.unsettledByMethod({ from: '2026-01-01', to: '2026-01-31' } as never);
     expect(svc.unsettledByMethod).toHaveBeenCalledWith({
@@ -91,6 +102,25 @@ describe('PaymentController', () => {
     expect(svc.revenueByMethod).toHaveBeenCalledWith({ from: undefined, to: undefined });
   });
 
+  // The sweep's twin. Same aggregate, flattened to the row shape the spreadsheet writer
+  // takes — if this drifted from order-service's rows the report would have two layouts.
+  it('internalExportRows flattens the method aggregate to label/orders/revenue', async () => {
+    svc.revenueByMethod.mockResolvedValue([{ method: 'CASH', amount: 50000, count: 3 }]);
+    await expect(controller.internalExportRows({} as never)).resolves.toEqual({
+      rows: [{ label: 'CASH', orders: 3, revenue: 50000 }],
+    });
+    expect(svc.revenueByMethod).toHaveBeenLastCalledWith({ from: undefined, to: undefined });
+  });
+
+  it('internalExportRows maps a present window to Dates', async () => {
+    svc.revenueByMethod.mockResolvedValue([]);
+    await controller.internalExportRows({ from: '2026-02-01', to: '2026-02-28' } as never);
+    expect(svc.revenueByMethod).toHaveBeenLastCalledWith({
+      from: new Date('2026-02-01'),
+      to: new Date('2026-02-28'),
+    });
+  });
+
   // Shift close reads this. An open window means "everything so far", which is what a
   // depot's running total is before anyone has closed anything.
   it('depotCash forwards the window, open at both ends when unbounded', async () => {
@@ -111,6 +141,11 @@ describe('PaymentController', () => {
   it('voidForOrder is attributed to order-service, not a token holder', async () => {
     await controller.voidForOrder({ orderId: 'order-9', reason: 'Salah ukuran' } as never);
     expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');
+  });
+
+  it('cashCollectedByOrder forwards the order ids from the body', async () => {
+    await controller.cashCollectedByOrder({ orderIds: ['o1', 'o2'] } as never);
+    expect(svc.cashCollectedByOrder).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
   it('cashCollected forwards the order ids', async () => {

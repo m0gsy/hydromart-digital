@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { usePathname } from 'next/navigation';
 import { Bell, ChartBar, Gavel, House, User } from '@phosphor-icons/react';
 
@@ -52,10 +53,11 @@ export function ManagerShell({
   children: React.ReactNode;
   nav?: boolean;
 }) {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canUseManagerConsole(customer?.role)) {
     return (
-      <CenterState icon={<House size={32} />} title="Halaman khusus manajer depot">
+      <CenterState icon={<House size={32} />} title={t('hrFix.managerShell.managerOnly')}>
         Akun ini bukan manajer depot. Masuk dengan akun manajer untuk membuka konsol ini.
       </CenterState>
     );

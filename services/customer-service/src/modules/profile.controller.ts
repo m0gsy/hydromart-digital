@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Headers, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Headers, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { CustomerProfileRecord, DirectoryRecipient } from '../application/ports/profile.repository';
 import { ProfileService } from '../application/services/profile.service';
@@ -67,6 +67,25 @@ export class ProfileController {
   @ApiOperation({ summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)' })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async directory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
+    return this.profiles.findSegment({ tier: query.tier, city: query.city });
+  }
+
+  /**
+   * The same audience, for a service rather than a signed-in marketer.
+   *
+   * A depot manager composing a blast to their own customers has `depotCampaign`, not the
+   * head-office right to page through the customer directory — so crm resolves that
+   * audience under the shared internal key instead of forwarding their token. It calls the
+   * SAME service method as the bearer route above, because a directory that answered one
+   * way to a person and another way to a service would be two audiences again.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('profile/internal/directory')
+  @ApiOperation({ summary: 'Broadcast recipients by segment for crm (internal service auth)' })
+  @ApiOkResponse({ type: [DirectoryRecipientDto] })
+  async internalDirectory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
     return this.profiles.findSegment({ tier: query.tier, city: query.city });
   }
 

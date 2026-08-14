@@ -1,6 +1,7 @@
 'use client';
 
 import { CenterState, Card, ErrorState, Skeleton } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import { SealCheck, Users } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
@@ -22,6 +23,7 @@ function initials(name: string | null): string {
 }
 
 export default function TeamPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { scopedId } = useDepot();
   const depotId = scopedId ?? customer?.assignedDepotId ?? null;
@@ -36,7 +38,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-3 px-4 py-6">
       <header>
-        <h1 className="text-xl font-extrabold tracking-tight">Tim kurir</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerTeam.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
           Kurir yang ditempatkan di depot kamu.
         </p>
@@ -47,15 +49,15 @@ export default function TeamPage() {
       ) : roster.error ? (
         <ErrorState message={roster.error} onRetry={roster.reload} />
       ) : couriers.length === 0 ? (
-        <CenterState icon={<Users size={32} />} title="Belum ada kurir">
+        <CenterState icon={<Users size={32} />} title={t('hrFix.managerTeam.empty')}>
           Kurir yang ditempatkan di depot ini akan tampil di sini.
         </CenterState>
       ) : (
         <>
           <Card className="flex items-center justify-around p-4">
-            <Summary value={String(couriers.length)} label="Total kurir" />
+            <Summary value={String(couriers.length)} label={t('hrFix.managerTeam.total')} />
             <div className="h-8 w-px bg-[color:var(--border)]" />
-            <Summary value={String(activeCount)} label="Aktif" />
+            <Summary value={String(activeCount)} label={t('hrFix.managerTeam.active')} />
           </Card>
 
           <div className="space-y-2.5">
@@ -68,7 +70,7 @@ export default function TeamPage() {
                   {initials(c.fullName)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-extrabold">{c.fullName ?? 'Kurir'}</p>
+                  <p className="truncate text-sm font-extrabold">{c.fullName ?? t('hrFix.managerTeam.courier')}</p>
                   <p className="truncate text-[11px] tabular-nums text-[color:var(--text-muted)]">{c.phone}</p>
                 </div>
                 {c.status === 'ACTIVE' && (

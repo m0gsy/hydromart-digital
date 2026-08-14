@@ -8,6 +8,7 @@ export {
 } from './domain/keyset';
 export { Role } from './domain/role.enum';
 export { money } from './domain/money';
+export { haversineKm } from './domain/geo';
 export {
   BUSINESS_TIME_ZONE,
   addLocalDays,

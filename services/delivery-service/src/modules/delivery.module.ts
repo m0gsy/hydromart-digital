@@ -25,6 +25,7 @@ import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coord
 import { CashCollectionHttpAdapter } from '../infrastructure/http/cash-collection.http.adapter';
 import { CourierPayoutHttpAdapter } from '../infrastructure/http/courier-payout.http.adapter';
 import { RatingHttpAdapter } from '../infrastructure/http/rating.http.adapter';
+import { OrderPaymentHttpAdapter } from '../infrastructure/http/order-payment.http.adapter';
 import { DepotLocationHttpAdapter } from '../infrastructure/http/depot-location.http.adapter';
 import { OpsNotifierHttpAdapter } from '../infrastructure/http/ops-notifier.http.adapter';
 import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publisher.http.adapter';
@@ -71,6 +72,7 @@ const providers: Provider[] = [
   { provide: DELIVERY_TOKENS.CourierPayout, useClass: CourierPayoutHttpAdapter },
   { provide: DELIVERY_TOKENS.Rating, useClass: RatingHttpAdapter },
   { provide: DELIVERY_TOKENS.DepotLocation, useClass: DepotLocationHttpAdapter },
+  { provide: DELIVERY_TOKENS.OrderPayment, useClass: OrderPaymentHttpAdapter },
   { provide: DELIVERY_TOKENS.OpsNotifier, useClass: OpsNotifierHttpAdapter },
   { provide: DELIVERY_TOKENS.EventPublisher, useClass: EventPublisherHttpAdapter },
   {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Tag } from '@phosphor-icons/react';
 
 import { Card, CenterState, ErrorState, Skeleton, Toggle } from '@/components/ui';
@@ -19,11 +20,13 @@ function minutesToHHMM(m: number | null): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
-function windowSummary(r: PricingRule): string {
-  const days = r.daysOfWeek.length === 0 ? 'Setiap hari' : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
+// `t` is a parameter, not a hook call: this is a plain formatter, and rules-of-hooks is
+// right that a hook has no business here.
+function windowSummary(r: PricingRule, t: (key: string) => string): string {
+  const days = r.daysOfWeek.length === 0 ? t('hrFix.managerPricing.everyDay') : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
   const time =
     r.startMinute == null && r.endMinute == null
-      ? 'sepanjang hari'
+      ? t('hrFix.managerPricing.allDay')
       : `${minutesToHHMM(r.startMinute) || '00:00'}–${minutesToHHMM(r.endMinute) || '24:00'}`;
   return `${days} · ${time}`;
 }
@@ -33,6 +36,7 @@ function adjustmentLabel(r: PricingRule): string {
 }
 
 function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
+  const { t } = useT();
   const [on, setOn] = useState(rule.active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +49,7 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
       await api.patch(endpoints.pricing.detail(depotId, rule.id), { active: next }, true);
     } catch (err) {
       setOn(!next); // revert
-      setError(err instanceof ApiError ? err.message : 'Gagal memperbarui aturan.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.managerPricing.updateFailed'));
     } finally {
       setBusy(false);
     }
@@ -55,12 +59,12 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
     <Card className="flex items-center gap-3 p-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-extrabold">{rule.productId ?? 'Semua produk'}</p>
+          <p className="truncate text-sm font-extrabold">{rule.productId ?? t('hrFix.managerPricing.allProducts')}</p>
           <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand-700">
             {adjustmentLabel(rule)}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-muted)]">{windowSummary(rule)}</p>
+        <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-muted)]">{windowSummary(rule, t)}</p>
         {error && <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>}
       </div>
       <Toggle on={on} onChange={toggle} disabled={busy} label={`Aktifkan aturan ${rule.id}`} />
@@ -69,6 +73,7 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
 }
 
 export default function ManagerPricingPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { scopedId, ready, depots } = useDepot();
   const depotId = scopedId ?? customer?.assignedDepotId ?? '';
@@ -81,14 +86,14 @@ export default function ManagerPricingPage() {
   return (
     <div className="space-y-3 px-4 py-6">
       <header>
-        <h1 className="text-xl font-extrabold tracking-tight">Harga dinamis</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerPricing.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
           Aktif/nonaktifkan aturan harga depot.
         </p>
       </header>
 
       {ready && depots.length === 0 && !depotId ? (
-        <CenterState icon={<Tag size={32} />} title="Belum ada depot">
+        <CenterState icon={<Tag size={32} />} title={t('hrFix.managerPricing.noDepot')}>
           Belum ada depot yang dikonfigurasi.
         </CenterState>
       ) : rules.loading ? (
@@ -96,7 +101,7 @@ export default function ManagerPricingPage() {
       ) : rules.error ? (
         <ErrorState message={rules.error} onRetry={rules.reload} />
       ) : !rules.data || rules.data.length === 0 ? (
-        <CenterState icon={<Tag size={32} />} title="Belum ada aturan harga">
+        <CenterState icon={<Tag size={32} />} title={t('hrFix.managerPricing.empty')}>
           Aturan harga depot akan tampil di sini.
         </CenterState>
       ) : (

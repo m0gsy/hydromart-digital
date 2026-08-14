@@ -1,6 +1,7 @@
 'use client';
 
 import { Sheet } from '@/components/overlay';
+import { useT } from '@/lib/locale-context';
 import { Badge, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -13,18 +14,20 @@ const STATUS_TONE: Record<RecipientStatus, 'neutral' | 'success' | 'danger'> = {
   SENT: 'success',
   FAILED: 'danger',
 };
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const STATUS_LABEL: Record<RecipientStatus, string> = {
-  PENDING: 'Menunggu',
-  SENT: 'Terkirim',
-  FAILED: 'Gagal',
+  PENDING: 'hrFix.campaignReport.pending',
+  SENT: 'hrFix.campaignReport.sent',
+  FAILED: 'hrFix.campaignReport.failed',
 };
 
 /** Per-recipient delivery report for one campaign (10c). */
 export function CampaignReport({ campaignId, onClose }: { campaignId: string; onClose: () => void }) {
+  const { t } = useT();
   const detail = useAsync<CampaignDetail>(() => api.get(endpoints.crm.campaign(campaignId), true), [campaignId]);
 
   return (
-    <Sheet open onClose={onClose} title="Laporan kampanye">
+    <Sheet open onClose={onClose} title={t('hrFix.campaignReport.title')}>
       {detail.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : detail.error ? (
@@ -38,15 +41,15 @@ export function CampaignReport({ campaignId, onClose }: { campaignId: string; on
 
           <dl className="grid grid-cols-3 gap-2 text-center text-sm">
             <div className="rounded-2xl border border-app p-2.5">
-              <dt className="text-xs text-muted">Total</dt>
+              <dt className="text-xs text-muted">{t('hrFix.campaignReport.total')}</dt>
               <dd className="text-lg font-bold tabular-nums">{detail.data.totalRecipients}</dd>
             </div>
             <div className="rounded-2xl border border-app p-2.5">
-              <dt className="text-xs text-muted">Terkirim</dt>
+              <dt className="text-xs text-muted">{t('hrFix.campaignReport.sent')}</dt>
               <dd className="text-lg font-bold tabular-nums text-emerald-700">{detail.data.sentCount}</dd>
             </div>
             <div className="rounded-2xl border border-app p-2.5">
-              <dt className="text-xs text-muted">Gagal</dt>
+              <dt className="text-xs text-muted">{t('hrFix.campaignReport.failed')}</dt>
               <dd className={`text-lg font-bold tabular-nums ${detail.data.failedCount > 0 ? 'text-red-600' : ''}`}>
                 {detail.data.failedCount}
               </dd>
@@ -54,7 +57,7 @@ export function CampaignReport({ campaignId, onClose }: { campaignId: string; on
           </dl>
 
           <div>
-            <p className="mb-1.5 text-sm font-semibold">Penerima</p>
+            <p className="mb-1.5 text-sm font-semibold">{t('hrFix.campaignReport.recipients')}</p>
             <ul className="flex flex-col gap-1.5">
               {detail.data.recipients.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-3 text-sm">
@@ -65,7 +68,7 @@ export function CampaignReport({ campaignId, onClose }: { campaignId: string; on
                       {r.error ? ` · ${r.error}` : r.sentAt ? ` · ${formatDateTime(r.sentAt)}` : ''}
                     </p>
                   </div>
-                  <Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                  <Badge tone={STATUS_TONE[r.status]}>{t(STATUS_LABEL[r.status])}</Badge>
                 </li>
               ))}
             </ul>

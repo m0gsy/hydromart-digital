@@ -1745,6 +1745,28 @@ describe('OrderService', () => {
       expect(order.total).toBe(20000 + 10000);
     });
 
+    /**
+     * The quote and the burn have to price the SAME fee. `quote` was passed `shippingFee`
+     * on purpose — a FREE_SHIPPING voucher waives delivery, not a speed upgrade — while
+     * `redeem` was passed `deliveryFee`, which includes the express surcharge. The order
+     * therefore received a discount of the shipping fee while the promo ledger recorded the
+     * larger number: a `budgetCap` burned down faster than the discounts it funded, and a
+     * redeem that can throw VoucherBudgetExhausted on a quote that just passed.
+     */
+    it('burns a FREE_SHIPPING voucher against the same fee it was quoted on', async () => {
+      await addToCart(20000, 1); // shipping 5000, express 5000 → deliveryFee 10000
+      promo.quoteDiscount = 5000;
+      promo.quoteDiscountType = 'FREE_SHIPPING';
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        express: true,
+        voucherCode: 'gratisongkir',
+      });
+      expect(order.discount).toBe(5000); // the shipping fee, express still charged
+      expect(promo.quoteCalls[0].shippingFee).toBe(5000);
+      expect(promo.redeemCalls[0].shippingFee).toBe(promo.quoteCalls[0].shippingFee);
+    });
+
     it('charges nothing extra for a scheduled delivery', async () => {
       await addToCart(20000, 1);
       const order = await service.checkout(customer, {

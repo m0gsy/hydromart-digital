@@ -1,4 +1,5 @@
 import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 
 import { ImportAllowancesDto, ImportAllowanceRowDto } from '../../src/modules/dto/allowance.dto';
 import {
@@ -19,6 +20,7 @@ import {
   ImportEmployeeRowDto,
   ImportEmployeesDto,
   ListEmployeesDto,
+  UpdateEmployeeDto,
 } from '../../src/modules/dto/employee.dto';
 import {
   ImportLeaveBalanceRowDto,
@@ -95,5 +97,26 @@ describe('nested announcement targets', () => {
       targets: [{ dimension: 'COMPANY' }],
     });
     expect(dto.targets[0]).toBeInstanceOf(AnnouncementTargetDto);
+  });
+});
+
+/*
+ * `exitDate: null` is the rehire case: an employee who came back still carrying an exit
+ * date is paid for no days at all, because payroll clamps the period to joinDate..exitDate.
+ * The validator has to let the null through while still rejecting nonsense.
+ */
+describe('UpdateEmployeeDto.exitDate', () => {
+  it('accepts an explicit null', async () => {
+    const dto = plainToInstance(UpdateEmployeeDto, { exitDate: null });
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it('accepts an ISO date and rejects a non-date string', async () => {
+    await expect(
+      validate(plainToInstance(UpdateEmployeeDto, { exitDate: '2026-08-10T00:00:00.000Z' })),
+    ).resolves.toEqual([]);
+    await expect(
+      validate(plainToInstance(UpdateEmployeeDto, { exitDate: 'kemarin' })),
+    ).resolves.not.toEqual([]);
   });
 });

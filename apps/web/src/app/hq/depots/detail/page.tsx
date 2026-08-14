@@ -7,7 +7,7 @@ import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-ic
 import { DepotForm } from '@/components/hq/depot-form';
 import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
 import { StockBar } from '@/components/hq/charts';
-import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -138,6 +138,9 @@ export default function HqDepotDetailPage() {
       )}
 
       {/* KPI tiles */}
+      {/* All four fall back to a dash together, which reads as a depot with no trade
+          rather than as four numbers nobody could fetch. */}
+      {rollup.error && <LoadError onRetry={rollup.reload} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={t('hq.depotDetail.kpi.revenue')}
@@ -201,6 +204,10 @@ export default function HqDepotDetailPage() {
           </h2>
           {inv.loading ? (
             <Skeleton className="h-24 w-full" />
+          ) : inv.error ? (
+            // An unread stock list and a depot with no stock lines look identical here,
+            // and one of them is the reason HQ calls the depot.
+            <LoadError onRetry={inv.reload} />
           ) : invItems.length === 0 ? (
             <p className="text-sm text-muted">{t('hq.depotDetail.stock.empty')}</p>
           ) : (
@@ -227,6 +234,8 @@ export default function HqDepotDetailPage() {
           </h2>
           {staff.loading ? (
             <Skeleton className="h-24 w-full" />
+          ) : staff.error ? (
+            <LoadError onRetry={staff.reload} />
           ) : (staff.data?.items ?? []).length === 0 ? (
             <p className="text-sm text-muted">{t('hq.depotDetail.staff.empty')}</p>
           ) : (
@@ -249,6 +258,8 @@ export default function HqDepotDetailPage() {
           </h2>
           {orders.loading ? (
             <Skeleton className="h-24 w-full" />
+          ) : orders.error ? (
+            <LoadError onRetry={orders.reload} />
           ) : orderItems.length === 0 ? (
             <p className="text-sm text-muted">{t('hq.depotDetail.orders.empty')}</p>
           ) : (

@@ -1,7 +1,11 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
-import { CampaignPageQueryDto } from '../../src/modules/dto/campaign.dto';
+import {
+  CampaignPageQueryDto,
+  CampaignSegmentDto,
+  CreateDepotCampaignDto,
+} from '../../src/modules/dto/campaign.dto';
 import { CampaignService } from '../../src/application/services/campaign.service';
 import { NotificationController } from '../../src/modules/notification.controller';
 import { NotificationPrismaRepository } from '../../src/infrastructure/prisma/notification.prisma.repository';
@@ -13,6 +17,50 @@ import { envValidationSchema } from '../../src/config/env.validation';
  * sweeps and the env schema. Each is exercised in production on a schedule or on
  * every unparameterised call, and each was uncovered.
  */
+/*
+ * A segment arrives as JSON, but the console builds it from query-string handoffs and
+ * number inputs, so the day-windows can turn up as strings. Without the @Type transform
+ * every activity segment 400s and the campaign silently stays an attribute-only blast.
+ */
+describe('CampaignSegmentDto', () => {
+  const parse = (q: Record<string, unknown>) => plainToInstance(CampaignSegmentDto, q);
+
+  it('coerces the activity day-windows to numbers', () => {
+    const dto = parse({ recencyDays: '30', lapsedDays: '60', newWithinDays: '14', minOrders: '5' });
+    expect(dto).toMatchObject({ recencyDays: 30, lapsedDays: 60, newWithinDays: 14, minOrders: 5 });
+    expect(validateSync(dto)).toHaveLength(0);
+  });
+
+  it.each([
+    ['a zero day-window', { lapsedDays: '0' }],
+    ['a depotId that is not a uuid', { depotId: 'depot-1' }],
+  ])('rejects %s', (_case, q) => {
+    expect(validateSync(parse(q)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('CreateDepotCampaignDto', () => {
+  // The nested @Type is what makes `segment` a validated CampaignSegmentDto rather than a
+  // bag of unchecked properties — without it a bad day-window reaches the SQL.
+  it('validates the nested segment and requires a uuid depot', () => {
+    const dto = plainToInstance(CreateDepotCampaignDto, {
+      depotId: '11111111-1111-4111-8111-111111111111',
+      name: 'Promo',
+      messageTemplate: 'Hi',
+      segment: { lapsedDays: '60' },
+    });
+    expect(dto.segment).toBeInstanceOf(CampaignSegmentDto);
+    expect(validateSync(dto)).toHaveLength(0);
+
+    const bad = plainToInstance(CreateDepotCampaignDto, {
+      depotId: 'depot-1',
+      name: 'Promo',
+      messageTemplate: 'Hi',
+    });
+    expect(validateSync(bad).length).toBeGreaterThan(0);
+  });
+});
+
 describe('CampaignPageQueryDto', () => {
   const parse = (q: Record<string, unknown>) => plainToInstance(CampaignPageQueryDto, q);
 
@@ -46,6 +94,7 @@ describe('CampaignService.list defaults', () => {
     repo as never,
     { send: jest.fn() } as never,
     { resolve: jest.fn() } as never,
+    { customersIn: jest.fn() } as never,
   );
 
   beforeEach(() => repo.list.mockClear());

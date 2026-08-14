@@ -330,6 +330,31 @@ export class InventoryPrismaRepository implements InventoryRepository {
     }));
   }
 
+  async opnameVariances(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ sellPrice: number | null; delta: number }[]> {
+    const createdAt =
+      range.from || range.to
+        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lt: range.to } : {}) }
+        : undefined;
+    const rows = await this.prisma.stockMovement.findMany({
+      where: {
+        type: StockMovementType.OPNAME,
+        item: { depotId },
+        ...(createdAt ? { createdAt } : {}),
+      },
+      select: { delta: true, item: { select: { sellPrice: true } } },
+    });
+    return rows.map((r) => ({
+      sellPrice:
+        r.item.sellPrice === null || r.item.sellPrice === undefined
+          ? null
+          : Number(r.item.sellPrice),
+      delta: r.delta,
+    }));
+  }
+
   private toReservation(row: ReservationRow): ReservationRecord {
     return { ...row, status: row.status as ReservationStatus };
   }

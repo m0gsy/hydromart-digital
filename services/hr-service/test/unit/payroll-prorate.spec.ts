@@ -35,6 +35,8 @@ interface Overrides {
   status?: 'ACTIVE' | 'INACTIVE' | 'RESIGNED';
   presentDays?: number;
   allowance?: number;
+  /** Depot SOP §2 tiered fines, `tier1,tier2,absent`. Empty = the flat branch. */
+  lateFineCsv?: string;
 }
 
 function build(o: Overrides = {}) {
@@ -86,7 +88,8 @@ function build(o: Overrides = {}) {
       absentAfterMinutes: () => 0,
       dailySalesBonusTiers: () => '',
       dailyRateTraining: () => 0,
-      lateFineCsv: () => '',
+      lateFineCsv: () => o.lateFineCsv ?? '',
+      lateTier2AfterMinutes: () => 30,
       lateTier: () => '',
       overtimeMultiplierPct: () => 0,
       overtimeOffDayMultiplierPct: () => 0,
@@ -148,6 +151,30 @@ describe('D3 — proration by employment window', () => {
     await svc.generate(USER, 'emp_1', PERIOD);
     expect(amountOf(created.items, 'DEDUCTION')).toBe(2 * 50_000);
   });
+
+  /**
+   * The same window, on the OTHER branch. This file pinned `lateFineCsv: ''` — which is the
+   * flat branch — and `payroll.service.spec.ts` pins `joinDate` to a full month, so the
+   * tiered branch (Depot SOP §2) was never asked the prorate question by either file. It
+   * answered it wrongly: `absentDays()` counts the whole month's working days, so the D3
+   * knock-on the flat branch was fixed for was still live here.
+   */
+  it('does not fine a joiner on the TIERED branch either (Depot SOP §2)', async () => {
+    const { svc, created } = build({
+      joinDate: '2026-03-25T00:00:00.000Z',
+      presentDays: 6,
+      lateFineCsv: '10000,15000,20000',
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'DEDUCTION')).toBe(0);
+  });
+
+  it('still fines a full-month employee on the TIERED branch', async () => {
+    // 26 working days, present 24 → 2 unattended days at the "tidak absen" rate.
+    const { svc, created } = build({ presentDays: 24, lateFineCsv: '10000,15000,20000' });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'DEDUCTION')).toBe(2 * 20_000);
+  });
 });
 
 describe('D6 — allowances follow the same window', () => {
@@ -175,6 +202,15 @@ describe('who may be generated for at all', () => {
     // Matched on the message, not on "it threw": a bare `toThrow()` goes green for a typo
     // in the mock, which is exactly how this test passed before the refusal existed.
     await expect(svc.generate(USER, 'emp_1', PERIOD)).rejects.toThrow(/tidak bekerja/i);
+  });
+
+  it('refuses a RESIGNED employee whose exit date was never filled in', async () => {
+    // User decision 2026-08-14: status stops the wage too. But only a DATE says how much of
+    // the period was earned, so the refusal asks for the date instead of guessing one —
+    // paying the full month was the leak, and inventing an exit day is a quieter version of
+    // the same leak.
+    const { svc } = build({ status: 'RESIGNED', exitDate: null });
+    await expect(svc.generate(USER, 'emp_1', PERIOD)).rejects.toThrow(/tanggal keluar/i);
   });
 
   it('STILL generates the final payslip of someone who left mid-period', async () => {

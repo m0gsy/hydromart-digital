@@ -127,7 +127,7 @@ function ProductEditor({
           />
         </Field>
         <Field label={t('hq.catalog.fields.unit')}>
-          <Input value={form.unit} onChange={set('unit')} placeholder="galon / dus / pcs" />
+          <Input value={form.unit} onChange={set('unit')} placeholder={t('hrFix.hqCatalog.unitHint')} />
         </Field>
         <Field label={t('hq.catalog.fields.volumeMl')}>
           <Input

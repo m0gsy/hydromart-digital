@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowRight, Check, ListChecks } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Card, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -61,6 +61,11 @@ export default function HqOnboardingPage() {
   };
 
   const loading = depot.loading || inv.loading || staff.loading;
+  // A failed read is NOT an unfinished step. `stock` and `staff` are derived from list
+  // lengths, so an unreachable service used to tick down to "belum ada stok / belum ada
+  // staf" — a go-live checklist that reports a depot as not ready because a service was
+  // down is worse than one that admits it could not check.
+  const failed = depot.error ?? inv.error ?? staff.error ?? null;
   const doneCount = STEPS.filter((s) => doneById[s.id]).length;
 
   return (
@@ -82,11 +87,23 @@ export default function HqOnboardingPage() {
           </option>
         ))}
       </select>
+      {/* An unread depot list is a picker with one option: nothing. The checklist below
+          then never runs for any depot, which looks like a screen with no work to do. */}
+      {depots.error && <LoadError onRetry={depots.reload} />}
 
       {!depotId ? (
         <p className="py-6 text-center text-sm text-muted">{t('hq.onboarding.pickPrompt')}</p>
       ) : loading ? (
         <Skeleton className="h-64 w-full" />
+      ) : failed ? (
+        <ErrorState
+          message={failed}
+          onRetry={() => {
+            depot.reload();
+            inv.reload();
+            staff.reload();
+          }}
+        />
       ) : (
         <>
           <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-soft)]">

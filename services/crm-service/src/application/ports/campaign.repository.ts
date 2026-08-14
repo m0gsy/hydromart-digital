@@ -27,6 +27,8 @@ export interface CampaignRecord {
   createdAt: Date;
   updatedAt: Date;
   sentAt: Date | null;
+  /** When it becomes due. NULL = immediately, which is what every pre-scheduling row meant. */
+  scheduledFor: Date | null;
   recipients: CampaignRecipientRecord[];
 }
 
@@ -42,6 +44,8 @@ export interface CreateCampaignData {
   name: string;
   messageTemplate: string;
   recipients: CreateRecipientData[];
+  /** When it becomes due. Absent/null = immediately, the pre-scheduling behaviour. */
+  scheduledFor?: Date | null;
 }
 
 export interface CampaignRepository {
@@ -60,7 +64,7 @@ export interface CampaignRepository {
    */
   markSending(id: string): Promise<boolean>;
   /** Campaigns still mid-broadcast, oldest first, for the sweep to continue. */
-  findSending(limit: number): Promise<CampaignRecord[]>;
+  findSending(limit: number, now: Date): Promise<CampaignRecord[]>;
   /**
    * Claim up to `limit` PENDING recipients of one campaign by moving them to SENDING, and
    * return only the rows this call actually moved. The claim is the WHERE clause: a

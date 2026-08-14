@@ -6,6 +6,8 @@
 // together. Covered by test/roles.test.ts.
 import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
 
+import { isServedHere } from './deep-link';
+
 export { CAPABILITIES };
 export type { Capability };
 
@@ -205,13 +207,49 @@ export function isConsolePath(pathname: string | null | undefined): boolean {
  * button on a denial screen points. Composed from the gates above rather than a second
  * role map, so it can't drift from them.
  */
+/**
+ * The sign-in door for a path, and the one to send someone to on sign-out.
+ *
+ * `/hq/login` is the staff-branded door, but the Ops binary prunes the whole `/hq` subtree —
+ * so every console screen was redirecting an expired session, and every sign-out button, to a
+ * route that is not in that bundle. There was no way back into the app. `/login` is kept by
+ * every binary and signs a staff account in exactly the same way (phone + OTP, then `next`),
+ * so it is the fallback whenever the branded door is not served here.
+ */
+export function staffDoor(pathname: string | null | undefined): string {
+  if (!isConsolePath(pathname)) return '/login';
+  return isServedHere('/hq/login') ? '/hq/login' : '/login';
+}
+
 export function consoleHome(role: string | null | undefined): string {
-  if (isHq(role)) return '/hq';
-  if (canUseCourierApp(role)) return '/driver';
-  if (dashboardLandingView(role) !== 'denied') return '/dashboard';
-  if (canViewHr(role)) return '/hr';
+  // Every candidate is checked against what THIS binary serves. The Ops app prunes `/hq` and
+  // the HR console (keeping `/hr/me`), so an HQ or HR role was sent to a route that is not in
+  // the bundle — "Kembali ke konsol" landed on nothing. Falling through to the next surface the
+  // role can actually reach is the honest answer; on the web nothing is pruned and the order
+  // below is unchanged.
+  const first = (...candidates: string[]): string | null =>
+    candidates.find((c) => isServedHere(c)) ?? null;
+  if (isHq(role)) {
+    const home = first('/hq', '/dashboard', '/hr/me');
+    if (home) return home;
+  }
+  if (canUseCourierApp(role)) {
+    const home = first('/driver', '/hr/me');
+    if (home) return home;
+  }
+  if (dashboardLandingView(role) !== 'denied') {
+    const home = first('/dashboard', '/hr/me');
+    if (home) return home;
+  }
+  if (canViewHr(role)) {
+    const home = first('/hr', '/hr/me');
+    if (home) return home;
+  }
   // MARKETING holds no dashboard capability, so the /dashboard landing would deny it —
   // send it to the surface it actually owns.
-  if (canViewCampaigns(role)) return '/dashboard/campaigns';
+  if (canViewCampaigns(role)) {
+    const home = first('/dashboard/campaigns', '/dashboard');
+    if (home) return home;
+  }
   return isStaff(role) ? '/dashboard' : '/products';
 }

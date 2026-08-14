@@ -17,7 +17,7 @@ import { CampaignStatus } from '../../src/domain/campaign-status';
 import { CampaignChannel } from '../../src/domain/channel';
 import { RecipientStatus } from '../../src/domain/recipient-status';
 import { SubscribePushDto } from '../../src/modules/dto/push.dto';
-import { CreateCampaignDto } from '../../src/modules/dto/campaign.dto';
+import { CreateCampaignDto, CreateDepotCampaignDto } from '../../src/modules/dto/campaign.dto';
 import { CampaignRecord } from '../../src/application/ports/campaign.repository';
 import {
   NotificationRecord,
@@ -186,6 +186,7 @@ describe('CampaignController', () => {
     sentCount: 0,
     failedCount: 0,
     createdBy: 'staff-1',
+    scheduledFor: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     sentAt: null,
@@ -224,6 +225,30 @@ describe('CampaignController', () => {
       undefined,
       { tier: 'GOLD' },
       'Bearer tok',
+      null,
+    );
+    expect(out.recipients).toHaveLength(1);
+  });
+
+  // The depot route takes NO authorization argument — that is the point of it. The
+  // directory is opened as a service, and the depot comes from the top-level field the
+  // DepotScopeGuard has already checked.
+  it('creates a depot campaign without forwarding any caller token', async () => {
+    const campaigns = { createForDepot: jest.fn().mockResolvedValue(record()) };
+    const controller = new CampaignController(campaigns as never);
+    const out = await controller.createForDepot(user, {
+      depotId: 'depot-mine',
+      name: 'Promo',
+      messageTemplate: 'Hi',
+      segment: { lapsedDays: 60 },
+    } as CreateDepotCampaignDto);
+    expect(campaigns.createForDepot).toHaveBeenCalledWith(
+      'user-1',
+      'depot-mine',
+      'Promo',
+      'Hi',
+      { lapsedDays: 60 },
+      null,
     );
     expect(out.recipients).toHaveLength(1);
   });

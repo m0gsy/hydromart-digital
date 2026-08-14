@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { MagnifyingGlass, Storefront, Package, User, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, Input, Money, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Input, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -106,6 +106,10 @@ function SearchBody() {
         </CenterState>
       ) : res.loading ? (
         <Skeleton className="h-64 w-full" />
+      ) : res.error ? (
+        // "Tidak ada hasil untuk <q>" is a statement about the catalogue. A search that
+        // could not run is a statement about the search.
+        <ErrorState message={res.error} onRetry={res.reload} />
       ) : total === 0 ? (
         <CenterState title={t('dashC.search.noResultsTitle')} icon={<MagnifyingGlass size={40} weight="fill" />}>
           {t('dashC.search.noResultsBody', { q })}

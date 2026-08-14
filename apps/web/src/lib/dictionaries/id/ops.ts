@@ -75,6 +75,10 @@ export const ops = {
     roles: 'Peran & akses',
     audit: 'Audit log',
     profile: 'Profil',
+    monthlyPnl: 'Laporan L/R',
+    teamPerformance: 'Performa tim',
+    depotSettings: 'Pengaturan depot',
+    account: 'Akun saya',
     settings: 'Pengaturan',
   },
   switcher: {

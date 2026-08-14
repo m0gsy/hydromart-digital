@@ -73,6 +73,12 @@ export interface CashCollectedSummary {
   count: number;
 }
 
+/** PAID cash on one order (whole IDR), for callers that need the per-order split. */
+export interface OrderCashRow {
+  orderId: string;
+  amountIdr: number;
+}
+
 export interface DateRange {
   from?: Date;
   to?: Date;
@@ -98,6 +104,14 @@ export interface PaymentRepository {
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /** Sum of PAID cash payments over the given orders — the courier's COD deposit due. */
   sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary>;
+  /**
+   * The same PAID cash as `sumCashCollected`, kept per order instead of summed.
+   *
+   * The caller (order-service's daily report) needs the split by courier, and the courier
+   * is on the ORDER, not on the payment — so the grouping cannot happen here. Orders with
+   * no PAID cash payment are simply absent rather than returned as zero rows.
+   */
+  cashByOrder(orderIds: string[]): Promise<OrderCashRow[]>;
   /**
    * Sum of PAID cash a depot took over a window, by `paidAt` — what should be in that
    * drawer. Bounded by settlement time, not creation: a sale rung up before the shift and

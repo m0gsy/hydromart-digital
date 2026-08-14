@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 import { Spinner } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { isConsolePath } from '@/lib/roles';
+import { staffDoor } from '@/lib/roles';
 
 /**
  * Gate a page behind sign-in, sending the visitor to the door that matches the surface:
@@ -19,7 +19,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (ready && !customer) {
-      const door = isConsolePath(pathname) ? '/hq/login' : '/login';
+      const door = staffDoor(pathname);
       router.replace(`${door}?next=${encodeURIComponent(pathname)}`);
     }
   }, [ready, customer, router, pathname]);

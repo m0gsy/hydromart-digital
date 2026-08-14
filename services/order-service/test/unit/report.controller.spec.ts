@@ -26,6 +26,8 @@ function makeService(): Mocked {
     reportsDepotMonthly: jest.fn().mockResolvedValue('monthly'),
     audienceReach: jest.fn().mockResolvedValue('reach'),
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
+    segmentCustomers: jest.fn().mockResolvedValue({ customerIds: ['c1'], truncated: false }),
+    exportRows: jest.fn().mockResolvedValue([{ label: 'Depot A', orders: 2, revenue: 5000 }]),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
@@ -203,6 +205,28 @@ describe('ReportController', () => {
     const q = { depotId: 'd1', recencyDays: 30 } as never;
     await expect(controller.segmentEstimate(q)).resolves.toBe('segment');
     expect(service.segmentEstimate).toHaveBeenCalledWith(q);
+  });
+
+  // Same query DTO as the estimate on purpose: crm sizes the audience with one route and
+  // resolves it with the other, so a condition either reaches both or neither.
+  it('internalSegmentCustomers: passes the same query the estimate takes', async () => {
+    const q = { depotId: 'd1', lapsedDays: 60 } as never;
+    await expect(controller.internalSegmentCustomers(q)).resolves.toEqual({
+      customerIds: ['c1'],
+      truncated: false,
+    });
+    expect(service.segmentCustomers).toHaveBeenCalledWith(q);
+  });
+
+  it('internalExportRows: wraps the rows and forwards the window', async () => {
+    const q = { dataset: 'REVENUE_BY_DEPOT', from: '2026-08-01T00:00:00.000Z' } as never;
+    await expect(controller.internalExportRows(q)).resolves.toEqual({
+      rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }],
+    });
+    expect(service.exportRows).toHaveBeenCalledWith('REVENUE_BY_DEPOT', {
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: undefined,
+    });
   });
 
   it('resellerRollup: splits the customerIds CSV and forwards depot + month', async () => {

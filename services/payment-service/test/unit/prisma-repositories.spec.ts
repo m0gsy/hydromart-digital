@@ -245,6 +245,34 @@ describe('PaymentPrismaRepository', () => {
     expect(await repo.sumCashCollected(['order-1'])).toEqual({ total: 0, count: 0 });
   });
 
+  // S2. The daily report needs the split by courier, and the courier is on the ORDER —
+  // so one summed total cannot answer it, however many times you ask.
+  it('cashByOrder short-circuits on an empty order set', async () => {
+    expect(await repo.cashByOrder([])).toEqual([]);
+    expect(model.groupBy).not.toHaveBeenCalled();
+  });
+
+  it('cashByOrder groups PAID cash per order and drops orders with none', async () => {
+    model.groupBy.mockResolvedValue([{ orderId: 'order-1', _sum: { amount: 40000 } }]);
+    const rows = await repo.cashByOrder(['order-1', 'order-2']);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['orderId'],
+      where: {
+        orderId: { in: ['order-1', 'order-2'] },
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+      },
+      _sum: { amount: true },
+    });
+    // order-2 is absent, not zero: it simply has no PAID cash row.
+    expect(rows).toEqual([{ orderId: 'order-1', amountIdr: 40000 }]);
+  });
+
+  it('cashByOrder coerces a null group sum to zero', async () => {
+    model.groupBy.mockResolvedValue([{ orderId: 'order-1', _sum: { amount: null } }]);
+    expect(await repo.cashByOrder(['order-1'])).toEqual([{ orderId: 'order-1', amountIdr: 0 }]);
+  });
+
   // Bounded by paidAt, not createdAt: a sale rung up before the shift but settled during it
   // is cash this cashier is holding, and their count has to include it.
   it('sumDepotCash aggregates one depot PAID cash by settlement time', async () => {

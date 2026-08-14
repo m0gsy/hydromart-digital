@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { Button } from '@/components/ui';
 
@@ -17,6 +18,7 @@ const SAMPLE = 64; // downscale size for the cheap motion/sharpness math
  * server ArcFace verifier gates identity regardless.
  */
 export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: string, live: boolean) => void; disabled?: boolean }) {
+  const { t } = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +43,15 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
           setReady(true);
         }
       })
-      .catch(() => setError('Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.'));
+      .catch(() => setError(t('hrFix.faceCapture2.cameraDenied')));
     return () => {
       cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
     };
+    // `t` is deliberately not a dependency: this effect OPENS THE CAMERA, and re-running it
+    // when the language toggles would stop and restart the stream mid-capture. The message
+    // is only read at failure time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Downscaled grayscale samples of the current frame, for motion/sharpness math. */
@@ -98,8 +104,8 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
   return (
     <div className="space-y-3">
       <video ref={videoRef} autoPlay playsInline muted className="mx-auto aspect-square w-full max-w-xs rounded-2xl bg-black object-cover" />
-      <Button type="button" onClick={capture} loading={busy} disabled={disabled || !ready} className="w-full">Ambil Foto</Button>
-      <p className="text-center text-xs text-muted">Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.</p>
+      <Button type="button" onClick={capture} loading={busy} disabled={disabled || !ready} className="w-full">{t('hrFix.faceCapture.take')}</Button>
+      <p className="text-center text-xs text-muted">{t('hrFix.faceCapture.hint')}</p>
     </div>
   );
 }

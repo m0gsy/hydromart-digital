@@ -52,7 +52,7 @@ function DetailBody({ id }: { id: string }) {
     () =>
       scopedId
         ? api.get(endpoints.depotCrm.detail(id, scopedId), true)
-        : Promise.reject(new Error('Pilih depot dari switcher.')),
+        : Promise.reject(new Error(t('hrFix.customerDetail.pickDepot'))),
     [id, scopedId],
   );
 
@@ -116,7 +116,7 @@ function DetailBody({ id }: { id: string }) {
                 <Stat label={t('dashA.customerDetail.gallonsOnLoan')}>
                   {/* J-2: unread and zero are different answers — see GallonCell. */}
                   {profile.gallonsOnLoan == null ? (
-                    <span className="text-[color:var(--text-muted)]">— belum tersambung</span>
+                    <span className="text-[color:var(--text-muted)]">{t('hrFix.customerDetail.notLinked')}</span>
                   ) : (
                     <span className={profile.gallonsOnLoan >= 3 ? 'text-red-600' : ''}>
                       {profile.gallonsOnLoan}

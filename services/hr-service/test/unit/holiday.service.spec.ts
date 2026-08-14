@@ -1,7 +1,7 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { Holiday } from '../../prisma/generated/client';
+import { Holiday, Prisma } from '../../prisma/generated/client';
 import { HolidayRepository } from '../../src/application/ports/holiday.repository';
 import { HolidayService } from '../../src/application/services/holiday.service';
 
@@ -107,5 +107,35 @@ describe('HolidayService.remove', () => {
     await expect(svc.remove(manager(DEPOT_B), h.id)).rejects.toThrow(ForbiddenException);
     await svc.remove(manager(DEPOT_A), h.id);
     expect(repo.rows).toHaveLength(0);
+  });
+});
+
+/*
+ * Found by `scripts/f6-hris-flows.mjs` on its second run: planting the same holiday twice
+ * came back as a bare 500 (`PrismaClientKnownRequestError` straight through the filter).
+ * A date that is already a holiday is the operator being right, not the server breaking.
+ */
+describe('HolidayService — a date that is already a holiday', () => {
+  it('refuses with a conflict the caller can read, never a 500', async () => {
+    const { repo, svc } = make();
+    repo.create = async () => {
+      throw new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'x',
+        meta: { target: ['date', 'depotId'] },
+      });
+    };
+    await expect(
+      svc.create(hr, { date: '2026-08-17', name: 'HUT RI', depotId: DEPOT_A }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('lets any other database error through untouched', async () => {
+    const { repo, svc } = make();
+    const boom = new Error('connection lost');
+    repo.create = async () => {
+      throw boom;
+    };
+    await expect(svc.create(hr, { date: '2026-08-17', name: 'HUT RI' })).rejects.toBe(boom);
   });
 });

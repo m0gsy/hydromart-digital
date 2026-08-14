@@ -30,6 +30,7 @@ import {
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
   DepotWeeklyQueryDto,
+  ExportRowsQueryDto,
   RangeReportQueryDto,
   ResellerRollupQueryDto,
   SalesReportQueryDto,
@@ -41,6 +42,8 @@ import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } fr
 import {
   InternalDailySalesBroadcastResponseDto,
   InternalDepotDailyGallonsResponseDto,
+  InternalExportRowsResponseDto,
+  InternalSegmentCustomersResponseDto,
 } from './dto/responses.generated.dto';
 import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
@@ -216,6 +219,45 @@ export class ReportController {
       depotId: q.depotId,
       days: await this.reports.depotDailyGallons(q.depotId, q.from, q.to),
     };
+  }
+
+  /**
+   * Who is in an activity segment — the audience crm broadcasts to (design 21d).
+   *
+   * Internal-key only, and deliberately not a bearer route: the caller is crm resolving a
+   * campaign audience, and the customers it gets back are a mailing list, not a report a
+   * console should be able to page through. `truncated` says the segment outgrew the cap,
+   * so crm can refuse rather than message part of it.
+   */
+  @ApiOkResponse({ type: InternalSegmentCustomersResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/segment-customers')
+  @ApiOperation({ summary: 'Customer ids in an activity segment (internal service auth)' })
+  internalSegmentCustomers(
+    @Query() q: SegmentEstimateQueryDto,
+  ): Promise<{ customerIds: string[]; truncated: boolean }> {
+    return this.reports.segmentCustomers(q);
+  }
+
+  /**
+   * The rows behind a scheduled revenue report, for admin-service's report sweep (15c).
+   *
+   * Internal-key: the caller is cron, which holds no bearer. The same aggregates are
+   * already readable by the reporting roles through the routes above — this route exists
+   * because a scheduler has no token, not because the data is more open.
+   */
+  @ApiOkResponse({ type: InternalExportRowsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/export-rows')
+  @ApiOperation({ summary: 'Revenue rows for a scheduled report (internal service auth)' })
+  async internalExportRows(
+    @Query() q: ExportRowsQueryDto,
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[] }> {
+    return { rows: await this.reports.exportRows(q.dataset, toRange(q)) };
   }
 
   /**

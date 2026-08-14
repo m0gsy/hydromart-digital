@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canManageRoster, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
 
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -20,7 +21,12 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', '
 
 // Pagi → Sore → Libur → Pagi. An empty cell is treated as Libur.
 const CYCLE: Record<ShiftKind, ShiftKind> = { OFF: 'MORNING', MORNING: 'EVENING', EVENING: 'OFF' };
-const SHIFT_LABEL: Record<ShiftKind, string> = { MORNING: 'Pagi', EVENING: 'Sore', OFF: 'Libur' };
+// Keys, not labels: the legend renders them through `t()`.
+const SHIFT_LABEL_KEY: Record<ShiftKind, string> = {
+  MORNING: 'shiftMorning',
+  EVENING: 'shiftEvening',
+  OFF: 'shiftOff',
+};
 const SHIFT_STYLE: Record<ShiftKind, string> = {
   MORNING: 'bg-brand-50 text-brand-800',
   EVENING: 'bg-amber-100 text-amber-800',
@@ -60,11 +66,12 @@ function initials(name: string): string {
 }
 
 function Legend() {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       {(['MORNING', 'EVENING', 'OFF'] as ShiftKind[]).map((s) => (
         <span key={s} className={`rounded-full px-2.5 py-1 font-medium ${SHIFT_STYLE[s]}`}>
-          {SHIFT_LABEL[s]}
+          {t(`opsFix.shift.${SHIFT_LABEL_KEY[s]}`)}
         </span>
       ))}
     </div>
@@ -72,6 +79,7 @@ function Legend() {
 }
 
 function RosterBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [editing, setEditing] = useState(false);
@@ -122,7 +130,7 @@ function RosterBody() {
       );
     } catch (err) {
       setCells((prev) => ({ ...prev, [cellKey(staffId, day)]: current })); // roll back
-      setSaveError(err instanceof ApiError ? err.message : 'Gagal menyimpan shift.');
+      setSaveError(err instanceof ApiError ? err.message : t('opsFix.shift.saveError'));
     }
   }
 
@@ -132,7 +140,9 @@ function RosterBody() {
       headers: ['Staf', ...DAY_LABELS],
       rows: staff.map((s) => [
         s.name,
-        ...DAY_LABELS.map((_, day) => SHIFT_LABEL[cells[cellKey(s.id, day)] ?? 'OFF']),
+        ...DAY_LABELS.map((_, day) =>
+          t(`opsFix.shift.${SHIFT_LABEL_KEY[cells[cellKey(s.id, day)] ?? 'OFF']}`),
+        ),
       ]),
     };
   }
@@ -150,7 +160,7 @@ function RosterBody() {
     try {
       await downloadXlsx(`jadwal-shift-${weekStart}.xlsx`, headers, rows, 'Jadwal shift');
     } catch {
-      setSaveError('Gagal membuat file Excel. Coba ekspor CSV.');
+      setSaveError(t('opsFix.shift.xlsxError'));
     }
   }
 
@@ -162,7 +172,7 @@ function RosterBody() {
         <div className="flex items-center gap-2">
           <CalendarBlank size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Jadwal shift kurir</h1>
+            <h1 className="text-2xl font-bold">{t('opsFix.shift.title')}</h1>
             {scopedDepot && <p className="text-[12.5px] text-[color:var(--text-muted)]">{scopedDepot.name}</p>}
           </div>
         </div>
@@ -177,27 +187,27 @@ function RosterBody() {
               onClick={() => setEditing((v) => !v)}
             >
               <PencilSimple size={16} weight="bold" className="mr-1.5" />
-              {editing ? 'Selesai atur' : 'Atur shift'}
+              {editing ? t('opsFix.shift.editOn') : t('opsFix.shift.editOff')}
             </Button>
           )}
           <Button variant="ghost" onClick={() => void exportXlsx()} disabled={staff.length === 0}>
             <DownloadSimple size={16} weight="bold" className="mr-1.5" />
-            Ekspor Excel
+            {t('opsFix.shift.exportExcel')}
           </Button>
           <Button variant="ghost" onClick={exportCsv} disabled={staff.length === 0}>
             <DownloadSimple size={16} weight="bold" className="mr-1.5" />
-            CSV
+            {t('opsFix.shift.exportCsv')}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, -1))} aria-label="Pekan sebelumnya">
+          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, -1))} aria-label={t('opsFix.shift.prevWeek')}>
             <CaretLeft size={18} weight="bold" />
           </Button>
           <span className="min-w-[9rem] text-center font-semibold">{weekLabel(weekStart)}</span>
-          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, 1))} aria-label="Pekan berikutnya">
+          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, 1))} aria-label={t('opsFix.shift.nextWeek')}>
             <CaretRight size={18} weight="bold" />
           </Button>
         </div>
@@ -211,23 +221,27 @@ function RosterBody() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<CalendarBlank size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('opsFix.shift.noDepots')} icon={<CalendarBlank size={40} weight="fill" />}>
+          {t('opsFix.shift.noDepotsBody')}
         </CenterState>
       ) : loading ? (
         <Skeleton className="h-64 w-full" />
       ) : roster.error ? (
         <ErrorState message={roster.error} onRetry={roster.reload} />
+      ) : drivers.error ? (
+        // Without the roster of couriers `staff` is empty, and the branch below then says
+        // the depot has no active couriers to schedule — an answer, not an outage.
+        <ErrorState message={drivers.error} onRetry={drivers.reload} />
       ) : staff.length === 0 ? (
-        <CenterState title="Belum ada kurir" icon={<UsersThree size={40} weight="fill" />}>
-          Belum ada kurir aktif untuk dijadwalkan di depot ini.
+        <CenterState title={t('opsFix.shift.noCouriers')} icon={<UsersThree size={40} weight="fill" />}>
+          {t('opsFix.shift.noCouriersBody')}
         </CenterState>
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-app text-[color:var(--text-muted)]">
-                <th className="px-4 py-3 text-left font-semibold">Kurir</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('opsFix.shift.colCourier')}</th>
                 {DAY_LABELS.map((d) => (
                   <th key={d} className="px-2 py-3 text-center font-semibold">
                     {d}
@@ -257,9 +271,11 @@ function RosterBody() {
                           className={`w-full rounded-lg px-2 py-1.5 text-xs font-semibold transition ${SHIFT_STYLE[shift]} ${
                             editing ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
                           }`}
-                          aria-label={`${s.name} ${DAY_LABELS[day]}: ${SHIFT_LABEL[shift]}`}
+                          aria-label={`${s.name} ${DAY_LABELS[day]}: ${t(
+                            `opsFix.shift.${SHIFT_LABEL_KEY[shift]}`,
+                          )}`}
                         >
-                          {SHIFT_LABEL[shift]}
+                          {t(`opsFix.shift.${SHIFT_LABEL_KEY[shift]}`)}
                         </button>
                       </td>
                     );
@@ -275,11 +291,12 @@ function RosterBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isStaff(customer?.role)) {
     return (
-      <CenterState title="Khusus staf depot" icon={<Lock size={40} weight="fill" />}>
-        Jadwal shift hanya tersedia untuk staf depot.
+      <CenterState title={t('opsFix.shift.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.shift.gateBody')}
       </CenterState>
     );
   }

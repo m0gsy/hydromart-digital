@@ -3,6 +3,7 @@ import { NoRecipientsError } from '../../src/domain/errors';
 import { RecipientStatus } from '../../src/domain/recipient-status';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
 import {
+  FakeActivitySegment,
   FakeCustomerDirectory,
   FakeWhatsappBroadcast,
   InMemoryCampaignRepository,
@@ -22,7 +23,7 @@ describe('CampaignService branches', () => {
   });
 
   const service = (whatsapp: WhatsappBroadcastPort): CampaignService =>
-    new CampaignService(repo, whatsapp, directory);
+    new CampaignService(repo, whatsapp, directory, new FakeActivitySegment());
 
   it('uses the default (empty) recipients list, throwing NoRecipientsError', async () => {
     await expect(service(new FakeWhatsappBroadcast()).create('staff', 'Blast', 'Hi')).rejects.toBeInstanceOf(

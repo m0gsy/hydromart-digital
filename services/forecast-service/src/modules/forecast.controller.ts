@@ -9,10 +9,25 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import {
   ChurnItem,
@@ -127,6 +142,30 @@ export class ForecastController {
       limit: query.limit,
       windowDays: query.days,
     });
+  }
+
+  /**
+   * One customer's churn band, for the depot CRM card that used to hardcode null (S2).
+   *
+   * Internal key rather than `churn`: the caller is customer-service assembling a screen and
+   * holds no token for the staff member looking at it. `@Public()` short-circuits RolesGuard.
+   *
+   * Not a lookup in the list above: that list is the top-N most at-risk, so anyone outside
+   * it would come back LOW when the truth is "not in the sample".
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/churn-band')
+  @ApiOperation({ summary: "One customer's churn band (internal service auth)" })
+  @ApiOkResponse({ description: 'Risk band for one customer, or nulls when they never ordered.' })
+  async churnBand(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<{ riskBand: string | null; riskScore: number | null; daysSince: number | null }> {
+    const risk = await this.forecasts.churnFor(customerId);
+    // A 200 with nulls, not a 404: "this customer has never ordered" is an answer, and the
+    // caller is composing a card that must render either way.
+    return risk ?? { riskBand: null, riskScore: null, daysSince: null };
   }
 
   @ApiOkResponse({ type: RebuildNow3ResponseDto })

@@ -64,12 +64,17 @@ model Campaign {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   sentAt          DateTime?
+  /// When the campaign becomes due. NULL = as soon as the sweep sees it, which is what
+  /// every campaign meant before scheduling existed.
+  scheduledFor    DateTime?
 
   recipients CampaignRecipient[]
 
   /// B-17: the broadcast sweep's query shape — "still SENDING, oldest first". Without it
   /// the sweep scans the whole campaign table every two minutes.
   @@index([status, createdAt])
+  /// Partial: only scheduled rows need the due-check, and they are the minority.
+  @@index([scheduledFor])
   @@map("campaigns")
 }
 
@@ -190,4 +195,20 @@ model WebPushSubscription {
 
   @@index([customerId])
   @@map("web_push_subscriptions")
+}
+
+/// A named audience definition (design 21d "Buat segment"). The conditions are the
+/// SegmentFilter contract as JSON rather than a column each: that contract already grew
+/// twice (activity conditions, then named customerIds), and a column per condition means a
+/// migration every time it grows again — plus rows written under the older shape.
+model SavedSegment {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  conditions Json
+  /// Auth subject (staff user id) that saved it.
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("saved_segments")
 }

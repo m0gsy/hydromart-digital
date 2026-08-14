@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { CheckCircle, DownloadSimple, UploadSimple, Warning } from '@phosphor-icons/react';
 
 import { Badge, Button, Card } from '@/components/ui';
@@ -183,6 +184,7 @@ export function CsvImport({
   body,
   onDone,
 }: {
+  /** Dictionary KEY, resolved here — a caller may be a server component (audit F-6). */
   title: string;
   description?: string;
   columns: ImportColumn[];
@@ -192,6 +194,7 @@ export function CsvImport({
   body?: Record<string, unknown>;
   onDone?: () => void;
 }) {
+  const { t } = useT();
   const [rows, setRows] = useState<PreparedRow[] | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -308,7 +311,7 @@ export function CsvImport({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-[22px] font-extrabold tracking-tight">{title}</h1>
+        <h1 className="text-[22px] font-extrabold tracking-tight">{t(title)}</h1>
         {description && <p className="mt-1 text-[13.5px] text-muted">{description}</p>}
       </div>
 

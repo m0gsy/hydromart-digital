@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -16,6 +17,7 @@ import { useQueryParam } from '@/lib/use-query-param';
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
 
 export default function PayrollDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
@@ -30,7 +32,7 @@ export default function PayrollDetailPage() {
       toast(ok);
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.payrollDetail.failed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -40,7 +42,7 @@ export default function PayrollDetailPage() {
     try {
       downloadBlob(`slip-${id}.pdf`, await getBlob(endpoints.hr.payrollSlip(id)));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
+      toast(e instanceof Error ? e.message : t('hrFix.payrollDetail.downloadFailed'), 'error');
     }
   }
 
@@ -57,7 +59,7 @@ export default function PayrollDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={downloadSlip}>Unduh PDF</Button>
-            <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+            <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
           </div>
         }
       />
@@ -76,7 +78,7 @@ export default function PayrollDetailPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-app font-bold">
-              <td className="pt-3">Gaji Bersih (Net)</td>
+              <td className="pt-3">{t('hrFix.payrollDetail.netPay')}</td>
               <td className="pt-3 text-right"><Money amount={Number(p.net)} /></td>
             </tr>
           </tfoot>
@@ -91,8 +93,8 @@ export default function PayrollDetailPage() {
 
       {canRun && (
         <div className="flex gap-3">
-          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), 'Payroll disetujui')} loading={busy}>Setujui</Button>}
-          {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), 'Ditandai dibayar')} loading={busy}>Tandai Dibayar</Button>}
+          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), t('hrFix.payrollDetail.approved'))} loading={busy}>Setujui</Button>}
+          {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), t('hrFix.payrollDetail.markedPaid'))} loading={busy}>{t('hrFix.payrollDetail.markPaid')}</Button>}
         </div>
       )}
     </div>

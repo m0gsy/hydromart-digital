@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, ClockCounterClockwise, Wallet } from '@phosphor-icons/react';
 
@@ -19,6 +20,7 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
 });
 
 function Settlement() {
+  const { t } = useT();
   const router = useRouter();
   // The next shift to settle = the newest checked-out shift with no settlement yet.
   const load = useAsync<{ shift: Shift | null }>(async () => {
@@ -40,7 +42,7 @@ function Settlement() {
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-72 w-full" /></div>;
   if (load.error || !load.data) {
-    return <div className="p-5"><ErrorState message={load.error ?? 'Gagal memuat'} onRetry={load.reload} /></div>;
+    return <div className="p-5"><ErrorState message={load.error ?? t('hrFix.settlement.loadFailed')} onRetry={load.reload} /></div>;
   }
 
   const { shift } = load.data;
@@ -57,7 +59,7 @@ function Settlement() {
       );
       setDone(result);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menyetor. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.settlement.settleFailed'));
     } finally {
       setBusy(false);
     }
@@ -69,8 +71,8 @@ function Settlement() {
         <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Setoran tunai (COD)</div>
-        <button type="button" onClick={() => router.push('/driver/settlement/history')} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]" aria-label="Riwayat setoran">
+        <div className="flex-1 text-sm font-extrabold">{t('hrFix.settlement.title')}</div>
+        <button type="button" onClick={() => router.push('/driver/settlement/history')} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]" aria-label={t('hrFix.settlement.historyAria')}>
           <ClockCounterClockwise size={18} />
         </button>
       </header>
@@ -80,7 +82,7 @@ function Settlement() {
       ) : !shift ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <Wallet size={40} className="text-[color:var(--muted)]" />
-          <div className="text-base font-extrabold">Tidak ada shift untuk disetor</div>
+          <div className="text-base font-extrabold">{t('hrFix.settlement.nothingToSettle')}</div>
           <p className="text-sm text-[color:var(--muted)]">
             Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.
           </p>
@@ -91,7 +93,7 @@ function Settlement() {
       ) : (
         <>
           <Card className="p-4">
-            <div className="text-sm font-bold">Shift selesai</div>
+            <div className="text-sm font-bold">{t('hrFix.settlement.shiftDone')}</div>
             <div className="mt-0.5 text-[13px] text-[color:var(--muted)]">
               Check-out {shift.checkOutAt ? WHEN.format(new Date(shift.checkOutAt)) : '—'}
             </div>
@@ -101,7 +103,7 @@ function Settlement() {
           </Card>
 
           <Card className="space-y-3 p-4">
-            <Field label="Jumlah disetor ke kasir" htmlFor="cash">
+            <Field label={t('hrFix.settlement.amountLabel')} htmlFor="cash">
               <Input
                 id="cash"
                 inputMode="numeric"
@@ -111,7 +113,7 @@ function Settlement() {
               />
             </Field>
             <div className="flex items-center justify-between text-sm">
-              <span className="font-bold">Akan disetor</span>
+              <span className="font-bold">{t('hrFix.settlement.willSettle')}</span>
               <Money amount={deposited} className="text-xl font-extrabold text-brand-700" />
             </div>
           </Card>
@@ -137,6 +139,7 @@ function SettlementReceipt({
   settlement: CashSettlement;
   onDone?: () => void;
 }) {
+  const { t } = useT();
   const short = settlement.variance < 0;
   const over = settlement.variance > 0;
   const varianceColor = short ? 'text-red-600' : over ? 'text-amber-600' : 'text-green-600';
@@ -145,20 +148,20 @@ function SettlementReceipt({
     <Card className="flex flex-col gap-3 p-5">
       <div className="flex flex-col items-center gap-1 text-center">
         <CheckCircle size={40} weight="fill" className="text-green-600" />
-        <div className="text-base font-extrabold">Setoran tercatat</div>
-        <div className="text-xs text-[color:var(--muted)]">Menunggu verifikasi kasir</div>
+        <div className="text-base font-extrabold">{t('hrFix.settlement.recorded')}</div>
+        <div className="text-xs text-[color:var(--muted)]">{t('hrFix.settlement.awaitingCashier')}</div>
       </div>
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-[color:var(--muted)]">Total tagihan COD</span>
+          <span className="text-[color:var(--muted)]">{t('hrFix.settlement.codTotal')}</span>
           <Money amount={settlement.expectedAmount} className="font-bold" />
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[color:var(--muted)]">Kamu setor</span>
+          <span className="text-[color:var(--muted)]">{t('hrFix.settlement.youHandedOver')}</span>
           <Money amount={settlement.depositedAmount} className="font-bold" />
         </div>
         <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-1.5">
-          <span className="font-bold">{short ? 'Kurang' : over ? 'Lebih' : 'Selisih'}</span>
+          <span className="font-bold">{short ? t('hrFix.settlement.short') : over ? t('hrFix.settlement.over') : t('hrFix.settlement.difference')}</span>
           <Money amount={Math.abs(settlement.variance)} className={`text-lg font-extrabold ${varianceColor}`} />
         </div>
       </div>

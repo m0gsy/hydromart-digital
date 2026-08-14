@@ -2,7 +2,23 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { printReceipt } from '../src/lib/receipt';
+import { id as idDict } from '../src/lib/dictionaries/id';
 import type { Order } from '../src/lib/types';
+
+/**
+ * The receipt is built outside React, so it takes the translator instead of calling a
+ * hook. Resolving against the REAL Indonesian dictionary keeps the assertions below
+ * meaningful — a key the dictionary is missing prints itself and fails here.
+ */
+const I18N = {
+  locale: 'id',
+  t: (key: string): string => {
+    const value = key
+      .split('.')
+      .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], idDict);
+    return typeof value === 'string' ? value : key;
+  },
+};
 
 const order = {
   id: 'o1',
@@ -44,7 +60,7 @@ function capture(cash?: { cashReceived: number; change: number }, method?: strin
   vi.spyOn(window, 'open').mockReturnValue({
     document: { write, close: vi.fn() },
   } as unknown as Window);
-  printReceipt(order, cash, method);
+  printReceipt(order, I18N, cash, method);
   return html;
 }
 
@@ -76,13 +92,13 @@ describe('printReceipt', () => {
   // who otherwise watches the sale succeed with no struk to hand over.
   it('reports a blocked popup instead of failing silently', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
-    expect(printReceipt(order, { cashReceived: 50000, change: 10000 })).toBe(false);
+    expect(printReceipt(order, I18N, { cashReceived: 50000, change: 10000 })).toBe(false);
   });
 
   it('reports success when the print window opened', () => {
     vi.spyOn(window, 'open').mockReturnValue({
       document: { write: vi.fn(), close: vi.fn() },
     } as unknown as Window);
-    expect(printReceipt(order)).toBe(true);
+    expect(printReceipt(order, I18N)).toBe(true);
   });
 });

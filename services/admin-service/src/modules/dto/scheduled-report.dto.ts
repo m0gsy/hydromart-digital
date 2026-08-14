@@ -13,6 +13,7 @@ import {
 
 import { ExportFormat } from '../../domain/export';
 import { ReportCadence } from '../../domain/report-cadence';
+import { ReportDataset } from '../../domain/report-dataset';
 import { ScheduledReportRecord } from '../../application/ports/scheduled-report.repository';
 
 /* ---------- Requests ---------- */
@@ -38,6 +39,11 @@ export class CreateScheduledReportDto {
   @IsOptional()
   @IsEnum(ExportFormat)
   format?: ExportFormat;
+
+  @ApiPropertyOptional({ enum: ReportDataset, default: ReportDataset.REVENUE_BY_DEPOT })
+  @IsOptional()
+  @IsEnum(ReportDataset)
+  dataset?: ReportDataset;
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
@@ -76,6 +82,11 @@ export class UpdateScheduledReportDto {
   @IsEnum(ExportFormat)
   format?: ExportFormat;
 
+  @ApiPropertyOptional({ enum: ReportDataset })
+  @IsOptional()
+  @IsEnum(ReportDataset)
+  dataset?: ReportDataset;
+
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   @IsOptional()
   @Type(() => Date)
@@ -101,8 +112,12 @@ export class ScheduledReportDto {
   recipients!: string[];
   @ApiProperty({ enum: ExportFormat })
   format!: ExportFormat;
+  @ApiProperty({ enum: ReportDataset, description: 'What goes IN the file.' })
+  dataset!: ReportDataset;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   nextRunAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, description: 'When the sweep last ran it.' })
+  lastRunAt!: string | null;
   @ApiProperty()
   enabled!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -115,7 +130,9 @@ export class ScheduledReportDto {
       cadence: record.cadence,
       recipients: record.recipients,
       format: record.format,
+      dataset: record.dataset,
       nextRunAt: record.nextRunAt ? record.nextRunAt.toISOString() : null,
+      lastRunAt: record.lastRunAt ? record.lastRunAt.toISOString() : null,
       enabled: record.enabled,
       createdAt: record.createdAt.toISOString(),
     };

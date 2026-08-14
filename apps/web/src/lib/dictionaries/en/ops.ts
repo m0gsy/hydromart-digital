@@ -72,6 +72,10 @@ export const ops = {
     roles: 'Roles & access',
     audit: 'Audit log',
     profile: 'Profile',
+    monthlyPnl: 'P&L report',
+    teamPerformance: 'Team performance',
+    depotSettings: 'Depot settings',
+    account: 'My account',
     settings: 'Settings',
   },
   switcher: {

@@ -81,6 +81,7 @@ export class PayoutController {
       franchiseOwnerId: dto.franchiseOwnerId,
       depotId: dto.depotId ?? null,
       amountIdr: dto.amountIdr,
+      commissionBaseIdr: dto.commissionBaseIdr,
       orderNumber: dto.orderNumber ?? null,
       occurredAt: dto.completedAt ? new Date(dto.completedAt) : undefined,
     });

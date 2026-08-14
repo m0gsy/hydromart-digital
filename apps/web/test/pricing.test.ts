@@ -8,8 +8,10 @@ import {
   type RuleForm,
 } from '@/lib/pricing';
 import type { CartLine, ResolvedPrice } from '@/lib/types';
+// Test-only reach into the server's money contract — see "rounding parity" below.
+import { money } from '../../../packages/platform/src/domain/money';
 
-function line(unit: string, quantity: number): CartLine {
+function line(unit: string, quantity: number, isGallon = unit.trim().toLowerCase().startsWith('galon')): CartLine {
   return {
     productId: 'p1',
     productName: 'Air',
@@ -18,6 +20,7 @@ function line(unit: string, quantity: number): CartLine {
     unitPrice: 20000,
     quantity,
     lineTotal: 20000 * quantity,
+    isGallon,
   };
 }
 
@@ -28,12 +31,19 @@ describe('galonQuantity (mirrors the ongkir charge)', () => {
     expect(galonQuantity([line('Galon 19L', 2), line('Dus', 3), line('galon', 1)])).toBe(3);
   });
 
-  it('ignores case and surrounding whitespace on the unit', () => {
-    expect(galonQuantity([line('  GALON 19L ', 4)])).toBe(4);
-  });
-
   it('is zero for a cart with no galon', () => {
     expect(galonQuantity([line('Botol 600ml', 12)])).toBe(0);
+  });
+
+  // The flag is what the server bills on, and it is allowed to disagree with the label: the
+  // label is free text a depot can edit, the flag is catalog data. Counting by label made the
+  // preview and the bill disagree in BOTH directions.
+  it('counts a flagged line whose label does not say galon', () => {
+    expect(galonQuantity([line('Botol 19L', 3, true)])).toBe(3);
+  });
+
+  it('does not count an unflagged line whose label does say galon', () => {
+    expect(galonQuantity([line('Galon (kosong, tukar)', 2, false)])).toBe(0);
   });
 });
 
@@ -105,5 +115,54 @@ describe('toRulePayload validation', () => {
 
   it('rejects a non-integer priority', () => {
     expect(toRulePayload(form({ priority: '1.5' })).ok).toBe(false);
+  });
+});
+
+/**
+ * Server↔client rounding parity. Nothing asserted it before, and the two had drifted: the
+ * server kept two decimals while every price on screen was whole rupiah, so a percentage
+ * discount produced a preview the stored order contradicted by cents.
+ *
+ * `money()` is imported from the platform package directly — that is the contract, and this
+ * test is the only place the web tree is allowed to reach for it. It must NOT be imported by
+ * app code: the package's entrypoint pulls in Nest, which has no business in a browser
+ * bundle. The rule is one line long, so the client re-states it and this pins the two equal.
+ */
+describe('rounding parity with the server', () => {
+  it('rounds a price exactly like platform money()', () => {
+    for (const raw of [0, 0.5, 1.5, 4999.04, 4999.95, 19_000, 99_999 * 0.05]) {
+      expect(Math.round(raw)).toBe(money(raw));
+    }
+  });
+
+  it('computeEffective agrees with money() on a fractional PERCENT rule', () => {
+    // 4.999 with a 3% cut = 4,849.03 — the case that used to store cents. The override IS
+    // the starting price here, so it carries the fraction rather than the catalog base.
+    const r = computeEffective(20000, resolved({ sellPrice: 4999, adjustType: 'PERCENT', value: -3 }));
+    expect(r.effective).toBe(money(4999 * 0.97));
+  });
+
+  // A wholesale band is an absolute unit price. order-service honours it over both the depot
+  // override and the active rule; the client used to have no field for it at all, so a
+  // 20-galon till sale showed Rp380.000 against the Rp320.000 the order stored.
+  it('lets a wholesale band win over the override and the rule', () => {
+    const r = computeEffective(
+      19000,
+      resolved({ sellPrice: 18000, adjustType: 'PERCENT', value: 10, tierPrice: 16000 }),
+    );
+    expect(r.effective).toBe(16000);
+    expect(r.adjustType).toBeNull();
+  });
+
+  it('ignores a zero tierPrice — that is "no band for this line", not a free galon', () => {
+    const r = computeEffective(19000, resolved({ sellPrice: 18000, tierPrice: 0 }));
+    expect(r.effective).toBe(18000);
+  });
+
+  it('membership discount rounds exactly like the server', () => {
+    // What checkout/page.tsx computes for the preview, against what order.service.ts stores.
+    const subtotal = 99_999;
+    const rate = 0.05;
+    expect(Math.round(subtotal * rate)).toBe(money(subtotal * rate));
   });
 });

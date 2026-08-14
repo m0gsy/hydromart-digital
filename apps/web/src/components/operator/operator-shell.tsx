@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { usePathname } from 'next/navigation';
 import { Bell, Drop } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
+import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
 
 function initials(name: string): string {
@@ -74,10 +76,12 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
 }
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   const pathname = usePathname() ?? '/dashboard';
   const { customer } = useAuth();
   const { selected, depots } = useDepot();
   const depot = selected ?? depots[0] ?? null;
+  const { unreadCount: unread } = useOpsNotifications();
   const name = customer?.fullName ?? 'Operator';
 
   return (
@@ -89,21 +93,32 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
             <Drop size={19} weight="fill" className="text-white" />
           </span>
           <span className="text-[15px] font-extrabold">{depot?.name ?? 'Hydromart'}</span>
-          <span className="rounded-md bg-brand-50 px-2 py-[3px] text-[10px] font-extrabold tracking-wide text-brand-800">
-            WARALABA
-          </span>
+          {/* The literal WARALABA badge is gone. It labelled every depot a franchise,
+              including the ones head office owns outright, and there is nothing to source
+              it from at this role: ownershipType lives on the depotAdmin listing (MANAGER,
+              SUPER_ADMIN), and the public browse view deliberately omits it — that view was
+              trimmed precisely because it used to publish depot detail to the open internet. */}
           <div className="ml-auto flex items-center gap-3">
-            <span className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)]">
+            {/* The bell was an icon that did nothing under a red dot that was always on —
+                so it reported unread alerts on a depot with none, and could not be opened
+                to find out. Real count, real destination. */}
+            <Link
+              href="/dashboard/notifications"
+              aria-label={unread > 0 ? `Notifikasi (${unread} belum dibaca)` : 'Notifikasi'}
+              className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
+            >
               <Bell size={18} className="text-[color:var(--text-muted)]" />
-              <span className="absolute right-[9px] top-2 h-[7px] w-[7px] rounded-full bg-[color:var(--danger)]" />
-            </span>
+              {unread > 0 && (
+                <span className="absolute right-[9px] top-2 h-[7px] w-[7px] rounded-full bg-[color:var(--danger)]" />
+              )}
+            </Link>
             <span className="flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-800 text-[13px] font-extrabold text-white">
                 {initials(name)}
               </span>
               <span className="hidden sm:block">
                 <span className="block text-[12.5px] font-extrabold leading-tight">{name}</span>
-                <span className="block text-[10.5px] text-[color:var(--text-muted)]">Operator depot</span>
+                <span className="block text-[10.5px] text-[color:var(--text-muted)]">{t('hrFix.operatorShell.title')}</span>
               </span>
             </span>
           </div>

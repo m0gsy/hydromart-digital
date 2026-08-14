@@ -55,6 +55,17 @@ const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
  */
 const PRUNED = (process.env.NEXT_PUBLIC_MOBILE_PRUNED ?? '').split(',').filter(Boolean);
 
+/**
+ * Does THIS binary serve `path`? Exported because in-app navigation needs the same answer a
+ * deep link does: the Ops binary drops the whole `/hq` subtree, and every console screen used
+ * to send an expired session to `/hq/login` — a route that is not in that bundle. Sign-out and
+ * session expiry both landed on nothing, with no way back in. The prune list comes from the
+ * build itself (`NEXT_PUBLIC_MOBILE_PRUNED`), so this cannot drift from what was pruned.
+ */
+export function isServedHere(path: string): boolean {
+  return servedHere(path, PRUNED);
+}
+
 function servedHere(path: string, pruned: string[]): boolean {
   return !pruned.some((entry) =>
     entry.endsWith('/*')

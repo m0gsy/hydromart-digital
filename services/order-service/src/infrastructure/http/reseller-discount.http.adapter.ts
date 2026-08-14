@@ -21,9 +21,21 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async get(authorization: string): Promise<ResellerDiscount | null> {
+  get(authorization: string): Promise<ResellerDiscount | null> {
+    return this.read('/api/v1/resellers/me', authorization);
+  }
+
+  /**
+   * Counter sale: the buyer is named, and the token belongs to the cashier. `/resellers/:id`
+   * is the by-id read — same shape, same fail-open contract.
+   */
+  getFor(customerId: string, authorization: string): Promise<ResellerDiscount | null> {
+    return this.read(`/api/v1/resellers/${customerId}`, authorization);
+  }
+
+  private async read(path: string, authorization: string): Promise<ResellerDiscount | null> {
     if (!authorization) return null;
-    const url = `${this.config.customerServiceUrl}/api/v1/resellers/me`;
+    const url = `${this.config.customerServiceUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ResellerDiscountHttpAdapter.TIMEOUT_MS);
     try {

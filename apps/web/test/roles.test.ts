@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   canManageEarningRules,
@@ -188,5 +188,57 @@ describe('canManageRoster', () => {
     expect(canManageRoster('CUSTOMER')).toBe(false);
     expect(canManageRoster(null)).toBe(false);
     expect(canManageRoster(undefined)).toBe(false);
+  });
+});
+
+/**
+ * The Ops binary prunes the whole `/hq` subtree, `/hq/login` included, while every console
+ * screen sent an expired session and every sign-out button there. The redirect landed on a
+ * route that is not in that bundle: no error, no door, no way back into the app — on a binary
+ * that was already in Play internal testing.
+ *
+ * The prune list is read from `NEXT_PUBLIC_MOBILE_PRUNED` at module load (the build writes it,
+ * so it cannot disagree with what was pruned), hence the re-import per case.
+ */
+describe('staffDoor / consoleHome respect what this binary actually serves', () => {
+  async function load(pruned: string | undefined) {
+    vi.resetModules();
+    if (pruned === undefined) vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '');
+    else vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', pruned);
+    return import('@/lib/roles');
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('uses the branded staff door on the web, where nothing is pruned', async () => {
+    const { staffDoor } = await load(undefined);
+    expect(staffDoor('/dashboard/orders')).toBe('/hq/login');
+    expect(staffDoor('/hr/me')).toBe('/hq/login');
+    expect(staffDoor('/products')).toBe('/login');
+  });
+
+  it('falls back to /login in a binary that pruned /hq', async () => {
+    const { staffDoor } = await load('/hq/*,/hr');
+    expect(staffDoor('/dashboard/orders')).toBe('/login');
+    expect(staffDoor('/hr/me')).toBe('/login');
+  });
+
+  it('never sends an HQ or HR role to a console the binary dropped', async () => {
+    const { consoleHome } = await load('/hq/*,/hr');
+    // /hq is gone; a head-office account still has the depot console in the Ops app.
+    expect(consoleHome('HEAD_OFFICE')).toBe('/dashboard');
+    // The HR console index is pruned but /hr/me survives — that is where HR belongs here.
+    expect(consoleHome('HR')).toBe('/hr/me');
+  });
+
+  it('keeps the web answers unchanged', async () => {
+    const { consoleHome } = await load(undefined);
+    expect(consoleHome('HEAD_OFFICE')).toBe('/hq');
+    expect(consoleHome('HR')).toBe('/hr');
+    expect(consoleHome('STAFF_DEPOT')).toBe('/driver');
+    expect(consoleHome('CUSTOMER')).toBe('/products');
   });
 });

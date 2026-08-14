@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
@@ -10,6 +11,7 @@ import { canManageHr } from '@/lib/roles';
 
 /** Allowances are per employee, so this page is a picker plus the same panel the detail page shows. */
 export default function AllowancesPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const isAdmin = canManageHr(customer?.role);
   const [employeeId, setEmployeeId] = useState('');
@@ -17,8 +19,8 @@ export default function AllowancesPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader
-        title="Tunjangan"
-        subtitle="Komponen gaji tetap berulang — terpisah dari bonus di slip gaji"
+        title={t('hrFix.hrAllowances.title')}
+        subtitle={t('hrFix.hrAllowances.subtitle')}
         action={
           isAdmin ? (
             <div className="flex gap-2">

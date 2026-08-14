@@ -102,9 +102,35 @@ describe('ApiKeysController', () => {
 });
 
 describe('ExportLogsController', () => {
-  const exports = { list: jest.fn(), ingest: jest.fn() };
+  const exports = { list: jest.fn(), ingest: jest.fn(), download: jest.fn() };
   const controller = new ExportLogsController(exports as unknown as ExportLogService);
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * hq/exports was a list of claims — the table recorded exports and never held one. The
+   * 404 matters as much as the happy path: a zero-byte spreadsheet is the kind of answer
+   * somebody forwards to finance before noticing it says nothing.
+   */
+  it('download sends the stored file as an attachment', async () => {
+    exports.download.mockResolvedValue({ fileName: 'a.csv', content: Buffer.from('hi') });
+    const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
+    await controller.download('11111111-1111-4111-8111-111111111111', res as never);
+    expect(res.header).toHaveBeenCalledWith('content-type', 'application/octet-stream');
+    expect(res.header).toHaveBeenCalledWith(
+      'content-disposition',
+      'attachment; filename="a.csv"',
+    );
+    expect(res.send).toHaveBeenCalledWith(Buffer.from('hi'));
+  });
+
+  it('download 404s when the row has no file rather than sending an empty body', async () => {
+    exports.download.mockResolvedValue(null);
+    const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
+    await expect(
+      controller.download('11111111-1111-4111-8111-111111111111', res as never),
+    ).rejects.toThrow();
+    expect(res.send).not.toHaveBeenCalled();
+  });
 
   it('list forwards explicit paging + filters', async () => {
     exports.list.mockResolvedValue({ items: [makeExportLog()], total: 1, page: 2, limit: 5 });
@@ -259,21 +285,43 @@ describe('NotificationPrefsController', () => {
   const controller = new NotificationPrefsController(
     prefs as unknown as AdminNotificationPrefService,
   );
-  const user = { sub: 'acc-1' } as AuthenticatedUser;
+  const user = { sub: 'acc-1', role: 'HEAD_OFFICE' } as AuthenticatedUser;
+  const depotUser = { sub: 'acc-2', role: 'KEPALA_DEPOT' } as AuthenticatedUser;
+  const bothUser = { sub: 'acc-3', role: 'SUPER_ADMIN' } as AuthenticatedUser;
   const record: AdminNotificationPrefRecord = { accountId: 'acc-1', channels: [], updatedAt: now };
   beforeEach(() => jest.clearAllMocks());
 
   it('get reads the caller-scoped prefs', async () => {
     prefs.get.mockResolvedValue(record);
     await controller.get(user);
-    expect(prefs.get).toHaveBeenCalledWith('acc-1');
+    expect(prefs.get).toHaveBeenCalledWith('acc-1', 'ALL');
+  });
+
+  it('serves the depot event list to a depot account', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get(depotUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-2', 'DEPOT');
+  });
+
+  it('serves both lists to a super admin too', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get(bothUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-3', 'ALL');
+  });
+
+  // A role with neither capability still owns its own phone: it gets the depot list rather
+  // than an empty one, because that is the console it can actually open.
+  it('falls back to the depot list for a role in neither group', async () => {
+    prefs.get.mockResolvedValue(record);
+    await controller.get({ sub: 'acc-4', role: 'STAFF_DEPOT' } as AuthenticatedUser);
+    expect(prefs.get).toHaveBeenCalledWith('acc-4', 'DEPOT');
   });
 
   it('save replaces the caller-scoped prefs', async () => {
     prefs.save.mockResolvedValue(record);
-    const events = [{ id: 'order.new', push: true, email: false, wa: true }];
+    const events = [{ id: 'criticalSla', push: true, email: false, wa: true }];
     await controller.save(user, { events });
-    expect(prefs.save).toHaveBeenCalledWith('acc-1', events);
+    expect(prefs.save).toHaveBeenCalledWith('acc-1', events, 'ALL');
   });
 });
 
@@ -403,8 +451,17 @@ describe('RetentionController', () => {
 
 describe('ScheduledReportsController', () => {
   const reports = { list: jest.fn(), create: jest.fn(), update: jest.fn(), remove: jest.fn() };
-  const controller = new ScheduledReportsController(reports as unknown as ScheduledReportService);
+  const runner = { runDue: jest.fn().mockResolvedValue({ due: 2, produced: 2, failed: 0 }) };
+  const controller = new ScheduledReportsController(
+    reports as unknown as ScheduledReportService,
+    runner as never,
+  );
   beforeEach(() => jest.clearAllMocks());
+
+  it('runDue delegates to the sweep and returns its counts', async () => {
+    await expect(controller.runDue()).resolves.toEqual({ due: 2, produced: 2, failed: 0 });
+    expect(runner.runDue).toHaveBeenCalled();
+  });
 
   it('list maps records with and without a nextRunAt', async () => {
     reports.list.mockResolvedValue([

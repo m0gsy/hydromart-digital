@@ -41,6 +41,7 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
           franchiseOwnerId: event.franchiseOwnerId,
           depotId: event.depotId,
           amountIdr: event.amountIdr,
+          commissionBaseIdr: event.commissionBaseIdr,
           completedAt: event.completedAt,
         }),
         signal: controller.signal,

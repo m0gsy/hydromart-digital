@@ -1,8 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import {
+  OtpDeliveryUnavailableError,
   OtpInvalidError,
   OtpMaxAttemptsError,
   OtpResendCooldownError,
@@ -21,6 +22,8 @@ import { OtpChallengeResult } from '../results';
  */
 @Injectable()
 export class OtpService {
+  private readonly logger = new Logger(OtpService.name);
+
   constructor(
     @Inject(AUTH_TOKENS.OtpTokenRepository) private readonly otpTokens: OtpTokenRepository,
     @Inject(AUTH_TOKENS.OtpDeliveryPort) private readonly delivery: OtpDeliveryPort,
@@ -60,12 +63,25 @@ export class OtpService {
     // phone on every sign-in attempt during review. Only the delivery is skipped — the
     // challenge is stored, expires and is verified exactly like any other.
     if (!fixed) {
-      await this.delivery.send({
-        phone: customer.phone,
-        code,
-        purpose,
-        ttlSeconds: policy.ttlSeconds,
-      });
+      try {
+        await this.delivery.send({
+          phone: customer.phone,
+          code,
+          purpose,
+          ttlSeconds: policy.ttlSeconds,
+        });
+      } catch (error) {
+        // The challenge above is already stored, so a retry mints a fresh code rather than
+        // landing on a dead end. What must NOT happen is the adapter's raw failure reaching
+        // the client as a 500 — an unreachable SMS gateway is an outage the caller can only
+        // respond to if it is named.
+        this.logger.error(
+          `OTP delivery failed for ${OtpService.maskPhone(customer.phone)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        throw new OtpDeliveryUnavailableError();
+      }
     }
 
     return {

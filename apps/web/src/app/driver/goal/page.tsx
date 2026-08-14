@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Lightning, LockSimple } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -93,6 +93,10 @@ function ShiftGoal() {
           </div>
         </Card>
       </div>
+
+      {/* Target and ladder both hide themselves at 0, so an unread rule turns the goal
+          screen into an earnings screen — and a courier reads that as "no target set". */}
+      {rule.error && <LoadError onRetry={rule.reload} />}
 
       {tiers.length > 0 && (
         <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">

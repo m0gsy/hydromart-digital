@@ -4,6 +4,7 @@ import { DepotLocationHttpAdapter } from '../../src/infrastructure/http/depot-lo
 import { OpsNotifierHttpAdapter } from '../../src/infrastructure/http/ops-notifier.http.adapter';
 import { EventPublisherHttpAdapter } from '../../src/infrastructure/http/event-publisher.http.adapter';
 import { CashCollectionHttpAdapter } from '../../src/infrastructure/http/cash-collection.http.adapter';
+import { OrderPaymentHttpAdapter } from '../../src/infrastructure/http/order-payment.http.adapter';
 import { CourierPayoutHttpAdapter } from '../../src/infrastructure/http/courier-payout.http.adapter';
 import { RatingHttpAdapter } from '../../src/infrastructure/http/rating.http.adapter';
 import type { OpsIncidentAlert } from '../../src/application/ports/ops-notifier.port';
@@ -473,5 +474,56 @@ describe('EventPublisherHttpAdapter', () => {
     await expect(
       new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at),
     ).resolves.toBeUndefined();
+  });
+});
+
+/*
+ * The COD read. Everything here fails CLOSED on purpose: a null would be taken as "this
+ * order has no payment", which on an unreachable service sends the courier out to collect
+ * nothing on a cash sale.
+ */
+describe('OrderPaymentHttpAdapter', () => {
+  const ORDER = 'a2f0d0f8-0000-4000-8000-000000000001';
+
+  it('reads the order payment over the internal key, never a bearer', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({ body: { items: [{ method: 'CASH', amount: 175000 }], total: 1 } }),
+    );
+    const out = await new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER);
+    expect(out).toEqual({ method: 'CASH', amount: 175000 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://payment:3004/api/v1/payments/internal/for-order/${ORDER}`);
+    expect((init.headers as Record<string, string>)['x-internal-key']).toBe(KEY);
+    expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+  });
+
+  it('returns null when the order has no payment row yet', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: { items: [], total: 0 } }));
+    expect(await new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER)).toBeNull();
+  });
+
+  it('throws on a non-2xx rather than reporting "no payment"', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    await expect(new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER)).rejects.toThrow(/503/);
+  });
+
+  it('throws on a payment with no method or amount', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: { items: [{ amount: 1000 }] } }));
+    await expect(new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER)).rejects.toThrow(
+      /method\/amount/,
+    );
+  });
+
+  it('refuses to run at all when the internal key is blank', async () => {
+    await expect(
+      new OrderPaymentHttpAdapter(makeConfig({ internalServiceKey: '' })).forOrder(ORDER),
+    ).rejects.toThrow(/INTERNAL_SERVICE_KEY/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses to run when the payment-service URL is blank', async () => {
+    await expect(
+      new OrderPaymentHttpAdapter(makeConfig({ paymentServiceUrl: '' })).forOrder(ORDER),
+    ).rejects.toThrow(/INTERNAL_SERVICE_KEY/);
   });
 });

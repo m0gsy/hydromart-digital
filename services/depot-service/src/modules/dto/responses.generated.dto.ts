@@ -1266,3 +1266,29 @@ export class CustomerGallonLedgerEntryResponseDto {
   @ApiProperty({ type: String })
   at!: string;
 }
+
+/** Mirrors `GallonReturnRangeSummary` exactly — generated for audit D-6, no field added or removed. */
+export class GallonReturnRangeResponseDto {
+  @ApiProperty({ type: Number })
+  gallons!: number;
+  @ApiProperty({ type: Number })
+  damaged!: number;
+}
+
+/** Mirrors `DepotCosts` exactly — generated for audit D-6, no field added or removed. */
+export class DepotCostsResponseDto {
+  @ApiProperty({ type: Number })
+  cogsIdr!: number;
+  @ApiProperty({ type: Number })
+  opexIdr!: number;
+}
+export class DepotGovernanceResponseDto {
+  @ApiProperty({ type: Number })
+  approvalsReviewed!: number;
+  @ApiProperty({ type: Number })
+  opnameVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  settlementVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  daysClosed!: number;
+}

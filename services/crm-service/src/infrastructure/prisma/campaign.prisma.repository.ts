@@ -43,6 +43,7 @@ interface CampaignRow {
   createdAt: Date;
   updatedAt: Date;
   sentAt: Date | null;
+  scheduledFor: Date | null;
 }
 
 @Injectable()
@@ -58,6 +59,9 @@ export class CampaignPrismaRepository implements CampaignRepository {
       ...row,
       channel: row.channel as CampaignChannel,
       status: row.status as CampaignStatus,
+      // Rows written before the column existed read as null, which is the pre-scheduling
+      // meaning of "due now" — no backfill, no campaign stranded by the migration.
+      scheduledFor: row.scheduledFor ?? null,
       recipients: recipients.map((r) => this.toRecipient(r)),
     };
   }
@@ -70,6 +74,7 @@ export class CampaignPrismaRepository implements CampaignRepository {
           messageTemplate: data.messageTemplate,
           createdBy: data.createdBy,
           totalRecipients: data.recipients.length,
+          scheduledFor: data.scheduledFor ?? null,
           recipients: {
             create: data.recipients.map((r) => ({
               customerId: r.customerId ?? null,
@@ -126,9 +131,15 @@ export class CampaignPrismaRepository implements CampaignRepository {
     return count === 1;
   }
 
-  async findSending(limit: number): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
     const rows = await this.prisma.campaign.findMany({
-      where: { status: PrismaCampaignStatus.SENDING },
+      // A scheduled campaign is claimed the moment staff press the button — it is SENDING
+      // straight away — but it is not DUE until its time. The sweep is the only place that
+      // distinction lives, so a campaign for tomorrow simply is not picked up today.
+      where: {
+        status: PrismaCampaignStatus.SENDING,
+        OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }],
+      },
       orderBy: { createdAt: 'asc' },
       take: limit,
     });

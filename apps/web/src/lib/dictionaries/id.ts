@@ -26,6 +26,7 @@ import { courierFix } from './id/courierFix';
 import { hqFix } from './id/hqFix';
 import { opsFix } from './id/opsFix';
 import { mgrFix } from './id/mgrFix';
+import { hrFix } from './id/hrFix';
 import { settings } from './id/settings';
 
 export const id = {
@@ -143,6 +144,9 @@ export const id = {
     retry: 'Coba lagi',
     loading: 'Memuat…',
     somethingWrong: 'Ada yang tidak beres',
+    // A lookup that fills a control, not the page. Deliberately not 'kosong': an empty
+    // dropdown and a dropdown that could not be asked are opposite answers.
+    loadFailed: 'Gagal dimuat.',
     // Used by the HQ order queue's assign-depot failure; without it the screen printed
     // the key itself at the user.
     error: 'Ada yang tidak beres.',
@@ -172,6 +176,7 @@ export const id = {
   hqFix,
   opsFix,
   mgrFix,
+  hrFix,
   settings,
 };
 

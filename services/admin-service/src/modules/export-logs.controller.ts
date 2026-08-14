@@ -4,10 +4,15 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
@@ -42,6 +47,34 @@ export class ExportLogsController {
       status: query.status,
     });
     return { ...result, items: result.items.map(ExportLogDto.from) };
+  }
+
+  /**
+   * Download the file a scheduled run produced (design 15c).
+   *
+   * `hq/exports` was a list of claims: the table recorded that an export happened and never
+   * held one, because nothing produced a file in the first place. The sweep now stores the
+   * bytes on the row, and this is where they come back out.
+   */
+  @ApiOkResponse({
+    description: 'The stored file, as an attachment. Not JSON — no DTO to declare.',
+    content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Can('hqConsole')
+  @Get(':id/download')
+  @ApiOperation({ summary: 'Download the file a scheduled report produced (15c)' })
+  async download(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const file = await this.exports.download(id);
+    // 404 for "no file", not an empty 200: a zero-byte spreadsheet is the kind of answer
+    // somebody forwards to finance before noticing it says nothing.
+    if (!file) throw new NotFoundException('Berkas ekspor tidak tersedia.');
+    res
+      .header('content-type', 'application/octet-stream')
+      .header('content-disposition', `attachment; filename="${file.fileName}"`)
+      .send(file.content);
   }
 
   // Service-to-service ingest: an export job records its own run. @Public() bypasses the

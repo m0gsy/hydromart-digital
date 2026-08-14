@@ -153,8 +153,15 @@ describe('CashierShiftController', () => {
 
 describe('CashbookController', () => {
   const svc = { list: jest.fn(), record: jest.fn() };
-  const c = new CashbookController(svc as never);
+  const costs = { costsInRange: jest.fn().mockResolvedValue({ cogsIdr: 0, opexIdr: 0 }) };
+  const c = new CashbookController(svc as never, costs as never);
   beforeEach(() => jest.clearAllMocks());
+
+  // S2: the cost side of the monthly review, read service-to-service.
+  it('parses both bounds for the internal depot-costs read', async () => {
+    await c.depotCosts({ depotId: DEPOT, from: ISO, to: ISO } as never);
+    expect(costs.costsInRange).toHaveBeenCalledWith(DEPOT, new Date(ISO), new Date(ISO));
+  });
 
   it('lists with and without a date window', async () => {
     await c.list({ depotId: DEPOT } as never);
@@ -390,7 +397,12 @@ describe('GallonIssueController', () => {
 });
 
 describe('GallonNetworkController', () => {
-  const gallon = { outstanding: jest.fn(), perCustomer: jest.fn(), customerLedger: jest.fn() };
+  const gallon = {
+    outstanding: jest.fn(),
+    perCustomer: jest.fn(),
+    customerLedger: jest.fn(),
+    gallonsInRange: jest.fn(),
+  };
   const depots = { listMine: jest.fn() };
   const c = new GallonNetworkController(gallon as never, depots as never);
   const CUSTOMER = '22222222-2222-4222-8222-222222222222';
@@ -398,6 +410,7 @@ describe('GallonNetworkController', () => {
     jest.clearAllMocks();
     gallon.outstanding.mockResolvedValue([{ depotId: DEPOT }, { depotId: 'other' }]);
     gallon.perCustomer.mockResolvedValue([]);
+    gallon.gallonsInRange.mockResolvedValue({ gallons: 0, damaged: 0 });
     gallon.customerLedger.mockResolvedValue([]);
   });
 
@@ -411,6 +424,19 @@ describe('GallonNetworkController', () => {
   it('passes the depot straight through to the per-customer ledger', async () => {
     await expect(c.perCustomer(DEPOT)).resolves.toEqual([]);
     expect(gallon.perCustomer).toHaveBeenCalledWith(DEPOT);
+  });
+
+  // S2: the daily report's returned/damaged columns. The window is parsed here and the
+  // depot comes off the same DTO — one query object, so a caller cannot name one depot in
+  // the path and another in the body.
+  it('parses the window and forwards the depot for the daily returns read', async () => {
+    const from = '2026-07-14T17:00:00.000Z';
+    const to = '2026-07-15T17:00:00.000Z';
+    await expect(c.returnsInRange({ depotId: DEPOT, from, to } as never)).resolves.toEqual({
+      gallons: 0,
+      damaged: 0,
+    });
+    expect(gallon.gallonsInRange).toHaveBeenCalledWith(DEPOT, new Date(from), new Date(to));
   });
 
   it('returns the full network rollup for HQ roles', async () => {
@@ -1072,11 +1098,20 @@ describe('SubscriptionController', () => {
     get: jest.fn(),
     pause: jest.fn(),
     resume: jest.fn(),
+    activeCustomerIds: jest.fn(),
   };
   const c = new SubscriptionController(svc as never);
   beforeEach(() => {
     jest.clearAllMocks();
     svc.get.mockResolvedValue({ depotId: DEPOT });
+  });
+
+  // S2. Ids only: the caller is customer-service filling in one boolean per person, and the
+  // subscription's product, cadence and note are none of its business.
+  it('answers the internal read with ids alone, wrapped for the caller', async () => {
+    svc.activeCustomerIds.mockResolvedValue(['c1', 'c2']);
+    await expect(c.activeCustomerIds(DEPOT)).resolves.toEqual({ customerIds: ['c1', 'c2'] });
+    expect(svc.activeCustomerIds).toHaveBeenCalledWith(DEPOT);
   });
 
   it('lists, creates with defaults/optionals, pauses and resumes', async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -40,6 +41,7 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
  * decision it is waiting for, so one screen serves both.
  */
 export default function LeaveQueuePage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isHr = canManageHr(customer?.role);
@@ -59,18 +61,18 @@ export default function LeaveQueuePage() {
         : endpoints.hr.leaveHrDecision(row.id);
     try {
       await api.patch(url, { approve, note: note[row.id]?.trim() || undefined }, true);
-      toast(approve ? 'Pengajuan disetujui' : 'Pengajuan ditolak');
+      toast(approve ? t('hrFix.leave.approved') : t('hrFix.leave.rejected'));
       queue.reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal memproses', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.leave.failed'), 'error');
     }
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader
-        title="Pengajuan Cuti"
-        subtitle="Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti."
+        title={t('hrFix.leave.title')}
+        subtitle={t('hrFix.leave.subtitle')}
         action={
           isHr ? (
             <LinkButton href="/hr/leave/balances-import" variant="secondary">
@@ -86,10 +88,10 @@ export default function LeaveQueuePage() {
           onChange={(e) => setStatus(e.target.value as LeaveStatus | '')}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
         >
-          <option value="">Semua status</option>
+          <option value="">{t('hrFix.leave.allStatuses')}</option>
           {(Object.keys(LEAVE_STATUS_LABEL) as LeaveStatus[]).map((s) => (
             <option key={s} value={s}>
-              {LEAVE_STATUS_LABEL[s]}
+              {t(LEAVE_STATUS_LABEL[s])}
             </option>
           ))}
         </select>
@@ -98,7 +100,7 @@ export default function LeaveQueuePage() {
       {queue.loading && <Skeleton className="h-32" />}
       {queue.error && <ErrorState message={queue.error} onRetry={queue.reload} />}
       {queue.data && queue.data.rows.length === 0 && (
-        <Card className="p-8 text-center text-sm text-muted">Tidak ada pengajuan.</Card>
+        <Card className="p-8 text-center text-sm text-muted">{t('hrFix.leave.empty')}</Card>
       )}
       {queue.data && queue.data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
@@ -109,8 +111,8 @@ export default function LeaveQueuePage() {
             return (
               <div key={r.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{LEAVE_TYPE_LABEL[r.type]}</span>
-                  <Badge tone={TONE[r.status]}>{LEAVE_STATUS_LABEL[r.status]}</Badge>
+                  <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
+                  <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
                 </div>
                 <p className="text-sm text-muted">
                   {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja
@@ -122,16 +124,16 @@ export default function LeaveQueuePage() {
                     <Input
                       value={note[r.id] ?? ''}
                       onChange={(e) => setNote((n) => ({ ...n, [r.id]: e.target.value }))}
-                      placeholder="Catatan (wajib bila menolak)"
+                      placeholder={t('hrFix.leave.noteHint')}
                       className="max-w-xs"
                     />
-                    <Button onClick={() => decide(r, true)}>Setujui</Button>
+                    <Button onClick={() => decide(r, true)}>{t('hrFix.leave.approve')}</Button>
                     <Button variant="secondary" onClick={() => decide(r, false)}>
                       Tolak
                     </Button>
                   </div>
                 )}
-                {waitingHr && !isHr && <p className="text-xs text-muted">Menunggu keputusan HR.</p>}
+                {waitingHr && !isHr && <p className="text-xs text-muted">{t('hrFix.leave.awaitingHr')}</p>}
               </div>
             );
           })}

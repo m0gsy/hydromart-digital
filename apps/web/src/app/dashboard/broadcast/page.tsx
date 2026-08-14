@@ -4,7 +4,17 @@ import { useState } from 'react';
 import { Info, Lock, Megaphone, PaperPlaneTilt, UsersThree, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CenterState,
+  Chip,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -20,10 +30,13 @@ import { useAsync } from '@/lib/use-async';
 
 type BroadcastLevel = 'INFO' | 'URGENT' | 'SCHEDULED';
 
-// Spec 11a — broadcast audience. Couriers is the original depot→courier channel; the three
-// customer segments target depot customers. `all` reach is real (order-service activity);
-// churn/new counts are not yet segmentable so they carry no live count.
-// ponytail: customer-segment sizing needs a CRM segment endpoint. TODO(backend): reach by segment.
+// Spec 11a — broadcast audience. Two different channels behind one composer: "Kurir" is the
+// depot→courier in-app announcement (crm broadcasts), the three customer segments are a real
+// WhatsApp campaign scoped to this depot (crm campaigns/depot, `depotCampaign` capability).
+//
+// Both used to go to the courier route with an `audience` field the DTO does not have, so
+// behind `forbidNonWhitelisted` EVERY send was a 400 — and had one gone through, "Semua
+// pelanggan" would have messaged couriers. The churn chip carried a literal 18.
 type Audience = 'couriers' | 'all' | 'churn' | 'new';
 const AUDIENCES: Audience[] = ['couriers', 'all', 'churn', 'new'];
 const AUDIENCE_KEY: Record<Audience, string> = {
@@ -31,6 +44,14 @@ const AUDIENCE_KEY: Record<Audience, string> = {
   all: 'mgrFix.broadcast.audAll',
   churn: 'mgrFix.broadcast.audChurn',
   new: 'mgrFix.broadcast.audNew',
+};
+
+// The activity conditions each customer chip both SIZES and SENDS with — one constant, so
+// the number on the chip and the audience of the blast cannot drift apart.
+const AUDIENCE_CONDITIONS: Record<'all' | 'churn' | 'new', { lapsedDays?: number; newWithinDays?: number }> = {
+  all: {},
+  churn: { lapsedDays: 60 },
+  new: { newWithinDays: 30 },
 };
 
 type Broadcast = {
@@ -58,14 +79,18 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Real reachable-customer count for the depot (order-service activity). Only meaningful
-  // for the "all customers" segment; churn/new have no live sizing yet (see AUDIENCES note).
-  const reach = useAsync<{ count: number }>(
-    () => api.get(endpoints.reports.audienceReach(depotId), true),
-    [depotId],
-  );
+  // Every customer chip is sized from the SAME conditions it will send with. `all` keeps
+  // the cheaper audience-reach read — an empty segment is exactly "reachable at this depot".
   const toCustomers = audience !== 'couriers';
-  const allReach = reach.data?.count ?? null;
+  const reach = useAsync<{ count: number } | null>(() => {
+    if (!toCustomers) return Promise.resolve(null);
+    if (audience === 'all') return api.get<{ count: number }>(endpoints.reports.audienceReach(depotId), true);
+    return api.get<{ count: number }>(
+      endpoints.segments.estimate({ depotId, ...AUDIENCE_CONDITIONS[audience] }),
+      true,
+    );
+  }, [depotId, audience, toCustomers]);
+  const audienceSize = reach.data?.count ?? null;
 
   async function send() {
     if (!title.trim() || !body.trim()) {
@@ -75,7 +100,24 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.broadcasts.create, { depotId, level, audience, title: title.trim(), body: body.trim() }, true);
+      if (toCustomers) {
+        // A customer blast is a WhatsApp campaign, not a courier notice. The depot's own
+        // conditions ride along; the server pins the depot again from the guarded field.
+        await api.post(
+          endpoints.crm.createDepotCampaign,
+          {
+            depotId,
+            name: title.trim(),
+            messageTemplate: `${title.trim()}
+
+${body.trim()}`,
+            segment: AUDIENCE_CONDITIONS[audience],
+          },
+          true,
+        );
+      } else {
+        await api.post(endpoints.broadcasts.create, { depotId, level, title: title.trim(), body: body.trim() }, true);
+      }
       setTitle('');
       setBody('');
       setLevel('INFO');
@@ -95,7 +137,7 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
         <div className="flex flex-wrap gap-2">
           {AUDIENCES.map((a) => {
             const active = audience === a;
-            const count = a === 'all' ? allReach : a === 'churn' ? 18 : null;
+            const count = a === audience ? audienceSize : null;
             return (
               <button
                 key={a}
@@ -112,6 +154,8 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
             );
           })}
         </div>
+        {/* No chip count is not "nobody is in this segment" — say which one it is. */}
+        {reach.error && <LoadError onRetry={reach.reload} className="mt-2" />}
       </div>
       <div>
         <p className="mb-2 text-[11.5px] font-bold">{t('dashA.broadcast.levelLabel')}</p>
@@ -166,8 +210,8 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
         </span>
         <Button onClick={send} loading={busy}>
           <PaperPlaneTilt size={17} weight="fill" className="mr-1.5" />
-          {audience === 'all' && allReach != null
-            ? t('mgrFix.broadcast.sendCustomers', { n: allReach })
+          {toCustomers && audienceSize != null
+            ? t('mgrFix.broadcast.sendCustomers', { n: audienceSize })
             : t('dashA.broadcast.send')}
         </Button>
       </div>

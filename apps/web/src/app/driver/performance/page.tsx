@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -46,6 +47,7 @@ function weekRangeLabel(weekStart: string): string {
 }
 
 function Performance() {
+  const { t } = useT();
   const router = useRouter();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? undefined;
@@ -67,15 +69,15 @@ function Performance() {
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Performa mingguan</div>
+        <div className="flex-1 text-sm font-extrabold">{t('hrFix.driverPerf.title')}</div>
         <div className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-2.5 py-1.5">
-          <button type="button" aria-label="Minggu sebelumnya" onClick={() => setWeeksAgo((w) => w + 1)}>
+          <button type="button" aria-label={t('hrFix.driverPerf.prevWeek')} onClick={() => setWeeksAgo((w) => w + 1)}>
             <CaretLeft size={13} />
           </button>
           <span className="text-[11.5px] font-bold tabular-nums">{weekRangeLabel(weekStart)}</span>
           <button
             type="button"
-            aria-label="Minggu berikutnya"
+            aria-label={t('hrFix.driverPerf.nextWeek')}
             disabled={weeksAgo === 0}
             className="disabled:opacity-30"
             onClick={() => setWeeksAgo((w) => Math.max(0, w - 1))}
@@ -97,6 +99,7 @@ function Performance() {
 }
 
 function Body({ p }: { p: CourierPerformance }) {
+  const { t } = useT();
   const deliveredDelta =
     p.deliveredPrev > 0 ? Math.round(((p.delivered - p.deliveredPrev) / p.deliveredPrev) * 100) : null;
   const ratingDelta =
@@ -110,7 +113,7 @@ function Body({ p }: { p: CourierPerformance }) {
         <Card className="bg-brand-600 p-4 text-on-brand">
           <div className="flex items-center gap-2">
             <Trophy size={19} weight="fill" className="text-amber-300" />
-            <span className="text-xs font-bold opacity-90">Peringkat depot minggu ini</span>
+            <span className="text-xs font-bold opacity-90">{t('hrFix.driverPerf.depotRank')}</span>
           </div>
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tabular-nums">#{p.rank}</span>
@@ -127,10 +130,10 @@ function Body({ p }: { p: CourierPerformance }) {
       )}
 
       <div className="flex gap-2.5">
-        <Stat value={String(p.delivered)} label="Antar selesai" delta={deltaText(deliveredDelta, '%')} />
+        <Stat value={String(p.delivered)} label={t('hrFix.driverPerf.completed')} delta={deltaText(deliveredDelta, '%')} />
         <Stat
           value={p.rating === null ? '—' : p.rating.toLocaleString('id-ID')}
-          label="Rating"
+          label={t('hrFix.driverPerf.rating')}
           icon={<Star size={16} weight="fill" className="text-amber-500" />}
           delta={ratingDelta === null ? null : deltaText(ratingDelta, '')}
         />
@@ -138,7 +141,7 @@ function Body({ p }: { p: CourierPerformance }) {
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs font-extrabold">Antar per hari</span>
+          <span className="text-xs font-extrabold">{t('hrFix.driverPerf.perDay')}</span>
           <span className="text-[11px] text-[color:var(--muted)]">rata-rata {avgDay.toLocaleString('id-ID')}</span>
         </div>
         <div className="flex h-24 items-end justify-between gap-2">
@@ -155,12 +158,12 @@ function Body({ p }: { p: CourierPerformance }) {
       </Card>
 
       <Card className="px-4 py-1">
-        <Row icon={<Timer size={17} weight="fill" />} label="Tepat waktu (SLA)">
+        <Row icon={<Timer size={17} weight="fill" />} label={t('hrFix.driverPerf.onTime')}>
           <span className="font-extrabold tabular-nums text-green-600">
             {Math.round(p.onTimeRate * 100)}%
           </span>
         </Row>
-        <Row icon={<XCircle size={17} weight="fill" />} label="Gagal antar" divider>
+        <Row icon={<XCircle size={17} weight="fill" />} label={t('hrFix.driverPerf.failedDeliveries')} divider>
           <span className="font-extrabold tabular-nums">{p.failed}</span>
         </Row>
         <Row icon={<Target size={17} weight="fill" />} label={`Target mingguan · ${p.target}`} divider>

@@ -75,6 +75,7 @@ function toPayload(f: PromoForm): PromotionPayload {
 }
 
 function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onDone: () => void; onCancel: () => void }) {
+  const { t } = useT();
   const [form, setForm] = useState<PromoForm>(promo ? formFrom(promo) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +83,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 
   async function submit() {
     if (!form.title.trim()) {
-      setError('Judul wajib diisi.');
+      setError(t('hrFix.promotions.headlineRequired'));
       return;
     }
     setBusy(true);
@@ -99,7 +100,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
       }
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan promo.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.promotions.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -107,31 +108,31 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="text-lg font-bold">{promo ? 'Edit promo' : 'Promo baru'}</h2>
+      <h2 className="text-lg font-bold">{promo ? t('hrFix.promotions.edit') : 'Promo baru'}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Judul">
-          <Input value={form.title} onChange={set('title')} placeholder="Gratis ongkir pertama" />
+        <Field label={t('hrFix.promotions.headline')}>
+          <Input value={form.title} onChange={set('title')} placeholder={t('hrFix.promotions.headlineHint')} />
         </Field>
-        <Field label="Subjudul">
-          <Input value={form.subtitle} onChange={set('subtitle')} placeholder="Untuk pesanan pertama" />
+        <Field label={t('hrFix.promotions.subhead')}>
+          <Input value={form.subtitle} onChange={set('subtitle')} placeholder={t('hrFix.promotions.subheadHint')} />
         </Field>
-        <Field label="Gambar (URL)">
+        <Field label={t('hrFix.promotions.imageUrl')}>
           <Input value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://…" />
         </Field>
-        <Field label="Kode voucher">
+        <Field label={t('hrFix.promotions.voucherCode')}>
           <Input value={form.voucherCode} onChange={set('voucherCode')} placeholder="ONGKIRGRATIS" />
         </Field>
-        <Field label="Label tombol">
-          <Input value={form.ctaLabel} onChange={set('ctaLabel')} placeholder="Pesan sekarang" />
+        <Field label={t('hrFix.promotions.ctaLabel')}>
+          <Input value={form.ctaLabel} onChange={set('ctaLabel')} placeholder={t('hrFix.promotions.ctaLabelHint')} />
         </Field>
-        <Field label="Link tombol">
+        <Field label={t('hrFix.promotions.ctaHref')}>
           <Input value={form.ctaHref} onChange={set('ctaHref')} placeholder="/products" />
         </Field>
-        <Field label="Urutan">
+        <Field label={t('hrFix.promotions.sortOrder')}>
           <Input type="number" value={form.sortOrder} onChange={set('sortOrder')} />
         </Field>
         {promo && (
-          <Field label="Aktif" hint="Nonaktifkan untuk menyembunyikan dari beranda">
+          <Field label={t('hrFix.promotions.active')} hint={t('hrFix.promotions.activeHint')}>
             <label className="flex items-center gap-2 py-2 text-sm">
               <input
                 type="checkbox"
@@ -142,17 +143,17 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
             </label>
           </Field>
         )}
-        <Field label="Mulai" hint="Kosongkan untuk langsung aktif">
+        <Field label={t('hrFix.promotions.startsAt')} hint={t('hrFix.promotions.startsHint')}>
           <Input type="date" value={form.startsAt} onChange={set('startsAt')} />
         </Field>
-        <Field label="Berakhir" hint="Kosongkan untuk tanpa batas">
+        <Field label={t('hrFix.promotions.endsAt')} hint={t('hrFix.promotions.endsHint')}>
           <Input type="date" value={form.endsAt} onChange={set('endsAt')} />
         </Field>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
-          {promo ? 'Simpan' : 'Buat promo'}
+          {promo ? t('hrFix.promotions.save') : t('hrFix.promotions.create')}
         </Button>
         <Button variant="ghost" onClick={onCancel}>
           Batal
@@ -209,7 +210,7 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-xl font-extrabold tracking-tight">{data.voucherCode || data.title}</h1>
-            <Badge tone={promo.active ? 'success' : 'neutral'}>{promo.active ? 'Aktif' : 'Nonaktif'}</Badge>
+            <Badge tone={promo.active ? 'success' : 'neutral'}>{promo.active ? 'Aktif' : t('hrFix.promotions.inactive')}</Badge>
           </div>
           <p className="truncate text-xs text-muted">{promo.subtitle || promo.title}</p>
         </div>
@@ -311,7 +312,7 @@ function PromotionsAdmin() {
 
   if (customer && !canViewCampaigns(customer.role)) {
     return (
-      <CenterState icon={<Lock size={48} weight="thin" />} title="Akses ditolak">
+      <CenterState icon={<Lock size={48} weight="thin" />} title={t('hrFix.promotions.denied')}>
         Halaman promo hanya untuk tim marketing.
       </CenterState>
     );
@@ -323,7 +324,7 @@ function PromotionsAdmin() {
     try {
       await api.del(endpoints.promotions.detail(id), true);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menghapus promo.', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.promotions.deleteFailed'), 'error');
     }
     reload();
   }
@@ -334,7 +335,7 @@ function PromotionsAdmin() {
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Megaphone size={24} weight="fill" className="text-brand-600" /> Promo
         </h1>
-        {editing === undefined && <Button onClick={() => setEditing(null)}>Promo baru</Button>}
+        {editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.promotions.newPromo')}</Button>}
       </div>
 
       {editing !== undefined && (
@@ -353,7 +354,7 @@ function PromotionsAdmin() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : !data || data.length === 0 ? (
-        <CenterState icon={<Megaphone size={48} weight="thin" />} title="Belum ada promo">
+        <CenterState icon={<Megaphone size={48} weight="thin" />} title={t('hrFix.promotions.empty')}>
           Buat promo pertama untuk ditampilkan di beranda pelanggan.
         </CenterState>
       ) : (
@@ -363,7 +364,7 @@ function PromotionsAdmin() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-2 font-semibold">
                   {p.title}
-                  <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Aktif' : 'Nonaktif'}</Badge>
+                  <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Aktif' : t('hrFix.promotions.inactive')}</Badge>
                 </span>
                 {p.subtitle && <span className="truncate text-sm text-muted">{p.subtitle}</span>}
               </div>

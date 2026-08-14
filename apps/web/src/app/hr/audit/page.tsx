@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { Badge, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -13,6 +14,7 @@ const ACTION_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> 
 };
 
 export default function AuditPage() {
+  const { t } = useT();
   const [entity, setEntity] = useState('');
 
   const { data, error, loading, reload } = useAsync<HrPage<AuditLog>>(
@@ -22,12 +24,12 @@ export default function AuditPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SectionHeader title="Log Audit" subtitle={data ? `${data.total} entri` : undefined} />
-      <Input placeholder="Filter entity (employees, payroll, …)" value={entity} onChange={(e) => setEntity(e.target.value)} className="max-w-xs" />
+      <SectionHeader title={t('hrFix.audit.title')} subtitle={data ? `${data.total} entri` : undefined} />
+      <Input placeholder={t('hrFix.audit.filterHint')} value={entity} onChange={(e) => setEntity(e.target.value)} className="max-w-xs" />
 
       {loading && <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">Belum ada log.</Card>}
+      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">{t('hrFix.audit.empty')}</Card>}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((l) => (

@@ -15,4 +15,10 @@ export interface ResellerDiscount {
  */
 export interface ResellerDiscountPort {
   get(authorization: string): Promise<ResellerDiscount | null>;
+  /**
+   * The same pricing for a NAMED buyer, used by the counter sale. `get` reads `/resellers/me`
+   * off the caller's token, which at a till is the CASHIER's — it would price the cashier's
+   * own agen status and charge the buyer by it. Fails OPEN the same way.
+   */
+  getFor(customerId: string, authorization: string): Promise<ResellerDiscount | null>;
 }

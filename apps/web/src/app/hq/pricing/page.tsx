@@ -104,7 +104,10 @@ export default function HqPricingPage() {
                         <Money amount={p.basePrice} />
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-muted">
-                        {t('hq.pricing.base.overrides', { n: overrideCount.get(p.id) ?? 0 })}
+                        {/* "0 override" says head office pricing applies everywhere. */}
+                        {countsQ.error
+                          ? t('hq.common.dash')
+                          : t('hq.pricing.base.overrides', { n: overrideCount.get(p.id) ?? 0 })}
                       </td>
                     </tr>
                   ))}

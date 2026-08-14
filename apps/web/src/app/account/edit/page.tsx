@@ -149,7 +149,7 @@ function EditProfileInner() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
-            placeholder="nama@email.com"
+            placeholder={t('hrFix.accountEdit.emailHint')}
           />
         </Field>
         <Button type="submit" loading={saving} className="h-[52px] rounded-[14px] text-[15px] font-extrabold">

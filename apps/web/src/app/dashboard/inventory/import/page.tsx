@@ -1,6 +1,7 @@
 'use client';
 
 import { CsvImport, intCell, type ImportColumn } from '@/components/csv-import';
+import { useT } from '@/lib/locale-context';
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -24,17 +25,18 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportInventoryPage() {
+  const { t } = useT();
   const { selectedId, ready } = useDepot();
 
   // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
   // silently resolve to depots[0] and pour the whole stock file into the wrong depot.
   if (!selectedId) {
-    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
+    return <CenterState title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')} />;
   }
 
   return (
     <CsvImport
-      title="Import Stok"
+      title="hrFix.importsInventory.title"
       description="Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi sku (kode produk di katalog) atau productId; baris stok mentah harus mengosongkan keduanya. Nama dan satuan baris PRODUK diambil dari katalog, apa pun yang ditulis di kolom label."
       columns={COLUMNS}
       endpoint={endpoints.inventory.import(selectedId)}

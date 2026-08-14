@@ -21,6 +21,7 @@ import { ExportFormat, ExportStatus } from '../../src/domain/export';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
 import { IncidentSeverity, IncidentStatus } from '../../src/domain/incident';
 import { ReportCadence } from '../../src/domain/report-cadence';
+import { ReportDataset } from '../../src/domain/report-dataset';
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain/ticket';
 
 const now = new Date('2026-07-19T00:00:00.000Z');
@@ -162,7 +163,7 @@ describe('ApiKeyPrismaRepository', () => {
 });
 
 describe('ExportLogPrismaRepository', () => {
-  const model = { findMany: jest.fn(), count: jest.fn(), create: jest.fn() };
+  const model = { findMany: jest.fn(), count: jest.fn(), create: jest.fn(), findUnique: jest.fn() };
   const prisma = { exportLog: model } as unknown as PrismaService;
   const repo = new ExportLogPrismaRepository(prisma);
   const row = () => ({
@@ -173,6 +174,7 @@ describe('ExportLogPrismaRepository', () => {
     format: 'CSV',
     rowCount: 10,
     status: 'DONE',
+    fileName: null,
     createdAt: now,
   });
 
@@ -187,12 +189,17 @@ describe('ExportLogPrismaRepository', () => {
       dataset: 'orders',
       status: ExportStatus.DONE,
     });
-    expect(model.findMany).toHaveBeenCalledWith({
+    // `content` is deliberately absent from the select: a page of this table would
+    // otherwise ship every stored file's bytes at once.
+    const call = model.findMany.mock.calls[0][0];
+    expect(call).toMatchObject({
       where: { dataset: 'orders', status: ExportStatus.DONE },
       orderBy: { createdAt: 'desc' },
       skip: 20,
       take: 20,
     });
+    expect(call.select.content).toBeUndefined();
+    expect(call.select.fileName).toBe(true);
     expect(model.count).toHaveBeenCalledWith({
       where: { dataset: 'orders', status: ExportStatus.DONE },
     });
@@ -202,6 +209,32 @@ describe('ExportLogPrismaRepository', () => {
       page: 2,
       limit: 20,
     });
+  });
+
+  /*
+   * hq/exports was a list of claims: the table recorded that an export happened and never
+   * held one. `hasFile` is what turns a row into a download, and it must follow the stored
+   * name rather than being asserted by the writer.
+   */
+  it('marks a row as downloadable exactly when it has a stored file name', async () => {
+    model.findMany.mockResolvedValue([row(), { ...row(), id: 'exp-2', fileName: 'a.csv' }]);
+    model.count.mockResolvedValue(2);
+    const page = await repo.list({ page: 1, limit: 10 });
+    expect(page.items.map((i) => i.hasFile)).toEqual([false, true]);
+  });
+
+  it('findContent returns the stored bytes, and null when there are none', async () => {
+    model.findUnique.mockResolvedValue({ fileName: 'a.csv', content: Buffer.from('hi') });
+    await expect(repo.findContent('exp-1')).resolves.toEqual({
+      fileName: 'a.csv',
+      content: Buffer.from('hi'),
+    });
+    model.findUnique.mockResolvedValue({ fileName: 'a.csv', content: null });
+    expect(await repo.findContent('exp-1')).toBeNull();
+    model.findUnique.mockResolvedValue({ fileName: null, content: Buffer.from('hi') });
+    expect(await repo.findContent('exp-1')).toBeNull();
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.findContent('nope')).toBeNull();
   });
 
   it('list omits filter keys when not supplied', async () => {
@@ -582,12 +615,30 @@ describe('ScheduledReportPrismaRepository', () => {
     cadence: 'WEEKLY',
     recipients: ['ops@x.com'],
     format: 'PDF',
+    dataset: 'REVENUE_BY_DEPOT',
     nextRunAt: now,
+    lastRunAt: null,
     enabled: true,
     createdAt: now,
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * The sweep's query. A NULL `nextRunAt` has to count as due: a schedule created before
+   * the executor existed was never stamped, and reading that as "not yet" would leave it
+   * waiting forever — which is exactly the state every existing row is in.
+   */
+  it('findDue takes enabled rows that are due OR never stamped, oldest first', async () => {
+    model.findMany.mockResolvedValue([row()]);
+    const recs = await repo.findDue(now, 10);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { enabled: true, OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }] },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+    expect(recs[0].dataset).toBe(ReportDataset.REVENUE_BY_DEPOT);
+  });
 
   it('list orders newest-first and casts enums', async () => {
     model.findMany.mockResolvedValue([row()]);

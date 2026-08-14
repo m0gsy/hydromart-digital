@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { SlidersHorizontal } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -90,6 +90,10 @@ export default function HqPricingRuleFormPage() {
   }
 
   if (catalog.loading || depots.loading) return <Skeleton className="h-96 w-full" />;
+  // Both pickers on this form are filled from these reads. A rule saved against an empty
+  // product or depot picker is a price rule aimed at nothing, or at everything.
+  if (catalog.error) return <ErrorState message={catalog.error} onRetry={catalog.reload} />;
+  if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
 
   const KINDS: AdjustKind[] = ['percent', 'nominal', 'fixed'];
 

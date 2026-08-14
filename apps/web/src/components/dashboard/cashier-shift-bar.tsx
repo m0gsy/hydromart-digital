@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { LockKey, LockKeyOpen } from '@phosphor-icons/react';
 
 import { useToast } from '@/components/toast';
-import { Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -25,6 +26,7 @@ export function CashierShiftBar({
   /** Lets the sale form disable itself the moment the drawer closes. */
   onChange?: (shift: CashierShift | null) => void;
 }) {
+  const { t } = useT();
   const { toast } = useToast();
   const [float, setFloat] = useState('');
   const [counted, setCounted] = useState('');
@@ -54,9 +56,9 @@ export function CashierShiftBar({
       setFloat('');
       setSettled(null);
       await refresh(created);
-      toast('Shift dibuka.');
+      toast(t('hrFix.cashierShift.opened'));
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal membuka shift.', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.cashierShift.openFailed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -78,7 +80,7 @@ export function CashierShiftBar({
       setSettled(closed);
       await refresh(null);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menutup shift.', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.cashierShift.closeFailed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -92,18 +94,18 @@ export function CashierShiftBar({
     <Card className="space-y-3 p-4">
       {settled && !current && (
         <div className="rounded-xl border border-app p-3 text-sm">
-          <p className="font-semibold">Shift ditutup</p>
+          <p className="font-semibold">{t('hrFix.cashierShift.closed')}</p>
           <dl className="mt-1 space-y-1">
             <div className="flex justify-between">
-              <dt className="text-muted">Seharusnya</dt>
+              <dt className="text-muted">{t('hrFix.cashierShift.expected')}</dt>
               <dd><Money amount={settled.expectedCash ?? 0} /></dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted">Dihitung</dt>
+              <dt className="text-muted">{t('hrFix.cashierShift.counted')}</dt>
               <dd><Money amount={settled.countedCash ?? 0} /></dd>
             </div>
             <div className="flex justify-between font-bold">
-              <dt>Selisih</dt>
+              <dt>{t('hrFix.cashierShift.difference')}</dt>
               <dd className={(settled.variance ?? 0) < 0 ? 'text-red-600' : undefined}>
                 <Money amount={settled.variance ?? 0} />
               </dd>
@@ -112,15 +114,19 @@ export function CashierShiftBar({
         </div>
       )}
 
-      {!current ? (
+      {shift.error ? (
+        // "Belum ada shift terbuka" invites the cashier to open a SECOND one. An unread
+        // shift is not an absent shift, and the till is the thing being counted.
+        <LoadError onRetry={shift.reload} />
+      ) : !current ? (
         <div className="space-y-3">
           <div>
-            <p className="font-semibold">Belum ada shift terbuka</p>
+            <p className="font-semibold">{t('hrFix.cashierShift.noneOpen')}</p>
             <p className="text-sm text-muted">
               Buka shift dulu — penjualan konter ditolak selama laci belum ada penanggung jawabnya.
             </p>
           </div>
-          <Field label="Uang kembalian awal di laci" htmlFor="shift-float">
+          <Field label={t('hrFix.cashierShift.openingFloat')} htmlFor="shift-float">
             <Input
               id="shift-float"
               value={float}
@@ -160,9 +166,9 @@ export function CashierShiftBar({
               {/* No expected figure is shown before counting on purpose: seeing the target
                   first turns a count into a confirmation, and a real shortfall disappears. */}
               <Field
-                label="Uang tunai dihitung di laci"
+                label={t('hrFix.cashierShift.countedCash')}
                 htmlFor="shift-counted"
-                hint="Hitung dulu, baru masukkan. Selisih dihitung server."
+                hint={t('hrFix.cashierShift.countedHint')}
               >
                 <Input
                   id="shift-counted"
@@ -172,12 +178,12 @@ export function CashierShiftBar({
                   placeholder="1450000"
                 />
               </Field>
-              <Field label="Catatan (opsional)" htmlFor="shift-note">
+              <Field label={t('hrFix.cashierShift.noteOpt')} htmlFor="shift-note">
                 <Input
                   id="shift-note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Kembalian kurang Rp 2.000"
+                  placeholder={t('hrFix.cashierShift.noteHint')}
                 />
               </Field>
               <div className="flex gap-2">

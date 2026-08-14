@@ -44,6 +44,7 @@ import {
 import {
   DepotContact,
   DepotDirectoryPort,
+  DepotGallonReturns,
   DepotLocation,
   DepotOwnership,
 } from '../../src/application/ports/depot-directory.port';
@@ -613,6 +614,15 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    return this.segmentMatches(conditions).length;
+  }
+
+  async segmentCustomerIds(conditions: SegmentConditions, limit: number): Promise<string[]> {
+    return this.segmentMatches(conditions).slice(0, limit);
+  }
+
+  /** One matcher behind both segment reads, so the count and the list cannot disagree. */
+  private segmentMatches(conditions: SegmentConditions): string[] {
     const byCustomer = new Map<string, { count: number; first: Date; last: Date }>();
     for (const r of this.rows) {
       if (r.status === OrderStatus.CANCELLED) continue;
@@ -627,15 +637,15 @@ export class InMemoryOrderRepository implements OrderRepository {
       if (r.createdAt < cur.first) cur.first = r.createdAt;
       byCustomer.set(r.customerId, cur);
     }
-    let n = 0;
-    for (const agg of byCustomer.values()) {
+    const matched: string[] = [];
+    for (const [customerId, agg] of byCustomer) {
       if (conditions.minOrders != null && agg.count < conditions.minOrders) continue;
       if (conditions.recencyCutoff && agg.last < conditions.recencyCutoff) continue;
       if (conditions.lapsedCutoff && agg.last >= conditions.lapsedCutoff) continue;
       if (conditions.firstOrderCutoff && agg.first < conditions.firstOrderCutoff) continue;
-      n += 1;
+      matched.push(customerId);
     }
-    return n;
+    return matched.sort();
   }
 }
 
@@ -754,6 +764,12 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
       ownerId,
       ownershipType: this.ownershipTypes.get(depotId) ?? (ownerId ? 'WARALABA' : 'HKP'),
     };
+  }
+  /** depotId -> empties handed back; unset reads as a day with no returns recorded. */
+  returns = new Map<string, DepotGallonReturns>();
+  async gallonReturns(depotId: string): Promise<DepotGallonReturns | null> {
+    if (this.unreachable) return null;
+    return this.returns.get(depotId) ?? { gallons: 0, damaged: 0 };
   }
 }
 
@@ -1009,7 +1025,13 @@ export class FakeMembership implements MembershipPort {
 
 export class FakeResellerDiscount implements ResellerDiscountPort {
   result: ResellerDiscount | null = null;
+  /** Counter sales resolve by buyer id; recorded so a test can prove WHOSE status was read. */
+  readonly byCustomerCalls: string[] = [];
   async get(_authorization: string): Promise<ResellerDiscount | null> {
+    return this.result;
+  }
+  async getFor(customerId: string, _authorization: string): Promise<ResellerDiscount | null> {
+    this.byCustomerCalls.push(customerId);
     return this.result;
   }
 }

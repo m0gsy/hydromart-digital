@@ -87,7 +87,10 @@ export function DepotSuspendDialog({
               {orders.loading ? (
                 <Skeleton className="h-4 w-8" />
               ) : (
-                <span className="shrink-0 font-bold tabular-nums">{orders.data?.total ?? 0}</span>
+                // "0 orders affected" is the number somebody suspends a depot on.
+                <span className="shrink-0 font-bold tabular-nums">
+                  {orders.error ? '—' : (orders.data?.total ?? 0)}
+                </span>
               )}
             </li>
             <li className="flex items-start justify-between gap-3">

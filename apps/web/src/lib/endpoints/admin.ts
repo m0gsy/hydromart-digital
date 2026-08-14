@@ -44,6 +44,9 @@ admin: {
     const qs = p.toString();
     return `/admin/api/v1/export-logs${qs ? `?${qs}` : ''}`;
   },
+  // The file a scheduled run produced (15c). Before the executor existed this table
+  // recorded exports and never held one.
+  exportLogDownload: (id: string) => `/admin/api/v1/export-logs/${id}/download`,
   // Scheduled reports (15c) — HEAD_OFFICE + SUPER_ADMIN.
   scheduledReports: {
     list: '/admin/api/v1/scheduled-reports',

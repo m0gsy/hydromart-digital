@@ -11,6 +11,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -20,6 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { DepotTarget, ReportDepotMonthly } from '@/lib/types';
 
 const now = new Date();
@@ -83,6 +85,7 @@ function TargetForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [revenue, setRevenue] = useState(String(current?.revenueTargetIdr ?? ''));
   const [orders, setOrders] = useState(String(current?.ordersTarget ?? ''));
   const [sla, setSla] = useState(String(current?.slaTargetPct ?? ''));
@@ -100,7 +103,7 @@ function TargetForm({
       newCustomersTarget: Number(newCustomers),
     };
     if (Object.values(body).some((v) => typeof v === 'number' && !Number.isFinite(v))) {
-      setError('Semua target harus berupa angka.');
+      setError(t('hrFix.depotTargets.mustBeNumbers'));
       return;
     }
     setBusy(true);
@@ -109,7 +112,7 @@ function TargetForm({
       await api.put(endpoints.depotTargets.upsert, body, true);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan target.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.targets.saveError'));
     } finally {
       setBusy(false);
     }
@@ -117,17 +120,17 @@ function TargetForm({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <p className="font-semibold">Ubah target {MONTH}</p>
-      <Field label="Pendapatan (Rp)" htmlFor="t-revenue">
+      <p className="font-semibold">{t('opsFix.targets.editTitle', { month: MONTH })}</p>
+      <Field label={t('opsFix.targets.revenue')} htmlFor="t-revenue">
         <Input id="t-revenue" type="number" inputMode="numeric" value={revenue} onChange={(e) => setRevenue(e.target.value)} />
       </Field>
-      <Field label="Order terkirim" htmlFor="t-orders">
+      <Field label={t('opsFix.targets.orders')} htmlFor="t-orders">
         <Input id="t-orders" type="number" inputMode="numeric" value={orders} onChange={(e) => setOrders(e.target.value)} />
       </Field>
-      <Field label="SLA on-time (%)" htmlFor="t-sla">
+      <Field label={t('opsFix.targets.sla')} htmlFor="t-sla">
         <Input id="t-sla" type="number" inputMode="numeric" value={sla} onChange={(e) => setSla(e.target.value)} />
       </Field>
-      <Field label="Pelanggan baru" htmlFor="t-newcust">
+      <Field label={t('opsFix.targets.newCustomers')} htmlFor="t-newcust">
         <Input id="t-newcust" type="number" inputMode="numeric" value={newCustomers} onChange={(e) => setNewCustomers(e.target.value)} />
       </Field>
       {error && (
@@ -137,10 +140,10 @@ function TargetForm({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('opsFix.targets.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan target
+          {t('opsFix.targets.save')}
         </Button>
       </div>
     </Card>
@@ -148,6 +151,7 @@ function TargetForm({
 }
 
 function TargetsBody() {
+  const { t } = useT();
   const { scopedId } = useDepot();
   const [editing, setEditing] = useState(false);
 
@@ -171,12 +175,14 @@ function TargetsBody() {
             revenueIdr: 0,
             activeCustomers: 0,
             netProfitIdr: null,
+            profitBreakdown: { revenueIdr: 0, cogsIdr: null, opexIdr: null, payrollIdr: null },
             slaPct: null,
             gallons: 0,
             prevGallons: 0,
             gallonsDelta: 0,
             growthPct: null,
             avgGallonsPerDay: 0,
+            governance: null,
           }),
     [scopedId],
   );
@@ -190,9 +196,9 @@ function TargetsBody() {
     <div className="flex items-center gap-2">
       <Target size={24} weight="fill" className="text-brand-500" />
       <div>
-        <h1 className="text-2xl font-bold">Target depot</h1>
+        <h1 className="text-2xl font-bold">{t('opsFix.targets.title')}</h1>
         <p className="text-sm text-[color:var(--text-muted)]">
-          {MONTH} · hari ke-{DAY} dari {DAYS_IN_MONTH}
+          {t('opsFix.targets.headerSub', { month: MONTH, day: DAY, days: DAYS_IN_MONTH })}
         </p>
       </div>
     </div>
@@ -231,33 +237,42 @@ function TargetsBody() {
             }}
           />
         ) : (
-          <CenterState title="Belum ada target" icon={<Target size={40} weight="fill" />}>
-            <p className="mb-4">Depot ini belum punya target untuk {MONTH}.</p>
-            <Button onClick={() => setEditing(true)}>Set target bulan ini</Button>
+          <CenterState title={t('opsFix.targets.empty')} icon={<Target size={40} weight="fill" />}>
+            <p className="mb-4">{t('opsFix.targets.emptyBody', { month: MONTH })}</p>
+            <Button onClick={() => setEditing(true)}>{t('opsFix.targets.setNow')}</Button>
           </CenterState>
         )}
       </div>
     );
   }
 
-  const t = target.data;
+  const tgt = target.data;
   const a = actuals.data;
   const goals: Goal[] = [
-    { label: 'Pendapatan', actual: a?.revenueIdr ?? null, target: t.revenueTargetIdr, money: true },
-    { label: 'Order terkirim', actual: a?.orders ?? null, target: t.ordersTarget },
-    { label: 'SLA on-time', actual: a?.slaPct ?? null, target: t.slaTargetPct, rate: true },
+    {
+      label: t('opsFix.targets.goalRevenue'),
+      actual: a?.revenueIdr ?? null,
+      target: tgt.revenueTargetIdr,
+      money: true,
+    },
+    { label: t('opsFix.targets.goalOrders'), actual: a?.orders ?? null, target: tgt.ordersTarget },
+    { label: t('opsFix.targets.sla'), actual: a?.slaPct ?? null, target: tgt.slaTargetPct, rate: true },
     // ponytail: no new-customer count in depot-monthly report; wire when a report exposes it.
-    { label: 'Pelanggan baru', actual: null, target: t.newCustomersTarget },
+    { label: t('opsFix.targets.newCustomers'), actual: null, target: tgt.newCustomersTarget },
   ];
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       {header}
 
+      {/* The target column survives an unread `actuals`; the achievement column does not,
+          and a bar at zero progress against a target is a judgement about the depot. */}
+      {actuals.error && <LoadError onRetry={actuals.reload} />}
+
       {editing && scopedId ? (
         <TargetForm
           depotId={scopedId}
-          current={t}
+          current={tgt}
           onCancel={() => setEditing(false)}
           onDone={() => {
             setEditing(false);
@@ -281,10 +296,9 @@ function TargetsBody() {
           <Card className="flex items-start gap-3 bg-brand-50 p-4">
             <Lightbulb size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
             <div>
-              <p className="font-semibold text-brand-800">Insight</p>
+              <p className="font-semibold text-brand-800">{t('opsFix.targets.insight')}</p>
               <p className="text-[12.5px] text-brand-800/80">
-                Bar kuning menandai KPI di bawah pace bulan ini (hari ke-{DAY} dari {DAYS_IN_MONTH}).
-                Fokuskan sumber daya ke sana untuk mengejar target.
+                {t('opsFix.targets.insightBody', { day: DAY, days: DAYS_IN_MONTH })}
               </p>
             </div>
           </Card>
@@ -295,11 +309,12 @@ function TargetsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotTargets', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Target & goals depot hanya untuk Manajer depot.
+      <CenterState title={t('opsFix.targets.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.targets.gateBody')}
       </CenterState>
     );
   }

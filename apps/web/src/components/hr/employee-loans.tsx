@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { currentPeriod, type LoanView } from '@/lib/hr';
@@ -11,6 +12,7 @@ import { useAsync } from '@/lib/use-async';
 
 /** Employee loans / kasbon — auto-deducted from payroll. Shows computed remaining balance. */
 export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isAdmin: boolean }) {
+  const { t } = useT();
   const { toast: notify } = useToast();
   const [principal, setPrincipal] = useState('');
   const [installment, setInstallment] = useState('');
@@ -26,12 +28,12 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
     setErr(null);
     const p = Number(principal);
     const inst = Number(installment);
-    if (!(p > 0)) return setErr('Pokok pinjaman harus > 0.');
-    if (!(inst > 0)) return setErr('Cicilan per bulan harus > 0.');
+    if (!(p > 0)) return setErr(t('hrFix.loans.principalPositive'));
+    if (!(inst > 0)) return setErr(t('hrFix.loans.installmentPositive'));
     setSaving(true);
     try {
       await api.post(endpoints.hr.createLoan, { employeeId, principal: p, installmentAmount: inst, startPeriod, note: note.trim() || undefined }, true);
-      notify('Pinjaman ditambahkan');
+      notify(t('hrFix.loans.added'));
       setPrincipal(''); setInstallment(''); setNote('');
       loans.reload();
     } catch (e2) {
@@ -46,16 +48,24 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
       await api.patch(endpoints.hr.deactivateLoan(id), {}, true);
       loans.reload();
     } catch {
-      notify('Gagal menghentikan pinjaman');
+      // `toast()` defaults to tone 'success' — a failure that says nothing about its tone
+      // renders GREEN with a tick, which is the one thing a failed write must not look like.
+      notify('Gagal menghentikan pinjaman', 'error');
     }
   }
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Pinjaman / Kasbon</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.loans.title')}</h2>
       {loans.loading ? <Skeleton className="h-16" /> : (
         <div className="divide-y divide-[color:var(--border)]">
-          {(loans.data ?? []).length === 0 && <p className="text-sm text-muted">Belum ada pinjaman.</p>}
+          {/* "Belum ada pinjaman" is what payroll reads before deciding there is nothing
+              to deduct this month. */}
+          {loans.error ? (
+            <LoadError onRetry={loans.reload} />
+          ) : (
+            (loans.data ?? []).length === 0 && <p className="text-sm text-muted">{t('hrFix.loans.empty')}</p>
+          )}
           {(loans.data ?? []).map((l) => (
             <div key={l.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
@@ -68,7 +78,7 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
                   {l.note ? ` · ${l.note}` : ''}
                 </p>
               </div>
-              {isAdmin && l.active && !l.settled && <Button variant="secondary" onClick={() => stop(l.id)}>Hentikan</Button>}
+              {isAdmin && l.active && !l.settled && <Button variant="secondary" onClick={() => stop(l.id)}>{t('hrFix.loans.stop')}</Button>}
             </div>
           ))}
         </div>
@@ -76,12 +86,12 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
 
       {isAdmin && (
         <form onSubmit={add} className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2">
-          <Field label="Pokok pinjaman (Rp)"><Input type="number" value={principal} onChange={(e) => setPrincipal(e.target.value)} /></Field>
-          <Field label="Cicilan / bulan (Rp)"><Input type="number" value={installment} onChange={(e) => setInstallment(e.target.value)} /></Field>
-          <Field label="Mulai periode"><Input type="month" value={startPeriod} onChange={(e) => setStartPeriod(e.target.value)} /></Field>
-          <Field label="Catatan (opsional)"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          <Field label={t('hrFix.loans.principal')}><Input type="number" value={principal} onChange={(e) => setPrincipal(e.target.value)} /></Field>
+          <Field label={t('hrFix.loans.installment')}><Input type="number" value={installment} onChange={(e) => setInstallment(e.target.value)} /></Field>
+          <Field label={t('hrFix.loans.startPeriod')}><Input type="month" value={startPeriod} onChange={(e) => setStartPeriod(e.target.value)} /></Field>
+          <Field label={t('hrFix.loans.noteOpt')}><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
           {err && <p className="col-span-full text-sm font-medium text-red-600" role="alert">{err}</p>}
-          <div className="col-span-full"><Button type="submit" loading={saving}>Tambah Pinjaman</Button></div>
+          <div className="col-span-full"><Button type="submit" loading={saving}>{t('hrFix.loans.add')}</Button></div>
         </form>
       )}
     </Card>

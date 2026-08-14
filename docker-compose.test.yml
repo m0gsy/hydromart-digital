@@ -66,6 +66,9 @@ services:
       # order columns, so the test stack needs the same wiring the real one does.
       ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
+      # S2: the depot CRM card's churn band. Blank = the card renders "—" rather than LOW,
+      # which is the one answer a manager acts on by doing nothing.
+      FORECAST_SERVICE_URL: http://forecast:3014
       # Agen registration-photo storage (SOP §7). Required to boot under NODE_ENV=production.
       STORAGE_PUBLIC_BASE_URL: http://storage.test/resellers
     healthcheck:
@@ -100,6 +103,12 @@ services:
       LOYALTY_SERVICE_URL: http://loyalty:3009
       # Counter-void refunds go through here.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # On-time delivery for the monthly review. Blank = slaPct stays null, which is what
+      # it always was — order-service must never infer punctuality from order status.
+      DELIVERY_SERVICE_URL: http://delivery:3006
+      # Payroll for the monthly review's net profit. Blank = netProfitIdr stays null; the
+      # report never substitutes 0 for a wage bill it could not read.
+      HR_SERVICE_URL: http://hr:3018
       CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011
@@ -267,6 +276,8 @@ services:
       WHATSAPP_API_URL: ""
       WHATSAPP_API_TOKEN: ""
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Activity half of a broadcast segment; blank would fail closed, not send wider.
+      ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3012/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

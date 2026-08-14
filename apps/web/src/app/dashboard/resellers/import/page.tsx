@@ -1,6 +1,7 @@
 'use client';
 
 import { CsvImport, intCell, phoneCell, type ImportColumn } from '@/components/csv-import';
+import { useT } from '@/lib/locale-context';
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -15,17 +16,18 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportResellersPage() {
+  const { t } = useT();
   const { selectedId, ready } = useDepot();
 
   // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
   // silently resolve to depots[0] and file every reseller under the wrong depot.
   if (!selectedId) {
-    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
+    return <CenterState title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')} />;
   }
 
   return (
     <CsvImport
-      title="Import Reseller / Agen"
+      title="hrFix.imports.resellers"
       description="Nomor yang belum punya akun akan didaftarkan lebih dulu, lalu terdaftar sebagai reseller depot ini dengan persen diskonnya."
       columns={COLUMNS}
       endpoint={endpoints.resellers.import}

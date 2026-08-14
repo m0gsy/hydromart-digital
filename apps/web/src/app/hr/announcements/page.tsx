@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -10,6 +11,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LoadError,
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
@@ -47,6 +49,7 @@ interface TargetDraft {
 }
 
 export default function AnnouncementsPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isAdmin = canManageHr(customer?.role);
@@ -64,20 +67,20 @@ export default function AnnouncementsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <SectionHeader
-        title="Pengumuman"
-        subtitle="Satu pesan, satu kali sampai. Target yang beririsan tidak mengirim dobel."
+        title={t('hrFix.announcements.title')}
+        subtitle={t('hrFix.announcements.subtitle')}
       />
 
       {isAdmin && <Composer onSent={list.reload} onError={(m) => toast(m, 'error')} />}
 
       <Card className="space-y-3 p-5">
-        <h2 className="text-sm font-semibold">Riwayat</h2>
+        <h2 className="text-sm font-semibold">{t('hrFix.announcements.history')}</h2>
         {list.loading && <Skeleton className="h-32" />}
         {list.error && <ErrorState message={list.error} onRetry={list.reload} />}
         {list.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {list.data.rows.length === 0 && (
-              <li className="py-3 text-sm text-muted">Belum ada pengumuman.</li>
+              <li className="py-3 text-sm text-muted">{t('hrFix.announcements.empty')}</li>
             )}
             {list.data.rows.map((a) => (
               <li key={a.id} className="space-y-2 py-3">
@@ -85,8 +88,8 @@ export default function AnnouncementsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <b>{a.title}</b>
-                      <Badge tone={LEVEL_TONE[a.level]}>{ANNOUNCEMENT_LEVEL_LABEL[a.level]}</Badge>
-                      {!a.publishedAt && <Badge tone="neutral">Terjadwal</Badge>}
+                      <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
+                      {!a.publishedAt && <Badge tone="neutral">{t('hrFix.announcements.scheduled')}</Badge>}
                     </div>
                     <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
                     <p className="text-xs text-muted">
@@ -94,12 +97,14 @@ export default function AnnouncementsPage() {
                         ? `Terkirim ${fmtDate(a.publishedAt)} ke ${a.audienceSize} orang`
                         : `Dijadwalkan ${fmtDate(a.scheduledAt)} — belum terkirim`}
                       {' · '}
-                      {a.targets.map((t) => ANNOUNCEMENT_DIMENSION_LABEL[t.dimension]).join(', ')}
+                      {a.targets
+                        .map((tg) => t(ANNOUNCEMENT_DIMENSION_LABEL[tg.dimension]))
+                        .join(', ')}
                     </p>
                   </div>
                   {a.publishedAt && (
                     <Button variant="ghost" onClick={() => setOpen(open === a.id ? null : a.id)}>
-                      {open === a.id ? 'Tutup' : 'Statistik'}
+                      {open === a.id ? t('hrFix.announcements.close') : t('hrFix.announcements.stats')}
                     </Button>
                   )}
                 </div>
@@ -114,6 +119,7 @@ export default function AnnouncementsPage() {
 }
 
 function ReadStats({ id }: { id: string }) {
+  const { t } = useT();
   const detail = useAsync<AnnouncementDetail>(
     () => api.get<AnnouncementDetail>(endpoints.hr.announcement(id), true),
     [id],
@@ -122,12 +128,13 @@ function ReadStats({ id }: { id: string }) {
   if (!detail.data) return null;
   return (
     <p className="rounded-lg border border-app p-3 text-sm">
-      {announcementReadRate(detail.data.readCount, detail.data.audienceSize)}
+      {announcementReadRate(detail.data.readCount, detail.data.audienceSize, t)}
     </p>
   );
 }
 
 function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string) => void }) {
+  const { t } = useT();
   const { depots } = useDepot();
   const { toast } = useToast();
   const [title, setTitle] = useState('');
@@ -160,11 +167,11 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      onError('Judul dan isi wajib diisi');
+      onError(t('hrFix.announcements.required'));
       return;
     }
     if (targets.some((t) => announcementTargetNeedsValue(t.dimension) && !t.value)) {
-      onError('Setiap target selain "seluruh perusahaan" harus dipilih nilainya');
+      onError(t('hrFix.announcements.targetValue'));
       return;
     }
     setSaving(true);
@@ -176,22 +183,22 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           body: body.trim(),
           level,
           ...(scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
-          targets: targets.map((t) =>
-            announcementTargetNeedsValue(t.dimension)
-              ? { dimension: t.dimension, value: t.value }
-              : { dimension: t.dimension },
+          targets: targets.map((tg) =>
+            announcementTargetNeedsValue(tg.dimension)
+              ? { dimension: tg.dimension, value: tg.value }
+              : { dimension: tg.dimension },
           ),
         },
         true,
       );
-      toast(scheduledAt ? 'Pengumuman dijadwalkan' : 'Pengumuman terkirim');
+      toast(scheduledAt ? t('hrFix.announcements.scheduledOk') : t('hrFix.announcements.sent'));
       setTitle('');
       setBody('');
       setScheduledAt('');
       setTargets([{ dimension: 'COMPANY', value: '' }]);
       onSent();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Gagal mengirim pengumuman');
+      onError(err instanceof ApiError ? err.message : t('hrFix.announcements.sendFailed'));
     } finally {
       setSaving(false);
     }
@@ -220,12 +227,12 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Tulis Pengumuman</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.announcements.compose')}</h2>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Judul">
+        <Field label={t('hrFix.announcements.subject')}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Isi">
+        <Field label={t('hrFix.announcements.body')}>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -234,7 +241,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Tingkat">
+          <Field label={t('hrFix.announcements.level')}>
             <select
               value={level}
               onChange={(e) => setLevel(e.target.value as AnnouncementLevel)}
@@ -242,12 +249,12 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
             >
               {ANNOUNCEMENT_LEVELS.map((l) => (
                 <option key={l} value={l}>
-                  {ANNOUNCEMENT_LEVEL_LABEL[l]}
+                  {t(ANNOUNCEMENT_LEVEL_LABEL[l])}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Jadwalkan (kosong = kirim sekarang)">
+          <Field label={t('hrFix.announcements.scheduleAt')}>
             <Input
               type="datetime-local"
               value={scheduledAt}
@@ -257,14 +264,14 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium">Target audiens</p>
+          <p className="text-sm font-medium">{t('hrFix.announcements.audience')}</p>
           <p className="text-xs text-muted">
             Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.
           </p>
-          {targets.map((t, i) => (
+          {targets.map((tg, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <select
-                value={t.dimension}
+                value={tg.dimension}
                 onChange={(e) =>
                   setTarget(i, { dimension: e.target.value as AnnouncementDimension, value: '' })
                 }
@@ -272,23 +279,32 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
               >
                 {ANNOUNCEMENT_DIMENSIONS.map((d) => (
                   <option key={d} value={d}>
-                    {ANNOUNCEMENT_DIMENSION_LABEL[d]}
+                    {t(ANNOUNCEMENT_DIMENSION_LABEL[d])}
                   </option>
                 ))}
               </select>
-              {announcementTargetNeedsValue(t.dimension) && (
+              {announcementTargetNeedsValue(tg.dimension) && (
                 <select
-                  value={t.value}
+                  value={tg.value}
                   onChange={(e) => setTarget(i, { value: e.target.value })}
                   className="surface-elevated min-w-48 rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
-                  <option value="">Pilih…</option>
-                  {optionsFor(t.dimension).map((o) => (
+                  <option value="">{t('hrFix.announcements.pick')}</option>
+                  {optionsFor(tg.dimension).map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
                   ))}
                 </select>
+              )}
+              {/* The DEPARTMENT and EMPLOYEE options come from two lookups. An empty picker
+                  is the same shape as "this company has no departments", and the announcement
+                  goes out to nobody. */}
+              {((tg.dimension === 'DEPARTMENT' && departments.error) ||
+                (tg.dimension === 'EMPLOYEE' && employees.error)) && (
+                <LoadError
+                  onRetry={tg.dimension === 'DEPARTMENT' ? departments.reload : employees.reload}
+                />
               )}
               {targets.length > 1 && (
                 <Button
@@ -311,7 +327,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         </div>
 
         <Button type="submit" loading={saving}>
-          {scheduledAt ? 'Jadwalkan' : 'Kirim Sekarang'}
+          {scheduledAt ? t('hrFix.announcements.schedule') : t('hrFix.announcements.sendNow')}
         </Button>
       </form>
     </Card>

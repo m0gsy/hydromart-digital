@@ -1,6 +1,6 @@
 'use client';
 
-import { DownloadSimple, Lock, PaperPlaneTilt } from '@phosphor-icons/react';
+import { Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -9,6 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 import { canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ReportDepotMonthly } from '@/lib/types';
@@ -36,6 +37,7 @@ function Panel({ title, rows }: { title: string; rows: Row[] }) {
 }
 
 function MonthlyReviewBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
@@ -48,59 +50,101 @@ function MonthlyReviewBody() {
   );
 
   const r = review.data;
-  // orders/revenue/activeCustomers/topCourier are real; SLA + net profit have no source ("—").
+  /**
+   * "—" here now means one named service could not be read, not "nobody ever built this".
+   * The caption says which, because a manager who can see that payroll is the missing term
+   * can go and ask for it; a bare dash sends them nowhere.
+   */
+  const missingTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
+    if (!b) return t('hrFix.monthlyReview.needsCostData');
+    const missing = [
+      b.cogsIdr === null ? 'pembelian' : null,
+      b.payrollIdr === null ? 'gaji' : null,
+      b.opexIdr === null ? t('hrFix.monthlyReview.cashCost') : null,
+    ].filter(Boolean);
+    return missing.length > 0 ? `belum terbaca: ${missing.join(', ')}` : 'omzet − pembelian − gaji − biaya';
+  };
   const stats: Stat[] = [
-    { label: 'Order', value: r ? r.orders.toLocaleString('id-ID') : '—', caption: 'bulan berjalan' },
-    { label: 'Pendapatan', value: r ? formatIDR(r.revenueIdr) : '—', caption: 'non-batal' },
-    { label: 'SLA rata2', value: r?.slaPct != null ? `${r.slaPct}%` : '—', caption: 'butuh data pengiriman' },
+    { label: t('hrFix.monthlyReview.orders'), value: r ? r.orders.toLocaleString('id-ID') : '—', caption: 'bulan berjalan' },
+    { label: t('hrFix.monthlyReview.revenue'), value: r ? formatIDR(r.revenueIdr) : '—', caption: 'non-batal' },
     {
-      label: 'Laba bersih',
+      label: t('hrFix.monthlyReview.avgSla'),
+      value: r?.slaPct != null ? `${r.slaPct}%` : '—',
+      caption: r?.slaPct != null ? t('hrFix.monthlyReview.onTimeDeliveries') : t('hrFix.monthlyReview.noDeliveries'),
+    },
+    {
+      label: t('hrFix.monthlyReview.netProfit'),
       value: r?.netProfitIdr != null ? formatIDR(r.netProfitIdr) : '—',
-      caption: 'butuh HPP + biaya',
+      caption: missingTerms(r?.profitBreakdown),
     },
   ];
 
-  // Governance (approval/opname/setoran) is owned by depot-service/payout — no order-service
-  // source, so these stay "—" until wired.
+  /**
+   * The arithmetic behind "Laba bersih", spelled out. A net profit nobody can decompose is
+   * a number nobody can dispute — and these two costs come from two places that CAN
+   * overlap (a purchase order in the system plus a "bayar supplier" line in the cash book),
+   * so showing the terms is what makes a double count visible instead of silent.
+   */
+  const idrOrDash = (v: number | null | undefined): string => (v == null ? '—' : formatIDR(v));
+  const profit: Row[] = [
+    { label: t('hrFix.monthlyReview.turnover'), value: r ? formatIDR(r.revenueIdr) : '—' },
+    { label: t('hrFix.monthlyReview.purchasesReceived'), value: idrOrDash(r?.profitBreakdown.cogsIdr) },
+    { label: t('hrFix.monthlyReview.payrollNet'), value: idrOrDash(r?.profitBreakdown.payrollIdr) },
+    { label: t('hrFix.monthlyReview.cashOut'), value: idrOrDash(r?.profitBreakdown.opexIdr) },
+  ];
+
+  /*
+   * Governance: approvals, stock counts and the daily close, all owned by depot-service and
+   * read over one internal route. These were three literal '—' strings, which reads exactly
+   * like a depot that reviewed nothing and counted nothing — the report the SOP asks for.
+   *
+   * A null `governance` (depot-service unreachable) keeps the dashes AND says so, because
+   * "0 selisih" is the sentence a manager stops reading at.
+   */
+  const g = r?.governance ?? null;
+  const signed = (v: number): string => (v > 0 ? `+${formatIDR(v)}` : formatIDR(v));
   const governance: Row[] = [
-    { label: 'Approval ditinjau', value: '—' },
-    { label: 'Selisih opname nilai', value: '—' },
-    { label: 'Setoran selisih', value: '—' },
+    { label: t('hrFix.monthlyReview.approvalsReviewed'), value: g ? g.approvalsReviewed.toLocaleString('id-ID') : '—' },
+    { label: t('hrFix.monthlyReview.stocktakeVariance'), value: g ? signed(g.opnameVarianceIdr) : '—' },
+    { label: t('hrFix.monthlyReview.settlementVariance'), value: g ? signed(g.settlementVarianceIdr) : '—' },
+    // The denominator: a variance of 0 over 2 closed days is not a clean month, it is two
+    // days of bookkeeping and 28 days nobody counted.
+    { label: t('hrFix.monthlyReview.daysClosed'), value: g ? `${g.daysClosed} hari` : '—' },
   ];
 
   // Depot SOP: the monthly report is read in galon, in this order and with these words.
   // Omset is the revenue figure already on the stat row above; it is repeated here because
   // the SOP sheet reads as one block and a manager copies it line by line.
   const galon: Row[] = [
-    { label: 'Total galon bulan lalu', value: r ? r.prevGallons.toLocaleString('id-ID') : '—' },
-    { label: 'Total galon bulan sekarang', value: r ? r.gallons.toLocaleString('id-ID') : '—' },
+    { label: t('hrFix.monthlyReview.gallonsLastMonth'), value: r ? r.prevGallons.toLocaleString('id-ID') : '—' },
+    { label: t('hrFix.monthlyReview.gallonsThisMonth'), value: r ? r.gallons.toLocaleString('id-ID') : '—' },
     {
-      label: 'Selisih',
+      label: t('hrFix.monthlyReview.difference'),
       value: r ? `${r.gallonsDelta > 0 ? '+' : ''}${r.gallonsDelta.toLocaleString('id-ID')}` : '—',
     },
     {
-      label: 'Persentase',
+      label: t('hrFix.monthlyReview.percentage'),
       // '—' when last month sold nothing: there is no percentage, and printing +100% off a
       // zero base is a number somebody would take to a meeting.
       value: r?.growthPct != null ? `${r.growthPct > 0 ? '+' : ''}${r.growthPct}%` : '—',
     },
     {
-      label: 'Rata-rata per hari',
+      label: t('hrFix.monthlyReview.avgPerDay'),
       value: r ? `${r.avgGallonsPerDay.toLocaleString('id-ID')} galon` : '—',
     },
-    { label: 'Omset', value: r ? formatIDR(r.revenueIdr) : '—' },
+    { label: t('hrFix.monthlyReview.turnoverShort'), value: r ? formatIDR(r.revenueIdr) : '—' },
   ];
 
   const team: Row[] = [
-    { label: 'Kurir teratas', value: r?.topCourier ? `${r.topCourier.name} · ${r.topCourier.delivered} antar` : '—' },
-    { label: 'Pelanggan aktif', value: r ? r.activeCustomers.toLocaleString('id-ID') : '—' },
-    { label: 'Dipulihkan dari churn', value: '—' },
+    { label: t('hrFix.monthlyReview.topCourier'), value: r?.topCourier ? `${r.topCourier.name} · ${r.topCourier.delivered} antar` : '—' },
+    { label: t('hrFix.monthlyReview.activeCustomers'), value: r ? r.activeCustomers.toLocaleString('id-ID') : '—' },
+    { label: t('hrFix.monthlyReview.winBack'), value: '—' },
   ];
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <Card elevated className="flex flex-col gap-1 bg-brand-700 p-6 text-on-brand">
-        <p className="text-sm font-medium text-on-brand/80">Tinjauan ops</p>
+        <p className="text-sm font-medium text-on-brand/80">{t('hrFix.monthlyReview.title')}</p>
         <h1 className="text-xl font-bold">
           {MONTH} · {depotName}
         </h1>
@@ -125,40 +169,32 @@ function MonthlyReviewBody() {
             ))}
           </div>
 
-          <Panel title="Penjualan galon" rows={galon} />
+          <Panel title={t('hrFix.monthlyReview.gallonSales')} rows={galon} />
+
+          <Panel title={t('hrFix.monthlyReview.profitBreakdown')} rows={profit} />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Panel title="Governance" rows={governance} />
-            <Panel title="Tim & pelanggan" rows={team} />
+            <Panel title={t('hrFix.monthlyReview.governance')} rows={governance} />
+            <Panel title={t('hrFix.monthlyReview.teamCustomers')} rows={team} />
           </div>
         </>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-app px-4 py-2.5 text-sm font-semibold hover:bg-brand-50"
-        >
-          <DownloadSimple size={18} weight="bold" />
-          Unduh PDF
-        </button>
-        <button
-          type="button"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-700"
-        >
-          <PaperPlaneTilt size={18} weight="fill" />
-          Kirim ke head office
-        </button>
-      </div>
+      {/* "Unduh PDF" and "Kirim ke head office" were two buttons with no onClick. Neither
+          has anything behind it: this repo has no PDF renderer (the scheduled-reports
+          executor refuses PDF outright rather than shipping an .xlsx under a .pdf name) and
+          no mail transport of any kind. A button that does nothing teaches an operator the
+          console ignores them, which is worse than not offering the action. */}
     </div>
   );
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewDepotFinance(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.monthlyReview.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         Tinjauan ops bulanan hanya untuk Manajer depot.
       </CenterState>
     );

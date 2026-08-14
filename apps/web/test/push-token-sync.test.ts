@@ -92,6 +92,10 @@ describe('FCM token rotation', () => {
     await settle();
     expect(post).toHaveBeenCalledTimes(2);
     expect(post.mock.calls[1]?.[1]).toEqual({ endpoint: 'fcm:TOKEN-2' });
+    // The listener has to OUTLIVE the first token — that is the whole bug. `removed` was
+    // counted and never read, so a teardown that unsubscribed after one registration would
+    // have passed every assertion above.
+    expect(removed).toBe(0);
   });
 
   it('does not re-post the same token twice', async () => {

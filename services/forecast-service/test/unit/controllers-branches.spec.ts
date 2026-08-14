@@ -33,6 +33,7 @@ describe('ForecastController', () => {
     depotRollup: jest.fn().mockResolvedValue([]),
     salesForecast: jest.fn().mockResolvedValue({ depotId: null }),
     churnList: jest.fn().mockResolvedValue({ customers: [] }),
+    churnFor: jest.fn(),
   } as unknown as ForecastService;
   const rebuild = { rebuild: jest.fn().mockResolvedValue({ ingested: 3, pages: 1 }) } as unknown as RebuildService;
   const ownership = { ownedDepotIds: jest.fn() } as unknown as DepotOwnershipPort;
@@ -78,6 +79,31 @@ describe('ForecastController', () => {
   it('churn delegates (no ownership check)', async () => {
     await ctrl.churn({ depotId: UUID, limit: 10, days: 30 });
     expect(forecasts.churnList).toHaveBeenCalledWith({ depotId: UUID, limit: 10, windowDays: 30 });
+  });
+
+  // S2. A 200 with nulls, not a 404: "this customer has never ordered" is an answer, and
+  // the caller is composing a card that has to render either way.
+  it('churnBand answers with nulls when the customer has never ordered', async () => {
+    (forecasts.churnFor as jest.Mock).mockResolvedValue(null);
+    await expect(ctrl.churnBand(UUID)).resolves.toEqual({
+      riskBand: null,
+      riskScore: null,
+      daysSince: null,
+    });
+    expect(forecasts.churnFor).toHaveBeenCalledWith(UUID);
+  });
+
+  it('churnBand passes the scored band straight through', async () => {
+    (forecasts.churnFor as jest.Mock).mockResolvedValue({
+      riskBand: 'HIGH',
+      riskScore: 0.9,
+      daysSince: 71,
+    });
+    await expect(ctrl.churnBand(UUID)).resolves.toEqual({
+      riskBand: 'HIGH',
+      riskScore: 0.9,
+      daysSince: 71,
+    });
   });
 
   it('rebuildNow delegates to the rebuild service', async () => {

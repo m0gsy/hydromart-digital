@@ -18,10 +18,17 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewPayout } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { LedgerEntry, LedgerEntryType, PayoutSummary, Withdrawal } from '@/lib/types';
+import type {
+  DepotPaymentPanel,
+  LedgerEntry,
+  LedgerEntryType,
+  PayoutSummary,
+  Withdrawal,
+} from '@/lib/types';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -77,6 +84,7 @@ const QUICK = [2_000_000, 5_000_000];
 /** Balance + withdrawal request card (design 9d). Posts, then shows a success receipt. */
 function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithdrawn: () => void }) {
   const { t } = useT();
+  const { selected: depot } = useDepot();
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +92,37 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
 
   const balance = summary.availableBalance;
 
+  /**
+   * Where the money is being asked to go, read from the depot's own payment settings.
+   *
+   * This card printed `BCA ···· 4821` as "rekening terdaftar" and POSTed that same literal as
+   * `bankAccountRef` — for every depot, franchise or company-owned, whatever they had actually
+   * configured. Every withdrawal in the ledger carried a destination nobody had entered. The
+   * depot's bank details are already on the record the switcher holds, so this asks it.
+   */
+  const bank = useAsync<DepotPaymentPanel | null>(
+    () => (depot ? api.get(endpoints.depots.paymentInfo(depot.id), true) : Promise.resolve(null)),
+    [depot?.id],
+  );
+  const account = bank.data?.paymentBankAccountNumber?.trim() ?? '';
+  const bankName = bank.data?.paymentBankName?.trim() ?? '';
+  const bankAccountRef = account ? `${bankName} ${account}`.trim() : '';
+
   async function withdraw() {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
       setError(t('dashB.payout.invalidAmount'));
+      return;
+    }
+    // Fail CLOSED: a withdrawal with no real destination is worse than a refused one. It used
+    // to send a hardcoded reference, so the request always "worked" and the money had nowhere
+    // recorded to go.
+    if (!bankAccountRef) {
+      setError(
+        bank.error
+          ? 'Rekening depot tidak terbaca — coba muat ulang sebelum menarik dana.'
+          : 'Depot ini belum mengisi rekening bank — atur dulu di Pengaturan pembayaran.',
+      );
       return;
     }
     setBusy(true);
@@ -95,7 +130,7 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
     try {
       const w = await api.post<Withdrawal>(
         endpoints.payout.withdrawals,
-        { amount: Math.round(value), bankAccountRef: 'BCA ···· 4821' },
+        { amount: Math.round(value), bankAccountRef },
         true,
       );
       setDone(w);
@@ -140,7 +175,14 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
         <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
           <Bank size={18} weight="fill" className="text-[#8fe3ee]" />
           <div className="leading-tight">
-            <p className="text-xs font-extrabold">BCA ···· 4821</p>
+            {/* "Belum diatur" is an instruction to go and fill a form that is already
+                filled. An unread setting is a different sentence, and the refusal below
+                would otherwise blame the depot for an outage. */}
+            <p className="text-xs font-extrabold">
+              {bank.error
+                ? 'Rekening tidak terbaca'
+                : bankAccountRef || 'Rekening belum diatur'}
+            </p>
             <p className="text-[10.5px] text-white/70">{t('dashB.payout.registeredAccount')}</p>
           </div>
         </div>

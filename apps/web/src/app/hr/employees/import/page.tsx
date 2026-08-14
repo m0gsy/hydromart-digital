@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { STAFF_IMPORT_ROLES } from '@hydromart/access';
 import {
@@ -10,6 +11,7 @@ import {
   phoneCell,
   type ImportColumn,
 } from '@/components/csv-import';
+import { LoadError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -46,6 +48,7 @@ function nikCell(raw: string): string {
 }
 
 export default function ImportEmployeesPage() {
+  const { t } = useT();
   const { depots } = useDepot();
   const [upsert, setUpsert] = useState(false);
   const departments = useAsync<Department[]>(
@@ -106,6 +109,9 @@ export default function ImportEmployeesPage() {
       { key: 'joinDate', required: true, example: '2026-01-01', text: true, parse: dateCell },
       // Only a reminder for whoever renews it — nothing expires anybody automatically.
       { key: 'contractEndDate', example: '', text: true, parse: dateCell },
+      // The leaver column. This is the date payroll stops at — a RESIGNED status alone does
+      // not end a wage — so an import that closes a batch of leavers must be able to say it.
+      { key: 'exitDate', example: '', text: true, parse: dateCell },
       { key: 'salaryType', required: true, example: 'DAILY', options: ['DAILY', 'MONTHLY'] },
       { key: 'dailyRate', example: '150000', parse: intCell },
       { key: 'monthlyRate', example: '', parse: intCell },
@@ -142,6 +148,18 @@ export default function ImportEmployeesPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
+      {/* Department and shift columns are validated AGAINST these two lists, so an unread
+          list rejects every row with "kode departemen tidak dikenal" — which reads as a bad
+          spreadsheet, and the operator edits a file that was right all along. */}
+      {(departments.error || shifts.error) && (
+        <LoadError
+          onRetry={() => {
+            if (departments.error) departments.reload();
+            if (shifts.error) shifts.reload();
+          }}
+        />
+      )}
+
       <label className="flex items-start gap-3 rounded-lg border border-app p-4 text-sm">
         <input
           type="checkbox"
@@ -150,7 +168,7 @@ export default function ImportEmployeesPage() {
           className="mt-0.5 h-4 w-4"
         />
         <span>
-          <span className="font-semibold">Perbarui karyawan yang sudah ada</span>
+          <span className="font-semibold">{t('hrFix.hrImport.upsert')}</span>
           <span className="block text-[12.5px] text-muted">
             Baris yang cocok (kode karyawan, lalu NIK, lalu no. HP) ditimpa dengan isi file —
             dipakai untuk kenaikan gaji atau pindah departemen massal. Tanpa centang ini, karyawan
@@ -160,7 +178,7 @@ export default function ImportEmployeesPage() {
       </label>
 
       <CsvImport
-        title="Import Karyawan"
+        title="hrFix.hrImport.title"
         description="Unggah Excel atau CSV untuk menambah banyak karyawan sekaligus. Setiap baris baru juga dibuatkan akun login (OTP) sesuai kolom role, dan langsung tertaut ke depot yang ditulis."
         columns={columns}
         endpoint={endpoints.hr.importEmployees}

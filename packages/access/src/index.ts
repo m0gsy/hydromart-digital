@@ -102,6 +102,12 @@ export const CAPABILITIES = {
   // crm-service — broadcast campaigns: READ adds HEAD_OFFICE for oversight.
   campaignRead: ['MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   campaignWrite: ['MARKETING', 'SUPER_ADMIN'],
+  // A depot blasting its OWN customers. Deliberately NOT campaignWrite: that one takes the
+  // audience from the request body, so granting it to a depot role would let any depot
+  // manager message every customer of every depot. This one only reaches POST
+  // /campaigns/depot, whose segment is pinned to a depotId the DepotScopeGuard has already
+  // checked against the caller's own depots.
+  depotCampaign: ['KEPALA_DEPOT', 'MANAGER', 'MARKETING', 'SUPER_ADMIN'],
   // promo-service — voucher admin.
   voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
@@ -306,6 +312,25 @@ export const CAPABILITIES = {
   // export logs, incident register, system health, network subscriptions, audit trail.
   // One knob rather than fifteen identical hand-written role pairs.
   hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // admin-service — a staff member's OWN notification channel preferences. Deliberately
+  // the widest capability in this map and safely so: the row is keyed by the caller's auth
+  // `sub`, so holding it lets an account change nothing but what its own phone buzzes for.
+  // It used to be `hqConsole`, which is why the depot consoles' notification toggles were
+  // React state that reset on reload — there was no route a depot account could call.
+  ownNotifPrefs: [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'HEAD_OFFICE',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'SUPER_ADMIN',
+  ],
   // payout-service — READ franchise payout batches. Wider than hqPayout: head office
   // watches the queue, only finance releases money out of it.
   hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],

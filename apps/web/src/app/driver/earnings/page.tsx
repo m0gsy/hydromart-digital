@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp } from '@phosphor-icons/react';
@@ -19,13 +20,15 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
   minute: '2-digit',
 });
 
+// Dictionary KEYS — module scope, so t() runs at the call site instead.
 const STATUS_LABEL: Record<CourierWithdrawal['status'], string> = {
-  PROCESSING: 'Diproses',
-  PAID: 'Terkirim',
-  FAILED: 'Gagal',
+  PROCESSING: 'hrFix.earnings.processing',
+  PAID: 'hrFix.earnings.sent',
+  FAILED: 'hrFix.earnings.failed',
 };
 
 function Earnings() {
+  const { t } = useT();
   const router = useRouter();
   const load = useAsync<CourierEarningsSummary>(
     () => api.get(endpoints.courierPayout.summary, true),
@@ -40,7 +43,7 @@ function Earnings() {
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-72 w-full" /></div>;
   if (load.error || !load.data) {
-    return <div className="p-5"><ErrorState message={load.error ?? 'Gagal memuat'} onRetry={load.reload} /></div>;
+    return <div className="p-5"><ErrorState message={load.error ?? t('hrFix.earnings.loadFailed')} onRetry={load.reload} /></div>;
   }
 
   const { availableBalance, monthEarnings, recentEntries, recentWithdrawals } = load.data;
@@ -61,7 +64,7 @@ function Earnings() {
       setBank('');
       await load.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menarik saldo. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.earnings.withdrawFailed'));
     } finally {
       setBusy(false);
     }
@@ -73,11 +76,11 @@ function Earnings() {
         <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Pendapatan</div>
+        <div className="flex-1 text-sm font-extrabold">{t('hrFix.earnings.title')}</div>
       </header>
 
       <Card className="bg-brand-600 p-5 text-on-brand">
-        <div className="text-xs font-bold opacity-80">Saldo tersedia</div>
+        <div className="text-xs font-bold opacity-80">{t('hrFix.earnings.available')}</div>
         <Money amount={availableBalance} className="mt-1 text-3xl font-extrabold" />
         <div className="mt-3 flex items-center gap-1.5 text-xs opacity-90">
           <TrendUp size={15} weight="fill" />
@@ -92,14 +95,14 @@ function Earnings() {
         <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
           <Target size={18} weight="fill" />
         </span>
-        <span className="flex-1 text-sm font-bold">Target shift</span>
+        <span className="flex-1 text-sm font-bold">{t('hrFix.earnings.shiftTarget')}</span>
         <CaretRight size={16} className="text-[color:var(--muted)]" />
       </Link>
 
       {withdrawing ? (
         <Card className="space-y-3 p-4">
-          <div className="text-sm font-extrabold">Tarik saldo</div>
-          <Field label="Jumlah penarikan" htmlFor="amount">
+          <div className="text-sm font-extrabold">{t('hrFix.earnings.withdraw')}</div>
+          <Field label={t('hrFix.earnings.amount')} htmlFor="amount">
             <Input
               id="amount"
               inputMode="numeric"
@@ -108,16 +111,16 @@ function Earnings() {
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
             />
           </Field>
-          <Field label="Rekening tujuan" htmlFor="bank">
+          <Field label={t('hrFix.earnings.account')} htmlFor="bank">
             <Input
               id="bank"
-              placeholder="BCA ···· 4821"
+              placeholder={t('hrFix.earnings.accountHint')}
               value={bank}
               onChange={(e) => setBank(e.target.value)}
               maxLength={120}
             />
           </Field>
-          {overBalance && <p className="text-sm text-red-600">Jumlah melebihi saldo tersedia.</p>}
+          {overBalance && <p className="text-sm text-red-600">{t('hrFix.earnings.overBalance')}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => { setWithdrawing(false); setError(null); }}>
@@ -145,9 +148,9 @@ function Earnings() {
         </Button>
       )}
 
-      <div className="text-sm font-extrabold">Rincian</div>
+      <div className="text-sm font-extrabold">{t('hrFix.earnings.breakdown')}</div>
       {recentEntries.length === 0 ? (
-        <CenterState icon={<Coins size={32} />} title="Belum ada pendapatan">
+        <CenterState icon={<Coins size={32} />} title={t('hrFix.earnings.emptyTitle')}>
           Ongkos antar akan muncul di sini setelah kamu menyelesaikan pengantaran.
         </CenterState>
       ) : (
@@ -160,7 +163,7 @@ function Earnings() {
 
       {recentWithdrawals.length > 0 && (
         <>
-          <div className="text-sm font-extrabold">Riwayat penarikan</div>
+          <div className="text-sm font-extrabold">{t('hrFix.earnings.withdrawHistory')}</div>
           <div className="flex flex-col gap-2">
             {recentWithdrawals.map((w) => (
               <WithdrawalRow key={w.id} withdrawal={w} />
@@ -191,6 +194,7 @@ function LedgerRow({ entry }: { entry: CourierLedgerEntry }) {
 }
 
 function WithdrawalRow({ withdrawal: w }: { withdrawal: CourierWithdrawal }) {
+  const { t } = useT();
   const tone =
     w.status === 'PAID' ? 'text-green-600' : w.status === 'FAILED' ? 'text-red-600' : 'text-amber-600';
   return (
@@ -198,7 +202,7 @@ function WithdrawalRow({ withdrawal: w }: { withdrawal: CourierWithdrawal }) {
       <div className="min-w-0">
         <div className="truncate text-sm font-bold">{w.bankAccountRef}</div>
         <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
-          {WHEN.format(new Date(w.createdAt))} · <span className={tone}>{STATUS_LABEL[w.status]}</span>
+          {WHEN.format(new Date(w.createdAt))} · <span className={tone}>{t(STATUS_LABEL[w.status])}</span>
         </div>
       </div>
       <Money amount={w.amount} className="shrink-0 text-sm font-extrabold" />

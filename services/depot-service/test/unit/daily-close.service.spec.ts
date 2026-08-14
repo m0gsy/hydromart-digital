@@ -60,6 +60,12 @@ class FakeCloses implements DailyCloseRepository {
     row.reopenedBy = reopenedBy;
     return row;
   }
+  async listForDepotRange(depotId: string, from: Date, to: Date) {
+    return this.rows.filter(
+      (r) =>
+        r.depotId === depotId && new Date(r.businessDate) >= from && new Date(r.businessDate) < to,
+    );
+  }
 }
 
 /** Open cashier shifts, the one thing that can refuse a close. */

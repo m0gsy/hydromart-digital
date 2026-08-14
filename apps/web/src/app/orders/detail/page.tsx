@@ -378,7 +378,7 @@ function OrderDetailInner({ id }: { id: string }) {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted">Depot belum mengatur rekening. Hubungi depot.</p>
+                    <p className="text-sm text-muted">{t('hrFix.orderDetailPay.noBankAccount')}</p>
                   ))}
                 {payment.method === 'QRIS' &&
                   (depot.paymentQrisImageUrl ? (
@@ -395,7 +395,7 @@ function OrderDetailInner({ id }: { id: string }) {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted">Depot belum mengatur QRIS. Hubungi depot.</p>
+                    <p className="text-sm text-muted">{t('hrFix.orderDetailPay.noQris')}</p>
                   ))}
                 <p className="text-[12.5px] text-muted">
                   Pembayaran masuk langsung ke {depot.name}. {t('order.detail.transferAck')}

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
@@ -17,6 +18,7 @@ import { useAsync } from '@/lib/use-async';
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
 
 function PayrollInner() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const prefillEmployee = useSearchParams().get('employeeId') ?? '';
@@ -31,16 +33,16 @@ function PayrollInner() {
 
   async function generate() {
     if (!employeeId) {
-      toast('Isi employeeId untuk generate', 'error');
+      toast(t('hrFix.payroll.needEmployeeId'), 'error');
       return;
     }
     setBusy(true);
     try {
       await api.post(endpoints.hr.generatePayroll, { employeeId, periodMonth: period }, true);
-      toast('Payroll digenerate');
+      toast(t('hrFix.payroll.generated'));
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal generate', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.payroll.generateFailed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -48,24 +50,24 @@ function PayrollInner() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SectionHeader title="Payroll" subtitle={`Periode ${period}`} />
+      <SectionHeader title={t('hrFix.payroll.title')} subtitle={`Periode ${period}`} />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
+        <label className="text-sm">{t('hrFix.payroll.period')}<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
         {/* G-1. Optional filter, so the empty option means "semua karyawan". */}
         <EmployeeSelect
           value={employeeId}
           onChange={setEmployeeId}
-          label="Karyawan (opsional)"
-          placeholder="Semua karyawan"
+          label={t('hrFix.payroll.employeeOpt')}
+          placeholder={t('hrFix.payroll.allEmployees')}
           className="w-64"
         />
-        {canRunPayroll(customer?.role) && <Button onClick={generate} loading={busy}>Generate</Button>}
+        {canRunPayroll(customer?.role) && <Button onClick={generate} loading={busy}>{t('hrFix.payroll.generate')}</Button>}
       </Card>
 
       {loading && <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">Belum ada payroll periode ini.</Card>}
+      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">{t('hrFix.payroll.empty')}</Card>}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((p) => (
@@ -76,7 +78,7 @@ function PayrollInner() {
               </div>
               <div className="flex items-center gap-3">
                 <Money amount={Number(p.net)} className="font-bold" />
-                <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+                <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
               </div>
             </Link>
           ))}

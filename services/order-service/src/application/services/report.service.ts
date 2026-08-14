@@ -16,6 +16,9 @@ import {
 } from '../ports/order.repository';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
+import { PaymentCashPort } from '../ports/payment-cash.port';
+import { DeliverySlaPort } from '../ports/delivery-sla.port';
+import { DepotGovernanceFigures, DepotCostBreakdown, DepotCostsPort } from '../ports/depot-costs.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -76,7 +79,8 @@ export interface DepotCourierDaily {
   name: string;
   completed: number;
   failed: number;
-  codIdr: number;
+  /** Null when payment-service could not be read — not 0, which would read as "collected nothing". */
+  codIdr: number | null;
 }
 
 /**
@@ -106,12 +110,14 @@ export interface DepotDailyReport {
   orders: number;
   revenueIdr: number;
   gallonsDelivered: number;
-  // null (not 0) for aggregates order-service can't join — depot-service gallon-returns and
-  // payment-service COD settlement. Consistent with ARCH-1: emit null so the FE renders "—"
-  // rather than a fabricated zero that reads as a real measurement.
+  // null (not 0) when the owning service could not be read. Consistent with ARCH-1: emit
+  // null so the FE renders "—" rather than a fabricated zero that reads as a measurement.
   gallonsReturned: number | null;
   gallonsDamaged: number | null;
+  /** Cash the couriers collected on the day's DELIVERY orders. Excludes counter sales. */
   codCollectedIdr: number | null;
+  /** Counter cash payment-service booked against this depot in the same window. */
+  cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotCourierDaily[];
 }
@@ -121,17 +127,31 @@ export interface DepotCompareRow {
   depotId: string;
   orders: number;
   revenueIdr: number;
+  /** On-time share, 0..100 with one decimal. Null when delivery-service could not be read. */
+  slaPct: number | null;
+  /** Gallons that came back damaged in the window (depot-service). Null when unreadable. */
+  wastageGallons: number | null;
+  /** Revenue − goods − payroll − till. Null the moment any term is missing. */
+  netProfitIdr: number | null;
 }
 
-/** Cross-depot comparison over a window (design 14d). SLA/wastage are omitted — no order source. */
+/**
+ * Cross-depot comparison over a window (design 14d).
+ *
+ * The three columns beyond orders/revenue used to be `value: () => null` in the CLIENT,
+ * with a comment saying order-service could not join them. It still cannot — so it asks
+ * the three services that own them, per depot, the same way the monthly review does. A
+ * comparison screen where three of five rows are permanently "—" is a screen nobody opens.
+ */
 export interface DepotCompareReport extends ReportRangeView {
   depots: DepotCompareRow[];
 }
 
 /**
  * Depot "Tinjauan ops bulanan" composite for the monthly review screen. orders/revenue/
- * activeCustomers are real order-service figures; netProfit + SLA are null (no source);
- * topCourier is derived from the order's own driverName (delivered count, no rating).
+ * activeCustomers are real order-service figures; SLA is read from delivery-service and
+ * netProfit is still null (see the field); topCourier is derived from the order's own
+ * driverName (delivered count, no rating).
  */
 export interface DepotMonthlyReport {
   depotId: string;
@@ -141,9 +161,29 @@ export interface DepotMonthlyReport {
   revenueIdr: number;
   /** Distinct customers with a non-cancelled order in the month. */
   activeCustomers: number;
-  /** Null — net profit needs cost-of-goods + expenses (payout/procurement), not joinable here. */
+  /**
+   * Revenue − goods − payroll − operating cost, whole rupiah.
+   *
+   * **Null when ANY input is missing**, never a partial subtraction: a profit computed from
+   * a payroll nobody could fetch is not a small error, it is the wrong number with a
+   * confident face. `profitBreakdown` carries the four terms so the screen can show the
+   * arithmetic rather than assert a conclusion.
+   */
   netProfitIdr: number | null;
-  /** Null — SLA on-time needs delivery-service timings, no order-service source. */
+  /**
+   * The terms behind `netProfitIdr`, each null when its owning service could not be read.
+   *
+   * Present even when the net is null — knowing WHICH half failed is what turns "—" from a
+   * dead end into something an operator can chase. `cogsIdr` is purchases received in the
+   * month, not accrual cost of goods sold: the catalog has no per-unit cost price, and the
+   * screen labels it as such rather than implying an accounting nobody performed.
+   */
+  profitBreakdown: DepotCostBreakdown & { revenueIdr: number };
+  /**
+   * On-time delivery share for the month, 0..100 with one decimal. Null when
+   * delivery-service could not be read, or when nothing was delivered — a rate of 0 there
+   * would describe a depot in crisis rather than a quiet month.
+   */
   slaPct: number | null;
   // Depot SOP: the monthly review is read in GALLONS, against last month.
   /** Gallons delivered this month. */
@@ -157,6 +197,14 @@ export interface DepotMonthlyReport {
   /** Gallons per elapsed day of the month — not per 30, which flatters a short month. */
   avgGallonsPerDay: number;
   topCourier?: { name: string; delivered: number };
+  /**
+   * The governance panel: approvals reviewed, stock-count variance, settlement variance.
+   *
+   * NULL means depot-service could not be read — not a clean month. The three used to be
+   * literal '—' strings in the client, which is indistinguishable from a depot that never
+   * closed its books.
+   */
+  governance: DepotGovernanceFigures | null;
 }
 
 /** Depot Operator "Laporan mingguan" composite (design cell 7d). */
@@ -210,6 +258,18 @@ export const isDelivered = (s: OrderStatus): boolean =>
 @Injectable()
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
+  /**
+   * Ceiling on one segment resolution. A broadcast audience is a list of people, not a
+   * report page, so this is sized for a real campaign rather than a screen — but it is
+   * still a ceiling, because "every customer we have ever had" must not arrive as one
+   * response body. Crossing it is reported, never silently trimmed.
+   */
+  private static readonly MAX_SEGMENT_CUSTOMERS = 5000;
+  /**
+   * Rows per scheduled export. A report is a spreadsheet somebody reads, not a data dump —
+   * and the aggregates behind it are already top-N, so this is the N.
+   */
+  private static readonly EXPORT_ROWS = 100;
   private readonly logger = new Logger(ReportService.name);
 
   constructor(
@@ -223,6 +283,15 @@ export class ReportService {
     @Optional()
     @Inject(ORDER_TOKENS.Notification)
     private readonly notifications?: NotificationPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.PaymentCash)
+    private readonly paymentCash?: PaymentCashPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.DeliverySla)
+    private readonly deliverySla?: DeliverySlaPort,
+    @Optional()
+    @Inject(ORDER_TOKENS.DepotCosts)
+    private readonly depotCosts?: DepotCostsPort,
   ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
@@ -357,6 +426,70 @@ export class ReportService {
     };
   }
 
+  /**
+   * The customers behind `segmentEstimate`, for crm to broadcast to. Same conditions, same
+   * day arithmetic — the two are deliberately one code path apart so a screen cannot size
+   * an audience one way and message a different one.
+   *
+   * `truncated` is the point of the cap: an audience larger than MAX_SEGMENT_CUSTOMERS is
+   * reported as cut off rather than returned short, so the caller can refuse instead of
+   * reaching part of a segment and calling it sent.
+   */
+  async segmentCustomers(
+    input: {
+      recencyDays?: number;
+      lapsedDays?: number;
+      newWithinDays?: number;
+      minOrders?: number;
+      depotId?: string;
+    },
+    limit = ReportService.MAX_SEGMENT_CUSTOMERS,
+  ): Promise<{ customerIds: string[]; truncated: boolean }> {
+    const daysAgo = (d: number): Date => new Date(Date.now() - d * 24 * 60 * 60 * 1000);
+    const customerIds = await this.orders.segmentCustomerIds(
+      {
+        recencyCutoff: input.recencyDays != null ? daysAgo(input.recencyDays) : undefined,
+        lapsedCutoff: input.lapsedDays != null ? daysAgo(input.lapsedDays) : undefined,
+        firstOrderCutoff: input.newWithinDays != null ? daysAgo(input.newWithinDays) : undefined,
+        minOrders: input.minOrders,
+        depotId: input.depotId,
+      },
+      limit,
+    );
+    return { customerIds, truncated: customerIds.length >= limit };
+  }
+
+  /**
+   * The rows behind a scheduled revenue report (design 15c), for admin-service's sweep.
+   *
+   * Same two aggregates the HQ export screen already draws, flattened to one label/orders/
+   * revenue shape so a spreadsheet does not need to know which grouping produced it. Depot
+   * rows are labelled with the depot's NAME when depot-service can be reached; a UUID in a
+   * report somebody opens next quarter is not a label, but it is better than no report, so
+   * the id is the fallback rather than a failure.
+   */
+  async exportRows(
+    dataset: 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT',
+    range: ReportRange,
+  ): Promise<{ label: string; orders: number; revenue: number }[]> {
+    if (dataset === 'REVENUE_BY_PRODUCT') {
+      const report = await this.revenueByProduct(range, ReportService.EXPORT_ROWS);
+      return report.items.map((i) => ({
+        label: i.productName,
+        orders: i.orderCount,
+        revenue: i.revenue,
+      }));
+    }
+    const { items } = await this.topDepots(range, ReportService.EXPORT_ROWS);
+    const contacts = (await this.depotDirectory?.listContacts()) ?? null;
+    const names = new Map((contacts ?? []).map((d) => [d.id, d.name]));
+    return items.map((i) => ({
+      label: names.get(i.depotId) ?? i.depotId,
+      orders: i.orderCount,
+      revenue: i.revenue,
+    }));
+  }
+
   async customerSummary(customerId: string): Promise<CustomerSummary> {
     const [life, recent] = await Promise.all([
       this.orders.customerLifetime(customerId),
@@ -408,18 +541,70 @@ export class ReportService {
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const delivered = live.filter((r) => isDelivered(r.status));
+
+    // Courier COD is asked for over the day's DELIVERY orders only. A counter sale's
+    // payment is booked against the depot, and `depotCash` already counts it — asking for
+    // both would put the same rupiah in two columns of the same report.
+    const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
+    const [cashRows, drawer, returns] = await Promise.all([
+      deliveryOrders.length > 0 && this.paymentCash
+        ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
+        : Promise.resolve(this.paymentCash ? [] : null),
+      this.paymentCash ? this.paymentCash.depotCash(depotId, from, to) : Promise.resolve(null),
+      this.depotDirectory?.gallonReturns
+        ? this.depotDirectory.gallonReturns(depotId, from, to)
+        : Promise.resolve(null),
+    ]);
+    const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
+
     return {
       depotId,
       date: day,
       orders: live.length,
       revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
       gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
-      gallonsReturned: null, // TODO: join depot-service gallon-returns (retur masuk)
-      gallonsDamaged: null, // TODO: join depot-service gallon-returns (rusak)
-      codCollectedIdr: null, // TODO: join payment-service COD settlement
+      gallonsReturned: returns ? returns.gallons : null,
+      gallonsDamaged: returns ? returns.damaged : null,
+      codCollectedIdr: cashRows ? cashRows.reduce((s, c) => s + c.amountIdr, 0) : null,
+      cashInDrawerIdr: drawer,
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
-      perCourier: [], // TODO: join delivery-service performance (empty = unavailable, not zero couriers)
+      perCourier: ReportService.perCourier(rows, cashBy),
     };
+  }
+
+  /**
+   * The day's orders grouped by the courier who carried them.
+   *
+   * Grouped on `driverName`, the only courier identity an order carries — the same key
+   * `depotWeekly`/`reportsDepotMonthly` already use for `topCourier`, so the daily
+   * breakdown and the weekly top-courier can never disagree about who did what. Two
+   * couriers sharing a display name would merge; the fix for that is a driver id on the
+   * order, not a second grouping rule here.
+   *
+   * `failed` is the cancelled orders that had already been assigned to that courier, which
+   * is why cancelled rows are grouped too rather than filtered out first.
+   */
+  private static perCourier(
+    rows: OrderRecord[],
+    cashBy: Map<string, number> | null,
+  ): DepotCourierDaily[] {
+    const by = new Map<string, { completed: number; failed: number; codIdr: number }>();
+    for (const o of rows) {
+      if (!o.driverName) continue;
+      const cur = by.get(o.driverName) ?? { completed: 0, failed: 0, codIdr: 0 };
+      if (o.status === OrderStatus.CANCELLED) cur.failed += 1;
+      else if (isDelivered(o.status)) cur.completed += 1;
+      cur.codIdr += cashBy?.get(o.id) ?? 0;
+      by.set(o.driverName, cur);
+    }
+    return [...by.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, c]) => ({
+        name,
+        completed: c.completed,
+        failed: c.failed,
+        codIdr: cashBy ? c.codIdr : null,
+      }));
   }
 
   /**
@@ -507,14 +692,41 @@ export class ReportService {
    * every requested column renders. SLA/wastage are intentionally absent (no order source).
    */
   async reportsDepotCompare(depotIds: string[], range: ReportRange): Promise<DepotCompareReport> {
+    // The window has to be closed to ask anyone else about it: SLA, costs and returns are
+    // all range reads. An open-ended compare keeps the two real columns and leaves the
+    // other three null rather than quietly reporting one depot's whole history.
+    const bounded = range.from != null && range.to != null;
+    const from = range.from as Date;
+    const to = range.to as Date;
+
     const depots = await Promise.all(
       depotIds.map(async (depotId) => {
-        const rows = await this.orders.ordersForDepot(depotId, range);
+        const [rows, onTime, costs, payrollIdr, returns] = await Promise.all([
+          this.orders.ordersForDepot(depotId, range),
+          bounded && this.deliverySla
+            ? this.deliverySla.onTimeRate(depotId, from, to)
+            : Promise.resolve(null),
+          bounded && this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
+          bounded && this.depotCosts
+            ? this.depotCosts.payroll(depotId, localDayKey(from, this.config.businessTimeZone).slice(0, 7))
+            : Promise.resolve(null),
+          bounded && this.depotDirectory?.gallonReturns
+            ? this.depotDirectory.gallonReturns(depotId, from, to)
+            : Promise.resolve(null),
+        ]);
         const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+        const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
         return {
           depotId,
           orders: live.length,
-          revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+          revenueIdr,
+          slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
+          wastageGallons: returns ? returns.damaged : null,
+          netProfitIdr: ReportService.netProfit(revenueIdr, {
+            cogsIdr: costs ? costs.cogsIdr : null,
+            opexIdr: costs ? costs.opexIdr : null,
+            payrollIdr,
+          }),
         };
       }),
     );
@@ -533,9 +745,16 @@ export class ReportService {
     const prevFrom = addLocalMonths(from, -1, tz);
     // Last month is one more read of the same shape — the SOP reads the two side by side,
     // and a month of one depot's orders is far under the 20.000-row range bound.
-    const [rows, prevRows] = await Promise.all([
+    const [rows, prevRows, onTime, costs, payrollIdr, governance] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),
       this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
+      // Measured in delivery-service, which is the only place that knows when a delivery
+      // actually arrived. An order's status says it was delivered, never whether it was late.
+      this.deliverySla ? this.deliverySla.onTimeRate(depotId, from, to) : Promise.resolve(null),
+      this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
+      this.depotCosts ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
+      // Approvals, stock counts and the daily close all live in depot-service; one read.
+      this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
     ]);
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
@@ -551,16 +770,24 @@ export class ReportService {
       rs.filter((r) => isDelivered(r.status)).reduce((sum, r) => sum + gallonQty(r), 0);
     const gallons = gallonsOf(rows);
     const prevGallons = gallonsOf(prevRows);
+    const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
+    const breakdown: DepotCostBreakdown = {
+      cogsIdr: costs ? costs.cogsIdr : null,
+      opexIdr: costs ? costs.opexIdr : null,
+      payrollIdr,
+    };
+
     return {
       depotId,
       month,
       orders: live.length,
-      revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+      revenueIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      // TODO: net profit needs cost-of-goods + expenses (payout/procurement) — not joinable here.
-      netProfitIdr: null,
-      // TODO: SLA on-time needs delivery-service timings — no order-service source.
-      slaPct: null,
+      netProfitIdr: ReportService.netProfit(revenueIdr, breakdown),
+      profitBreakdown: { revenueIdr, ...breakdown },
+      // Percent, to one decimal — the screen prints a percentage, and rounding to whole
+      // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.
+      slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
       gallons,
       prevGallons,
       gallonsDelta: gallons - prevGallons,
@@ -569,8 +796,27 @@ export class ReportService {
       growthPct:
         prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
       avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
+      governance,
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
+  }
+
+  /**
+   * Revenue minus every cost term — or null the moment one term is missing.
+   *
+   * **Fail-closed on purpose.** Treating an unreachable hr-service as "payroll was zero"
+   * would publish a profit inflated by the depot's entire wage bill, and it would look
+   * exactly like a good month. The screen showing "—" next to a breakdown that names the
+   * missing half is the honest version of not knowing.
+   *
+   * `cogsIdr` is purchases RECEIVED in the month, not accrual cost of goods sold — the
+   * catalog carries no per-unit cost price, so a month with one big delivery reads as a
+   * thin month. The breakdown is what lets a reader see that rather than be misled by it.
+   */
+  private static netProfit(revenueIdr: number, costs: DepotCostBreakdown): number | null {
+    const terms = [costs.cogsIdr, costs.payrollIdr, costs.opexIdr];
+    if (terms.some((t) => t === null)) return null;
+    return terms.reduce((net: number, t) => net - (t as number), revenueIdr);
   }
 
   /**

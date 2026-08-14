@@ -212,6 +212,21 @@ export class ForecastPrismaRepository implements ForecastRepository {
     return rows.map((r) => ({ depotId: r.depotId, day: dateToDay(r.day), revenue: r.revenue }));
   }
 
+  async findCustomerActivity(customerId: string): Promise<CustomerActivityRow | null> {
+    // customerId is the primary key — one row per customer, `depotId` records where they
+    // last bought rather than partitioning them.
+    const r = await this.prisma.customerActivity.findUnique({ where: { customerId } });
+    return r
+      ? {
+          customerId: r.customerId,
+          depotId: r.depotId,
+          lastOrderAt: r.lastOrderAt,
+          orderCount: r.orderCount,
+          totalSpent: r.totalSpent,
+        }
+      : null;
+  }
+
   async listCustomerActivity(query: {
     depotId?: string | null;
     limit: number;

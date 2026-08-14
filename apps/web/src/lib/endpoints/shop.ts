@@ -187,6 +187,9 @@ loyalty: {
     `/loyalty/api/v1/loyalty/me${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   // Read any customer's loyalty account (staff — HEAD_OFFICE/MARKETING/SUPER_ADMIN).
   byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
+  // Signed manual points correction (MANAGER/MARKETING/SUPER_ADMIN). The reason is
+  // REQUIRED server-side — a points movement nobody can explain later is not a correction.
+  adjust: '/loyalty/api/v1/loyalty/adjust',
   // Total enrolled members (HQ broadcast reach for the loyalty audience).
   memberCount: '/loyalty/api/v1/loyalty/members/count',
   // Depot-scoped loyalty rollup (design 17a): tier counts + points outstanding +

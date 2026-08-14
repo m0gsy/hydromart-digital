@@ -84,6 +84,21 @@ export class DepotCashQueryDto {
   to?: string;
 }
 
+/**
+ * Daily report: the PAID cash on a depot's day, order by order.
+ *
+ * A POST with a body rather than a query string — a busy depot's day is hundreds of order
+ * ids, which is past what a URL can carry. Bounded at 1.000 so one caller cannot ask the
+ * payment book for the whole network in a single read.
+ */
+export class CashByOrderDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 1000 })
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @IsUUID('4', { each: true })
+  orderIds!: string[];
+}
+
 export class ListPaymentsQueryDto {
   @ApiPropertyOptional({
     description:

@@ -1,4 +1,6 @@
 import { plainToInstance } from 'class-transformer';
+
+import { SaveMeterReadingDto } from '../../src/modules/dto/meter-reading.dto';
 import { validate } from 'class-validator';
 
 import {
@@ -88,5 +90,33 @@ describe('request payload transforms', () => {
     });
     expect(dto.lines[0].quantity).toBe(2);
     expect(await validate(dto)).toEqual([]);
+  });
+});
+
+/*
+ * The raw-water intake pair arrives from a form as strings. Both `@Type(() => Number)`
+ * arrows have to run, or a reading typed at the tank is validated as text and stored as a
+ * number nobody checked.
+ */
+describe('SaveMeterReadingDto — the optional intake pair', () => {
+  it('coerces both intake readings and accepts three decimals', async () => {
+    const dto = plainToInstance(SaveMeterReadingDto, {
+      readingDate: '2026-08-14',
+      sourceOpeningM3: '500.125',
+      sourceClosingM3: '504',
+    });
+    expect(dto.sourceOpeningM3).toBeCloseTo(500.125);
+    expect(dto.sourceClosingM3).toBe(504);
+    const errors = await validate(dto);
+    expect(errors.filter((e) => e.property.startsWith('source'))).toEqual([]);
+  });
+
+  it('rejects an intake reading with more precision than the meter has', async () => {
+    const dto = plainToInstance(SaveMeterReadingDto, {
+      readingDate: '2026-08-14',
+      sourceClosingM3: '504.12345',
+    });
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'sourceClosingM3')).toBe(true);
   });
 });

@@ -1,8 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
+import { AccountService } from '../../application/services/account.service';
 import { AuditService } from '../../application/services/audit.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
@@ -13,7 +14,10 @@ import { Ingest3ResponseDto, List3ResponseDto } from '../dto/responses.generated
 @ApiBearerAuth()
 @Controller({ version: '1' })
 export class AuditController {
-  constructor(private readonly audit: AuditService) {}
+  constructor(
+    private readonly audit: AuditService,
+    private readonly accounts: AccountService,
+  ) {}
 
   // HQ audit trail (feature 8a): recent privileged actions across services, newest
   // first. Read is head-office / super-admin only.
@@ -43,16 +47,24 @@ export class AuditController {
   @Can('auditRead')
   @Get('auth/audit/depot')
   @ApiOperation({ summary: 'List a depot-scoped audit trail (newest first, category chips)' })
-  async listForDepot(@Query() query: DepotAuditQueryDto): Promise<{
+  async listForDepot(
+    @Query() query: DepotAuditQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{
     items: AuditLogDto[];
     total: number;
     page: number;
     limit: number;
   }> {
+    // Decided from the CALLER, not from the query. `auditRead` spans the depot chain, and this
+    // route used to pass `query.depotId` straight through with no ownership check anywhere on
+    // the path — one changed UUID and a depot-locked kepala depot was reading another depot's
+    // privileged-action trail. Same helper `/auth/staff` and `/auth/drivers` narrow with.
+    const depotId = await this.accounts.resolveScopedDepot(user, query.depotId);
     const result = await this.audit.list({
       page: query.page ?? 1,
       limit: query.limit ?? 50,
-      depotId: query.depotId,
+      depotId,
       type: query.type,
     });
     return { ...result, items: result.items.map(AuditLogDto.from) };

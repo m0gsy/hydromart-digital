@@ -191,6 +191,44 @@ describe('ForecastService', () => {
     expect(high.riskScore).toBeLessThan(low.riskScore);
   });
 
+  /*
+   * S2. The depot CRM card scored one customer at a time. The trap this avoids: looking the
+   * customer up in `churnList` would report LOW for anyone outside the top-N, when the truth
+   * is "not in the sample" — and LOW is the answer a manager acts on by doing nothing.
+   */
+  it('churnFor scores one customer with the SAME rule the at-risk list uses', async () => {
+    await service.ingest(
+      makeIngest({ orderId: 'o1', customerId: 'stale', at: new Date('2026-05-01T00:00:00Z') }),
+    );
+    await service.ingest(
+      makeIngest({ orderId: 'o2', customerId: 'recent', at: new Date('2026-07-10T00:00:00Z') }),
+    );
+
+    const { customers } = await service.churnList({ now: NOW });
+    const fromList = customers.find((c) => c.customerId === 'stale')!;
+    const alone = await service.churnFor('stale', NOW);
+    expect(alone).not.toBeNull();
+    expect(alone!.riskBand).toBe(fromList.riskBand);
+    expect(alone!.riskScore).toBeCloseTo(fromList.riskScore, 10);
+    expect(alone!.daysSince).toBe(fromList.daysSince);
+  });
+
+  // Null, not LOW. A customer who has never ordered has no recency, so there is no risk to
+  // report — and calling that "low risk" is a claim nobody measured.
+  it('churnFor returns null for a customer with no activity at all', async () => {
+    expect(await service.churnFor('never-ordered', NOW)).toBeNull();
+  });
+
+  // The production path takes no `now`: it reads the clock. A customer who ordered a moment
+  // ago has zero recency, so their risk must be LOW against a real wall clock too.
+  it('churnFor reads the clock when no now is passed', async () => {
+    await service.ingest(makeIngest({ orderId: 'o-now', customerId: 'fresh', at: new Date() }));
+    const risk = await service.churnFor('fresh');
+    expect(risk).not.toBeNull();
+    expect(risk!.daysSince).toBe(0);
+    expect(risk!.riskBand).toBe('LOW');
+  });
+
   // §G-3: a re-engage list nobody can put a name to is a list nobody calls.
   it('churnList carries the account name, and only asks about the rows it kept', async () => {
     const asked: string[][] = [];

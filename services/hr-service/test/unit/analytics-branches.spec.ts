@@ -50,6 +50,27 @@ describe('AnalyticsService.depotSummary', () => {
     expect(s.periodMonth).toBe(s.workDate.slice(0, 7));
   });
 
+  /*
+   * S2. order-service's monthly review asks about a month that has usually already closed.
+   * Reading THIS month's payroll into a report headed "Juli" is how a P&L quietly becomes
+   * fiction, so the period is a parameter — while the attendance counts stay "today",
+   * because they are a live queue rather than a period figure.
+   */
+  it('reads payroll for the requested period and says which one it answered for', async () => {
+    const payrollTotals = jest.fn().mockResolvedValue({ net: 9_000_000 });
+    const svc = build({ payrollTotals });
+    const s = await svc.depotSummary('d-1', '2026-07');
+    expect(payrollTotals).toHaveBeenCalledWith('2026-07', ['d-1']);
+    expect(s.periodMonth).toBe('2026-07');
+    expect(s.workDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('falls back to the running month when no period is given', async () => {
+    const payrollTotals = jest.fn().mockResolvedValue({ net: 1 });
+    const s = await build({ payrollTotals }).depotSummary('d-1');
+    expect(payrollTotals).toHaveBeenCalledWith(s.workDate.slice(0, 7), ['d-1']);
+  });
+
   it('defaults missing status groups to zero', async () => {
     const svc = build({
       attendanceByStatus: async () => [],

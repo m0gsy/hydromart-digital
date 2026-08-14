@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { ChartLineUp, Warning } from '@phosphor-icons/react';
 
 import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -80,7 +80,9 @@ export default function HqOverviewPage() {
   const buckets = sales?.buckets ?? [];
   const totalRevenue = buckets.reduce((n, b) => n + b.revenue, 0);
   const totalOrders = buckets.reduce((n, b) => n + b.orderCount, 0);
-  const activeDepots = depots.filter((d) => d.active).length;
+  // The depot list feeds two tiles and the map. Unread it is not "0 depot aktif" — that is
+  // a network with no depots trading, which is the one thing this screen must never invent.
+  const activeDepots = depotList.error ? null : depots.filter((d) => d.active).length;
   // No delivered order in the window means there is no rate to state — the service
   // reports slaRate 0 for that, and "0%" reads as a failing network rather than a quiet one.
   const slaPct =
@@ -155,18 +157,36 @@ export default function HqOverviewPage() {
         />
         <Stat
           label={t('hq.overview.kpi.activeDepots')}
-          value={String(activeDepots)}
-          hint={t('hq.overview.kpiHint.depots', { total: depots.length })}
+          value={activeDepots != null ? String(activeDepots) : t('hq.common.dash')}
+          hint={
+            activeDepots != null
+              ? t('hq.overview.kpiHint.depots', { total: depots.length })
+              : t('common.loadFailed')
+          }
         />
+        {/* The "soon" hint under a dash promises a feature that is already built — say the
+            read failed instead, or somebody waits for a number that is right there. */}
         <Stat
           label={t('hq.overview.kpi.newCustomers')}
           value={newCustomers.data ? newCustomers.data.count.toLocaleString('id-ID') : t('hq.common.dash')}
-          hint={newCustomers.data ? t('hq.overview.kpiHint.newCustomers') : t('hq.overview.kpiHint.soon')}
+          hint={
+            newCustomers.data
+              ? t('hq.overview.kpiHint.newCustomers')
+              : newCustomers.error
+                ? t('common.loadFailed')
+                : t('hq.overview.kpiHint.soon')
+          }
         />
         <Stat
           label={t('hq.overview.kpi.pendingApproval')}
           value={pendingCount != null ? String(pendingCount) : t('hq.common.dash')}
-          hint={pendingCount != null ? t('hq.overview.kpiHint.pendingApproval') : t('hq.overview.kpiHint.soon')}
+          hint={
+            pendingCount != null
+              ? t('hq.overview.kpiHint.pendingApproval')
+              : pendingApps.error
+                ? t('common.loadFailed')
+                : t('hq.overview.kpiHint.soon')
+          }
         />
       </div>
 
@@ -181,7 +201,11 @@ export default function HqOverviewPage() {
           {/* Depot performance table */}
           <Card className="flex flex-col p-5 lg:col-span-2">
             <h2 className="mb-3 font-semibold">{t('hq.overview.perf.title')}</h2>
-            {rows.length === 0 ? (
+            {rollup.error ? (
+              // The whole network table comes from this one read, and its empty copy is
+              // read on the HQ landing page as "no depot traded today".
+              <LoadError onRetry={rollup.reload} />
+            ) : rows.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted">{t('hq.overview.perf.empty')}</p>
             ) : (
               <div className="overflow-x-auto">
@@ -249,11 +273,16 @@ export default function HqOverviewPage() {
       {view === 'map' && (
         <div className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Stat label={t('hq.overview.map.active')} value={String(activeDepots)} />
+            <Stat
+              label={t('hq.overview.map.active')}
+              value={activeDepots != null ? String(activeDepots) : t('hq.common.dash')}
+            />
             <Stat label={t('hq.overview.map.revenue')} value={`Rp ${totalRevenue.toLocaleString('id-ID')}`} />
             <Stat label={t('hq.overview.map.sla')} value={slaPct != null ? `${slaPct}%` : t('hq.common.dash')} />
           </div>
-          {depots.length === 0 ? (
+          {depotList.error ? (
+            <LoadError onRetry={depotList.reload} className="py-4 text-center" />
+          ) : depots.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted">{t('hq.overview.perf.empty')}</p>
           ) : (
             <DepotMap depots={depots} onSelect={(d) => router.push(`/hq/depots/detail?id=${d.id}`)} />

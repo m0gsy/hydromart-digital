@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { GallonIssueRepository } from '../ports/gallon-issue.repository';
-import { GallonReturnRepository } from '../ports/gallon-return.repository';
+import {
+  GallonReturnRangeSummary,
+  GallonReturnRepository,
+} from '../ports/gallon-return.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
 /** One depot's outstanding empties + net deposit held across the whole ledger. */
@@ -44,6 +47,17 @@ export class GallonNetworkService {
     @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.GallonReturnRepository) private readonly returns: GallonReturnRepository,
   ) {}
+
+  /**
+   * Gallons handed back at one depot on one day — the two columns order-service's daily
+   * report used to hardcode as null (S2).
+   *
+   * It lives here rather than on the returns service because the caller is another service
+   * assembling a screen, not a member of the depot's staff: there is no user token to scope.
+   */
+  gallonsInRange(depotId: string, from: Date, to: Date): Promise<GallonReturnRangeSummary> {
+    return this.returns.gallonsInRange(depotId, from, to);
+  }
 
   /**
    * What each customer of one depot still owes it, and still has on deposit there (J-2).

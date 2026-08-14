@@ -14,6 +14,14 @@ export interface CartLineView {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /**
+   * The catalog flag delivery is charged on, exposed so the checkout preview can count
+   * galons the way `galonQuantity` in domain/pricing.ts does. Without it the web client had
+   * to guess from the free-text `unit` label — the exact match that was removed here so a
+   * label edit could not change what a customer is charged. A product flagged `isGallon`
+   * but labelled "Botol 19L" previewed Rp0 ongkir and was then billed per galon.
+   */
+  isGallon: boolean;
 }
 
 export interface CartView {
@@ -76,6 +84,7 @@ export class CartService {
         unitPrice: product.basePrice,
         quantity: row.quantity,
         lineTotal: product.basePrice * row.quantity,
+        isGallon: product.isGallon,
       });
     }
     const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);

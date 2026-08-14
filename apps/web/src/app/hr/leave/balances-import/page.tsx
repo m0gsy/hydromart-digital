@@ -16,7 +16,7 @@ export default function ImportLeaveBalancesPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title="Import Saldo Cuti Awal"
+        title="hrFix.balancesImport.title"
         description="Memindahkan kuota cuti dan cuti yang sudah terpakai dari sistem lama. Tanpa ini, pindah sistem di tengah tahun membuat semua orang seolah punya kuota penuh lagi. Tahun yang sudah punya saldo akan ditimpa."
         columns={COLUMNS}
         endpoint={endpoints.hr.importLeaveBalances}

@@ -43,8 +43,21 @@ export interface CourierLedgerRepository {
   balanceFor(courierId: string): Promise<number>;
   /** Sum of entries of one type since an inclusive date (e.g. this month's earnings). */
   sumByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
-  /** Count of entries of one type since an inclusive date (e.g. this month's deliveries). */
-  countByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
+  /**
+   * Count of entries of one type since an inclusive date (e.g. this month's deliveries).
+   *
+   * `depotId` narrows it, and the incentive ladder needs that: the tiers belong to ONE depot's
+   * earning rule and that depot pays the bonus, but the count used to span every depot the
+   * courier worked. 30 deliveries at depot A plus 30 at depot B fired depot B's 50-delivery rung
+   * on the 50th COMBINED delivery — depot B paying for depot A's work. Omit it for a
+   * courier-wide figure (the balance and the month's earnings are personal, not per depot).
+   */
+  countByType(
+    courierId: string,
+    type: CourierLedgerEntryType,
+    since: Date,
+    depotId?: string,
+  ): Promise<number>;
   listForCourier(
     courierId: string,
     page: number,

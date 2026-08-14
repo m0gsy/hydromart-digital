@@ -25,19 +25,38 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
     filter: SegmentFilter,
     authorization: string,
   ): Promise<DirectoryRecipient[]> {
+    if (!authorization) throw new SegmentUnavailableError('missing caller token');
+    return this.fetchDirectory('profile/directory', filter, { authorization });
+  }
+
+  async resolveSegmentAsService(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    const key = this.config.internalServiceKey;
+    if (!key) throw new SegmentUnavailableError('INTERNAL_SERVICE_KEY not configured');
+    return this.fetchDirectory('profile/internal/directory', filter, { 'x-internal-key': key });
+  }
+
+  /**
+   * One request shape for both callers. The route and the credential differ; the query, the
+   * timeout and every fail-closed branch must not — a directory that answered differently to
+   * a person and to a service would put two audiences behind one screen again.
+   */
+  private async fetchDirectory(
+    path: string,
+    filter: SegmentFilter,
+    headers: Record<string, string>,
+  ): Promise<DirectoryRecipient[]> {
     const base = this.config.customerServiceUrl;
     if (!base) throw new SegmentUnavailableError('CUSTOMER_SERVICE_URL not configured');
-    if (!authorization) throw new SegmentUnavailableError('missing caller token');
 
     const params = new URLSearchParams();
     if (filter.tier) params.set('tier', filter.tier);
     if (filter.city) params.set('city', filter.city);
     const qs = params.toString();
-    const url = `${base}/api/v1/profile/directory${qs ? `?${qs}` : ''}`;
+    const url = `${base}/api/v1/${path}${qs ? `?${qs}` : ''}`;
 
     try {
       const res = await fetch(url, {
-        headers: { authorization },
+        headers,
         signal: AbortSignal.timeout(CustomerDirectoryHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) {

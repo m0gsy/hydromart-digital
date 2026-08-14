@@ -40,4 +40,6 @@ export interface DailyCloseRepository {
   close(data: CloseDayData): Promise<DailyCloseRecord>;
   /** Mark a closed day open again. Only HQ reaches this. */
   reopen(depotId: string, businessDate: string, reopenedBy: string): Promise<DailyCloseRecord>;
+  /** Every close whose business day falls in [from, to). Backs the monthly settlement variance. */
+  listForDepotRange(depotId: string, from: Date, to: Date): Promise<DailyCloseRecord[]>;
 }

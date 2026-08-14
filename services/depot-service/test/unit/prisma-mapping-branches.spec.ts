@@ -175,6 +175,14 @@ describe('InventoryPrismaRepository filter/lock branches', () => {
     expect(stockMovement.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ createdAt: { lt: TO } }) }),
     );
+    await repo.opnameVariances('depot-1', { from: FROM });
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ createdAt: { gte: FROM } }) }),
+    );
+    await repo.opnameVariances('depot-1', { to: TO });
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ createdAt: { lt: TO } }) }),
+    );
   });
 
   it('keeps an already-sorted and an equal-id lock order stable', async () => {

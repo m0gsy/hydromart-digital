@@ -8,12 +8,24 @@ import type { CartLine, PricingAdjustType, PricingRulePayload, ResolvedPrice } f
  * accessories don't add to the ongkir. Mirrors `galonQuantity` in
  * order-service/src/domain/pricing.ts, which prices the real order — keep the two in step
  * or the checkout preview lies about the total.
+ *
+ * Reads the catalog's `isGallon` flag, the same field the server bills on. It used to match
+ * the "Galon…" prefix of the free-text `unit` label; the server dropped that match on
+ * purpose so a label edit could not change what a customer is charged, and this side kept
+ * matching for one release too long — a product flagged `isGallon` but labelled "Botol 19L"
+ * previewed Rp0 ongkir and was then billed per galon.
  */
 export function galonQuantity(items: CartLine[]): number {
-  return items.reduce(
-    (n, i) => (i.unit.trim().toLowerCase().startsWith('galon') ? n + i.quantity : n),
-    0,
-  );
+  return items.reduce((n, i) => (i.isGallon ? n + i.quantity : n), 0);
+}
+
+/**
+ * Ongkir for a cart at one depot: per-galon fee × galons, in whole rupiah. Whole because the
+ * voucher quote sends it to promo-service, whose DTO takes an `@IsInt()` — a fractional fee
+ * would come back 400 and read on screen as "voucher ditolak".
+ */
+export function shippingFeeFor(perGalonFee: number, items: CartLine[]): number {
+  return Math.round(perGalonFee * galonQuantity(items));
 }
 
 export interface RuleForm {
@@ -56,6 +68,18 @@ export interface EffectivePrice {
  * catalog base), apply the winning active rule, floor at 0, round to whole rupiah.
  */
 export function computeEffective(base: number, resolved?: ResolvedPrice): EffectivePrice {
+  // A wholesale band is an absolute unit price and wins outright — order-service honours it
+  // over both the override and the rule (order.service.ts), so a screen that applied the rule
+  // on top quoted a price the order never charged.
+  if (resolved?.tierPrice !== undefined && resolved.tierPrice > 0) {
+    return {
+      base,
+      override: resolved.sellPrice ?? null,
+      adjustType: null,
+      adjustValue: null,
+      effective: Math.round(Math.max(0, resolved.tierPrice)),
+    };
+  }
   const override = resolved?.sellPrice ?? null;
   const start = override ?? base;
   const adjustType = resolved?.adjustType ?? null;

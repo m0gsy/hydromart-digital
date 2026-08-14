@@ -29,6 +29,7 @@ import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
 import {
   CashCollectedSummary,
+  OrderCashRow,
   CreatePaymentData,
   DateRange,
   PaymentRecord,
@@ -265,6 +266,25 @@ export class PaymentService {
    */
   async cashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
     return this.payments.sumCashCollected(orderIds);
+  }
+
+  /**
+   * The same answer as `cashCollected`, plus the per-order split.
+   *
+   * order-service's daily report needs both: the total is the depot's courier COD for the
+   * day, and the split is what lets it say which courier brought which part back. Returning
+   * one shape for both means the two figures on that screen cannot come from two reads that
+   * saw the book at different moments.
+   */
+  async cashCollectedByOrder(
+    orderIds: string[],
+  ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
+    const byOrder = await this.payments.cashByOrder(orderIds);
+    return {
+      total: byOrder.reduce((s, r) => s + r.amountIdr, 0),
+      count: byOrder.length,
+      byOrder,
+    };
   }
 
   /**

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Drop, Gauge, Info, Lock, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -85,6 +86,7 @@ function VarianceChart({ rows }: { rows: MeterHistoryRow[] }) {
 }
 
 function MeterBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
@@ -122,7 +124,7 @@ function MeterBody() {
       day.reload();
       history.reload();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Gagal menyimpan meteran.');
+      setSaveError(e instanceof Error ? e.message : t('hrFix.meter.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -148,19 +150,19 @@ function MeterBody() {
       <div className="flex items-center gap-2">
         <Gauge size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Meteran air</h1>
+          <h1 className="text-2xl font-bold">{t('hrFix.meter.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {depot?.name ?? 'Pilih depot'} · {TODAY}
+            {depot?.name ?? t('hrFix.meter.pickDepot')} · {TODAY}
           </p>
         </div>
       </div>
 
       {writable && (
         <Card className="flex flex-col gap-4 p-5">
-          <h2 className="font-semibold">Catat meteran</h2>
+          <h2 className="font-semibold">{t('hrFix.meter.record')}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Meteran pagi (m³)</span>
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.morning')}</span>
               <Input
                 inputMode="decimal"
                 placeholder={reading ? String(reading.openingM3) : '1245.320'}
@@ -169,7 +171,7 @@ function MeterBody() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Meteran sore (m³)</span>
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.evening')}</span>
               <Input
                 inputMode="decimal"
                 placeholder={reading?.closingM3 != null ? String(reading.closingM3) : '1247.920'}
@@ -178,7 +180,7 @@ function MeterBody() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Air baku pagi (m³, opsional)</span>
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.rawMorning')}</span>
               <Input
                 inputMode="decimal"
                 value={sourceOpening}
@@ -186,7 +188,7 @@ function MeterBody() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Air baku sore (m³, opsional)</span>
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.rawEvening')}</span>
               <Input
                 inputMode="decimal"
                 value={sourceClosing}
@@ -206,7 +208,7 @@ function MeterBody() {
               })
             }
           >
-            {saving ? 'Menyimpan…' : 'Simpan'}
+            {saving ? t('hrFix.meter.saving') : t('hrFix.meter.save')}
           </Button>
           <p className="text-xs text-[color:var(--text-muted)]">
             Isi angka pagi saat buka, angka sore saat tutup. Form yang sama dipakai dua kali.
@@ -222,7 +224,7 @@ function MeterBody() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <Stat
-              label="Air keluar (meteran)"
+              label={t('hrFix.meter.waterOut')}
               value={data?.meterLiters != null ? `${num(data.meterLiters)} L` : '—'}
               hint={
                 data?.meterLiters != null
@@ -231,12 +233,12 @@ function MeterBody() {
               }
             />
             <Stat
-              label="Air terjual (tercatat)"
+              label={t('hrFix.meter.waterSold')}
               value={`${num(data?.soldLiters)} L`}
               hint={`${num(data?.gallonsDelivered)} galon terkirim · ${formatIDR(data?.revenueIdr ?? 0)}`}
             />
             <Stat
-              label="Selisih"
+              label={t('hrFix.meter.difference')}
               value={
                 data?.varianceLiters != null
                   ? `${data.varianceLiters > 0 ? '+' : ''}${num(data.varianceLiters)} L`
@@ -252,7 +254,7 @@ function MeterBody() {
               tone={data?.overTolerance ? 'danger' : 'plain'}
             />
             <Stat
-              label="Nilai selisih"
+              label={t('hrFix.meter.differenceValue')}
               value={data?.varianceIdr != null ? formatIDR(data.varianceIdr) : '—'}
               hint={
                 data?.varianceIdr != null
@@ -266,7 +268,7 @@ function MeterBody() {
           {data?.roYieldPct != null && (
             <Card className="flex items-center justify-between p-5">
               <div>
-                <p className="font-semibold">Rendemen RO</p>
+                <p className="font-semibold">{t('hrFix.meter.roYield')}</p>
                 <p className="text-xs text-[color:var(--text-muted)]">
                   air hasil dibanding air baku
                 </p>
@@ -325,10 +327,11 @@ function MeterBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewMeterReading(customer?.role)) {
     return (
-      <CenterState title="Akses terbatas" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.meter.restricted')} icon={<Lock size={40} weight="fill" />}>
         Rekonsiliasi meteran air hanya untuk staf depot ke atas.
       </CenterState>
     );

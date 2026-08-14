@@ -47,6 +47,12 @@ export interface DepotContact {
   contactPhone: string | null;
 }
 
+/** Empties handed back at one depot over a window, in GALLONS (damaged is a subset). */
+export interface DepotGallonReturns {
+  gallons: number;
+  damaged: number;
+}
+
 export interface DepotDirectoryPort {
   listActiveDepots(): Promise<DepotLocation[] | null>;
   /**
@@ -63,4 +69,11 @@ export interface DepotDirectoryPort {
    * WARALABA depot with `ownerId: null` is a data defect the caller logs.
    */
   findOwner(depotId: string): Promise<DepotOwnership | null>;
+  /**
+   * Gallons returned at one depot in [from, to) — the daily report's `gallonsReturned`
+   * and `gallonsDamaged`, which order-service cannot know: the return slip is written in
+   * depot-service. Null when depot-service is unreachable or the key is unset, so the
+   * report can say "—" instead of claiming nothing came back.
+   */
+  gallonReturns(depotId: string, from: Date, to: Date): Promise<DepotGallonReturns | null>;
 }

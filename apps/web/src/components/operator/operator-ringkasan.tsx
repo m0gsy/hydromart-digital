@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { useMemo } from 'react';
 import { HandCoins, Package, Storefront, Warning } from '@phosphor-icons/react';
 
@@ -69,6 +70,7 @@ function Stat({
 }
 
 function RingkasanBody({ depotId }: { depotId: string }) {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<Summary>(async () => {
     const [orders, lowStock, pending, drivers, deliveries] = await Promise.all([
       api.get<Page<Order>>(endpoints.orders.manage({ depotId, limit: 100 }), true),
@@ -102,16 +104,16 @@ function RingkasanBody({ depotId }: { depotId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">Ringkasan hari ini</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">{t('hrFix.operatorSummary.today')}</h1>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">{todayLabel()}</p>
       </div>
 
       {/* Headline counters */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Pesanan masuk" value={data.orders.length} />
+        <Stat label={t('hrFix.operatorSummary.ordersIn')} value={data.orders.length} />
         <Stat label="Perlu ditugaskan" value={data.needAssign.length} tone="amber" />
         <Stat
-          label="Kurir aktif"
+          label={t('hrFix.operatorSummary.activeCouriers')}
           value={
             <>
               {data.activeDrivers}
@@ -119,14 +121,14 @@ function RingkasanBody({ depotId }: { depotId: string }) {
             </>
           }
         />
-        <Stat label="COD belum disetor" value={<Money amount={codOutstanding} />} />
+        <Stat label={t('hrFix.operatorSummary.codOutstanding')} value={<Money amount={codOutstanding} />} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* Needs assignment */}
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold">Perlu ditugaskan</span>
+            <span className="text-sm font-bold">{t('hrFix.operatorSummary.needsAssigning')}</span>
             <Link href="/dashboard/orders" className="text-xs font-bold text-brand-800 hover:underline">
               Lihat antrean
             </Link>
@@ -175,7 +177,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
               </span>
             </div>
             {data.lowStock.length === 0 ? (
-              <p className="text-xs text-red-800/80">Semua item di atas ambang.</p>
+              <p className="text-xs text-red-800/80">{t('hrFix.operatorSummary.allAboveThreshold')}</p>
             ) : (
               data.lowStock.slice(0, 3).map((it) => (
                 <div key={it.id} className="flex items-center justify-between text-[12.5px]">
@@ -191,7 +193,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
           <Card className="flex flex-col gap-2 p-4">
             <div className="flex items-center gap-2">
               <HandCoins size={18} weight="fill" className="text-brand-800" />
-              <span className="text-[13.5px] font-bold">Setoran menunggu</span>
+              <span className="text-[13.5px] font-bold">{t('hrFix.operatorSummary.settlementsPending')}</span>
             </div>
             <div className="flex items-center justify-between text-[12.5px]">
               <span className="text-[color:var(--text-muted)]">
@@ -213,10 +215,11 @@ function RingkasanBody({ depotId }: { depotId: string }) {
 }
 
 export function OperatorRingkasan() {
+  const { t } = useT();
   const { scopedId } = useDepot();
   if (!scopedId) {
     return (
-      <CenterState title="Pilih depot" icon={<Storefront size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.operatorSummary.pickDepot')} icon={<Storefront size={40} weight="fill" />}>
         Pilih depot yang kamu kelola untuk melihat ringkasan hari ini.
       </CenterState>
     );

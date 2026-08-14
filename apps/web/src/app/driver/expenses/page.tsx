@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Receipt } from '@phosphor-icons/react';
 
@@ -14,21 +15,24 @@ import type { ExpenseCategory, ExpenseClaim, ExpenseClaimStatus, Page } from '@/
 
 const WHEN = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+// Dictionary KEYS, not copy: these are module constants and a hook cannot be called
+// here. Every call site below resolves them with t().
 const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
-  { value: 'FUEL', label: 'Bensin' },
-  { value: 'PARKING_TOLL', label: 'Parkir / tol' },
-  { value: 'VEHICLE_REPAIR', label: 'Servis kendaraan' },
-  { value: 'OTHER', label: 'Lainnya' },
+  { value: 'FUEL', label: 'hrFix.expenses.fuel' },
+  { value: 'PARKING_TOLL', label: 'hrFix.expenses.parking' },
+  { value: 'VEHICLE_REPAIR', label: 'hrFix.expenses.service' },
+  { value: 'OTHER', label: 'hrFix.expenses.other' },
 ];
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label])) as Record<ExpenseCategory, string>;
 
 const STATUS: Record<ExpenseClaimStatus, { label: string; tone: string }> = {
-  PENDING: { label: 'Menunggu', tone: 'text-amber-600' },
-  APPROVED: { label: 'Disetujui', tone: 'text-green-600' },
-  REJECTED: { label: 'Ditolak', tone: 'text-red-600' },
+  PENDING: { label: 'hrFix.expenses.pending', tone: 'text-amber-600' },
+  APPROVED: { label: 'hrFix.expenses.approved', tone: 'text-green-600' },
+  REJECTED: { label: 'hrFix.expenses.rejected', tone: 'text-red-600' },
 };
 
 function Expenses() {
+  const { t } = useT();
   const router = useRouter();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? null;
@@ -59,7 +63,7 @@ function Expenses() {
       setDesc('');
       await load.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal mengirim klaim. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.expenses.submitFailed'));
     } finally {
       setBusy(false);
     }
@@ -73,11 +77,11 @@ function Expenses() {
         <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Klaim pengeluaran</div>
+        <div className="flex-1 text-sm font-extrabold">{t('hrFix.expenses.title')}</div>
       </header>
 
       <Card className="space-y-3 p-4">
-        <Field label="Jenis pengeluaran" htmlFor="category">
+        <Field label={t('hrFix.expenses.kind')} htmlFor="category">
           <div className="grid grid-cols-2 gap-2">
             {CATEGORIES.map((c) => (
               <button
@@ -90,12 +94,12 @@ function Expenses() {
                     : 'border-[color:var(--border)]'
                 }`}
               >
-                {c.label}
+                {t(c.label)}
               </button>
             ))}
           </div>
         </Field>
-        <Field label="Jumlah" htmlFor="amount">
+        <Field label={t('hrFix.expenses.amount')} htmlFor="amount">
           <Input
             id="amount"
             inputMode="numeric"
@@ -104,10 +108,10 @@ function Expenses() {
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
           />
         </Field>
-        <Field label="Keterangan" htmlFor="desc">
+        <Field label={t('hrFix.expenses.note')} htmlFor="desc">
           <Input
             id="desc"
-            placeholder="Contoh: bensin shift pagi"
+            placeholder={t('hrFix.expenses.noteHint')}
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             maxLength={280}
@@ -122,13 +126,13 @@ function Expenses() {
         </p>
       </Card>
 
-      <div className="text-sm font-extrabold">Riwayat klaim</div>
+      <div className="text-sm font-extrabold">{t('hrFix.expenses.history')}</div>
       {load.loading ? (
         <Skeleton className="h-24 w-full" />
       ) : load.error ? (
         <ErrorState message={load.error} onRetry={load.reload} />
       ) : claims.length === 0 ? (
-        <CenterState icon={<Receipt size={32} />} title="Belum ada klaim">
+        <CenterState icon={<Receipt size={32} />} title={t('hrFix.expenses.emptyTitle')}>
           Klaim pengeluaran yang kamu kirim akan muncul di sini.
         </CenterState>
       ) : (
@@ -136,10 +140,10 @@ function Expenses() {
           {claims.map((c) => (
             <Card key={c.id} className="flex items-center justify-between p-3.5">
               <div className="min-w-0">
-                <div className="truncate text-sm font-bold">{CATEGORY_LABEL[c.category]}</div>
+                <div className="truncate text-sm font-bold">{t(CATEGORY_LABEL[c.category])}</div>
                 <div className="truncate text-[12px] text-[color:var(--muted)]">{c.description}</div>
                 <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
-                  {WHEN.format(new Date(c.createdAt))} · <span className={STATUS[c.status].tone}>{STATUS[c.status].label}</span>
+                  {WHEN.format(new Date(c.createdAt))} · <span className={STATUS[c.status].tone}>{t(STATUS[c.status].label)}</span>
                 </div>
               </div>
               <Money amount={c.amount} className="shrink-0 text-sm font-extrabold" />

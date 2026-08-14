@@ -195,6 +195,24 @@ export class ResellerRollupQueryDto {
   @ApiProperty({ example: 'uuid1,uuid2' }) @IsString() customerIds!: string;
 }
 
+/** Which revenue grouping a scheduled report wants, over which window (design 15c). */
+export class ExportRowsQueryDto {
+  @ApiProperty({ enum: ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT'] })
+  @IsIn(['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT'])
+  dataset!: 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT';
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  @IsNotBefore('from')
+  to?: string;
+}
+
 export class TopReportQueryDto {
   @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
   @IsOptional()

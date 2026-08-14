@@ -42,8 +42,15 @@ export class ReportsController {
   @ApiOperation({
     summary: 'Per-depot HR summary: late/absent today, payroll MTD (internal service auth)',
   })
-  depotSummary(@Query('depotId') depotId: string): Promise<HrDepotSummary> {
-    return this.analytics.depotSummary(depotId);
+  depotSummary(
+    @Query('depotId') depotId: string,
+    @Query('periodMonth') periodMonth?: string,
+  ): Promise<HrDepotSummary> {
+    // 'YYYY-MM' or nothing. Anything else is ignored rather than rejected: this route feeds
+    // a dashboard card, and falling back to the running month is a better failure than a
+    // 400 that blanks the panel.
+    const month = /^\d{4}-\d{2}$/.test(periodMonth ?? '') ? periodMonth : undefined;
+    return this.analytics.depotSummary(depotId, month);
   }
 
   // The batch of the route above: the owner dashboard asks for every depot it owns in one

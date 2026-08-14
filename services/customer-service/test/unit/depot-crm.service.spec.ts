@@ -86,11 +86,23 @@ describe('DepotCrmService.listDepotCustomers', () => {
     rows: DepotCustomerRow[],
     stats: DepotCustomerOrderStats[],
     identity: IdentityPort = new FakeIdentity(),
+    subscribers: string[] | null = null,
   ): DepotCrmService {
     const repo = new FakeDepotCrmRepository();
     repo.rows = rows;
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
-    return new DepotCrmService(repo, {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, identity, config);
+    const depotProfile = { subscriberIds: async () => subscribers, geo: async () => null };
+    return new DepotCrmService(
+      repo,
+      {} as never,
+      {} as never,
+      orderCrm,
+      { gallonsByCustomer: async () => null } as never,
+      identity,
+      config,
+      depotProfile as never,
+      { bandFor: async () => null } as never,
+    );
   }
 
   it('merges order stats onto rows that have them, and nulls the rest', async () => {
@@ -107,6 +119,20 @@ describe('DepotCrmService.listDepotCustomers', () => {
     expect(withStats!.lastOrderAt).toBe(fiveDaysAgo.toISOString());
     // c2 has no matching stats row → order aggregates null, segment null.
     expect(without).toMatchObject({ id: 'c2', orderCount: null, lastOrderAt: null, segment: null });
+  });
+
+  /*
+   * S2. The directory asks ONCE for the whole set rather than once per row — and null still
+   * means "depot-service went quiet", which is not the same sentence as "not a subscriber".
+   */
+  it('flags subscribers across the directory from one read', async () => {
+    const rows = await service([row('c1'), row('c2')], [], new FakeIdentity(), ['c2']).listDepotCustomers(
+      'depot-a',
+    );
+    expect(rows.map((r) => [r.id, r.isSubscriber])).toEqual([
+      ['c1', false],
+      ['c2', true],
+    ]);
   });
 
   it('empty stats → every row is order-less (all null)', async () => {
@@ -175,6 +201,10 @@ describe('DepotCrmService.getDepotDetail', () => {
     gallons?: { customerId: string; gallonsOnLoan: number; depositHeldIdr: number }[] | null;
     ledger?: { id: string; type: 'ISSUE' | 'RETURN'; quantity: number; amountIdr: number; at: string }[];
     orders?: { id: string; orderNumber: string; status: string; totalIdr: number; placedAt: string }[];
+    /** S2. Undefined = the port is not wired at all, which is what it was before. */
+    subscribers?: string[] | null;
+    geo?: { lat: number; lng: number; serviceRadiusKm: number } | null;
+    churn?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   }
 
   function service(
@@ -193,7 +223,22 @@ describe('DepotCrmService.getDepotDetail', () => {
       gallonsByCustomer: async () => (wired.gallons === undefined ? null : wired.gallons),
       customerLedger: async () => wired.ledger ?? [],
     };
-    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, orderCrm, depotLedger as never, identity, {} as never);
+    const depotProfile = {
+      subscriberIds: async () => (wired.subscribers === undefined ? null : wired.subscribers),
+      geo: async () => (wired.geo === undefined ? null : wired.geo),
+    };
+    const churn = { bandFor: async () => (wired.churn === undefined ? null : wired.churn) };
+    return new DepotCrmService(
+      new FakeDepotCrmRepository(),
+      addressRepo,
+      profiles,
+      orderCrm,
+      depotLedger as never,
+      identity,
+      {} as never,
+      depotProfile as never,
+      churn as never,
+    );
   }
 
   const profile = (tier: MembershipTier): CustomerProfileRecord => ({
@@ -281,5 +326,93 @@ describe('DepotCrmService.getDepotDetail', () => {
   it('unreachable order-service and depot-service stay null, never 0', async () => {
     const d = await service(null, [], new FakeIdentity(), { stats: [], gallons: null }).getDepotDetail('c1', 'depot-a');
     expect(d.profile).toMatchObject({ orderCount: null, totalSpentIdr: null, gallonsOnLoan: null, depositHeldIdr: null });
+  });
+
+  /*
+   * S2 — the three fields this card hardcoded to null. Each has a "not known" state that is
+   * NOT the same as its false/zero, and that distinction is the whole point of the tests
+   * below: an unreachable service must not print as "not a subscriber", "low churn risk",
+   * or "0 km away, inside the radius".
+   */
+  it('marks a linked subscriber, and everyone else as not one', async () => {
+    const sub = await service(null, [], new FakeIdentity(), {
+      subscribers: ['c1', 'c9'],
+    }).getDepotDetail('c1', 'depot-a');
+    expect(sub.profile.isSubscriber).toBe(true);
+
+    const not = await service(null, [], new FakeIdentity(), {
+      subscribers: ['c9'],
+    }).getDepotDetail('c1', 'depot-a');
+    expect(not.profile.isSubscriber).toBe(false);
+  });
+
+  it('leaves isSubscriber and churnRisk null when their services went quiet', async () => {
+    const d = await service(null, [], new FakeIdentity(), {
+      subscribers: null,
+      churn: null,
+    }).getDepotDetail('c1', 'depot-a');
+    expect(d.profile.isSubscriber).toBeNull();
+    // Null, never LOW: low risk is the answer a manager acts on by doing nothing.
+    expect(d.profile.churnRisk).toBeNull();
+  });
+
+  // The pre-S2 shape: neither optional port injected at all. It must behave exactly as it
+  // did before — three nulls — rather than throw on a service built the old way.
+  it('reports all three as null when neither optional port is wired', async () => {
+    const profiles = { findByCustomerId: async () => null } as unknown as ProfileRepository;
+    const addressRepo = { listByCustomer: async () => [addr({})] } as unknown as AddressRepository;
+    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => [], customerOrders: async () => [] };
+    const svc = new DepotCrmService(
+      new FakeDepotCrmRepository(),
+      addressRepo,
+      profiles,
+      orderCrm,
+      { gallonsByCustomer: async () => null, customerLedger: async () => [] } as never,
+      new FakeIdentity(),
+      {} as never,
+    );
+
+    const d = await svc.getDepotDetail('c1', 'depot-a');
+    expect(d.profile.isSubscriber).toBeNull();
+    expect(d.profile.churnRisk).toBeNull();
+    expect(d.addresses[0]).toMatchObject({ distanceKm: null, inRadius: null });
+  });
+
+  it('carries the churn band forecast-service scored', async () => {
+    const d = await service(null, [], new FakeIdentity(), { churn: 'HIGH' }).getDepotDetail(
+      'c1',
+      'depot-a',
+    );
+    expect(d.profile.churnRisk).toBe('HIGH');
+  });
+
+  it('measures each address against the depot radius, to one decimal', async () => {
+    // ~1.1 km north of the depot, well inside a 5 km radius.
+    const d = await service(null, [addr({ latitude: -6.89, longitude: 107.6 })], new FakeIdentity(), {
+      geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
+    }).getDepotDetail('c1', 'depot-a');
+    expect(d.addresses[0].distanceKm).toBeCloseTo(1.1, 1);
+    expect(d.addresses[0].inRadius).toBe(true);
+  });
+
+  it('calls an address beyond the radius out of range', async () => {
+    const d = await service(null, [addr({ latitude: -7.4, longitude: 107.6 })], new FakeIdentity(), {
+      geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
+    }).getDepotDetail('c1', 'depot-a');
+    expect(d.addresses[0].distanceKm).toBeGreaterThan(5);
+    expect(d.addresses[0].inRadius).toBe(false);
+  });
+
+  // An address nobody pinned cannot be in or out of a radius. Answering "0 km, in range"
+  // would send a courier to a place the system does not actually know.
+  it.each([
+    ['the address has no coordinates', { latitude: null, longitude: null }, { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }],
+    ['the depot location could not be read', {}, null],
+  ])('leaves distance and inRadius null when %s', async (_label, addrOver, geo) => {
+    const d = await service(null, [addr(addrOver)], new FakeIdentity(), {
+      geo: geo as never,
+    }).getDepotDetail('c1', 'depot-a');
+    expect(d.addresses[0].distanceKm).toBeNull();
+    expect(d.addresses[0].inRadius).toBeNull();
   });
 });

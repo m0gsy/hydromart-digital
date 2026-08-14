@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
@@ -81,11 +82,13 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
 }
 
 /** Blob → data URL, so a queued proof survives a page reload (a Blob would not). */
-function toDataUrl(blob: Blob): Promise<string> {
+// `fallbackError` is passed in rather than translated here: this is a plain helper, and a
+// hook cannot be called from one.
+function toDataUrl(blob: Blob, fallbackError: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error('Gagal membaca gambar'));
+    reader.onerror = () => reject(reader.error ?? new Error(fallbackError));
     reader.readAsDataURL(blob);
   });
 }
@@ -109,6 +112,7 @@ interface Props {
  * calls) and completes the delivery with the returned URLs + GPS position.
  */
 export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
+  const { t } = useT();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [recipientName, setRecipientName] = useState('');
@@ -134,9 +138,9 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
   const submit = useCallback(async () => {
     setError(null);
     const canvas = canvasRef.current;
-    if (!photo) return setError('Ambil foto bukti pengantaran dulu.');
-    if (!sealOk) return setError('Konfirmasi cek segel galon dulu.');
-    if (!recipientName.trim()) return setError('Isi nama penerima.');
+    if (!photo) return setError(t('hrFix.pod.photoFirst'));
+    if (!sealOk) return setError(t('hrFix.pod.sealFirst'));
+    if (!recipientName.trim()) return setError(t('hrFix.pod.nameRequired'));
 
     setSubmitting(true);
     try {
@@ -157,8 +161,8 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         payload: {
           deliveryId,
           orderNumber,
-          photo: await toDataUrl(photoBlob),
-          signature: signatureBlob ? await toDataUrl(signatureBlob) : undefined,
+          photo: await toDataUrl(photoBlob, t('hrFix.pod.readFailed')),
+          signature: signatureBlob ? await toDataUrl(signatureBlob, t('hrFix.pod.readFailed')) : undefined,
           recipientName: recipientName.trim(),
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -167,21 +171,21 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Gagal menyelesaikan pengantaran.');
+      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : t('hrFix.pod.finishFailed'));
     } finally {
       setSubmitting(false);
     }
-  }, [photo, sealOk, recipientName, note, deliveryId, orderNumber, onDone]);
+  }, [photo, sealOk, recipientName, note, deliveryId, orderNumber, onDone, t]);
 
   return (
     <Card className="space-y-4 p-5">
       <h3 className="font-semibold">Bukti pengantaran · {orderNumber}</h3>
 
       <div className="space-y-2">
-        <span className="text-sm font-medium">Foto pengantaran</span>
+        <span className="text-sm font-medium">{t('hrFix.pod.photo')}</span>
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--muted)] hover:border-brand-500">
           <Camera size={20} />
-          {photo ? 'Ganti foto' : 'Ambil foto'}
+          {photo ? t('hrFix.pod.replacePhoto') : t('hrFix.pod.takePhoto')}
           <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="hidden" />
         </label>
         {photoPreview && (
@@ -205,14 +209,14 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         </span>
       </label>
 
-      <Field label="Nama penerima">
-        <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="cth. Budi Santoso" maxLength={120} />
+      <Field label={t('hrFix.pod.recipient')}>
+        <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder={t('hrFix.pod.recipientHint')} maxLength={120} />
       </Field>
 
       <div className="space-y-2">
         <span className="flex items-center gap-1 text-sm font-medium">
           <PencilLine size={16} /> Tanda tangan penerima
-          <span className="text-xs font-normal text-[color:var(--muted)]">(opsional)</span>
+          <span className="text-xs font-normal text-[color:var(--muted)]">{t('hrFix.pod.optional')}</span>
         </span>
         {/* UU PDP notice: the delivery photo is always stored; the signature is optional
             and, when given, consents to being stored too. */}
@@ -226,14 +230,14 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         <SignaturePad canvasRef={canvasRef} />
       </div>
 
-      <Field label="Catatan (opsional)">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="cth. Diterima langsung oleh pelanggan" maxLength={255} />
+      <Field label={t('hrFix.pod.noteOpt')}>
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('hrFix.pod.noteHint')} maxLength={255} />
       </Field>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Button onClick={submit} disabled={submitting} className="w-full">
-        {submitting ? 'Mengirim…' : 'Selesaikan pengantaran'}
+        {submitting ? t('hrFix.pod.sending') : t('hrFix.pod.finish')}
       </Button>
     </Card>
   );

@@ -34,6 +34,7 @@ const campaignRow = () => ({
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
   sentAt: null,
+  scheduledFor: null,
 });
 
 describe('CampaignPrismaRepository', () => {
@@ -78,6 +79,7 @@ describe('CampaignPrismaRepository', () => {
         messageTemplate: 'Hi {{name}}',
         createdBy: 'staff-1',
         totalRecipients: 2,
+        scheduledFor: null,
         recipients: {
           create: [
             { customerId: 'cust-1', phone: '+6281234567890', name: 'Budi' },
@@ -148,11 +150,17 @@ describe('CampaignPrismaRepository', () => {
     expect(await repo.markSending('camp-1')).toBe(false);
   });
 
-  it('findSending returns oldest-first and never loads recipients wholesale', async () => {
+  it('findSending returns oldest-first, due only, and never loads recipients wholesale', async () => {
     campaign.findMany.mockResolvedValue([campaignRow()]);
-    const out = await repo.findSending(5);
+    const now = new Date('2026-08-13T12:00:00.000Z');
+    const out = await repo.findSending(5, now);
+    // A scheduled campaign is SENDING from the moment staff press the button; the due
+    // predicate is the only thing keeping tomorrow's blast out of today's sweep.
     expect(campaign.findMany).toHaveBeenCalledWith({
-      where: { status: 'SENDING' },
+      where: {
+        status: 'SENDING',
+        OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }],
+      },
       orderBy: { createdAt: 'asc' },
       take: 5,
     });

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { ArrowLeft, Heart } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
@@ -15,6 +16,7 @@ import type { Product } from '@/lib/types';
 // Fetches the id list, then resolves each product. Skips products that 404 (deleted
 // but still favorited) so a stale favorite never breaks the whole grid.
 function FavoritesInner() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<Product[]>(async () => {
     const { productIds } = await api.getCached<{ productIds: string[] }>(endpoints.favorites.list, true);
     if (productIds.length === 0) return [];
@@ -31,12 +33,12 @@ function FavoritesInner() {
       <div className="flex items-center gap-3">
         <Link
           href="/account"
-          aria-label="Akun"
+          aria-label={t('hrFix.favorites.accountAria')}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app transition-colors hover:bg-brand-50"
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>
-        <h1 className="text-[22px] font-extrabold tracking-tight">Favorit</h1>
+        <h1 className="text-[22px] font-extrabold tracking-tight">{t('hrFix.favorites.title')}</h1>
       </div>
 
       {loading ? (
@@ -53,7 +55,7 @@ function FavoritesInner() {
           style={{ background: 'var(--surface-muted)' }}
         >
           <Heart size={40} weight="duotone" className="text-brand-400" />
-          <p className="text-sm text-muted">Belum ada produk favorit. Ketuk ikon hati di produk untuk menyimpannya.</p>
+          <p className="text-sm text-muted">{t('hrFix.favorites.empty')}</p>
           <Link
             href="/products"
             className="inline-flex h-11 items-center rounded-xl bg-brand-600 px-6 text-sm font-extrabold text-white transition-colors hover:bg-brand-700"

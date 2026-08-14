@@ -24,6 +24,9 @@ import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
+import { PaymentCashHttpAdapter } from '../../src/infrastructure/http/payment-cash.http.adapter';
+import { DeliverySlaHttpAdapter } from '../../src/infrastructure/http/delivery-sla.http.adapter';
+import { DepotCostsHttpAdapter } from '../../src/infrastructure/http/depot-costs.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
@@ -303,6 +306,50 @@ describe('DepotDirectoryHttpAdapter', () => {
       ownershipType: 'HKP',
     });
   });
+
+  // S2. `gallonsReturned`/`gallonsDamaged` were hardcoded null in the daily report; the
+  // slip that answers them is written in depot-service.
+  it('reads gallons returned over a window with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { gallons: 14, damaged: 3 } }));
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', from, to);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/gallon-outstanding/internal/returns-range?depotId=d1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({ gallons: 14, damaged: 3 });
+  });
+
+  it('reads a partial returns body as zeroes, not as an outage', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', new Date(), new Date()),
+    ).toEqual({ gallons: 0, damaged: 0 });
+  });
+
+  // Null, not zero: "no empties came back today" is a real operational fact.
+  it.each([
+    ['there is no internal key', { internalServiceKey: '' }, false],
+    ['depot-service answers non-2xx', {}, true],
+  ])('returns null when %s', async (_label, over, callsFetch) => {
+    if (callsFetch) fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig(over)).gallonReturns(
+      'd1',
+      new Date(),
+      new Date(),
+    );
+    expect(out).toBeNull();
+    if (!callsFetch) expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when depot-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', new Date(), new Date()),
+    ).toBeNull();
+  });
 });
 
 describe('FranchiseRevenueHttpAdapter', () => {
@@ -312,6 +359,8 @@ describe('FranchiseRevenueHttpAdapter', () => {
     franchiseOwnerId: 'owner-9',
     depotId: 'd1',
     amountIdr: 240000,
+    // Goods before discount — the commission base, separate from the credited total.
+    commissionBaseIdr: 200000,
     completedAt: '2026-07-28T00:00:00.000Z',
   };
 
@@ -326,6 +375,7 @@ describe('FranchiseRevenueHttpAdapter', () => {
     expect(JSON.parse(init.body)).toMatchObject({
       orderId: 'o1',
       amountIdr: 240000,
+      commissionBaseIdr: 200000,
       franchiseOwnerId: 'owner-9',
     });
   });
@@ -758,6 +808,216 @@ describe('PaymentReversalHttpAdapter', () => {
     await expect(reversal().voidForOrder('order-1', 'x')).rejects.toBeInstanceOf(
       PaymentReversalFailedError,
     );
+  });
+});
+
+// S2. The daily report's two cash figures. Unlike the reversal above this fails SOFT: it
+// only reports on money already moved, and a report that refuses to render because one
+// service blinked is worse than one that says "—".
+describe('PaymentCashHttpAdapter', () => {
+  const cash = (over: Partial<Record<string, unknown>> = {}) =>
+    new PaymentCashHttpAdapter(makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }));
+
+  it('POSTs the order ids with the internal key and returns the split', async () => {
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { total: 40000, count: 1, byOrder: [{ orderId: 'o1', amountIdr: 40000 }] } }),
+    );
+    const rows = await cash().cashByOrder(['o1', 'o2']);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payment:3005/api/v1/payments/internal/cash-collected');
+    const sent = init as { method: string; headers: Record<string, string>; body: string };
+    expect(sent.method).toBe('POST');
+    expect(sent.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(sent.body)).toEqual({ orderIds: ['o1', 'o2'] });
+    expect(rows).toEqual([{ orderId: 'o1', amountIdr: 40000 }]);
+  });
+
+  it('short-circuits an empty id set without a round-trip', async () => {
+    expect(await cash().cashByOrder([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reads a body with no byOrder as an empty split, not as an outage', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { total: 0, count: 0 } }));
+    expect(await cash().cashByOrder(['o1'])).toEqual([]);
+  });
+
+  it('GETs the depot window and rounds the total', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { total: 25000.4, count: 2 } }));
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const total = await cash().depotCash('depot-1', from, to);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://payment:3005/api/v1/payments/internal/depot-cash?depotId=depot-1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect(total).toBe(25000);
+  });
+
+  it('reads a body with no total as zero', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: {} }));
+    expect(await cash().depotCash('depot-1', new Date(), new Date())).toBe(0);
+  });
+
+  it.each([
+    ['payment-service is unconfigured', { paymentServiceUrl: '' }],
+    ['there is no internal key', { internalServiceKey: '' }],
+  ])('returns null rather than 0 when %s', async (_label, over) => {
+    expect(await cash(over).cashByOrder(['o1'])).toBeNull();
+    expect(await cash(over).depotCash('depot-1', new Date(), new Date())).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Null, not 0. "payment-service is down" and "the courier collected nothing" are
+  // different answers, and one of them means somebody is holding cash nobody counted.
+  it('returns null on a non-2xx and on an unreachable service', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    expect(await cash().cashByOrder(['o1'])).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await cash().depotCash('depot-1', new Date(), new Date())).toBeNull();
+  });
+});
+
+// S2. `slaPct` on the monthly review. order-service has no delivery timings — an order's
+// status says it was delivered, never whether it was late — so this asks the service that
+// measures it, and fails soft rather than inferring a percentage.
+describe('DeliverySlaHttpAdapter', () => {
+  const sla = (over: Partial<Record<string, unknown>> = {}) =>
+    new DeliverySlaHttpAdapter(makeConfig({ deliveryServiceUrl: 'http://delivery:3006', ...over }));
+
+  it('asks for one depot over the window with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { slaRate: 0.876, totalDelivered: 40 } }));
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    expect(await sla().onTimeRate('d1', from, to)).toBe(0.876);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://delivery:3006/api/v1/reports/internal/sla?depotIds=d1&from=${from.toISOString()}&to=${to.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+  });
+
+  // slaRate is 0 when nothing was delivered. That is a true statement about a quiet month
+  // and a false one about a depot's punctuality, so it must not reach the screen as 0%.
+  it('returns null for a window with no deliveries', async () => {
+    fetchMock.mockResolvedValue(res({ body: { slaRate: 0, totalDelivered: 0 } }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+
+  it('returns null when the body carries no rate', async () => {
+    fetchMock.mockResolvedValue(res({ body: { totalDelivered: 12 } }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+
+  it.each([
+    ['delivery-service is unconfigured', { deliveryServiceUrl: '' }],
+    ['there is no internal key', { internalServiceKey: '' }],
+  ])('returns null without a round-trip when %s', async (_label, over) => {
+    expect(await sla(over).onTimeRate('d1', new Date(), new Date())).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null on a non-2xx and when delivery-service is unreachable', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await sla().onTimeRate('d1', new Date(), new Date())).toBeNull();
+  });
+});
+
+// S2. The cost side of net profit: goods + till from depot-service, payroll from hr-service.
+// One adapter for two services because it is one question — splitting it would let a caller
+// fetch half a P&L and believe it had one.
+describe('DepotCostsHttpAdapter', () => {
+  const costs = (over: Partial<Record<string, unknown>> = {}) =>
+    new DepotCostsHttpAdapter(makeConfig({ hrServiceUrl: 'http://hr:3018', ...over }));
+  const FROM = new Date('2026-06-30T17:00:00.000Z');
+  const TO = new Date('2026-07-31T17:00:00.000Z');
+
+  it('reads goods and till from depot-service over the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { cogsIdr: 4_000_000, opexIdr: 1_900_000 } }));
+    const out = await costs().costs('d1', FROM, TO);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/cashbook/internal/depot-costs?depotId=d1&from=${FROM.toISOString()}&to=${TO.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({ cogsIdr: 4_000_000, opexIdr: 1_900_000 });
+  });
+
+  it('reads payroll for the REPORTED month, not for today', async () => {
+    fetchMock.mockResolvedValue(res({ body: { payrollMtdNet: 3_000_000 } }));
+    expect(await costs().payroll('d1', '2026-07')).toBe(3_000_000);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://hr:3018/api/v1/hr-reports/internal/depot-summary?depotId=d1&periodMonth=2026-07',
+    );
+  });
+
+  it('reads a partial body as zeroes once the service did answer', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(await costs().costs('d1', FROM, TO)).toEqual({ cogsIdr: 0, opexIdr: 0 });
+    expect(await costs().payroll('d1', '2026-07')).toBe(0);
+  });
+
+  // Null per source, so the SERVICE can refuse to publish a partial profit. This layer only
+  // says honestly which half it could not get.
+  it.each([
+    ['depot-service is unconfigured', { depotServiceUrl: '' }, 'costs'],
+    ['hr-service is unconfigured', { hrServiceUrl: '' }, 'payroll'],
+    ['there is no internal key', { internalServiceKey: '' }, 'costs'],
+  ])('returns null without a round-trip when %s', async (_label, over, which) => {
+    const a = costs(over);
+    const out = which === 'costs' ? await a.costs('d1', FROM, TO) : await a.payroll('d1', '2026-07');
+    expect(out).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null on a non-2xx and when the service is unreachable', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await costs().costs('d1', FROM, TO)).toBeNull();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await costs().payroll('d1', '2026-07')).toBeNull();
+  });
+
+  it('reads the governance figures over the internal key', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          approvalsReviewed: 3,
+          opnameVarianceIdr: -40_000,
+          settlementVarianceIdr: -20_000,
+          daysClosed: 30,
+        },
+      }),
+    );
+    const out = await costs().governance('d1', FROM, TO);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://depot:3007/api/v1/reports/internal/governance?depotId=d1&from=${FROM.toISOString()}&to=${TO.toISOString()}`,
+    );
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+    expect(out).toEqual({
+      approvalsReviewed: 3,
+      opnameVarianceIdr: -40_000,
+      settlementVarianceIdr: -20_000,
+      daysClosed: 30,
+    });
+  });
+
+  it('reads a governance body missing every field as zeroes, not as null', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    await expect(costs().governance('d1', FROM, TO)).resolves.toEqual({
+      approvalsReviewed: 0,
+      opnameVarianceIdr: 0,
+      settlementVarianceIdr: 0,
+      daysClosed: 0,
+    });
+  });
+
+  it('returns null governance without a round-trip when depot-service is unconfigured', async () => {
+    await expect(costs({ depotServiceUrl: '' }).governance('d1', FROM, TO)).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

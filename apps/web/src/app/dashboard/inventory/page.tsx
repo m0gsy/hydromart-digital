@@ -12,6 +12,7 @@ import {
   Field,
   Input,
   LinkButton,
+  LoadError,
   Money,
   Skeleton,
 } from '@/components/ui';
@@ -964,6 +965,12 @@ function InventoryBody() {
           </ul>
         </Card>
       )}
+
+      {/* Two side reads, and each one goes quiet in a way that looks like an answer: an
+          unread catalog hides the untracked-products card entirely, and unread prices leave
+          every row saying only "harga katalog" again. */}
+      {catalog.error && <LoadError onRetry={catalog.reload} />}
+      {resolved.error && <LoadError onRetry={resolved.reload} />}
 
       <div className="flex flex-wrap gap-2">
         <Chip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { CalendarX, Plus, Trash } from '@phosphor-icons/react';
 
 import { Button, Card, Input } from '@/components/ui';
@@ -31,6 +32,7 @@ export function DepotHoursEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [hours, setHours] = useState<Record<string, DepotHours>>(depot.operatingHours ?? {});
   const [holidays, setHolidays] = useState<DepotHoliday[]>(depot.holidays ?? []);
   const [busy, setBusy] = useState(false);
@@ -68,7 +70,7 @@ export function DepotHoursEditor({
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan jam buka.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.depotHours.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -77,7 +79,7 @@ export function DepotHoursEditor({
   return (
     <Card className="flex flex-col gap-5 p-5">
       <div>
-        <h2 className="font-semibold">Jam buka &amp; hari libur</h2>
+        <h2 className="font-semibold">{t('hrFix.depotHours.title')}</h2>
         <p className="text-xs text-muted">
           {depot.name} · {depot.code}
         </p>
@@ -86,7 +88,7 @@ export function DepotHoursEditor({
       <div className="grid gap-5 md:grid-cols-2">
         {/* Weekly hours */}
         <div className="flex flex-col">
-          <p className="mb-2 text-sm font-bold">Jam buka</p>
+          <p className="mb-2 text-sm font-bold">{t('hrFix.depotHours.openHours')}</p>
           {DAYS.map((d) => {
             const dh = hours[d.key];
             return (
@@ -112,7 +114,7 @@ export function DepotHoursEditor({
                     {/* Istirahat: kosongkan salah satu untuk menonaktifkan. Jumat cukup
                         diisi jam mulai yang lebih awal — tidak ada kolom khusus. */}
                     <div className="flex items-center gap-2">
-                      <span className="w-14 shrink-0 text-xs text-muted">Istirahat</span>
+                      <span className="w-14 shrink-0 text-xs text-muted">{t('hrFix.depotHours.break')}</span>
                       <Input
                         type="time"
                         aria-label={`Mulai istirahat ${d.label}`}
@@ -131,7 +133,7 @@ export function DepotHoursEditor({
                     </div>
                   </div>
                 ) : (
-                  <span className="flex-1 text-sm text-muted">Tutup</span>
+                  <span className="flex-1 text-sm text-muted">{t('hrFix.depotHours.closed')}</span>
                 )}
                 <button
                   type="button"
@@ -155,14 +157,14 @@ export function DepotHoursEditor({
         {/* Holidays */}
         <div className="flex flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-bold">Hari libur</p>
+            <p className="text-sm font-bold">{t('hrFix.depotHours.holidays')}</p>
             <Button variant="ghost" onClick={addHoliday} className="px-2 py-1 text-xs">
               <Plus size={14} weight="bold" />
               Tambah
             </Button>
           </div>
           {holidays.length === 0 ? (
-            <p className="py-4 text-sm text-muted">Belum ada pengecualian jadwal.</p>
+            <p className="py-4 text-sm text-muted">{t('hrFix.depotHours.noExceptions')}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {holidays.map((h, i) => (
@@ -177,13 +179,13 @@ export function DepotHoursEditor({
                   <Input
                     value={h.label ?? ''}
                     onChange={(e) => setHoliday(i, 'label', e.target.value)}
-                    placeholder="Keterangan"
+                    placeholder={t('hrFix.depotHours.noteHint')}
                     className="py-1.5"
                   />
                   <button
                     type="button"
                     onClick={() => removeHoliday(i)}
-                    aria-label="Hapus"
+                    aria-label={t('hrFix.depotHours.deleteAria')}
                     className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-[color:var(--danger-bg)]"
                   >
                     <Trash size={16} />

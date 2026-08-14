@@ -15,7 +15,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, CenterState } from '@/components/ui';
+import { Button, Card, CenterState, LoadError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -121,6 +121,11 @@ function CheckIn() {
         <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight">{customer?.fullName ?? t('driver.checkIn.fallbackName')}</h1>
         <p className="mt-1.5 text-sm text-[color:var(--muted)]">{t('driver.checkIn.intro')}</p>
       </div>
+
+      {/* A courier already on shift is redirected away by `current.data`. If that read
+          failed there is no redirect and no sign of one, so they check in a second time
+          against a shift the server already has open. */}
+      {current.error && <LoadError onRetry={current.reload} />}
 
       {/* Start-of-shift checklist: depot location, vehicle, phone battery. */}
       <Card className="mt-4 p-0">

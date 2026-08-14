@@ -183,6 +183,90 @@ describe('ReportService', () => {
     expect(one.count).toBe(2);
   });
 
+  /*
+   * The count and the id list must agree, because crm sizes an audience with one and
+   * broadcasts to the other — a campaign that shows 300 and messages 40 is the failure
+   * this pair exists to prevent. `truncated` is the honest half: a caller that would have
+   * under-sent must be able to refuse rather than silently reach part of the segment.
+   */
+  it('lists the same customers it counted for a frequency segment', async () => {
+    const { count } = await reports.segmentEstimate({ minOrders: 2 });
+    const listed = await reports.segmentCustomers({ minOrders: 2 });
+    expect(listed.customerIds).toEqual([CUST_A]);
+    expect(listed.customerIds).toHaveLength(count);
+    expect(listed.truncated).toBe(false);
+  });
+
+  it('scopes the id list to a depot the same way the count does', async () => {
+    const listed = await reports.segmentCustomers({ depotId: DEPOT_B });
+    expect(listed.customerIds).toEqual([CUST_B]);
+  });
+
+  it('flags truncation instead of quietly returning a partial audience', async () => {
+    const listed = await reports.segmentCustomers({}, 1);
+    expect(listed.customerIds).toHaveLength(1);
+    expect(listed.truncated).toBe(true);
+  });
+
+  // The three day-windows are the ones the campaign chips actually send (at-risk, new,
+  // still-active), and each is a separate cutoff — a segment that dropped one silently
+  // would broadcast to a wider audience than the screen sized.
+  it('turns every day-window into the same cutoff the estimate uses', async () => {
+    const listed = await reports.segmentCustomers({
+      recencyDays: 30,
+      newWithinDays: 30,
+      lapsedDays: 0.0001, // every seeded order is older than a few seconds ago
+    });
+    expect(listed.customerIds).toEqual([]);
+
+    const active = await reports.segmentCustomers({ recencyDays: 30, newWithinDays: 30 });
+    expect(active.customerIds.sort()).toEqual([CUST_A, CUST_B].sort());
+  });
+
+  /*
+   * The rows behind a scheduled report. The depot grouping is the interesting one: the
+   * aggregate knows only depotIds, and a spreadsheet full of UUIDs is not a report — but a
+   * depot-service outage must not stop the report either, so the id is the fallback.
+   */
+  describe('exportRows', () => {
+    it('labels depot rows with the depot name when depot-service answers', async () => {
+      const withNames = new ReportService(repo, reportTestConfig(), {
+        listContacts: async () => [{ id: DEPOT_A, name: 'Depot Cibubur', contactPhone: null }],
+      } as never);
+      const rows = await withNames.exportRows('REVENUE_BY_DEPOT', {});
+      expect(rows.find((r) => r.label === 'Depot Cibubur')).toBeDefined();
+    });
+
+    it('falls back to the depot id rather than dropping the report', async () => {
+      const rows = await reports.exportRows('REVENUE_BY_DEPOT', {});
+      expect(rows.every((r) => r.orders > 0)).toBe(true);
+      expect(rows.some((r) => r.label === DEPOT_A)).toBe(true);
+    });
+
+    it('labels product rows with the product name', async () => {
+      const r2 = new InMemoryOrderRepository();
+      const svc = new ReportService(r2, reportTestConfig());
+      await r2.create({
+        ...orderData({ total: 40000 }),
+        items: [
+          {
+            productId: randomUUID(),
+            productName: 'Galon 19L',
+            sku: 'G19',
+            unit: 'Galon',
+            volumeMl: 19000,
+            isGallon: true,
+            unitPrice: 20000,
+            quantity: 2,
+            lineTotal: 40000,
+          },
+        ],
+      });
+      const rows = await svc.exportRows('REVENUE_BY_PRODUCT', {});
+      expect(rows).toEqual([{ label: 'Galon 19L', orders: 1, revenue: 40000 }]);
+    });
+  });
+
   it('sizes a recency segment (last order within N days)', async () => {
     // All seed orders were just created, so a wide recency window keeps everyone.
     const recent = await reports.segmentEstimate({ recencyDays: 30 });
@@ -243,10 +327,480 @@ describe('ReportService', () => {
     expect(rep.revenueIdr).toBe(120000);
     expect(rep.gallonsDelivered).toBe(6); // 3 + 3 on the two delivered orders
     expect(rep.failedDeliveries).toBe(1); // the cancelled order
-    expect(rep.perCourier).toEqual([]); // TODO: delivery-service join
-    expect(rep.codCollectedIdr).toBeNull(); // unwired: payment COD not joinable here
-    expect(rep.gallonsReturned).toBeNull();
+    expect(rep.perCourier).toEqual([]); // no courier was ever assigned, not "unavailable"
+    expect(rep.codCollectedIdr).toBeNull(); // no payment port wired on this instance
+    expect(rep.cashInDrawerIdr).toBeNull();
+    expect(rep.gallonsReturned).toBeNull(); // no depot-returns port wired on this instance
     expect(rep.gallonsDamaged).toBeNull();
+  });
+
+  /*
+   * S2. `perCourier`, `codCollectedIdr` and `cashInDrawerIdr` were literal `[]`/`null`, so
+   * "Rincian per kurir belum tersedia" and `hint="Selisih —"` on the reports screen were
+   * the client honestly rendering a backend that never intended to answer.
+   *
+   * The split matters and is asserted rather than assumed: courier COD is cash on the day's
+   * DELIVERY orders (payment rows carry no depotId), counter cash is what payment-service
+   * booked against the depot. Summing one bucket into the other double-counts a walk-in.
+   */
+  describe('depot daily — courier split and the two cash buckets', () => {
+    const day = '2026-07-15';
+    const gallon = (qty: number) => [
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
+        unitPrice: 20000,
+        quantity: qty,
+        lineTotal: 20000 * qty,
+      },
+    ];
+
+    it('breaks the day down per courier and separates COD from counter cash', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const mk = async (over: {
+        total: number;
+        driver?: string;
+        status?: OrderStatus;
+        walkIn?: boolean;
+      }) => {
+        const o = await r.create({
+          ...orderData({ depotId: depot, total: over.total }),
+          items: gallon(2),
+        });
+        const row = r.rows.find((x) => x.id === o.id)!;
+        row.createdAt = new Date(`${day}T02:00:00.000Z`);
+        row.status = over.status ?? OrderStatus.DELIVERED;
+        row.driverName = over.driver ?? null;
+        row.isWalkIn = over.walkIn === true;
+        return o;
+      };
+      const budiA = await mk({ total: 40000, driver: 'Budi' });
+      const budiB = await mk({ total: 60000, driver: 'Budi' });
+      const budiFailed = await mk({
+        total: 30000,
+        driver: 'Budi',
+        status: OrderStatus.CANCELLED,
+      });
+      const sari = await mk({ total: 50000, driver: 'Sari' });
+      const counter = await mk({ total: 25000, walkIn: true });
+
+      const cash = {
+        cashByOrder: jest.fn(async (ids: string[]) =>
+          [
+            { orderId: budiA.id, amountIdr: 40000 },
+            { orderId: sari.id, amountIdr: 50000 },
+          ].filter((row) => ids.includes(row.orderId)),
+        ),
+        depotCash: jest.fn(async () => 25000),
+      };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        cash as never,
+      );
+
+      const rep = await svc.depotDaily(depot, day);
+
+      // Courier COD is the day's DELIVERY orders only — the counter sale is not a courier's.
+      expect(cash.cashByOrder).toHaveBeenCalledTimes(1);
+      const asked = cash.cashByOrder.mock.calls[0][0];
+      expect(asked).toEqual(expect.arrayContaining([budiA.id, budiB.id, sari.id]));
+      expect(asked).not.toContain(counter.id);
+
+      expect(rep.codCollectedIdr).toBe(90000);
+      expect(rep.cashInDrawerIdr).toBe(25000);
+      expect(rep.perCourier).toEqual([
+        { name: 'Budi', completed: 2, failed: 1, codIdr: 40000 },
+        { name: 'Sari', completed: 1, failed: 0, codIdr: 50000 },
+      ]);
+      // The cancelled order is a failed delivery for Budi and revenue for nobody.
+      expect(rep.failedDeliveries).toBe(1);
+      expect(budiFailed).toBeDefined();
+    });
+
+    it('reports courier COD as null when payment-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const o = await r.create({
+        ...orderData({ depotId: depot, total: 40000 }),
+        items: gallon(2),
+      });
+      const row = r.rows.find((x) => x.id === o.id)!;
+      row.createdAt = new Date(`${day}T02:00:00.000Z`);
+      row.status = OrderStatus.DELIVERED;
+      row.driverName = 'Budi';
+
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, {
+        cashByOrder: async () => null,
+        depotCash: async () => null,
+      } as never);
+
+      const rep = await svc.depotDaily(depot, day);
+      // Null, never 0: "payment-service is down" and "the courier collected nothing" are
+      // different answers, and one of them means somebody is holding cash.
+      expect(rep.codCollectedIdr).toBeNull();
+      expect(rep.cashInDrawerIdr).toBeNull();
+      expect(rep.perCourier).toEqual([{ name: 'Budi', completed: 1, failed: 0, codIdr: null }]);
+    });
+
+    // The return slip is written in depot-service, so order-service cannot know this on its
+    // own — but "nothing came back today" is a real operational fact and must not be
+    // indistinguishable from "depot-service did not answer".
+    it('reads gallons returned and damaged from depot-service', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const directory = {
+        gallonReturns: jest.fn(async () => ({ gallons: 14, damaged: 3 })),
+      };
+      const svc = new ReportService(r, reportTestConfig(), directory as never);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.gallonsReturned).toBe(14);
+      expect(rep.gallonsDamaged).toBe(3);
+      // Same window the orders were counted in — a returns figure from a different day
+      // next to this day's sales is a reconciliation that cannot be closed.
+      const [askedDepot, from, to] = directory.gallonReturns.mock.calls[0] as unknown as [
+        string,
+        Date,
+        Date,
+      ];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-07-14T17:00:00.000Z'); // 00:00 WIB on the 15th
+      expect(to.toISOString()).toBe('2026-07-15T17:00:00.000Z');
+    });
+
+    it('leaves both gallon columns null when depot-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig(), {
+        gallonReturns: async () => null,
+      } as never);
+      const rep = await svc.depotDaily(randomUUID(), day);
+      expect(rep.gallonsReturned).toBeNull();
+      expect(rep.gallonsDamaged).toBeNull();
+    });
+
+    it('skips the payment round-trip entirely on a day with no delivery orders', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const cash = {
+        cashByOrder: jest.fn(async () => []),
+        depotCash: jest.fn(async () => 0),
+      };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        cash as never,
+      );
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(cash.cashByOrder).not.toHaveBeenCalled();
+      expect(rep.codCollectedIdr).toBe(0);
+      expect(rep.cashInDrawerIdr).toBe(0);
+    });
+  });
+
+  /*
+   * S2. `slaPct` was a literal null with a TODO, and `dashboard/compare` + the monthly
+   * review's Governance panel rendered that null as "—". order-service genuinely cannot
+   * derive it — an order's status says it was delivered, never whether it was late — so
+   * the fix is to ask delivery-service, not to infer.
+   */
+  describe('monthly review — on-time rate', () => {
+    it('reads the depot on-time rate for the month window and reports it as a percentage', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const sla = { onTimeRate: jest.fn(async () => 0.876) };
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        undefined,
+        sla as never,
+      );
+
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      // One decimal on purpose: whole points turn 87,6% into 88%, right at the band the HQ
+      // dashboard changes colour on.
+      expect(rep.slaPct).toBe(87.6);
+      const [askedDepot, from, to] = sla.onTimeRate.mock.calls[0] as unknown as [
+        string,
+        Date,
+        Date,
+      ];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-06-30T17:00:00.000Z'); // 1 Jul 00:00 WIB
+      expect(to.toISOString()).toBe('2026-07-31T17:00:00.000Z');
+    });
+
+    it('leaves slaPct null when delivery-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, undefined, {
+        onTimeRate: async () => null,
+      } as never);
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+    });
+
+    it('leaves slaPct null when no delivery port is wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+    });
+  });
+
+  /*
+   * S2 + the user's 2026-08-13 decision: net profit = omzet − HPP − gaji − beban. The data
+   * to do it properly does not exist (no per-unit cost price anywhere in the catalog), so
+   * HPP is purchases RECEIVED in the month and the breakdown ships with the number so a
+   * reader can see that rather than be misled by it.
+   */
+  /*
+   * The Governance panel used to be three literal '—' strings in the client. All three
+   * numbers are depot-service's own (approvals, stock counts, the daily close), so they
+   * arrive over the same port the costs do — and a depot-service that cannot be read leaves
+   * the panel null rather than reporting a clean month.
+   */
+  describe('monthly review — governance', () => {
+    const svcWithPort = (r: InMemoryOrderRepository, port: unknown) =>
+      new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        port as never,
+      );
+
+    it('reports the depot figures for the month window', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const governance = jest.fn(async () => ({
+        approvalsReviewed: 3,
+        opnameVarianceIdr: -40_000,
+        settlementVarianceIdr: -20_000,
+        daysClosed: 30,
+      }));
+      const rep = await svcWithPort(r, {
+        costs: async () => null,
+        payroll: async () => null,
+        governance,
+      }).reportsDepotMonthly(depot, '2026-07');
+
+      expect(rep.governance).toEqual({
+        approvalsReviewed: 3,
+        opnameVarianceIdr: -40_000,
+        settlementVarianceIdr: -20_000,
+        daysClosed: 30,
+      });
+      const [askedDepot, from, to] = governance.mock.calls[0] as unknown as [string, Date, Date];
+      expect(askedDepot).toBe(depot);
+      expect(from.toISOString()).toBe('2026-06-30T17:00:00.000Z'); // 1 Jul 00:00 WIB
+      expect(to.toISOString()).toBe('2026-07-31T17:00:00.000Z');
+    });
+
+    it('leaves governance null when depot-service could not answer', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await svcWithPort(r, {
+        costs: async () => null,
+        payroll: async () => null,
+        governance: async () => null,
+      }).reportsDepotMonthly(randomUUID(), '2026-07');
+      expect(rep.governance).toBeNull();
+    });
+
+    it('leaves governance null when no depot-cost port is wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
+        randomUUID(),
+        '2026-07',
+      );
+      expect(rep.governance).toBeNull();
+    });
+  });
+
+  describe('monthly review — net profit', () => {
+    const costsPort = (over: Record<string, unknown> = {}) => ({
+      costs: async () => ({ cogsIdr: 4_000_000, opexIdr: 1_900_000 }),
+      payroll: async () => 3_000_000,
+      governance: async () => null,
+      ...over,
+    });
+    const svcWith = (r: InMemoryOrderRepository, port: unknown) =>
+      new ReportService(r, reportTestConfig(), undefined, undefined, undefined, undefined, port as never);
+
+    const withRevenue = async (r: InMemoryOrderRepository, depot: string, total: number) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-07-10T02:00:00.000Z');
+      r.rows.find((x) => x.id === o.id)!.status = OrderStatus.DELIVERED;
+    };
+
+    it('subtracts goods, payroll and operating cost, and shows the arithmetic', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.revenueIdr).toBe(12_000_000);
+      expect(rep.netProfitIdr).toBe(12_000_000 - 4_000_000 - 3_000_000 - 1_900_000);
+      expect(rep.profitBreakdown).toEqual({
+        revenueIdr: 12_000_000,
+        cogsIdr: 4_000_000,
+        payrollIdr: 3_000_000,
+        opexIdr: 1_900_000,
+      });
+    });
+
+    it('asks hr for the reported month, not for whatever month it is today', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const payroll = jest.fn(async () => 3_000_000);
+      await svcWith(r, costsPort({ payroll })).reportsDepotMonthly(depot, '2026-07');
+      expect(payroll).toHaveBeenCalledWith(depot, '2026-07');
+    });
+
+    /*
+     * Fail-closed, and this is the test that matters. Reading an unreachable hr-service as
+     * "payroll was zero" publishes a profit inflated by the depot's entire wage bill — and
+     * it looks exactly like a good month.
+     */
+    it.each([
+      ['depot-service could not answer', { costs: async () => null }],
+      ['hr-service could not answer', { payroll: async () => null }],
+    ])('reports null net profit when %s, never a partial subtraction', async (_label, over) => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+
+      const rep = await svcWith(r, costsPort(over)).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.netProfitIdr).toBeNull();
+      // The breakdown still ships: knowing WHICH half failed is what turns "—" from a dead
+      // end into something an operator can chase.
+      expect(rep.profitBreakdown.revenueIdr).toBe(12_000_000);
+      const missing = [rep.profitBreakdown.cogsIdr, rep.profitBreakdown.payrollIdr].filter(
+        (v) => v === null,
+      );
+      expect(missing.length).toBeGreaterThan(0);
+    });
+
+    it('reports null with no cost port wired at all', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
+        randomUUID(),
+        '2026-07',
+      );
+      expect(rep.netProfitIdr).toBeNull();
+      expect(rep.profitBreakdown).toEqual({
+        revenueIdr: 0,
+        cogsIdr: null,
+        opexIdr: null,
+        payrollIdr: null,
+      });
+    });
+
+    it('reports a loss as a negative number rather than flooring at zero', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 1_000_000);
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      expect(rep.netProfitIdr).toBe(1_000_000 - 8_900_000);
+    });
+  });
+
+  /*
+   * S2. `dashboard/compare` had three of its five rows as `value: () => null` in the CLIENT,
+   * with a comment saying order-service could not join them. It still cannot — so it asks
+   * the three services that own them. A comparison screen where three of five rows are
+   * permanently "—" is a screen nobody opens.
+   */
+  describe('cross-depot compare — the three columns that were permanently "—"', () => {
+    const RANGE = { from: new Date('2026-06-30T17:00:00.000Z'), to: new Date('2026-07-31T17:00:00.000Z') };
+
+    const build = (r: InMemoryOrderRepository) =>
+      new ReportService(
+        r,
+        reportTestConfig(),
+        { gallonReturns: async () => ({ gallons: 20, damaged: 4 }) } as never,
+        undefined,
+        undefined,
+        { onTimeRate: async () => 0.912 } as never,
+        {
+          costs: async () => ({ cogsIdr: 4_000_000, opexIdr: 1_900_000 }),
+          payroll: async () => 3_000_000,
+        } as never,
+      );
+
+    it('fills SLA, wastage and net profit per depot', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const o = await r.create({ ...orderData({ depotId: depot, total: 12_000_000 }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-07-10T02:00:00.000Z');
+
+      const rep = await build(r).reportsDepotCompare([depot], RANGE);
+      expect(rep.depots[0]).toEqual({
+        depotId: depot,
+        orders: 1,
+        revenueIdr: 12_000_000,
+        slaPct: 91.2,
+        wastageGallons: 4,
+        netProfitIdr: 12_000_000 - 4_000_000 - 3_000_000 - 1_900_000,
+      });
+    });
+
+    /*
+     * An open window cannot be asked about. SLA, costs and returns are all range reads, and
+     * an unbounded compare would quietly charge one column with a depot's whole history
+     * while the revenue beside it covered every order ever placed — two columns describing
+     * different spans of time, side by side, with nothing saying so.
+     */
+    it('keeps the two order-owned columns and nulls the rest when the window is open', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await r.create({ ...orderData({ depotId: depot, total: 50_000 }) });
+
+      const rep = await build(r).reportsDepotCompare([depot], {});
+      expect(rep.depots[0]).toMatchObject({
+        orders: 1,
+        revenueIdr: 50_000,
+        slaPct: null,
+        wastageGallons: null,
+        netProfitIdr: null,
+      });
+    });
+
+    it('nulls a depot column whose owning service went quiet, without dropping the row', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const svc = new ReportService(
+        r,
+        reportTestConfig(),
+        { gallonReturns: async () => null } as never,
+        undefined,
+        undefined,
+        { onTimeRate: async () => null } as never,
+        { costs: async () => null, payroll: async () => null } as never,
+      );
+
+      const rep = await svc.reportsDepotCompare([depot], RANGE);
+      // The row is still there — a depot missing from a comparison reads as a depot that
+      // sold nothing, which is a different and much worse claim.
+      expect(rep.depots).toHaveLength(1);
+      expect(rep.depots[0]).toMatchObject({
+        orders: 0,
+        slaPct: null,
+        wastageGallons: null,
+        netProfitIdr: null,
+      });
+    });
   });
 
   // The export behind the button that used to do nothing. It must show the SAME day the

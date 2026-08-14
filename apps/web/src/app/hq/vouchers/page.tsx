@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Ticket } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -87,9 +87,11 @@ export default function HqVouchersPage() {
           </span>
         </div>
         <p className="text-xs uppercase tracking-wide text-muted">{t('hq.vouchers.budget.total')}</p>
+        {/* Rp 0 burned is a budget report. Say the read failed instead. */}
         <p className="text-2xl font-bold tabular-nums">
-          {burn.loading ? '…' : <Money amount={totalUsed} />}
+          {burn.loading ? '…' : burn.error ? t('hq.common.dash') : <Money amount={totalUsed} />}
         </p>
+        {burn.error && <LoadError onRetry={burn.reload} />}
       </Card>
 
       {/* Depot→HQ voucher requests — REAL (promo-service voucher-requests queue) */}

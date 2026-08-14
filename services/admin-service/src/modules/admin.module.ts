@@ -16,6 +16,7 @@ import { WebhookService } from '../application/services/webhook.service';
 import { WebhookDispatchService } from '../application/services/webhook-dispatch.service';
 import { ExportLogService } from '../application/services/export-log.service';
 import { ScheduledReportService } from '../application/services/scheduled-report.service';
+import { ScheduledReportRunnerService } from '../application/services/scheduled-report-runner.service';
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import { FraudFlagService } from '../application/services/fraud-flag.service';
 import { IncidentService } from '../application/services/incident.service';
@@ -32,6 +33,7 @@ import { WebhookPrismaRepository } from '../infrastructure/prisma/webhook.prisma
 import { WebhookDeliveryPrismaRepository } from '../infrastructure/prisma/webhook-delivery.prisma.repository';
 import { ExportLogPrismaRepository } from '../infrastructure/prisma/export-log.prisma.repository';
 import { ScheduledReportPrismaRepository } from '../infrastructure/prisma/scheduled-report.prisma.repository';
+import { ReportSourceHttpAdapter } from '../infrastructure/http/report-source.http.adapter';
 import { SupportTicketPrismaRepository } from '../infrastructure/prisma/support-ticket.prisma.repository';
 import { FraudFlagPrismaRepository } from '../infrastructure/prisma/fraud-flag.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
@@ -73,6 +75,7 @@ const providers: Provider[] = [
   WebhookDispatchService,
   ExportLogService,
   ScheduledReportService,
+  ScheduledReportRunnerService,
   SupportTicketService,
   FraudFlagService,
   IncidentService,
@@ -92,6 +95,7 @@ const providers: Provider[] = [
   },
   { provide: ADMIN_TOKENS.ExportLogRepository, useClass: ExportLogPrismaRepository },
   { provide: ADMIN_TOKENS.ScheduledReportRepository, useClass: ScheduledReportPrismaRepository },
+  { provide: ADMIN_TOKENS.ReportSource, useClass: ReportSourceHttpAdapter },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
   { provide: ADMIN_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },

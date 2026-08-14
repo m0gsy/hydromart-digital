@@ -18,6 +18,7 @@ const PANEL_GRADIENT = 'linear-gradient(150deg,#0b4d57,#0c1518)';
 // Left hero panel — brand chrome, hidden on mobile (form-only stack).
 // ponytail: hero + stat copy has no dictionary keys yet, so it's id-literal.
 function BrandPanel() {
+  const { t } = useT();
   return (
     <div
       className="relative hidden flex-col overflow-hidden text-white md:flex"
@@ -48,13 +49,13 @@ function BrandPanel() {
             <div className="font-extrabold" style={{ fontSize: 22, color: '#8fe3ee' }}>
               30 mnt
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>rata-rata antar</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>{t('hrFix.loginPage.avgDelivery')}</div>
           </div>
           <div>
             <div className="font-extrabold" style={{ fontSize: 22, color: '#8fe3ee' }}>
               120+
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>depot mitra</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>{t('hrFix.loginPage.partnerDepots')}</div>
           </div>
         </div>
       </div>

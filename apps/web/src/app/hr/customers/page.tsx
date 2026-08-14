@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { MagnifyingGlass, Users } from '@phosphor-icons/react';
 
 import { HrDepotPicker } from '@/components/hr/depot-picker';
@@ -18,6 +19,7 @@ import type { DepotCustomer } from '@/lib/types';
  * customer data inside hr-service, and no write actions from here.
  */
 export default function HrCustomersPage() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -63,8 +65,8 @@ export default function HrCustomersPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama atau nomor"
-            aria-label="Cari pelanggan"
+            placeholder={t('hrFix.hrCustomers.searchHint')}
+            aria-label={t('hrFix.hrCustomers.searchAria')}
             className="pl-9"
           />
           </div>
@@ -72,23 +74,23 @@ export default function HrCustomersPage() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Users size={40} weight="fill" />} />
+        <CenterState title={t('hrFix.hrCustomers.noDepot')} icon={<Users size={40} weight="fill" />} />
       ) : rows.loading ? (
         <Skeleton className="h-64 w-full rounded-2xl" />
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : (rows.data ?? []).length === 0 ? (
-        <CenterState title="Belum ada pelanggan" icon={<Users size={40} weight="fill" />} />
+        <CenterState title={t('hrFix.hrCustomers.noCustomers')} icon={<Users size={40} weight="fill" />} />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-[12.5px] text-muted">
-                <th className="px-4 py-2.5 font-semibold">Nama</th>
-                <th className="px-4 py-2.5 font-semibold">Nomor</th>
-                <th className="px-4 py-2.5 font-semibold">Tier</th>
-                <th className="px-4 py-2.5 font-semibold">Order</th>
-                <th className="px-4 py-2.5 font-semibold">Order terakhir</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.name')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.phone')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.tier')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.orders')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.lastOrder')}</th>
               </tr>
             </thead>
             <tbody>

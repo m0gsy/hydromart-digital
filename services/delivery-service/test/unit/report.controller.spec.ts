@@ -58,4 +58,23 @@ describe('ReportController range parsing', () => {
     await controller.slaByDepot({} as never);
     expect(reports.slaByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
   });
+
+  // S2. order-service's monthly review asks for one depot over one month. Same service
+  // method as the bearer route above — the internal one differs only in how it is
+  // authenticated, so the two can never report a different on-time rate for the same window.
+  it('answers the internal route from the same computation, scoped to the given depot', async () => {
+    await controller.internalSla({
+      depotIds: ['d1'],
+      from: '2026-06-30T17:00:00.000Z',
+      to: '2026-07-31T17:00:00.000Z',
+    } as never);
+    expect(reports.sla).toHaveBeenLastCalledWith(
+      {
+        from: new Date('2026-06-30T17:00:00.000Z'),
+        to: new Date('2026-07-31T17:00:00.000Z'),
+      },
+      undefined,
+      ['d1'],
+    );
+  });
 });

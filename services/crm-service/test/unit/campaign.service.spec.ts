@@ -10,6 +10,7 @@ import {
 } from '../../src/domain/errors';
 import { CampaignService } from '../../src/application/services/campaign.service';
 import {
+  FakeActivitySegment,
   FakeCustomerDirectory,
   FakeWhatsappBroadcast,
   InMemoryCampaignRepository,
@@ -19,13 +20,15 @@ describe('CampaignService', () => {
   let repo: InMemoryCampaignRepository;
   let whatsapp: FakeWhatsappBroadcast;
   let directory: FakeCustomerDirectory;
+  let activity: FakeActivitySegment;
   let service: CampaignService;
 
   beforeEach(() => {
     repo = new InMemoryCampaignRepository();
     whatsapp = new FakeWhatsappBroadcast();
     directory = new FakeCustomerDirectory();
-    service = new CampaignService(repo, whatsapp, directory);
+    activity = new FakeActivitySegment();
+    service = new CampaignService(repo, whatsapp, directory, activity);
   });
 
   const recipients = [
@@ -88,6 +91,164 @@ describe('CampaignService', () => {
       await expect(
         service.create('staff-1', 'Blast', 'Hi', undefined, { tier: 'GOLD' }, 'Bearer tok'),
       ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+
+    /*
+     * The activity half. The screens size these segments from order-service (at-risk, new,
+     * frequent, "customers of this depot") and used to send `{tier:'GOLD'}` or `{}` instead
+     * — an estimate of 40 lapsed customers followed by a blast to everyone. The directory
+     * still owns tier/city; order-service now says who is in the activity segment, and the
+     * campaign is the intersection.
+     */
+    it('narrows a segment to the customers order-service says are in it', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+        { customerId: 'c3', name: 'Cita', phone: '+628333' },
+      ];
+      activity.customerIds = ['c1', 'c3'];
+
+      const c = await service.create('staff-1', 'Lapsed', 'Hi', undefined, { lapsedDays: 60 }, 'Bearer tok');
+
+      expect(c.recipients.map((r) => r.customerId).sort()).toEqual(['c1', 'c3']);
+      expect(activity.lastConditions).toEqual({ lapsedDays: 60 });
+    });
+
+    it('combines the activity segment with the attribute one', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'GOLD' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC' },
+      ];
+      activity.customerIds = ['c1', 'c2'];
+
+      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { tier: 'GOLD', minOrders: 5 }, 'Bearer tok');
+
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+      // tier must NOT be sent to order-service — it does not know tiers, and a stray
+      // property on that query is a 400 behind forbidNonWhitelisted.
+      expect(activity.lastConditions).toEqual({ minOrders: 5 });
+    });
+
+    it('never asks order-service when the segment has no activity condition', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      const c = await service.create('staff-1', 'All', 'Hi', undefined, {}, 'Bearer tok');
+      expect(c.totalRecipients).toBe(1);
+      expect(activity.lastConditions).toBeUndefined();
+    });
+
+    /*
+     * A named list, for the churn screen's "re-engage this one customer". The id alone is
+     * not a recipient — the directory is what supplies a phone to message, so an id it does
+     * not know simply is not in the audience rather than becoming a blank recipient.
+     */
+    it('narrows the audience to a named customer, taking their phone from the directory', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      const c = await service.create('staff-1', 'Re-engage', 'Hi', undefined, { customerIds: ['c2'] }, 'Bearer tok');
+      expect(c.recipients).toHaveLength(1);
+      expect(c.recipients[0]).toMatchObject({ customerId: 'c2', phone: '+628222', name: 'Bima' });
+      // No activity conditions in that filter, so order-service is not consulted at all.
+      expect(activity.lastConditions).toBeUndefined();
+    });
+
+    it('refuses rather than inventing a recipient for an id the directory does not know', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      await expect(
+        service.create('staff-1', 'Re-engage', 'Hi', undefined, { customerIds: ['ghost'] }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+
+    it('combines a named list with an activity condition', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      activity.customerIds = ['c1', 'c2'];
+      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { lapsedDays: 60, customerIds: ['c1'] }, 'Bearer tok');
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+    });
+
+    it('fails closed when order-service cannot resolve the activity segment', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+628111' }];
+      activity.down = true;
+      await expect(
+        service.create('staff-1', 'Lapsed', 'Hi', undefined, { lapsedDays: 60 }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(SegmentUnavailableError);
+    });
+  });
+
+  /*
+   * The depot blast (11a). Its whole reason to exist is that a depot manager must not be
+   * able to reach another depot's customers, and must not need the head-office right to
+   * read the customer directory in order to message their own.
+   */
+  describe('createForDepot', () => {
+    beforeEach(() => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222' },
+      ];
+      activity.customerIds = ['c1'];
+    });
+
+    it('pins the segment to the guarded depot and ignores any depot named in the body', async () => {
+      const c = await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi', {
+        depotId: 'depot-someone-else',
+        lapsedDays: 60,
+      });
+      expect(activity.lastConditions).toEqual({ depotId: 'depot-mine', lapsedDays: 60 });
+      expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
+    });
+
+    it('reads the directory as a service, never as the depot manager', async () => {
+      await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+      expect(directory.asService).toBe(true);
+      expect(directory.lastAuth).toBeUndefined();
+    });
+
+    it('defaults to the whole depot when no narrowing segment is given', async () => {
+      await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+      expect(activity.lastConditions).toEqual({ depotId: 'depot-mine' });
+    });
+
+    it('throws NoRecipientsError when the depot has nobody to message', async () => {
+      activity.customerIds = [];
+      await expect(
+        service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi'),
+      ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+  });
+
+  /*
+   * Scheduling. "Jadwalkan" and "Kirim sekarang" used to be the same button: both drafted
+   * immediately, and the compose screens refused a send time with a toast while still
+   * showing the control. A scheduled campaign is CLAIMED the moment staff press send — so
+   * nothing else can claim it — but the sweep is what decides it is due.
+   */
+  describe('scheduling', () => {
+    const DUE = new Date('2026-08-20T02:00:00.000Z');
+
+    it('leaves a scheduled campaign alone until its time, then sends it', async () => {
+      const c = await service.create('staff-1', 'Besok', 'Hi', recipients, undefined, '', DUE);
+      expect(c.scheduledFor).toEqual(DUE);
+      await service.send(c.id);
+
+      const early = await service.processSending(new Date('2026-08-19T23:59:00.000Z'));
+      expect(early.campaigns).toBe(0);
+      expect(whatsapp.sent).toHaveLength(0);
+
+      const onTime = await service.processSending(new Date('2026-08-20T02:00:00.000Z'));
+      expect(onTime.campaigns).toBe(1);
+      expect(whatsapp.sent).toHaveLength(2);
+    });
+
+    it('treats an unscheduled campaign as due immediately, as it always was', async () => {
+      const c = await service.create('staff-1', 'Sekarang', 'Hi', recipients);
+      expect(c.scheduledFor).toBeNull();
+      await service.send(c.id);
+      expect((await service.processSending()).campaigns).toBe(1);
     });
   });
 

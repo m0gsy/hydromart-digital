@@ -5,6 +5,7 @@ import { SignOut } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { staffDoor } from '@/lib/roles';
 
 /**
  * Sign out of a console. The consoles used to borrow the shop's top nav for this; now
@@ -21,7 +22,7 @@ export function ConsoleSignOut() {
       type="button"
       onClick={() => {
         signOut();
-        router.replace('/hq/login');
+        router.replace(staffDoor(window.location.pathname));
       }}
       className="mt-auto flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-brand-50 hover:text-brand-700"
     >

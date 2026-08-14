@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { DepotRatingsReport } from '@/lib/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,6 +47,7 @@ function Stars({ value, size = 14 }: { value: number; size?: number }) {
 }
 
 function RatingsView({ data }: { data: DepotRatingsReport }) {
+  const { t } = useT();
   const max = Math.max(...STAR_ROWS.map((s) => data.distribution[s]), 1);
   const average = data.average ?? 0;
 
@@ -57,7 +59,7 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
             {data.average === null ? '—' : average.toLocaleString('id-ID')}
           </p>
           <Stars value={Math.round(average)} size={18} />
-          <p className="text-xs text-[color:var(--text-muted)]">dari 5,0</p>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('opsFix.ratings.outOfFive')}</p>
         </div>
         <div className="flex flex-1 flex-col gap-2">
           {STAR_ROWS.map((s) => {
@@ -87,8 +89,8 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
       </Card>
 
       {data.recent.length === 0 ? (
-        <CenterState title="Belum ada ulasan" icon={<Star size={40} weight="fill" />}>
-          Belum ada ulasan pelanggan untuk depot ini dalam 30 hari terakhir.
+        <CenterState title={t('opsFix.ratings.empty')} icon={<Star size={40} weight="fill" />}>
+          {t('opsFix.ratings.emptyBody')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-3">
@@ -108,14 +110,10 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
                 {r.comment && (
                   <p className="mt-1.5 text-sm text-[color:var(--text)]">“{r.comment}”</p>
                 )}
-                {r.stars <= 3 && (
-                  <button
-                    type="button"
-                    className="mt-2 text-sm font-semibold text-brand-600 hover:underline"
-                  >
-                    Balas →
-                  </button>
-                )}
+                {/* "Balas →" was a button with no onClick under every low rating. There is no
+                    reply route to call — order-service has POST :id/review and nothing that
+                    answers one — so an operator who tapped it learned only that the console
+                    ignores them. Gone until a reply endpoint exists. */}
               </div>
             </Card>
           ))}
@@ -126,6 +124,7 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
 }
 
 function RatingsBody() {
+  const { t } = useT();
   const { scopedId, selected } = useDepot();
   // Computed once per mount. Called bare in render, `to` moved with every Date.now(), so the
   // useAsync deps changed on every render — the page refetched forever and burned the gateway's
@@ -144,10 +143,10 @@ function RatingsBody() {
       <div className="flex items-center gap-2">
         <Star size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Rating pelanggan</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.ratings.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {selected ? `Depot ${selected.name} · ` : ''}
-            <span className="tabular-nums">{data.data?.count ?? 0}</span> ulasan · 30 hari
+            {t('opsFix.ratings.headerSub', { n: data.data?.count ?? 0 })}
           </p>
         </div>
       </div>
@@ -157,8 +156,8 @@ function RatingsBody() {
       ) : data.error ? (
         <ErrorState message={data.error} onRetry={data.reload} />
       ) : !data.data ? (
-        <CenterState title="Pilih depot" icon={<Star size={40} weight="fill" />}>
-          Pilih depot di switcher untuk melihat rating pelanggan.
+        <CenterState title={t('opsFix.ratings.pickDepot')} icon={<Star size={40} weight="fill" />}>
+          {t('opsFix.ratings.pickDepotBody')}
         </CenterState>
       ) : (
         <RatingsView data={data.data} />
@@ -168,11 +167,12 @@ function RatingsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canUseManagerConsole(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Rating & ulasan pelanggan hanya untuk Manajer depot.
+      <CenterState title={t('opsFix.ratings.gate')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.ratings.gateBody')}
       </CenterState>
     );
   }

@@ -89,6 +89,10 @@ export class ExportLogDto {
   rowCount!: number | null;
   @ApiProperty({ enum: ExportStatus })
   status!: ExportStatus;
+  @ApiProperty({ nullable: true, description: 'Name of the stored file, when there is one.' })
+  fileName!: string | null;
+  @ApiProperty({ description: 'True when this row has a file to download.' })
+  hasFile!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 
@@ -101,6 +105,8 @@ export class ExportLogDto {
       format: record.format,
       rowCount: record.rowCount,
       status: record.status,
+      fileName: record.fileName,
+      hasFile: record.hasFile,
       createdAt: record.createdAt.toISOString(),
     };
   }

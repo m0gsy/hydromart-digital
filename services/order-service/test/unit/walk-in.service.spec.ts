@@ -15,6 +15,7 @@ import {
   NotACounterSaleError,
   OrderAlreadyVoidedError,
   PaymentReversalFailedError,
+  ResellerVoucherNotAllowedError,
   ShippingVoucherAtCounterError,
   VoidWindowClosedError,
   VoucherRejectedError,
@@ -62,6 +63,7 @@ describe('OrderService.walkInSale', () => {
   let paymentReversal: FakePaymentReversal;
   let pricing: FakeDepotPricing;
   let directory: FakeCustomerDirectory;
+  let resellerDiscount: FakeResellerDiscount;
   let service: OrderService;
 
   const operator: AuthenticatedUser = {
@@ -78,6 +80,7 @@ describe('OrderService.walkInSale', () => {
     depots = new FakeDepotDirectory();
     pricing = new FakeDepotPricing();
     directory = new FakeCustomerDirectory();
+    resellerDiscount = new FakeResellerDiscount();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
     recommendation = new FakeRecommendationCoordination();
@@ -99,7 +102,7 @@ describe('OrderService.walkInSale', () => {
       loyalty,
       referral,
       membership,
-      new FakeResellerDiscount(),
+      resellerDiscount,
       directory,
       notification,
       promo,
@@ -424,6 +427,39 @@ describe('OrderService.walkInSale', () => {
       expect(membership.calls).toHaveLength(0);
       expect(order.discount).toBe(4000);
       expect(order.total).toBe(36000);
+    });
+
+    /**
+     * An agen is an agen at the till too. The counter had no reseller branch at all, so the
+     * same buyer was charged the flat SOP price online and list-minus-membership in person:
+     * Rp50.000 against Rp190.000 for ten galon.
+     */
+    it('charges an agen the flat SOP galon price, not the list price', async () => {
+      membership.rate = 0.05; // must be ignored — reseller pricing replaces it
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      const customerId = randomUUID();
+      const order = await sell(10, { customerId, customerPhone: '0812' });
+
+      // 10 × (20.000 − 5.000) off a 200.000 basket → the agen pays 50.000.
+      expect(order.discount).toBe(150_000);
+      expect(order.total).toBe(50_000);
+      // Read by BUYER id: the token at a till belongs to the cashier.
+      expect(resellerDiscount.byCustomerCalls).toEqual([customerId]);
+      expect(membership.byCustomerCalls).toHaveLength(0);
+    });
+
+    it('applies the agen percentage when there is no flat price', async () => {
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+      const order = await sell(2, { customerId: randomUUID(), customerPhone: '0812' });
+      expect(order.discount).toBe(4000); // 10% of 40.000
+    });
+
+    it('refuses a voucher from an agen at the counter, exactly as checkout does', async () => {
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+      await expect(
+        sell(1, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'HEMAT10' }),
+      ).rejects.toBeInstanceOf(ResellerVoucherNotAllowedError);
+      expect(orders.rows).toHaveLength(0);
     });
 
     it('applies a voucher from the buyer wallet and records the redemption', async () => {

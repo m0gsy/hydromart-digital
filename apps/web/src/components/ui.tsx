@@ -451,6 +451,26 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
+/**
+ * The failure of a read that fills a CONTROL, not a page: the depot dropdown, the category
+ * list, the courier picker.
+ *
+ * `ErrorState` is page-sized and would blank the form somebody is halfway through, so these
+ * reads used to render nothing at all — and an empty select is a sentence: it says the depot
+ * has no couriers. This says the list is missing instead, and offers the same read again.
+ */
+export function LoadError({ onRetry, className }: { onRetry: () => void; className?: string }) {
+  const { t } = useT();
+  return (
+    <p className={cx('text-xs text-red-600', className)}>
+      {t('common.loadFailed')}{' '}
+      <button type="button" onClick={onRetry} className="font-semibold underline">
+        {t('common.retry')}
+      </button>
+    </p>
+  );
+}
+
 /* ---------- Segmented ---------- */
 /**
  * A pill-in-a-track switch for two or three mutually exclusive options. Extracted rather

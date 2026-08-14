@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import type { DepotAdmin } from '@/lib/types';
 
 // ponytail: a lat/lng scatter, not a tile map. Real map tiles need an external
@@ -17,9 +18,10 @@ function norm(v: number, min: number, max: number): number {
 }
 
 export function DepotMap({ depots, onSelect }: { depots: DepotAdmin[]; onSelect: (d: DepotAdmin) => void }) {
+  const { t } = useT();
   const pts = depots.filter((d) => Number.isFinite(d.lat) && Number.isFinite(d.lng));
   if (pts.length === 0) {
-    return <p className="text-sm text-muted">Belum ada depot dengan koordinat.</p>;
+    return <p className="text-sm text-muted">{t('hrFix.depotMap.empty')}</p>;
   }
 
   const lats = pts.map((d) => d.lat);
@@ -69,7 +71,7 @@ export function DepotMap({ depots, onSelect }: { depots: DepotAdmin[]; onSelect:
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--text-muted)]" /> Nonaktif
         </span>
-        <span className="ml-auto">Posisi relatif dari koordinat depot.</span>
+        <span className="ml-auto">{t('hrFix.depotMap.caption')}</span>
       </div>
     </div>
   );

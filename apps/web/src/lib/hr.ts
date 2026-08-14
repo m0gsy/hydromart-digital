@@ -2,7 +2,15 @@
 // server stays authority. Types live here (not types.ts) to keep the HR surface self-contained.
 
 import type { HrManagedRole } from '@hydromart/access';
+import type { TVars } from './locale-context';
 import { BUSINESS_TZ } from './wib';
+
+/**
+ * The `t` from `useT()`. PR-8: the label maps below hold dictionary KEYS, not Indonesian,
+ * so the handful of helpers that build a sentence out of them need the translator passed
+ * in — these are plain functions, and a hook cannot be called from one.
+ */
+export type Translate = (key: string, vars?: TVars) => string;
 
 // DEPOT_MANAGER is gone: it was a JABATAN wearing a status's clothes, which made "depot
 // head" and "on probation" mutually exclusive. It now lives on `Employee.role`.
@@ -20,19 +28,19 @@ export type Gender = 'MALE' | 'FEMALE';
 export type PtkpStatus = 'TK0' | 'TK1' | 'TK2' | 'TK3' | 'K0' | 'K1' | 'K2' | 'K3';
 
 export const GENDER_LABEL: Record<Gender, string> = {
-  MALE: 'Laki-laki',
-  FEMALE: 'Perempuan',
+  MALE: 'hrFix.map.gender.MALE',
+  FEMALE: 'hrFix.map.gender.FEMALE',
 };
 
 export const PTKP_STATUS_LABEL: Record<PtkpStatus, string> = {
-  TK0: 'TK/0 — lajang',
-  TK1: 'TK/1 — lajang, 1 tanggungan',
-  TK2: 'TK/2 — lajang, 2 tanggungan',
-  TK3: 'TK/3 — lajang, 3 tanggungan',
-  K0: 'K/0 — menikah',
-  K1: 'K/1 — menikah, 1 tanggungan',
-  K2: 'K/2 — menikah, 2 tanggungan',
-  K3: 'K/3 — menikah, 3 tanggungan',
+  TK0: 'hrFix.map.ptkp.TK0',
+  TK1: 'hrFix.map.ptkp.TK1',
+  TK2: 'hrFix.map.ptkp.TK2',
+  TK3: 'hrFix.map.ptkp.TK3',
+  K0: 'hrFix.map.ptkp.K0',
+  K1: 'hrFix.map.ptkp.K1',
+  K2: 'hrFix.map.ptkp.K2',
+  K3: 'hrFix.map.ptkp.K3',
 };
 
 export interface HrPage<T> {
@@ -76,6 +84,8 @@ export interface Employee {
   address: string | null;
   ptkpStatus: PtkpStatus | null;
   contractEndDate: string | null;
+  /** Last paid day; payroll clamps the period to joinDate..exitDate. */
+  exitDate: string | null;
   status: EmployeeStatus;
   createdAt: string;
   updatedAt: string;
@@ -202,17 +212,17 @@ export interface LeaveBalance {
 
 export const LEAVE_TYPES: LeaveType[] = ['ANNUAL', 'SICK', 'PERMISSION', 'EMERGENCY'];
 export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
-  ANNUAL: 'Cuti tahunan',
-  SICK: 'Sakit',
-  PERMISSION: 'Izin',
-  EMERGENCY: 'Darurat',
+  ANNUAL: 'hrFix.map.leaveType.ANNUAL',
+  SICK: 'hrFix.map.leaveType.SICK',
+  PERMISSION: 'hrFix.map.leaveType.PERMISSION',
+  EMERGENCY: 'hrFix.map.leaveType.EMERGENCY',
 };
 export const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
-  PENDING_MANAGER: 'Menunggu atasan',
-  PENDING_HR: 'Menunggu HR',
-  APPROVED: 'Disetujui',
-  REJECTED: 'Ditolak',
-  CANCELLED: 'Dibatalkan',
+  PENDING_MANAGER: 'hrFix.map.leaveStatus.PENDING_MANAGER',
+  PENDING_HR: 'hrFix.map.leaveStatus.PENDING_HR',
+  APPROVED: 'hrFix.map.leaveStatus.APPROVED',
+  REJECTED: 'hrFix.map.leaveStatus.REJECTED',
+  CANCELLED: 'hrFix.map.leaveStatus.CANCELLED',
 };
 /** Only ANNUAL and PERMISSION consume the yearly quota (mirrors domain/leave.ts). */
 export function leaveDeductsQuota(type: LeaveType): boolean {
@@ -244,12 +254,12 @@ export const DOCUMENT_TYPES: EmployeeDocumentType[] = [
   'OTHER',
 ];
 export const DOCUMENT_TYPE_LABEL: Record<EmployeeDocumentType, string> = {
-  KTP: 'KTP',
-  KK: 'Kartu Keluarga',
-  CONTRACT: 'Kontrak Kerja',
-  NPWP: 'NPWP',
-  CERTIFICATE: 'Sertifikat',
-  OTHER: 'Lainnya',
+  KTP: 'hrFix.map.docType.KTP',
+  KK: 'hrFix.map.docType.KK',
+  CONTRACT: 'hrFix.map.docType.CONTRACT',
+  NPWP: 'hrFix.map.docType.NPWP',
+  CERTIFICATE: 'hrFix.map.docType.CERTIFICATE',
+  OTHER: 'hrFix.map.docType.OTHER',
 };
 
 /** "1,2 MB" — bytes are not something an HR admin should have to read. */
@@ -289,10 +299,14 @@ export function departmentsForDepot(list: Department[], depotId: string): Depart
   return list.filter((d) => d.active && (d.depotId === null || d.depotId === depotId));
 }
 
-export function departmentLabel(list: Department[], id: string | null | undefined): string {
-  if (!id) return 'Belum diatur';
+export function departmentLabel(
+  list: Department[],
+  id: string | null | undefined,
+  t: Translate,
+): string {
+  if (!id) return t('hrFix.common.notSet');
   const found = list.find((d) => d.id === id);
-  return found ? `${found.code} · ${found.name}` : 'Belum diatur';
+  return found ? `${found.code} · ${found.name}` : t('hrFix.common.notSet');
 }
 
 export type BonusMetric =
@@ -394,8 +408,8 @@ export interface ShiftAssignment {
   createdAt: string;
 }
 
-/** Sunday-first, matching Date.getUTCDay and the server's pattern keys. */
-export const WEEKDAY_LABEL = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+/** Sunday-first, matching Date.getUTCDay and the server's pattern keys. Resolve with `t()`. */
+export const WEEKDAY_LABEL = [0, 1, 2, 3, 4, 5, 6].map((d) => `hrFix.map.weekday.${d}`);
 
 /**
  * Which shift a rotation puts someone on for a weekday. Mirrors shiftIdForDay in
@@ -475,16 +489,16 @@ export interface LoanView extends Loan {
 }
 
 export const BONUS_METRIC_LABEL: Record<BonusMetric, string> = {
-  ATTENDANCE_RATE: 'Tingkat kehadiran (%)',
-  PRESENT_DAYS: 'Jumlah hari hadir',
-  ZERO_LATE: 'Tanpa terlambat (1=ya)',
-  IS_DEPOT_MANAGER: 'Kepala Depot (1=ya)',
-  SALES_TOTAL: 'Total penjualan depot (Rp)',
+  ATTENDANCE_RATE: 'hrFix.map.bonusMetric.ATTENDANCE_RATE',
+  PRESENT_DAYS: 'hrFix.map.bonusMetric.PRESENT_DAYS',
+  ZERO_LATE: 'hrFix.map.bonusMetric.ZERO_LATE',
+  IS_DEPOT_MANAGER: 'hrFix.map.bonusMetric.IS_DEPOT_MANAGER',
+  SALES_TOTAL: 'hrFix.map.bonusMetric.SALES_TOTAL',
 };
 export const COMPARE_OP_LABEL: Record<CompareOp, string> = { GTE: '≥', LTE: '≤', EQ: '=' };
 export const REWARD_KIND_LABEL: Record<RewardKind, string> = {
-  FIXED: 'Nominal (Rp)',
-  PERCENT: '% dari gaji pokok',
+  FIXED: 'hrFix.map.rewardKind.FIXED',
+  PERCENT: 'hrFix.map.rewardKind.PERCENT',
 };
 
 export interface GroupCount {
@@ -530,36 +544,36 @@ export interface SettingsSchema {
 
 // --- labels (Indonesian, matching the ops console tone) ---
 export const EMPLOYMENT_STATUS_LABEL: Record<EmploymentStatus, string> = {
-  TRAINING: 'Training',
-  PROBATION: 'Percobaan',
-  PERMANENT: 'Tetap',
+  TRAINING: 'hrFix.map.employmentStatus.TRAINING',
+  PROBATION: 'hrFix.map.employmentStatus.PROBATION',
+  PERMANENT: 'hrFix.map.employmentStatus.PERMANENT',
 };
 /** Jabatan labels for the roles HR may set. The office roles live in the staff console. */
 export const HR_ROLE_LABEL: Record<HrManagedRole, string> = {
-  STAFF_DEPOT: 'Staf Depot / Kurir',
-  KEPALA_DEPOT: 'Kepala Depot',
-  ASSISTANT_SUPERVISOR: 'Asisten Supervisor',
-  SUPERVISOR: 'Supervisor',
-  MANAGER: 'Manager',
+  STAFF_DEPOT: 'hrFix.map.role.STAFF_DEPOT',
+  KEPALA_DEPOT: 'hrFix.map.role.KEPALA_DEPOT',
+  ASSISTANT_SUPERVISOR: 'hrFix.map.role.ASSISTANT_SUPERVISOR',
+  SUPERVISOR: 'hrFix.map.role.SUPERVISOR',
+  MANAGER: 'hrFix.map.role.MANAGER',
 };
 export const EMPLOYEE_STATUS_LABEL: Record<EmployeeStatus, string> = {
-  ACTIVE: 'Aktif',
-  INACTIVE: 'Nonaktif',
-  RESIGNED: 'Resign',
+  ACTIVE: 'hrFix.map.employeeStatus.ACTIVE',
+  INACTIVE: 'hrFix.map.employeeStatus.INACTIVE',
+  RESIGNED: 'hrFix.map.employeeStatus.RESIGNED',
 };
 export const ATTENDANCE_STATUS_LABEL: Record<AttendanceStatus, string> = {
-  PRESENT: 'Hadir',
-  LATE: 'Terlambat',
-  ABSENT: 'Absen',
-  LEAVE: 'Cuti',
-  HOLIDAY: 'Libur',
+  PRESENT: 'hrFix.map.attendance.PRESENT',
+  LATE: 'hrFix.map.attendance.LATE',
+  ABSENT: 'hrFix.map.attendance.ABSENT',
+  LEAVE: 'hrFix.map.attendance.LEAVE',
+  HOLIDAY: 'hrFix.map.attendance.HOLIDAY',
   // Offline punch that synced too late to trust its device clock; counts as nothing until HR decides.
-  PENDING: 'Menunggu persetujuan',
+  PENDING: 'hrFix.map.attendance.PENDING',
 };
 export const PAYROLL_STATUS_LABEL: Record<PayrollStatus, string> = {
-  DRAFT: 'Draft',
-  APPROVED: 'Disetujui',
-  PAID: 'Dibayar',
+  DRAFT: 'hrFix.map.payrollStatus.DRAFT',
+  APPROVED: 'hrFix.map.payrollStatus.APPROVED',
+  PAID: 'hrFix.map.payrollStatus.PAID',
 };
 export const ALLOWANCE_TYPES: AllowanceType[] = [
   'TRANSPORT',
@@ -569,11 +583,11 @@ export const ALLOWANCE_TYPES: AllowanceType[] = [
   'OTHER',
 ];
 export const ALLOWANCE_TYPE_LABEL: Record<AllowanceType, string> = {
-  TRANSPORT: 'Transport',
-  MEAL: 'Makan',
-  POSITION: 'Jabatan',
-  HOUSING: 'Perumahan',
-  OTHER: 'Lainnya',
+  TRANSPORT: 'hrFix.map.allowanceType.TRANSPORT',
+  MEAL: 'hrFix.map.allowanceType.MEAL',
+  POSITION: 'hrFix.map.allowanceType.POSITION',
+  HOUSING: 'hrFix.map.allowanceType.HOUSING',
+  OTHER: 'hrFix.map.allowanceType.OTHER',
 };
 export const ASSET_TYPES: AssetType[] = [
   'MOTORCYCLE',
@@ -585,27 +599,27 @@ export const ASSET_TYPES: AssetType[] = [
   'OTHER',
 ];
 export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
-  MOTORCYCLE: 'Motor',
-  SMARTPHONE: 'Ponsel',
-  UNIFORM: 'Seragam',
-  LAPTOP: 'Laptop',
-  PRINTER: 'Printer',
-  SCANNER: 'Scanner',
-  OTHER: 'Lainnya',
+  MOTORCYCLE: 'hrFix.map.assetType.MOTORCYCLE',
+  SMARTPHONE: 'hrFix.map.assetType.SMARTPHONE',
+  UNIFORM: 'hrFix.map.assetType.UNIFORM',
+  LAPTOP: 'hrFix.map.assetType.LAPTOP',
+  PRINTER: 'hrFix.map.assetType.PRINTER',
+  SCANNER: 'hrFix.map.assetType.SCANNER',
+  OTHER: 'hrFix.map.assetType.OTHER',
 };
 export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
-  AVAILABLE: 'Tersedia',
-  ASSIGNED: 'Dipegang',
-  RETURNED: 'Dikembalikan',
-  MAINTENANCE: 'Perbaikan',
-  LOST: 'Hilang',
+  AVAILABLE: 'hrFix.map.assetStatus.AVAILABLE',
+  ASSIGNED: 'hrFix.map.assetStatus.ASSIGNED',
+  RETURNED: 'hrFix.map.assetStatus.RETURNED',
+  MAINTENANCE: 'hrFix.map.assetStatus.MAINTENANCE',
+  LOST: 'hrFix.map.assetStatus.LOST',
 };
 export const ASSET_MOVEMENT_LABEL: Record<AssetMovementKind, string> = {
-  ASSIGN: 'Serah terima',
-  TRANSFER: 'Pindah tangan',
-  RETURN: 'Pengembalian',
-  MAINTENANCE: 'Masuk perbaikan',
-  LOST: 'Dinyatakan hilang',
+  ASSIGN: 'hrFix.map.assetMove.ASSIGN',
+  TRANSFER: 'hrFix.map.assetMove.TRANSFER',
+  RETURN: 'hrFix.map.assetMove.RETURN',
+  MAINTENANCE: 'hrFix.map.assetMove.MAINTENANCE',
+  LOST: 'hrFix.map.assetMove.LOST',
 };
 
 /**
@@ -634,9 +648,9 @@ export function assetMoveNeedsRecipient(kind: AssetMovementKind): boolean {
 
 export const ANNOUNCEMENT_LEVELS: AnnouncementLevel[] = ['INFO', 'WARNING', 'URGENT'];
 export const ANNOUNCEMENT_LEVEL_LABEL: Record<AnnouncementLevel, string> = {
-  INFO: 'Informasi',
-  WARNING: 'Perhatian',
-  URGENT: 'Mendesak',
+  INFO: 'hrFix.map.announceLevel.INFO',
+  WARNING: 'hrFix.map.announceLevel.WARNING',
+  URGENT: 'hrFix.map.announceLevel.URGENT',
 };
 export const ANNOUNCEMENT_DIMENSIONS: AnnouncementDimension[] = [
   'COMPANY',
@@ -646,11 +660,11 @@ export const ANNOUNCEMENT_DIMENSIONS: AnnouncementDimension[] = [
   'EMPLOYEE',
 ];
 export const ANNOUNCEMENT_DIMENSION_LABEL: Record<AnnouncementDimension, string> = {
-  COMPANY: 'Seluruh perusahaan',
-  DEPOT: 'Depot',
-  DEPARTMENT: 'Departemen',
-  POSITION: 'Jabatan',
-  EMPLOYEE: 'Karyawan tertentu',
+  COMPANY: 'hrFix.map.announceDim.COMPANY',
+  DEPOT: 'hrFix.map.announceDim.DEPOT',
+  DEPARTMENT: 'hrFix.map.announceDim.DEPARTMENT',
+  POSITION: 'hrFix.map.announceDim.POSITION',
+  EMPLOYEE: 'hrFix.map.announceDim.EMPLOYEE',
 };
 
 /** Everything except COMPANY names a specific thing, so it needs a value. */
@@ -659,9 +673,17 @@ export function announcementTargetNeedsValue(dimension: AnnouncementDimension): 
 }
 
 /** "12 dari 40 dibaca (30%)". Zero audience reads as "—", not a division by zero. */
-export function announcementReadRate(readCount: number, audienceSize: number): string {
+export function announcementReadRate(
+  readCount: number,
+  audienceSize: number,
+  t: Translate,
+): string {
   if (audienceSize <= 0) return '—';
-  return `${readCount} dari ${audienceSize} dibaca (${Math.round((readCount / audienceSize) * 100)}%)`;
+  return t('hrFix.common.readRate', {
+    read: readCount,
+    total: audienceSize,
+    pct: Math.round((readCount / audienceSize) * 100),
+  });
 }
 
 export const BONUS_TYPES: BonusType[] = ['ATTENDANCE', 'PERFORMANCE', 'SALES', 'DEPOT', 'MANUAL'];
@@ -697,7 +719,11 @@ export function currentPeriod(): string {
 }
 
 /** Completed full years of service since joinDate (mirrors hr-service tenure math). "—" if invalid. */
-export function tenureLabel(joinDate: string | null | undefined, asOf: Date = new Date()): string {
+export function tenureLabel(
+  joinDate: string | null | undefined,
+  t: Translate,
+  asOf: Date = new Date(),
+): string {
   if (!joinDate) return '—';
   const join = new Date(joinDate);
   if (Number.isNaN(join.getTime())) return '—';
@@ -707,7 +733,7 @@ export function tenureLabel(joinDate: string | null | undefined, asOf: Date = ne
     (asOf.getUTCMonth() === join.getUTCMonth() && asOf.getUTCDate() < join.getUTCDate());
   if (before) years--;
   years = Math.max(0, years);
-  return `${years} tahun`;
+  return t('hrFix.common.years', { n: years });
 }
 
 // --- employee form ---
@@ -739,6 +765,13 @@ export interface EmployeeForm {
   address: string;
   ptkpStatus: PtkpStatus | '';
   contractEndDate: string;
+  /**
+   * Last paid day. Blank = still employed. This is the field payroll stops at — `status`
+   * alone does not end a wage — and nothing in the console could write it before.
+   */
+  exitDate: string;
+  /** Lifecycle status; edit-only (a new hire is ACTIVE). */
+  status: EmployeeStatus | '';
 }
 
 export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
@@ -768,6 +801,8 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   address: '',
   ptkpStatus: '',
   contractEndDate: '',
+  exitDate: '',
+  status: '',
 };
 
 export function employeeToForm(e: Employee): EmployeeForm {
@@ -798,19 +833,21 @@ export function employeeToForm(e: Employee): EmployeeForm {
     address: e.address ?? '',
     ptkpStatus: e.ptkpStatus ?? '',
     contractEndDate: e.contractEndDate?.slice(0, 10) ?? '',
+    exitDate: e.exitDate?.slice(0, 10) ?? '',
+    status: e.status,
   };
 }
 
 /** Validate + coerce the string form into an API payload, mirroring CreateEmployeeDto. */
 export function toEmployeePayload(
   f: EmployeeForm,
-  opts: { creating?: boolean } = {},
+  opts: { creating?: boolean; t: Translate },
 ): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
   // Adding an employee mints their login too, and an account cannot be minted without a
   // role. On edit it stays optional — "" means "leave the jabatan as it is", and rows
   // written before this release have none at all.
   if (opts.creating && !f.role) {
-    return { ok: false, error: 'Jabatan (peran login) wajib diisi.' };
+    return { ok: false, error: opts.t('hrFix.form.roleRequired') };
   }
   // Staff above a single depot (Asisten SPV and up) have no home depot — same rule the
   // server enforces, so the form does not demand a value the API would ignore.
@@ -823,13 +860,13 @@ export function toEmployeePayload(
     ...(aboveDepot ? {} : { depotId: f.depotId.trim() }),
   };
   for (const [k, v] of Object.entries(req))
-    if (!v) return { ok: false, error: `${k} wajib diisi.` };
+    if (!v) return { ok: false, error: opts.t('hrFix.form.fieldRequired', { field: k }) };
   const daily = Number(f.dailyRate);
   const monthly = Number(f.monthlyRate);
   if (f.salaryType === 'DAILY' && !(daily > 0))
-    return { ok: false, error: 'Gaji harian (dailyRate) wajib > 0.' };
+    return { ok: false, error: opts.t('hrFix.form.dailyRateRequired') };
   if (f.salaryType === 'MONTHLY' && !(monthly > 0))
-    return { ok: false, error: 'Gaji bulanan (monthlyRate) wajib > 0.' };
+    return { ok: false, error: opts.t('hrFix.form.monthlyRateRequired') };
   const value: Record<string, unknown> = {
     ...req,
     employmentStatus: f.employmentStatus,
@@ -853,7 +890,7 @@ export function toEmployeePayload(
   if (f.bpjsTk.trim()) value.bpjsTk = f.bpjsTk.trim();
   const nik = f.nik.replace(/\s/g, '');
   if (nik) {
-    if (!/^\d{16}$/.test(nik)) return { ok: false, error: 'NIK harus 16 digit angka.' };
+    if (!/^\d{16}$/.test(nik)) return { ok: false, error: opts.t('hrFix.form.nikDigits') };
     value.nik = nik;
   }
   if (f.birthDate.trim()) value.birthDate = new Date(f.birthDate).toISOString();
@@ -862,9 +899,27 @@ export function toEmployeePayload(
   if (f.ptkpStatus) value.ptkpStatus = f.ptkpStatus;
   if (f.contractEndDate.trim()) {
     if (f.contractEndDate < f.joinDate) {
-      return { ok: false, error: 'Akhir kontrak tidak boleh sebelum tanggal masuk.' };
+      return { ok: false, error: opts.t('hrFix.form.contractBeforeJoin') };
     }
     value.contractEndDate = new Date(f.contractEndDate).toISOString();
+  }
+  /*
+   * Only on edit, and null when cleared.
+   *
+   * The exit date is what payroll clamps the paid period to, so leaving it behind on a
+   * rehire pays the person for no days at all — which is why the cleared case sends an
+   * explicit null instead of simply omitting the field.
+   */
+  if (!opts.creating) {
+    if (f.exitDate.trim()) {
+      if (f.exitDate < f.joinDate) {
+        return { ok: false, error: opts.t('hrFix.form.exitBeforeJoin') };
+      }
+      value.exitDate = new Date(f.exitDate).toISOString();
+    } else {
+      value.exitDate = null;
+    }
+    if (f.status) value.status = f.status;
   }
   return { ok: true, value };
 }

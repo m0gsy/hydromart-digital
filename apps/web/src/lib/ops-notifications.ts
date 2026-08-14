@@ -70,21 +70,37 @@ export function useOpsNotifications() {
   const unreadCount = all.filter((n) => !isRead(n)).length;
   const visible = useMemo(() => filterOpsFeed(all, filter, isRead), [all, filter, isRead]);
 
+  /** Undo one optimistic mark. Non-blocking still, but no longer silently wrong. */
+  const unmark = useCallback((ids: string[]) => {
+    setJustRead((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+  }, []);
+
   const markRead = useCallback(
     (n: OpsNotification) => {
       if (n.readAt != null) return;
       setJustRead((prev) => new Set(prev).add(n.id));
-      // Fire-and-forget: a failed receipt must not block the reader. The next load shows
-      // the true server state.
-      void api.post(endpoints.notifications.opsRead(n.id), undefined, true).catch(() => undefined);
+      // Still fire-and-forget — a failed receipt must not block the reader — but the
+      // optimistic grey-out is ROLLED BACK when the receipt does not land. Swallowing the
+      // failure outright left the row looking read until a reload nobody performs, which
+      // is how an unread alert disappears without ever being seen.
+      void api
+        .post(endpoints.notifications.opsRead(n.id), undefined, true)
+        .catch(() => unmark([n.id]));
     },
-    [],
+    [unmark],
   );
 
   const markAllRead = useCallback(() => {
-    setJustRead(new Set(all.map((n) => n.id)));
-    void api.post(endpoints.notifications.opsReadAll, undefined, true).catch(() => undefined);
-  }, [all]);
+    const ids = all.map((n) => n.id);
+    setJustRead(new Set(ids));
+    void api
+      .post(endpoints.notifications.opsReadAll, undefined, true)
+      .catch(() => unmark(ids));
+  }, [all, unmark]);
 
   return { feed, all, visible, filter, setFilter, isRead, unreadCount, markRead, markAllRead };
 }

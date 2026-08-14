@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { useT } from '@/lib/locale-context';
 import { Suspense, useState } from 'react';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
@@ -21,6 +22,7 @@ import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
 function PerformanceInner() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const isAdmin = canManageHr(customer?.role);
@@ -32,24 +34,58 @@ function PerformanceInner() {
   const [score, setScore] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scoring, setScoring] = useState(false);
+  const [computed, setComputed] = useState<ScoredEmployee | null>(null);
 
   async function load() {
     if (!employeeId) {
-      toast('Isi employeeId', 'error');
+      toast(t('hrFix.performance.fillEmployeeId'), 'error');
       return;
     }
     try {
       setRows(await api.get<PerformanceReview[]>(endpoints.hr.performance(employeeId), true));
       setLoaded(true);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal memuat', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.performance.loadFailed'), 'error');
+    }
+  }
+
+  /**
+   * Pull the COMPUTED score for this employee and period, and put it in the field.
+   *
+   * `GET /performance/score` has always existed and nothing called it, so the review form
+   * asked for a 0–100 with nothing to base it on — a monthly verdict typed from memory.
+   * It saves nothing on its own: the reviewer still decides what to record, they just
+   * start from the measurement rather than from a blank box.
+   */
+  async function computeScore() {
+    if (!employeeId) {
+      toast(t('hrFix.performance.fillEmployeeId'), 'error');
+      return;
+    }
+    setScoring(true);
+    try {
+      const scored = await api.get<ScoredEmployee>(
+        endpoints.hr.performanceScore(employeeId, period),
+        true,
+      );
+      if (scored.score.final == null) {
+        toast(t('hrFix.performance.nothingMeasurable'), 'error');
+        return;
+      }
+      setScore(String(Math.round(scored.score.final)));
+      setComputed(scored);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.performance.scoreFailed'), 'error');
+    } finally {
+      setScoring(false);
     }
   }
 
   async function save() {
     const s = Number(score);
     if (!(s >= 0 && s <= 100)) {
-      toast('Skor 0–100', 'error');
+      toast(t('hrFix.performance.scoreRange'), 'error');
       return;
     }
     setBusy(true);
@@ -59,7 +95,7 @@ function PerformanceInner() {
         { employeeId, periodMonth: period, score: s, note: note || undefined },
         true,
       );
-      toast('Penilaian disimpan');
+      toast(t('hrFix.performance.saved'));
       setScore('');
       setNote('');
       load();
@@ -73,8 +109,8 @@ function PerformanceInner() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader
-        title="Kinerja"
-        subtitle="Skor bulanan dari kehadiran, kedisiplinan & penjualan"
+        title={t('hrFix.performance.title')}
+        subtitle={t('hrFix.performance.subtitle')}
       />
 
       <ScoreDashboard period={period} onPeriod={setPeriod} isAdmin={isAdmin} />
@@ -92,7 +128,7 @@ function PerformanceInner() {
         <>
           <Card className="divide-y divide-[color:var(--border)]">
             {rows.length === 0 ? (
-              <p className="p-4 text-sm text-muted">Belum ada penilaian.</p>
+              <p className="p-4 text-sm text-muted">{t('hrFix.performance.empty')}</p>
             ) : (
               rows.map((r) => (
                 <div key={r.id} className="flex items-center justify-between p-3 text-sm">
@@ -126,9 +162,19 @@ function PerformanceInner() {
                 Catatan
                 <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" />
               </label>
+              <Button variant="secondary" onClick={computeScore} loading={scoring}>
+                Hitung skor
+              </Button>
               <Button onClick={save} loading={busy}>
                 Simpan manual
               </Button>
+              {computed?.score.final != null && (
+                <p className="w-full text-xs text-muted">
+                  Terukur: absensi {computed.score.attendance ?? '—'} · disiplin{' '}
+                  {computed.score.discipline ?? '—'} · penjualan {computed.score.sales ?? '—'} · akhir{' '}
+                  {computed.score.final}. Komponen yang tidak terukur tidak ikut dihitung.
+                </p>
+              )}
             </Card>
           )}
         </>
@@ -150,6 +196,7 @@ function ScoreDashboard({
   onPeriod: (p: string) => void;
   isAdmin: boolean;
 }) {
+  const { t } = useT();
   const { depots } = useDepot();
   const { toast } = useToast();
   const [depotId, setDepotId] = useState('');
@@ -194,7 +241,7 @@ function ScoreDashboard({
             onChange={(e) => setDepotId(e.target.value)}
             className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
           >
-            <option value="">Semua depot</option>
+            <option value="">{t('hrFix.performance.allDepots')}</option>
             {depots.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.code}
@@ -211,11 +258,11 @@ function ScoreDashboard({
           <table className="w-full min-w-[42rem] text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="py-2">Karyawan</th>
-                <th className="py-2 text-right">Kehadiran</th>
-                <th className="py-2 text-right">Disiplin</th>
-                <th className="py-2 text-right">Penjualan</th>
-                <th className="py-2 text-right">Skor</th>
+                <th className="py-2">{t('hrFix.performance.employee')}</th>
+                <th className="py-2 text-right">{t('hrFix.performance.attendance')}</th>
+                <th className="py-2 text-right">{t('hrFix.performance.discipline')}</th>
+                <th className="py-2 text-right">{t('hrFix.performance.sales')}</th>
+                <th className="py-2 text-right">{t('hrFix.performance.score')}</th>
                 {isAdmin && <th className="py-2" />}
               </tr>
             </thead>

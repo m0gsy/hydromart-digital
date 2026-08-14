@@ -36,6 +36,7 @@ import {
   CampaignListDto,
   CampaignPageQueryDto,
   CreateCampaignDto,
+  CreateDepotCampaignDto,
 } from './dto/campaign.dto';
 
 @ApiTags('Campaigns')
@@ -60,6 +61,33 @@ export class CampaignController {
       dto.recipients,
       dto.segment,
       authorization,
+      dto.scheduledFor ? new Date(dto.scheduledFor) : null,
+    );
+    return CampaignDto.from(campaign);
+  }
+
+  /**
+   * A depot's own customer blast (design 11a).
+   *
+   * `depotId` sits at the TOP level of the body on purpose: that is where DepotScopeGuard
+   * looks, so a depot-locked caller naming somebody else's depot is refused before this
+   * method runs, and head office keeps the ability to blast on a depot's behalf.
+   */
+  @ApiOkResponse({ type: CampaignDto })
+  @Can('depotCampaign')
+  @Post('depot')
+  @ApiOperation({ summary: "Create a draft campaign for one depot's own customers (11a)" })
+  async createForDepot(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateDepotCampaignDto,
+  ): Promise<CampaignDto> {
+    const campaign = await this.campaigns.createForDepot(
+      user.sub,
+      dto.depotId,
+      dto.name,
+      dto.messageTemplate,
+      dto.segment,
+      dto.scheduledFor ? new Date(dto.scheduledFor) : null,
     );
     return CampaignDto.from(campaign);
   }

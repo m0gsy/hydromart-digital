@@ -16,6 +16,9 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_API_TOKEN: Joi.string().allow('').default(''),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
   CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
+  // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/
+  // frequent/ordered-at-depot). Blank makes an activity segment fail closed, never wider.
+  ORDER_SERVICE_URL: Joi.string().allow('').default(''),
   // Shared secret authenticating system-to-system notification calls (POST /notifications/internal).
   // Blank = the internal route rejects everything (fail-closed).
   INTERNAL_SERVICE_KEY: optionalSecret(16),

@@ -122,7 +122,9 @@ export default function HqPaymentsPage() {
         />
         <Stat
           label={t('hq.payments.kpi.pendingRefunds')}
-          value={refundsQ.loading ? '…' : String(refundsQ.data?.total ?? 0)}
+          // `?? 0` on a refund queue reads as "nothing waiting", which is the answer that
+          // makes somebody close the screen.
+          value={refundsQ.loading ? '…' : refundsQ.error ? '—' : String(refundsQ.data?.total ?? 0)}
         />
       </div>
 

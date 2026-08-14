@@ -185,6 +185,8 @@ export interface CartLine {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /** Catalog flag delivery is charged on — see `galonQuantity` in lib/pricing.ts. */
+  isGallon: boolean;
 }
 
 export interface Cart {
@@ -351,7 +353,12 @@ export interface PointsTransaction {
 
 export interface VoucherQuote {
   code: string;
-  discountType: 'PERCENTAGE' | 'FIXED';
+  /**
+   * FREE_SHIPPING was missing here while promo-service has always been able to return it, so
+   * the checkout summary folded a delivery waiver into the goods discount and capped it at the
+   * subtotal. It discounts the ongkir instead — see the split in app/checkout/page.tsx.
+   */
+  discountType: 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
   discount: number;
   valid: true;
 }
@@ -1422,6 +1429,12 @@ export interface ResolvedPrice {
   sellPrice?: number;
   adjustType?: PricingAdjustType;
   value?: number;
+  /**
+   * Wholesale band price for the quantity asked about (design 16b) — an ABSOLUTE unit price,
+   * so a line that has one ignores `sellPrice` and the rule adjustment. Only present when the
+   * caller sent `quantities`; see `computeEffective` in lib/pricing.ts.
+   */
+  tierPrice?: number;
 }
 
 /* ---------- Demand forecast (staff-facing planning) ---------- */
@@ -1663,17 +1676,60 @@ export interface ExportLogEntry {
   format: ExportFormat;
   rowCount: number | null;
   status: ExportStatus;
+  /** Name of the stored file, when the run produced one. */
+  fileName: string | null;
+  /** True when this row has a file to download (13c was a list of claims before). */
+  hasFile: boolean;
+  createdAt: string;
+}
+
+/** A computed (unsaved) performance score for one employee in one month. */
+export interface ScoredEmployee {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  depotId: string | null;
+  position: string;
+  score: {
+    attendance: number | null;
+    discipline: number | null;
+    sales: number | null;
+    /** Weighted mean of the components that could be measured; null when none could. */
+    final: number | null;
+  };
+}
+
+/** The conditions behind a saved audience — the same shape a campaign segment takes. */
+export interface SegmentConditions {
+  tier?: string;
+  city?: string;
+  recencyDays?: number;
+  lapsedDays?: number;
+  newWithinDays?: number;
+  minOrders?: number;
+  depotId?: string;
+  customerIds?: string[];
+}
+export interface SavedSegment {
+  id: string;
+  name: string;
+  conditions: SegmentConditions;
+  createdBy: string;
   createdAt: string;
 }
 
 export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** What goes IN a scheduled report — the three groupings hq/reports/export really has. */
+export type ReportDataset = 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT' | 'REVENUE_BY_METHOD';
 export interface ScheduledReport {
   id: string;
   name: string;
   cadence: ReportCadence;
   recipients: string[];
   format: ExportFormat;
+  dataset: ReportDataset;
   nextRunAt: string | null;
+  lastRunAt: string | null;
   enabled: boolean;
   createdAt: string;
 }
@@ -1990,13 +2046,15 @@ export interface DepotCustomerDetail {
 }
 
 // Depot Operator reports (design 2d Laporan harian / 7d Laporan mingguan). orders/
-// revenue/gallonsDelivered/revenueByDay/topProducts are real order-service figures;
-// cod/gallon returned-damaged/perCourier/sla are best-effort or omitted server-side.
+// revenue/gallonsDelivered/revenueByDay/topProducts/perCourier are real order-service
+// figures; the cash columns are read from payment-service and gallon returns from
+// depot-service, each null when its owner could not be read.
 export interface DepotDailyCourier {
   name: string;
   completed: number;
   failed: number;
-  codIdr: number;
+  /** Null = payment-service could not be read; not 0, which reads as "collected nothing". */
+  codIdr: number | null;
 }
 
 export interface DepotDailyReport {
@@ -2009,7 +2067,10 @@ export interface DepotDailyReport {
   // render "—", never a fabricated 0.
   gallonsReturned: number | null;
   gallonsDamaged: number | null;
+  /** Cash the couriers brought back on the day's delivery orders. Excludes counter sales. */
   codCollectedIdr: number | null;
+  /** Counter cash payment-service booked against this depot in the same window. */
+  cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotDailyCourier[];
 }
@@ -2033,6 +2094,13 @@ export interface ReportDepotCompareRow {
   depotId: string;
   orders: number;
   revenueIdr: number;
+  // Read from delivery-service / depot-service / hr-service. Null when a source could not
+  // be read, or when the window is open-ended (they are all range reads) — never 0.
+  /** On-time share, 0..100 with one decimal. */
+  slaPct: number | null;
+  /** Gallons that came back damaged in the window. */
+  wastageGallons: number | null;
+  netProfitIdr: number | null;
 }
 export interface ReportDepotCompare {
   from: string | null;
@@ -2072,15 +2140,28 @@ export interface DepotRatingsReport {
   recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
 }
 
+/** The four terms behind `netProfitIdr`; each null when its owning service could not be read. */
+export interface ReportProfitBreakdown {
+  revenueIdr: number;
+  /** Purchases RECEIVED in the month, not accrual cost of goods sold — the catalog has no unit cost. */
+  cogsIdr: number | null;
+  opexIdr: number | null;
+  payrollIdr: number | null;
+}
+
 // One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
-// activeCustomers are real; netProfitIdr/slaPct are null (no source); topCourier from driverName.
+// activeCustomers are real; slaPct comes from delivery-service and netProfitIdr from
+// depot-service + hr-service — each null when its source could not be read, never 0.
 export interface ReportDepotMonthly {
   depotId: string;
   month: string;
   orders: number;
   revenueIdr: number;
   activeCustomers: number;
+  /** Null the moment ANY term is missing — see `profitBreakdown` for which one. */
   netProfitIdr: number | null;
+  profitBreakdown: ReportProfitBreakdown;
+  /** On-time share for the month, 0..100 with one decimal. Null when nothing was delivered. */
   slaPct: number | null;
   // Depot SOP: the monthly review is read in galon, against last month.
   gallons: number;
@@ -2089,7 +2170,23 @@ export interface ReportDepotMonthly {
   /** null when last month sold nothing — there is no percentage to report off zero. */
   growthPct: number | null;
   avgGallonsPerDay: number;
+  /**
+   * Approvals reviewed, stock-count variance and settlement variance for the month.
+   * Null = depot-service could not be read; zeroes = a genuinely clean month.
+   */
+  governance: ReportDepotGovernance | null;
   topCourier?: { name: string; delivered: number };
+}
+
+export interface ReportDepotGovernance {
+  /** Approvals a PERSON decided; an auto-passed one is not review. */
+  approvalsReviewed: number;
+  /** Net rupiah value of the month's stock counts; negative = the shelves held less. */
+  opnameVarianceIdr: number;
+  /** COD deposited minus expected, across the days the depot actually closed. */
+  settlementVarianceIdr: number;
+  /** Days closed in the month — the cover behind the variance above. */
+  daysClosed: number;
 }
 
 // Depot wastage summary (depot-service inventory wastage). qty is real lost quantity per

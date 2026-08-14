@@ -110,10 +110,16 @@ function weekdayRun(count, minAhead = 21) {
   return days;
 }
 
+// One phone per employee this run. It used to be `${stamp}${suffix.length}` — the LENGTH of
+// the suffix, so any two chains whose labels happened to be the same length collided and the
+// second one died on "Nomor telepon ini sudah dipakai karyawan lain".
+let phoneSeq = 0;
+
 async function makeEmployee(depotId, suffix, extra = {}) {
+  phoneSeq += 1;
   const created = await api('POST', '/hr/api/v1/employees', {
     fullName: `F6H ${suffix} ${stamp}`,
-    phone: `+6289${stamp}${suffix.length}`,
+    phone: `+6289${stamp}${phoneSeq}`,
     depotId,
     position: 'Staf Depot',
     role: 'STAFF_DEPOT',
@@ -177,9 +183,12 @@ async function main() {
     name: `F6H Libur ${stamp}`,
     depotId,
   });
+  // 409 = a previous run already planted this date, which is the state this chain needs
+  // anyway. Demanding a 2xx made the harness pass exactly once per stamp and fail forever
+  // after against the same database.
   check(
-    'a national holiday can be planted inside the range',
-    ok2xx(holidayRes),
+    'a national holiday is planted inside the range (or already was)',
+    ok2xx(holidayRes) || holidayRes.status === 409,
     `got ${holidayRes.status}`,
   );
 

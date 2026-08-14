@@ -15,6 +15,10 @@ import {
   CreateRecipientData,
 } from '../ports/campaign.repository';
 import {
+  ActivitySegmentPort,
+  hasActivityConditions,
+} from '../ports/activity-segment.port';
+import {
   CustomerDirectoryPort,
   SegmentFilter,
 } from '../ports/customer-directory.port';
@@ -52,6 +56,7 @@ export class CampaignService {
     @Inject(CRM_TOKENS.CampaignRepository) private readonly repo: CampaignRepository,
     @Inject(CRM_TOKENS.WhatsappBroadcast) private readonly whatsapp: WhatsappBroadcastPort,
     @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
+    @Inject(CRM_TOKENS.ActivitySegment) private readonly activity: ActivitySegmentPort,
   ) {}
 
   async create(
@@ -61,6 +66,7 @@ export class CampaignService {
     recipients: CreateRecipientData[] = [],
     segment?: SegmentFilter,
     authorization = '',
+    scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
     // A segment (FR-087) resolves its own audience from the customer directory; otherwise
     // use the explicit list. A PRESENT segment is always resolved — an EMPTY filter means
@@ -68,15 +74,63 @@ export class CampaignService {
     // not "fall back to the explicit list". Resolution throws if the directory is unreachable.
     let list: CreateRecipientData[] = recipients;
     if (segment) {
-      const resolved = await this.directory.resolveSegment(segment, authorization);
-      list = resolved.map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
+      // Two owners, one audience. The directory answers tier/city (customer attributes) and
+      // order-service answers the activity half (lapsed, new, frequent, ordered-at-depot);
+      // the campaign is the intersection. Before this, an activity segment was SIZED from
+      // order-service and SENT as `{tier:'GOLD'}` or `{}` — the screen promised 40 lapsed
+      // customers and the blast reached everyone.
+      const { tier, city, customerIds, ...activityConditions } = segment;
+      const inSegment = hasActivityConditions(activityConditions)
+        ? new Set(await this.activity.customersIn(activityConditions))
+        : null;
+      // A named list narrows the same way a rule does, and for the same reason: the
+      // directory is what turns an id into a reachable phone. An id nobody can be
+      // messaged at simply is not in the audience.
+      const named = customerIds?.length ? new Set(customerIds) : null;
+      // ponytail: the intersection is done here rather than pushed into the directory query
+      // because the directory read is already whole-audience for an empty filter. If a
+      // deployment ever outgrows that, the id list belongs in the directory's WHERE.
+      const resolved = await this.directory.resolveSegment({ tier, city }, authorization);
+      list = resolved
+        .filter((r) => !inSegment || inSegment.has(r.customerId))
+        .filter((r) => !named || named.has(r.customerId))
+        .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
     }
 
     // Dedupe by phone (last wins) — a pasted list often repeats numbers, and the DB has a
     // unique(campaignId, phone) constraint that would otherwise reject the insert.
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
+  }
+
+  /**
+   * A depot blasting its OWN customers (design 11a).
+   *
+   * Two things are different from `create`, and both are the reason this is a separate
+   * entry point rather than a flag. The segment's `depotId` is OVERWRITTEN with the one the
+   * DepotScopeGuard already checked against the caller's depots — a body that named another
+   * depot cannot survive here. And the attribute half is read as a SERVICE, because a depot
+   * manager holds `depotCampaign`, not the head-office right to page the customer directory.
+   */
+  async createForDepot(
+    createdBy: string,
+    depotId: string,
+    name: string,
+    messageTemplate: string,
+    segment: SegmentFilter = {},
+    scheduledFor?: Date | null,
+  ): Promise<CampaignRecord> {
+    const { tier, city, ...activityConditions } = { ...segment, depotId };
+    const inSegment = new Set(await this.activity.customersIn(activityConditions));
+    const resolved = await this.directory.resolveSegmentAsService({ tier, city });
+    const list = resolved
+      .filter((r) => inSegment.has(r.customerId))
+      .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
+
+    const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
+    if (deduped.length === 0) throw new NoRecipientsError();
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
   }
 
   // No defaults here on purpose: the only caller already defaults, so a second set
@@ -131,8 +185,8 @@ export class CampaignService {
    * exactly where this one stopped. That resumability is the whole point of putting the
    * cursor in the database.
    */
-  async processSending(): Promise<CampaignSweepResult> {
-    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP);
+  async processSending(now = new Date()): Promise<CampaignSweepResult> {
+    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
     const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
 
     for (const campaign of campaigns) {

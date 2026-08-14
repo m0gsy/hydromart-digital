@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 
 import { CsvImport, phoneCell, type ImportColumn } from '@/components/csv-import';
+import { LoadError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -85,8 +86,11 @@ export default function HqStaffImportPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      {/* The depot column is validated against this list, so an unread one rejects every
+          row for a depot code that exists — and the operator fixes a correct file. */}
+      {depots.error && <LoadError onRetry={depots.reload} />}
       <CsvImport
-        title="Impor Staf Massal"
+        title="hrFix.imports.staff"
         description="Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis, dan setiap baris juga membuka kartu karyawan di HR. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot; isi dailyRate untuk gaji harian, monthlyRate untuk bulanan."
         columns={columns}
         endpoint={endpoints.auth.importStaff}

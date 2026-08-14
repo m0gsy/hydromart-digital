@@ -49,6 +49,8 @@ depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXIS
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 crm|notifications_event_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_event_createdAt_idx" ON "notifications"("event", "createdAt")
+crm|campaigns_scheduledFor_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_scheduledFor_idx" ON "campaigns"("scheduledFor") WHERE "scheduledFor" IS NOT NULL
+admin|scheduled_reports_enabled_nextRunAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "scheduled_reports_enabled_nextRunAt_idx" ON "scheduled_reports"("enabled", "nextRunAt")
 '
 
 if ! docker exec "$CONTAINER" true >/dev/null 2>&1; then

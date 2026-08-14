@@ -1,20 +1,11 @@
+import { haversineKm } from '@hydromart/platform';
+
 import { DepotLocation } from '../application/ports/depot-directory.port';
 
-const EARTH_RADIUS_KM = 6371;
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
-}
-
-/** Great-circle distance in km between two lat/lng points (haversine). */
-export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const lat1 = toRad(aLat);
-  const lat2 = toRad(bLat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
-}
+// Moved to @hydromart/platform (S2): customer-service now prints the same in-radius verdict
+// on the depot CRM card, and two copies of "how far" would eventually disagree. Re-exported
+// so every existing caller and its tests keep importing it from here.
+export { haversineKm };
 
 /**
  * Picks the nearest depot whose service radius covers the point, or null when no

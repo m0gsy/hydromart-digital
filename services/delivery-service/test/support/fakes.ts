@@ -29,6 +29,10 @@ import {
 } from '../../src/application/ports/order-coordination.port';
 import { DepotLocation, DepotLocationPort } from '../../src/application/ports/depot-location.port';
 import {
+  OrderPaymentPort,
+  OrderPaymentSnapshot,
+} from '../../src/application/ports/order-payment.port';
+import {
   OpenShiftData,
   ShiftQuery,
   ShiftRecord,
@@ -716,5 +720,21 @@ export class FakeCashCollection implements CashCollectionPort {
       throw new Error('payment-service down');
     }
     return this.result;
+  }
+}
+
+/** payment-service stand-in for the server-side COD decision. */
+export class FakeOrderPayment implements OrderPaymentPort {
+  /** orderId → the payment payment-service would return. Absent = no payment row. */
+  payments = new Map<string, OrderPaymentSnapshot>();
+  throwOnRead = false;
+  calls: string[] = [];
+
+  async forOrder(orderId: string): Promise<OrderPaymentSnapshot | null> {
+    this.calls.push(orderId);
+    if (this.throwOnRead) {
+      throw new Error('payment-service down');
+    }
+    return this.payments.get(orderId) ?? null;
   }
 }

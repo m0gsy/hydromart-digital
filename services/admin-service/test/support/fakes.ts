@@ -60,6 +60,7 @@ import {
 import { ApiKeyEnvironment } from '../../src/domain/api-key-environment';
 import { DataClass, isPurgeExempt } from '../../src/domain/retention';
 import { ExportFormat, ExportStatus } from '../../src/domain/export';
+import { ReportDataset } from '../../src/domain/report-dataset';
 import { ReportCadence } from '../../src/domain/report-cadence';
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain/ticket';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
@@ -227,6 +228,8 @@ export class InMemoryWebhookRepository implements WebhookRepository {
 
 export class InMemoryExportLogRepository implements ExportLogRepository {
   rows: ExportLogRecord[] = [];
+  /** The stored bytes, kept beside the rows the way the column sits beside them. */
+  files = new Map<string, { fileName: string; content: Buffer }>();
 
   async list(filter: ListExportLogsFilter): Promise<ExportLogPage> {
     let items = [...this.rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -251,10 +254,19 @@ export class InMemoryExportLogRepository implements ExportLogRepository {
       format: data.format,
       rowCount: data.rowCount ?? null,
       status: data.status ?? ExportStatus.PENDING,
+      fileName: data.fileName ?? null,
+      hasFile: data.content != null && data.fileName != null,
       createdAt: nextDate(),
     };
     this.rows.push(record);
+    if (data.content && data.fileName) {
+      this.files.set(record.id, { fileName: data.fileName, content: data.content });
+    }
     return { ...record };
+  }
+
+  async findContent(id: string): Promise<{ fileName: string; content: Buffer } | null> {
+    return this.files.get(id) ?? null;
   }
 }
 
@@ -267,6 +279,8 @@ export function makeExportLog(over: Partial<ExportLogRecord> = {}): ExportLogRec
     format: ExportFormat.CSV,
     rowCount: 10,
     status: ExportStatus.DONE,
+    fileName: null,
+    hasFile: false,
     createdAt: nextDate(),
     ...over,
   };
@@ -286,12 +300,22 @@ export class InMemoryScheduledReportRepository implements ScheduledReportReposit
       cadence: data.cadence,
       recipients: data.recipients,
       format: data.format ?? ExportFormat.XLSX,
+      dataset: data.dataset ?? ReportDataset.REVENUE_BY_DEPOT,
       nextRunAt: data.nextRunAt ?? null,
+      lastRunAt: null,
       enabled: data.enabled ?? true,
       createdAt: nextDate(),
     };
     this.reports.push(record);
     return { ...record };
+  }
+
+  async findDue(now: Date, limit: number): Promise<ScheduledReportRecord[]> {
+    return this.reports
+      .filter((r) => r.enabled && (r.nextRunAt === null || r.nextRunAt <= now))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
   }
 
   async update(id: string, data: UpdateScheduledReportData): Promise<ScheduledReportRecord | null> {
@@ -301,7 +325,9 @@ export class InMemoryScheduledReportRepository implements ScheduledReportReposit
     if (data.cadence !== undefined) r.cadence = data.cadence;
     if (data.recipients !== undefined) r.recipients = data.recipients;
     if (data.format !== undefined) r.format = data.format;
+    if (data.dataset !== undefined) r.dataset = data.dataset;
     if (data.nextRunAt !== undefined) r.nextRunAt = data.nextRunAt;
+    if (data.lastRunAt !== undefined) r.lastRunAt = data.lastRunAt;
     if (data.enabled !== undefined) r.enabled = data.enabled;
     return { ...r };
   }
@@ -322,7 +348,9 @@ export function makeScheduledReport(
     cadence: ReportCadence.DAILY,
     recipients: ['ops@hydromart.id'],
     format: ExportFormat.XLSX,
+    dataset: ReportDataset.REVENUE_BY_DEPOT,
     nextRunAt: null,
+    lastRunAt: null,
     enabled: true,
     createdAt: nextDate(),
     ...over,

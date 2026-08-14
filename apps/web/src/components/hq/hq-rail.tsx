@@ -7,19 +7,16 @@ import {
   ClipboardText,
   Drop,
   Gauge,
-  Gear,
   MagnifyingGlass,
   Package,
   ShieldCheck,
   TreeStructure,
   Storefront,
-  Stack,
   Tag,
   TrendUp,
   UserGear,
   Buildings,
   Wallet,
-  FlowArrow,
   Ticket,
   Receipt,
   Scales,
@@ -97,6 +94,10 @@ export interface HqRailGroup {
 // Full HQ area-map (design 11a). The whole console is HEAD_OFFICE/SUPER_ADMIN-only via
 // the layout gate, so items don't carry finer gates in Milestone A. Only `ready` items
 // render; the rest sit here so wiring a later milestone is a one-line flag flip.
+//
+// The last three `ready: false` entries (/hq/flow, /hq/system, /hq/admin) are gone: no page
+// was ever written for any of them, so the flag could not be flipped — they were a to-do
+// list pretending to be a feature flag.
 export const HQ_GROUPS: HqRailGroup[] = [
   {
     headKey: 'overview',
@@ -196,7 +197,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/fraud', labelKey: 'fraud', icon: ShieldWarning, ready: true },
       { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', icon: CalendarCheck, ready: true },
       { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true },
-      { href: '/hq/flow', labelKey: 'flow', icon: FlowArrow, ready: false },
     ],
   },
   {
@@ -212,7 +212,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true },
       { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true },
       { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true },
-      { href: '/hq/system', labelKey: 'system', icon: Gear, ready: false },
     ],
   },
   {
@@ -223,7 +222,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', icon: Article, ready: true },
       { href: '/hq/content', labelKey: 'content', icon: Translate, ready: true },
       { href: '/hq/sitemap', labelKey: 'sitemap', icon: SquaresFour, ready: true },
-      { href: '/hq/admin', labelKey: 'admin', icon: Stack, ready: false },
     ],
   },
 ];

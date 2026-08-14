@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ClipboardText } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -151,6 +151,8 @@ export default function HqOrdersPage() {
                           </option>
                         ))}
                       </select>
+                      {/* An empty picker looks like a network with no depot to assign to. */}
+                      {depots.error && <LoadError onRetry={depots.reload} />}
                     </td>
                   )}
                 </tr>

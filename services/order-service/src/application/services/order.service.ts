@@ -71,7 +71,7 @@ import { CashierShiftPort } from '../ports/cashier-shift.port';
 import { PaymentReversalPort } from '../ports/payment-reversal.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
-import { ResellerDiscountPort } from '../ports/reseller-discount.port';
+import { ResellerDiscount, ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { InventoryPort } from '../ports/inventory.port';
@@ -360,27 +360,13 @@ export class OrderService {
     let discount: number;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      if (reseller!.flatGallonPriceIdr > 0) {
-        // Depot SOP: every galon costs the agen a flat Rp5.000 whatever it lists at, so the
-        // discount is the per-line gap down to that price. Expressed as a discount rather
-        // than by rewriting unitPrice so the order still records what the goods list at and
-        // what the agen was let off — which is what reconciliation reads.
-        // A line already BELOW the flat price is left alone (max 0), never marked up.
-        discount = money(
-          items
-            .filter((i) => i.isGallon && !tieredProductIds.has(i.productId))
-            .reduce(
-              (sum, i) =>
-                sum + Math.max(0, i.unitPrice - reseller!.flatGallonPriceIdr) * i.quantity,
-              0,
-            ),
-        );
-      } else {
-        // Wholesale-priced lines are excluded from the reseller percentage — they are
-        // already at the depot's bulk price and must not be discounted twice.
-        const discountable = money(Math.max(0, subtotal - tierPricedTotal));
-        discount = money(Math.min(subtotal, percentDiscount(discountable, reseller!.discountPct)));
-      }
+      discount = this.resellerDiscountFor(
+        reseller!,
+        items,
+        subtotal,
+        tieredProductIds,
+        tierPricedTotal,
+      );
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -454,6 +440,11 @@ export class OrderService {
       authorization,
       // Burned before the order row is written — see reserveThenCreate. A rejected or
       // failed burn aborts the checkout instead of handing out an unpaid discount.
+      // `shippingFee`, NOT `deliveryFee` — the same base the quote above was priced on. The
+      // port's parameter is named `shippingFee` and promo-service caps FREE_SHIPPING against
+      // it; passing the express-inclusive fee made the ledger record a bigger discount than
+      // the order actually received, so a voucher `budgetCap` burned down faster than the
+      // money it funded and a redeem could fail on a quote that had just passed.
       voucherCode
         ? (orderId) =>
             this.promo.redeem(
@@ -461,7 +452,7 @@ export class OrderService {
               customerId,
               orderId,
               subtotal,
-              deliveryFee,
+              shippingFee,
               authorization,
             )
         : undefined,
@@ -704,9 +695,19 @@ export class OrderService {
       throw new NoOpenShiftError();
     }
 
-    const { items, subtotal, catalogFallback } = await this.priceLines(input.depotId, input.lines);
+    const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
+      await this.priceLines(input.depotId, input.lines);
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
-    const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
+    const discount = await this.counterDiscount(
+      customerId,
+      input.depotId,
+      subtotal,
+      voucherCode,
+      items,
+      tieredProductIds,
+      tierPricedTotal,
+      authorization,
+    );
 
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
@@ -858,15 +859,62 @@ export class OrderService {
    * (0 rate), the voucher fails CLOSED — a voucher the buyer handed over must be honoured or
    * the sale must stop, never silently dropped at full price with the buyer watching.
    */
+  /**
+   * What an agen is let off, for ONE basket. Shared by checkout and the counter sale so the
+   * same buyer cannot be quoted two different prices depending on which door they walked
+   * through — they were, until the till learned this rule.
+   *
+   * Expressed as a discount rather than by rewriting `unitPrice`, so the order still records
+   * what the goods list at and what the agen was let off; that pair is what reconciliation
+   * reads. Wholesale-band lines are excluded either way: they are already at the depot's bulk
+   * price and must not be discounted twice.
+   */
+  private resellerDiscountFor(
+    reseller: ResellerDiscount,
+    items: CreateOrderItemData[],
+    subtotal: number,
+    tieredProductIds: Set<string>,
+    tierPricedTotal: number,
+  ): number {
+    if (reseller.flatGallonPriceIdr > 0) {
+      // Depot SOP: every galon costs the agen a flat Rp5.000 whatever it lists at, so the
+      // discount is the per-line gap down to that price. A line already BELOW the flat price
+      // is left alone (max 0), never marked up.
+      return money(
+        items
+          .filter((i) => i.isGallon && !tieredProductIds.has(i.productId))
+          .reduce(
+            (sum, i) => sum + Math.max(0, i.unitPrice - reseller.flatGallonPriceIdr) * i.quantity,
+            0,
+          ),
+      );
+    }
+    const discountable = money(Math.max(0, subtotal - tierPricedTotal));
+    return money(Math.min(subtotal, percentDiscount(discountable, reseller.discountPct)));
+  }
+
   private async counterDiscount(
     customerId: string,
     depotId: string,
     subtotal: number,
     voucherCode: string | null,
+    items: CreateOrderItemData[],
+    tieredProductIds: Set<string>,
+    tierPricedTotal: number,
+    authorization: string,
   ): Promise<number> {
     if (customerId === ANONYMOUS_CUSTOMER_ID) {
       if (voucherCode) throw new AnonymousVoucherNotAllowedError();
       return 0;
+    }
+    // An agen is an agen at the till too. This branch used not to exist, so the same buyer
+    // paid the flat SOP price online and the list price minus their membership tier in
+    // person — Rp190.000 against Rp50.000 for ten galon. Read by customer id, because the
+    // token here is the cashier's.
+    const reseller = await this.resellerDiscount.getFor(customerId, authorization);
+    if (reseller?.active === true && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0)) {
+      if (voucherCode) throw new ResellerVoucherNotAllowedError();
+      return this.resellerDiscountFor(reseller, items, subtotal, tieredProductIds, tierPricedTotal);
     }
     const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
     let voucherDiscount = 0;
@@ -1137,6 +1185,9 @@ export class OrderService {
       franchiseOwnerId,
       depotId: order.depotId,
       amountIdr: order.total,
+      // Goods only, before discount: the commission base. `order.total` still carries ongkir
+      // and the discount, and it stays the amount the owner is credited.
+      commissionBaseIdr: order.subtotal,
       completedAt: new Date().toISOString(),
     });
   }

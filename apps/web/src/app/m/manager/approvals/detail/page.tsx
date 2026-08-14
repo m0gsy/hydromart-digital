@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react';
@@ -12,16 +13,18 @@ import { useAsync } from '@/lib/use-async';
 import type { Approval, ApprovalType } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const KIND_LABEL: Record<ApprovalType, string> = {
-  OPNAME_VARIANCE: 'Selisih opname',
-  DEPOSIT_REFUND: 'Refund deposit galon',
-  COD_VARIANCE: 'Kurang setoran (COD)',
-  GALLON_VARIANCE: 'Selisih retur galon',
+  OPNAME_VARIANCE: 'hrFix.approvalDetailExtra.opnameVariance',
+  DEPOSIT_REFUND: 'hrFix.approvalDetailExtra.depositRefund',
+  COD_VARIANCE: 'hrFix.approvalDetailExtra.codShortfall',
+  GALLON_VARIANCE: 'hrFix.approvalDetailExtra.returnVariance',
 };
 
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function ApprovalDetailPage() {
+  const { t } = useT();
   const router = useRouter();
   const id = useQueryParam('id');
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
@@ -35,7 +38,7 @@ export default function ApprovalDetailPage() {
       await api.patch(endpoints.approvals.decide(id), { decision }, true);
       router.push('/m/manager/approvals');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.approvalDetailExtra.actionFailed'));
       setBusy(null);
     }
   };
@@ -57,7 +60,7 @@ export default function ApprovalDetailPage() {
   if (!detail.data) {
     return (
       <div className="px-4 py-6">
-        <CenterState title="Approval tidak ditemukan">
+        <CenterState title={t('hrFix.approvalDetail.notFound')}>
           <Link href="/m/manager/approvals" className="font-bold text-brand-700">
             Kembali ke daftar
           </Link>
@@ -79,7 +82,7 @@ export default function ApprovalDetailPage() {
           type="button"
           onClick={() => router.back()}
           className="flex size-9 items-center justify-center rounded-xl border border-app"
-          aria-label="Kembali"
+          aria-label={t('hrFix.approvalDetail.backAria')}
         >
           <ArrowLeft size={18} />
         </button>
@@ -89,16 +92,16 @@ export default function ApprovalDetailPage() {
             {a.subjectRef ?? KIND_LABEL[a.type]}
           </div>
         </div>
-        <Badge tone="warning">{KIND_LABEL[a.type]}</Badge>
+        <Badge tone="warning">{t(KIND_LABEL[a.type])}</Badge>
       </header>
 
       <div className="flex-1 space-y-3 px-4 pb-6">
         {isOpname ? (
           <div className="grid grid-cols-3 divide-x divide-[color:var(--border)] rounded-2xl border border-app bg-[color:var(--surface)]">
-            <TriStat label="Sistem" value={num(p.system).toLocaleString('id-ID')} />
-            <TriStat label="Fisik" value={num(p.physical).toLocaleString('id-ID')} />
+            <TriStat label={t('hrFix.approvalDetail.system')} value={num(p.system).toLocaleString('id-ID')} />
+            <TriStat label={t('hrFix.approvalDetail.physical')} value={num(p.physical).toLocaleString('id-ID')} />
             <TriStat
-              label="Selisih"
+              label={t('hrFix.approvalDetail.difference')}
               value={`${variance > 0 ? '+' : ''}${variance.toLocaleString('id-ID')}`}
               tone={variance === 0 ? undefined : 'danger'}
             />
@@ -107,10 +110,10 @@ export default function ApprovalDetailPage() {
           <div className="rounded-2xl border border-app bg-[color:var(--surface)] px-4 py-1">
             {a.type === 'DEPOSIT_REFUND' ? (
               <>
-                <RowLine label="Kondisi galon">
+                <RowLine label={t('hrFix.approvalDetail.gallonCondition')}>
                   <span className="text-sm font-semibold">{String(p.condition ?? '—')}</span>
                 </RowLine>
-                <RowLine label="Deposit" divider>
+                <RowLine label={t('hrFix.approvalDetail.deposit')} divider>
                   <span className="font-extrabold tabular-nums">
                     <Money amount={num(p.deposit ?? p.depositRefunded)} />
                   </span>
@@ -118,12 +121,12 @@ export default function ApprovalDetailPage() {
               </>
             ) : a.type === 'GALLON_VARIANCE' ? (
               <>
-                <RowLine label="Kelebihan galon">
+                <RowLine label={t('hrFix.approvalDetail.surplus')}>
                   <span className="text-sm font-semibold tabular-nums">
                     {num(p.excessGallons).toLocaleString('id-ID')}
                   </span>
                 </RowLine>
-                <RowLine label="Nilai deposit" divider>
+                <RowLine label={t('hrFix.approvalDetail.depositValue')} divider>
                   <span className="font-extrabold tabular-nums">
                     <Money amount={a.amountIdr} />
                   </span>
@@ -131,12 +134,12 @@ export default function ApprovalDetailPage() {
               </>
             ) : (
               <>
-                <RowLine label="Diharapkan">
+                <RowLine label={t('hrFix.approvalDetail.expected')}>
                   <span className="font-semibold tabular-nums">
                     <Money amount={num(p.expected)} />
                   </span>
                 </RowLine>
-                <RowLine label="Diterima" divider>
+                <RowLine label={t('hrFix.approvalDetail.received')} divider>
                   <span className="font-semibold tabular-nums">
                     <Money amount={num(p.received)} />
                   </span>
@@ -147,7 +150,7 @@ export default function ApprovalDetailPage() {
         )}
 
         <div className="rounded-2xl border border-app bg-[color:var(--surface)] px-4 py-1">
-          <RowLine label="Nilai">
+          <RowLine label={t('hrFix.approvalDetailExtra.value')}>
             <span className="font-extrabold tabular-nums text-[color:var(--danger)]">
               <Money amount={Math.abs(a.amountIdr)} />
             </span>

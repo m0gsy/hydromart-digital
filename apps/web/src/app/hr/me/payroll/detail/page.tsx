@@ -1,6 +1,7 @@
 'use client';
 
 import { useToast } from '@/components/toast';
+import { useT } from '@/lib/locale-context';
 import { Badge, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
@@ -28,6 +29,7 @@ const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
  * ownership rather than by depot.
  */
 export default function MyPayrollDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
   const { toast } = useToast();
 
@@ -40,7 +42,7 @@ export default function MyPayrollDetailPage() {
     try {
       downloadBlob(`slip-${id}.pdf`, await getBlob(endpoints.hr.payrollMeSlip(id)));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
+      toast(e instanceof Error ? e.message : t('hrFix.myPayrollDetail.downloadFailed'), 'error');
     }
   }
 
@@ -59,7 +61,7 @@ export default function MyPayrollDetailPage() {
       <SectionHeader
         title={`Slip Gaji ${p.periodMonth}`}
         subtitle={`${p.presentDays} hari hadir`}
-        action={<Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>}
+        action={<Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>}
       />
 
       <Card className="p-5">
@@ -79,7 +81,7 @@ export default function MyPayrollDetailPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-app font-bold">
-              <td className="pt-3">Gaji Bersih (Net)</td>
+              <td className="pt-3">{t('hrFix.myPayrollDetail.netPay')}</td>
               <td className="pt-3 text-right">
                 <Money amount={Number(p.net)} />
               </td>

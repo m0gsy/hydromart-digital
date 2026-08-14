@@ -48,6 +48,15 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  async activeCustomerIdsForDepot(depotId: string): Promise<string[]> {
+    const rows = await this.prisma.subscription.findMany({
+      where: { depotId, status: SubscriptionStatus.ACTIVE, customerId: { not: null } },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    });
+    return rows.map((r) => r.customerId as string);
+  }
+
   async findById(id: string): Promise<Subscription | null> {
     const row = await this.prisma.subscription.findUnique({ where: { id } });
     return row ? this.toRecord(row) : null;

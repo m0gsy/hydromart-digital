@@ -18,11 +18,19 @@ function esc(s: string): string {
  * blocked popup used to swallow the receipt silently, so the cashier watched the sale
  * succeed and the buyer walked off with nothing to hand back over.
  */
+/**
+ * The receipt is built here, outside React, so the translator and the locale are passed
+ * in rather than read from a hook. It is printed by the OPERATOR's console, so it follows
+ * the operator's language — a depot running the console in English prints an English
+ * receipt, and `lang` on the document says so instead of always claiming Indonesian.
+ */
 export function printReceipt(
   order: Order,
+  i18n: { t: (key: string) => string; locale: string },
   cash?: { cashReceived: number; change: number },
   method?: string,
 ): boolean {
+  const { t, locale } = i18n;
   const rows = order.items
     .map(
       (it) =>
@@ -31,18 +39,18 @@ export function printReceipt(
     )
     .join('');
 
-  const discount = order.discount > 0 ? `<tr><td>Diskon</td><td class="r">−${formatIDR(order.discount)}</td></tr>` : '';
+  const discount = order.discount > 0 ? `<tr><td>${esc(t('hrFix.receipt.discount'))}</td><td class="r">−${formatIDR(order.discount)}</td></tr>` : '';
   // Counter sale: the buyer expects to see what they handed over and what came back.
   const cashRows = cash
-    ? `<tr><td>Tunai</td><td class="r">${formatIDR(cash.cashReceived)}</td></tr>` +
-      `<tr><td>Kembali</td><td class="r">${formatIDR(cash.change)}</td></tr>`
+    ? `<tr><td>${esc(t('hrFix.receipt.cash'))}</td><td class="r">${formatIDR(cash.cashReceived)}</td></tr>` +
+      `<tr><td>${esc(t('hrFix.receipt.change'))}</td><td class="r">${formatIDR(cash.change)}</td></tr>`
     : '';
   // A non-cash counter sale has no tender rows, so without this the struk would not say how
   // it was paid at all — and a QRIS sale looks identical to an unpaid one.
-  const methodRow = method ? `<tr><td>Metode</td><td class="r">${esc(method)}</td></tr>` : '';
+  const methodRow = method ? `<tr><td>${esc(t('hrFix.receipt.method'))}</td><td class="r">${esc(method)}</td></tr>` : '';
 
-  const html = `<!doctype html><html lang="id"><head><meta charset="utf-8">
-<title>Struk ${esc(order.orderNumber)}</title>
+  const html = `<!doctype html><html lang="${esc(locale)}"><head><meta charset="utf-8">
+<title>${esc(t('hrFix.receipt.title'))} ${esc(order.orderNumber)}</title>
 <style>
   body{font-family:system-ui,sans-serif;color:#16282e;max-width:420px;margin:24px auto;padding:0 16px}
   h1{font-size:18px;margin:0 0 2px}.muted{color:#64757c;font-size:12px}
@@ -62,15 +70,15 @@ export function printReceipt(
 <table>
   <tbody>${rows}</tbody>
   <tfoot>
-    <tr><td>Subtotal</td><td class="r">${formatIDR(order.subtotal)}</td></tr>
-    <tr><td>Ongkir</td><td class="r">${formatIDR(order.deliveryFee)}</td></tr>
+    <tr><td>${esc(t('hrFix.receipt.subtotal'))}</td><td class="r">${formatIDR(order.subtotal)}</td></tr>
+    <tr><td>${esc(t('hrFix.receipt.deliveryFee'))}</td><td class="r">${formatIDR(order.deliveryFee)}</td></tr>
     ${discount}
-    <tr><td class="total">Total</td><td class="r total">${formatIDR(order.total)}</td></tr>
+    <tr><td class="total">${esc(t('hrFix.receipt.total'))}</td><td class="r total">${formatIDR(order.total)}</td></tr>
     ${methodRow}
     ${cashRows}
   </tfoot>
 </table>
-<p class="muted" style="text-align:center;margin-top:20px">Terima kasih telah memesan di Hydromart.</p>
+<p class="muted" style="text-align:center;margin-top:20px">${esc(t('hrFix.receipt.thanks'))}</p>
 <script>window.onload=function(){window.print()}</script>
 </body></html>`;
 

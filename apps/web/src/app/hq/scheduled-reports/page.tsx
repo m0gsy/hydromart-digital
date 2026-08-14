@@ -11,13 +11,19 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { ExportFormat, ReportCadence, ScheduledReport } from '@/lib/types';
+import type { ExportFormat, ReportCadence, ReportDataset, ScheduledReport } from '@/lib/types';
 
-// Design 15c — recurring scheduled reports. Real admin-service track: HEAD_OFFICE +
-// SUPER_ADMIN CRUD. Toggling `enabled` pauses a schedule without deleting it. `nextRunAt`
-// is advisory metadata for the future scheduler.
+// Design 15c — recurring scheduled reports. HEAD_OFFICE + SUPER_ADMIN CRUD; toggling
+// `enabled` pauses a schedule without deleting it. `nextRunAt` is no longer advisory: the
+// hourly sweep reads it, produces the file and records it in hq/exports.
+//
+// PDF is gone from the picker on purpose — there is no PDF renderer anywhere in this repo,
+// and the server refuses the format rather than handing back an .xlsx under a .pdf name.
+// Delivery is NOT email yet: there is no mail transport here, so the file is downloaded
+// from hq/exports and the card says so rather than implying an inbox.
 const CADENCES: ReportCadence[] = ['DAILY', 'WEEKLY', 'MONTHLY'];
-const FORMATS: ExportFormat[] = ['XLSX', 'CSV', 'PDF'];
+const FORMATS: ExportFormat[] = ['XLSX', 'CSV'];
+const DATASETS: ReportDataset[] = ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT', 'REVENUE_BY_METHOD'];
 
 export default function HqScheduledReportsPage() {
   const { t } = useT();
@@ -77,12 +83,16 @@ export default function HqScheduledReportsPage() {
               <div className="min-w-0">
                 <p className="font-semibold">{r.name}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  {t(`hq.scheduledReports.cadences.${r.cadence}`)} · {r.format} · {r.recipients.join(', ')}
+                  {t(`hq.scheduledReports.cadences.${r.cadence}`)} · {t(`hq.scheduledReports.datasets.${r.dataset}`)} · {r.format}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('hq.scheduledReports.nextRun')}:{' '}
                   {r.nextRunAt ? new Date(r.nextRunAt).toLocaleString('id-ID') : t('hq.scheduledReports.nextRunNone')}
+                  {r.lastRunAt && ` · ${t('hq.scheduledReports.lastRun')}: ${new Date(r.lastRunAt).toLocaleString('id-ID')}`}
                 </p>
+                {/* Honest about the delivery gap: the file is produced and downloadable,
+                    but nothing emails it, because this repo has no mail transport. */}
+                <p className="mt-1 text-xs text-muted">{t('hq.scheduledReports.deliveryNote')}</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold text-muted">
@@ -136,6 +146,7 @@ function CreateReportSheet({
   const [recipients, setRecipients] = useState('');
   const [cadence, setCadence] = useState<ReportCadence>('DAILY');
   const [format, setFormat] = useState<ExportFormat>('XLSX');
+  const [dataset, setDataset] = useState<ReportDataset>('REVENUE_BY_DEPOT');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,13 +160,14 @@ function CreateReportSheet({
     try {
       await api.post(
         endpoints.admin.scheduledReports.create,
-        { name: name.trim(), cadence, format, recipients: recipientList },
+        { name: name.trim(), cadence, format, dataset, recipients: recipientList },
         true,
       );
       setName('');
       setRecipients('');
       setCadence('DAILY');
       setFormat('XLSX');
+      setDataset('REVENUE_BY_DEPOT');
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.scheduledReports.saveError'));
@@ -187,6 +199,20 @@ function CreateReportSheet({
               </button>
             ))}
           </div>
+        </Field>
+        <Field label={t('hq.scheduledReports.dataset')} htmlFor="sr-dataset" hint={t('hq.scheduledReports.datasetHint')}>
+          <select
+            id="sr-dataset"
+            value={dataset}
+            onChange={(e) => setDataset(e.target.value as ReportDataset)}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+          >
+            {DATASETS.map((d) => (
+              <option key={d} value={d}>
+                {t(`hq.scheduledReports.datasets.${d}`)}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label={t('hq.scheduledReports.format')}>
           <div className="flex overflow-hidden rounded-full border border-app text-xs font-bold">

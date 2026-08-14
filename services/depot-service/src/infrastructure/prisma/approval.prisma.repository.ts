@@ -80,4 +80,10 @@ export class ApprovalPrismaRepository implements ApprovalRepository {
     for (const g of grouped) counts[g.type as ApprovalType] = g._count._all;
     return counts;
   }
+
+  async countReviewedInRange(depotId: string, from: Date, to: Date): Promise<number> {
+    return this.prisma.approval.count({
+      where: { depotId, decidedBy: { not: null }, decidedAt: { gte: from, lt: to } },
+    });
+  }
 }

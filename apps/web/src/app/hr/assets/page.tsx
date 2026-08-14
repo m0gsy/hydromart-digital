@@ -1,20 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
-import {
-  Badge,
-  Button,
-  Card,
-  ErrorState,
-  Field,
-  Input,
-  LinkButton,
-  Money,
-  SectionHeader,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -48,6 +38,7 @@ const STATUS_TONE: Record<AssetStatus, 'success' | 'warning' | 'neutral' | 'dang
 };
 
 export default function AssetsPage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { depots } = useDepot();
   const { toast } = useToast();
@@ -87,8 +78,8 @@ export default function AssetsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <SectionHeader
-        title="Aset"
-        subtitle="Barang perusahaan yang dipegang karyawan. Riwayat serah terima tidak pernah dihapus."
+        title={t('hrFix.assets.title')}
+        subtitle={t('hrFix.assets.subtitle')}
         action={
           isAdmin ? (
             <LinkButton href="/hr/assets/import" variant="secondary">
@@ -107,10 +98,10 @@ export default function AssetsPage() {
               onChange={(e) => setStatus(e.target.value as '' | AssetStatus)}
               className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
             >
-              <option value="">Semua</option>
+              <option value="">{t('hrFix.assets.all')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {ASSET_STATUS_LABEL[s]}
+                  {t(ASSET_STATUS_LABEL[s])}
                 </option>
               ))}
             </select>
@@ -122,10 +113,10 @@ export default function AssetsPage() {
               onChange={(e) => setType(e.target.value as '' | AssetType)}
               className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
             >
-              <option value="">Semua</option>
-              {ASSET_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ASSET_TYPE_LABEL[t]}
+              <option value="">{t('hrFix.assets.all')}</option>
+              {ASSET_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(ASSET_TYPE_LABEL[ty])}
                 </option>
               ))}
             </select>
@@ -134,10 +125,13 @@ export default function AssetsPage() {
 
         {assets.loading && <Skeleton className="h-32" />}
         {assets.error && <ErrorState message={assets.error} onRetry={assets.reload} />}
+        {/* The roster names every holder and fills the hand-over picker. Unread, an assigned
+            asset reads as held by nobody and there is no one to hand it to. */}
+        {employees.error && <LoadError onRetry={employees.reload} />}
         {assets.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {assets.data.rows.length === 0 && (
-              <li className="py-3 text-sm text-muted">Belum ada aset yang cocok.</li>
+              <li className="py-3 text-sm text-muted">{t('hrFix.assets.empty')}</li>
             )}
             {assets.data.rows.map((a) => (
               <li key={a.id} className="space-y-2 py-3">
@@ -145,10 +139,10 @@ export default function AssetsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <b>{a.code}</b>
-                      <Badge tone={STATUS_TONE[a.status]}>{ASSET_STATUS_LABEL[a.status]}</Badge>
+                      <Badge tone={STATUS_TONE[a.status]}>{t(ASSET_STATUS_LABEL[a.status])}</Badge>
                     </div>
                     <p className="text-sm text-muted">
-                      {ASSET_TYPE_LABEL[a.type]} · {a.name}
+                      {t(ASSET_TYPE_LABEL[a.type])} · {a.name}
                       {a.brand ? ` · ${a.brand}` : ''}
                       {a.serialNo ? ` · SN ${a.serialNo}` : ''} · {depotName(a.depotId)}
                       {a.status === 'ASSIGNED' ? ` · dipegang ${nameOf(a.holderId)}` : ''}
@@ -160,7 +154,7 @@ export default function AssetsPage() {
                     )}
                   </div>
                   <Button variant="ghost" onClick={() => setOpen(open === a.id ? null : a.id)}>
-                    {open === a.id ? 'Tutup' : 'Riwayat & pergerakan'}
+                    {open === a.id ? t('hrFix.assets.close') : t('hrFix.assets.history')}
                   </Button>
                 </div>
                 {open === a.id && (
@@ -170,7 +164,7 @@ export default function AssetsPage() {
                     isAdmin={isAdmin}
                     onMoved={() => {
                       assets.reload();
-                      toast('Pergerakan aset tercatat');
+                      toast(t('hrFix.assets.moveSaved'));
                     }}
                   />
                 )}
@@ -197,6 +191,7 @@ function AssetPanel({
   isAdmin: boolean;
   onMoved: () => void;
 }) {
+  const { t } = useT();
   const { toast } = useToast();
   const detail = useAsync<AssetDetail>(
     () => api.get<AssetDetail>(endpoints.hr.asset(asset.id), true),
@@ -207,11 +202,55 @@ function AssetPanel({
   const [to, setTo] = useState('');
   const [condition, setCondition] = useState('');
   const [saving, setSaving] = useState(false);
+  // Editing the asset's own details. `PATCH /employee-assets/:id` has always existed and
+  // nothing called it, so a serial typed wrong at registration could only be fixed in the
+  // database. Status and holder are deliberately NOT here — those move via /movements, so
+  // that every change of hands leaves a trail.
+  const [editing, setEditing] = useState(false);
+  const [details, setDetails] = useState({ name: '', brand: '', serialNo: '', note: '' });
+  const [editSaving, setEditSaving] = useState(false);
+
+  function startEdit() {
+    setDetails({
+      name: asset.name,
+      brand: asset.brand ?? '',
+      serialNo: asset.serialNo ?? '',
+      note: asset.note ?? '',
+    });
+    setEditing(true);
+  }
+
+  async function saveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!details.name.trim()) {
+      toast(t('hrFix.assets.nameRequired'), 'error');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await api.patch(
+        endpoints.hr.asset(asset.id),
+        {
+          name: details.name.trim(),
+          brand: details.brand.trim(),
+          serialNo: details.serialNo.trim(),
+          note: details.note.trim(),
+        },
+        true,
+      );
+      setEditing(false);
+      onMoved();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hrFix.assets.detailFailed'), 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (assetMoveNeedsRecipient(kind) && !to) {
-      toast('Pilih karyawan penerima', 'error');
+      toast(t('hrFix.assets.pickRecipient'), 'error');
       return;
     }
     setSaving(true);
@@ -230,7 +269,7 @@ function AssetPanel({
       onMoved();
       detail.reload();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Gagal mencatat pergerakan', 'error');
+      toast(err instanceof ApiError ? err.message : t('hrFix.assets.moveFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -241,14 +280,16 @@ function AssetPanel({
   return (
     <div className="space-y-3 rounded-lg border border-app p-3">
       {detail.loading && <Skeleton className="h-16" />}
+      {/* A hand-over trail that renders nothing is read as an asset nobody moved. */}
+      {detail.error && <LoadError onRetry={detail.reload} />}
       {detail.data && (
         <ol className="space-y-1 text-sm">
           {detail.data.movements.length === 0 && (
-            <li className="text-muted">Belum ada pergerakan sejak aset didaftarkan.</li>
+            <li className="text-muted">{t('hrFix.assets.noMoves')}</li>
           )}
           {detail.data.movements.map((m) => (
             <li key={m.id} className="text-muted">
-              <b className="text-app">{ASSET_MOVEMENT_LABEL[m.kind]}</b> · {fmtDate(m.movedAt)}
+              <b className="text-app">{t(ASSET_MOVEMENT_LABEL[m.kind])}</b> · {fmtDate(m.movedAt)}
               {m.fromEmployeeId ? ` · dari ${nameOf(m.fromEmployeeId)}` : ''}
               {m.toEmployeeId ? ` · ke ${nameOf(m.toEmployeeId)}` : ''}
               {m.condition ? ` · kondisi: ${m.condition}` : ''}
@@ -258,13 +299,53 @@ function AssetPanel({
       )}
 
       {isAdmin &&
-        (moves.length === 0 ? (
-          <p className="text-sm text-muted">
-            Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
-          </p>
+        (editing ? (
+          <form onSubmit={saveDetails} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
+            <Field label={t('hrFix.assets.assetName')}>
+              <Input
+                value={details.name}
+                onChange={(e) => setDetails((d) => ({ ...d, name: e.target.value }))}
+              />
+            </Field>
+            <Field label={t('hrFix.assets.brand')}>
+              <Input
+                value={details.brand}
+                onChange={(e) => setDetails((d) => ({ ...d, brand: e.target.value }))}
+              />
+            </Field>
+            <Field label={t('hrFix.assets.serial')}>
+              <Input
+                value={details.serialNo}
+                onChange={(e) => setDetails((d) => ({ ...d, serialNo: e.target.value }))}
+              />
+            </Field>
+            <Field label={t('hrFix.assets.note')}>
+              <Input
+                value={details.note}
+                onChange={(e) => setDetails((d) => ({ ...d, note: e.target.value }))}
+              />
+            </Field>
+            <div className="col-span-full flex gap-2">
+              <Button type="submit" loading={editSaving}>
+                Simpan Detail
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={editSaving}>
+                Batal
+              </Button>
+            </div>
+          </form>
+        ) : moves.length === 0 ? (
+          <div className="space-y-2 border-ty border-app pt-3">
+            <p className="text-sm text-muted">
+              Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
+            </p>
+            <Button variant="secondary" onClick={startEdit}>
+              Ubah Detail
+            </Button>
+          </div>
         ) : (
-          <form onSubmit={submit} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
-            <Field label="Pergerakan">
+          <form onSubmit={submit} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
+            <Field label={t('hrFix.assets.movement')}>
               <select
                 value={kind}
                 onChange={(e) => setKind(e.target.value as AssetMovementKind)}
@@ -272,19 +353,19 @@ function AssetPanel({
               >
                 {moves.map((k) => (
                   <option key={k} value={k}>
-                    {ASSET_MOVEMENT_LABEL[k]}
+                    {t(ASSET_MOVEMENT_LABEL[k])}
                   </option>
                 ))}
               </select>
             </Field>
             {assetMoveNeedsRecipient(kind) && (
-              <Field label="Karyawan penerima">
+              <Field label={t('hrFix.assets.recipient')}>
                 <select
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                   className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
                 >
-                  <option value="">Pilih karyawan</option>
+                  <option value="">{t('hrFix.assets.pickEmployee')}</option>
                   {staff
                     .filter((s) => s.depotId === asset.depotId)
                     .map((s) => (
@@ -295,16 +376,19 @@ function AssetPanel({
                 </select>
               </Field>
             )}
-            <Field label="Kondisi barang (opsional)">
+            <Field label={t('hrFix.assets.condition')}>
               <Input
                 value={condition}
                 onChange={(e) => setCondition(e.target.value)}
-                placeholder="lecet di spakbor"
+                placeholder={t('hrFix.assets.conditionHint')}
               />
             </Field>
-            <div className="col-span-full">
+            <div className="col-span-full flex gap-2">
               <Button type="submit" loading={saving}>
                 Catat Pergerakan
+              </Button>
+              <Button type="button" variant="secondary" onClick={startEdit} disabled={saving}>
+                Ubah Detail
               </Button>
             </div>
           </form>
@@ -314,6 +398,7 @@ function AssetPanel({
 }
 
 function NewAsset({ onCreated }: { onCreated: () => void }) {
+  const { t } = useT();
   const { depots } = useDepot();
   const { toast } = useToast();
   const [code, setCode] = useState('');
@@ -328,7 +413,7 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim() || !name.trim() || !depotId) {
-      toast('Isi kode, nama, dan depot', 'error');
+      toast(t('hrFix.assets.fillRequired'), 'error');
       return;
     }
     setSaving(true);
@@ -346,7 +431,7 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
         },
         true,
       );
-      toast('Aset didaftarkan');
+      toast(t('hrFix.assets.registered'));
       setCode('');
       setName('');
       setBrand('');
@@ -354,7 +439,7 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
       setValue('');
       onCreated();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Gagal mendaftarkan aset', 'error');
+      toast(err instanceof ApiError ? err.message : t('hrFix.assets.registerFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -362,34 +447,34 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Daftarkan Aset</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.assets.register')}</h2>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-        <Field label="Kode aset">
+        <Field label={t('hrFix.assets.code')}>
           <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MTR-0001" />
         </Field>
-        <Field label="Nama">
+        <Field label={t('hrFix.assets.name')}>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Honda Beat" />
         </Field>
-        <Field label="Jenis">
+        <Field label={t('hrFix.assets.type')}>
           <select
             value={type}
             onChange={(e) => setType(e.target.value as AssetType)}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            {ASSET_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {ASSET_TYPE_LABEL[t]}
+            {ASSET_TYPES.map((ty) => (
+              <option key={ty} value={ty}>
+                {t(ASSET_TYPE_LABEL[ty])}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Depot pemilik">
+        <Field label={t('hrFix.assets.ownerDepot')}>
           <select
             value={depotId}
             onChange={(e) => setDepotId(e.target.value)}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">Pilih depot</option>
+            <option value="">{t('hrFix.assets.pickDepot')}</option>
             {depots.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.code}
@@ -397,13 +482,13 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="Merek (opsional)">
+        <Field label={t('hrFix.assets.brandOpt')}>
           <Input value={brand} onChange={(e) => setBrand(e.target.value)} />
         </Field>
-        <Field label="Nomor seri (opsional)">
+        <Field label={t('hrFix.assets.serialOpt')}>
           <Input value={serialNo} onChange={(e) => setSerialNo(e.target.value)} />
         </Field>
-        <Field label="Nilai perolehan (Rp, opsional)">
+        <Field label={t('hrFix.assets.valueOpt')}>
           <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} />
         </Field>
         <div className="col-span-full">

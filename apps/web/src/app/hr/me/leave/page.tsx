@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
 import {
@@ -39,6 +40,7 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
 
 /** Employee self-service: apply for leave and follow it through both approval stages. */
 export default function MyLeavePage() {
+  const { t } = useT();
   const { toast } = useToast();
   const [type, setType] = useState<LeaveType>('ANNUAL');
   const [startDate, setStart] = useState('');
@@ -59,8 +61,8 @@ export default function MyLeavePage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (!startDate || !endDate) return setErr('Tanggal mulai dan selesai wajib diisi.');
-    if (!reason.trim()) return setErr('Alasan wajib diisi.');
+    if (!startDate || !endDate) return setErr(t('hrFix.myLeave.datesRequired'));
+    if (!reason.trim()) return setErr(t('hrFix.myLeave.reasonRequired'));
     setSaving(true);
     try {
       await api.post(
@@ -73,12 +75,12 @@ export default function MyLeavePage() {
         },
         true,
       );
-      toast('Pengajuan cuti terkirim');
+      toast(t('hrFix.myLeave.submitted'));
       setReason('');
       requests.reload();
       balance.reload();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Gagal mengirim pengajuan.');
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.myLeave.submitFailed'));
     } finally {
       setSaving(false);
     }
@@ -87,51 +89,53 @@ export default function MyLeavePage() {
   async function cancel(id: string) {
     try {
       await api.patch(endpoints.hr.cancelLeave(id), {}, true);
-      toast('Pengajuan dibatalkan');
+      toast(t('hrFix.myLeave.cancelled'));
       requests.reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal membatalkan', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.myLeave.cancelFailed'), 'error');
     }
   }
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
       <SectionHeader
-        title="Cuti Saya"
+        title={t('hrFix.myLeave.title')}
         subtitle={
           balance.data
             ? `Kuota ${balance.data.quotaDays} hari · terpakai ${balance.data.usedDays} · sisa ${balance.data.quotaDays - balance.data.usedDays}`
-            : 'Ajukan cuti dan pantau persetujuannya'
+            : balance.error
+              ? t('hrFix.myLeave.quotaUnreadable')
+              : t('hrFix.myLeave.subtitle')
         }
       />
 
       <Card className="p-5">
         <form onSubmit={submit} className="space-y-3">
-          <Field label="Jenis cuti">
+          <Field label={t('hrFix.myLeave.type')}>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as LeaveType)}
               className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
             >
-              {LEAVE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {LEAVE_TYPE_LABEL[t]}
-                  {leaveDeductsQuota(t) ? ' (potong kuota)' : ''}
+              {LEAVE_TYPES.map((ty) => (
+                <option key={ty} value={ty}>
+                  {t(LEAVE_TYPE_LABEL[ty])}
+                  {leaveDeductsQuota(ty) ? t('hrFix.myLeave.deductsQuota') : ''}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Mulai">
+          <Field label={t('hrFix.myLeave.start')}>
             <Input type="date" value={startDate} onChange={(e) => setStart(e.target.value)} />
           </Field>
-          <Field label="Selesai">
+          <Field label={t('hrFix.myLeave.end')}>
             <Input type="date" value={endDate} onChange={(e) => setEnd(e.target.value)} />
           </Field>
-          <Field label="Alasan">
+          <Field label={t('hrFix.myLeave.reason')}>
             <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Acara keluarga"
+              placeholder={t('hrFix.myLeave.reasonHint')}
             />
           </Field>
           {err && (
@@ -153,13 +157,13 @@ export default function MyLeavePage() {
       {requests.data && (
         <Card className="divide-y divide-[color:var(--border)]">
           {requests.data.rows.length === 0 && (
-            <p className="p-5 text-sm text-muted">Belum ada pengajuan cuti.</p>
+            <p className="p-5 text-sm text-muted">{t('hrFix.myLeave.empty')}</p>
           )}
           {requests.data.rows.map((r) => (
             <div key={r.id} className="space-y-1 p-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold">{LEAVE_TYPE_LABEL[r.type]}</span>
-                <Badge tone={TONE[r.status]}>{LEAVE_STATUS_LABEL[r.status]}</Badge>
+                <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
+                <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
               </div>
               <p className="text-sm text-muted">
                 {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja

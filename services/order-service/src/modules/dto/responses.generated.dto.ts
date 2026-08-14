@@ -201,6 +201,17 @@ export class DepotMonthlyReportTopCourierResponseDto {
   delivered!: number;
 }
 
+export class DepotMonthlyReportGovernanceResponseDto {
+  @ApiProperty({ type: Number })
+  approvalsReviewed!: number;
+  @ApiProperty({ type: Number })
+  opnameVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  settlementVarianceIdr!: number;
+  @ApiProperty({ type: Number })
+  daysClosed!: number;
+}
+
 /** Mirrors `DepotMonthlyReport` exactly — generated for audit D-6, no field added or removed. */
 export class DepotMonthlyReportResponseDto {
   @ApiProperty({ type: String })
@@ -227,6 +238,8 @@ export class DepotMonthlyReportResponseDto {
   growthPct!: number | null;
   @ApiProperty({ type: Number })
   avgGallonsPerDay!: number;
+  @ApiProperty({ type: DepotMonthlyReportGovernanceResponseDto, nullable: true })
+  governance!: DepotMonthlyReportGovernanceResponseDto | null;
   @ApiProperty({ required: false, type: DepotMonthlyReportTopCourierResponseDto })
   topCourier?: DepotMonthlyReportTopCourierResponseDto;
 }
@@ -371,6 +384,8 @@ export class CartLineResponseDto {
   quantity!: number;
   @ApiProperty({ type: Number })
   lineTotal!: number;
+  @ApiProperty({ type: Boolean })
+  isGallon!: boolean;
 }
 
 /** Mirrors `CartView` exactly — generated for audit D-6, no field added or removed. */
@@ -1047,6 +1062,32 @@ export class SegmentEstimate3ResponseDto {
   minOrders!: number | null;
   @ApiProperty({ type: String, nullable: true })
   depotId!: string | null;
+}
+
+/** The audience behind a segment estimate — crm's broadcast recipients (design 21d). */
+export class InternalSegmentCustomersResponseDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  customerIds!: string[];
+  @ApiProperty({
+    type: Boolean,
+    description: 'True when the segment outgrew the resolution cap — the list is NOT the whole audience.',
+  })
+  truncated!: boolean;
+}
+
+/** One row of a scheduled revenue report — label, order count, revenue (design 15c). */
+export class ExportRowResponseDto {
+  @ApiProperty({ example: 'Depot Cibubur' })
+  label!: string;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+export class InternalExportRowsResponseDto {
+  @ApiProperty({ type: [ExportRowResponseDto] })
+  rows!: ExportRowResponseDto[];
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

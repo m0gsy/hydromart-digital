@@ -5,7 +5,18 @@ import Link from 'next/link';
 import { ClipboardText, Lock, Sparkle, Truck, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -16,10 +27,11 @@ import { canManageProcurement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { InventoryItem, PoStatus, PurchaseOrder, Supplier } from '@/lib/types';
 
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const STATUS_LABEL: Record<PoStatus, string> = {
-  DRAFT: 'Draft',
-  SENT: 'Dikirim',
-  RECEIVED: 'Diterima',
+  DRAFT: 'hrFix.purchaseOrders.draft',
+  SENT: 'hrFix.purchaseOrders.sent',
+  RECEIVED: 'hrFix.purchaseOrders.received',
 };
 
 const STATUS_TONE: Record<PoStatus, 'warning' | 'brand' | 'success'> = {
@@ -29,6 +41,7 @@ const STATUS_TONE: Record<PoStatus, 'warning' | 'brand' | 'success'> = {
 };
 
 function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +56,7 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
       await api.post(url, {}, true);
       onChanged();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.purchaseOrders.actionFailed'));
       setBusy(false);
     }
   }
@@ -55,11 +68,11 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
           <p className="truncate font-semibold hover:underline">{po.poNumber}</p>
           <p className="truncate text-xs text-muted">{po.supplierName}</p>
         </Link>
-        <Badge tone={STATUS_TONE[po.status]}>{STATUS_LABEL[po.status]}</Badge>
+        <Badge tone={STATUS_TONE[po.status]}>{t(STATUS_LABEL[po.status])}</Badge>
       </div>
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs text-muted">Nilai</p>
+          <p className="text-xs text-muted">{t('hrFix.purchaseOrders.value')}</p>
           <Money amount={po.totalIdr} className="text-lg font-extrabold tabular-nums" />
         </div>
         <p className="text-xs text-muted">{formatDateTime(po.createdAt)}</p>
@@ -162,6 +175,9 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
         <Skeleton className="h-40 w-full" />
       ) : low.error ? (
         <ErrorState message={low.error} onRetry={low.reload} />
+      ) : suppliers.error ? (
+        // Not `noSuppliers`: that sends an operator off to register a supplier that exists.
+        <LoadError onRetry={suppliers.reload} />
       ) : suppliers.data && suppliers.data.length === 0 ? (
         <p className="rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-sm text-muted">{t('opsFix.poDraft.noSuppliers')}</p>
       ) : items.length === 0 ? (
@@ -270,7 +286,7 @@ function Body() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ClipboardText size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Pesanan pembelian</h1>
+          <h1 className="text-2xl font-bold">{t('hrFix.purchaseOrders.title')}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           {scopedId && (
@@ -312,13 +328,13 @@ function Body() {
               status === s ? 'bg-brand-500 text-white' : 'border border-app text-muted'
             }`}
           >
-            {s === '' ? 'Semua' : STATUS_LABEL[s]}
+            {s === '' ? t('hrFix.common.all') : t(STATUS_LABEL[s])}
           </button>
         ))}
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Truck size={40} weight="fill" />}>
+        <CenterState title={t('hrFix.purchaseOrders.noDepot')} icon={<Truck size={40} weight="fill" />}>
           Belum ada depot yang dikonfigurasi.
         </CenterState>
       ) : orders.loading ? (
@@ -326,7 +342,7 @@ function Body() {
       ) : orders.error ? (
         <ErrorState message={orders.error} onRetry={orders.reload} />
       ) : !orders.data || orders.data.length === 0 ? (
-        <CenterState title="Belum ada PO" icon={<ClipboardText size={40} weight="fill" />}>
+        <CenterState title={t('hrFix.purchaseOrders.empty')} icon={<ClipboardText size={40} weight="fill" />}>
           Belum ada pesanan pembelian untuk filter ini.
         </CenterState>
       ) : (
@@ -341,10 +357,11 @@ function Body() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageProcurement(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.purchaseOrders.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         Pengadaan tersedia untuk manajer depot dan super admin.
       </CenterState>
     );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { Info, Lock, Wallet } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -35,6 +36,7 @@ function initials(name: string): string {
 }
 
 function CourierRow({ c, name }: { c: CommissionCourier; name: string }) {
+  const { t } = useT();
   return (
     <div className="flex items-center gap-3 p-4">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">
@@ -44,7 +46,7 @@ function CourierRow({ c, name }: { c: CommissionCourier; name: string }) {
         <p className="font-semibold">{name}</p>
         <p className="text-xs text-[color:var(--text-muted)] tabular-nums">
           {c.delivered} antar × {formatIDR(c.ratePerDeliveryIdr)}
-          {c.shortfallIdr > 0 && ' · selisih setoran'}
+          {c.shortfallIdr > 0 && " " + t('hrFix.commission.settlementDiff')}
         </p>
         {c.shortfallIdr > 0 && (
           <p className="text-xs font-semibold text-[color:var(--warning)] tabular-nums">
@@ -58,6 +60,7 @@ function CourierRow({ c, name }: { c: CommissionCourier; name: string }) {
 }
 
 function CommissionBody() {
+  const { t } = useT();
   const { scopedId, selected } = useDepot();
   const [paid, setPaid] = useState(false);
   const { from, to } = monthWindow();
@@ -82,7 +85,7 @@ function CommissionBody() {
       <div className="flex items-center gap-2">
         <Wallet size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Komisi kurir</h1>
+          <h1 className="text-2xl font-bold">{t('hrFix.commission.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {selected ? `Depot ${selected.name} · ` : ''}periode {MONTH} · siap dibayar
           </p>
@@ -94,14 +97,14 @@ function CommissionBody() {
       ) : data.error ? (
         <ErrorState message={data.error} onRetry={data.reload} />
       ) : !run || run.couriers.length === 0 ? (
-        <CenterState title="Belum ada komisi" icon={<Wallet size={40} weight="fill" />}>
+        <CenterState title={t('hrFix.commission.empty')} icon={<Wallet size={40} weight="fill" />}>
           Belum ada pengantaran terselesaikan untuk depot ini pada periode {MONTH}.
         </CenterState>
       ) : (
         <>
           <Card elevated className="flex items-center justify-between gap-4 bg-brand-700 p-6 text-on-brand">
             <div>
-              <p className="text-sm font-medium text-on-brand/80">Total komisi periode</p>
+              <p className="text-sm font-medium text-on-brand/80">{t('hrFix.commission.periodTotal')}</p>
               <Money amount={run.totalIdr} className="text-2xl font-bold" />
             </div>
             <Button
@@ -110,7 +113,7 @@ function CommissionBody() {
               onClick={() => setPaid(true)}
               disabled={paid}
             >
-              {paid ? 'Terbayar' : 'Bayar semua'}
+              {paid ? t('hrFix.commission.paid') : t('hrFix.commission.payAll')}
             </Button>
           </Card>
 
@@ -126,7 +129,7 @@ function CommissionBody() {
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
         <p className="text-[12.5px] text-[color:var(--text-muted)]">
           Ini komisi per-antar untuk kurir depot Anda — dibayar dari kas depot. Berbeda dari{' '}
-          <strong className="text-[color:var(--text)]">bagi hasil franchise</strong>, yang dihitung
+          <strong className="text-[color:var(--text)]">{t('hrFix.commission.franchiseShare')}</strong>, yang dihitung
           head office dari laba bersih dan dibayar ke pemilik franchise.
         </p>
       </Card>
@@ -135,10 +138,11 @@ function CommissionBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewDepotFinance(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.commission.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         Pembayaran komisi kurir hanya untuk Manajer depot.
       </CenterState>
     );

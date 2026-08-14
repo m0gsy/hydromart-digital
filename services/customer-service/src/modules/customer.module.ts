@@ -28,6 +28,8 @@ import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalo
 import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
 import { OrderCrmHttpAdapter } from '../infrastructure/http/order-crm.http.adapter';
 import { DepotLedgerHttpAdapter } from '../infrastructure/http/depot-ledger.http.adapter';
+import { DepotProfileHttpAdapter } from '../infrastructure/http/depot-profile.http.adapter';
+import { ChurnRiskHttpAdapter } from '../infrastructure/http/churn-risk.http.adapter';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { AddressController } from './address.controller';
@@ -59,6 +61,8 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.DepotCrmRepository, useClass: DepotCrmPrismaRepository },
   { provide: CUSTOMER_TOKENS.OrderCrmPort, useClass: OrderCrmHttpAdapter },
   { provide: CUSTOMER_TOKENS.DepotLedgerPort, useClass: DepotLedgerHttpAdapter },
+  { provide: CUSTOMER_TOKENS.DepotProfilePort, useClass: DepotProfileHttpAdapter },
+  { provide: CUSTOMER_TOKENS.ChurnRiskPort, useClass: ChurnRiskHttpAdapter },
   { provide: CUSTOMER_TOKENS.FavoriteRepository, useClass: FavoritePrismaRepository },
   { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
   { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },

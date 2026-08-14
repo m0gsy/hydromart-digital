@@ -89,6 +89,19 @@ export class PayrollService {
       );
     }
 
+    // D3b — a RESIGNED employee is off the payroll, but only a DATE can say how much of the
+    // period they earned, and `employmentWindow` reads nothing but `joinDate`/`exitDate`. A
+    // resignation recorded without a date used to pay the full month, every month, forever.
+    // User decision 2026-08-14: the status stops the wage — by REFUSING, not by guessing an
+    // exit day. Inventing one is the same leak wearing a date. The status alone stays valid
+    // on the employee record (it switches the login off); it is payroll that needs the date.
+    if (employee.status === 'RESIGNED' && !employee.exitDate) {
+      throw new BadRequestException(
+        'Karyawan berstatus RESIGNED tanpa tanggal keluar. Isi tanggal keluar (exitDate) ' +
+          `dulu sebelum membuat payroll ${periodMonth}.`,
+      );
+    }
+
     const { from, to } = this.monthRange(periodMonth);
     // Depot SOP daily gallon bonus. Parsed BEFORE the reads so the cross-service gallon
     // call is only paid for when a ladder is actually configured — an empty ladder (every
@@ -243,10 +256,31 @@ export class PayrollService {
     if (overtime) items.push(overtime);
 
     // DEDUCTION lines: lateness + absence, then manual rows.
+    //
+    // Days nobody showed up for, measured against the days they were EMPLOYED — never the
+    // whole month. Computed once here because BOTH fine branches below need it and they used
+    // to answer it differently: the flat branch was fixed for the D3 knock-on (a 25th-of-the
+    // month joiner fined for the first 24 days) while the tiered branch still counted the
+    // month, so the same joiner was charged Rp 400.000 the moment a depot configured
+    // `lateFineCsv`. One expression, two consumers, no way for them to drift again.
+    //
+    // D2: absence is derived by SUBTRACTION, so a status left out of the subtrahend becomes a
+    // no-show and is fined. PENDING is a day somebody DID punch for — offline and synced too
+    // late to trust the clock, or outside every geofence — and it counts as nothing until HR
+    // judges it. Fining it charged an honest employee for HR's backlog.
+    const autoAbsentDays = Math.max(
+      0,
+      window.employedDays - presentDays - leaveDays - pendingDays,
+    );
     const isDepotManager = employee.role === 'KEPALA_DEPOT';
     const fines = parseFines(this.config.lateFineCsv(isDepotManager, employee.depotId));
     if (fines) {
       // Depot SOP §2: three steps by minutes late, at the rate for this jabatan.
+      //
+      // D8, answered by HR 2026-08-13: a day past `absentAfterMinutes` is fined as "tidak
+      // absen" and the wage is still paid IN FULL, and it still counts toward the daily
+      // gallon-target bonus. They were here and they worked; the lateness is what is punished,
+      // not the day's earnings. Deliberate — do not "fix" it into a lost day or a lost bonus.
       const counts = { T1: 0, T2: 0, ABSENT: 0 };
       const tier2After = this.config.lateTier2AfterMinutes(employee.depotId);
       const absentAfter = this.config.absentAfterMinutes(employee.depotId);
@@ -256,16 +290,13 @@ export class PayrollService {
       }
       // A day nobody showed up for and a day someone showed up hours late are the same
       // thing to the SOP — one "tidak absen" fine each. They cannot overlap: an ABSENT-by-
-      // lateness day HAS an attendance row, so it is not in `absentDays()`.
-      counts.ABSENT += await this.absentDays(
-        periodMonth,
-        employee.depotId,
-        from,
-        to,
-        presentDays,
-        leaveDays,
-        pendingDays,
-      );
+      // lateness day HAS an attendance row, so it is not counted in `autoAbsentDays`.
+      //
+      // Deliberately NOT gated on MONTHLY the way the flat branch below is: under the flat
+      // rule daily-rate depot staff escaped the missed-day fine entirely, and the SOP fine is
+      // a sanction rather than a wage adjustment. Pinned by "fines a DAILY employee for
+      // calendar days nobody turned up for" in payroll.service.spec.ts.
+      counts.ABSENT += autoAbsentDays;
       const lines: [keyof typeof counts, number, string][] = [
         ['T1', fines.tier1, 'Denda telat 1'],
         ['T2', fines.tier2, 'Denda telat 2'],
@@ -290,20 +321,12 @@ export class PayrollService {
       // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
       // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
       if (employee.salaryType === 'MONTHLY') {
-        // D3 knock-on: the expectation is the days they were EMPLOYED for, not the days in
-        // the month. Counting the whole month turned a new hire's first payslip into a fine
-        // for every working day before they existed here — measured at Rp 1.000.000 on a
-        // 25th-of-the-month joiner, which is larger than the overpayment D3 fixes.
-        const absentDays = Math.max(
-          0,
-          window.employedDays - presentDays - leaveDays - pendingDays,
-        );
         const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
-        if (absentDays > 0 && absenceRate > 0) {
+        if (autoAbsentDays > 0 && absenceRate > 0) {
           items.push({
             kind: 'DEDUCTION',
-            label: `Potongan absen (${absentDays} hari)`,
-            amount: absentDays * absenceRate,
+            label: `Potongan absen (${autoAbsentDays} hari)`,
+            amount: autoAbsentDays * absenceRate,
           });
         }
       }
@@ -538,27 +561,6 @@ export class PayrollService {
     return payroll;
   }
 
-  /**
-   * Expected working days (calendar − weekly-off − holidays) minus every day already
-   * accounted for: present, on leave, or awaiting HR's decision.
-   *
-   * D2: absence is derived by subtraction, so a status left out of the subtrahend becomes a
-   * no-show and is fined. PENDING is a day somebody DID punch for — offline and synced too
-   * late to trust the clock, or outside every geofence — and the schema says it counts as
-   * nothing until HR judges it. Fining it charged an honest employee for HR's backlog.
-   */
-  private async absentDays(
-    periodMonth: string,
-    depotId: string | null,
-    from: Date,
-    to: Date,
-    presentDays: number,
-    leaveDays: number,
-    pendingDays: number,
-  ): Promise<number> {
-    const workingDays = await this.workingDays(periodMonth, depotId, from, to);
-    return Math.max(0, workingDays - presentDays - leaveDays - pendingDays);
-  }
 
   /**
    * M24-17 overtime as a single BONUS line. Returns null when nothing is owed, so a
@@ -632,7 +634,9 @@ export class PayrollService {
    * `contractEndDate` is deliberately NOT a boundary here. The schema calls it "a reminder
    * for HR, not a status change", and it is null for every open-ended employee — clamping
    * pay to it would silently stop paying someone whose renewal paperwork is late, which is
-   * a worse failure than the one this fixes. Only a recorded `exitDate` ends the wage.
+   * a worse failure than the one this fixes. Only a recorded `exitDate` ends the wage —
+   * `status: RESIGNED` without one does not shorten the window, it makes `generate` refuse
+   * (see D3b there), because a window needs a day and a status is not one.
    */
   private async employmentWindow(
     employee: Employee,

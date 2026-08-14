@@ -177,4 +177,13 @@ huddle: {
     `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(q.depotId)}&weekStart=${encodeURIComponent(q.weekStart)}`,
   upsert: '/depots/api/v1/huddle-notes', // PUT
 },
+
+// Delivery-service business tunables. The one that matters to HQ is `slaMinutes`: it is
+// what `onTime` is computed against — and therefore what courier commission turns on — so
+// the HQ SLA screen edits THIS rather than a second threshold nothing reads.
+deliverySettings: {
+  schema: (depotId?: string | null) =>
+    `/deliveries/api/v1/settings/schema${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+  put: '/deliveries/api/v1/settings',
+},
 } as const;

@@ -52,6 +52,14 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  async receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number> {
+    const agg = await this.prisma.purchaseOrder.aggregate({
+      where: { depotId, receivedAt: { gte: from, lt: to } },
+      _sum: { totalIdr: true },
+    });
+    return agg._sum.totalIdr ?? 0;
+  }
+
   async findById(id: string): Promise<PurchaseOrder | null> {
     const row = await this.prisma.purchaseOrder.findUnique({ where: { id } });
     return row ? this.toRecord(row) : null;

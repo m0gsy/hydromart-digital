@@ -9,6 +9,7 @@ import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, NearbyDepot, Page } from '@/lib/types';
+import { LoadError } from '@/components/ui';
 
 // Delivery-location control for the Home hero. Two ways to set a location:
 // browser geolocation ("use my location"), or pick a depot's city from the
@@ -23,7 +24,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   // Public depot list for the manual picker (loaded only when the panel opens).
-  const { data: depots } = useAsync<Page<DepotAdmin>>(
+  const { data: depots, error: depotsError, reload: reloadDepots } = useAsync<Page<DepotAdmin>>(
     () => (open ? api.get(endpoints.depots.browse({ limit: 50 })) : Promise.resolve(null as never)),
     [open],
   );
@@ -127,6 +128,14 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
                   </button>
                 </li>
               ))}
+              {depotsError && (
+                /* An unread list leaves the picker silently empty, so the only way left to
+                   set a location is geolocation — which is exactly what a shopper who
+                   declined the permission cannot use. */
+                <li className="px-3 py-2">
+                  <LoadError onRetry={reloadDepots} />
+                </li>
+              )}
               {depots && depots.items.length === 0 && (
                 <li className="px-3 py-2 text-sm text-muted">{t('home.location.noDepots')}</li>
               )}
