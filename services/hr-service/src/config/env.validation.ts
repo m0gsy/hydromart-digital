@@ -38,6 +38,9 @@ export const envValidationSchema = Joi.object({
   // Empty = keep the flat HR_LATE_DEDUCTION_IDR. Boundaries are minutes after the shift start.
   HR_LATE_FINE_STAFF: Joi.string().allow('').default(''),
   HR_LATE_FINE_MANAGER: Joi.string().allow('').default(''),
+  // The TER table (PMK 168/2023) as JSON. Empty = not configured, which is the shipped
+  // state: statutory.ts then runs the annualised progressive method, unchanged.
+  HR_PPH21_TER_TABLE_JSON: Joi.string().allow('').default(''),
   HR_LATE_TIER2_AFTER_MINUTES: Joi.number().integer().min(0).max(1440).default(0),
   HR_ABSENT_AFTER_MINUTES: Joi.number().integer().min(0).max(1440).default(0),
   // Daily gallon-target bonus ladder (depot SOP): "gallons:rupiah" CSV, e.g.

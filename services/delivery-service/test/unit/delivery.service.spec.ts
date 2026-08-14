@@ -53,6 +53,7 @@ describe('DeliveryService', () => {
   let storage: { put: jest.Mock; remove: jest.Mock };
   /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
   let makeStorageless: () => DeliveryService;
+  let makeWithNotifier: (notifier: unknown) => DeliveryService;
   let events: { publish: jest.Mock };
   let payments: FakeOrderPayment;
   let urbanSpeedKmph: number;
@@ -71,6 +72,21 @@ describe('DeliveryService', () => {
     storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
     makeStorageless = () =>
       new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots, payments);
+    // Same wiring as `service`, plus a customer-notification double — built here because
+    // `config` and `depots` are locals of this setup.
+    makeWithNotifier = (notifier) =>
+      new DeliveryService(
+        repo,
+        orders,
+        payout,
+        shifts,
+        config,
+        depots,
+        payments,
+        storage as never,
+        events as never,
+        notifier as never,
+      );
     events = { publish: jest.fn().mockResolvedValue(undefined) };
     service = new DeliveryService(
       repo,
@@ -177,6 +193,71 @@ describe('DeliveryService', () => {
       rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
     });
     expect(rescheduled.status).toBe(DeliveryStatus.RESCHEDULED);
+  });
+
+  /**
+   * The customer is the party this change is about, and for a long time they were the only
+   * one not told: the courier picked a new slot and the code logged
+   * "customer notice pending (slice 6 crm)".
+   */
+  describe('rescheduling tells the customer', () => {
+    const notify = jest.fn().mockResolvedValue(undefined);
+    let withNotifier: DeliveryService;
+
+    beforeEach(() => {
+      notify.mockClear();
+      withNotifier = makeWithNotifier({ notify });
+    });
+
+    it('sends the new slot to the recipient phone', async () => {
+      const d = await withNotifier.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-9',
+          driverId: driver,
+          destinationAddress: 'Jl. Merdeka 10',
+          recipientPhone: '0812-3456-7890',
+        },
+        AUTH,
+      );
+      await withNotifier.pickup(driver, d.id, AUTH);
+      await withNotifier.reschedule(driver, d.id, {
+        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+        slot: 'Pagi (09:00–12:00)',
+      });
+      expect(notify).toHaveBeenCalledWith(
+        'DELIVERY_RESCHEDULED',
+        '0812-3456-7890',
+        expect.objectContaining({ orderNumber: 'HM-9', slot: 'Pagi (09:00–12:00)' }),
+        null,
+      );
+    });
+
+    // A counter sale has nobody to call. Sending crm an empty string would be a 400 the
+    // adapter swallows — silence that looks like success.
+    it('says so rather than calling crm when the delivery has no phone', async () => {
+      const d = await withNotifier.assign(
+        staff,
+        { orderId: randomUUID(), orderNumber: 'HM-10', driverId: driver, destinationAddress: 'X' },
+        AUTH,
+      );
+      await withNotifier.pickup(driver, d.id, AUTH);
+      await withNotifier.reschedule(driver, d.id, {
+        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+      });
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    // No adapter wired (a boot with crm disabled) must not break a reschedule.
+    it('reschedules anyway when no notifier is configured', async () => {
+      const d = await assign();
+      await service.pickup(driver, d.id, AUTH);
+      const out = await service.reschedule(driver, d.id, {
+        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+      });
+      expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
+    });
   });
 
   it('assigns a driver and advances the order to DRIVER_ASSIGNED', async () => {

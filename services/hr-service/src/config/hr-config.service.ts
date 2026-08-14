@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SettingsCache } from '@hydromart/platform';
 
-import { StatutoryRates } from '../domain/statutory';
+import { StatutoryRates, TerTable, assertTerTable } from '../domain/statutory';
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
 /**
@@ -11,6 +11,8 @@ import { SETTING_DEF_BY_KEY } from './setting-defs';
  */
 @Injectable()
 export class HrConfigService {
+  private readonly logger = new Logger(HrConfigService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly settings: SettingsCache,
@@ -121,6 +123,40 @@ export class HrConfigService {
       occupationalCostCapIdr: idr('occupationalCostCapIdr', 'HR_OCCUPATIONAL_COST_CAP_IDR', '500000'),
       noNpwpSurchargePct: idr('noNpwpSurchargePct', 'HR_NO_NPWP_SURCHARGE_PCT', '20'),
     };
+  }
+
+  /**
+   * The TER table for this depot, or `{}` when none is loaded.
+   *
+   * Parsed and VALIDATED on every read rather than trusted: the value is typed into a
+   * settings screen, and a table that is half-typed or has percentages as whole numbers
+   * would withhold the wrong amount from every payslip it touched. A refused table logs
+   * the reason and behaves as no table at all, which is the state the service ships in.
+   *
+   * `upToIdr: null` in the JSON is the open-ended top band — JSON has no Infinity.
+   */
+  pph21TerTable(depotId: string | null = null): TerTable {
+    const raw = this.tunableStr('pph21TerTableJson', this.config.get<string>('HR_PPH21_TER_TABLE_JSON', ''), depotId);
+    if (!raw.trim()) return {};
+    let parsed: TerTable;
+    try {
+      const json = JSON.parse(raw) as Record<string, { upToIdr: number | null; rate: number }[]>;
+      parsed = Object.fromEntries(
+        Object.entries(json).map(([category, bands]) => [
+          category,
+          bands.map((b) => ({ upToIdr: b.upToIdr ?? Number.POSITIVE_INFINITY, rate: b.rate })),
+        ]),
+      ) as TerTable;
+    } catch (error) {
+      this.logger.error(`PPh 21 TER table ignored — not valid JSON: ${(error as Error).message}`);
+      return {};
+    }
+    const problem = assertTerTable(parsed);
+    if (problem) {
+      this.logger.error(`PPh 21 TER table ignored — ${problem}`);
+      return {};
+    }
+    return parsed;
   }
 
   /** Weekly-off days and national holidays share this rate (M24-17). */

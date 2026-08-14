@@ -22,6 +22,21 @@ import {
 const user: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 
 class FakePayrollRepo implements PayrollRepository {
+
+  /**
+   * December's reconciliation reads the year off the employee's earlier payslips. A fake
+   * just states the answer: tests that care set `ytd`, and everything else gets a year
+   * with nothing in it, which is what a first-December employee actually has.
+   */
+  ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0 };
+  async pph21YearToDate(): Promise<{
+    grossIdr: number;
+    bpjsIdr: number;
+    withheldIdr: number;
+    months: number;
+  }> {
+    return this.ytd;
+  }
   existing: PayrollWithItems | null = null;
   byId: PayrollWithItems | null = null;
   lastWrite?: PayrollWrite;
@@ -133,6 +148,7 @@ function build(opts: {
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the
     // lawful numbers rather than a convenient fiction.
+    pph21TerTable: () => ({}),
     statutoryRates: () => ({
       healthEmployeePct: 1,
       healthCeilingIdr: 12_000_000,
@@ -669,5 +685,69 @@ describe('PayrollService.list depot scoping (D1)', () => {
     const { repo, svc } = build({ employee: {} });
     await svc.list({ sub: 'hq', role: 'HEAD_OFFICE' as never, phone: null, depotId: null }, page);
     expect(repo.lastListFilter?.depotIds).toBeUndefined();
+  });
+});
+
+/**
+ * December is the month that makes the other eleven honest. The engine must switch method
+ * on the period alone — no flag, no setting — and it must never produce a negative
+ * deduction, because an employer cannot refund tax through payroll.
+ */
+describe('PPh 21 in December', () => {
+  it('reconciles against the year already withheld instead of estimating again', async () => {
+    const { svc, repo } = build({
+      employee: {
+        salaryType: 'MONTHLY' as const,
+        monthlyRate: 20_000_000 as never,
+        ptkpStatus: 'TK0',
+        npwp: '123',
+        bpjsKes: '1',
+        bpjsTk: '1',
+      },
+      summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    });
+    repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 1_000_000, months: 11 };
+    await svc.generate(user, 'e1', '2026-12');
+    const tax = repo.lastWrite?.items.find((i) => i.label === 'PPh 21');
+    // A year of Rp 20jt/month owes far more than Rp 1jt, so December collects the gap —
+    // which is much larger than any single ordinary month.
+    expect(Number(tax?.amount ?? 0)).toBeGreaterThan(10_000_000);
+  });
+
+  it('withholds nothing in December when the year already took enough', async () => {
+    const { svc, repo } = build({
+      employee: {
+        salaryType: 'MONTHLY' as const,
+        monthlyRate: 20_000_000 as never,
+        ptkpStatus: 'TK0',
+        npwp: '123',
+        bpjsKes: '1',
+        bpjsTk: '1',
+      },
+      summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    });
+    repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 900_000_000, months: 11 };
+    await svc.generate(user, 'e1', '2026-12');
+    expect(repo.lastWrite?.items.some((i) => i.label === 'PPh 21')).toBe(false);
+  });
+
+  it('leaves every other month on the monthly method', async () => {
+    const { svc, repo } = build({
+      employee: {
+        salaryType: 'MONTHLY' as const,
+        monthlyRate: 20_000_000 as never,
+        ptkpStatus: 'TK0',
+        npwp: '123',
+        bpjsKes: '1',
+        bpjsTk: '1',
+      },
+      summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    });
+    repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 0, months: 11 };
+    await svc.generate(user, 'e1', '2026-11');
+    const tax = Number(repo.lastWrite?.items.find((i) => i.label === 'PPh 21')?.amount ?? 0);
+    // November ignores the year to date entirely: it is one month's estimate.
+    expect(tax).toBeGreaterThan(0);
+    expect(tax).toBeLessThan(5_000_000);
   });
 });

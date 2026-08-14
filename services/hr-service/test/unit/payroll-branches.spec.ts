@@ -55,6 +55,21 @@ import { SalesPort } from '../../src/application/ports/sales.port';
 const user: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 
 class FakePayrollRepo implements PayrollRepository {
+
+  /**
+   * December's reconciliation reads the year off the employee's earlier payslips. A fake
+   * just states the answer: tests that care set `ytd`, and everything else gets a year
+   * with nothing in it, which is what a first-December employee actually has.
+   */
+  ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0 };
+  async pph21YearToDate(): Promise<{
+    grossIdr: number;
+    bpjsIdr: number;
+    withheldIdr: number;
+    months: number;
+  }> {
+    return this.ytd;
+  }
   byId: PayrollWithItems | null = null;
   lastWrite?: PayrollWrite;
   lastListFilter?: unknown;
@@ -151,6 +166,7 @@ function build(opts: {
     // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
     // existing assertions are untouched — while a test that DOES enrol someone gets the
     // lawful numbers rather than a convenient fiction.
+    pph21TerTable: () => ({}),
     statutoryRates: () => ({
       healthEmployeePct: 1,
       healthCeilingIdr: 12_000_000,

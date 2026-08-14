@@ -34,6 +34,7 @@ import {
   DeliveryTimestamps,
   ProofRecord,
 } from '../ports/delivery.repository';
+import { CustomerNotificationPort } from '../ports/customer-notification.port';
 import { OrderAdvanceMeta, OrderCoordinationPort } from '../ports/order-coordination.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DepotLocationPort } from '../ports/depot-location.port';
@@ -124,6 +125,12 @@ export class DeliveryService {
     @Optional()
     @Inject(DELIVERY_TOKENS.EventPublisher)
     private readonly events?: EventPublisherPort,
+    // Optional for the same reason the publisher is: a test double that does not care
+    // about notifications should not have to provide one. A missing adapter means the
+    // customer is not told, and that is said out loud below rather than assumed.
+    @Optional()
+    @Inject(DELIVERY_TOKENS.CustomerNotification)
+    private readonly customerNotifications?: CustomerNotificationPort,
   ) {}
 
   /**
@@ -445,12 +452,53 @@ export class DeliveryService {
     // the order on the abandoned attempt's status (ON_DELIVERY etc.) pinned it there: the
     // re-assignment could not advance it and the order could never be delivered.
     await this.advanceOrder(delivery.orderId, 'PREPARING', input.authorization ?? '');
-    // ponytail: best-effort customer notice, logged for now. The real crm push
-    // (customer notification feed) is wired in slice 6 when crm plumbing lands.
-    this.logger.log(
-      `Delivery ${id} rescheduled to ${input.rescheduledFor.toISOString()} — customer notice pending (slice 6 crm)`,
-    );
+    // The person waiting at home is the one this change is about, and for a long time
+    // they were the only party not told: the courier picked a new slot, the order went
+    // back to the queue, and this line logged "notice pending". crm's internal endpoint
+    // has been carrying order, depot, promo, hr and auth notifications for months.
+    await this.notifyRescheduled(delivery, input);
     return updated;
+  }
+
+  /**
+   * Tell the customer their delivery moved. Fail-open at every step, because the
+   * reschedule is already committed: no adapter, no phone on the delivery, or a crm
+   * error each log why and return.
+   *
+   * `recipientPhone` is nullable — a walk-in counter sale has no one to call — so the
+   * absence is reported as itself rather than sent to crm as an empty string, which crm
+   * would 400 and the adapter would swallow.
+   *
+   * `customerId` is not on the delivery record, so the notification goes out by phone with
+   * a null owner: it reaches WhatsApp but does not thread into that customer's in-app
+   * feed. Threading it needs the id snapshotted onto the delivery at assignment — a
+   * migration, and a separate change from telling people their delivery moved.
+   */
+  private async notifyRescheduled(
+    delivery: { id: string; orderNumber: string; recipientPhone: string | null; customerId?: string | null },
+    input: { rescheduledFor: Date; slot?: string | null; note?: string | null },
+  ): Promise<void> {
+    if (!this.customerNotifications) {
+      this.logger.warn(`Delivery ${delivery.id} rescheduled — no notification adapter configured`);
+      return;
+    }
+    if (!delivery.recipientPhone) {
+      this.logger.warn(
+        `Delivery ${delivery.id} rescheduled — no recipient phone on the delivery, customer not told`,
+      );
+      return;
+    }
+    await this.customerNotifications.notify(
+      'DELIVERY_RESCHEDULED',
+      delivery.recipientPhone,
+      {
+        orderNumber: delivery.orderNumber,
+        rescheduledFor: input.rescheduledFor.toISOString(),
+        slot: input.slot ?? '',
+        note: input.note ?? '',
+      },
+      delivery.customerId ?? null,
+    );
   }
 
   private noShowPolicy(depotId: string | null): NoShowPolicy {

@@ -14,14 +14,18 @@
 //    time of writing, and they are documented in config/setting-defs.ts next to their
 //    legal source.
 //
-// 2. The monthly PPh 21 figure here is the ANNUALISED PROGRESSIVE estimate (annualise the
-//    month, subtract biaya jabatan, employee BPJS and PTKP, apply the UU HPP Article 17
-//    brackets, divide by twelve) — not the TER table method PMK 168/2023 introduced for
-//    monthly withholding from 2024. The two reach the same annual liability, which is what
-//    the December reconciliation settles against; they differ month to month for someone
-//    whose pay varies. This is a stated limitation, not an oversight: implementing TER
-//    means shipping three bracket tables that must be exactly right, and a wrong table is
-//    worse than a documented approximation. See ANNUAL_RECONCILIATION_TODO below.
+// 2. Monthly PPh 21 is computed by the TER table (PMK 168/2023) when one is loaded, and by
+//    the ANNUALISED PROGRESSIVE estimate when it is not. Both reach the same annual
+//    liability — which December now reconciles against — but they differ month to month
+//    for someone whose pay varies, and TER is the method the regulation requires for
+//    monthly withholding from 2024.
+//
+//    The table itself is CONFIGURATION, like every other number in this file, and ships
+//    EMPTY. Its rates are a legal document, not a constant to be recalled from memory: a
+//    wrong rate takes the wrong amount off somebody's pay, every month, silently. An
+//    accountant loads the three categories once from the PMK; `assertTerTable` refuses a
+//    partial or unsorted one; and until that happens the annualised method runs exactly as
+//    it did before, so nobody's payslip moves without that deliberate act.
 
 /** PTKP status codes, mirroring the Prisma enum. TK = single, K = married, digit = dependants. */
 export type PtkpCode = 'TK0' | 'TK1' | 'TK2' | 'TK3' | 'K0' | 'K1' | 'K2' | 'K3';
@@ -76,13 +80,86 @@ export const PPH21_BRACKETS: readonly { upTo: number; rate: number }[] = [
 ];
 
 /**
- * Known gap, deliberately named rather than hidden: December's annual reconciliation
- * (PPh 21 terutang for the year minus what was already withheld) is not computed. It
- * needs year-to-date withholding per employee, which this service does not yet keep.
- * Until it does, an employee whose pay varied over the year will be a little over- or
- * under-withheld and the difference settles at their annual filing.
+ * December's annual reconciliation IS computed now — `pph21December` below — against the
+ * year-to-date figures `pph21_withholding` accumulates. The flag stays as `false` so a
+ * reader who followed a reference to it lands on the answer rather than on nothing.
  */
-export const ANNUAL_RECONCILIATION_TODO = true;
+export const ANNUAL_RECONCILIATION_TODO = false;
+
+/**
+ * TER category. PMK 168/2023 sorts employees into three by PTKP status, then reads a
+ * monthly rate off that category's table by gross.
+ *
+ * A: TK/0, TK/1, K/0 · B: TK/2, TK/3, K/1, K/2 · C: K/3.
+ */
+export type TerCategory = 'A' | 'B' | 'C';
+
+const TER_CATEGORY: Record<PtkpCode, TerCategory> = {
+  TK0: 'A',
+  TK1: 'A',
+  K0: 'A',
+  TK2: 'B',
+  TK3: 'B',
+  K1: 'B',
+  K2: 'B',
+  K3: 'C',
+};
+
+export const terCategoryFor = (ptkp: PtkpCode): TerCategory => TER_CATEGORY[ptkp];
+
+/**
+ * One row of a TER table: everything up to and including `upToIdr` of MONTHLY gross is
+ * withheld at `rate` (a fraction, so 0.0025 = 0.25%). The last row must be open-ended.
+ */
+export interface TerBand {
+  upToIdr: number;
+  rate: number;
+}
+
+export type TerTable = Partial<Record<TerCategory, readonly TerBand[]>>;
+
+/**
+ * Refuse a table that would withhold the wrong amount rather than half-apply it.
+ *
+ * A partially-typed table is the dangerous case: category A loaded and B missing means
+ * every married employee with two dependants silently falls back to a different method
+ * mid-year. Ascending order matters because the lookup takes the first band that fits, and
+ * an open-ended last row is what makes a high earner computable at all.
+ *
+ * Returns the reason it refused, or null when the table is usable.
+ */
+export function assertTerTable(table: TerTable): string | null {
+  const present = (['A', 'B', 'C'] as const).filter((c) => (table[c]?.length ?? 0) > 0);
+  if (present.length === 0) return null; // not configured at all — a valid state, not an error
+  if (present.length < 3) {
+    const missing = (['A', 'B', 'C'] as const).filter((c) => !present.includes(c));
+    return `TER table is incomplete: category ${missing.join(', ')} has no bands`;
+  }
+  for (const category of present) {
+    const bands = table[category] ?? [];
+    let previous = -1;
+    for (const band of bands) {
+      if (!(band.upToIdr > previous)) return `TER category ${category} bands are not ascending`;
+      if (band.rate < 0 || band.rate > 1) {
+        return `TER category ${category} has a rate of ${band.rate} — rates are fractions, so 0.05 is 5%`;
+      }
+      previous = band.upToIdr;
+    }
+    const last = bands[bands.length - 1];
+    if (!last || Number.isFinite(last.upToIdr)) {
+      return `TER category ${category} has no open-ended top band, so a high earner cannot be computed`;
+    }
+  }
+  return null;
+}
+
+/** The monthly rate for `grossIdr` in `bands` — the first band it fits under. */
+export function terRate(grossIdr: number, bands: readonly TerBand[]): number {
+  for (const band of bands) {
+    if (grossIdr <= band.upToIdr) return band.rate;
+  }
+  return bands.length ? bands[bands.length - 1].rate : 0;
+}
 
 export interface StatutoryInput {
   /** Monthly gross: base + allowances. The BPJS and PPh 21 base. */
@@ -179,12 +256,28 @@ export function pph21Monthly(
   input: StatutoryInput,
   bpjsEmployeeMonthlyIdr: number,
   rates: StatutoryRates,
+  /**
+   * The TER table, when one is loaded. Present and valid = the method PMK 168/2023
+   * requires; absent = the annualised progressive estimate below, unchanged.
+   */
+  ter?: TerTable,
 ): Pph21Result {
   // No PTKP status on file means we cannot compute a lawful figure. Withholding an
   // invented amount from someone's pay is worse than withholding none: it takes money we
   // cannot justify. The gap surfaces as a missing payslip line, and employee.service
   // already captures ptkpStatus — this is a data-entry gap, not a silent zero.
   if (!input.ptkpStatus) return { monthlyIdr: 0, annualTaxableIdr: 0 };
+
+  // TER first when configured: a flat rate on the month's gross, read off the category's
+  // table. No PTKP subtraction here — the table already carries it, which is the whole
+  // point of the method. `annualTaxableIdr` stays 0 because TER computes no such figure;
+  // December's reconciliation is what produces the annual number.
+  const bands = ter?.[terCategoryFor(input.ptkpStatus)];
+  if (bands?.length) {
+    let monthly = input.grossIdr * terRate(input.grossIdr, bands);
+    if (!input.hasNpwp) monthly *= 1 + rates.noNpwpSurchargePct / 100;
+    return { monthlyIdr: rupiah(monthly), annualTaxableIdr: 0 };
+  }
 
   const annualGross = input.grossIdr * 12;
   const occupationalCost = Math.min(
@@ -212,11 +305,93 @@ export function pph21Monthly(
 export function statutoryDeductions(
   input: StatutoryInput,
   rates: StatutoryRates,
+  ter?: TerTable,
 ): StatutoryDeduction[] {
   const bpjs = bpjsEmployeeDeductions(input, rates);
   const bpjsTotal = bpjs.reduce((sum, d) => sum + d.amountIdr, 0);
-  const tax = pph21Monthly(input, bpjsTotal, rates);
+  const tax = pph21Monthly(input, bpjsTotal, rates, ter);
   return tax.monthlyIdr > 0
     ? [...bpjs, { label: 'PPh 21', amountIdr: tax.monthlyIdr }]
     : bpjs;
+}
+
+/** What the year has already taken off this employee, before December is computed. */
+export interface Pph21YearToDate {
+  /** Gross paid in months 1..11 of the year (base + allowances, the PPh 21 base). */
+  grossIdr: number;
+  /** Employee BPJS withheld across those months — deductible against the annual tax. */
+  bpjsIdr: number;
+  /** PPh 21 already withheld across those months. */
+  withheldIdr: number;
+  /** Months already paid. 11 is a full year of prior months; fewer means a mid-year join. */
+  months: number;
+}
+
+export interface Pph21DecemberResult {
+  /** What December must withhold — never negative. */
+  monthlyIdr: number;
+  /** The year's total liability, for the payslip line and the 1721-A1. */
+  annualTaxIdr: number;
+  /** Annual taxable income (PKP) the liability was computed on. */
+  annualTaxableIdr: number;
+  /**
+   * Over-withholding found: the year took more than the year owed. December cannot hand
+   * money back through payroll — a refund is claimed on the employee's annual filing — so
+   * this is reported rather than netted, and December withholds zero.
+   */
+  overWithheldIdr: number;
+}
+
+/**
+ * December's reconciliation: the year's actual liability, minus everything already taken.
+ *
+ * This is the month that makes the other eleven honest. Whichever method ran monthly — TER
+ * or the annualised estimate — its figures were an estimate against a year that had not
+ * happened yet: a raise, a bonus month, a mid-year join, an unpaid month. December is
+ * computed on what the year ACTUALLY was: real gross, real BPJS, real PTKP, the Article 17
+ * brackets, then minus what was already withheld.
+ *
+ * Biaya jabatan is capped MONTHLY by the regulation, so it is accumulated per month rather
+ * than taken as 5% of the annual gross — for anyone above Rp 10.000.000/month those are
+ * different numbers.
+ *
+ * Returns zero, never a negative: an employer cannot refund tax through payroll. An
+ * over-withheld employee claims it on their annual filing, and `overWithheldIdr` is what
+ * tells them (and the 1721-A1) how much.
+ */
+export function pph21December(
+  input: StatutoryInput,
+  ytd: Pph21YearToDate,
+  decemberBpjsIdr: number,
+  rates: StatutoryRates,
+): Pph21DecemberResult {
+  const zero = { monthlyIdr: 0, annualTaxIdr: 0, annualTaxableIdr: 0, overWithheldIdr: 0 };
+  if (!input.ptkpStatus) return zero;
+
+  const annualGross = ytd.grossIdr + input.grossIdr;
+  const monthlyCost = (gross: number): number =>
+    Math.min((gross * rates.occupationalCostPct) / 100, rates.occupationalCostCapIdr);
+  // Prior months are averaged: the accumulator keeps their total, not each month's gross,
+  // and the cap is monthly. Averaging is exact when pay did not vary and is the closest
+  // honest figure when it did — the alternative is storing twelve rows to save one cap.
+  const priorCost = ytd.months > 0 ? monthlyCost(ytd.grossIdr / ytd.months) * ytd.months : 0;
+  const annualCost = priorCost + monthlyCost(input.grossIdr);
+
+  const annualNet = annualGross - annualCost - (ytd.bpjsIdr + decemberBpjsIdr);
+  const taxable = annualNet - PTKP_ANNUAL_IDR[input.ptkpStatus];
+  if (taxable <= 0) {
+    return { ...zero, overWithheldIdr: rupiah(ytd.withheldIdr) };
+  }
+
+  const rounded = Math.floor(taxable / 1000) * 1000;
+  let annualTax = progressiveTax(rounded);
+  if (!input.hasNpwp) annualTax *= 1 + rates.noNpwpSurchargePct / 100;
+
+  const due = annualTax - ytd.withheldIdr;
+  return {
+    monthlyIdr: rupiah(Math.max(0, due)),
+    annualTaxIdr: rupiah(annualTax),
+    annualTaxableIdr: rounded,
+    overWithheldIdr: rupiah(Math.max(0, -due)),
+  };
 }

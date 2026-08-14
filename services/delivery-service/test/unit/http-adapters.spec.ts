@@ -1,6 +1,7 @@
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
 import { DepotLocationHttpAdapter } from '../../src/infrastructure/http/depot-location.http.adapter';
+import { CustomerNotificationHttpAdapter } from '../../src/infrastructure/http/customer-notification.http.adapter';
 import { OpsNotifierHttpAdapter } from '../../src/infrastructure/http/ops-notifier.http.adapter';
 import { EventPublisherHttpAdapter } from '../../src/infrastructure/http/event-publisher.http.adapter';
 import { CashCollectionHttpAdapter } from '../../src/infrastructure/http/cash-collection.http.adapter';
@@ -525,5 +526,68 @@ describe('OrderPaymentHttpAdapter', () => {
     await expect(
       new OrderPaymentHttpAdapter(makeConfig({ paymentServiceUrl: '' })).forOrder(ORDER),
     ).rejects.toThrow(/INTERNAL_SERVICE_KEY/);
+  });
+});
+
+/**
+ * The customer notification for a reschedule. Fail-open in every direction, and each
+ * reason logged by name — a notification that silently never goes out is how somebody
+ * stands at their door waiting for a delivery that was moved.
+ */
+describe('CustomerNotificationHttpAdapter', () => {
+  const vars = { orderNumber: 'HM-1', rescheduledFor: '2026-08-02T02:00:00.000Z' };
+
+  it('posts to crm with the internal key and a normalised phone', async () => {
+    fetchMock.mockResolvedValue({ ok: true } as never);
+    await new CustomerNotificationHttpAdapter(makeConfig()).notify(
+      'DELIVERY_RESCHEDULED',
+      '0812-3456-7890',
+      vars,
+      'cust-1',
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://crm:3012/api/v1/notifications/internal');
+    expect((init.headers as Record<string, string>)['x-internal-key']).toBe(KEY);
+    // The separators a human types are stripped; crm rejects anything else.
+    expect(JSON.parse(init.body as string)).toEqual({
+      event: 'DELIVERY_RESCHEDULED',
+      phone: '081234567890',
+      customerId: 'cust-1',
+      vars,
+    });
+  });
+
+  it('says so and sends nothing when crm is not configured', async () => {
+    await new CustomerNotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify(
+      'DELIVERY_RESCHEDULED',
+      '08123',
+      vars,
+      null,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a phone crm would reject rather than posting it', async () => {
+    await new CustomerNotificationHttpAdapter(makeConfig()).notify(
+      'DELIVERY_RESCHEDULED',
+      'hubungi kantor',
+      vars,
+      null,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('swallows a non-2xx — the reschedule is already committed', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 } as never);
+    await expect(
+      new CustomerNotificationHttpAdapter(makeConfig()).notify('X', '08123456789', vars, null),
+    ).resolves.toBeUndefined();
+  });
+
+  it('swallows a network failure too', async () => {
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    await expect(
+      new CustomerNotificationHttpAdapter(makeConfig()).notify('X', '08123456789', vars, null),
+    ).resolves.toBeUndefined();
   });
 });

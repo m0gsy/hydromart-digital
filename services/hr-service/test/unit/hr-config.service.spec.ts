@@ -171,3 +171,53 @@ describe('HrConfigService', () => {
     expect(svc.corsOrigins).toEqual(['http://a.com', 'http://b.com']);
   });
 });
+
+/**
+ * The TER table is typed into a settings screen, so it is parsed and validated on every
+ * read rather than trusted. A refused table behaves as no table at all — which keeps the
+ * annualised method running — and says why in the log, because silently withholding by a
+ * different method is how a payslip goes wrong for a year.
+ */
+describe('PPh 21 TER table', () => {
+  const table = JSON.stringify({
+    A: [{ upToIdr: 6_000_000, rate: 0 }, { upToIdr: null, rate: 0.02 }],
+    B: [{ upToIdr: 7_000_000, rate: 0 }, { upToIdr: null, rate: 0.01 }],
+    C: [{ upToIdr: null, rate: 0.005 }],
+  });
+
+  it('is empty when nothing is configured, which is the shipped state', async () => {
+    const svc = new HrConfigService(config(), await cacheWith([]));
+    expect(svc.pph21TerTable()).toEqual({});
+  });
+
+  it('parses a complete table and turns the open-ended top band into Infinity', async () => {
+    const svc = new HrConfigService(config({ HR_PPH21_TER_TABLE_JSON: table }), await cacheWith([]));
+    const parsed = svc.pph21TerTable();
+    expect(parsed.A?.[1]).toEqual({ upToIdr: Number.POSITIVE_INFINITY, rate: 0.02 });
+    expect(parsed.C).toHaveLength(1);
+  });
+
+  it('ignores a table that is not valid JSON', async () => {
+    const svc = new HrConfigService(config({ HR_PPH21_TER_TABLE_JSON: '{oops' }), await cacheWith([]));
+    expect(svc.pph21TerTable()).toEqual({});
+  });
+
+  // Half a table is the dangerous case: it would change method for some employees only.
+  it('ignores a table that fails validation', async () => {
+    const partial = JSON.stringify({ A: [{ upToIdr: null, rate: 0.02 }] });
+    const svc = new HrConfigService(
+      config({ HR_PPH21_TER_TABLE_JSON: partial }),
+      await cacheWith([]),
+    );
+    expect(svc.pph21TerTable()).toEqual({});
+  });
+
+  it('takes a per-depot table, like every other statutory number', async () => {
+    const svc = new HrConfigService(
+      config(),
+      await cacheWith([{ scope: 'DEPOT', depotId, key: 'pph21TerTableJson', value: table }]),
+    );
+    expect(svc.pph21TerTable(depotId).A).toHaveLength(2);
+    expect(svc.pph21TerTable()).toEqual({});
+  });
+});
