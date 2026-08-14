@@ -21,7 +21,7 @@
  * Exit 0 = every client path resolves; 1 = one does not.
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 const ALLOWLIST = 'scripts/endpoint-contract-allowlist.json';
 const GATEWAY_CONFIG = 'services/gateway-service/src/config/gateway-config.service.ts';
@@ -89,13 +89,22 @@ const splitPath = (p) =>
 
 /**
  * Every `/segment/api/v1/…` literal the client can build. Template placeholders become
- * `:`, and a query string is dropped — the check is about the route, not its filters.
+ * `:`, and a query string is dropped HERE — a filter is not a route segment. The filters
+ * are checked separately, by name, in `queryParamFindings` below.
  */
 function clientPaths() {
   const found = new Map(); // normalised path -> source file
-  for (const entry of readdirSync(CLIENT_DIR)) {
-    if (!entry.endsWith('.ts')) continue;
-    const file = join(CLIENT_DIR, entry);
+  // The endpoints table AND everywhere else. A URL built by hand in a page bypasses the
+  // table entirely, so scanning only the table measured the paths that were already the
+  // most disciplined ones. `lib/endpoints/*.ts` still comes first so its file is the one
+  // reported when the same path appears twice.
+  const files = [
+    ...readdirSync(CLIENT_DIR)
+      .filter((e) => e.endsWith('.ts'))
+      .map((e) => join(CLIENT_DIR, e)),
+    ...tsFiles('apps/web/src').filter((f) => !f.includes(`endpoints${sep}`)),
+  ];
+  for (const file of files) {
     for (const [, raw] of readFileSync(file, 'utf8').matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi)) {
       // `/${id}` is a path parameter. A placeholder NOT preceded by a slash is a
       // suffix, not a segment — `products${productQuery(q)}` appends a query string,
@@ -207,6 +216,69 @@ for (const [path, file] of clientPaths()) {
   }
 }
 
+/**
+ * Query parameters the client sends by NAME, checked against the controller that serves
+ * the route. The path check deliberately drops the query — a filter is not a route — but a
+ * param the server never reads is a filter that silently does nothing: the screen shows
+ * "depot: Dago" and the list is every depot.
+ *
+ * Only literal `name=` pairs are read; `?${p.toString()}` is built at runtime and is
+ * counted as unreadable rather than guessed at. A name the controller mentions ANYWHERE in
+ * its file counts as declared — DTO classes live beside their controllers, and demanding a
+ * precise `@Query('name')` would fail every route that takes a DTO object.
+ */
+function queryParamFindings(segments, routeCache) {
+  const findings = [];
+  let unreadable = 0;
+  for (const entry of readdirSync(CLIENT_DIR)) {
+    if (!entry.endsWith('.ts')) continue;
+    const text = readFileSync(join(CLIENT_DIR, entry), 'utf8');
+    for (const [, raw] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*\?[^'"`\s]*)/gi)) {
+      const [pathPart, queryPart] = raw.split('?');
+      const names = [...queryPart.matchAll(/(?:^|&)([a-zA-Z][a-zA-Z0-9_]*)=/g)].map((m) => m[1]);
+      if (names.length === 0) {
+        unreadable += 1;
+        continue;
+      }
+      const parts = pathPart
+        .replace(/\/\$\{[^${}]*\}/g, '/:')
+        .replace(/\$\{[^${}]*\}/g, '')
+        .split('/')
+        .filter(Boolean);
+      const service = segments[parts[0]];
+      if (!service) continue;
+      if (!routeCache.has(service)) routeCache.set(service, declaredRoutes(service));
+      const src = serviceText(service);
+      for (const name of names) {
+        if (!new RegExp(`\\b${name}\\b`).test(src)) {
+          findings.push(`${raw.split('?')[0]}?${name}= — ${service} never mentions "${name}"`);
+        }
+      }
+    }
+  }
+  return { findings, unreadable };
+}
+
+/**
+ * Every `.ts` under a service's `src`, as one string. Cached, because this is asked once per
+ * query parameter. The whole tree rather than just the controllers: a param name reaches the
+ * server through a DTO class, a Zod schema or a service method signature, and any of those
+ * counts as "the server knows this name".
+ */
+const serviceTextCache = new Map();
+function serviceText(service) {
+  if (!serviceTextCache.has(service)) {
+    let text = '';
+    try {
+      for (const f of tsFiles(join('services', service, 'src'))) text += readFileSync(f, 'utf8');
+    } catch {
+      text = '';
+    }
+    serviceTextCache.set(service, text);
+  }
+  return serviceTextCache.get(service);
+}
+
 // Method mismatches: a path the client reaches with a verb the route does not declare.
 const { calls, unreadable } = clientMethods();
 const wrongMethod = [];
@@ -225,6 +297,8 @@ for (const call of calls) {
     );
 }
 
+const query = queryParamFindings(segments, routeCache);
+
 if (process.argv.includes('--update')) {
   writeFileSync(ALLOWLIST, `${JSON.stringify(unresolved.map((u) => u.path).sort(), null, 2)}\n`);
   console.log(`Recorded ${unresolved.length} unresolved client path(s).`);
@@ -234,6 +308,12 @@ if (process.argv.includes('--update')) {
 const allowed = new Set(existsSync(ALLOWLIST) ? JSON.parse(readFileSync(ALLOWLIST, 'utf8')) : []);
 const failures = unresolved.filter((u) => !allowed.has(u.path));
 const stale = [...allowed].filter((p) => !unresolved.some((u) => u.path === p));
+
+if (query.findings.length > 0) {
+  console.error('Client query parameters no controller reads:');
+  for (const f of query.findings) console.error(`  - ${f}`);
+  process.exit(1);
+}
 
 if (wrongMethod.length > 0) {
   console.error('Client calls using a method the route does not declare:');
@@ -252,7 +332,7 @@ if (failures.length > 0) {
 
 console.log(
   `Endpoint contract check OK — ${clientPaths().size} client path(s), ${allowed.size} allowlisted, ` +
-    `${calls.length} call site(s) method-matched` +
+    `${calls.length} call site(s) method-matched, ${query.unreadable} runtime-built query string(s)` +
     (unreadable ? `, ${unreadable} call site(s) not statically resolvable` : '') +
     '.',
 );

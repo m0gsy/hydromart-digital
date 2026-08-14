@@ -219,10 +219,12 @@ jobs:
       # used to reach production as a 404 nobody's tests could see. Every path the client
       # can build is resolved through the gateway's segment map to the owning service and
       # matched against the routes that service declares.
-      # Now method-aware as well: the path check alone passed an `api.post` aimed at a
-      # `@Get`-only route. Call sites it cannot resolve statically are counted in the
-      # output rather than dropped — a check that hides what it skipped reads as coverage
-      # it does not have.
+      # Three questions now, not one: does the path resolve, does the METHOD match (an
+      # `api.post` at a `@Get`-only route used to pass), and does anything on the server
+      # actually read each query parameter the client sends by name — a filter nobody reads
+      # is a screen that says "depot: Dago" over a list of every depot. It also scans the
+      # whole of `apps/web/src`, not just the endpoints table, so a URL built by hand in a
+      # page cannot slip past. What it cannot resolve statically is COUNTED in the output.
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
 
