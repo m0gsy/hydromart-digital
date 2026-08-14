@@ -250,11 +250,28 @@ const DEPOT_LOCKED = new Set(['STAFF_DEPOT', 'KEPALA_DEPOT']);
 
 async function seedStaff(depotByCode) {
   const depotId = [...depotByCode.values()][0];
+  const idByPhone = new Map();
   // inviteStaff is idempotent server-side (promotes an existing phone), so just POST each.
   for (const s of STAFF) {
     const payload = DEPOT_LOCKED.has(s.role) ? { ...s, depotId } : s;
-    ok(await api('POST', '/auth/api/v1/auth/staff/invite', payload), `invite ${s.role} ${s.phone}`);
+    const created = ok(await api('POST', '/auth/api/v1/auth/staff/invite', payload), `invite ${s.role} ${s.phone}`);
+    if (created?.id) idByPhone.set(s.phone, created.id);
     console.log(`+ staff ${s.role} ${s.phone}`);
+  }
+
+  // A MANAGER carries no depot of their own — the comment above says they "resolve their
+  // depots from the hierarchy", and the seed never built one. So the seeded manager
+  // resolved to an EMPTY scope, and DepotScopeGuard denies an empty scope: every widget on
+  // /dashboard and all seven /m/manager screens answered 403, on a console that still drew
+  // its shell and its depot switcher. Found by signing in as the manager and looking.
+  //
+  // A direct grant rather than a supervision chain: the fixture needs one manager who can
+  // see one depot, not an org chart (scripts/seed-hierarchy.mjs is where that lives).
+  const managerId = idByPhone.get('+6281100000002');
+  if (managerId) {
+    const res = await api('PUT', `/depots/api/v1/staff-hierarchy/${managerId}/depots/${depotId}`, {});
+    if (res.status >= 200 && res.status < 300) console.log('+ manager granted depot scope');
+    else console.log(`- manager depot grant skipped: HTTP ${res.status}`);
   }
 }
 
