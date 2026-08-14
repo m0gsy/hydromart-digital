@@ -81,3 +81,4 @@ cart-seed.mjs
 verify-*.txt
 cov-*.txt
 next-start.log
+export-*.txt
