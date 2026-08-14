@@ -12,4 +12,11 @@ export interface AuthenticatedUser {
    * answers, never conflate them.
    */
   depotIds?: readonly string[];
+  /**
+   * The caller's home depot, as signed into the access token (`session.service.ts`).
+   * Every other service carries this through; auth-service dropped it when rebuilding
+   * `request.user`, which left its own DepotScopeGuard half dead — `own` resolved to `[]`
+   * for every caller, so a depot-locked role sending `?depotId=` was always refused.
+   */
+  depotId?: string | null;
 }

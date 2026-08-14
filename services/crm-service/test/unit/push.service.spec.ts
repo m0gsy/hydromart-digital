@@ -21,8 +21,10 @@ class FakeSubs implements PushSubscriptionRepository {
   async listForCustomer(customerId: string): Promise<WebPushSubscriptionRecord[]> {
     return this.rows.filter((r) => r.customerId === customerId);
   }
-  async deleteByEndpoint(endpoint: string): Promise<void> {
-    this.rows = this.rows.filter((r) => r.endpoint !== endpoint);
+  async deleteByEndpoint(endpoint: string, customerId?: string): Promise<void> {
+    this.rows = this.rows.filter(
+      (r) => !(r.endpoint === endpoint && (!customerId || r.customerId === customerId)),
+    );
   }
 }
 
@@ -71,7 +73,13 @@ describe('PushService', () => {
 
   it('unsubscribe removes the endpoint', async () => {
     await service.subscribe('cust-1', sub('https://push/1'));
-    await service.unsubscribe('https://push/1');
+    await service.unsubscribe('cust-1', 'https://push/1');
     expect(subs.rows).toHaveLength(0);
+  });
+
+  it('leaves a device belonging to another account alone', async () => {
+    await service.subscribe('cust-1', sub('https://push/1'));
+    await service.unsubscribe('cust-2', 'https://push/1');
+    expect(subs.rows).toHaveLength(1);
   });
 });

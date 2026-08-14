@@ -5,7 +5,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { AuthenticatedUser, Role } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CAPABILITY_KEY,
+  IS_PUBLIC_KEY,
+  ROLES_KEY,
+  Role,
+} from '@hydromart/platform';
 
 import { ApprovalController } from '../../src/modules/approval.controller';
 import { CashbookController } from '../../src/modules/cashbook.controller';
@@ -857,6 +863,28 @@ describe('DepotController', () => {
       name: 'D',
       paymentBankAccountNumber: '123',
     });
+  });
+
+  /**
+   * Deliberate, and written down here because an audit read it as a hole twice.
+   *
+   * `GET /depots/:id/payment-info` is readable by ANY signed-in caller, and that is the
+   * requirement: payment in this product is direct-to-depot, so a customer at checkout —
+   * who holds no depot capability and belongs to no depot — has to be able to read where
+   * to transfer. What it must never become is anonymous, or a bulk read: the bank account
+   * of every depot in one call is a scraping target, and that is why the field is stripped
+   * from the public list, the public `:id` projection and `nearby` (asserted above).
+   *
+   * If this test fails because the route was locked down, the checkout screen broke. Widen
+   * it back, or move the payment destination into the order the customer is paying for.
+   */
+  it('is deliberately readable by any signed-in caller — checkout depends on it', () => {
+    const handler = DepotController.prototype.paymentInfo;
+    // No @Public(): the route is authenticated, the global JwtAuthGuard reads this key.
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeFalsy();
+    // …and no @Roles()/@Can(): a customer holds no depot role and must still pass.
+    expect(Reflect.getMetadata(ROLES_KEY, handler)).toBeUndefined();
+    expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
   });
 
   // Depot SOP §3: order-service's cron reads the depot phone numbers here rather than off

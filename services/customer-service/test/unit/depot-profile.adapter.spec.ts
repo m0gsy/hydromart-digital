@@ -128,8 +128,13 @@ describe('ChurnRiskHttpAdapter', () => {
 
     await expect(new ChurnRiskHttpAdapter(configured).bandFor(CUSTOMER)).resolves.toBe('HIGH');
     const [url, init] = fetchMock.mock.calls[0];
+    // `forecast`, singular — forecast-service mounts its controller at
+    // `@Controller({ path: 'forecast' })` (forecast.controller.ts). This assertion used to
+    // spell it `forecasts`, which is why a permanent 404 could sit in the adapter with a
+    // green test above it: the adapter swallows a failed read as `null`, so the depot CRM
+    // churn card was simply always empty and nothing ever said why.
     expect(url).toBe(
-      `http://forecast:3014/api/v1/forecasts/internal/churn-band?customerId=${CUSTOMER}`,
+      `http://forecast:3014/api/v1/forecast/internal/churn-band?customerId=${CUSTOMER}`,
     );
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
   });

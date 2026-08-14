@@ -68,7 +68,11 @@ function HeroCountdown({ endsAt }: { endsAt: string }) {
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/70">
         {t('customerFix.promo.endsIn')}
       </div>
-      <div className="flex gap-2.5">
+      {/* Measured at 320px: the four 62px boxes plus their gaps run 22px past the hero,
+          and the hero is `overflow-hidden` — so the seconds box was cut off, not pushed
+          off. `overflow-x-auto` turns a cut into a scroll, the same way
+          `checkout/page.tsx` already handles its slot row. */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
         <CountdownBox value={countdown?.days ?? 0} label={t('customerFix.promo.dayLabel')} />
         <CountdownBox value={countdown?.hours ?? 0} label={t('customerFix.promo.hourLabel')} />
         <CountdownBox value={countdown?.mins ?? 0} label={t('customerFix.promo.minLabel')} />

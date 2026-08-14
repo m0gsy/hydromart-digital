@@ -58,6 +58,12 @@ const PUSHED: Record<string, string> = {
   '/referral': 'profile.rewards.referral.title',
   '/help': 'help.title',
   '/notifications': 'notifications.title',
+  // Three pushed screens shipped with no entry here, and `app-bar.tsx` renders nothing at
+  // all when `titleKey` is undefined — so these three had a back chevron, a blank middle,
+  // and no way to tell which screen you were on.
+  '/promo': 'customerFix.promo.pageTitle',
+  '/waralaba': 'franchise.title',
+  '/favorites': 'hrFix.favorites.title',
 };
 
 const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);

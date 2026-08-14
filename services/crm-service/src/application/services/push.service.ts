@@ -23,8 +23,13 @@ export class PushService {
     return this.subs.upsert({ customerId, ...data });
   }
 
-  unsubscribe(endpoint: string): Promise<void> {
-    return this.subs.deleteByEndpoint(endpoint);
+  /**
+   * The endpoint arrives from the caller, so the owner has to come from the token. Without
+   * that pairing this deleted by endpoint alone, and any signed-in account could silence
+   * another person's phone by replaying an endpoint string.
+   */
+  unsubscribe(customerId: string, endpoint: string): Promise<void> {
+    return this.subs.deleteByEndpoint(endpoint, customerId);
   }
 
   /**
@@ -37,7 +42,7 @@ export class PushService {
       subs.map(async (sub) => {
         const res = await this.sender.send(sub, payload);
         if (res.gone) {
-          await this.subs.deleteByEndpoint(sub.endpoint);
+          await this.subs.deleteByEndpoint(sub.endpoint, customerId);
           this.logger.log(`Pruned expired push subscription for customer ${customerId}`);
         }
       }),

@@ -246,10 +246,17 @@ const MEASURE = ({ tapMin }) => {
     let a = el.parentElement;
     let box = null;
     while (a && a !== document.body) {
-      const ox = getComputedStyle(a).overflowX;
-      // `auto`/`scroll` is not a cut — the user can reach the content. Only hidden/clip is.
+      const cs = getComputedStyle(a);
+      const ox = cs.overflowX;
+      // `auto`/`scroll` before any hidden ancestor means the content is REACHABLE: the
+      // scroller is what the outer `overflow-hidden` card clips, not the content. Reading
+      // past it called every wide-table-in-a-card a cut — `/dashboard/inventory` has the
+      // scroller one level under the card and was reported 473px cut at 320px.
+      if (ox === 'auto' || ox === 'scroll') break;
       if (ox === 'hidden' || ox === 'clip') {
-        box = a;
+        // `truncate` is `overflow:hidden` + an ellipsis, i.e. a deliberate cut with a
+        // visible marker. Not a defect, and it is on hundreds of rows.
+        if (cs.textOverflow !== 'ellipsis') box = a;
         break;
       }
       a = a.parentElement;

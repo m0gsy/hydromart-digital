@@ -1439,6 +1439,7 @@ export const hrFix = {
     noName: "Tanpa nama",
     statusFailed: "Gagal mengubah status langganan.",
     notScheduled: "belum dijadwalkan",
+    nextRun: "berikutnya {at}",
   },
   depotTargets: {
     mustBeNumbers: "Semua target harus berupa angka.",

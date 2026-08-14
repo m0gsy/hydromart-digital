@@ -235,9 +235,15 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
     }
   }
 
+  // Two bugs on two lines, both found by a browser rather than a scanner: the cadence was
+  // the dictionary KEY, printed raw on screen (`t()` was applied 60 lines up but not here),
+  // and "berikutnya" is Indonesian copy inside a template literal — the exact shape
+  // `check-i18n.mjs` does not read.
   const sublabel = [
-    CADENCE_LABEL[sub.cadence],
-    sub.nextRunAt ? `berikutnya ${formatDateTime(sub.nextRunAt)}` : t('hrFix.depotSubscriptions.notScheduled'),
+    t(CADENCE_LABEL[sub.cadence]),
+    sub.nextRunAt
+      ? t('hrFix.depotSubscriptions.nextRun', { at: formatDateTime(sub.nextRunAt) })
+      : t('hrFix.depotSubscriptions.notScheduled'),
   ].join(' · ');
 
   return (

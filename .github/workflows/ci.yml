@@ -222,6 +222,12 @@ jobs:
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
 
+      # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
+      # only test that would have said so lived inside promo-service and named
+      # promo-service. One check about every service beats seventeen copies of one spec.
+      - name: Depot-scope guard registration
+        run: node scripts/check-depot-scope-guards.mjs
+
       # The performance baseline (audit Q-17) names, per hot path, the test that holds its
       # round-trip count. A renamed or deleted test turns that table into a promise nobody
       # is keeping, so the reference is checked here.

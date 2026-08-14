@@ -69,7 +69,13 @@ export function DriverShell({
   return (
     <RequireAuth>
       {canUseCourierApp(customer?.role) ? (
-        <div className="mx-auto flex min-h-dvh max-w-[384px] flex-col">
+      {/* E0/PR-3. `layout.tsx` sets `viewportFit: 'cover'` for the whole app, so the
+          WebView draws under the status bar and the notch. The customer shell has paid
+          for that since `app-bar.tsx:46`; these two phone shells never did, and their
+          first row of content rendered underneath the clock. Guarded form on purpose:
+          bare `env()` reports 0 on any WebView older than 140, which is most of the
+          fleet — the Capacitor plugin always injects `--safe-area-inset-top`. */}
+        <div className="mx-auto flex min-h-dvh max-w-[384px] flex-col pt-[var(--safe-area-inset-top,env(safe-area-inset-top))]">
           {/* Anything captured without signal (shift check-in, proof of delivery) surfaces
               here on every driver screen until it reaches the server. */}
           <div className="px-5 pt-3 empty:hidden">

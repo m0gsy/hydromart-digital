@@ -45,6 +45,7 @@ export const customerFix = {
     minLabel: 'Menit',
     secLabel: 'Detik',
     heroFallbackTitle: 'Promo Hydromart',
+    pageTitle: 'Promo',
     heroFallbackSubtitle: 'Diskon galon isi ulang, gratis ongkir, dan bonus poin untuk pelanggan setia.',
     term1: 'Promo berlaku untuk pengguna terdaftar selama periode kampanye.',
     term2: 'Kode voucher tidak dapat digabung dalam satu transaksi.',

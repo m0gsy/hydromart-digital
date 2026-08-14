@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import { DepotScopeGuard, JwtAuthGuard, RolesGuard } from '@hydromart/platform';
 
 import { RecommendationConfigService } from '../config/recommendation-config.service';
 import { RECOMMENDATION_TOKENS } from '../application/tokens';
@@ -23,6 +23,11 @@ const providers: Provider[] = [
   { provide: RECOMMENDATION_TOKENS.OrderFeed, useClass: OrderFeedHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  // Registered even though neither controller takes a `depotId` today: the next
+  // depot-scoped route added here would otherwise be born unguarded, and nothing in the
+  // service would say so. `scripts/check-depot-scope-guards.mjs` keeps every service
+  // holding this line.
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({

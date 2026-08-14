@@ -42,6 +42,7 @@ export const customerFix = {
     hourLabel: 'Hours',
     minLabel: 'Min',
     secLabel: 'Sec',
+    pageTitle: 'Promos',
     heroFallbackTitle: 'Hydromart Promo',
     heroFallbackSubtitle: 'Refill discounts, free delivery, and bonus points for loyal customers.',
     term1: 'Promo applies to registered users during the campaign period.',

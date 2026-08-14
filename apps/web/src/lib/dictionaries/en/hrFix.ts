@@ -1427,6 +1427,7 @@ export const hrFix = {
     noName: "No name",
     statusFailed: "Could not change the subscription's status.",
     notScheduled: "not scheduled yet",
+    nextRun: "next {at}",
   },
   depotTargets: {
     mustBeNumbers: "Every target must be a number.",

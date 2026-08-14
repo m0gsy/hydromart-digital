@@ -62,8 +62,14 @@ export class PushController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiQuery({ name: 'endpoint', required: true })
   @ApiOperation({ summary: 'Remove a device push subscription' })
-  async unsubscribe(@Query('endpoint') endpoint: string): Promise<void> {
+  async unsubscribe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('endpoint') endpoint: string,
+  ): Promise<void> {
     if (!endpoint) throw new BadRequestException('endpoint is required');
-    await this.push.unsubscribe(endpoint);
+    // `subscribe()` above scopes to `user.sub` and this did not: it deleted on the
+    // endpoint alone, which made unregistering somebody else's device a matter of
+    // knowing (or replaying) their endpoint string.
+    await this.push.unsubscribe(user.sub, endpoint);
   }
 }
