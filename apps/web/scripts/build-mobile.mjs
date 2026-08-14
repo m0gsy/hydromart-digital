@@ -41,7 +41,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const WEB = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const APP = join(WEB, 'src', 'app');
@@ -307,16 +307,31 @@ if (surface) {
  * scanning them flags the mechanism as the defect. Their behaviour is pinned by unit tests
  * (`test/roles.test.ts`, `test/deep-link.test.ts`) against the same env var instead.
  */
+/**
+ * Read off the filesystem rather than typed out. The hand-kept list named nine files and
+ * missed `driver-shell.tsx` and `manager-shell.tsx` — the two bottom navs of the ENTIRE
+ * Ops binary, so the one check that exists to catch a tap into nothing was blind to the
+ * whole courier and manager surface. Anything that navigates is a `*-shell`, `*-nav` or
+ * `*-rail`; those three suffixes are the naming convention this codebase already keeps.
+ */
+const NAV_FILES = (function collect(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) collect(p, out);
+    else if (/-(shell|nav|rail)\.tsx$/.test(entry.name))
+      out.push(relative(WEB, p).split(sep).join('/'));
+  }
+  return out;
+})(join(WEB, 'src', 'components'));
+
+/** Which subtree a nav belongs to, so a pruned console's own nav is not scanned. */
+const livesUnderOf = (rel) =>
+  rel.includes('/hq/') ? '/hq' : rel.includes('/hr/') ? '/hr' : rel.includes('/dashboard/') || rel.includes('/operator/') ? '/dashboard' : rel.includes('/driver/') ? '/driver' : rel.includes('/manager-mobile/') ? '/m' : null;
+
 const NAV_SOURCES = [
   { rel: 'src/components/require-auth.tsx', livesUnder: null },
   { rel: 'src/components/console-sign-out.tsx', livesUnder: null },
-  { rel: 'src/components/bottom-nav.tsx', livesUnder: null },
-  { rel: 'src/components/dashboard/ops-rail.tsx', livesUnder: '/dashboard' },
-  { rel: 'src/components/dashboard/ops-bottom-nav.tsx', livesUnder: '/dashboard' },
-  { rel: 'src/components/operator/operator-shell.tsx', livesUnder: '/dashboard' },
-  { rel: 'src/components/hq/hq-rail.tsx', livesUnder: '/hq' },
-  { rel: 'src/components/hq/hq-bottom-nav.tsx', livesUnder: '/hq' },
-  { rel: 'src/components/hr/hr-rail.tsx', livesUnder: '/hr' },
+  ...NAV_FILES.map((rel) => ({ rel, livesUnder: livesUnderOf(rel) })),
 ];
 const served = (route) =>
   existsSync(join(outDir, route, 'index.html')) || existsSync(join(outDir, `${route}.html`));
@@ -326,7 +341,7 @@ for (const { rel, livesUnder } of NAV_SOURCES) {
   if (!existsSync(file)) continue;
   if (livesUnder && !served(livesUnder)) continue;
   const text = readFileSync(file, 'utf8');
-  for (const [, route] of text.matchAll(/['"`](\/(?:hq|hr|dashboard|driver|m)(?:\/[a-z0-9-]+)*)['"`]/gi)) {
+  for (const [, route] of text.matchAll(/['"`](\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)['"`]/gi)) {
     const clean = route.replace(/\/+$/, '');
     if (served(clean)) continue;
     // A literal the file itself gates on `isServedHere('<that exact route>')` cannot be

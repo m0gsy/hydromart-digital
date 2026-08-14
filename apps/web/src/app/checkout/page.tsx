@@ -648,7 +648,7 @@ function CheckoutInner() {
           const on = method === m.value;
           return (
             <RadioCard key={m.value} selected={on} onSelect={() => setMethod(m.value)} className="items-center">
-              <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">
                 <Icon size={18} weight="fill" className="text-brand-600" />
               </span>
               <span className="min-w-0">

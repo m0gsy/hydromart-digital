@@ -272,13 +272,17 @@ function Harian({ depotId }: { depotId: string }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-extrabold">{t('opsFix.reports.dailyTitle', { date })}</h1>
-        <div className="flex items-center gap-2">
+        {/* Date picker + two export buttons + close-books on one non-wrapping row measured
+            134px past a 320px phone, and `body` clips rather than scrolls — so the close-
+            books control was simply gone on a mid-range Android. The heading row above
+            already wraps; this one has to as well. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <input
             type="date"
             value={date}
             max={today()}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium"
+            className="min-w-0 flex-1 rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium sm:flex-none"
           />
           <ExportDaily depotId={depotId} date={date} />
           <CloseBooks depotId={depotId} date={date} />

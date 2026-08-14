@@ -60,8 +60,12 @@ export function OpsBottomNav() {
     href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
 
   return (
+    /* Measured at 320px in English: five labels plus padding made the bar itself 338px
+       wide, so the bar that is supposed to be the floor of the screen was the thing
+       pushing the page sideways. `min-w-0` on the tabs lets them shrink; `px-1` gives
+       back the 8px the bar did not have. */
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-1 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] sm:px-2 lg:hidden"
       aria-label="Navigasi operasi"
     >
       {visible.map((tab) => {
@@ -73,7 +77,7 @@ export function OpsBottomNav() {
             href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex flex-col items-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
+              'flex min-w-0 flex-col items-center gap-[3px] px-0.5 text-center text-[10px] font-extrabold leading-tight transition-colors ' +
               (on ? 'text-brand-600' : 'text-[color:var(--text-muted)]')
             }
           >

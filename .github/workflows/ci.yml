@@ -219,6 +219,10 @@ jobs:
       # used to reach production as a 404 nobody's tests could see. Every path the client
       # can build is resolved through the gateway's segment map to the owning service and
       # matched against the routes that service declares.
+      # Now method-aware as well: the path check alone passed an `api.post` aimed at a
+      # `@Get`-only route. Call sites it cannot resolve statically are counted in the
+      # output rather than dropped — a check that hides what it skipped reads as coverage
+      # it does not have.
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
 

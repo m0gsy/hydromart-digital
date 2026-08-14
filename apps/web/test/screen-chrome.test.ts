@@ -81,6 +81,14 @@ describe('screenChrome', () => {
     }
   });
 
+  // A browser pass found these two pushed with an empty app bar: the chevron was there,
+  // the middle was blank, and nothing on screen said which page you were on. Unlike
+  // `/promo` above, neither has a heading of its own to stand in for the title.
+  it('titles the two pushed screens that had no heading at all', () => {
+    expect(screenChrome('/waralaba').titleKey).toBe('franchise.title');
+    expect(screenChrome('/favorites').titleKey).toBe('hrFix.favorites.title');
+  });
+
   // `trailingSlash: true` in the exported build: the same screen arrives spelled both ways.
   it.each(Object.keys(ROUTES).filter((p) => p !== '/'))('%s/ resolves like %s', (path) => {
     expect(screenChrome(`${path}/`)).toEqual(screenChrome(path));

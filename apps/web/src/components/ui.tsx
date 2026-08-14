@@ -35,7 +35,7 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold',
         'transition-[background,transform] active:translate-y-px disabled:cursor-not-allowed',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         BUTTON_STYLES[variant],
@@ -63,7 +63,7 @@ export function LinkButton({
     <Link
       href={href}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         BUTTON_STYLES[variant],
         className,
@@ -184,7 +184,7 @@ export function IconButton({
     <button
       {...rest}
       className={cx(
-        'inline-flex h-10 w-10 items-center justify-center rounded-full transition-[background,transform]',
+        'inline-flex h-11 w-11 items-center justify-center rounded-full transition-[background,transform]',
         'hover:bg-brand-50 active:scale-90 disabled:opacity-50',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         className,

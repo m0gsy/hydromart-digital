@@ -64,7 +64,7 @@ function RegisterForm() {
         <Link
           href={`/login?next=${encodeURIComponent(next)}`}
           aria-label={t('auth.register.loginCta')}
-          className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app text-[color:var(--text)] transition-colors hover:bg-brand-50"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-app text-[color:var(--text)] transition-colors hover:bg-brand-50"
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>

@@ -12,6 +12,7 @@ import { useT } from '@/lib/locale-context';
 import { useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
 import type { Page, Product, Promotion } from '@/lib/types';
+import { resolveDeepLink } from '@/lib/deep-link';
 
 // A short promo strip; the full catalog lives at /products (the "Lihat semua" link).
 const PROMO_PRODUCT_LIMIT = 4;
@@ -148,7 +149,8 @@ export default function PromoPage() {
 
   const title = hero?.title ?? t('customerFix.promo.heroFallbackTitle');
   const subtitle = hero?.subtitle ?? t('customerFix.promo.heroFallbackSubtitle');
-  const shopHref = hero?.ctaHref || '/products';
+  // Same server-typed field as the carousel: validated, never trusted straight into href.
+  const shopHref = (hero?.ctaHref && resolveDeepLink(hero.ctaHref)) || '/products';
   const terms = [
     t('customerFix.promo.term1'),
     t('customerFix.promo.term2'),

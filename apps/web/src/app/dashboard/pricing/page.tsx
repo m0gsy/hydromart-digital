@@ -355,13 +355,16 @@ function PricingBody() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      {/* Three action buttons on one non-wrapping row ran 92px past a 320px phone, and
+          `body` clips rather than scrolls — "Aturan baru" was off the screen entirely on a
+          320px device and half off at 360px. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <Tag size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">{t('dashboard.pricing.title')}</h1>
         </div>
         {depotId && editing === null && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <LinkButton href="/dashboard/pricing/import" variant="secondary">
               Import Excel
             </LinkButton>

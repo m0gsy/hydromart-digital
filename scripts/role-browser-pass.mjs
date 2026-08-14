@@ -234,9 +234,38 @@ const MEASURE = ({ tapMin }) => {
     for (const el of document.querySelectorAll('body *')) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || r.right <= vw + 1) continue;
-      const pr = el.parentElement?.getBoundingClientRect();
-      if (pr && pr.right > vw + 1) continue; // the parent is already the offender
+      const parent = el.parentElement;
+      const pr = parent?.getBoundingClientRect();
+      // The parent is already the offender — unless the parent is <body>, which overflows
+      // BECAUSE of this element. Skipping that case reported nothing at all on a page
+      // whose whole column was too wide.
+      if (pr && pr.right > vw + 1 && parent !== document.body) continue;
+      // Content inside a scroller or a clipped box cannot widen the document, however far
+      // right it sits. Without this the tab strip of `/dashboard/reports` — which is in an
+      // `overflow-x-auto` nav and behaving perfectly — was named as the culprit at
+      // +1574px, and the element actually stretching the page went unmentioned.
+      let a = el.parentElement;
+      let contained = false;
+      while (a && a !== document.documentElement) {
+        const ox = getComputedStyle(a).overflowX;
+        if (ox === 'auto' || ox === 'scroll' || ox === 'hidden' || ox === 'clip') {
+          contained = true;
+          break;
+        }
+        a = a.parentElement;
+      }
+      if (contained) continue;
       docCulprits.push({ el: sel(el), over: Math.round(r.right - vw) });
+    }
+    // Nothing named means every over-wide box was inside a scroller — yet the document is
+    // still too wide, so something has a width rather than a position problem. Fall back
+    // to the widest boxes on the page, which is the next question a human would ask.
+    if (!docCulprits.length) {
+      for (const el of document.querySelectorAll('body *')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > vw + 1 && r.height > 0)
+          docCulprits.push({ el: `wide: ${sel(el)}`, over: Math.round(r.width - vw) });
+      }
     }
   }
   const clipped = new Map();

@@ -1,0 +1,168 @@
+﻿signed in as courier (+6281100000003) → /driver
+sample ids: {"/driver/deliveries/detail":"e3985c66-bcdd-4acd-b5c7-060141c93109"}
+................................
+[id done]
+................................
+[en done]
+
+courier: 64 page loads × 5 widths — 504 findings
+
+### NO SAMPLE ROW (1)
+  id    -  /hr/me/payroll  no <a href="/hr/me/payroll/detail?id=…"> on /hr/me/payroll
+
+### TAP SMALL (370)
+  id  320  /driver  a.inline-flex.items-center.gap-1.5 "Online" — 81x28 < 44
+  id  360  /driver  a.inline-flex.items-center.gap-1.5 "Online" — 81x28 < 44
+  id  360  /driver  a.font-semibold.tabular-nums "HM-20260726-375435" — 178x24 < 44
+  id  360  /driver  a.font-semibold.tabular-nums "HM-20260726-879829" — 178x24 < 44
+  id  390  /driver  a.inline-flex.items-center.gap-1.5 "Online" — 81x28 < 44
+  id  390  /driver  a.font-semibold.tabular-nums "HM-20260726-375435" — 178x24 < 44
+  id  390  /driver  a.font-semibold.tabular-nums "HM-20260726-879829" — 178x24 < 44
+  id  412  /driver  a.inline-flex.items-center.gap-1.5 "Online" — 81x28 < 44
+  id  412  /driver  a.font-semibold.tabular-nums "HM-20260726-375435" — 178x24 < 44
+  id  412  /driver  a.font-semibold.tabular-nums "HM-20260726-879829" — 178x24 < 44
+  id  428  /driver  a.inline-flex.items-center.gap-1.5 "Online" — 81x28 < 44
+  id  428  /driver  a.font-semibold.tabular-nums "HM-20260726-375435" — 178x24 < 44
+  id  428  /driver  a.font-semibold.tabular-nums "HM-20260726-879829" — 178x24 < 44
+  id  320  /driver/deliveries/detail  a.flex.flex-1.items-center "Navigasi" — 123x40 < 44
+  id  320  /driver/deliveries/detail  a.flex.flex-1.items-center "Telepon" — 123x40 < 44
+  id  360  /driver/deliveries/detail  a.flex.flex-1.items-center "Navigasi" — 143x40 < 44
+  id  360  /driver/deliveries/detail  a.flex.flex-1.items-center "Telepon" — 143x40 < 44
+  id  390  /driver/deliveries/detail  a.flex.flex-1.items-center "Navigasi" — 155x40 < 44
+  id  390  /driver/deliveries/detail  a.flex.flex-1.items-center "Telepon" — 155x40 < 44
+  id  412  /driver/deliveries/detail  a.flex.flex-1.items-center "Navigasi" — 155x40 < 44
+  id  412  /driver/deliveries/detail  a.flex.flex-1.items-center "Telepon" — 155x40 < 44
+  id  428  /driver/deliveries/detail  a.flex.flex-1.items-center "Navigasi" — 155x40 < 44
+  id  428  /driver/deliveries/detail  a.flex.flex-1.items-center "Telepon" — 155x40 < 44
+  id  320  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Alamat tidak ditemukan" — 254x40 < 44
+  id  320  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan menolak" — 254x40 < 44
+  id  320  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Barang rusak" — 254x40 < 44
+  id  320  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan tidak bisa dihubungi" — 254x40 < 44
+  id  360  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Alamat tidak ditemukan" — 294x40 < 44
+  id  360  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan menolak" — 294x40 < 44
+  id  360  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Barang rusak" — 294x40 < 44
+  id  360  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan tidak bisa dihubungi" — 294x40 < 44
+  id  390  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Alamat tidak ditemukan" — 318x40 < 44
+  id  390  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan menolak" — 318x40 < 44
+  id  390  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Barang rusak" — 318x40 < 44
+  id  390  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan tidak bisa dihubungi" — 318x40 < 44
+  id  412  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Alamat tidak ditemukan" — 318x40 < 44
+  id  412  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan menolak" — 318x40 < 44
+  id  412  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Barang rusak" — 318x40 < 44
+  id  412  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Pelanggan tidak bisa dihubungi" — 318x40 < 44
+  id  428  /driver/deliveries/detail/fail  button.rounded-xl.px-3.5.py-2.5 "Alamat tidak ditemukan" — 318x40 < 44
+  … 330 more
+
+### REQUEST (37)
+  id    -  /hr/me/payroll/detail  400 /_next/static/chunks/app/hr/me/payroll/detail/page-e08e500c6036faaf.js
+  id    -  /hr/me/payroll/detail  400 /_next/static/chunks/8795-b93f999fe69f5c1e.js
+  id    -  /hr/me/payroll/detail  400 /_next/static/chunks/app/products/page-b3d1211ebd3478da.js
+  en    -  /driver  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/announcements  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/fail  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/no-show  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/pay  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/reschedule  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/returns  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/deliveries/detail/success  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/earnings  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/expenses  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/goal  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/help  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/history  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/incidents/new  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/onboarding  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/performance  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/profile  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/route  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/settings  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/settlement  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/settlement/history  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/shift/check-in  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /driver/shift/status  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/announcements  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/attendance  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/check-in  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/enroll  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/leave  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/payroll  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/payroll/detail  400 /_next/static/chunks/app/hr/me/payroll/detail/page-e08e500c6036faaf.js
+  en    -  /hr/me/payroll/detail  400 /_next/static/chunks/1370-039c207ab6dd2863.js
+  en    -  /hr/me/payroll/detail  400 /_next/static/chunks/8795-b93f999fe69f5c1e.js
+
+### CONSOLE (66)
+  id    -  /hr/me/payroll/detail  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  id    -  /hr/me/payroll/detail  Refused to execute script from 'http://localhost:3000/_next/static/chunks/app/hr/me/payroll/detail/page-e08e500c6036faaf.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/announcements  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/announcements  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/fail  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/fail  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/no-show  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/no-show  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/pay  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/pay  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/reschedule  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/reschedule  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/returns  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/returns  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/deliveries/detail/success  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/deliveries/detail/success  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/earnings  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/earnings  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/expenses  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/expenses  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/goal  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/goal  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/help  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/help  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/history  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/history  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/incidents/new  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/incidents/new  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/onboarding  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/onboarding  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/performance  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/performance  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/profile  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/profile  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  en    -  /driver/route  Failed to load resource: the server responded with a status of 400 (Bad Request)
+  en    -  /driver/route  Refused to execute script from 'http://localhost:3000/_next/static/chunks/1370-039c207ab6dd2863.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.
+  … 26 more
+
+### NOT TRANSLATED (30)
+  en    -  /driver  identical to id
+  en    -  /driver/announcements  identical to id
+  en    -  /driver/deliveries/detail  identical to id
+  en    -  /driver/deliveries/detail/fail  identical to id
+  en    -  /driver/deliveries/detail/no-show  identical to id
+  en    -  /driver/deliveries/detail/pay  identical to id
+  en    -  /driver/deliveries/detail/reschedule  identical to id
+  en    -  /driver/deliveries/detail/returns  identical to id
+  en    -  /driver/earnings  identical to id
+  en    -  /driver/expenses  identical to id
+  en    -  /driver/goal  identical to id
+  en    -  /driver/help  identical to id
+  en    -  /driver/history  identical to id
+  en    -  /driver/incidents/new  identical to id
+  en    -  /driver/onboarding  identical to id
+  en    -  /driver/performance  identical to id
+  en    -  /driver/profile  identical to id
+  en    -  /driver/route  identical to id
+  en    -  /driver/settlement  identical to id
+  en    -  /driver/settlement/history  identical to id
+  en    -  /driver/shift/check-in  identical to id
+  en    -  /driver/shift/status  identical to id
+  en    -  /hr/me  identical to id
+  en    -  /hr/me/announcements  identical to id
+  en    -  /hr/me/attendance  identical to id
+  en    -  /hr/me/check-in  identical to id
+  en    -  /hr/me/enroll  identical to id
+  en    -  /hr/me/leave  identical to id
+  en    -  /hr/me/payroll  identical to id
+  en    -  /hr/me/payroll/detail  identical to id

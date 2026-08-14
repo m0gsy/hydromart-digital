@@ -262,7 +262,7 @@ function CartInner() {
                   aria-label={t('order.cart.removeAria', { name: line.productName })}
                   onClick={() => remove(line.productId)}
                   disabled={busy === line.productId}
-                  className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] active:scale-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] active:scale-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                 >
                   <Trash size={18} />
                 </button>
