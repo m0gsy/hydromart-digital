@@ -57,6 +57,19 @@ describe('AccountController.listStaff depot-manager scope', () => {
     expect(account.listStaff).not.toHaveBeenCalled();
   });
 
+  // The fail-closed half: `depotIds` absent means DepotScopeGuard did not run on this route.
+  // Reading `requested` there would hand a manager the whole network the day someone forgets
+  // to register the guard, so it must refuse exactly like an empty scope does.
+  it('refuses a manager whose scope was never resolved at all', async () => {
+    await expect(
+      controller.listStaff(
+        { page: 1, limit: 20 },
+        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listStaff).not.toHaveBeenCalled();
+  });
+
   it('makes a multi-depot manager name the depot instead of widening to all of them', async () => {
     await expect(
       controller.listStaff(
