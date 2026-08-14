@@ -95,7 +95,7 @@ export default function HqVouchersPage() {
       </Card>
 
       {/* Depot→HQ voucher requests — REAL (promo-service voucher-requests queue) */}
-      <Card className="flex flex-col p-5">
+      <Card className="flex min-w-0 flex-col p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-semibold">{t('hq.vouchers.requests.title')}</h2>
           <span className="text-sm text-muted">
@@ -152,7 +152,7 @@ export default function HqVouchersPage() {
       </Card>
 
       {/* Voucher aktif — real list + real per-voucher burn (burn-summary byVoucher) */}
-      <Card className="flex flex-col p-5">
+      <Card className="flex min-w-0 flex-col p-5">
         <h2 className="mb-3 font-semibold">{t('hq.vouchers.list.title')}</h2>
         {list.loading ? (
           <Skeleton className="h-48 w-full" />

@@ -75,7 +75,7 @@ export default function HqProfilePage() {
         {query.loading && <Skeleton className="h-40 w-full" />}
         {query.error && <ErrorState message={t('hq.profile.notifError')} onRetry={query.reload} />}
         {query.data && (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 overflow-x-auto">
             <table className="w-full min-w-[420px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-app text-xs font-medium uppercase tracking-wide text-muted">

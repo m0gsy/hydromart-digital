@@ -199,7 +199,7 @@ export default function HqOverviewPage() {
       {view === 'main' && (
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Depot performance table */}
-          <Card className="flex flex-col p-5 lg:col-span-2">
+          <Card className="flex min-w-0 flex-col p-5 lg:col-span-2">
             <h2 className="mb-3 font-semibold">{t('hq.overview.perf.title')}</h2>
             {rollup.error ? (
               // The whole network table comes from this one read, and its empty copy is
@@ -208,7 +208,7 @@ export default function HqOverviewPage() {
             ) : rows.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted">{t('hq.overview.perf.empty')}</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="min-w-0 overflow-x-auto">
                 <table className="w-full min-w-[440px] text-sm">
                   <thead>
                     <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">

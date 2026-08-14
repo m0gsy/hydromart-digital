@@ -162,8 +162,11 @@ export default function HqStaffPage() {
         <div className="flex flex-col gap-2.5">
           {items.map((s) => {
             const active = s.status === 'ACTIVE';
+            // `flex-wrap`: avatar + name + role badge + two actions on one non-wrapping row
+            // ran 310px past a 320px screen, and `body` clips rather than scrolls — the
+            // delete button was simply not on the page.
             return (
-              <Card key={s.id} className="flex items-center gap-3 p-3.5">
+              <Card key={s.id} className="flex flex-wrap items-center gap-3 p-3.5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-extrabold text-brand-700">
                   {initials(s)}
                 </span>

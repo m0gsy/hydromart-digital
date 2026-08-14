@@ -154,7 +154,7 @@ export function CohortGrid({
   rows: { label: string; cells: number[] }[];
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="min-w-0 overflow-x-auto">
       <table className="w-full border-separate" style={{ borderSpacing: 3 }}>
         <tbody>
           {rows.map((r) => (

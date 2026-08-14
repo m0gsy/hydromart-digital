@@ -109,13 +109,16 @@ export default function HqDepotsPage() {
       ) : filtered.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">{t('hq.depots.empty')}</p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        // `minmax(0,1fr)` on the implicit single-column track: a grid track defaults to
+        // `min-width:auto`, so the widest depot name sized the whole column and the page ran
+        // 92px past a 320px screen. The two- and three-column cases guard themselves.
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((d) => (
             <button
               key={d.id}
               type="button"
               onClick={() => router.push(`/hq/depots/detail?id=${d.id}`)}
-              className="text-left"
+              className="min-w-0 text-left"
             >
               <Card className="flex h-full flex-col gap-2 p-4 transition-shadow hover:shadow-lift">
                 <div className="flex items-start justify-between gap-2">

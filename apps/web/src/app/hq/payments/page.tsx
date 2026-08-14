@@ -130,7 +130,7 @@ export default function HqPaymentsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Belum settle per metode — REAL (payment-service unsettled aggregate) */}
-        <Card className="flex flex-col p-5">
+        <Card className="flex min-w-0 flex-col p-5">
           <h2 className="mb-3 font-semibold">{t('hq.payments.unsettled.title')}</h2>
           {unsettledQ.loading ? (
             <Skeleton className="h-48 w-full" />
@@ -156,7 +156,7 @@ export default function HqPaymentsPage() {
         </Card>
 
         {/* Rilis payout waralaba — REAL (payout-service HQ queue + release) */}
-        <Card className="flex flex-col p-5">
+        <Card className="flex min-w-0 flex-col p-5">
           <h2 className="mb-3 font-semibold">{t('hq.payments.release.title')}</h2>
           {queueQ.loading ? (
             <Skeleton className="h-48 w-full" />

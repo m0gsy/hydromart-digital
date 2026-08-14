@@ -73,7 +73,7 @@ export default function HqPricingPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Harga dasar jaringan — base is real, override counts are STUB */}
-        <Card className="flex flex-col p-5">
+        <Card className="flex min-w-0 flex-col p-5">
           <h2 className="mb-3 font-semibold">{t('hq.pricing.base.title')}</h2>
           {catalog.loading ? (
             <Skeleton className="h-48 w-full" />
@@ -82,7 +82,7 @@ export default function HqPricingPage() {
           ) : products.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted">{t('hq.pricing.base.empty')}</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="min-w-0 overflow-x-auto">
               <table className="w-full min-w-[360px] text-sm">
                 <thead>
                   <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
@@ -118,7 +118,7 @@ export default function HqPricingPage() {
         </Card>
 
         {/* Override menunggu — REAL (depot-service price-override queue) */}
-        <Card className="flex flex-col p-5">
+        <Card className="flex min-w-0 flex-col p-5">
           <h2 className="mb-3 font-semibold">{t('hq.pricing.queue.title')}</h2>
           {queueQ.loading ? (
             <Skeleton className="h-48 w-full" />

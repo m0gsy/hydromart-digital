@@ -206,7 +206,7 @@ export default function HqReportsExportPage() {
       </Card>
 
       {/* Live preview */}
-      <Card className="flex flex-col p-5">
+      <Card className="flex min-w-0 flex-col p-5">
         <h2 className="mb-3 flex items-center gap-2 font-semibold">
           {t('hq.reportsExport.preview')}
         </h2>
@@ -221,7 +221,7 @@ export default function HqReportsExportPage() {
         ) : rows.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted">{t('hq.reportsExport.empty')}</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 overflow-x-auto">
             <table className="w-full min-w-[360px] text-sm">
               <thead>
                 <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">

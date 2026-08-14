@@ -200,7 +200,7 @@ export default function HqReconciliationPage() {
           <p className="text-center text-sm text-muted">{t('hq.reconciliation.selectPrompt')}</p>
         </Card>
       ) : (
-        <Card className="flex flex-col p-5">
+        <Card className="flex min-w-0 flex-col p-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold">{t('hq.reconciliation.statement', { depot: depot.name })}</h2>
             <Button variant="secondary" onClick={download}>

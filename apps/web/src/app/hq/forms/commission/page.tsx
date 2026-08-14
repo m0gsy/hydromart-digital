@@ -73,11 +73,11 @@ export default function HqCommissionFormPage() {
     <div className="flex max-w-2xl flex-col gap-6">
       <HqPageHeader icon={Percent} title={t('hq.forms.commission.title')} subtitle={t('hq.forms.commission.subtitle')} />
 
-      <Card className="flex flex-col p-5">
+      <Card className="flex min-w-0 flex-col p-5">
         {items.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted">{t('hq.forms.commission.empty')}</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 overflow-x-auto">
             <table className="w-full min-w-[360px] text-sm">
               <thead>
                 <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
