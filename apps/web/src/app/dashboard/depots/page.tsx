@@ -16,7 +16,7 @@ import { endpoints } from '@/lib/endpoints';
 import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepots } from '@/lib/roles';
+import { canManageDepots, canReadDepotRecords } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin, Page } from '@/lib/types';
 
@@ -295,12 +295,16 @@ function DepotCard({
   onHours,
   onDetail,
   onChanged,
+  canWrite,
 }: {
   depot: DepotAdmin;
   onEdit: () => void;
   onHours: () => void;
   onDetail: () => void;
   onChanged: () => void;
+  /** False for a read-only caller (the depot operator): the record is visible, the
+   *  edit / hours / deactivate controls are not. */
+  canWrite: boolean;
 }) {
   const { t } = useT();
   const [busy, setBusy] = useState(false);
@@ -354,16 +358,22 @@ function DepotCard({
         <Button variant="ghost" onClick={onDetail} disabled={busy}>
           {t('dashboard.depots.detail')}
         </Button>
-        <Button variant="ghost" onClick={onHours} disabled={busy}>
-          <Clock size={16} weight="fill" />
-          {t('dashboard.depots.hours')}
-        </Button>
-        <Button variant="secondary" onClick={onEdit} disabled={busy}>
-          {t('dashboard.depots.edit')}
-        </Button>
-        <Button variant={depot.active ? 'danger' : 'primary'} onClick={toggleActive} loading={busy}>
-          {depot.active ? t('dashboard.depots.deactivate') : t('dashboard.depots.reactivate')}
-        </Button>
+        {canWrite && (
+          <>
+            <Button variant="ghost" onClick={onHours} disabled={busy}>
+              <Clock size={16} weight="fill" />
+              {t('dashboard.depots.hours')}
+            </Button>
+            <Button variant="secondary" onClick={onEdit} disabled={busy}>
+              {t('dashboard.depots.edit')}
+            </Button>
+          </>
+        )}
+        {canWrite && (
+          <Button variant={depot.active ? 'danger' : 'primary'} onClick={toggleActive} loading={busy}>
+            {depot.active ? t('dashboard.depots.deactivate') : t('dashboard.depots.reactivate')}
+          </Button>
+        )}
       </div>
     </Card>
   );
@@ -371,6 +381,8 @@ function DepotCard({
 
 function DepotsBody() {
   const { t } = useT();
+  const { customer } = useAuth();
+  const canWrite = canManageDepots(customer?.role);
   const [editing, setEditing] = useState<DepotAdmin | null | 'new'>(null);
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const [detail, setDetail] = useState<DepotAdmin | null>(null);
@@ -409,7 +421,9 @@ function DepotsBody() {
               </button>
             ))}
           </div>
-          {editing === null && <Button onClick={() => setEditing('new')}>{t('dashboard.depots.newDepot')}</Button>}
+          {canWrite && editing === null && (
+            <Button onClick={() => setEditing('new')}>{t('dashboard.depots.newDepot')}</Button>
+          )}
         </div>
       </div>
 
@@ -451,6 +465,7 @@ function DepotsBody() {
               onHours={() => setHoursDepot(d)}
               onDetail={() => setDetail(d)}
               onChanged={list.reload}
+              canWrite={canWrite}
             />
           ))}
         </div>
@@ -464,7 +479,7 @@ function DepotsBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!canManageDepots(customer?.role)) {
+  if (!canReadDepotRecords(customer?.role)) {
     return (
       <CenterState title={t('dashboard.depots.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashboard.depots.gateBody')}

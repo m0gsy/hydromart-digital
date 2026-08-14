@@ -27,22 +27,49 @@ describe('AccountController.listStaff depot-manager scope', () => {
     account.listStaff.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 });
   });
 
-  it('forces a depot manager directory read to their assigned depot', async () => {
+  // A manager's depots come from the hierarchy, not from this service's assignedDepotId
+  // column — DepotScopeGuard resolves them into `depotIds` for the request.
+  it('forces a depot manager directory read to the one depot they hold', async () => {
     await controller.listStaff(
       { page: 1, limit: 20 },
-      { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
+      { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot] },
     );
 
     expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, ownDepot, undefined);
   });
 
-  it('rejects a depot manager requesting another depot', async () => {
+  it('rejects a depot manager requesting a depot outside their scope', async () => {
     await expect(
       controller.listStaff(
         { depotId: otherDepot },
-        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
+        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot] },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('refuses a manager whose scope resolved to nothing, rather than reading every depot', async () => {
+    await expect(
+      controller.listStaff(
+        { page: 1, limit: 20 },
+        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [] },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listStaff).not.toHaveBeenCalled();
+  });
+
+  it('makes a multi-depot manager name the depot instead of widening to all of them', async () => {
+    await expect(
+      controller.listStaff(
+        { page: 1, limit: 20 },
+        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot, otherDepot] },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    await controller.listStaff(
+      { depotId: otherDepot },
+      { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot, otherDepot] },
+    );
+    expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, otherDepot, undefined);
   });
 
   it('keeps HQ staff-directory filters unchanged', async () => {
@@ -106,10 +133,10 @@ describe('AccountController.listDrivers depot scope', () => {
     expect(account.listDrivers).not.toHaveBeenCalled();
   });
 
-  it('scopes a depot manager to their assigned depot, as the staff directory does', async () => {
+  it('scopes a depot manager to the depot they hold, as the staff directory does', async () => {
     await controller.listDrivers(
       {},
-      { sub: 'mgr-1', role: Role.MANAGER, phone: '+62811' } as never,
+      { sub: 'mgr-1', role: Role.MANAGER, phone: '+62811', depotIds: [ownDepot] } as never,
     );
     expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
   });

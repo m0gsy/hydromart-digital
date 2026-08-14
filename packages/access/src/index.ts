@@ -108,6 +108,17 @@ export const CAPABILITIES = {
   // /campaigns/depot, whose segment is pinned to a depotId the DepotScopeGuard has already
   // checked against the caller's own depots.
   depotCampaign: ['KEPALA_DEPOT', 'MANAGER', 'MARKETING', 'SUPER_ADMIN'],
+  // promo-service — the promotions shown on the customer Home page. Declared here rather
+  // than as a hand-written @Roles array on the controller (which is what it was until
+  // 2026-08-14, the last one left): a console that reads one list of roles and a server
+  // that enforces another is a disagreement nobody sees until a screen 403s.
+  //
+  // READ includes KEPALA_DEPOT because the depot operator's own shell carries a Promo tab,
+  // and the server refused it — the tab was a door to a denial screen. Reading which
+  // promotions are live is what an operator at the counter needs; authoring stays with
+  // marketing and the depot manager.
+  promotionRead: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  promotionWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
   // promo-service — voucher admin.
   voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
@@ -306,7 +317,11 @@ export const CAPABILITIES = {
   staffDirectory: ['HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — read one depot in full (edit forms, HQ onboarding, payment setup).
   // Wider than depotAdmin because an owner reads their own depot's record.
-  depotDirectory: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FRANCHISE_OWNER', 'SUPER_ADMIN'],
+  // KEPALA_DEPOT reads it too (2026-08-14): the operator shell's "Depot" tab pointed at a
+  // screen gated on depotAdmin, so the operator was shown a door to a denial. Reading the
+  // record is not the power to create or deactivate a depot — that stays depotAdmin, and
+  // the screen now gates its write controls separately.
+  depotDirectory: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FRANCHISE_OWNER', 'SUPER_ADMIN'],
   // admin-service + a few HQ-only routes elsewhere — back-office tooling that is not a
   // depot power: feature flags, SLA policies, support tickets, scheduled reports,
   // export logs, incident register, system health, network subscriptions, audit trail.

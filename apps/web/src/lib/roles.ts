@@ -84,6 +84,11 @@ export const canManageCampaigns = (role: string | null | undefined) => can('camp
 export const canViewVouchers = (role: string | null | undefined) => can('voucherRead', role);
 export const canManageVouchers = (role: string | null | undefined) => can('voucherWrite', role);
 export const canManageDepots = (role: string | null | undefined) => can('depotAdmin', role);
+// READ vs WRITE, kept apart on purpose: the operator shell carries a "Depot" tab, and the
+// screen behind it was gated on depotAdmin — create, edit, deactivate. Widening THAT to
+// reach the tab would have handed a depot operator the power to deactivate any depot in the
+// network. The list is a read; the buttons on it are not.
+export const canReadDepotRecords = (role: string | null | undefined) => can('depotDirectory', role);
 export const canManagePricing = (role: string | null | undefined) => can('depotAdmin', role);
 export const canViewFranchise = (role: string | null | undefined) => can('franchise', role);
 export const canViewPayout = (role: string | null | undefined) => can('payout', role);

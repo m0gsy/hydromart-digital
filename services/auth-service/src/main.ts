@@ -9,7 +9,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
+import {
+  configureDepotScope,
+  enableMetrics,
+  httpDepotScopeResolver,
+  protectDocs,
+  startCapabilityRefresh,
+} from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { AccessMatrixService } from './application/services/access-matrix.service';
@@ -28,6 +34,17 @@ async function bootstrap(): Promise<void> {
   // instead of calling its own HTTP endpoint. Same refresher, same fail-open rule.
   const matrix = app.get(AccessMatrixService);
   startCapabilityRefresh(() => matrix.patch(), { logger });
+
+  // The staff directory and the driver roster are read by supervisors and depot managers,
+  // whose depots live in depot-service's hierarchy. Without this the DepotScopeGuard
+  // registered in auth.module cannot resolve them, and a multi-depot caller keeps only the
+  // depot their own token carries — which for a manager is none.
+  configureDepotScope(
+    httpDepotScopeResolver({
+      depotServiceUrl: process.env.DEPOT_SERVICE_URL,
+      internalKey: process.env.INTERNAL_SERVICE_KEY,
+    }),
+  );
 
   app.use(helmet());
 

@@ -133,6 +133,8 @@ export const dashC = {
       returnsWrite: 'Gallon returns (edit)',
       campaignRead: 'Campaigns (view)',
       campaignWrite: 'Campaigns (manage)',
+      promotionRead: 'Promotions (view)',
+      promotionWrite: 'Promotions (manage)',
       voucherRead: 'Vouchers (view)',
       voucherWrite: 'Vouchers (manage)',
       depotAdmin: 'Dynamic pricing / manage depot',

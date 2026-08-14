@@ -236,6 +236,8 @@ export const hq = {
       returnsWrite: 'Catat retur galon',
       campaignRead: 'Lihat kampanye',
       campaignWrite: 'Kirim kampanye',
+      promotionRead: 'Lihat promosi',
+      promotionWrite: 'Kelola promosi',
       voucherRead: 'Lihat voucher',
       voucherWrite: 'Kelola voucher',
       depotAdmin: 'Kelola depot & harga',

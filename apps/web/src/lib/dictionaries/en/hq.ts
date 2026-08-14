@@ -233,6 +233,8 @@ export const hq = {
       returnsWrite: 'Record gallon returns',
       campaignRead: 'View campaigns',
       campaignWrite: 'Send campaigns',
+      promotionRead: 'View promotions',
+      promotionWrite: 'Manage promotions',
       voucherRead: 'View vouchers',
       voucherWrite: 'Manage vouchers',
       depotAdmin: 'Manage depots & pricing',

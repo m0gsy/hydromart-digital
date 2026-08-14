@@ -135,6 +135,8 @@ export const dashC = {
       returnsWrite: 'Retur galon (ubah)',
       campaignRead: 'Kampanye (lihat)',
       campaignWrite: 'Kampanye (kelola)',
+      promotionRead: 'Promosi (lihat)',
+      promotionWrite: 'Promosi (kelola)',
       voucherRead: 'Voucher (lihat)',
       voucherWrite: 'Voucher (kelola)',
       depotAdmin: 'Harga dinamis / kelola depot',

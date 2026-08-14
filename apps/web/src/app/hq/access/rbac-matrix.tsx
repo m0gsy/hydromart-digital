@@ -120,6 +120,8 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
     caps: [
       'campaignRead',
       'campaignWrite',
+      'promotionRead',
+      'promotionWrite',
       'voucherRead',
       'voucherWrite',
       'churn',
