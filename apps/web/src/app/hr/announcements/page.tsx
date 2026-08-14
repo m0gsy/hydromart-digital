@@ -67,20 +67,20 @@ export default function AnnouncementsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <SectionHeader
-        title="Pengumuman"
-        subtitle="Satu pesan, satu kali sampai. Target yang beririsan tidak mengirim dobel."
+        title={t('hrFix.announcements.title')}
+        subtitle={t('hrFix.announcements.subtitle')}
       />
 
       {isAdmin && <Composer onSent={list.reload} onError={(m) => toast(m, 'error')} />}
 
       <Card className="space-y-3 p-5">
-        <h2 className="text-sm font-semibold">Riwayat</h2>
+        <h2 className="text-sm font-semibold">{t('hrFix.announcements.history')}</h2>
         {list.loading && <Skeleton className="h-32" />}
         {list.error && <ErrorState message={list.error} onRetry={list.reload} />}
         {list.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {list.data.rows.length === 0 && (
-              <li className="py-3 text-sm text-muted">Belum ada pengumuman.</li>
+              <li className="py-3 text-sm text-muted">{t('hrFix.announcements.empty')}</li>
             )}
             {list.data.rows.map((a) => (
               <li key={a.id} className="space-y-2 py-3">
@@ -89,7 +89,7 @@ export default function AnnouncementsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <b>{a.title}</b>
                       <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
-                      {!a.publishedAt && <Badge tone="neutral">Terjadwal</Badge>}
+                      {!a.publishedAt && <Badge tone="neutral">{t('hrFix.announcements.scheduled')}</Badge>}
                     </div>
                     <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
                     <p className="text-xs text-muted">
@@ -104,7 +104,7 @@ export default function AnnouncementsPage() {
                   </div>
                   {a.publishedAt && (
                     <Button variant="ghost" onClick={() => setOpen(open === a.id ? null : a.id)}>
-                      {open === a.id ? 'Tutup' : 'Statistik'}
+                      {open === a.id ? t('hrFix.announcements.close') : t('hrFix.announcements.stats')}
                     </Button>
                   )}
                 </div>
@@ -167,11 +167,11 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      onError('Judul dan isi wajib diisi');
+      onError(t('hrFix.announcements.required'));
       return;
     }
     if (targets.some((t) => announcementTargetNeedsValue(t.dimension) && !t.value)) {
-      onError('Setiap target selain "seluruh perusahaan" harus dipilih nilainya');
+      onError(t('hrFix.announcements.targetValue'));
       return;
     }
     setSaving(true);
@@ -191,14 +191,14 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         },
         true,
       );
-      toast(scheduledAt ? 'Pengumuman dijadwalkan' : 'Pengumuman terkirim');
+      toast(scheduledAt ? t('hrFix.announcements.scheduledOk') : t('hrFix.announcements.sent'));
       setTitle('');
       setBody('');
       setScheduledAt('');
       setTargets([{ dimension: 'COMPANY', value: '' }]);
       onSent();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : 'Gagal mengirim pengumuman');
+      onError(err instanceof ApiError ? err.message : t('hrFix.announcements.sendFailed'));
     } finally {
       setSaving(false);
     }
@@ -227,12 +227,12 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Tulis Pengumuman</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.announcements.compose')}</h2>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Judul">
+        <Field label={t('hrFix.announcements.subject')}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Isi">
+        <Field label={t('hrFix.announcements.body')}>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -241,7 +241,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Tingkat">
+          <Field label={t('hrFix.announcements.level')}>
             <select
               value={level}
               onChange={(e) => setLevel(e.target.value as AnnouncementLevel)}
@@ -254,7 +254,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
               ))}
             </select>
           </Field>
-          <Field label="Jadwalkan (kosong = kirim sekarang)">
+          <Field label={t('hrFix.announcements.scheduleAt')}>
             <Input
               type="datetime-local"
               value={scheduledAt}
@@ -264,7 +264,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium">Target audiens</p>
+          <p className="text-sm font-medium">{t('hrFix.announcements.audience')}</p>
           <p className="text-xs text-muted">
             Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.
           </p>
@@ -289,7 +289,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
                   onChange={(e) => setTarget(i, { value: e.target.value })}
                   className="surface-elevated min-w-48 rounded-lg border border-app px-3 py-2.5 text-sm"
                 >
-                  <option value="">Pilih…</option>
+                  <option value="">{t('hrFix.announcements.pick')}</option>
                   {optionsFor(tg.dimension).map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -327,7 +327,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
         </div>
 
         <Button type="submit" loading={saving}>
-          {scheduledAt ? 'Jadwalkan' : 'Kirim Sekarang'}
+          {scheduledAt ? t('hrFix.announcements.schedule') : t('hrFix.announcements.sendNow')}
         </Button>
       </form>
     </Card>

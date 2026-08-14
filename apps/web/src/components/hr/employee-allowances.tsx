@@ -48,8 +48,8 @@ export function EmployeeAllowances({
     e.preventDefault();
     setErr(null);
     const value = Number(amount);
-    if (!(value > 0)) return setErr('Nominal tunjangan harus > 0.');
-    if (!from) return setErr('Tanggal mulai wajib diisi.');
+    if (!(value > 0)) return setErr(t('hrFix.allowances.amountPositive'));
+    if (!from) return setErr(t('hrFix.allowances.startRequired'));
     setSaving(true);
     try {
       await api.post(
@@ -64,13 +64,13 @@ export function EmployeeAllowances({
         },
         true,
       );
-      notify('Tunjangan ditambahkan');
+      notify(t('hrFix.allowances.added'));
       setAmount('');
       setNote('');
       setTo('');
       allowances.reload();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Gagal menyimpan.');
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.allowances.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -81,13 +81,13 @@ export function EmployeeAllowances({
       await api.patch(endpoints.hr.deactivateAllowance(id), {}, true);
       allowances.reload();
     } catch {
-      notify('Gagal menghentikan tunjangan', 'error');
+      notify(t('hrFix.allowances.stopFailed'), 'error');
     }
   }
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold">Tunjangan</h2>
+      <h2 className="text-sm font-semibold">{t('hrFix.allowances.title')}</h2>
       <p className="text-xs text-muted">
         Komponen tetap yang terbayar setiap periode. Tidak masuk basis upah lembur.
       </p>
@@ -100,7 +100,7 @@ export function EmployeeAllowances({
             <LoadError onRetry={allowances.reload} />
           ) : (
             (allowances.data ?? []).length === 0 && (
-              <p className="text-sm text-muted">Belum ada tunjangan.</p>
+              <p className="text-sm text-muted">{t('hrFix.allowances.empty')}</p>
             )
           )}
           {(allowances.data ?? []).map((a) => (
@@ -111,7 +111,7 @@ export function EmployeeAllowances({
                     <Money amount={Number(a.amount)} />
                   </span>
                   <Badge tone={a.active ? 'success' : 'neutral'}>
-                    {a.active ? 'Berjalan' : 'Dihentikan'}
+                    {a.active ? t('hrFix.allowances.running') : t('hrFix.allowances.stopped')}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted">
@@ -135,7 +135,7 @@ export function EmployeeAllowances({
           onSubmit={add}
           className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2"
         >
-          <Field label="Jenis">
+          <Field label={t('hrFix.allowances.type')}>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as AllowanceType)}
@@ -148,16 +148,16 @@ export function EmployeeAllowances({
               ))}
             </select>
           </Field>
-          <Field label="Nominal / bulan (Rp)">
+          <Field label={t('hrFix.allowances.amountPerMonth')}>
             <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </Field>
-          <Field label="Mulai">
+          <Field label={t('hrFix.allowances.start')}>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </Field>
-          <Field label="Sampai (kosong = tanpa batas)">
+          <Field label={t('hrFix.allowances.end')}>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </Field>
-          <Field label="Catatan (opsional)">
+          <Field label={t('hrFix.allowances.noteOpt')}>
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
           {err && (
