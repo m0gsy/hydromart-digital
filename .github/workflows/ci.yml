@@ -193,6 +193,13 @@ jobs:
       - name: Index build cannot lock production
         run: node scripts/check-index-concurrency.mjs
 
+      # PR-8 translated 478 strings and the scanner then said "clean" twice while the whole
+      # console navigation was still hardcoded — it never read object literals, which is
+      # where every nav label lives. A browser pass found it. This is that scanner, widened
+      # and made a gate, plus the capability labels /dashboard/roles builds at runtime.
+      - name: No hardcoded Indonesian copy
+        run: node scripts/check-i18n.mjs
+
       # C4: the two ways this repo kept cutting time in the wrong zone — a UTC period key
       # from toISOString().slice, and a bare date_trunc in raw SQL. Both shipped more than
       # once; a reasoned `// tz-ok:` is the only way past.

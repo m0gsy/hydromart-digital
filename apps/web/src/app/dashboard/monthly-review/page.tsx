@@ -58,15 +58,25 @@ function MonthlyReviewBody() {
   const missingTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
     if (!b) return t('hrFix.monthlyReview.needsCostData');
     const missing = [
-      b.cogsIdr === null ? 'pembelian' : null,
-      b.payrollIdr === null ? 'gaji' : null,
+      b.cogsIdr === null ? t('hrFix.monthlyReview.termCogs') : null,
+      b.payrollIdr === null ? t('hrFix.monthlyReview.termPayroll') : null,
       b.opexIdr === null ? t('hrFix.monthlyReview.cashCost') : null,
     ].filter(Boolean);
-    return missing.length > 0 ? `belum terbaca: ${missing.join(', ')}` : 'omzet − pembelian − gaji − biaya';
+    return missing.length > 0
+      ? t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') })
+      : t('hrFix.monthlyReview.profitFormula');
   };
   const stats: Stat[] = [
-    { label: t('hrFix.monthlyReview.orders'), value: r ? r.orders.toLocaleString('id-ID') : '—', caption: 'bulan berjalan' },
-    { label: t('hrFix.monthlyReview.revenue'), value: r ? formatIDR(r.revenueIdr) : '—', caption: 'non-batal' },
+    {
+      label: t('hrFix.monthlyReview.orders'),
+      value: r ? r.orders.toLocaleString('id-ID') : '—',
+      caption: t('hrFix.monthlyReview.thisMonth'),
+    },
+    {
+      label: t('hrFix.monthlyReview.revenue'),
+      value: r ? formatIDR(r.revenueIdr) : '—',
+      caption: t('hrFix.monthlyReview.nonCancelled'),
+    },
     {
       label: t('hrFix.monthlyReview.avgSla'),
       value: r?.slaPct != null ? `${r.slaPct}%` : '—',

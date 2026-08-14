@@ -21,14 +21,16 @@ const NEXT_STATE: Record<HandoverItemState, HandoverItemState> = {
   DONE: 'PENDING',
 };
 
-// Design 14d default checklist for a new handover.
-const DEFAULT_ITEMS: HandoverItem[] = [
-  { title: 'Hitung kas laci', subtext: '', state: 'PENDING' },
-  { title: 'Cek stok galon & segel', subtext: '', state: 'PENDING' },
-  { title: 'Order tertunda dialihkan', subtext: '', state: 'PENDING' },
-  { title: 'Insiden terbuka diberi tahu', subtext: '', state: 'PENDING' },
-  { title: 'Setoran COD diverifikasi', subtext: '', state: 'PENDING' },
-];
+// Design 14d default checklist for a new handover. Dictionary KEYS, not copy: a
+// module-level constant cannot call a hook, and the title is also what gets POSTed — so
+// CreateForm resolves each one in the operator's own locale before it becomes a record.
+const DEFAULT_ITEM_KEYS = [
+  'dashA.handover.itemCash',
+  'dashA.handover.itemStock',
+  'dashA.handover.itemPendingOrders',
+  'dashA.handover.itemIncidents',
+  'dashA.handover.itemCod',
+] as const;
 
 function StateMark({ state }: { state: HandoverItemState }) {
   if (state === 'DONE') {
@@ -125,7 +127,9 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
   const [fromStaff, setFromStaff] = useState('');
   const [toStaff, setToStaff] = useState('');
   const [note, setNote] = useState('');
-  const [items, setItems] = useState<HandoverItem[]>(DEFAULT_ITEMS);
+  const [items, setItems] = useState<HandoverItem[]>(() =>
+    DEFAULT_ITEM_KEYS.map((key) => ({ title: t(key), subtext: '', state: 'PENDING' as const })),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

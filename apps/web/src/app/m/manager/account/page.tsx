@@ -45,7 +45,7 @@ export default function ManagerAccountPage() {
 
   return (
     <div className="space-y-4 px-4 py-6">
-      <h1 className="text-xl font-extrabold tracking-tight">Akun</h1>
+      <h1 className="text-xl font-extrabold tracking-tight">{t('mgrFix.mMgr.accountTitle')}</h1>
 
       <Card className="flex items-center gap-4 p-5">
         <div className="flex size-14 items-center justify-center rounded-full bg-brand-700 text-lg font-extrabold text-white">

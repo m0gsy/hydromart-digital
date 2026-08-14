@@ -19,4 +19,10 @@ export const settings = {
   globalOnlyDeliveryFee:
     'This is only the global fallback. The actual per-gallon delivery fee is set per depot on the Depots page.',
   globalWriteDenied: 'Only a SUPER_ADMIN can change network-wide defaults.',
+  svcDelivery: 'Delivery & couriers',
+  svcOrder: 'Orders & delivery fees',
+  svcPayout: 'Payouts & commission',
+  svcLoyalty: 'Loyalty / points',
+  svcReferral: 'Referrals',
+  svcDepot: 'Depots & gallons',
 };

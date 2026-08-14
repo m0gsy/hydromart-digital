@@ -55,10 +55,10 @@ export default function PayrollDetailPage() {
     <div className="mx-auto max-w-2xl space-y-5">
       <SectionHeader
         title={`Slip Gaji ${p.periodMonth}`}
-        subtitle={`${p.presentDays} hari hadir`}
+        subtitle={t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}
         action={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={downloadSlip}>Unduh PDF</Button>
+            <Button variant="secondary" onClick={downloadSlip}>{t('hrFix.payrollDetail.downloadPdf')}</Button>
             <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
           </div>
         }
@@ -88,12 +88,12 @@ export default function PayrollDetailPage() {
       <div className="grid grid-cols-3 gap-3 text-sm">
         <Card className="p-3"><p className="text-muted">Gross</p><Money amount={Number(p.gross)} className="font-bold" /></Card>
         <Card className="p-3"><p className="text-muted">Bonus</p><Money amount={Number(p.totalBonus)} className="font-bold" /></Card>
-        <Card className="p-3"><p className="text-muted">Potongan</p><Money amount={Number(p.totalDeduction)} className="font-bold" /></Card>
+        <Card className="p-3"><p className="text-muted">{t('hrFix.payrollDetail.deduction')}</p><Money amount={Number(p.totalDeduction)} className="font-bold" /></Card>
       </div>
 
       {canRun && (
         <div className="flex gap-3">
-          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), t('hrFix.payrollDetail.approved'))} loading={busy}>Setujui</Button>}
+          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), t('hrFix.payrollDetail.approved'))} loading={busy}>{t('hrFix.payrollDetail.approve')}</Button>}
           {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), t('hrFix.payrollDetail.markedPaid'))} loading={busy}>{t('hrFix.payrollDetail.markPaid')}</Button>}
         </div>
       )}

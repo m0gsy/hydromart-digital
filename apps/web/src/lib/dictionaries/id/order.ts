@@ -170,4 +170,16 @@ export const order = {
     cancelled: 'Pesanan dibatalkan',
     itemsAdded: 'Item ditambahkan ke keranjang',
   },
+  payMethod: {
+    cash: 'Bayar di tempat (COD)',
+    cashHint: 'Bayar ke kurir saat pesanan tiba.',
+    transfer: 'Transfer bank',
+    transferHint: 'Transfer manual, dikonfirmasi oleh depot.',
+    qris: 'QRIS',
+    qrisHint: 'Pindai untuk bayar lewat aplikasi QRIS mana pun.',
+    ewallet: 'E-wallet',
+    ewalletHint: 'GoPay, OVO, DANA, dan lainnya.',
+    va: 'Virtual account',
+    vaHint: 'Bayar ke nomor rekening sekali pakai.',
+  },
 };

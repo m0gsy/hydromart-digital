@@ -139,6 +139,9 @@ export const en: Dictionary = {
     theme_system: 'System',
   },
   common: {
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    close: 'Close',
     back: 'Back',
     retry: 'Try again',
     loading: 'Loading…',

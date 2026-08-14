@@ -181,6 +181,9 @@ async function nativePushState(): Promise<PushState> {
 async function ensureChannel(): Promise<void> {
   await askPlugin('PushNotifications', 'createChannel', {
     id: 'hydromart_orders',
+    // i18n-ok (name + description): Android caches a notification channel's name at
+    // creation and ignores later edits under the same id. A locale-dependent name would
+    // freeze whichever language happened to run first, per device, forever.
     name: 'Pesanan & pengiriman',
     description: 'Status pesanan, kurir dalam perjalanan, poin dan voucher.',
     importance: 4, // IMPORTANCE_HIGH — a heads-up banner, which is the point of the message
