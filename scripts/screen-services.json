@@ -1,4 +1,407 @@
 {
+  "/": [
+    "auth",
+    "loyalty",
+    "orders",
+    "products",
+    "recommendations",
+    "vouchers"
+  ],
+  "/account": [
+    "auth",
+    "loyalty",
+    "orders"
+  ],
+  "/account/edit": [
+    "auth",
+    "orders"
+  ],
+  "/addresses": [
+    "auth",
+    "customers",
+    "orders"
+  ],
+  "/cart": [
+    "auth",
+    "loyalty",
+    "orders",
+    "recommendations"
+  ],
+  "/checkout": [
+    "auth",
+    "customers",
+    "depots",
+    "loyalty",
+    "orders",
+    "vouchers"
+  ],
+  "/dashboard": [
+    "auth",
+    "crm",
+    "deliveries",
+    "depots",
+    "orders"
+  ],
+  "/dashboard/account": [
+    "admin",
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/approvals": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/approvals/detail": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/audit": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/broadcast": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/campaigns": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/cashbook": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/churn": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/commission": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/compare": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/crm": [
+    "auth",
+    "crm",
+    "customers",
+    "depots"
+  ],
+  "/dashboard/customers": [
+    "auth",
+    "crm",
+    "customers",
+    "depots"
+  ],
+  "/dashboard/customers/detail": [
+    "auth",
+    "crm",
+    "customers",
+    "depots"
+  ],
+  "/dashboard/customers/import": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/depot-settings": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/depots": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/disputes": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/earning-rules": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/expense-claims": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/forecast": [
+    "auth",
+    "crm",
+    "depots",
+    "forecast"
+  ],
+  "/dashboard/franchise": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/handover": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/huddle": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/incidents": [
+    "auth",
+    "crm",
+    "depots",
+    "incidents"
+  ],
+  "/dashboard/inventory": [
+    "auth",
+    "crm",
+    "depots",
+    "products"
+  ],
+  "/dashboard/inventory/import": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/loyalty": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/maintenance": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/meter": [
+    "auth",
+    "crm",
+    "depots",
+    "orders"
+  ],
+  "/dashboard/monthly-pnl": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/monthly-review": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/notifications": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/onboarding": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/operator-settings": [
+    "admin",
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/orders": [
+    "auth",
+    "crm",
+    "deliveries",
+    "depots",
+    "orders"
+  ],
+  "/dashboard/payment-recon": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/payments": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/payout": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/pricing": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/pricing/import": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/products": [
+    "auth"
+  ],
+  "/dashboard/products/manage": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/profile": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/promotions": [
+    "auth",
+    "crm",
+    "depots",
+    "vouchers"
+  ],
+  "/dashboard/promotions/detail": [
+    "auth"
+  ],
+  "/dashboard/purchase-orders": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/purchase-orders/detail": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/ratings": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/recommendations": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/redemptions": [
+    "auth",
+    "crm",
+    "depots",
+    "loyalty"
+  ],
+  "/dashboard/referral": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/reports": [
+    "auth",
+    "crm",
+    "depots",
+    "orders"
+  ],
+  "/dashboard/resellers/import": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/returns": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/roles": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/search": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/settings": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/settlements": [
+    "auth",
+    "crm",
+    "deliveries",
+    "depots"
+  ],
+  "/dashboard/shift": [
+    "auth",
+    "crm",
+    "depots",
+    "shifts"
+  ],
+  "/dashboard/staff": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/subscriptions": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/suppliers": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/targets": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/team-performance": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/tracking": [
+    "auth",
+    "crm",
+    "deliveries",
+    "depots"
+  ],
+  "/dashboard/vouchers": [
+    "auth",
+    "crm",
+    "depots",
+    "vouchers"
+  ],
+  "/dashboard/walk-in": [
+    "auth",
+    "crm",
+    "depots",
+    "products"
+  ],
+  "/dashboard/wastage": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/wholesale": [
+    "auth",
+    "crm",
+    "depots"
+  ],
   "/driver": [
     "auth",
     "crm",
@@ -92,6 +495,265 @@
     "auth",
     "deliveries"
   ],
+  "/favorites": [
+    "auth",
+    "customers",
+    "orders"
+  ],
+  "/hapus-akun": [
+    "auth",
+    "orders"
+  ],
+  "/help": [
+    "auth",
+    "orders"
+  ],
+  "/hq": [
+    "auth",
+    "dashboard",
+    "depots"
+  ],
+  "/hq/access": [
+    "auth"
+  ],
+  "/hq/access/landing": [
+    "auth"
+  ],
+  "/hq/analytics": [
+    "auth",
+    "dashboard",
+    "orders"
+  ],
+  "/hq/api-keys": [
+    "admin",
+    "auth"
+  ],
+  "/hq/applications": [
+    "auth",
+    "depots"
+  ],
+  "/hq/audit": [
+    "auth"
+  ],
+  "/hq/broadcast": [
+    "auth",
+    "depots",
+    "orders"
+  ],
+  "/hq/campaigns": [
+    "auth",
+    "orders"
+  ],
+  "/hq/catalog": [
+    "auth",
+    "products"
+  ],
+  "/hq/churn": [
+    "auth",
+    "forecast"
+  ],
+  "/hq/compare": [
+    "auth",
+    "dashboard",
+    "depots"
+  ],
+  "/hq/content": [
+    "auth"
+  ],
+  "/hq/customers": [
+    "auth"
+  ],
+  "/hq/depots": [
+    "auth",
+    "depots"
+  ],
+  "/hq/exports": [
+    "admin",
+    "auth"
+  ],
+  "/hq/flags": [
+    "admin",
+    "auth"
+  ],
+  "/hq/forecast": [
+    "auth",
+    "forecast",
+    "products"
+  ],
+  "/hq/forms/commission": [
+    "auth",
+    "depots",
+    "payout"
+  ],
+  "/hq/forms/pricing-rule": [
+    "auth",
+    "depots",
+    "products"
+  ],
+  "/hq/forms/segment": [
+    "auth",
+    "crm",
+    "orders"
+  ],
+  "/hq/forms/voucher": [
+    "auth"
+  ],
+  "/hq/franchise": [
+    "auth",
+    "depots",
+    "payout"
+  ],
+  "/hq/fraud": [
+    "admin",
+    "auth"
+  ],
+  "/hq/health": [
+    "admin",
+    "auth"
+  ],
+  "/hq/hierarchy": [
+    "auth",
+    "depots"
+  ],
+  "/hq/incidents": [
+    "admin",
+    "auth"
+  ],
+  "/hq/inventory": [
+    "auth",
+    "depots"
+  ],
+  "/hq/invoice-template": [
+    "auth",
+    "orders",
+    "payments"
+  ],
+  "/hq/loyalty": [
+    "auth",
+    "loyalty"
+  ],
+  "/hq/notifications": [
+    "auth",
+    "crm"
+  ],
+  "/hq/onboarding": [
+    "auth",
+    "depots"
+  ],
+  "/hq/orders": [
+    "auth",
+    "depots",
+    "orders"
+  ],
+  "/hq/payments": [
+    "auth",
+    "dashboard",
+    "payments",
+    "payout"
+  ],
+  "/hq/pdp": [
+    "auth"
+  ],
+  "/hq/pricing": [
+    "auth",
+    "depots",
+    "products"
+  ],
+  "/hq/profile": [
+    "admin",
+    "auth"
+  ],
+  "/hq/promotions": [
+    "auth",
+    "vouchers"
+  ],
+  "/hq/reconciliation": [
+    "auth",
+    "dashboard",
+    "depots",
+    "orders",
+    "payout"
+  ],
+  "/hq/refunds": [
+    "auth",
+    "payments"
+  ],
+  "/hq/reports/export": [
+    "auth",
+    "dashboard",
+    "depots",
+    "orders",
+    "payments"
+  ],
+  "/hq/retention": [
+    "admin",
+    "auth"
+  ],
+  "/hq/returns": [
+    "auth",
+    "depots"
+  ],
+  "/hq/roster": [
+    "auth",
+    "deliveries",
+    "depots"
+  ],
+  "/hq/scheduled-reports": [
+    "admin",
+    "auth"
+  ],
+  "/hq/scorecard": [
+    "auth",
+    "dashboard"
+  ],
+  "/hq/search": [
+    "auth"
+  ],
+  "/hq/security": [
+    "admin",
+    "auth"
+  ],
+  "/hq/sitemap": [
+    "auth"
+  ],
+  "/hq/sla-policy": [
+    "admin",
+    "auth",
+    "deliveries"
+  ],
+  "/hq/staff": [
+    "auth",
+    "depots",
+    "employees"
+  ],
+  "/hq/staff/import": [
+    "auth",
+    "depots"
+  ],
+  "/hq/subscriptions": [
+    "auth",
+    "orders"
+  ],
+  "/hq/tax": [
+    "auth",
+    "payments"
+  ],
+  "/hq/tickets": [
+    "admin",
+    "auth"
+  ],
+  "/hq/vouchers": [
+    "auth",
+    "vouchers"
+  ],
+  "/hq/webhooks": [
+    "admin",
+    "auth"
+  ],
+  "/hq/wizard": [
+    "admin",
+    "auth"
+  ],
   "/hr/me": [
     "auth"
   ],
@@ -120,5 +782,131 @@
   "/hr/me/payroll/detail": [
     "auth",
     "payroll"
+  ],
+  "/kebijakan-privasi": [
+    "auth",
+    "orders"
+  ],
+  "/login": [
+    "auth",
+    "orders"
+  ],
+  "/m/manager": [
+    "approvals",
+    "auth",
+    "dashboard",
+    "deliveries",
+    "depots"
+  ],
+  "/m/manager/account": [
+    "auth",
+    "depots"
+  ],
+  "/m/manager/approvals": [
+    "approvals",
+    "auth",
+    "depots"
+  ],
+  "/m/manager/approvals/detail": [
+    "approvals",
+    "auth",
+    "depots"
+  ],
+  "/m/manager/login": [
+    "auth"
+  ],
+  "/m/manager/notifications": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/m/manager/pricing": [
+    "auth",
+    "depots"
+  ],
+  "/m/manager/team": [
+    "auth",
+    "depots"
+  ],
+  "/notifications": [
+    "auth",
+    "crm",
+    "orders"
+  ],
+  "/orders": [
+    "auth",
+    "orders",
+    "recommendations"
+  ],
+  "/orders/detail": [
+    "auth",
+    "depots",
+    "orders",
+    "payments"
+  ],
+  "/orders/detail/review": [
+    "auth",
+    "orders"
+  ],
+  "/products": [
+    "auth",
+    "loyalty",
+    "orders",
+    "products"
+  ],
+  "/products/detail": [
+    "auth",
+    "customers",
+    "loyalty",
+    "orders",
+    "products",
+    "recommendations"
+  ],
+  "/promo": [
+    "auth",
+    "loyalty",
+    "orders",
+    "products",
+    "vouchers"
+  ],
+  "/referral": [
+    "auth",
+    "orders",
+    "referrals"
+  ],
+  "/register": [
+    "auth",
+    "orders"
+  ],
+  "/resellers": [
+    "auth",
+    "orders"
+  ],
+  "/rewards": [
+    "auth",
+    "depots",
+    "loyalty",
+    "orders",
+    "referrals",
+    "vouchers"
+  ],
+  "/subscriptions": [
+    "auth",
+    "customers",
+    "orders",
+    "products"
+  ],
+  "/verify": [
+    "auth",
+    "orders"
+  ],
+  "/vouchers": [
+    "auth",
+    "orders",
+    "vouchers"
+  ],
+  "/waralaba": [
+    "auth",
+    "orders"
   ]
 }
