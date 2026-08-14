@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { SystemSettingsService } from '../application/services/system-settings.service';
 import { SaveSystemSettingsDto, SystemSettingsDto } from './dto/system-settings.dto';
@@ -9,7 +9,7 @@ import { SaveSystemSettingsDto, SystemSettingsDto } from './dto/system-settings.
 // Design 8b — platform config (singleton). Super-admin only, read and write.
 @ApiTags('System settings')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'system-settings', version: '1' })
 export class SystemSettingsController {
   constructor(private readonly settings: SystemSettingsService) {}

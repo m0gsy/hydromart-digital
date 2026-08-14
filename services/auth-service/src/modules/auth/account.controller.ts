@@ -6,8 +6,7 @@ import { AccountService } from '../../application/services/account.service';
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, ImportSummary, Roles } from '@hydromart/platform';
-import { Role } from '../../domain/customer/role.enum';
+import { Can, ImportSummary } from '@hydromart/platform';
 
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
@@ -75,14 +74,7 @@ export class AccountController {
   // were the only ones the confirmation never reached. The form catches the 403 into "no
   // dialog", so they promoted a mistyped customer in silence: precisely the failure the
   // confirmation exists to prevent, for half the people who can trigger it.
-  @Roles(
-    Role.MARKETING,
-    Role.MANAGER,
-    Role.SUPER_ADMIN,
-    Role.HR,
-    Role.HEAD_OFFICE,
-    Role.DIREKTUR,
-  )
+  @Can('customerPhoneLookup')
   @Get('auth/customers/lookup')
   @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -93,7 +85,7 @@ export class AccountController {
 
   // Staff-only: resolve a batch of customer ids to names (reseller console row labels).
   // Same staff scope as the reseller registry it feeds (HQ + depot-manager).
-  @Roles(Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN)
+  @Can('customerNameLookup')
   @Get('auth/customers/by-ids')
   @ApiOperation({ summary: 'Staff: resolve customer ids to public profiles (comma-separated)' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { NotificationService } from '../application/services/notification.service';
 import {
@@ -29,13 +29,6 @@ import { Purge3ResponseDto } from './dto/responses.generated.dto';
 // member's token; SUPER_ADMIN can trigger manually. Not a customer-facing endpoint.
 // NOTE (MVP ceiling, same as sibling coordination endpoints): trusts the forwarded
 // staff token — proper hardening is service-to-service auth.
-const TRIGGER_ROLES = [
-  Role.KEPALA_DEPOT,
-  Role.MANAGER,
-  Role.STAFF_DEPOT,
-  Role.SUPER_ADMIN,
-] as const;
-
 @ApiTags('Notifications')
 @ApiBearerAuth()
 @Controller({ path: 'notifications', version: '1' })
@@ -87,7 +80,7 @@ export class NotificationController {
   }
 
   @ApiOkResponse({ type: NotificationDto })
-  @Roles(...TRIGGER_ROLES)
+  @Can('orderFulfilment')
   @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send an event-triggered WhatsApp notification (FR-093/FR-094)' })

@@ -7,14 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import {
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-  addLocalMonths,
-  startOfLocalMonth,
-} from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public, addLocalMonths, startOfLocalMonth } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/delivery.repository';
 import { ReportService } from '../application/services/report.service';
@@ -22,8 +15,6 @@ import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DepotTeamReportQueryDto, SlaReportQueryDto } from './dto/report.dto';
 import { DepotSlaReport, DepotTeamReport, SlaReport } from '../application/services/report.service';
 import { DepotSlaReportResponseDto, SlaReportResponseDto } from './dto/responses.generated.dto';
-
-const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 function toRange(q: { from?: string; to?: string }): ReportRange {
   return {
@@ -46,7 +37,7 @@ function monthWindow(now: Date, timeZone: string): { from: Date; to: Date } {
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@Roles(...REPORT_ROLES)
+@Can('deliveryReports')
 @Controller({ path: 'reports', version: '1' })
 export class ReportController {
   constructor(

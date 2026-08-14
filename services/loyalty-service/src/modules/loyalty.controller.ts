@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
@@ -34,13 +34,6 @@ import { DepotLoyaltyResponseDto, ExpiryResponseDto, MemberCountResponseDto, Pag
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
 // customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.
-const ADJUST_ROLES = [Role.MANAGER, Role.MARKETING, Role.SUPER_ADMIN] as const;
-const READ_ROLES = [
-  Role.MANAGER,
-  Role.HEAD_OFFICE,
-  Role.MARKETING,
-  Role.SUPER_ADMIN,
-] as const;
 
 @ApiTags('Loyalty')
 @Controller({ path: 'loyalty', version: '1' })
@@ -122,7 +115,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
-  @Roles(...ADJUST_ROLES)
+  @Can('loyaltyAdjust')
   @Post('adjust')
   @ApiOperation({ summary: 'Apply a signed manual points correction (staff)' })
   async adjust(@Body() dto: AdjustPointsDto): Promise<LoyaltyAccountDto> {
@@ -173,7 +166,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: MemberCountResponseDto })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('loyaltyRead')
   @Get('members/count')
   @ApiOperation({ summary: 'HQ broadcast reach: total enrolled loyalty members' })
   async memberCount(): Promise<{ count: number }> {
@@ -182,7 +175,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: DepotLoyaltyResponseDto })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('loyaltyRead')
   @Get('depot-summary')
   @ApiOperation({
     summary: 'Depot-scoped loyalty rollup: members, tiers, points outstanding, redeemed this month',
@@ -193,7 +186,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('loyaltyRead')
   @Get('customers/:customerId')
   @ApiOperation({ summary: "Read a customer's loyalty account (staff)" })
   async byCustomer(

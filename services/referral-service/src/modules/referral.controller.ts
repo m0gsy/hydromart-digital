@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ReferralService } from '../application/services/referral.service';
 import {
@@ -31,12 +31,6 @@ import { QualifyResponseDto } from './dto/responses.generated.dto';
 // Qualification is triggered when the referee's first order completes. It is a
 // system-to-system call from order-service, authenticated by the shared
 // INTERNAL_SERVICE_KEY, not a JWT.
-const READ_ROLES = [
-  Role.MANAGER,
-  Role.HEAD_OFFICE,
-  Role.MARKETING,
-  Role.SUPER_ADMIN,
-] as const;
 
 @ApiTags('Referrals')
 @Controller({ path: 'referrals', version: '1' })
@@ -91,7 +85,7 @@ export class ReferralController {
 
   @ApiOkResponse({ type: DepotReferralSummaryDto })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('loyaltyRead')
   @Get('depot-summary')
   @ApiOperation({ summary: 'Depot-scoped referral aggregate (staff): invited/qualified/points + top referrers' })
   async depotSummary(@Query() query: DepotSummaryQueryDto): Promise<DepotReferralSummaryDto> {
@@ -100,7 +94,7 @@ export class ReferralController {
 
   @ApiOkResponse({ type: ReferralSummaryDto })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('loyaltyRead')
   @Get('customers/:customerId')
   @ApiOperation({ summary: "Read a customer's referral summary (staff)" })
   async byCustomer(

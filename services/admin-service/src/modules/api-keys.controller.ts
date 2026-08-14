@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { ApiKeyEnvironment } from '../domain/api-key-environment';
 import { ApiKeyService } from '../application/services/api-key.service';
@@ -15,7 +15,7 @@ import { ApiKeyDto, CreateApiKeyDto, CreatedApiKeyDto } from './dto/api-key.dto'
 // The surface they open is /api/v1/partner/* — a partner's own webhook deliveries.
 @ApiTags('API keys')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'api-keys', version: '1' })
 export class ApiKeysController {
   constructor(private readonly keys: ApiKeyService) {}

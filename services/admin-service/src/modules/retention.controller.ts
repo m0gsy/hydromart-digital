@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { PurgeRunResult, PurgeService } from '../application/services/purge.service';
 import { RetentionService } from '../application/services/retention.service';
@@ -19,7 +19,7 @@ import { PurgeRunResponseDto } from './dto/responses.generated.dto';
 // Backup status has NO engine wired → it is returned and labeled honestly, never faked.
 @ApiTags('Retention & backup')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'retention', version: '1' })
 export class RetentionController {
   constructor(

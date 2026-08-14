@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { SecurityPolicyService } from '../application/services/security-policy.service';
 import { SaveSecurityPolicyDto, SecurityPolicyDto } from './dto/security-policy.dto';
@@ -11,7 +11,7 @@ import { SaveSecurityPolicyDto, SecurityPolicyDto } from './dto/security-policy.
 // only stores the policy (idle timeout, 2FA requirement, IP allowlist).
 @ApiTags('Security policy')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'security-policy', version: '1' })
 export class SecurityPolicyController {
   constructor(private readonly policy: SecurityPolicyService) {}

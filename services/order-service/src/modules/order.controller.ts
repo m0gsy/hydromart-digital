@@ -22,7 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -53,13 +53,6 @@ import {
 import { CartResponseDto, ExpireAbandoned2ResponseDto, InternalCompleted2ResponseDto, InternalConfirm2ResponseDto, InternalCustomerOrdersResponseDto, InternalDepotCustomers2ResponseDto, InternalDepotSales2ResponseDto, InternalRefund2ResponseDto, InternalTotal2ResponseDto, OrderResponseDto, OrderReviewResponseDto, OrderStatusHistoryResponseDto, PagedOrderResponseDto, RatingResponseDto, RemindStale2ResponseDto } from './dto/responses.generated.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
-const FULFILMENT_ROLES = [
-  Role.KEPALA_DEPOT,
-  Role.MANAGER,
-  Role.STAFF_DEPOT,
-  Role.SUPER_ADMIN,
-] as const;
-
 @ApiTags('Orders')
 @ApiBearerAuth()
 @Controller({ path: 'orders', version: '1' })
@@ -591,7 +584,7 @@ export class OrderController {
 
   @ApiOkResponse({ type: OrderResponseDto })
   @Patch(':id/status')
-  @Roles(...FULFILMENT_ROLES)
+  @Can('orderFulfilment')
   @ApiOperation({ summary: 'Advance an order to the next status (staff, BR-012)' })
   async updateStatus(
     @CurrentUser() user: AuthenticatedUser,

@@ -232,6 +232,13 @@ jobs:
       - name: Depot-scope guard registration
         run: node scripts/check-depot-scope-guards.mjs
 
+      # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
+      # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
+      # `@hydromart/access`; this stops the next one being written back as a role tuple
+      # `effectiveMatrix()` cannot see and a SUPER_ADMIN cannot retune.
+      - name: '@Roles vs @Can policy'
+        run: node scripts/check-roles-policy.mjs
+
       # The performance baseline (audit Q-17) names, per hot path, the test that holds its
       # round-trip count. A renamed or deleted test turns that table into a promise nobody
       # is keeping, so the reference is checked here.
