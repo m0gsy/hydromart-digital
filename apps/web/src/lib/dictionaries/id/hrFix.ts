@@ -11,6 +11,10 @@
  * silently missing copy.
  */
 export const hrFix = {
+  myHome: {
+    greeting: "Halo, {name}",
+    employee: "Karyawan",
+  },
   map: {
     gender: { MALE: 'Laki-laki', FEMALE: 'Perempuan' },
     ptkp: {
@@ -802,6 +806,8 @@ export const hrFix = {
     bankHolder: "Atas nama",
   },
   pod: {
+    heading: 'Bukti pengantaran · {order}',
+    previewAlt: 'Pratinjau foto pengantaran',
     photo: "Foto pengantaran",
     optional: "(opsional)",
     recipient: "Nama penerima",
@@ -890,6 +896,7 @@ export const hrFix = {
     noCustomers: "Belum ada pelanggan",
   },
   myLeave: {
+    quotaLine: "Kuota {quota} hari · terpakai {used} · sisa {left}",
     apply2: "Ajukan Cuti",
     holidayHint: "Hari libur nasional dan libur mingguan di dalam rentang tidak memotong kuota.",
     title: "Cuti Saya",
@@ -1029,6 +1036,7 @@ export const hrFix = {
     enrollFailed: "Gagal enroll",
   },
   commission: {
+    emptyBody: 'Belum ada pengantaran terselesaikan untuk depot ini pada periode {month}.',
     gateBody2: "Pembayaran komisi kurir hanya untuk Manajer depot.",
     title: "Komisi kurir",
     periodTotal: "Total komisi periode",
@@ -1224,6 +1232,7 @@ export const hrFix = {
     emptyBody: "Slip gaji kamu akan muncul di sini.",
   },
   managerPricing: {
+    subtitle: 'Aktif/nonaktifkan aturan harga depot.',
     noDepots2: "Belum ada depot yang dikonfigurasi.",
     emptyBody2: "Aturan harga depot akan tampil di sini.",
     title: "Harga dinamis",
@@ -1262,6 +1271,11 @@ export const hrFix = {
     subtitle: "Kode HR-#### dibuat otomatis",
   },
   checkIn: {
+    inOk: "Check-in berhasil",
+    outOk: "Check-out berhasil",
+    inAt: "Masuk {at}",
+    outAt: " · Keluar {at}",
+    lateBy: " · Terlambat {n} menit",
     title: "Absensi Wajah",
     checkIn: "Check-in",
     checkOut: "Check-out",
@@ -1356,6 +1370,8 @@ export const hrFix = {
     clearAria: "Hapus data offline",
   },
   operatorShell: {
+    notifAria: "Notifikasi",
+    notifUnreadAria: "Notifikasi ({n} belum dibaca)",
     title: "Operator depot",
   },
   receipt: {
@@ -1439,6 +1455,7 @@ export const hrFix = {
     noName: "Tanpa nama",
     statusFailed: "Gagal mengubah status langganan.",
     notScheduled: "belum dijadwalkan",
+    nextRun: "berikutnya {at}",
   },
   depotTargets: {
     mustBeNumbers: "Semua target harus berupa angka.",
@@ -1462,6 +1479,8 @@ export const hrFix = {
     unreadable: "Tidak terbaca",
   },
   myPayrollDetail: {
+    slipTitle: "Slip Gaji {period}",
+    presentDays: "{n} hari hadir",
     downloadPdf2: "Unduh PDF",
     downloadFailed: "Gagal unduh",
     netPay: "Gaji Bersih (Net)",

@@ -12,14 +12,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public, Role, Roles } from '@hydromart/platform';
+import { Can, Public } from '@hydromart/platform';
 
 import { CategoryService } from '../application/services/category.service';
 import { CategoryRecord } from '../application/ports/category.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CategoryResponseDto } from './dto/responses.generated.dto';
 
-const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Categories')
 @Controller({ path: 'categories', version: '1' })
@@ -39,7 +38,7 @@ export class CategoryController {
   // rather than a flag on the public one — nothing extra leaks to the shop.
   @ApiOkResponse({ type: CategoryResponseDto, isArray: true })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Get('all')
   @ApiOperation({ summary: 'List every category, active or not (admin)' })
   listAll(): Promise<CategoryRecord[]> {
@@ -48,7 +47,7 @@ export class CategoryController {
 
   @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Post()
   @ApiOperation({ summary: 'Create a category (admin)' })
   create(@Body() dto: CreateCategoryDto): Promise<CategoryRecord> {
@@ -57,7 +56,7 @@ export class CategoryController {
 
   @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a category (admin)' })
   update(
@@ -69,7 +68,7 @@ export class CategoryController {
 
   @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a category (soft delete, admin)' })

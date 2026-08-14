@@ -25,8 +25,10 @@ export class PushSubscriptionPrismaRepository implements PushSubscriptionReposit
     return rows.map(toRecord);
   }
 
-  async deleteByEndpoint(endpoint: string): Promise<void> {
-    await this.prisma.webPushSubscription.deleteMany({ where: { endpoint } });
+  async deleteByEndpoint(endpoint: string, customerId?: string): Promise<void> {
+    await this.prisma.webPushSubscription.deleteMany({
+      where: { endpoint, ...(customerId ? { customerId } : {}) },
+    });
   }
 }
 

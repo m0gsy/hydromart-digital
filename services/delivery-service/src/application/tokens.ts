@@ -10,6 +10,7 @@ export const DELIVERY_TOKENS = {
   DepotLocation: Symbol('DepotLocation'),
   OrderPayment: Symbol('OrderPayment'),
   OpsNotifier: Symbol('OpsNotifier'),
+  CustomerNotification: Symbol('CustomerNotification'),
   EventPublisher: Symbol('EventPublisher'),
   Storage: Symbol('Storage'),
 } as const;

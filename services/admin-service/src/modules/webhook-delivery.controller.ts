@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { WebhookDispatchService } from '../application/services/webhook-dispatch.service';
 import { ApiKeyGuard, ApiScopes } from './api-key.guard';
@@ -63,7 +63,7 @@ export class WebhookInternalController {
 
 /** HQ's view of what was actually delivered, and the button to send one again. */
 @ApiTags('Webhooks')
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'webhooks/deliveries', version: '1' })
 export class WebhookDeliveryController {
   constructor(private readonly dispatch: WebhookDispatchService) {}

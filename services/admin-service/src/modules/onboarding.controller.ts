@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { OnboardingStateService } from '../application/services/onboarding-state.service';
 import { OnboardingStateDto, PatchOnboardingDto } from './dto/onboarding-state.dto';
@@ -9,7 +9,7 @@ import { OnboardingStateDto, PatchOnboardingDto } from './dto/onboarding-state.d
 // Design 23b — first-run HQ onboarding wizard state (singleton). SUPER_ADMIN only.
 @ApiTags('Onboarding wizard')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'onboarding', version: '1' })
 export class OnboardingController {
   constructor(private readonly onboarding: OnboardingStateService) {}

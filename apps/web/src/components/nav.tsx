@@ -91,7 +91,7 @@ export function Nav() {
             <Link
               href="/notifications"
               aria-label={t('notifications.title')}
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-transform hover:scale-[1.04]"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-transform hover:scale-[1.04]"
             >
               <Bell size={18} weight="fill" />
             </Link>
@@ -101,7 +101,7 @@ export function Nav() {
             <Link
               href="/account"
               aria-label={t('nav.account')}
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-brand-50 text-sm font-extrabold text-brand-800 transition-transform hover:scale-[1.04]"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-sm font-extrabold text-brand-800 transition-transform hover:scale-[1.04]"
             >
               {customer.fullName?.trim()?.[0]?.toUpperCase() ?? <User size={18} />}
             </Link>

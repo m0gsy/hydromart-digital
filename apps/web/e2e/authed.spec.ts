@@ -14,8 +14,10 @@ import { loginWithOtp } from './helpers/auth';
 test('OTP login establishes an authenticated cookie session', async ({ page }) => {
   await loginWithOtp(page);
 
-  // On success verify() calls router.replace(next) — default /products — and no error.
-  await expect(page).toHaveURL(/\/products/, { timeout: 15_000 });
+  // Sign-in lands each role on its own console (`consoleHome()`) — this seeded account is
+  // a SUPER_ADMIN, so it arrives at /hq. What this test is about is the session, not the
+  // destination, so the shop is a deliberate navigation.
+  await page.goto('/products');
   // The toast provider mounts an always-present empty role=alert live region, so assert
   // no alert carries actual error text rather than a zero count.
   await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
@@ -28,7 +30,10 @@ test('OTP login establishes an authenticated cookie session', async ({ page }) =
 
 test('a protected page loads over the cookie session', async ({ page }) => {
   await loginWithOtp(page);
-  await expect(page).toHaveURL(/\/products/, { timeout: 15_000 });
+  // Sign-in now lands each role on its own console (`consoleHome()`), and this seeded
+  // account is a SUPER_ADMIN, so the shop is a deliberate navigation rather than where
+  // the OTP left us.
+  await page.goto('/products');
 
   // /account is auth-gated; reaching it without a bounce to /login proves the cookie
   // round-trips to the gateway and the authenticated /auth/me read succeeds.
@@ -39,7 +44,10 @@ test('a protected page loads over the cookie session', async ({ page }) => {
 
 test('an authenticated customer can add a seeded product to the cart', async ({ page }) => {
   await loginWithOtp(page);
-  await expect(page).toHaveURL(/\/products/, { timeout: 15_000 });
+  // Sign-in now lands each role on its own console (`consoleHome()`), and this seeded
+  // account is a SUPER_ADMIN, so the shop is a deliberate navigation rather than where
+  // the OTP left us.
+  await page.goto('/products');
 
   // Seeded products carry valid v4 ids, so add-to-cart passes @IsUUID() (the DATA-1
   // failure was stale non-v4 live rows, never the seed). Add the first card's product.

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { FeatureFlagService } from '../application/services/feature-flag.service';
 import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
@@ -23,7 +23,7 @@ export class FeatureFlagsController {
   }
 
   @ApiOkResponse({ type: FeatureFlagDto })
-  @Roles(Role.SUPER_ADMIN)
+  @Can('platformAdmin')
   @Patch(':key')
   @ApiOperation({ summary: "Toggle a feature flag's state / rollout percentage (8b)" })
   async update(

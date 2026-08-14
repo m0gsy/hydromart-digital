@@ -78,7 +78,7 @@ function CommissionBody() {
 
   const run = data.data?.run ?? null;
   const names = data.data?.names ?? new Map<string, string>();
-  const nameOf = (courierId: string) => names.get(courierId) ?? `Kurir ${courierId.slice(0, 8)}`;
+  const nameOf = (courierId: string) => names.get(courierId) ?? t('opsFix.commission.unnamedCourier', { id: courierId.slice(0, 8) });
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -87,7 +87,8 @@ function CommissionBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('hrFix.commission.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {selected ? `Depot ${selected.name} · ` : ''}periode {MONTH} · siap dibayar
+            {selected ? t('opsFix.common.depotPrefix', { name: selected.name }) : ''}
+            {t('opsFix.commission.periodReady', { month: MONTH })}
           </p>
         </div>
       </div>
@@ -98,7 +99,7 @@ function CommissionBody() {
         <ErrorState message={data.error} onRetry={data.reload} />
       ) : !run || run.couriers.length === 0 ? (
         <CenterState title={t('hrFix.commission.empty')} icon={<Wallet size={40} weight="fill" />}>
-          Belum ada pengantaran terselesaikan untuk depot ini pada periode {MONTH}.
+          {t('hrFix.commission.emptyBody', { month: MONTH })}
         </CenterState>
       ) : (
         <>

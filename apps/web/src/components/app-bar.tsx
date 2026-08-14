@@ -86,7 +86,7 @@ export function AppBar() {
             <Link
               href="/notifications"
               aria-label={t('notifications.title')}
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-brand-50 text-brand-800"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-800"
             >
               <Bell size={18} weight="fill" />
             </Link>
@@ -98,7 +98,7 @@ export function AppBar() {
             <Link
               href="/cart"
               aria-label={t('nav.cart')}
-              className="relative flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[color:var(--text)] text-[color:var(--surface)]"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--text)] text-[color:var(--surface)]"
             >
               <ShoppingCartSimple size={18} weight="fill" />
               {count > 0 && (

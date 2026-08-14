@@ -89,7 +89,7 @@ function TeamPerformanceBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('mgrFix.teamPerf.title')}</h1>
           <p className="text-sm text-muted">
-            {t('mgrFix.teamPerf.subtitle', { depot: depot?.name ?? 'Depot' })}
+            {t('mgrFix.teamPerf.subtitle', { depot: depot?.name ?? t('opsFix.common.depot') })}
           </p>
         </div>
       </div>

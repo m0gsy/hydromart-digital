@@ -1,5 +1,9 @@
 /** HR console — EN mirror of id/hrFix.ts. Same shape, key for key. */
 export const hrFix = {
+  myHome: {
+    greeting: "Hi, {name}",
+    employee: "Employee",
+  },
   map: {
     gender: { MALE: 'Male', FEMALE: 'Female' },
     ptkp: {
@@ -790,6 +794,8 @@ export const hrFix = {
     bankHolder: "Account holder",
   },
   pod: {
+    heading: 'Proof of delivery · {order}',
+    previewAlt: 'Photo preview',
     photo: "Delivery photo",
     optional: "(optional)",
     recipient: "Recipient's name",
@@ -878,6 +884,7 @@ export const hrFix = {
     noCustomers: "No customers yet",
   },
   myLeave: {
+    quotaLine: "Quota {quota} days · used {used} · left {left}",
     apply2: "Request leave",
     holidayHint: "Public holidays and weekly days off inside the range do not count against your quota.",
     title: "My leave",
@@ -1017,6 +1024,7 @@ export const hrFix = {
     enrollFailed: "Enrolment failed",
   },
   commission: {
+    emptyBody: 'No completed deliveries for this depot in {month}.',
     gateBody2: "Courier commission payouts are for depot managers only.",
     title: "Courier commission",
     periodTotal: "Commission this period",
@@ -1212,6 +1220,7 @@ export const hrFix = {
     emptyBody: "Your payslips will appear here.",
   },
   managerPricing: {
+    subtitle: 'Turn depot pricing rules on or off.',
     noDepots2: "No depot has been configured yet.",
     emptyBody2: "Depot pricing rules will appear here.",
     title: "Dynamic pricing",
@@ -1250,6 +1259,11 @@ export const hrFix = {
     subtitle: "The HR-#### code is generated automatically",
   },
   checkIn: {
+    inOk: "Checked in",
+    outOk: "Checked out",
+    inAt: "In {at}",
+    outAt: " · Out {at}",
+    lateBy: " · {n} min late",
     title: "Face attendance",
     checkIn: "Check in",
     checkOut: "Check out",
@@ -1344,6 +1358,8 @@ export const hrFix = {
     clearAria: "Clear the offline data",
   },
   operatorShell: {
+    notifAria: "Notifications",
+    notifUnreadAria: "Notifications ({n} unread)",
     title: "Depot operator",
   },
   receipt: {
@@ -1427,6 +1443,7 @@ export const hrFix = {
     noName: "No name",
     statusFailed: "Could not change the subscription's status.",
     notScheduled: "not scheduled yet",
+    nextRun: "next {at}",
   },
   depotTargets: {
     mustBeNumbers: "Every target must be a number.",
@@ -1450,6 +1467,8 @@ export const hrFix = {
     unreadable: "Could not be read",
   },
   myPayrollDetail: {
+    slipTitle: "Payslip {period}",
+    presentDays: "{n} days present",
     downloadPdf2: "Download PDF",
     downloadFailed: "Download failed",
     netPay: "Net pay",

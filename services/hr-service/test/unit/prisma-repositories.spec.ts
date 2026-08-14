@@ -2298,6 +2298,55 @@ describe('PayrollPrismaRepository', () => {
     });
   });
 
+  /**
+   * December's reconciliation reads the year off the payslips themselves rather than an
+   * accumulator table — one record of what was withheld, not two that can drift.
+   */
+  it('pph21YearToDate sums gross, BPJS and PPh 21 off the earlier approved payslips', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').findMany.mockResolvedValue([
+      { id: 'pr1', gross: 10_000_000 },
+      { id: 'pr2', gross: 12_000_000 },
+    ]);
+    m(p, 'payrollItem').findMany.mockResolvedValue([
+      { label: 'BPJS Kesehatan (karyawan)', amount: 100_000 },
+      { label: 'BPJS JHT (karyawan)', amount: 200_000 },
+      { label: 'PPh 21', amount: 350_000 },
+      // Not statutory: a fine is not tax and must not enter the reconciliation.
+      { label: 'Denda keterlambatan', amount: 50_000 },
+    ]);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.pph21YearToDate('e1', 2026, '2026-12')).resolves.toEqual({
+      grossIdr: 22_000_000,
+      bpjsIdr: 300_000,
+      withheldIdr: 350_000,
+      months: 2,
+    });
+    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
+      where: {
+        employeeId: 'e1',
+        status: { in: ['APPROVED', 'PAID'] },
+        // The year, up to but not including the month being computed.
+        periodMonth: { gte: '2026-01', lt: '2026-12' },
+      },
+      select: { id: true, gross: true },
+    });
+  });
+
+  // A first-December employee has no year behind them, and must not cost a second query.
+  it('pph21YearToDate returns an empty year without reading items', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').findMany.mockResolvedValue([]);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.pph21YearToDate('e1', 2026, '2026-12')).resolves.toEqual({
+      grossIdr: 0,
+      bpjsIdr: 0,
+      withheldIdr: 0,
+      months: 0,
+    });
+    expect(m(p, 'payrollItem').findMany).not.toHaveBeenCalled();
+  });
+
   it('deductedBySourceRefBefore asks the database nothing when there are no loans', async () => {
     const p = makePrisma();
     const repo = new PayrollPrismaRepository(asService(p));

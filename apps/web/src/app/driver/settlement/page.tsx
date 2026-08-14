@@ -68,11 +68,11 @@ function Settlement() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.settlement.title')}</div>
-        <button type="button" onClick={() => router.push('/driver/settlement/history')} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]" aria-label={t('hrFix.settlement.historyAria')}>
+        <button type="button" onClick={() => router.push('/driver/settlement/history')} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]" aria-label={t('hrFix.settlement.historyAria')}>
           <ClockCounterClockwise size={18} />
         </button>
       </header>

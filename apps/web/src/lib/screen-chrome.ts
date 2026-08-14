@@ -55,9 +55,15 @@ const PUSHED: Record<string, string> = {
   '/vouchers': 'profile.rewards.wallet.title',
   '/subscriptions': 'subscriptions.title',
   '/addresses': 'profile.addresses.list.title',
-  '/referral': 'profile.referral.title',
+  '/referral': 'profile.rewards.referral.title',
   '/help': 'help.title',
   '/notifications': 'notifications.title',
+  // Two pushed screens shipped with no entry here, and `app-bar.tsx` renders nothing at
+  // all when `titleKey` is undefined — so both had a back chevron, a blank middle, and no
+  // way to tell which screen you were on. `/promo` stays deliberately untitled: its
+  // heading is the hero artwork, and `screen-chrome.test.ts` says so.
+  '/waralaba': 'franchise.title',
+  '/favorites': 'hrFix.favorites.title',
 };
 
 const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { CustomerProfileRecord, DirectoryRecipient } from '../application/ports/profile.repository';
 import { ProfileService } from '../application/services/profile.service';
@@ -62,7 +62,7 @@ export class ProfileController {
     return toProfileResponse(p);
   }
 
-  @Roles(Role.MARKETING, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('customerDirectory')
   @Get('profile/directory')
   @ApiOperation({ summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)' })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })

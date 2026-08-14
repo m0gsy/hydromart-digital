@@ -8,6 +8,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Promotion } from '@/lib/types';
+import { resolveDeepLink } from '@/lib/deep-link';
 
 // Home promo duo (public promo feed). A discovery surface: renders nothing while
 // loading, on error, or when empty — never blocks the page. The first promo is a
@@ -78,8 +79,13 @@ function AmberCard({ promo }: { promo: Promotion }) {
       </div>
       <div className="flex items-center gap-3">
         {promo.voucherCode && <CodePill code={promo.voucherCode} teal={false} />}
+        {/* `ctaHref` is server data typed by whoever created the promotion, and it went
+            into `href` unread. An absolute URL there navigates the WebView off the app;
+            a path this binary pruned is a blank screen with no way back. `resolveDeepLink`
+            is the check that already exists for App Links and notification taps — the
+            mechanism was built, this call site just never used it. */}
         <Link
-          href={promo.ctaHref || '/products'}
+          href={(promo.ctaHref && resolveDeepLink(promo.ctaHref)) || '/products'}
           className="inline-flex rounded-full bg-amber-600 px-[18px] py-[9px] text-[13.5px] font-extrabold text-white transition-transform hover:scale-[1.03]"
         >
           {promo.ctaLabel || t('home.promo.shopNow')}

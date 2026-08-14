@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public, Role, Roles } from '@hydromart/platform';
+import { Can, Public } from '@hydromart/platform';
 
 import { ProductService } from '../application/services/product.service';
 import { ProductRecord } from '../application/ports/product.repository';
@@ -21,7 +21,6 @@ import { Page } from '../application/pagination';
 import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { PagedProductResponseDto, ProductResponseDto } from './dto/responses.generated.dto';
 
-const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Products')
 @Controller({ path: 'products', version: '1' })
@@ -42,7 +41,7 @@ export class ProductController {
   // shop. Declared above `:id` so 'all' is not parsed as a product id.
   @ApiOkResponse({ type: PagedProductResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Get('all')
   @ApiOperation({ summary: 'Browse every product, active or not (admin)' })
   browseAll(@Query() query: BrowseProductsQueryDto): Promise<Page<ProductRecord>> {
@@ -76,7 +75,7 @@ export class ProductController {
 
   @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Post()
   @ApiOperation({ summary: 'Create a product (admin)' })
   create(@Body() dto: CreateProductDto): Promise<ProductRecord> {
@@ -96,7 +95,7 @@ export class ProductController {
 
   @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a product (admin)' })
   update(
@@ -108,7 +107,7 @@ export class ProductController {
 
   @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('catalogWrite')
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a product (soft delete, admin)' })

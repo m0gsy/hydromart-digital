@@ -1,13 +1,12 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { TaxSettingsService } from '../application/services/tax-settings.service';
 import { TaxSettingsDto, UpdateTaxSettingsDto } from './dto/tax-settings.dto';
 
 // Tax & invoice settings (feature 19f). Finance owns billing configuration.
-const TAX_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Tax settings')
 @ApiBearerAuth()
@@ -17,7 +16,7 @@ export class TaxController {
 
   @ApiOkResponse({ type: TaxSettingsDto })
   @Get()
-  @Roles(...TAX_ROLES)
+  @Can('taxSettings')
   @ApiOperation({ summary: 'Get the current tax & invoice settings' })
   async get(): Promise<TaxSettingsDto> {
     return TaxSettingsDto.from(await this.tax.get());
@@ -25,7 +24,7 @@ export class TaxController {
 
   @ApiOkResponse({ type: TaxSettingsDto })
   @Put()
-  @Roles(...TAX_ROLES)
+  @Can('taxSettings')
   @ApiOperation({ summary: 'Update the tax & invoice settings' })
   async update(@Body() dto: UpdateTaxSettingsDto): Promise<TaxSettingsDto> {
     return TaxSettingsDto.from(await this.tax.update(dto));

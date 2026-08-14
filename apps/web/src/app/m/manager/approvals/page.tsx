@@ -11,25 +11,34 @@ import { useDepot } from '@/lib/depot-context';
 import { useAsync } from '@/lib/use-async';
 import type { Approval, ApprovalType } from '@/lib/types';
 
+// Keys, not copy. Four approval types and four summary lines — every word a manager reads
+// while deciding money — sat in an enum-keyed map and a set of template literals, the two
+// shapes the i18n scanner was blind to.
 const KIND_LABEL: Record<ApprovalType, string> = {
-  OPNAME_VARIANCE: 'Selisih opname',
-  DEPOSIT_REFUND: 'Refund deposit galon',
-  COD_VARIANCE: 'Kurang setoran (COD)',
-  GALLON_VARIANCE: 'Selisih retur galon',
+  OPNAME_VARIANCE: 'mgrFix.approvalKind.OPNAME_VARIANCE',
+  DEPOSIT_REFUND: 'mgrFix.approvalKind.DEPOSIT_REFUND',
+  COD_VARIANCE: 'mgrFix.approvalKind.COD_VARIANCE',
+  GALLON_VARIANCE: 'mgrFix.approvalKind.GALLON_VARIANCE',
 };
 
 const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
 
-function subtitle(a: Approval): string {
+function subtitle(a: Approval, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const p = a.payload ?? {};
-  if (a.type === 'OPNAME_VARIANCE') return `Sistem ${idr(p.system)} · fisik ${idr(p.physical)}`;
+  if (a.type === 'OPNAME_VARIANCE')
+    return t('mgrFix.approvalSummary.OPNAME_VARIANCE', { system: idr(p.system), physical: idr(p.physical) });
   if (a.type === 'DEPOSIT_REFUND')
-    return `Kondisi ${String(p.condition ?? '—')} · deposit ${idr(p.deposit ?? p.depositRefunded)}`;
-  if (a.type === 'GALLON_VARIANCE') return `Kelebihan ${idr(p.excessGallons)} galon`;
-  return `Diharapkan ${idr(p.expected)} · diterima ${idr(p.received)}`;
+    return t('mgrFix.approvalSummary.DEPOSIT_REFUND', {
+      condition: String(p.condition ?? '—'),
+      deposit: idr(p.deposit ?? p.depositRefunded),
+    });
+  if (a.type === 'GALLON_VARIANCE')
+    return t('mgrFix.approvalSummary.GALLON_VARIANCE', { gallons: idr(p.excessGallons) });
+  return t('mgrFix.approvalSummary.COD_VARIANCE', { expected: idr(p.expected), received: idr(p.received) });
 }
 
 function Row({ a }: { a: Approval }) {
+  const { t } = useT();
   return (
     <Link href={`/m/manager/approvals/detail?id=${a.id}`}>
       <Card className="flex items-start gap-3 p-4">
@@ -39,9 +48,9 @@ function Row({ a }: { a: Approval }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-extrabold">{a.title}</p>
-            <Badge tone="warning">{KIND_LABEL[a.type]}</Badge>
+            <Badge tone="warning">{t(KIND_LABEL[a.type])}</Badge>
           </div>
-          <p className="mt-0.5 truncate text-xs text-[color:var(--text-muted)]">{subtitle(a)}</p>
+          <p className="mt-0.5 truncate text-xs text-[color:var(--text-muted)]">{subtitle(a, t)}</p>
           <p className="mt-1.5 text-sm font-extrabold text-brand-700">
             <Money amount={Math.abs(a.amountIdr)} />
           </p>

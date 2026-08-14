@@ -61,7 +61,7 @@ function Form({ order }: { order: Order }) {
   return (
     <div className="mx-auto max-w-[430px]">
       <div className="flex items-center gap-3">
-        <LinkButton href={`/orders/detail?id=${order.id}`} variant="secondary" className="!h-[38px] !w-[38px] !rounded-full !p-0">
+        <LinkButton href={`/orders/detail?id=${order.id}`} variant="secondary" className="!h-11 !w-11 !rounded-full !p-0">
           <ArrowLeft size={17} weight="bold" />
         </LinkButton>
         <div>

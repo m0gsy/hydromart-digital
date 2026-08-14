@@ -267,7 +267,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
         <>
           <p className="text-sm text-muted">
             {done
-              ? `Voucher masuk ke dompet ${found?.fullName ?? found?.phone ?? 'pelanggan'}.`
+              ? t('opsFix.vouchers.landedInWallet', { who: found?.fullName ?? found?.phone ?? t('opsFix.vouchers.aCustomer') })
               : t('hrFix.vouchers.alreadyHas')}
           </p>
           <div>

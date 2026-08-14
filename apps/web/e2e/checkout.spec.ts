@@ -16,6 +16,10 @@ import { loginWithOtp } from './helpers/auth';
 
 test('an authenticated customer can place an order through manual checkout', async ({ page }) => {
   await loginWithOtp(page);
+  // Sign-in lands each role on its own console now, and this seeded account is a
+  // SUPER_ADMIN — so the catalogue is a deliberate navigation rather than where the OTP
+  // left us. Without it the "add to cart" click below has no product card to find.
+  await page.goto('/products');
 
   // Add the first seeded product to the cart (seeded ids are valid v4 UUIDs). Wait for
   // the cart write to land before navigating, else /checkout can read an empty cart.

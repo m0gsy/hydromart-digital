@@ -12,6 +12,7 @@ import { useT } from '@/lib/locale-context';
 import { useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
 import type { Page, Product, Promotion } from '@/lib/types';
+import { resolveDeepLink } from '@/lib/deep-link';
 
 // A short promo strip; the full catalog lives at /products (the "Lihat semua" link).
 const PROMO_PRODUCT_LIMIT = 4;
@@ -68,7 +69,11 @@ function HeroCountdown({ endsAt }: { endsAt: string }) {
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/70">
         {t('customerFix.promo.endsIn')}
       </div>
-      <div className="flex gap-2.5">
+      {/* Measured at 320px: the four 62px boxes plus their gaps run 22px past the hero,
+          and the hero is `overflow-hidden` — so the seconds box was cut off, not pushed
+          off. `overflow-x-auto` turns a cut into a scroll, the same way
+          `checkout/page.tsx` already handles its slot row. */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
         <CountdownBox value={countdown?.days ?? 0} label={t('customerFix.promo.dayLabel')} />
         <CountdownBox value={countdown?.hours ?? 0} label={t('customerFix.promo.hourLabel')} />
         <CountdownBox value={countdown?.mins ?? 0} label={t('customerFix.promo.minLabel')} />
@@ -144,7 +149,8 @@ export default function PromoPage() {
 
   const title = hero?.title ?? t('customerFix.promo.heroFallbackTitle');
   const subtitle = hero?.subtitle ?? t('customerFix.promo.heroFallbackSubtitle');
-  const shopHref = hero?.ctaHref || '/products';
+  // Same server-typed field as the carousel: validated, never trusted straight into href.
+  const shopHref = (hero?.ctaHref && resolveDeepLink(hero.ctaHref)) || '/products';
   const terms = [
     t('customerFix.promo.term1'),
     t('customerFix.promo.term2'),

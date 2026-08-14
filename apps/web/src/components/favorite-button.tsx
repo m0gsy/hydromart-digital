@@ -7,6 +7,7 @@ import { Heart } from '@phosphor-icons/react';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 
 // Wishlist toggle (gap 13d). Single-product surfaces (PDP) — reads the caller's
 // favorites once on mount to seed state, then optimistically toggles via
@@ -14,6 +15,7 @@ import { useAuth } from '@/lib/auth-context';
 // one read; add a FavoritesProvider only if hearts land on every grid card.
 export function FavoriteButton({ productId, className = '' }: { productId: string; className?: string }) {
   const router = useRouter();
+  const { t } = useT();
   const { customer } = useAuth();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,7 +58,7 @@ export function FavoriteButton({ productId, className = '' }: { productId: strin
       onClick={toggle}
       disabled={busy}
       aria-pressed={on}
-      aria-label={on ? 'Hapus dari favorit' : 'Simpan ke favorit'}
+      aria-label={on ? t('customerFix.favorite.remove') : t('customerFix.favorite.save')}
       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-app transition-colors hover:bg-brand-50 disabled:opacity-50 ${className}`}
     >
       <Heart size={20} weight={on ? 'fill' : 'regular'} className={on ? 'text-[color:var(--danger)]' : 'text-muted'} />

@@ -69,6 +69,23 @@ export interface PayrollRepository {
     beforePeriodMonth: string,
     sourceRefs: readonly string[],
   ): Promise<Map<string, number>>;
+  /**
+   * What this employee's EARLIER payslips in `year` already carried: gross, employee BPJS
+   * and PPh 21 withheld, and how many months of them there were.
+   *
+   * December's reconciliation needs the year to date, and the year to date is already
+   * written down — on the payslips themselves. A separate accumulator table would be the
+   * same numbers twice, drifting the first time a payroll is regenerated.
+   *
+   * Only APPROVED and PAID payslips count. A DRAFT is a proposal; reconciling against
+   * money that was never approved would withhold December against a number that may still
+   * change.
+   */
+  pph21YearToDate(
+    employeeId: string,
+    year: number,
+    beforePeriodMonth: string,
+  ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }>;
   list(filter: {
     periodMonth?: string;
     employeeId?: string;

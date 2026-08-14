@@ -28,16 +28,27 @@
  * Longest first: `/dashboard/approvals` has to be tested before anything shorter could
  * shadow it, and keeping the list in that order means adding an entry cannot quietly
  * change how an existing one matches.
+ *
+ * The list drifted BOTH ways and neither direction was visible from here: it named
+ * `/dashboard/promotions`, which has no `detail/` at all (so a link rewrote itself onto a
+ * page that does not exist), and it was missing five parents that do — `/hr/me/payroll`
+ * among them, whose detail screen throws on a bare navigation. `deep-link.test.ts` now
+ * regenerates this list off the `app/` tree and fails if the two disagree, because a
+ * hand-kept mirror of the filesystem is a mirror that will drift again.
  */
-const DYNAMIC_PARENTS = [
+export const DYNAMIC_PARENTS = [
   '/dashboard/purchase-orders',
-  '/dashboard/promotions',
   '/dashboard/approvals',
   '/dashboard/customers',
   '/m/manager/approvals',
   '/driver/deliveries',
+  '/hq/applications',
+  '/hr/me/payroll',
   '/hr/employees',
   '/hr/payroll',
+  '/hq/access',
+  '/hq/depots',
+  '/hq/orders',
   '/products',
   '/orders',
 ];

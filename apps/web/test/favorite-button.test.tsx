@@ -16,6 +16,7 @@ vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer }) }));
 // The seed read is `getCached` (audit F-2) — one favourites list per grid, not one per card.
 vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post, del } }));
 
+import { LocaleProvider } from '@/lib/locale-context';
 import { FavoriteButton } from '@/components/favorite-button';
 
 beforeEach(() => {
@@ -30,7 +31,7 @@ afterEach(() => vi.clearAllMocks());
 describe('FavoriteButton', () => {
   it('a guest is redirected to login instead of toggling', async () => {
     customer = null;
-    render(<FavoriteButton productId="p1" />);
+    render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     await userEvent.click(screen.getByRole('button'));
     expect(push).toHaveBeenCalledWith('/login?next=%2Fproducts%2Fdetail%3Fid%3Dp1');
     expect(post).not.toHaveBeenCalled();
@@ -39,13 +40,13 @@ describe('FavoriteButton', () => {
   it('seeds pressed state from the favorites list on mount', async () => {
     customer = { id: 'c1' };
     get.mockResolvedValue({ productIds: ['p1'] });
-    render(<FavoriteButton productId="p1" />);
+    render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     await waitFor(() => expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true'));
   });
 
   it('optimistically toggles on and POSTs add', async () => {
     customer = { id: 'c1' };
-    render(<FavoriteButton productId="p1" />);
+    render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     const btn = screen.getByRole('button');
     await waitFor(() => expect(btn).toHaveAttribute('aria-pressed', 'false'));
     await userEvent.click(btn);
@@ -56,7 +57,7 @@ describe('FavoriteButton', () => {
   it('reverts optimistic state when the write fails', async () => {
     customer = { id: 'c1' };
     post.mockRejectedValue(new Error('boom'));
-    render(<FavoriteButton productId="p1" />);
+    render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     const btn = screen.getByRole('button');
     await waitFor(() => expect(btn).toHaveAttribute('aria-pressed', 'false'));
     await userEvent.click(btn);

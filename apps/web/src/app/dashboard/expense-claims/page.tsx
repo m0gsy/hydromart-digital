@@ -108,7 +108,7 @@ function Body() {
         <h1 className="text-2xl font-bold">{t('hrFix.expenseClaims.title')}</h1>
       </div>
       <p className="text-sm text-muted">
-        {selected ? `Depot ${selected.name}` : t('hrFix.expenseClaims.allDepots')}
+        {selected ? t('opsFix.common.depotNamed', { name: selected.name }) : t('hrFix.expenseClaims.allDepots')}
       </p>
 
       <div className="flex items-center gap-2">

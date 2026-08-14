@@ -200,6 +200,25 @@ export const SETTING_DEFS: SettingDef[] = [
     envDefault: '',
     pattern: '^$|^\\d+,\\d+,\\d+$',
   },
+  /**
+   * The three TER tables (PMK 168/2023), as JSON, per category.
+   *
+   * A setting rather than a constant for the same reason every other rate here is one:
+   * the numbers are a regulation, they move on the regulator's schedule, and an accountant
+   * must be able to load them without a deploy. It ships EMPTY, and empty means the
+   * annualised progressive method keeps running — see domain/statutory.ts.
+   *
+   * Shape: {"A":[{"upToIdr":5400000,"rate":0},…],"B":[…],"C":[…]} with the top band of each
+   * category open-ended (`upToIdr: null`). `assertTerTable` refuses anything partial,
+   * unsorted, or with a percentage typed as a whole number.
+   */
+  {
+    key: 'pph21TerTableJson',
+    label: 'Tabel TER PPh 21 (PMK 168/2023)',
+    type: 'string',
+    unit: 'JSON per kategori A/B/C',
+    envDefault: '',
+  },
   {
     key: 'lateFineManager',
     label: 'Denda telat bertingkat — kepala depot',

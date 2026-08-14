@@ -23,10 +23,19 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 
-// ponytail: depot emergency line is one placeholder — no per-depot CS routing in
-// scope. Wire to depot config when a real hotline exists (mirrors customer /help).
-const DEPOT_PHONE = '+62 812-9000-0100';
-const WA_LINK = `https://wa.me/${DEPOT_PHONE.replace(/[^0-9]/g, '')}`;
+/**
+ * The courier hotline, from configuration — it used to be `+62 812-9000-0100` written into
+ * the file. That number shipped inside a released binary behind a `tel:` and a `wa.me`
+ * link, so a courier with a real problem dialled a placeholder. Unset means the two
+ * buttons do not render at all: a card that plainly offers nothing beats one that offers
+ * a call to nobody.
+ *
+ * Depot-scoped routing still does not exist — depot phone numbers are deliberately off the
+ * public projection (only the internal-key route serves them), so a courier cannot read
+ * their own depot's line. One configured number for the fleet is the honest interim.
+ */
+const DEPOT_PHONE = (process.env.NEXT_PUBLIC_COURIER_HOTLINE ?? '').trim();
+const WA_LINK = DEPOT_PHONE ? `https://wa.me/${DEPOT_PHONE.replace(/[^0-9]/g, '')}` : '';
 
 const CATEGORIES: { icon: Icon; key: string }[] = [
   { icon: SealCheck, key: 'pod' },
@@ -140,6 +149,7 @@ function Help() {
             <div className="text-[11.5px] opacity-85">{t('driver.help.hotlineHours')}</div>
           </div>
         </div>
+        {DEPOT_PHONE && (
         <div className="mt-3 flex gap-2.5">
           <ExternalLink
             href={`tel:${DEPOT_PHONE.replace(/\s/g, '')}`}
@@ -156,6 +166,7 @@ function Help() {
             {t('driver.help.chat')}
           </ExternalLink>
         </div>
+        )}
       </Card>
 
       <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3.5 py-3 text-[11.5px] leading-snug text-red-800">

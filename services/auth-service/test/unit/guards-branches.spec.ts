@@ -57,7 +57,29 @@ describe('JwtAuthGuard', () => {
     const request: Partial<Request> = { headers: { authorization: 'Bearer good-token' } };
 
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
-    expect((request as { user?: unknown }).user).toEqual({ sub: 'c1', role: Role.CUSTOMER, phone: '+62811' });
+    expect((request as { user?: unknown }).user).toEqual({
+      sub: 'c1',
+      role: Role.CUSTOMER,
+      phone: '+62811',
+      depotId: null,
+    });
+  });
+
+  /**
+   * `session.service.ts` signs `depotId` into every access token and this guard dropped it
+   * when rebuilding `request.user`, which left auth-service's own DepotScopeGuard half
+   * dead: `own` resolved to `[]` for everyone, so a depot-locked role sending `?depotId=`
+   * was refused its own depot. Every other service carries the claim through.
+   */
+  it('carries the depot claim through, so DepotScopeGuard can resolve `own`', async () => {
+    const verifyAsync = jest
+      .fn()
+      .mockResolvedValue({ sub: 'c1', role: Role.STAFF_DEPOT, phone: '+62811', depotId: 'depot-9', exp: 1 });
+    const guard = guardWith(false, { verifyAsync });
+    const request: Partial<Request> = { headers: { authorization: 'Bearer good-token' } };
+
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+    expect((request as { user?: { depotId?: string | null } }).user?.depotId).toBe('depot-9');
   });
 
   it('rejects an invalid/expired token', async () => {

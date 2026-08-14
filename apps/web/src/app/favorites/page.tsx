@@ -34,7 +34,7 @@ function FavoritesInner() {
         <Link
           href="/account"
           aria-label={t('hrFix.favorites.accountAria')}
-          className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app transition-colors hover:bg-brand-50"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-app transition-colors hover:bg-brand-50"
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>

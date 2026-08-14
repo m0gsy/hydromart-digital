@@ -219,8 +219,25 @@ jobs:
       # used to reach production as a 404 nobody's tests could see. Every path the client
       # can build is resolved through the gateway's segment map to the owning service and
       # matched against the routes that service declares.
+      # Now method-aware as well: the path check alone passed an `api.post` aimed at a
+      # `@Get`-only route. Call sites it cannot resolve statically are counted in the
+      # output rather than dropped — a check that hides what it skipped reads as coverage
+      # it does not have.
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
+
+      # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
+      # only test that would have said so lived inside promo-service and named
+      # promo-service. One check about every service beats seventeen copies of one spec.
+      - name: Depot-scope guard registration
+        run: node scripts/check-depot-scope-guards.mjs
+
+      # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
+      # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
+      # `@hydromart/access`; this stops the next one being written back as a role tuple
+      # `effectiveMatrix()` cannot see and a SUPER_ADMIN cannot retune.
+      - name: '@Roles vs @Can policy'
+        run: node scripts/check-roles-policy.mjs
 
       # The performance baseline (audit Q-17) names, per hot path, the test that holds its
       # round-trip count. A renamed or deleted test turns that table into a promise nobody

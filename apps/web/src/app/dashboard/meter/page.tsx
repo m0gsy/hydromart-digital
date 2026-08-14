@@ -236,7 +236,7 @@ function MeterBody() {
             <Stat
               label={t('hrFix.meter.waterSold')}
               value={`${num(data?.soldLiters)} L`}
-              hint={`${num(data?.gallonsDelivered)} galon terkirim · ${formatIDR(data?.revenueIdr ?? 0)}`}
+              hint={t('opsFix.meter.deliveredHint', { n: num(data?.gallonsDelivered), amount: formatIDR(data?.revenueIdr ?? 0) })}
             />
             <Stat
               label={t('hrFix.meter.difference')}
@@ -259,7 +259,7 @@ function MeterBody() {
               value={data?.varianceIdr != null ? formatIDR(data.varianceIdr) : '—'}
               hint={
                 data?.varianceIdr != null
-                  ? 'dihitung dari omzet per galon hari ini'
+                  ? t('opsFix.meter.perGallonHint')
                   : 'belum ada galon terkirim hari ini'
               }
               tone={data?.overTolerance ? 'danger' : 'plain'}

@@ -1,6 +1,37 @@
 // Depot-operator design-fidelity fixes (batch AB) — English mirror of id/opsFix.ts.
 // NO `as const` — values must widen to string so both locales share one key shape.
 export const opsFix = {
+  wastage: {
+    allDepots: "All depots",
+    pricedItems: "from items with a sale price",
+    noSalePrice: "no sale price on these items",
+  },
+  vouchers: {
+    landedInWallet: "Voucher added to {who}’s wallet.",
+    aCustomer: "the customer",
+  },
+  settlementStatus: {
+    SUBMITTED: "Awaiting",
+    VERIFIED: "Verified",
+    DISPUTED: "Disputed",
+  },
+  payout: {
+    noAccount: "No account set",
+    accountUnreadable: "Depot bank account could not be read — reload before withdrawing.",
+  },
+  meter: {
+    deliveredHint: "{n} gallons delivered · {amount}",
+    perGallonHint: "from today’s revenue per gallon",
+  },
+  commission: {
+    unnamedCourier: "Courier {id}",
+    periodReady: "period {month} · ready to pay",
+  },
+  common: {
+    depot: "Depot",
+    depotNamed: "Depot {name}",
+    depotPrefix: "Depot {name} · ",
+  },
   inv: {
     title: 'Inventory',
     addLine: 'Add line',
@@ -284,6 +315,8 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Mirrors id/opsFix.walkIn key for key.
   walkIn: {
+    saleSaved: "Sale {order} saved.",
+    saleVoided: "Sale {order} voided.",
     reload: "Reload",
     discountHint: "Tier, reseller and voucher discounts are computed on save and printed on the receipt.",
     methodOffHint: "A greyed-out method is one this depot has not set up — add QRIS or a bank account on the Depot page.",
@@ -496,6 +529,7 @@ export const opsFix = {
   },
   // dashboard/ratings — PR-8. Mirrors id/opsFix.ratings key for key.
   ratings: {
+    starsAria: "{n} out of 5 stars",
     title: 'Customer ratings',
     headerSub: '{n} reviews · 30 days',
     outOfFive: 'out of 5.0',

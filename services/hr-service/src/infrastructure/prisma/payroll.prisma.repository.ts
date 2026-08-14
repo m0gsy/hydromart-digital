@@ -122,6 +122,46 @@ export class PayrollPrismaRepository implements PayrollRepository {
     return new Map(rows.map((r) => [r.sourceRef as string, Number(r._sum.amount ?? 0)]));
   }
 
+  async pph21YearToDate(
+    employeeId: string,
+    year: number,
+    beforePeriodMonth: string,
+  ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }> {
+    // "YYYY-MM" sorts as it dates, so `gte "<year>-01"` + `lt beforePeriodMonth` is
+    // exactly "this year, up to but not including the month being computed".
+    const where = {
+      employeeId,
+      status: { in: ['APPROVED', 'PAID'] as PayrollStatus[] },
+      periodMonth: { gte: `${year}-01`, lt: beforePeriodMonth },
+    };
+    const payrolls = await this.prisma.payroll.findMany({
+      where,
+      select: { id: true, gross: true },
+    });
+    if (payrolls.length === 0) return { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0 };
+
+    // The two statutory lines are matched by the labels `statutory.ts` writes. They are
+    // the only lines whose amounts belong in this sum: a lateness fine is not tax, and
+    // BPJS is what makes the annual taxable figure right.
+    const items = await this.prisma.payrollItem.findMany({
+      where: { payrollId: { in: payrolls.map((p) => p.id) }, kind: 'DEDUCTION' },
+      select: { label: true, amount: true },
+    });
+    let bpjsIdr = 0;
+    let withheldIdr = 0;
+    for (const item of items) {
+      const amount = Number(item.amount);
+      if (item.label.startsWith('BPJS ')) bpjsIdr += amount;
+      else if (item.label === 'PPh 21') withheldIdr += amount;
+    }
+    return {
+      grossIdr: payrolls.reduce((sum, p) => sum + Number(p.gross), 0),
+      bpjsIdr,
+      withheldIdr,
+      months: payrolls.length,
+    };
+  }
+
   async list(filter: {
     periodMonth?: string;
     employeeId?: string;

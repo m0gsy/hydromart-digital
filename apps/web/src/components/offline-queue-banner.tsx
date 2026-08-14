@@ -15,10 +15,12 @@ import {
   type QueuedJob,
 } from '@/lib/offline-queue';
 
+// Keys, not copy: a bare object of Indonesian strings is one of the shapes the i18n
+// scanner cannot read, and this banner is on every courier and HR screen.
 const LABELS: Record<QueuedJob['kind'], string> = {
-  hrPunch: 'Absen wajah',
-  shiftCheckIn: 'Mulai shift',
-  pod: 'Bukti pengantaran',
+  hrPunch: 'courierFix.offlineQueue.hrPunch',
+  shiftCheckIn: 'courierFix.offlineQueue.shiftCheckIn',
+  pod: 'courierFix.offlineQueue.pod',
 };
 
 /**
@@ -60,7 +62,7 @@ export function OfflineQueueBanner() {
         {jobs.map((job) => (
           <li key={job.id} className="flex items-start justify-between gap-2">
             <span>
-              {LABELS[job.kind]} · {new Date(job.capturedAt).toLocaleString('id-ID')}
+              {t(LABELS[job.kind])} · {new Date(job.capturedAt).toLocaleString('id-ID')}
               {job.error && <span className="block text-xs text-red-700">{job.error}</span>}
             </span>
             <button

@@ -23,7 +23,7 @@ export class ChurnRiskHttpAdapter implements ChurnRiskPort {
     const base = this.config.forecastServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) return null;
-    const url = `${base}/api/v1/forecasts/internal/churn-band?customerId=${encodeURIComponent(customerId)}`;
+    const url = `${base}/api/v1/forecast/internal/churn-band?customerId=${encodeURIComponent(customerId)}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ChurnRiskHttpAdapter.TIMEOUT_MS);
     try {

@@ -56,8 +56,9 @@ export function depotOpenState(
   return 'buka';
 }
 
+/** Dictionary keys — the three words a customer reads on every depot card. */
 export const DEPOT_OPEN_LABEL: Record<DepotOpenState, string> = {
-  buka: 'Buka',
-  istirahat: 'Istirahat',
-  tutup: 'Tutup',
+  buka: 'customerFix.depotOpen.buka',
+  istirahat: 'customerFix.depotOpen.istirahat',
+  tutup: 'customerFix.depotOpen.tutup',
 };

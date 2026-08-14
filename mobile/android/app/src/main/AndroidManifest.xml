@@ -54,6 +54,17 @@
                     android:scheme="https"
                     android:host="${webHost}"
                     android:pathPrefix="${linkPrefix}" />
+                <!--
+                  A second claimed prefix, because one was not enough for the Ops build: it
+                  claimed `/driver` alone, so every manager approval link — the whole
+                  `/m/manager/*` console that ships inside that same binary — opened in a
+                  browser and never in the app. Defaults to the first prefix, which makes
+                  it a harmless duplicate for the customer build.
+                -->
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix2}" />
             </intent-filter>
 
         </activity>

@@ -20,7 +20,7 @@
  * English-looking label ("Dashboard") on purpose — those are the same in both locales and
  * chasing them would drown the signal that matters.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = 'apps/web/src';
@@ -53,7 +53,11 @@ function isCode(s) {
   if (!/[a-zA-Z]/.test(s)) return true;
   if (/^[A-Z0-9_]+$/.test(s)) return true; // enum member
   if (/^[a-z][a-zA-Z0-9]*$/.test(s)) return true; // identifier
-  if (/^https?:|^\/|^#|^\w+\/\w+/.test(s)) return true; // url / path / mime
+  // `^\w+\/\w+` was meant to catch a mime type and also swallowed `Aktif/nonaktifkan`,
+  // which is two Indonesian words with a slash between them. A mime type has no capital
+  // letters and a known first token.
+  if (/^https?:|^\/|^#/.test(s)) return true; // url / path / anchor
+  if (/^(?:image|video|audio|text|application|font|model|multipart)\/[a-z0-9.+-]+$/.test(s)) return true;
   if (/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_]+)+$/.test(s)) return true; // dictionary key
   return false;
 }
@@ -69,6 +73,13 @@ const SKIP_FILE = /\.(test|spec)\.tsx?$/;
  * and never will be. Skipped by path rather than by three JSX comments inside it.
  */
 const SKIP_PATH = new Set(['app/global-error.tsx']);
+
+/** Replace comment bodies with spaces, keeping every newline and every offset. */
+function blankComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:"'`])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length));
+}
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -99,9 +110,26 @@ const PATTERNS = [
     kind: 'call',
     re: /(?:toast|confirm|alert|setError|setMsg|setNotice)\(\s*(?:'([^']{3,})'|"([^"]{3,})"|`([^`${}]{3,})`)/g,
   },
+  /**
+   * The four shapes a browser pass found copy hiding in, none of which the patterns above
+   * could read. `/dashboard/subscriptions` printed a dictionary key and an Indonesian
+   * template literal on the same two lines while this scanner reported the app clean.
+   */
+  // A template literal WITH interpolation: `berikutnya ${formatDateTime(x)}`. The `${…}`
+  // holes are removed below and whatever prose is left is judged on its own.
+  { kind: 'template', re: /`([^`\n]{3,})`/g },
+  // `?? 'Depot kamu'` and `|| 'Manajer'` — a fallback the user reads when data is missing.
+  { kind: 'fallback', re: /(?:\?\?|\|\|)\s*(?:'([^']{3,})'|"([^"]{3,})")/g },
+  // A ternary whose branches are copy: `x ? 'Aktif' : 'Nonaktif'`.
+  { kind: 'ternary', re: /\?\s*(?:'([^']{3,})'|"([^"]{3,})")\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g },
+  // A bare array of strings used as options/labels.
+  { kind: 'array', re: /\[\s*(?:'([^']{3,})'|"([^"]{3,})")\s*,/g },
+  // Any object key at all, not the thirteen names listed above — `emptyTitle:`, `cta:`,
+  // `body:` and friends were all invisible.
+  { kind: 'anyKey', re: /(?:^|[{,[\s])[a-zA-Z][a-zA-Z0-9_]*\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/gm },
 ];
 
-const results = [];
+let results = [];
 const wrappedResults = [];
 for (const file of walk(ROOT)) {
   if (SKIP_PATH.has(relative(ROOT, file).replace(/\\/g, '/'))) continue;
@@ -129,9 +157,16 @@ for (const file of walk(ROOT)) {
     wrapped.set(line, i + 1);
   }
 
-  for (const { re } of PATTERNS) {
-    for (const m of src.matchAll(re)) {
-      const s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
+  // Comments blanked, not removed: the new patterns below are broad enough to read prose
+  // out of a doc block, and every byte has to keep its offset or the reported line number
+  // points at the wrong place.
+  const scannable = blankComments(src);
+  for (const { re, kind } of PATTERNS) {
+    for (const m of scannable.matchAll(re)) {
+      let s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
+      // A template literal is judged on the prose between its holes, not on the
+      // expressions inside them — `${formatDateTime(at)}` is code, "berikutnya" is copy.
+      if (kind === 'template') s = s.replace(/\$\{[^{}]*\}/g, ' ').trim();
       if (!s || isCode(s) || !ID_RE.test(s)) continue;
       if (hits.has(s)) continue;
       hits.set(s, src.slice(0, m.index).split(/\r?\n/).length);
@@ -194,10 +229,40 @@ if (wrappedTotal > WRAPPED_BASELINE) {
   process.exit(1);
 }
 
+/**
+ * A recorded debt list, for the shapes this scanner learned to read AFTER the app had
+ * already been written to them: interpolated template literals, `??` fallbacks, ternary
+ * branches, bare string arrays and object keys outside the original thirteen names.
+ *
+ * Widening the patterns surfaced 80 strings in one run. Everything that ships inside the
+ * two Android binaries is translated; what is listed in `scripts/i18n-baseline.json` is
+ * the remainder — the `/hq` and `/hr` consoles (web only) and three pure validator modules
+ * whose messages need a translator threaded through call sites rather than a wrapper.
+ *
+ * The list may SHRINK on its own and never grows: a string not in it fails the build, and
+ * `--update-baseline` is a deliberate, reviewable act.
+ */
+const BASELINE_FILE = 'scripts/i18n-baseline.json';
+const flat = results.flatMap((r) => r.hits.map(([str]) => `${r.file}	${str}`));
+if (process.argv.includes('--update-baseline')) {
+  writeFileSync(BASELINE_FILE, `${JSON.stringify([...new Set(flat)].sort(), null, 2)}
+`);
+  console.log(`Recorded ${new Set(flat).size} baselined string(s).`);
+  process.exit(0);
+}
+const baseline = new Set(
+  existsSync(BASELINE_FILE) ? JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) : [],
+);
+const stillOwed = new Set(flat.filter((f) => baseline.has(f)));
+results = results
+  .map((r) => ({ ...r, hits: r.hits.filter(([str]) => !baseline.has(`${r.file}	${str}`)) }))
+  .filter((r) => r.hits.length);
+
 const total = results.reduce((n, r) => n + r.hits.length, 0);
 if (total === 0) {
   console.log(
     `i18n check OK — no hardcoded Indonesian copy in ${ROOT}.` +
+      (stillOwed.size ? ` (${stillOwed.size} baselined string(s) still owed — see ${BASELINE_FILE}.)` : '') +
       (wrappedTotal < WRAPPED_BASELINE
         ? ` (wrapped-JSX debt ${wrappedTotal}/${WRAPPED_BASELINE} — lower the baseline in this script.)`
         : ` (wrapped-JSX debt: ${wrappedTotal}, run with --wrapped to list it.)`),

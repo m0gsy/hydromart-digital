@@ -59,8 +59,8 @@ export default function MyPayrollDetailPage() {
   return (
     <div className="mx-auto max-w-md space-y-5 px-4 py-6">
       <SectionHeader
-        title={`Slip Gaji ${p.periodMonth}`}
-        subtitle={`${p.presentDays} hari hadir`}
+        title={t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })}
+        subtitle={t('hrFix.myPayrollDetail.presentDays', { n: p.presentDays })}
         action={<Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>}
       />
 

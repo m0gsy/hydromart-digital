@@ -54,7 +54,7 @@ function DepotSettingsBody() {
   );
 
   const depot = list.data?.items.find((d) => d.id === scopedId) ?? null;
-  const depotName = selected?.name ?? depot?.name ?? 'Depot';
+  const depotName = selected?.name ?? depot?.name ?? t('opsFix.common.depot');
   const hours = depot ? firstHours(depot) : null;
   const num = (s: SettingsSchema | null | undefined, key: string): number | null => {
     const v = s?.effective[key];

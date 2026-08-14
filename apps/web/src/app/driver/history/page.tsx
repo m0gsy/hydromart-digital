@@ -64,7 +64,7 @@ function History() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-extrabold tabular-nums">{d.orderNumber}</div>
                   <div className="truncate text-[11px] text-[color:var(--muted)]">
-                    {ok ? d.destinationAddress : (d.failureReason ?? 'Gagal')} · {when ? TIME.format(new Date(when)) : ''}
+                    {ok ? d.destinationAddress : (d.failureReason ?? t('hrFix.driverHistory.failed'))} · {when ? TIME.format(new Date(when)) : ''}
                   </div>
                 </div>
                 {!ok && <span className="text-[11px] font-extrabold text-red-600">{t('hrFix.driverHistory.failed')}</span>}

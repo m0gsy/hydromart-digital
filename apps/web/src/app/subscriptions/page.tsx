@@ -242,7 +242,7 @@ function Panel() {
                 const Ic = BENEFIT_ICONS[i] ?? Percent;
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
                       <Ic size={18} weight="fill" className="text-brand-600" />
                     </span>
                     <span className="text-[13px] font-semibold text-[#3d565e] dark:text-[color:var(--text)]">{b}</span>

@@ -235,9 +235,15 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
     }
   }
 
+  // Two bugs on two lines, both found by a browser rather than a scanner: the cadence was
+  // the dictionary KEY, printed raw on screen (`t()` was applied 60 lines up but not here),
+  // and "berikutnya" is Indonesian copy inside a template literal — the exact shape
+  // `check-i18n.mjs` does not read.
   const sublabel = [
-    CADENCE_LABEL[sub.cadence],
-    sub.nextRunAt ? `berikutnya ${formatDateTime(sub.nextRunAt)}` : t('hrFix.depotSubscriptions.notScheduled'),
+    t(CADENCE_LABEL[sub.cadence]),
+    sub.nextRunAt
+      ? t('hrFix.depotSubscriptions.nextRun', { at: formatDateTime(sub.nextRunAt) })
+      : t('hrFix.depotSubscriptions.notScheduled'),
   ].join(' · ');
 
   return (
@@ -293,7 +299,9 @@ function SubscriptionsBody() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
+      {/* `flex-wrap`: heading + action button on one non-wrapping row ran past a 320px
+          screen in English, and `body` clips rather than scrolls. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <ArrowsClockwise size={24} weight="fill" className="text-brand-500" />
           <div>

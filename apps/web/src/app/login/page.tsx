@@ -66,7 +66,11 @@ function BrandPanel() {
 function LoginForm() {
   const { t } = useT();
   const router = useRouter();
-  const next = useSearchParams().get('next') ?? '/products';
+  // Passed through only when it exists. Defaulting it to '/products' here is what sent
+  // every signed-in courier, manager and operator into the customer shop: `/verify` cannot
+  // tell "no destination asked for" from "the shop was asked for" once it has been filled
+  // in, and only the first of those should fall through to `consoleHome()`.
+  const next = useSearchParams().get('next');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +81,8 @@ function LoginForm() {
     setError(null);
     try {
       await api.post<OtpChallenge>(endpoints.auth.login, { phone });
-      const params = new URLSearchParams({ phone, purpose: 'LOGIN', next });
+      const params = new URLSearchParams({ phone, purpose: 'LOGIN' });
+      if (next) params.set('next', next);
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.login.error'));
@@ -132,7 +137,7 @@ function LoginForm() {
       <p className="text-center text-[13px] text-muted">
         {t('auth.login.noAccount')}{' '}
         <Link
-          href={`/register?next=${encodeURIComponent(next)}`}
+          href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}
           className="font-bold text-brand-700 hover:underline"
         >
           {t('auth.login.registerCta')}

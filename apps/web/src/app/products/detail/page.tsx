@@ -150,7 +150,12 @@ export default function ProductDetailPage() {
       ) : error || !product ? (
         <ErrorState message={error ?? t('shop.pdp.notFound')} onRetry={reload} />
       ) : (
-        <div className="grid items-start gap-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-12">
+        // The two-column case already guards its tracks with `minmax(0,…)`; the implicit
+        // single-column one did not, and a grid track defaults to `min-width:auto` — so the
+        // widest descendant sized the whole column and the busiest customer screen ran 93px
+        // past a 320px phone (135px with a nine-figure price), with `body` clipping the
+        // difference rather than scrolling it. Measured, both locales.
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-12">
           {/* gallery — main image + a thumbnail strip when the product has >1 photo */}
           <div className="flex flex-col gap-3">
             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[24px] bg-[color:var(--surface-soft)]">
@@ -280,7 +285,7 @@ export default function ProductDetailPage() {
               <Button
                 onClick={addToCart}
                 loading={adding}
-                className="h-[54px] flex-1 rounded-full text-[15.5px] font-extrabold"
+                className="h-[54px] min-w-0 flex-1 basis-full rounded-full text-[15.5px] font-extrabold sm:basis-auto"
               >
                 {added ? (
                   <>

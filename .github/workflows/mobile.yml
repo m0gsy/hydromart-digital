@@ -134,7 +134,8 @@ jobs:
             -PhydromartAppId=id.hydromart.ops \
             -PhydromartAppName='Hydromart Ops' \
             -PhydromartWebHost=hydromart.example \
-            -PhydromartLinkPrefix=/driver
+            -PhydromartLinkPrefix=/driver \
+            -PhydromartLinkPrefix2=/m
 
   # An APK you can put on a phone, today, without a Play account.
   #
@@ -224,7 +225,8 @@ jobs:
             -PhydromartAppId=id.hydromart.ops \
             -PhydromartAppName='Hydromart Ops' \
             -PhydromartWebHost=${{ vars.MOBILE_WEB_HOST || 'hydromart.example' }} \
-            -PhydromartLinkPrefix=/driver
+            -PhydromartLinkPrefix=/driver \
+            -PhydromartLinkPrefix2=/m
           mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-ops-debug.apk"
 
       - name: Upload the APKs
@@ -386,6 +388,7 @@ jobs:
             -PhydromartAppName='Hydromart Ops' \
             -PhydromartWebHost='${{ vars.MOBILE_WEB_HOST }}' \
             -PhydromartLinkPrefix=/driver \
+            -PhydromartLinkPrefix2=/m \
             -PhydromartVersionCode=${{ steps.version.outputs.code }} \
             -PhydromartVersionName=${{ steps.version.outputs.name }}
 

@@ -13,11 +13,12 @@ const COLUMNS: ImportColumn[] = [
     example: '11111111-1111-4111-8111-111111111111',
     text: true,
   },
+  // i18n-ok: sample cell values below are what the uploaded file must literally contain.
   { key: 'productName', required: true, example: 'Galon 19L' },
   { key: 'currentPrice', required: true, example: '20000', parse: intCell },
   { key: 'adjustType', required: true, example: 'PERCENT', options: ['PERCENT', 'FIXED'] },
   { key: 'value', required: true, example: '-10', parse: numberCell },
-  { key: 'note', example: 'Menyesuaikan harga pesaing' },
+  { key: 'note', example: 'Menyesuaikan harga pesaing' }, // i18n-ok: sample cell value
 ];
 
 export default function ImportPricesPage() {

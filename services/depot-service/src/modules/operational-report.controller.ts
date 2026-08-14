@@ -7,7 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   OperationalCostReport,
@@ -26,7 +26,7 @@ import {
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.MANAGER, Role.KEPALA_DEPOT, Role.FINANCE, Role.SUPER_ADMIN)
+@Can('depotOperationalReport')
 @Controller({ path: 'reports', version: '1' })
 export class OperationalReportController {
   constructor(

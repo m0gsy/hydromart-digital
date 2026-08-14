@@ -1,6 +1,9 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { resolveDeepLink } from '@/lib/deep-link';
+import { DYNAMIC_PARENTS, resolveDeepLink } from '@/lib/deep-link';
 
 /**
  * F3b. The rewriting exists because F1 changed every dynamic route into a query
@@ -108,5 +111,44 @@ describe('routes this binary does not carry', () => {
 
   it('carries every route when nothing was pruned, which is the web build', () => {
     expect(resolveDeepLink('/driver/deliveries/d-1', [])).toBe('/driver/deliveries/detail?id=d-1');
+  });
+});
+
+/**
+ * The list of dynamic parents is a copy of one fact that lives in the filesystem: which
+ * route folders have a `detail/` child. Kept by hand it drifted both ways at once — one
+ * parent listed that has no `detail/` (every rewrite landed on a file that does not
+ * exist) and five that do but were absent (navigated bare, which is a white screen on
+ * `/hr/me/payroll/detail`). Neither was visible from inside `deep-link.ts`, so the check
+ * lives here, where it can read the tree the list is supposed to mirror.
+ */
+describe('DYNAMIC_PARENTS mirrors the app tree', () => {
+  const APP = join(__dirname, '..', 'src', 'app');
+
+  /** Every folder under `app/` that has a `detail/` child, as a route path. */
+  function parentsWithDetail(dir: string, route = ''): string[] {
+    const out: string[] = [];
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      if (e.name === 'detail') out.push(route);
+      else out.push(...parentsWithDetail(join(dir, e.name), `${route}/${e.name}`));
+    }
+    return out;
+  }
+
+  it('lists exactly the routes that have a detail/ page, longest prefix first', () => {
+    const onDisk = parentsWithDetail(APP).sort();
+    expect([...DYNAMIC_PARENTS].sort()).toEqual(onDisk);
+  });
+
+  it('is ordered longest first, so no short prefix shadows a longer one', () => {
+    const lengths = DYNAMIC_PARENTS.map((p) => p.length);
+    expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
+  });
+
+  it('rewrites the two links the drift broke', () => {
+    expect(resolveDeepLink('/hr/me/payroll/pay-1')).toBe('/hr/me/payroll/detail?id=pay-1');
+    // No `detail/` under promotions: the id is a route segment, and must stay one.
+    expect(resolveDeepLink('/dashboard/promotions/promo-1')).toBe('/dashboard/promotions/promo-1');
   });
 });

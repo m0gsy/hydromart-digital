@@ -1,5 +1,17 @@
 // English mirror of id/mgrFix.ts — SAME shape, NO `as const`. See the id file for context.
 export const mgrFix = {
+  approvalKind: {
+    OPNAME_VARIANCE: 'Stock-count variance',
+    DEPOSIT_REFUND: 'Gallon deposit refund',
+    COD_VARIANCE: 'COD shortfall',
+    GALLON_VARIANCE: 'Gallon return variance',
+  },
+  approvalSummary: {
+    OPNAME_VARIANCE: 'System {system} · physical {physical}',
+    DEPOSIT_REFUND: 'Condition {condition} · deposit {deposit}',
+    GALLON_VARIANCE: '{gallons} gallons over',
+    COD_VARIANCE: 'Expected {expected} · received {received}',
+  },
   // 1a — manager KPI row on the executive dashboard.
   dash: {
     orderToday: 'Orders today',
@@ -98,6 +110,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    yourDepot: "Your depot",
     signOut: "Sign out",
     stockCritical: 'Critical stock',
     stockHint: 'Items below minimum',
@@ -106,6 +119,9 @@ export const mgrFix = {
     accountTitle: 'Account',
     notifTitle: 'Ops notifications',
     notifSubtitle: 'Latest operational alerts.',
+    opsNotif: 'Operational notifications',
+    pricing: 'Depot pricing',
+    pricingHint: 'Set selling price & discounts',
     events: {
       STOCK_LOW: 'Critical stock',
       COURIER_INCIDENT: 'Courier incident',

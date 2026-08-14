@@ -13,19 +13,18 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
+import { Can, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { PRODUCT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { MulterExceptionFilter } from './multer-exception.filter';
 import { Upload3ResponseDto } from './dto/responses.generated.dto';
 
-const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
 /** Admin uploads a product image and gets back a URL to store as `imageUrl`. */
 @ApiTags('Products')
 @ApiBearerAuth()
-@Roles(...ADMIN_ROLES)
+@Can('catalogWrite')
 @UseFilters(MulterExceptionFilter)
 @Controller({ path: 'products', version: '1' })
 export class UploadController {

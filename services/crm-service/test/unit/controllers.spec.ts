@@ -91,16 +91,21 @@ describe('PushController', () => {
     });
   });
 
-  it('unsubscribes a device by endpoint', async () => {
+  // The endpoint comes from the query string, so the owner must come from the token:
+  // deleting on the endpoint alone let any signed-in account unregister another
+  // person's device.
+  it('unsubscribes a device by endpoint, scoped to the caller', async () => {
     const push = { unsubscribe: jest.fn().mockResolvedValue(undefined) };
     const controller = new PushController(push as never, {} as never);
-    await controller.unsubscribe('https://push/1');
-    expect(push.unsubscribe).toHaveBeenCalledWith('https://push/1');
+    await controller.unsubscribe({ sub: 'cust-1' } as never, 'https://push/1');
+    expect(push.unsubscribe).toHaveBeenCalledWith('cust-1', 'https://push/1');
   });
 
   it('rejects an empty endpoint on unsubscribe', async () => {
     const controller = new PushController({} as never, {} as never);
-    await expect(controller.unsubscribe('')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      controller.unsubscribe({ sub: 'cust-1' } as never, ''),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 

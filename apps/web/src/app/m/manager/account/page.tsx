@@ -36,7 +36,7 @@ export default function ManagerAccountPage() {
   const { locale, setLocale } = useT();
 
   const depotName =
-    selected?.name ?? depots.find((d) => d.id === customer?.assignedDepotId)?.name ?? 'Depot kamu';
+    selected?.name ?? depots.find((d) => d.id === customer?.assignedDepotId)?.name ?? t('mgrFix.mMgr.yourDepot');
 
   const logout = () => {
     signOut();

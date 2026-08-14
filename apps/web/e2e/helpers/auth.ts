@@ -44,5 +44,9 @@ export async function loginWithOtp(page: Page, phone = E2E_PHONE) {
   const code = await readLatestOtp(phone, 'LOGIN');
   await page.getByLabel('Digit 1').click();
   await page.keyboard.type(code); // cascades across the segmented boxes, auto-submits on the 6th
-  await expect(page).toHaveURL(/\/products/, { timeout: 15_000 });
+  // Where sign-in LANDS is role-dependent now: `/verify` sends each account to
+  // `consoleHome()` when no `next` was asked for, so a SUPER_ADMIN arrives at `/hq` and a
+  // courier at `/driver`. This helper asserts only that the OTP was accepted and the
+  // session exists; every spec navigates to the screen it is about anyway.
+  await expect(page).not.toHaveURL(/\/(login|verify)/, { timeout: 15_000 });
 }

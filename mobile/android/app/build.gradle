@@ -37,6 +37,9 @@ def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
  */
 def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart.id'
 def hydromartLinkPrefix = project.findProperty('hydromartLinkPrefix') ?: '/'
+// Second claimed path prefix. The Ops binary needs two (`/driver` and `/m`); everything
+// else repeats the first, which Android treats as one claim.
+def hydromartLinkPrefix2 = project.findProperty('hydromartLinkPrefix2') ?: hydromartLinkPrefix
 def hydromartKeystore = rootProject.file('upload.jks')
 
 android {
@@ -56,7 +59,11 @@ android {
         resValue "string", "title_activity_main", hydromartAppName
         resValue "string", "package_name", hydromartAppId
         resValue "string", "custom_url_scheme", hydromartAppId
-        manifestPlaceholders = [webHost: hydromartWebHost, linkPrefix: hydromartLinkPrefix]
+        manifestPlaceholders = [
+            webHost: hydromartWebHost,
+            linkPrefix: hydromartLinkPrefix,
+            linkPrefix2: hydromartLinkPrefix2,
+        ]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

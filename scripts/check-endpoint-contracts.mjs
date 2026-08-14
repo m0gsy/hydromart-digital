@@ -69,10 +69,10 @@ function declaredRoutes(service) {
       const base = literal ? literal[1] : '';
       const from = controllers[i].index;
       const to = i + 1 < controllers.length ? controllers[i + 1].index : text.length;
-      for (const [, , sub] of text
+      for (const [, verb, sub] of text
         .slice(from, to)
         .matchAll(/@(Get|Post|Put|Patch|Delete)\(\s*(?:'([^']*)')?\s*\)/g)) {
-        routes.push(splitPath(`${base}/${sub ?? ''}`));
+        routes.push({ method: verb.toUpperCase(), path: splitPath(`${base}/${sub ?? ''}`) });
       }
     }
   }
@@ -118,6 +118,73 @@ const matches = (route, wanted) =>
   route.length === wanted.length &&
   route.every((seg, i) => seg === ':' || wanted[i] === ':' || seg === wanted[i]);
 
+/**
+ * The METHOD the client uses for each endpoint, which this check used to throw away — so
+ * an `api.post` at a `@Get`-only route passed. The endpoints table holds paths; the verb
+ * lives at the call site, so the two are joined here: `endpoints.<a>.<b>` in an
+ * `api.<verb>(…)` call, resolved against the path that name is declared with.
+ *
+ * Anything not statically resolvable is COUNTED AND REPORTED rather than dropped: a check
+ * that silently skips what it cannot read is how the last one ended up half blind.
+ */
+const RE_API =
+  /api\.(get|post|put|patch|del|delete)(?:Cached)?\s*(?:<[^>]*>)?\(\s*endpoints\.([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)/g;
+
+function clientMethods() {
+  // `orders: { list: '/orders/api/v1/orders', … }` — dotted name to path template.
+  const names = new Map();
+  for (const entry of readdirSync(CLIENT_DIR)) {
+    if (!entry.endsWith('.ts')) continue;
+    const text = readFileSync(join(CLIENT_DIR, entry), 'utf8');
+    // Brace-depth walk rather than an indentation guess: these files are formatted
+    // several ways, and an indent-based reader silently matched nothing at all.
+    let depth = 0;
+    let group = null;
+    for (const line of text.split('\n')) {
+      const open = line.match(/([a-zA-Z0-9_]+):\s*\{\s*$/);
+      if (depth === 1 && open) group = open[1];
+      const leaf = line.match(/([a-zA-Z0-9_]+):\s*(?:\([^)]*\)\s*=>\s*)?['`](\/[a-z-]+\/api\/v1\/[^'`\s]*)/i);
+      if (leaf && group && depth >= 2) names.set(`${group}.${leaf[1]}`, leaf[2]);
+      depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
+      if (depth <= 1) group = depth === 1 ? group : null;
+    }
+  }
+
+  const calls = [];
+  let unreadable = 0;
+  for (const file of tsFiles('apps/web/src')) {
+    const text = readFileSync(file, 'utf8');
+    for (const [, verb, name] of text.matchAll(RE_API)) {
+      const raw = names.get(name);
+      if (!raw) {
+        unreadable += 1;
+        continue;
+      }
+      calls.push({
+        method: (verb === 'del' ? 'delete' : verb).toUpperCase(),
+        path: raw
+          .replace(/\/\$\{[^${}]*\}/g, '/:')
+          .replace(/\$\{[^${}]*\}/g, '')
+          .split('?')[0]
+          .split('$')[0]
+          .replace(/\/+$/, ''),
+        file,
+        name,
+      });
+    }
+  }
+  return { calls, unreadable };
+}
+
+function tsFiles(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) tsFiles(p, out);
+    else if (/\.tsx?$/.test(entry.name)) out.push(p);
+  }
+  return out;
+}
+
 // -------------------------------------------------------------------------- the check
 
 const segments = segmentMap();
@@ -135,9 +202,27 @@ for (const [path, file] of clientPaths()) {
   if (!routeCache.has(service)) routeCache.set(service, declaredRoutes(service));
   // `/segment/api/v1/rest…` — the service sees everything after the version.
   const wanted = parts.slice(3).map((s) => (s === ':' ? ':' : s));
-  if (!routeCache.get(service).some((r) => matches(r, wanted))) {
+  if (!routeCache.get(service).some((r) => matches(r.path, wanted))) {
     unresolved.push({ path, file, why: `${service} declares no matching route` });
   }
+}
+
+// Method mismatches: a path the client reaches with a verb the route does not declare.
+const { calls, unreadable } = clientMethods();
+const wrongMethod = [];
+for (const call of calls) {
+  const parts = call.path.split('/').filter(Boolean);
+  const service = segments[parts[0]];
+  if (!service) continue; // already reported as an unresolved path above
+  if (!routeCache.has(service)) routeCache.set(service, declaredRoutes(service));
+  const wanted = parts.slice(3);
+  const declared = routeCache.get(service).filter((r) => matches(r.path, wanted));
+  if (!declared.length) continue; // ditto
+  if (!declared.some((r) => r.method === call.method))
+    wrongMethod.push(
+      `${call.method} ${call.path} — ${service} declares only ` +
+        `${[...new Set(declared.map((r) => r.method))].join('/')} (${call.file}, endpoints.${call.name})`,
+    );
 }
 
 if (process.argv.includes('--update')) {
@@ -150,6 +235,12 @@ const allowed = new Set(existsSync(ALLOWLIST) ? JSON.parse(readFileSync(ALLOWLIS
 const failures = unresolved.filter((u) => !allowed.has(u.path));
 const stale = [...allowed].filter((p) => !unresolved.some((u) => u.path === p));
 
+if (wrongMethod.length > 0) {
+  console.error('Client calls using a method the route does not declare:');
+  for (const w of wrongMethod) console.error(`  - ${w}`);
+  process.exit(1);
+}
+
 if (failures.length > 0) {
   console.error('Client endpoints that reach no declared route (audit F-17):');
   for (const f of failures) console.error(`  - ${f.path}\n      ${f.file}: ${f.why}`);
@@ -160,7 +251,10 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Endpoint contract check OK — ${clientPaths().size} client path(s), ${allowed.size} allowlisted.`,
+  `Endpoint contract check OK — ${clientPaths().size} client path(s), ${allowed.size} allowlisted, ` +
+    `${calls.length} call site(s) method-matched` +
+    (unreadable ? `, ${unreadable} call site(s) not statically resolvable` : '') +
+    '.',
 );
 if (stale.length > 0) {
   console.log('Allowlist entries that now resolve — run with --update to drop them:');

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { WebhookService } from '../application/services/webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dto';
@@ -24,7 +24,7 @@ import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dt
 // status and success rate are computed from those attempts.
 @ApiTags('Webhooks')
 @ApiBearerAuth()
-@Roles(Role.SUPER_ADMIN)
+@Can('platformAdmin')
 @Controller({ path: 'webhooks', version: '1' })
 export class WebhooksController {
   constructor(private readonly webhooks: WebhookService) {}

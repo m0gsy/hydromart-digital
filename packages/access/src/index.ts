@@ -357,6 +357,51 @@ export const CAPABILITIES = {
   hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // payout-service — run/close courier commission periods.
   commissionRuns: ['FINANCE', 'SUPER_ADMIN'],
+  // PR-7 — capabilities that were role tuples hardcoded in a controller. Each one is a
+  // policy decision (who may write the catalogue, who may read money reports, who sets
+  // tax), which means it belongs in the matrix a SUPER_ADMIN can retune at runtime rather
+  // than in a constant only a redeploy can change. The seeded values below are exactly the
+  // role tuples they replace — this widens nothing on its own.
+  //
+  // product-service — the whole catalogue write surface (products, categories, uploads).
+  catalogWrite: ['MANAGER', 'SUPER_ADMIN'],
+  // order-service — network-wide order reporting.
+  orderReports: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
+  // order-service — the same reports scoped to one depot, which a depot head may read.
+  orderReportsDepot: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN', 'KEPALA_DEPOT'],
+  // order-service — audience-size reads behind the broadcast composer.
+  audienceReach: ['HEAD_OFFICE', 'SUPER_ADMIN', 'MARKETING'],
+  // payment-service — the depot tax rate a receipt is printed with.
+  taxSettings: ['HEAD_OFFICE', 'SUPER_ADMIN', 'FINANCE'],
+  // loyalty-service — hand-adjust a customer's points balance. Money-adjacent.
+  loyaltyAdjust: ['MANAGER', 'MARKETING', 'SUPER_ADMIN'],
+  // loyalty-service + referral-service — read the programme's own numbers.
+  loyaltyRead: ['MANAGER', 'HEAD_OFFICE', 'MARKETING', 'SUPER_ADMIN'],
+  // loyalty-service — create and retire the reward catalogue.
+  rewardCatalog: ['MARKETING', 'SUPER_ADMIN'],
+  // customer-service — the marketing customer directory (segments, exports).
+  customerDirectory: ['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // order-service + crm-service — moving an order through fulfilment, and the depot
+  // notifications that ride on it. Depot floor staff hold it; it is not a money power.
+  orderFulfilment: ['KEPALA_DEPOT', 'MANAGER', 'STAFF_DEPOT', 'SUPER_ADMIN'],
+  // delivery-service — SLA and courier reporting across the network.
+  deliveryReports: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
+  // depot-service — the depot operational report (one depot, its own numbers).
+  depotOperationalReport: ['HEAD_OFFICE', 'MANAGER', 'KEPALA_DEPOT', 'FINANCE', 'SUPER_ADMIN'],
+  // auth-service — look up ONE customer by exact phone, before an act that would re-role
+  // the account behind that number. Held by everyone who can trigger such an act: voucher
+  // grants (marketing), the employee form (HR + the two office roles that can open it),
+  // and depot managers. Narrowing it silently re-creates the C-5 bug where the
+  // confirmation dialog never reached half the people who could promote a mistyped customer.
+  customerPhoneLookup: ['MARKETING', 'MANAGER', 'SUPER_ADMIN', 'HR', 'HEAD_OFFICE', 'DIREKTUR'],
+  // auth-service — resolve a batch of customer ids to public profiles, for the reseller
+  // console's row labels. NOT `staffAdmin`, which is narrower (no MANAGER): reusing it
+  // here would have quietly taken this read away from every depot manager.
+  customerNameLookup: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
+  // admin-service — the platform switches only a platform owner should hold: API keys,
+  // feature flags, retention policy, security policy, system settings, webhooks.
+  // Seeded to SUPER_ADMIN alone, exactly as the eight class-level decorators were.
+  platformAdmin: ['SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

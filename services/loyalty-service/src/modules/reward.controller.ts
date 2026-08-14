@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { RewardService } from '../application/services/reward.service';
 import {
@@ -15,7 +15,6 @@ import {
 } from './dto/reward.dto';
 
 // Catalogue management sits with the roles that already adjust points by hand.
-const MANAGE_ROLES = [Role.MARKETING, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Rewards')
 @Controller({ path: 'rewards', version: '1' })
@@ -35,7 +34,7 @@ export class RewardController {
   // with SQL — stock and prices had no admin path at all.
   @ApiOkResponse({ type: RewardItemDto, isArray: true })
   @ApiBearerAuth()
-  @Roles(...MANAGE_ROLES)
+  @Can('rewardCatalog')
   @Get('items')
   @ApiOperation({ summary: 'List every reward item, retired ones included' })
   async items(): Promise<RewardItemDto[]> {
@@ -45,7 +44,7 @@ export class RewardController {
 
   @ApiOkResponse({ type: RewardItemDto })
   @ApiBearerAuth()
-  @Roles(...MANAGE_ROLES)
+  @Can('rewardCatalog')
   @Post('items')
   @ApiOperation({ summary: 'Add a reward item to the catalogue' })
   async createItem(@Body() dto: CreateRewardItemDto): Promise<RewardItemDto> {
@@ -63,7 +62,7 @@ export class RewardController {
 
   @ApiOkResponse({ type: RewardItemDto })
   @ApiBearerAuth()
-  @Roles(...MANAGE_ROLES)
+  @Can('rewardCatalog')
   @Patch('items/:id')
   @ApiOperation({ summary: 'Edit price/stock/label, or retire the item with active:false' })
   async updateItem(

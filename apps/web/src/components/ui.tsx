@@ -35,7 +35,7 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold',
         'transition-[background,transform] active:translate-y-px disabled:cursor-not-allowed',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         BUTTON_STYLES[variant],
@@ -63,7 +63,7 @@ export function LinkButton({
     <Link
       href={href}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         BUTTON_STYLES[variant],
         className,
@@ -184,7 +184,7 @@ export function IconButton({
     <button
       {...rest}
       className={cx(
-        'inline-flex h-10 w-10 items-center justify-center rounded-full transition-[background,transform]',
+        'inline-flex h-11 w-11 items-center justify-center rounded-full transition-[background,transform]',
         'hover:bg-brand-50 active:scale-90 disabled:opacity-50',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
         className,
@@ -620,7 +620,11 @@ export function StickyActionBar({
   return (
     <div
       className={cx(
-        'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 pt-3',
+        // `flex-wrap`: at 320px the stepper, the CTA and the favourite button together
+        // ran 119px past the screen, and `body` clips rather than scrolls — the CTA of the
+        // busiest customer screen was partly off it. Wrapping puts the CTA on its own row
+        // instead of off the edge.
+        'z-10 flex flex-wrap items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 pt-3',
         // A3+E0. The gesture bar sits under this. `env(safe-area-inset-bottom)` alone is 0
         // on a WebView older than 140, which is most of the fleet, so the bar lands under
         // the system navigation and the CTA — the entire point of the screen — is a strip

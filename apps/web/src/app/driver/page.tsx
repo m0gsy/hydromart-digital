@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { MapPin, Megaphone, Package, Pause, Storefront, Warning } from '@phosphor-icons/react';
+import { MapPin, Megaphone, Package, Path, Pause, Storefront, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { ONBOARDED_KEY } from './onboarding/constants';
@@ -126,6 +126,22 @@ function DriverConsole() {
         </Link>
       )}
 
+      {/* `/driver/route` had zero inbound references in the whole repo: the multi-stop
+          route screen shipped in the Ops binary and no courier could open it. It belongs
+          above the stop list, because it is the same stops in the order to drive them. */}
+      {deliveries.length > 0 && (
+        <Link
+          href="/driver/route"
+          className="flex items-center gap-2 rounded-2xl border border-[color:var(--border)] p-3.5 text-sm font-bold"
+        >
+          <Path size={16} weight="fill" className="text-brand-700" />
+          {t('courierFix.route.title')}
+          <span className="ml-auto text-xs font-normal text-[color:var(--muted)]">
+            {t('driver.home.view')}
+          </span>
+        </Link>
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {list.loading ? (
@@ -143,7 +159,7 @@ function DriverConsole() {
               <Link href={`/driver/deliveries/detail?id=${d.id}`} className="font-semibold tabular-nums">
                 {d.orderNumber}
               </Link>
-              <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{DELIVERY_STATUS_LABEL[d.status]}</Badge>
+              <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{t(DELIVERY_STATUS_LABEL[d.status])}</Badge>
             </div>
             <p className="flex items-start gap-1.5 text-sm text-[color:var(--muted)]">
               <MapPin size={16} className="mt-0.5 shrink-0" />

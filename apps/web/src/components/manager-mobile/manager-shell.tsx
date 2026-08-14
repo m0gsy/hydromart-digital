@@ -63,8 +63,13 @@ export function ManagerShell({
       </CenterState>
     );
   }
+  // E0/PR-3. `layout.tsx` sets `viewportFit: 'cover'` app-wide, so the WebView draws under
+  // the status bar and the notch. The customer shell has paid for that since
+  // `app-bar.tsx:46`; this shell and the courier one never did, and their first row of
+  // content rendered underneath the clock. Guarded form on purpose: bare `env()` reports 0
+  // on any WebView older than 140, which is most of the fleet.
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
+    <div className="mx-auto flex min-h-dvh max-w-lg flex-col pt-[var(--safe-area-inset-top,env(safe-area-inset-top))]">
       <div className="flex-1">{children}</div>
       {nav && <ManagerNav />}
     </div>

@@ -102,7 +102,7 @@ export default function MyLeavePage() {
         title={t('hrFix.myLeave.title')}
         subtitle={
           balance.data
-            ? `Kuota ${balance.data.quotaDays} hari · terpakai ${balance.data.usedDays} · sisa ${balance.data.quotaDays - balance.data.usedDays}`
+            ? t('hrFix.myLeave.quotaLine', { quota: balance.data.quotaDays, used: balance.data.usedDays, left: balance.data.quotaDays - balance.data.usedDays })
             : balance.error
               ? t('hrFix.myLeave.quotaUnreadable')
               : t('hrFix.myLeave.subtitle')

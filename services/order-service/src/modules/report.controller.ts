@@ -10,15 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-  assertDepotAccess,
-} from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, assertDepotAccess } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
@@ -47,14 +39,10 @@ import {
 } from './dto/responses.generated.dto';
 import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
-const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 // Depot daily/weekly (2d/7d) are the operator's own console screens, so KEPALA_DEPOT
 // joins the reporting roles for these two depot-scoped routes only.
-const DEPOT_REPORT_ROLES = [...REPORT_ROLES, Role.KEPALA_DEPOT] as const;
 // Customer 360 (17e) is HQ-only — no depot-manager access to a single customer's history.
-const HQ_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
 // Broadcast reach + segment sizing (10d/21d) are marketing-led audience tools.
-const AUDIENCE_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN, Role.MARKETING] as const;
 
 function toRange(q: { from?: string; to?: string }): ReportRange {
   return {
@@ -65,7 +53,7 @@ function toRange(q: { from?: string; to?: string }): ReportRange {
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@Roles(...REPORT_ROLES)
+@Can('orderReports')
 @Controller({ path: 'reports', version: '1' })
 export class ReportController {
   constructor(private readonly reports: ReportService) {}
@@ -136,7 +124,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: DepotDailyReportResponseDto })
-  @Roles(...DEPOT_REPORT_ROLES)
+  @Can('orderReportsDepot')
   @Get('depot-daily')
   @ApiOperation({ summary: 'Depot daily operations report (design 2d Laporan harian)' })
   // H-16 owns the "no date given" default (WIB today), in the service — not here.
@@ -158,7 +146,7 @@ export class ReportController {
    * into another depot's customer list is a different order of mistake.
    */
   @ApiOkResponse({ type: DepotDailyRowResponseDto, isArray: true })
-  @Roles(...DEPOT_REPORT_ROLES)
+  @Can('orderReportsDepot')
   @Get('depot-daily/export')
   @ApiOperation({ summary: "The day's orders behind the daily report, one row per order" })
   // Same as depotDaily above: the "no date given" default is WIB today, decided in the
@@ -170,7 +158,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: DepotWeeklyReportResponseDto })
-  @Roles(...DEPOT_REPORT_ROLES)
+  @Can('orderReportsDepot')
   @Get('depot-weekly')
   @ApiOperation({ summary: 'Depot weekly operations report (design 7d Laporan mingguan)' })
   depotWeekly(@Query() q: DepotWeeklyQueryDto): Promise<DepotWeeklyReport> {
@@ -285,7 +273,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: AudienceReach3ResponseDto })
-  @Roles(...AUDIENCE_ROLES)
+  @Can('audienceReach')
   @Get('audience-reach')
   @ApiOperation({ summary: 'Opt-in reachable customer count for a broadcast audience (10d)' })
   audienceReach(@Query() q: AudienceReachQueryDto): Promise<{ depotId: string | null; count: number }> {
@@ -293,7 +281,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: SegmentEstimate3ResponseDto })
-  @Roles(...AUDIENCE_ROLES)
+  @Can('audienceReach')
   @Get('segment-estimate')
   @ApiOperation({
     summary: 'Live size of an activity-based segment: recency/frequency/depot (21d)',
@@ -319,7 +307,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: CustomerResponseDto })
-  @Roles(...HQ_ROLES)
+  @Can('hqConsole')
   @Get('customer/:customerId')
   @ApiOperation({ summary: 'One customer lifetime value + recent orders (17e Customer 360)' })
   customer(@Param('customerId', ParseUUIDPipe) customerId: string): Promise<CustomerSummary> {

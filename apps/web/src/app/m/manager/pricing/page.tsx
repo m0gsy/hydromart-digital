@@ -88,7 +88,7 @@ export default function ManagerPricingPage() {
       <header>
         <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerPricing.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
-          Aktif/nonaktifkan aturan harga depot.
+          {t('hrFix.managerPricing.subtitle')}
         </p>
       </header>
 

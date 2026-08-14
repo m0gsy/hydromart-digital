@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
@@ -22,7 +15,14 @@ import {
 import { loanDeductionFor } from '../../domain/loan';
 import { rupiah } from '../../domain/rupiah';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
-import { statutoryDeductions } from '../../domain/statutory';
+import {
+  Pph21YearToDate,
+  StatutoryInput,
+  StatutoryRates,
+  bpjsEmployeeDeductions,
+  pph21December,
+  pph21Monthly,
+} from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
 import { parseFines, tierOf } from '../../domain/late-fine';
@@ -54,6 +54,8 @@ const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 @Injectable()
 export class PayrollService {
+  private readonly logger = new Logger(PayrollService.name);
+
   constructor(
     @Inject(PAYROLL_REPOSITORY) private readonly repo: PayrollRepository,
     @Inject(ATTENDANCE_REPOSITORY) private readonly attendance: AttendanceRepository,
@@ -388,21 +390,35 @@ export class PayrollService {
     // the wage BPJS is reckoned on, and a bonus is taxed through the annual filing rather
     // than this month's estimate. Every rate is configuration; see domain/statutory.ts
     // for what is and is not modelled, including the December reconciliation gap.
-    for (const line of statutoryDeductions(
-      {
-        grossIdr: gross,
-        ptkpStatus: employee.ptkpStatus,
-        // No NPWP on file is the surcharge case, and a blank string is no NPWP.
-        hasNpwp: !!employee.npwp?.trim(),
-        // A BPJS number on file IS the enrolment record — see domain/statutory.ts for
-        // why an unenrolled employee must not be deducted for.
-        enrolledHealth: !!employee.bpjsKes?.trim(),
-        enrolledEmployment: !!employee.bpjsTk?.trim(),
-      },
-      this.config.statutoryRates(employee.depotId),
-    )) {
+    const statutoryInput = {
+      grossIdr: gross,
+      ptkpStatus: employee.ptkpStatus,
+      // No NPWP on file is the surcharge case, and a blank string is no NPWP.
+      hasNpwp: !!employee.npwp?.trim(),
+      // A BPJS number on file IS the enrolment record — see domain/statutory.ts for
+      // why an unenrolled employee must not be deducted for.
+      enrolledHealth: !!employee.bpjsKes?.trim(),
+      enrolledEmployment: !!employee.bpjsTk?.trim(),
+    };
+    const rates = this.config.statutoryRates(employee.depotId);
+    const bpjsLines = bpjsEmployeeDeductions(statutoryInput, rates);
+    for (const line of bpjsLines) {
       items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr });
     }
+    const bpjsTotal = bpjsLines.reduce((sum, line) => sum + line.amountIdr, 0);
+
+    // December is the month that makes the other eleven honest: the year's actual
+    // liability, minus everything already withheld. Every other month is an estimate
+    // against a year that has not happened yet.
+    const tax = periodMonth.endsWith('-12')
+      ? await this.decemberPph21(employee, statutoryInput, bpjsTotal, rates, periodMonth)
+      : pph21Monthly(
+          statutoryInput,
+          bpjsTotal,
+          rates,
+          this.config.pph21TerTable(employee.depotId),
+        ).monthlyIdr;
+    if (tax > 0) items.push({ kind: 'DEDUCTION', label: 'PPh 21', amount: tax });
 
     const totalBonus = sum(items, 'BONUS');
     // D4: nobody may be handed a bill by their employer. Loan installments give way first
@@ -760,6 +776,33 @@ export class PayrollService {
   }
 
   /** [first-day, last-day] of a YYYY-MM as UTC-midnight dates (matches @db.Date storage). */
+  /**
+   * December's PPh 21: the year's real liability minus what the year already took.
+   *
+   * Reads the year to date off the employee's own earlier payslips (see
+   * `pph21YearToDate`), so there is one record of what was withheld rather than two.
+   * Over-withholding cannot be refunded through payroll — it is logged by name so it
+   * reaches the person who files the 1721-A1, and December simply withholds nothing.
+   */
+  private async decemberPph21(
+    employee: { id: string; depotId: string | null },
+    input: StatutoryInput,
+    decemberBpjsIdr: number,
+    rates: StatutoryRates,
+    periodMonth: string,
+  ): Promise<number> {
+    const year = Number(periodMonth.slice(0, 4));
+    const ytd: Pph21YearToDate = await this.repo.pph21YearToDate(employee.id, year, periodMonth);
+    const result = pph21December(input, ytd, decemberBpjsIdr, rates);
+    if (result.overWithheldIdr > 0) {
+      this.logger.warn(
+        `Employee ${employee.id} over-withheld ${result.overWithheldIdr} for ${year}; ` +
+          'payroll cannot refund tax — it is claimed on the annual filing (1721-A1).',
+      );
+    }
+    return result.monthlyIdr;
+  }
+
   private monthRange(periodMonth: string): { from: Date; to: Date } {
     const [y, m] = periodMonth.split('-').map(Number);
     return {

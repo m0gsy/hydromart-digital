@@ -120,7 +120,7 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
     if (!bankAccountRef) {
       setError(
         bank.error
-          ? 'Rekening depot tidak terbaca — coba muat ulang sebelum menarik dana.'
+          ? t('opsFix.payout.accountUnreadable')
           : 'Depot ini belum mengisi rekening bank — atur dulu di Pengaturan pembayaran.',
       );
       return;
@@ -181,7 +181,7 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
             <p className="text-xs font-extrabold">
               {bank.error
                 ? 'Rekening tidak terbaca'
-                : bankAccountRef || 'Rekening belum diatur'}
+                : bankAccountRef || t('opsFix.payout.noAccount')}
             </p>
             <p className="text-[10.5px] text-white/70">{t('dashB.payout.registeredAccount')}</p>
           </div>
