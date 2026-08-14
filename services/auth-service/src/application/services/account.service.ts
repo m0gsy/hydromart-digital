@@ -94,12 +94,38 @@ export class AccountService {
    * is what makes that an omission rather than a decision.
    */
   async resolveScopedDepot(
-    user: { sub: string; role: string },
+    user: { sub: string; role: string; depotIds?: readonly string[] },
     requested?: string,
   ): Promise<string | undefined> {
-    const ownDepotOnly =
-      isDepotLocked(user.role as unknown as PlatformRole) || user.role === Role.MANAGER;
-    if (!ownDepotOnly) return requested;
+    // A MANAGER's depots come from the hierarchy (supervision chain + direct grants),
+    // resolved once per request by DepotScopeGuard — they do NOT sit in this service's
+    // `assignedDepotId` column, which is a depot-locked account's home depot. Reading that
+    // column for a manager asked the wrong table: every manager scoped the platform's own
+    // way answered 403 here while every other service accepted them, so `/auth/staff` and
+    // `/auth/drivers` were empty on a console that had already drawn the screen.
+    if (user.role === Role.MANAGER) {
+      // MANAGER is a depot-RESOLVED role, so DepotScopeGuard always leaves an array here on
+      // an authenticated route — possibly empty. `undefined` therefore means the guard did
+      // not run, and the fail-closed reading is the only safe one: returning `requested`
+      // would hand a manager every depot in the network the day someone forgets the guard.
+      const scope = user.depotIds ?? [];
+      if (requested) {
+        if (!scope.includes(requested)) {
+          throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+        }
+        return requested;
+      }
+      if (scope.length === 1) return scope[0];
+      if (scope.length === 0) {
+        throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+      }
+      // Several depots and no choice made. Refusing names the fix; returning `undefined`
+      // would quietly widen the read to every depot in the network.
+      throw new ForbiddenException(
+        'Akun ini menaungi beberapa depot — sebutkan depotId yang ingin dibaca.',
+      );
+    }
+    if (!isDepotLocked(user.role as unknown as PlatformRole)) return requested;
     const self = await this.getProfile(user.sub);
     if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
       throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');

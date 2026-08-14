@@ -875,6 +875,7 @@ export const hrFix = {
     added: "Pinjaman ditambahkan",
   },
   promotions: {
+    deniedBody: "Halaman promo hanya untuk tim marketing dan pengelola depot.",
     newPromo: "Promo baru",
     headline: "Judul",
     headlineHint: "Gratis ongkir pertama",

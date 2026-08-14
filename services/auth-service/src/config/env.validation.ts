@@ -14,6 +14,11 @@ export const CONSOLE_ACK = 'yes-this-prints-login-codes-to-the-log';
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   AUTH_SERVICE_PORT: Joi.number().port().default(3001),
+  // Where a multi-depot caller's depot set is resolved (DepotScopeGuard). Optional rather
+  // than required: without it the guard falls back to the depot on the caller's own token,
+  // which narrows access and never widens it — auth-service must still boot and sign people
+  // in when depot-service is unreachable.
+  DEPOT_SERVICE_URL: Joi.string().uri().optional(),
 
   AUTH_DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })

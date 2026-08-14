@@ -4,7 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 // The shared guard, not a local copy: it is the one that resolves @Can against the live
 // capability matrix, and a second implementation is exactly the drift this phase removes.
-import { RolesGuard } from '@hydromart/platform';
+import { DepotScopeGuard, RolesGuard } from '@hydromart/platform';
 
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AUTH_TOKENS } from '../../application/tokens';
@@ -123,6 +123,12 @@ const applicationServices: Provider[] = [
 const globalGuards: Provider[] = [
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  // Every other service resolves a multi-depot caller's depots with this guard; auth-service
+  // was the one that did not, and it is the service that answers `/auth/staff` and
+  // `/auth/drivers`. Without it `user.depotIds` was never populated here, so the staff
+  // directory fell back to the account's own `assignedDepotId` column — which a manager
+  // scoped through the hierarchy does not have, and every such read answered 403.
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({

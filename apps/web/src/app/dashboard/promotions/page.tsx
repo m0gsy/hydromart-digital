@@ -11,7 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canViewCampaigns } from '@/lib/roles';
+import { canViewPromotions } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion, PromotionAnalytics as PromotionAnalyticsView, PromotionPayload } from '@/lib/types';
 
@@ -310,10 +310,10 @@ function PromotionsAdmin() {
 
   if (analytics) return <PromoAnalytics promo={analytics} onBack={() => setAnalytics(null)} />;
 
-  if (customer && !canViewCampaigns(customer.role)) {
+  if (customer && !canViewPromotions(customer.role)) {
     return (
       <CenterState icon={<Lock size={48} weight="thin" />} title={t('hrFix.promotions.denied')}>
-        Halaman promo hanya untuk tim marketing.
+        {t('hrFix.promotions.deniedBody')}
       </CenterState>
     );
   }

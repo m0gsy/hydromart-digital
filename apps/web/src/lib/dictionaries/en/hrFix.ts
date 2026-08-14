@@ -863,6 +863,7 @@ export const hrFix = {
     added: "Loan added",
   },
   promotions: {
+    deniedBody: "Promotions are for the marketing team and depot leads.",
     newPromo: "New promotion",
     headline: "Headline",
     headlineHint: "Free delivery on your first order",

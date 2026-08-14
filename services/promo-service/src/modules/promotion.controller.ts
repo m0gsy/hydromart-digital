@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public, Role, Roles } from '@hydromart/platform';
+import { Can, Public } from '@hydromart/platform';
 
 import { PromotionRecord } from '../application/ports/promotion.repository';
 import { PromotionService } from '../application/services/promotion.service';
@@ -20,13 +20,12 @@ import { CreatePromotionDto, PromotionAnalyticsDto, UpdatePromotionDto } from '.
 import { PromotionResponseDto } from './dto/responses.generated.dto';
 
 // Promotions are authored by marketing/depot staff and shown to customers on Home.
-const ADMIN_ROLES = [Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN] as const;
-const READ_ROLES = [
-  Role.MARKETING,
-  Role.MANAGER,
-  Role.HEAD_OFFICE,
-  Role.SUPER_ADMIN,
-] as const;
+//
+// These used to be two hand-written role arrays right here — the last controller in the
+// repo still doing that. The console asked @hydromart/access who may read a promotion and
+// this file answered differently, which is exactly how the depot operator ended up with a
+// Promo tab the server refused. Same powers, now declared in the one map, which also means
+// a super admin can retune them without a deploy.
 
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
 
@@ -45,7 +44,7 @@ export class PromotionController {
 
   @ApiOkResponse({ type: PromotionResponseDto, isArray: true })
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('promotionRead')
   @Get('admin')
   @ApiOperation({ summary: 'List all promotions (admin, includes inactive/scheduled)' })
   listAll(): Promise<PromotionRecord[]> {
@@ -53,7 +52,7 @@ export class PromotionController {
   }
 
   @ApiBearerAuth()
-  @Roles(...READ_ROLES)
+  @Can('promotionRead')
   @Get(':id/analytics')
   @ApiOperation({ summary: 'Read authoritative usage and order-value analytics for a promotion' })
   @ApiOkResponse({ type: PromotionAnalyticsDto })
@@ -63,7 +62,7 @@ export class PromotionController {
 
   @ApiOkResponse({ type: PromotionResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('promotionWrite')
   @Post()
   @ApiOperation({ summary: 'Create a promotion (admin)' })
   create(@Body() dto: CreatePromotionDto): Promise<PromotionRecord> {
@@ -82,7 +81,7 @@ export class PromotionController {
 
   @ApiOkResponse({ type: PromotionResponseDto })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('promotionWrite')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a promotion (admin)' })
   update(
@@ -105,7 +104,7 @@ export class PromotionController {
 
   @ApiOkResponse({ description: 'No content.' })
   @ApiBearerAuth()
-  @Roles(...ADMIN_ROLES)
+  @Can('promotionWrite')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a promotion (admin)' })

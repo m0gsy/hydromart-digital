@@ -95,10 +95,31 @@ const PATTERNS = [
 ];
 
 const results = [];
+const wrappedResults = [];
 for (const file of walk(ROOT)) {
   const src = readFileSync(file, 'utf8');
   const lines = src.split(/\r?\n/);
   const hits = new Map(); // string -> line
+  const wrapped = new Map(); // same, but found by the wrapped-JSX scan below (ratcheted)
+
+  // A JSX text node that prettier wrapped onto its OWN line: the previous line ends the
+  // opening tag, the next one starts the closing tag. The regex pass above cannot see it —
+  // it requires `>text<` on a single line — and a browser pass found
+  // "Halaman promo hanya untuk tim marketing." on /dashboard/promotions two hours after
+  // this scanner had reported the whole app clean.
+  const nonEmpty = (i, step) => {
+    for (let k = i + step; k >= 0 && k < lines.length; k += step) {
+      if (lines[k].trim()) return lines[k].trim();
+    }
+    return '';
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || /[<>{}=;()?|&`]|^\/\/|^\*|^\/\*/.test(line)) continue;
+    if (!nonEmpty(i, -1).endsWith('>') || !nonEmpty(i, 1).startsWith('<')) continue;
+    if (isCode(line) || !ID_RE.test(line) || hits.has(line) || wrapped.has(line)) continue;
+    wrapped.set(line, i + 1);
+  }
 
   for (const { re } of PATTERNS) {
     for (const m of src.matchAll(re)) {
@@ -114,16 +135,19 @@ for (const file of walk(ROOT)) {
   // gate people learn to skip.
   // It covers the line it is on and the next four, so one comment can carry a whole small
   // object literal (`{ title, message, target }`) without repeating itself per property.
-  for (const [s, line] of [...hits]) {
-    if (lines.slice(Math.max(0, line - 5), line).some((l) => /i18n-ok/.test(l))) hits.delete(s);
+  for (const map of [hits, wrapped]) {
+    for (const [s, line] of [...map]) {
+      if (lines.slice(Math.max(0, line - 5), line).some((l) => /i18n-ok/.test(l))) map.delete(s);
+    }
   }
   // A string that is only ever an argument to t() is already translated.
   for (const s of [...hits.keys()]) {
     if (lines[hits.get(s) - 1]?.includes(`t('`) && !lines[hits.get(s) - 1].includes(s)) hits.delete(s);
   }
 
-  if (hits.size)
-    results.push({ file: relative(ROOT, file).replace(/\\/g, '/'), hits: [...hits.entries()] });
+  const file_ = relative(ROOT, file).replace(/\\/g, '/');
+  if (hits.size) results.push({ file: file_, hits: [...hits.entries()] });
+  if (wrapped.size) wrappedResults.push({ file: file_, hits: [...wrapped.entries()] });
 }
 
 // The capability matrix screen (/dashboard/roles) renders `t('dashC.roles.cap.' + cap)`
@@ -145,9 +169,36 @@ for (const locale of ['id', 'en']) {
     });
 }
 
+// The wrapped-JSX scan found 144 more the day it was written — real copy, in 64 files,
+// none of it ever counted by the "478 → 0" sweep. Fixing them all is its own batch of work,
+// and a gate that fails on day one is a gate somebody deletes. So they are a RATCHET: the
+// number may fall, never rise. Lower it when you fix some; it is not allowed to grow.
+const WRAPPED_BASELINE = 144;
+const wrappedTotal = wrappedResults.reduce((n, r) => n + r.hits.length, 0);
+if (wrappedTotal > WRAPPED_BASELINE) {
+  console.error(
+    `i18n ratchet FAILED: wrapped-JSX copy grew ${WRAPPED_BASELINE} → ${wrappedTotal}.\n` +
+      'A sentence long enough for prettier to wrap onto its own line is still copy.\n',
+  );
+  for (const r of wrappedResults) {
+    for (const [str, line] of r.hits) console.error(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
+  }
+  process.exit(1);
+}
+
 const total = results.reduce((n, r) => n + r.hits.length, 0);
 if (total === 0) {
-  console.log(`i18n check OK — no hardcoded Indonesian copy in ${ROOT}.`);
+  console.log(
+    `i18n check OK — no hardcoded Indonesian copy in ${ROOT}.` +
+      (wrappedTotal < WRAPPED_BASELINE
+        ? ` (wrapped-JSX debt ${wrappedTotal}/${WRAPPED_BASELINE} — lower the baseline in this script.)`
+        : ` (wrapped-JSX debt: ${wrappedTotal}, run with --wrapped to list it.)`),
+  );
+  if (process.argv.includes('--wrapped')) {
+    for (const r of wrappedResults) {
+      for (const [str, line] of r.hits) console.log(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
+    }
+  }
   process.exit(0);
 }
 
