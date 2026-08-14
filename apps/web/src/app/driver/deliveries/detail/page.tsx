@@ -68,7 +68,7 @@ function Detail() {
           <div className="text-sm font-extrabold">{t('hrFix.deliveryDetail.title')}</div>
           <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
         </div>
-        <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{DELIVERY_STATUS_LABEL[delivery.status]}</Badge>
+        <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{t(DELIVERY_STATUS_LABEL[delivery.status])}</Badge>
       </header>
 
       {/* ponytail: no embedded map — "Navigasi" hands off to the courier's own maps app. */}
@@ -241,7 +241,7 @@ function Detail() {
           </div>
           <RemoteImage
             src={delivery.proof.photoUrl}
-            alt="Bukti foto pengantaran"
+            alt={t('courierFix.detail.proofAlt')}
             className="max-h-40 w-full rounded-xl object-cover"
           />
           <dl className="grid grid-cols-2 gap-2 text-[11px]">

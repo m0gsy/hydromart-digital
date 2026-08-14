@@ -2,6 +2,28 @@
 // shift-goal, PoD-success, check-in checklist and no-show contact-log screens.
 // Consumed via t('courierFix.*'); en/courierFix.ts mirrors this exact shape.
 export const courierFix = {
+  perf: {
+    loadFailed: "Gagal memuat",
+    rankUp: "↑ naik {n} peringkat dari minggu lalu",
+    rankDown: "↓ turun {n} peringkat dari minggu lalu",
+    weeklyTarget: "Target mingguan · {n}",
+  },
+  detail: {
+    proofAlt: 'Bukti foto pengantaran',
+  },
+  offlineQueue: {
+    hrPunch: 'Absen wajah',
+    shiftCheckIn: 'Mulai shift',
+    pod: 'Bukti pengantaran',
+  },
+  deliveryStatus: {
+    ASSIGNED: 'Ditugaskan',
+    PICKED_UP: 'Diambil',
+    ON_DELIVERY: 'Diantar',
+    DELIVERED: 'Selesai',
+    FAILED: 'Gagal',
+    RESCHEDULED: 'Dijadwalkan ulang',
+  },
   route: {
     title: 'Rute multi-stop',
     sorted: 'Diurutkan',

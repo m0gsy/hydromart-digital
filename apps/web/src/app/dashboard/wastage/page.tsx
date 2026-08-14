@@ -25,7 +25,7 @@ function WastageBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
-  const depotName = depot?.name ?? 'Semua depot';
+  const depotName = depot?.name ?? t('opsFix.wastage.allDepots');
 
   const summary = useAsync<InventoryWastageSummary | null>(
     () =>
@@ -64,7 +64,7 @@ function WastageBody() {
                 {data?.totalLossIdr != null ? formatIDR(data.totalLossIdr) : '—'}
               </span>
               <span className="text-xs text-[color:var(--text-muted)]">
-                {data?.totalLossIdr != null ? 'dari item ber-harga jual' : 'belum ada nilai jual pada item'}
+                {data?.totalLossIdr != null ? t('opsFix.wastage.pricedItems') : t('opsFix.wastage.noSalePrice')}
               </span>
             </Card>
             <Card className="flex flex-col gap-1 p-5">

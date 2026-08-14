@@ -151,6 +151,7 @@ function RosterBody() {
     const { headers, rows } = rosterTable();
     // lib/csv writes a BOM and quotes only what needs it — the hand-rolled version here
     // did neither, so accented names came out mojibake in Excel.
+    // i18n-ok: download filename, not screen copy — it is what lands in the user's Downloads.
     downloadCsv(`jadwal-shift-${weekStart}.csv`, toCsv(headers, rows));
   }
 
@@ -158,6 +159,7 @@ function RosterBody() {
     const { headers, rows } = rosterTable();
     setSaveError(null);
     try {
+      // i18n-ok: download filename + sheet name.
       await downloadXlsx(`jadwal-shift-${weekStart}.xlsx`, headers, rows, 'Jadwal shift');
     } catch {
       setSaveError(t('opsFix.shift.xlsxError'));

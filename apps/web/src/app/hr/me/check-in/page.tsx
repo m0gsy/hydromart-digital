@@ -70,7 +70,7 @@ export default function MeCheckInPage() {
         return;
       }
       setResult(sent.result);
-      toast(mode === 'in' ? 'Check-in berhasil' : 'Check-out berhasil');
+      toast(mode === 'in' ? t('hrFix.checkIn.inOk') : t('hrFix.checkIn.outOk'));
     } catch (e) {
       toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : t('hrFix.checkIn.failed'), 'error');
     } finally {
@@ -97,8 +97,9 @@ export default function MeCheckInPage() {
         <Card className="p-4 text-center">
           <p className="font-bold text-green-700">{result.status}</p>
           <p className="text-sm text-muted">
-            Masuk {fmtTime(result.checkInAt)}{result.checkOutAt ? ` · Keluar ${fmtTime(result.checkOutAt)}` : ''}
-            {result.lateMinutes > 0 ? ` · Terlambat ${result.lateMinutes} menit` : ''}
+            {t('hrFix.checkIn.inAt', { at: fmtTime(result.checkInAt) })}
+            {result.checkOutAt ? t('hrFix.checkIn.outAt', { at: fmtTime(result.checkOutAt) }) : ''}
+            {result.lateMinutes > 0 ? t('hrFix.checkIn.lateBy', { n: result.lateMinutes }) : ''}
           </p>
         </Card>
       )}

@@ -1,5 +1,27 @@
 // Courier design-fidelity fixes (batch AB) — English mirror of id/courierFix.ts.
 export const courierFix = {
+  perf: {
+    loadFailed: "Could not load",
+    rankUp: "↑ up {n} places from last week",
+    rankDown: "↓ down {n} places from last week",
+    weeklyTarget: "Weekly target · {n}",
+  },
+  detail: {
+    proofAlt: 'Proof-of-delivery photo',
+  },
+  offlineQueue: {
+    hrPunch: 'Face attendance',
+    shiftCheckIn: 'Start shift',
+    pod: 'Proof of delivery',
+  },
+  deliveryStatus: {
+    ASSIGNED: 'Assigned',
+    PICKED_UP: 'Picked up',
+    ON_DELIVERY: 'On delivery',
+    DELIVERED: 'Delivered',
+    FAILED: 'Failed',
+    RESCHEDULED: 'Rescheduled',
+  },
   route: {
     title: 'Multi-stop route',
     sorted: 'Sorted',

@@ -1,6 +1,37 @@
 // Depot-operator design-fidelity fixes (batch AB). Private fragment consumed via t('opsFix.*').
 // NO `as const` — values must widen to string so the en/ mirror stays assignable.
 export const opsFix = {
+  wastage: {
+    allDepots: "Semua depot",
+    pricedItems: "dari item ber-harga jual",
+    noSalePrice: "belum ada nilai jual pada item",
+  },
+  vouchers: {
+    landedInWallet: "Voucher masuk ke dompet {who}.",
+    aCustomer: "pelanggan",
+  },
+  settlementStatus: {
+    SUBMITTED: "Menunggu",
+    VERIFIED: "Terverifikasi",
+    DISPUTED: "Sengketa",
+  },
+  payout: {
+    noAccount: "Rekening belum diatur",
+    accountUnreadable: "Rekening depot tidak terbaca — coba muat ulang sebelum menarik dana.",
+  },
+  meter: {
+    deliveredHint: "{n} galon terkirim · {amount}",
+    perGallonHint: "dihitung dari omzet per galon hari ini",
+  },
+  commission: {
+    unnamedCourier: "Kurir {id}",
+    periodReady: "periode {month} · siap dibayar",
+  },
+  common: {
+    depot: "Depot",
+    depotNamed: "Depot {name}",
+    depotPrefix: "Depot {name} · ",
+  },
   inv: {
     title: 'Inventory',
     addLine: 'Tambah baris',
@@ -285,6 +316,8 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Layar kasir, sebelumnya seluruhnya hardcoded.
   walkIn: {
+    saleSaved: "Penjualan {order} tersimpan.",
+    saleVoided: "Penjualan {order} dibatalkan.",
     reload: "Muat ulang",
     discountHint: "Potongan tier/harga agen/voucher dihitung saat disimpan dan tercetak di struk.",
     methodOffHint: "Metode yang mati belum diatur depot — isi QRIS/rekening di halaman Depot.",
@@ -497,6 +530,7 @@ export const opsFix = {
   },
   // dashboard/ratings — PR-8. Sebelumnya seluruhnya hardcoded.
   ratings: {
+    starsAria: "{n} dari 5 bintang",
     title: 'Rating pelanggan',
     headerSub: '{n} ulasan · 30 hari',
     outOfFive: 'dari 5,0',

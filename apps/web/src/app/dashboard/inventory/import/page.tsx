@@ -13,6 +13,7 @@ const COLUMNS: ImportColumn[] = [
     example: 'GALON',
     options: ['AIR', 'GALON', 'TUTUP', 'SEGEL', 'PRODUK'],
   },
+  // i18n-ok: sample cell value in the column guide, shown verbatim as the file must contain it.
   { key: 'label', required: true, example: 'Galon 19L' },
   { key: 'unit', required: true, example: 'unit' },
   { key: 'quantity', example: '100', parse: intCell },

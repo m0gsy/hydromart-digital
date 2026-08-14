@@ -103,10 +103,11 @@ export function NearbyDepots() {
 
 /** Buka / Istirahat / Tutup for one depot, from its own configured hours. */
 function DepotOpenChip({ depot }: { depot: NearbyDepot }) {
+  const { t } = useT();
   const state = depotOpenState(depot.operatingHours, depot.holidays);
   return (
     <Chip tone={state === 'buka' ? 'success' : state === 'istirahat' ? 'amber' : 'outline'}>
-      {DEPOT_OPEN_LABEL[state]}
+      {t(DEPOT_OPEN_LABEL[state])}
     </Chip>
   );
 }

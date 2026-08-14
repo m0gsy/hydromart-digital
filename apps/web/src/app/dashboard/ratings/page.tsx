@@ -32,8 +32,9 @@ function relativeDay(iso: string): string {
 const STAR_ROWS: (keyof DepotRatingsReport['distribution'])[] = ['5', '4', '3', '2', '1'];
 
 function Stars({ value, size = 14 }: { value: number; size?: number }) {
+  const { t } = useT();
   return (
-    <div className="flex items-center gap-0.5" aria-label={`${value} dari 5 bintang`}>
+    <div className="flex items-center gap-0.5" aria-label={t('opsFix.ratings.starsAria', { n: value })}>
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
@@ -145,7 +146,7 @@ function RatingsBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('opsFix.ratings.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {selected ? `Depot ${selected.name} · ` : ''}
+            {selected ? t('opsFix.common.depotPrefix', { name: selected.name }) : ''}
             {t('opsFix.ratings.headerSub', { n: data.data?.count ?? 0 })}
           </p>
         </div>

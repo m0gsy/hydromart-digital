@@ -3,6 +3,18 @@
 // and the manager-mobile home/notifications. Consumed via t('mgrFix.*'); en/mgrFix.ts
 // mirrors this exact shape. NO `as const` (coordinator registers the fragment).
 export const mgrFix = {
+  approvalKind: {
+    OPNAME_VARIANCE: 'Selisih opname',
+    DEPOSIT_REFUND: 'Refund deposit galon',
+    COD_VARIANCE: 'Kurang setoran (COD)',
+    GALLON_VARIANCE: 'Selisih retur galon',
+  },
+  approvalSummary: {
+    OPNAME_VARIANCE: 'Sistem {system} · fisik {physical}',
+    DEPOSIT_REFUND: 'Kondisi {condition} · deposit {deposit}',
+    GALLON_VARIANCE: 'Kelebihan {gallons} galon',
+    COD_VARIANCE: 'Diharapkan {expected} · diterima {received}',
+  },
   // 1a — manager KPI row on the executive dashboard.
   dash: {
     orderToday: 'Order hari ini',
@@ -101,6 +113,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    yourDepot: "Depot kamu",
     signOut: "Keluar",
     stockCritical: 'Stok kritis',
     stockHint: 'Item di bawah ambang',

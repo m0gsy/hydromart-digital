@@ -1,5 +1,19 @@
 // English mirror of id/customerFix.ts — SAME keys, English values.
 export const customerFix = {
+  depotOpen: {
+    buka: "Open",
+    istirahat: "On break",
+    tutup: "Closed",
+  },
+  favorite: {
+    remove: "Remove from favourites",
+    save: "Save to favourites",
+  },
+  checkout: {
+    agentPrice: "Agent price Rp{amount}/gallon",
+    resellerDiscount: "Reseller price −{pct}%",
+    defaultAddressLabel: "Address",
+  },
   // 13n — voucher not eligible (checkout)
   voucher: {
     shortfall: 'Spend {amount} more to unlock',

@@ -179,7 +179,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
 
   return (
     <Card className="space-y-4 p-5">
-      <h3 className="font-semibold">Bukti pengantaran · {orderNumber}</h3>
+      <h3 className="font-semibold">{t('hrFix.pod.heading', { order: orderNumber })}</h3>
 
       <div className="space-y-2">
         <span className="text-sm font-medium">{t('hrFix.pod.photo')}</span>
@@ -189,7 +189,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="hidden" />
         </label>
         {photoPreview && (
-          <img src={photoPreview} alt="Pratinjau foto pengantaran" className="max-h-48 rounded-xl object-cover" />
+          <img src={photoPreview} alt={t('hrFix.pod.previewAlt')} className="max-h-48 rounded-xl object-cover" />
         )}
       </div>
 

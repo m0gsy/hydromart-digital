@@ -212,7 +212,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         method === 'CASH' ? { cashReceived } : undefined,
         true,
       );
-      toast(`Penjualan ${order.orderNumber} tersimpan.`);
+      toast(t('opsFix.walkIn.saleSaved', { order: order.orderNumber }));
     } catch {
       toast(t('hrFix.walkIn.orderSavedNoPayment'), 'error');
     }
@@ -241,7 +241,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     setBusy(true);
     try {
       await api.post(endpoints.orders.voidWalkIn(lastSale.order.id), { reason: voidReason.trim() }, true);
-      toast(`Penjualan ${lastSale.order.orderNumber} dibatalkan.`);
+      toast(t('opsFix.walkIn.saleVoided', { order: lastSale.order.orderNumber }));
       setLastSale(null);
       setVoiding(false);
       setVoidReason('');

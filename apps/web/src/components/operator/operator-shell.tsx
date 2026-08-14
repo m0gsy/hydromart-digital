@@ -105,7 +105,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
                 to find out. Real count, real destination. */}
             <Link
               href="/dashboard/notifications"
-              aria-label={unread > 0 ? `Notifikasi (${unread} belum dibaca)` : 'Notifikasi'}
+              aria-label={unread > 0 ? t('hrFix.operatorShell.notifUnreadAria', { n: unread }) : t('hrFix.operatorShell.notifAria')}
               className="relative flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
             >
               <Bell size={18} className="text-[color:var(--text-muted)]" />

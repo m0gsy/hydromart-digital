@@ -1,13 +1,19 @@
 import type { DeliveryStatus } from '@/lib/types';
 
-/** Indonesian labels for the courier-facing delivery lifecycle (shared by list + detail). */
+/**
+ * Dictionary KEYS for the courier-facing delivery lifecycle (shared by list + detail).
+ *
+ * These were six Indonesian strings in an enum-keyed object, which is one of the shapes
+ * `check-i18n.mjs` could not read — so the six words a courier sees on every job, all day,
+ * were the only part of that screen that never reached a translator.
+ */
 export const DELIVERY_STATUS_LABEL: Record<DeliveryStatus, string> = {
-  ASSIGNED: 'Ditugaskan',
-  PICKED_UP: 'Diambil',
-  ON_DELIVERY: 'Diantar',
-  DELIVERED: 'Selesai',
-  FAILED: 'Gagal',
-  RESCHEDULED: 'Dijadwalkan ulang',
+  ASSIGNED: 'courierFix.deliveryStatus.ASSIGNED',
+  PICKED_UP: 'courierFix.deliveryStatus.PICKED_UP',
+  ON_DELIVERY: 'courierFix.deliveryStatus.ON_DELIVERY',
+  DELIVERED: 'courierFix.deliveryStatus.DELIVERED',
+  FAILED: 'courierFix.deliveryStatus.FAILED',
+  RESCHEDULED: 'courierFix.deliveryStatus.RESCHEDULED',
 };
 
 type BadgeTone = 'neutral' | 'brand' | 'success' | 'danger' | 'warning';

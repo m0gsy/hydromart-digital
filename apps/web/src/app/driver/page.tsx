@@ -159,7 +159,7 @@ function DriverConsole() {
               <Link href={`/driver/deliveries/detail?id=${d.id}`} className="font-semibold tabular-nums">
                 {d.orderNumber}
               </Link>
-              <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{DELIVERY_STATUS_LABEL[d.status]}</Badge>
+              <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{t(DELIVERY_STATUS_LABEL[d.status])}</Badge>
             </div>
             <p className="flex items-start gap-1.5 text-sm text-[color:var(--muted)]">
               <MapPin size={16} className="mt-0.5 shrink-0" />

@@ -90,7 +90,7 @@ function Performance() {
       {load.loading ? (
         <Skeleton className="h-96 w-full" />
       ) : load.error || !load.data ? (
-        <ErrorState message={load.error ?? 'Gagal memuat'} onRetry={load.reload} />
+        <ErrorState message={load.error ?? t('courierFix.perf.loadFailed')} onRetry={load.reload} />
       ) : (
         <Body p={load.data} />
       )}
@@ -122,8 +122,8 @@ function Body({ p }: { p: CourierPerformance }) {
           {p.rankPrev !== null && p.rankPrev !== p.rank && (
             <div className="mt-1 text-xs font-bold opacity-90">
               {p.rankPrev > p.rank
-                ? `↑ naik ${p.rankPrev - p.rank} peringkat dari minggu lalu`
-                : `↓ turun ${p.rank - p.rankPrev} peringkat dari minggu lalu`}
+                ? t('courierFix.perf.rankUp', { n: p.rankPrev - p.rank })
+                : t('courierFix.perf.rankDown', { n: p.rank - p.rankPrev })}
             </div>
           )}
         </Card>
@@ -166,7 +166,7 @@ function Body({ p }: { p: CourierPerformance }) {
         <Row icon={<XCircle size={17} weight="fill" />} label={t('hrFix.driverPerf.failedDeliveries')} divider>
           <span className="font-extrabold tabular-nums">{p.failed}</span>
         </Row>
-        <Row icon={<Target size={17} weight="fill" />} label={`Target mingguan · ${p.target}`} divider>
+        <Row icon={<Target size={17} weight="fill" />} label={t('courierFix.perf.weeklyTarget', { n: p.target })} divider>
           {p.targetMet ? (
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-extrabold text-green-700">
               Tercapai

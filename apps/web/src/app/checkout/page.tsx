@@ -380,7 +380,7 @@ function CheckoutInner() {
           await api.post(
             endpoints.addresses.create,
             {
-              label: saveLabel.trim() || 'Alamat',
+              label: saveLabel.trim() || t('customerFix.checkout.defaultAddressLabel'),
               recipientName: form.recipientName,
               phone: form.phone,
               addressLine: form.addressLine,
@@ -802,8 +802,8 @@ function CheckoutInner() {
       <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
         <Badge tone="success">
           {reseller!.flatGallonPriceIdr > 0
-            ? `Harga agen Rp${reseller!.flatGallonPriceIdr.toLocaleString('id-ID')}/galon`
-            : `Harga reseller −${reseller!.discountPct}%`}
+            ? t('customerFix.checkout.agentPrice', { amount: reseller!.flatGallonPriceIdr.toLocaleString('id-ID') })
+            : t('customerFix.checkout.resellerDiscount', { pct: reseller!.discountPct })}
         </Badge>
         <p className="text-sm text-muted">
           {t('order.checkout.resellerNoVoucher')}

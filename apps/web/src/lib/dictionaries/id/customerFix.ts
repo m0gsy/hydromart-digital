@@ -2,6 +2,20 @@
 // Kept in its own fragment so parallel batches don't collide in id.ts / en.ts.
 // Wire once: import + spread `customerFix` into dictionaries/id.ts and en.ts.
 export const customerFix = {
+  depotOpen: {
+    buka: "Buka",
+    istirahat: "Istirahat",
+    tutup: "Tutup",
+  },
+  favorite: {
+    remove: "Hapus dari favorit",
+    save: "Simpan ke favorit",
+  },
+  checkout: {
+    agentPrice: "Harga agen Rp{amount}/galon",
+    resellerDiscount: "Harga reseller −{pct}%",
+    defaultAddressLabel: "Alamat",
+  },
   // 13n — voucher not eligible (checkout)
   voucher: {
     shortfall: 'Belanja lagi {amount} agar berlaku',

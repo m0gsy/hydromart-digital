@@ -16,10 +16,12 @@ import { useT } from '@/lib/locale-context';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
 
 const STATUSES: SettlementStatus[] = ['SUBMITTED', 'VERIFIED', 'DISPUTED'];
+// Keys, not copy — an enum-keyed label map is one of the shapes the i18n scanner could
+// not read until it was widened.
 const STATUS_LABEL: Record<SettlementStatus, string> = {
-  SUBMITTED: 'Menunggu',
-  VERIFIED: 'Terverifikasi',
-  DISPUTED: 'Sengketa',
+  SUBMITTED: 'opsFix.settlementStatus.SUBMITTED',
+  VERIFIED: 'opsFix.settlementStatus.VERIFIED',
+  DISPUTED: 'opsFix.settlementStatus.DISPUTED',
 };
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
 const DAY = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' });
@@ -34,14 +36,15 @@ const initials = (id: string) => id.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpp
  * when the roster cannot be read, which is what the screen showed before.
  */
 function useDriverNames(): (id: string) => string {
+  const { t } = useT();
   const drivers = useAsync<Customer[]>(
     () => api.getCached<Customer[]>(endpoints.auth.drivers, true).catch(() => []),
     [],
   );
   return useMemo(() => {
     const byId = new Map((drivers.data ?? []).map((d) => [d.id, d.fullName || d.phone]));
-    return (id: string) => byId.get(id) ?? `Kurir ${shortId(id)}`;
-  }, [drivers.data]);
+    return (id: string) => byId.get(id) ?? t('opsFix.commission.unnamedCourier', { id: shortId(id) });
+  }, [drivers.data, t]);
 }
 
 function SettlementRow({
@@ -179,7 +182,7 @@ function SettlementRow({
                     : 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]'
                 }`}
               >
-                {STATUS_LABEL[s.status]}
+                {t(STATUS_LABEL[s.status])}
               </span>
               <span className="text-sm font-bold tabular-nums">
                 {t('opsFix.settlements.depositedAmount', { amount: formatIDR(s.depositedAmount) })}
@@ -250,7 +253,7 @@ function Body() {
           {t('opsFix.settlements.shiftLine', { date: DAY.format(new Date()), n: waiting })}
         </p>
         <p className="text-sm text-[color:var(--text-muted)]">
-          {selected ? `Depot ${selected.name}` : t('opsFix.settlements.depotHint')}
+          {selected ? t('opsFix.common.depotNamed', { name: selected.name }) : t('opsFix.settlements.depotHint')}
         </p>
       </header>
 
@@ -266,7 +269,7 @@ function Body() {
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {STATUS_LABEL[s]}
+              {t(STATUS_LABEL[s])}
             </option>
           ))}
         </select>
@@ -278,7 +281,7 @@ function Body() {
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.length === 0 ? (
         <CenterState title={t('opsFix.settlements.empty')} icon={<Wallet size={40} weight="fill" />}>
-          {t('opsFix.settlements.emptyBody', { status: STATUS_LABEL[status].toLowerCase() })}
+          {t('opsFix.settlements.emptyBody', { status: t(STATUS_LABEL[status]).toLowerCase() })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
