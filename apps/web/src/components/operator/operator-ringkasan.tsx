@@ -130,12 +130,12 @@ function RingkasanBody({ depotId }: { depotId: string }) {
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold">{t('hrFix.operatorSummary.needsAssigning')}</span>
             <Link href="/dashboard/orders" className="text-xs font-bold text-brand-800 hover:underline">
-              Lihat antrean
+              {t('hrFix.operatorSummary.viewQueue2')}
             </Link>
           </div>
           {data.needAssign.length === 0 ? (
             <p className="rounded-xl bg-[color:var(--surface-soft)] p-4 text-center text-sm text-[color:var(--text-muted)]">
-              Tidak ada pesanan menunggu penugasan.
+              {t('hrFix.operatorSummary.noUnassigned')}
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -205,7 +205,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
               href="/dashboard/settlements"
               className="mt-1 flex h-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] text-[12.5px] font-bold"
             >
-              Verifikasi setoran
+              {t('hrFix.operatorSummary.verifyDeposit')}
             </Link>
           </Card>
         </div>
@@ -220,7 +220,7 @@ export function OperatorRingkasan() {
   if (!scopedId) {
     return (
       <CenterState title={t('hrFix.operatorSummary.pickDepot')} icon={<Storefront size={40} weight="fill" />}>
-        Pilih depot yang kamu kelola untuk melihat ringkasan hari ini.
+        {t('hrFix.operatorSummary.pickDepot2')}
       </CenterState>
     );
   }

@@ -806,7 +806,7 @@ function CheckoutInner() {
             : `Harga reseller −${reseller!.discountPct}%`}
         </Badge>
         <p className="text-sm text-muted">
-          Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.
+          {t('order.checkout.resellerNoVoucher')}
         </p>
       </Card>
     ) : (

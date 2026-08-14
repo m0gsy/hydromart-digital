@@ -101,6 +101,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    signOut: "Keluar",
     stockCritical: 'Stok kritis',
     stockHint: 'Item di bawah ambang',
     activeCouriers: 'Kurir aktif',
@@ -112,5 +113,9 @@ export const mgrFix = {
       STOCK_LOW: 'Stok kritis',
       COURIER_INCIDENT: 'Insiden kurir',
     },
+  },
+  login: {
+    subtitle: 'Konsol Manajer Depot',
+    staffOnly: 'Hanya untuk staf Hydromart.',
   },
 };

@@ -40,7 +40,7 @@ export default function TeamPage() {
       <header>
         <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerTeam.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
-          Kurir yang ditempatkan di depot kamu.
+          {t('hrFix.managerTeam.subtitle2')}
         </p>
       </header>
 
@@ -50,7 +50,7 @@ export default function TeamPage() {
         <ErrorState message={roster.error} onRetry={roster.reload} />
       ) : couriers.length === 0 ? (
         <CenterState icon={<Users size={32} />} title={t('hrFix.managerTeam.empty')}>
-          Kurir yang ditempatkan di depot ini akan tampil di sini.
+          {t('hrFix.managerTeam.emptyBody2')}
         </CenterState>
       ) : (
         <>
@@ -76,7 +76,7 @@ export default function TeamPage() {
                 {c.status === 'ACTIVE' && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-bold text-green-800">
                     <SealCheck size={12} weight="fill" />
-                    Aktif
+                    {t('hrFix.managerTeam.active2')}
                   </span>
                 )}
               </Card>

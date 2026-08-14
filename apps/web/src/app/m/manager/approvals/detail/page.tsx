@@ -62,7 +62,7 @@ export default function ApprovalDetailPage() {
       <div className="px-4 py-6">
         <CenterState title={t('hrFix.approvalDetail.notFound')}>
           <Link href="/m/manager/approvals" className="font-bold text-brand-700">
-            Kembali ke daftar
+            {t('hrFix.approvalDetail.backToList2')}
           </Link>
         </CenterState>
       </div>
@@ -165,7 +165,7 @@ export default function ApprovalDetailPage() {
         {a.decisionNote && (
           <div className="rounded-2xl border border-app bg-[color:var(--surface)] p-4">
             <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-              Catatan
+              {t('hrFix.approvalDetail.note2')}
             </div>
             <p className="mt-1 text-sm">{a.decisionNote}</p>
           </div>

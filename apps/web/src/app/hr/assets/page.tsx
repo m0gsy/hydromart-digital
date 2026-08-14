@@ -107,7 +107,7 @@ export default function AssetsPage() {
             </select>
           </label>
           <label className="text-sm">
-            Jenis
+            {t('hrFix.assets.kind2')}
             <select
               value={type}
               onChange={(e) => setType(e.target.value as '' | AssetType)}
@@ -327,20 +327,20 @@ function AssetPanel({
             </Field>
             <div className="col-span-full flex gap-2">
               <Button type="submit" loading={editSaving}>
-                Simpan Detail
+                {t('hrFix.assets.saveDetail')}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={editSaving}>
-                Batal
+                {t('hrFix.assets.cancel2')}
               </Button>
             </div>
           </form>
         ) : moves.length === 0 ? (
           <div className="space-y-2 border-ty border-app pt-3">
             <p className="text-sm text-muted">
-              Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.
+              {t('hrFix.assets.writtenOff')}
             </p>
             <Button variant="secondary" onClick={startEdit}>
-              Ubah Detail
+              {t('hrFix.assets.editDetail')}
             </Button>
           </div>
         ) : (
@@ -388,7 +388,7 @@ function AssetPanel({
                 Catat Pergerakan
               </Button>
               <Button type="button" variant="secondary" onClick={startEdit} disabled={saving}>
-                Ubah Detail
+                {t('hrFix.assets.editDetail2')}
               </Button>
             </div>
           </form>

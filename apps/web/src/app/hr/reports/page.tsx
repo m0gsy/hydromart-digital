@@ -91,7 +91,7 @@ export default function ReportsPage() {
       <Card className="space-y-2 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-sm">
-            Dari
+            {t('hrFix.reports.from2')}
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="text-sm">
@@ -99,7 +99,7 @@ export default function ReportsPage() {
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
           <label className="text-sm">
-            Periode
+            {t('hrFix.reports.period2')}
             <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
         </div>
@@ -160,7 +160,7 @@ export default function ReportsPage() {
         <div>
           <p className="font-semibold">{t('hrFix.reports.performance')}</p>
           <p className="text-xs text-muted">
-            Skor per periode. Komponen yang tidak terukur tampil kosong, bukan nol.
+            {t('hrFix.reports.scoreHint')}
           </p>
         </div>
         <Formats

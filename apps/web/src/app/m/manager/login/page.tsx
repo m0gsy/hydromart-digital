@@ -7,6 +7,7 @@ import { ArrowRight, Drop } from '@phosphor-icons/react';
 import { Button } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import type { OtpChallenge } from '@/lib/types';
 
 // Fixed brand hero — never flips under dark (same treatment as the customer login).
@@ -17,6 +18,7 @@ const HERO_GRADIENT = 'linear-gradient(150deg,#0b4d57,#0c1518)';
  * /verify), returning the manager to the Beranda after verification.
  */
 export default function ManagerLoginPage() {
+  const { t } = useT();
   const router = useRouter();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function ManagerLoginPage() {
         </span>
         <h1 className="relative mt-5 text-2xl font-extrabold tracking-tight">Hydromart</h1>
         <p className="relative mt-1 text-sm" style={{ color: 'rgba(255,255,255,.72)' }}>
-          Konsol Manajer Depot
+          {t('mgrFix.login.subtitle')}
         </p>
       </div>
 
@@ -102,7 +104,7 @@ export default function ManagerLoginPage() {
           </Button>
 
           <p className="text-center text-[11.5px] text-[color:var(--text-muted)]">
-            Hanya untuk staf Hydromart.
+            {t('mgrFix.login.staffOnly')}
           </p>
         </form>
       </div>

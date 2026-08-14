@@ -81,7 +81,7 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
     return (
       <Button onClick={() => setOpen(true)}>
         <Plus size={16} weight="bold" className="mr-1.5" />
-        Aturan baru
+        {t('opsFix.earningRules.newRule')}
       </Button>
     );
   }

@@ -89,7 +89,7 @@ export function EmployeeAllowances({
     <Card className="space-y-4 p-5">
       <h2 className="text-sm font-semibold">{t('hrFix.allowances.title')}</h2>
       <p className="text-xs text-muted">
-        Komponen tetap yang terbayar setiap periode. Tidak masuk basis upah lembur.
+        {t('hrFix.allowances.fixedHint')}
       </p>
       {allowances.loading ? (
         <Skeleton className="h-16" />
@@ -167,7 +167,7 @@ export function EmployeeAllowances({
           )}
           <div className="col-span-full">
             <Button type="submit" loading={saving}>
-              Tambah Tunjangan
+              {t('hrFix.allowances.addAllowance2')}
             </Button>
           </div>
         </form>

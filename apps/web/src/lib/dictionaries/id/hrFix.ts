@@ -153,6 +153,12 @@ export const hrFix = {
     exitBeforeJoin: 'Tanggal keluar tidak boleh sebelum tanggal masuk.',
   },
   assets: {
+    editDetail2: "Ubah Detail",
+    kind2: "Jenis",
+    saveDetail: "Simpan Detail",
+    cancel2: "Batal",
+    writtenOff: "Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru.",
+    editDetail: "Ubah Detail",
     title: "Aset",
     subtitle: "Barang perusahaan yang dipegang karyawan. Riwayat serah terima tidak pernah dihapus.",
     all: "Semua",
@@ -188,6 +194,7 @@ export const hrFix = {
     registerFailed: "Gagal mendaftarkan aset",
   },
   shift: {
+    createRotation2: "Buat Rotasi",
     title: "Shift & Rotasi",
     subtitle: "Jadwal kerja per karyawan. Absensi menilai terlambat terhadap shift karyawan, bukan shift depot.",
     rotations: "Pola Rotasi Mingguan",
@@ -226,6 +233,7 @@ export const hrFix = {
     rotation: "Rotasi",
   },
   employeeForm: {
+    cancel2: "Batal",
     pickDepot: "Pilih depot…",
     daily: "Harian",
     monthly: "Bulanan",
@@ -300,6 +308,7 @@ export const hrFix = {
     activate: "Aktifkan",
   },
   adjustments: {
+    importDeductions: "Import Potongan",
     title: "Bonus & Potongan",
     subtitle: "Per karyawan per periode",
     period: "Periode",
@@ -379,6 +388,10 @@ export const hrFix = {
     saveFailed: "Gagal menyimpan",
   },
   departments: {
+    emptyBody2: "Belum ada departemen — karyawan tampil “Belum diatur”.",
+    delete2: "Hapus",
+    name2: "Nama",
+    depot2: "Depot",
     title: "Departemen",
     subtitle: "Unit kerja karyawan. Tanpa depot = berlaku lintas depot (Keuangan, HR).",
     allDepots: "Semua depot",
@@ -395,6 +408,9 @@ export const hrFix = {
     activate: "Aktifkan",
   },
   reports: {
+    from2: "Dari",
+    period2: "Periode",
+    scoreHint: "Skor per periode. Komponen yang tidak terukur tampil kosong, bukan nol.",
     title: "Laporan",
     subtitle: "Ekspor CSV, Excel, atau PDF",
     directory: "Direktori Karyawan",
@@ -416,6 +432,7 @@ export const hrFix = {
     announcementsBody: "Jangkauan dan tingkat baca tiap pengumuman.",
   },
   me: {
+    backToConsole2: "← Kembali ke konsol",
     subtitle: "Layanan mandiri karyawan",
     punchNow: "Absen Sekarang",
     punchBody: "Check-in / check-out dengan verifikasi wajah",
@@ -451,6 +468,7 @@ export const hrFix = {
     corrected: "Dikoreksi",
   },
   employees: {
+    noAccountCreate: "Belum punya akun · buatkan",
     title: "Karyawan",
     searchHint: "Cari nama / kode / posisi…",
     add: "+ Tambah",
@@ -461,6 +479,8 @@ export const hrFix = {
     departmentUnreadable: "Departemen tidak terbaca",
   },
   leave: {
+    importBalances: "Import Saldo Cuti",
+    reject2: "Tolak",
     title: "Pengajuan Cuti",
     subtitle: "Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti.",
     noteHint: "Catatan (wajib bila menolak)",
@@ -473,6 +493,14 @@ export const hrFix = {
     failed: "Gagal memproses",
   },
   performance: {
+    period3: "Periode",
+    loadHistory: "Muat riwayat",
+    period2: "Periode",
+    note2: "Catatan",
+    saveManual: "Simpan manual",
+    depot2: "Depot",
+    noActiveEmployees: "Tidak ada karyawan aktif pada lingkup ini.",
+    save2: "Simpan",
     title: "Kinerja",
     subtitle: "Skor bulanan dari kehadiran, kedisiplinan & penjualan",
     empty: "Belum ada penilaian.",
@@ -490,6 +518,10 @@ export const hrFix = {
     saved: "Penilaian disimpan",
   },
   employeeDetail: {
+    viewPayroll: "Lihat Payroll →",
+    viewAttendance: "Riwayat Absensi →",
+    enrolHint: "Ambil 1–3 foto wajah yang jelas untuk verifikasi absensi.",
+    saveEnrol: "Simpan Enroll",
     enrollFace: "Enroll Wajah",
     history: "Riwayat Kepegawaian",
     noHistory: "Belum ada riwayat.",
@@ -512,6 +544,11 @@ export const hrFix = {
     contractEnd: "Akhir kontrak",
   },
   resellers: {
+    addReseller2: "Tambah reseller",
+    save2: "Simpan",
+    cancel2: "Batal",
+    edit2: "Ubah",
+    depot2: "Depot",
     title: "Reseller (Agen)",
     add: "Tambah reseller",
     inactive: "Nonaktif",
@@ -556,6 +593,7 @@ export const hrFix = {
     uploadPhoto: "Unggah foto agen",
   },
   orderDetail: {
+    printReceipt2: "Cetak struk",
     assignCourier: "Tugaskan kurir",
     loadingCouriers: "Memuat kurir…",
     noCouriers: "Belum ada kurir aktif. Undang kurir di menu Staf &amp; peran.",
@@ -578,6 +616,12 @@ export const hrFix = {
     updateFailed: "Gagal memperbarui pesanan.",
   },
   vouchers: {
+    cancel3: "Batal",
+    activeVouchers: "Voucher aktif",
+    cancel2: "Batal",
+    close2: "Tutup",
+    search2: "Cari",
+    gateBody2: "Halaman voucher hanya untuk tim marketing dan admin depot.",
     percentage: "Persentase (%)",
     fixedAmount: "Potongan tetap (Rp)",
     newVoucher: "Voucher baru",
@@ -623,6 +667,12 @@ export const hrFix = {
     inactive: "Nonaktif",
   },
   settlement: {
+    checkOutFirst: "Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.",
+    viewHistory: "Lihat riwayat setoran",
+    countHint: "Hitung semua uang tunai COD yang kamu kumpulkan shift ini, lalu masukkan jumlah yang kamu setor ke kasir.",
+    handToCashier: "Setor ke kasir",
+    cashierMatchHint: "Kasir akan mencocokkan setoranmu dengan total tagihan COD.",
+    done2: "Selesai",
     title: "Setoran tunai (COD)",
     nothingToSettle: "Tidak ada shift untuk disetor",
     shiftDone: "Shift selesai",
@@ -640,6 +690,8 @@ export const hrFix = {
     difference: "Selisih",
   },
   earnings: {
+    cancel2: "Batal",
+    emptyBody2: "Ongkos antar akan muncul di sini setelah kamu menyelesaikan pengantaran.",
     title: "Pendapatan",
     available: "Saldo tersedia",
     shiftTarget: "Target shift",
@@ -658,6 +710,8 @@ export const hrFix = {
     withdrawFailed: "Gagal menarik saldo. Coba lagi.",
   },
   expenses: {
+    submitClaim: "Kirim klaim",
+    emptyBody2: "Klaim pengeluaran yang kamu kirim akan muncul di sini.",
     title: "Klaim pengeluaran",
     history: "Riwayat klaim",
     kind: "Jenis pengeluaran",
@@ -686,6 +740,9 @@ export const hrFix = {
     failedDeliveries: "Gagal antar",
   },
   cashierShift: {
+    openFirst: "Buka shift dulu — penjualan konter ditolak selama laci belum ada penanggung jawabnya.",
+    closeShift2: "Tutup shift",
+    cancel2: "Batal",
     closed: "Shift ditutup",
     expected: "Seharusnya",
     counted: "Dihitung",
@@ -701,6 +758,10 @@ export const hrFix = {
     closeFailed: "Gagal menutup shift.",
   },
   operatorSummary: {
+    viewQueue2: "Lihat antrean",
+    noUnassigned: "Tidak ada pesanan menunggu penugasan.",
+    verifyDeposit: "Verifikasi setoran",
+    pickDepot2: "Pilih depot yang kamu kelola untuk melihat ringkasan hari ini.",
     today: "Ringkasan hari ini",
     needsAssigning: "Perlu ditugaskan",
     allAboveThreshold: "Semua item di atas ambang.",
@@ -711,6 +772,8 @@ export const hrFix = {
     pickDepot: "Pilih depot",
   },
   depotHours: {
+    add2: "Tambah",
+    cancel2: "Batal",
     breakStart: "Mulai istirahat",
     breakEnd: "Selesai istirahat",
     title: "Jam buka &amp; hari libur",
@@ -756,6 +819,10 @@ export const hrFix = {
     finish: "Selesaikan pengantaran",
   },
   poDetail: {
+    backToList: "Kembali ke daftar",
+    sendToSupplier: "Kirim ke pemasok",
+    receiveGoods: "Terima barang → RECEIPT",
+    gateBody2: "Pengadaan tersedia untuk manajer depot dan super admin.",
     items: "Item",
     qtyPrice: "Qty × Harga",
     subtotal: "Subtotal",
@@ -770,6 +837,8 @@ export const hrFix = {
     actionFailed: "Aksi gagal. Coba lagi.",
   },
   approvalDetail: {
+    backToList2: "Kembali ke daftar",
+    note2: "Catatan",
     notFound: "Approval tidak ditemukan",
     backAria: "Kembali",
     system: "Sistem",
@@ -783,6 +852,9 @@ export const hrFix = {
     received: "Diterima",
   },
   announcements: {
+    mergedTargets: "Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.",
+    delete2: "Hapus",
+    addTarget: "Tambah target",
     title: "Pengumuman",
     subtitle: "Satu pesan, satu kali sampai. Target yang beririsan tidak mengirim dobel.",
     history: "Riwayat",
@@ -806,6 +878,7 @@ export const hrFix = {
     sendNow: "Kirim Sekarang",
   },
   hrCustomers: {
+    customers2: "Pelanggan",
     name: "Nama",
     phone: "Nomor",
     tier: "Tier",
@@ -817,6 +890,8 @@ export const hrFix = {
     noCustomers: "Belum ada pelanggan",
   },
   myLeave: {
+    apply2: "Ajukan Cuti",
+    holidayHint: "Hari libur nasional dan libur mingguan di dalam rentang tidak memotong kuota.",
     title: "Cuti Saya",
     empty: "Belum ada pengajuan cuti.",
     type: "Jenis cuti",
@@ -846,6 +921,8 @@ export const hrFix = {
     generateFailed: "Gagal generate",
   },
   allowances: {
+    fixedHint: "Komponen tetap yang terbayar setiap periode. Tidak masuk basis upah lembur.",
+    addAllowance2: "Tambah Tunjangan",
     title: "Tunjangan",
     empty: "Belum ada tunjangan.",
     type: "Jenis",
@@ -875,6 +952,9 @@ export const hrFix = {
     added: "Pinjaman ditambahkan",
   },
   promotions: {
+    cancel2: "Batal",
+    emptyBody: "Buat promo pertama untuk ditampilkan di beranda pelanggan.",
+    delete2: "Hapus",
     deniedBody: "Halaman promo hanya untuk tim marketing dan pengelola depot.",
     newPromo: "Promo baru",
     headline: "Judul",
@@ -927,6 +1007,7 @@ export const hrFix = {
     actionFailed: "Aksi gagal. Coba lagi.",
   },
   settlementHistory: {
+    emptyBody2: "Setoran tunai COD-mu akan muncul di sini.",
     title: "Riwayat setoran",
     youHandedOver: "Kamu setor",
     totalDue: "Total tagihan",
@@ -948,6 +1029,7 @@ export const hrFix = {
     enrollFailed: "Gagal enroll",
   },
   commission: {
+    gateBody2: "Pembayaran komisi kurir hanya untuk Manajer depot.",
     title: "Komisi kurir",
     periodTotal: "Total komisi periode",
     franchiseShare: "bagi hasil franchise",
@@ -958,6 +1040,10 @@ export const hrFix = {
     payAll: "Bayar semua",
   },
   expenseClaims: {
+    viewReceipt: "Lihat struk",
+    approve: "Setujui",
+    reject: "Tolak",
+    gateBody2: "Persetujuan klaim pengeluaran tersedia untuk manajer depot dan finance.",
     title: "Klaim pengeluaran kurir",
     reviewNote: "Catatan reviewer (opsional)",
     reviewNoteHint: "mis. sesuai bukti",
@@ -971,6 +1057,10 @@ export const hrFix = {
     allDepots: "Semua depot — pilih depot di switcher untuk menyaring.",
   },
   meter: {
+    noClosedDays: "Belum ada hari yang meterannya sudah ditutup.",
+    twiceHint: "Isi angka pagi saat buka, angka sore saat tutup. Form yang sama dipakai dua kali.",
+    varianceHistory: "Riwayat selisih",
+    gateBody2: "Rekonsiliasi meteran air hanya untuk staf depot ke atas.",
     title: "Meteran air",
     record: "Catat meteran",
     morning: "Meteran pagi (m³)",
@@ -989,6 +1079,8 @@ export const hrFix = {
     save: "Simpan",
   },
   wastage: {
+    details: "Rincian",
+    gateBody2: "Pelacakan wastage hanya untuk Manajer depot.",
     title: "Wastage",
     value: "Nilai wastage",
     units: "Total unit terbuang",
@@ -1013,6 +1105,9 @@ export const hrFix = {
     inactive: "Nonaktif",
   },
   managerTeam: {
+    subtitle2: "Kurir yang ditempatkan di depot kamu.",
+    emptyBody2: "Kurir yang ditempatkan di depot ini akan tampil di sini.",
+    active2: "Aktif",
     title: "Tim kurir",
     empty: "Belum ada kurir",
     total: "Total kurir",
@@ -1045,6 +1140,7 @@ export const hrFix = {
     ownerHint: "PT Hydromart Cikini",
   },
   monthlyReview: {
+    gateBody2: "Tinjauan ops bulanan hanya untuk Manajer depot.",
     title: "Tinjauan ops",
     gallonSales: "Penjualan galon",
     profitBreakdown: "Rincian laba",
@@ -1084,6 +1180,8 @@ export const hrFix = {
     winBack: "Dipulihkan dari churn",
   },
   driverAnnouncements: {
+    emptyBody2: "Info operasional dari depot akan muncul di sini.",
+    noDepotBody: "Pengumuman muncul setelah kamu ditempatkan di depot.",
     title: "Pengumuman",
     empty: "Belum ada pengumuman",
     unreadAria: "Belum dibaca",
@@ -1093,6 +1191,12 @@ export const hrFix = {
     info: "Info",
   },
   deliveryDetail: {
+    startDelivery: "Mulai antar",
+    arrived: "Sampai tujuan · ambil bukti",
+    returnEmpties: "Retur galon kosong",
+    noShow: "Tidak di tempat",
+    reschedule: "Jadwal ulang",
+    failed2: "Gagal",
     title: "Detail pengantaran",
     landmark: "Patokan:",
     orderDetail: "Rincian pesanan",
@@ -1107,6 +1211,7 @@ export const hrFix = {
     actionFailed: "Aksi gagal. Coba lagi.",
   },
   myAnnouncements: {
+    markRead2: "Tandai sudah dibaca",
     title: "Pengumuman",
     subtitle: "Kabar dari HR untuk Anda",
     empty: "Belum ada pengumuman untuk Anda.",
@@ -1119,6 +1224,8 @@ export const hrFix = {
     emptyBody: "Slip gaji kamu akan muncul di sini.",
   },
   managerPricing: {
+    noDepots2: "Belum ada depot yang dikonfigurasi.",
+    emptyBody2: "Aturan harga depot akan tampil di sini.",
     title: "Harga dinamis",
     noDepot: "Belum ada depot",
     empty: "Belum ada aturan harga",
@@ -1141,6 +1248,7 @@ export const hrFix = {
     depot: "Depot",
   },
   documents: {
+    view2: "Lihat",
     title: "Dokumen",
     empty: "Belum ada dokumen.",
     docType: "Jenis dokumen",
@@ -1164,10 +1272,13 @@ export const hrFix = {
     failed: "Gagal absen",
   },
   notFound: {
+    body2: "Halaman yang kamu cari tidak ada atau sudah dipindahkan.",
     title: "Halaman tidak ditemukan",
     toCatalog: "Ke katalog",
   },
   referral: {
+    yourCode: "Kode referral kamu",
+    shareHint: "Bagikan kode ini. Teman dapat potongan di pesanan pertama, kamu dapat poin saat pesanannya selesai.",
     title: "Ajak teman",
     accountAria: "Akun",
     copyAria: "Salin kode",
@@ -1201,6 +1312,7 @@ export const hrFix = {
     title: "Import Harga Depot",
   },
   errorPage: {
+    body2: "Terjadi kesalahan tak terduga. Coba lagi, atau kembali ke katalog.",
     title: "Ada yang tidak beres",
     retry: "Coba lagi",
   },
@@ -1225,16 +1337,22 @@ export const hrFix = {
     title: "Import Saldo Cuti Awal",
   },
   managerApprovals: {
+    subtitle2: "Permintaan yang butuh persetujuan manajer.",
+    allDone: "Semua permintaan sudah diproses.",
     title: "Approval",
     empty: "Tidak ada approval",
   },
   liveNav: {
+    gpsOff: "Lokasi GPS tidak aktif — nyalakan izin lokasi untuk pelacakan langsung.",
+    arrived2: "Sampai tujuan · ambil bukti",
     locating: "Mencari lokasi kamu…",
   },
   managerShell: {
+    notManager: "Akun ini bukan manajer depot. Masuk dengan akun manajer untuk membuka konsol ini.",
     managerOnly: "Halaman khusus manajer depot",
   },
   offlineBanner: {
+    sendNow2: "Kirim sekarang",
     clearAria: "Hapus data offline",
   },
   operatorShell: {
@@ -1344,6 +1462,7 @@ export const hrFix = {
     unreadable: "Tidak terbaca",
   },
   myPayrollDetail: {
+    downloadPdf2: "Unduh PDF",
     downloadFailed: "Gagal unduh",
     netPay: "Gaji Bersih (Net)",
   },
@@ -1368,6 +1487,7 @@ export const hrFix = {
     addPhoto: "Tambahkan foto (opsional)",
   },
   assets2: {
+    manageAssets: "Kelola aset",
     none: "Tidak ada aset perusahaan yang dipegang.",
   },
   documents2: {

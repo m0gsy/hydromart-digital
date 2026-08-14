@@ -59,7 +59,7 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
         onClick={() => void run()}
         className="rounded-lg border border-amber-400 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 disabled:opacity-50"
       >
-        Belum punya akun · buatkan
+        {t('hrFix.employees.noAccountCreate')}
       </button>
       {error && (
         <p className="max-w-[220px] text-right text-[11px] font-medium text-red-600" role="alert">

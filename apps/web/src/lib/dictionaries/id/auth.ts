@@ -1,6 +1,10 @@
 // Auth screens (login / register / verify) + site footer. Bahasa source of truth.
 export const auth = {
   login: {
+    biometricHint: 'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.',
+    biometricFailed: 'Belum terbuka. Coba lagi, atau masuk dengan kode SMS di bawah.',
+    heroLine2: "diantar dalam menit.",
+    heroBody: "Galon isi ulang, air botol, dan dispenser dari depot terdekat. Masuk untuk pesan ulang sekali ketuk.",
     heading: 'Selamat datang kembali',
     subtitle: 'Masuk dengan nomor teleponmu — kami kirim kode sekali pakai.',
     phoneLabel: 'Nomor telepon',
@@ -11,6 +15,7 @@ export const auth = {
     registerCta: 'Daftar sekarang',
   },
   register: {
+    bonusPoints: "+50 poin",
     heading: 'Buat akun baru',
     subtitle: 'Kami kirim kode sekali pakai untuk verifikasi nomormu.',
     phoneLabel: 'Nomor telepon',

@@ -191,7 +191,7 @@ function VoucherEditor({
                 checked={form.active}
                 onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
               />
-              Voucher aktif
+              {t('hrFix.vouchers.activeVouchers')}
             </label>
           </Field>
         )}
@@ -202,7 +202,7 @@ function VoucherEditor({
           {voucher ? t('hrFix.vouchers.save') : t('hrFix.vouchers.create')}
         </Button>
         <Button variant="ghost" onClick={onCancel}>
-          Batal
+          {t('hrFix.vouchers.cancel2')}
         </Button>
       </div>
     </Card>
@@ -272,7 +272,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
           </p>
           <div>
             <Button variant="ghost" onClick={onClose}>
-              Tutup
+              {t('hrFix.vouchers.close2')}
             </Button>
           </div>
         </>
@@ -290,7 +290,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
                 onKeyDown={(e) => e.key === 'Enter' && search()}
               />
               <Button variant="ghost" onClick={search} loading={searching}>
-                Cari
+                {t('hrFix.vouchers.search2')}
               </Button>
             </div>
           </Field>
@@ -306,7 +306,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
               Beri voucher
             </Button>
             <Button variant="ghost" onClick={onClose}>
-              Batal
+              {t('hrFix.vouchers.cancel3')}
             </Button>
           </div>
         </>
@@ -330,7 +330,7 @@ function VouchersAdmin() {
   if (customer && !canViewVouchers(customer.role)) {
     return (
       <CenterState icon={<Lock size={48} weight="thin" />} title={t('hrFix.vouchers.denied')}>
-        Halaman voucher hanya untuk tim marketing dan admin depot.
+        {t('hrFix.vouchers.gateBody2')}
       </CenterState>
     );
   }

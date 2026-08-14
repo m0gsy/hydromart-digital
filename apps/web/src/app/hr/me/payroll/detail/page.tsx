@@ -110,7 +110,7 @@ export default function MyPayrollDetailPage() {
         onClick={downloadSlip}
         className="w-full rounded-lg border border-app px-4 py-2.5 text-sm font-semibold hover:bg-brand-50"
       >
-        Unduh PDF
+        {t('hrFix.myPayrollDetail.downloadPdf2')}
       </button>
     </div>
   );

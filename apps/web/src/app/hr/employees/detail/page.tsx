@@ -152,13 +152,13 @@ export default function EmployeeDetailPage() {
           href={`/hr/payroll?employeeId=${id}`}
           className="text-sm font-semibold text-brand-700 hover:underline"
         >
-          Lihat Payroll →
+          {t('hrFix.employeeDetail.viewPayroll')}
         </Link>
         <Link
           href={`/hr/attendance?employeeId=${id}`}
           className="text-sm font-semibold text-brand-700 hover:underline"
         >
-          Riwayat Absensi →
+          {t('hrFix.employeeDetail.viewAttendance')}
         </Link>
         <Link
           href={`/hr/performance?employeeId=${id}`}
@@ -172,7 +172,7 @@ export default function EmployeeDetailPage() {
         <Card className="space-y-3 p-5">
           <h3 className="font-bold">{t('hrFix.employeeDetail.enrollFace')}</h3>
           <p className="text-xs text-muted">
-            Ambil 1–3 foto wajah yang jelas untuk verifikasi absensi.
+            {t('hrFix.employeeDetail.enrolHint')}
           </p>
           <FaceCapture
             onCapture={(f) => setFrames((prev) => [...prev, f].slice(0, 3))}
@@ -186,7 +186,7 @@ export default function EmployeeDetailPage() {
                   Reset
                 </Button>
                 <Button onClick={enroll} loading={enrolling}>
-                  Simpan Enroll
+                  {t('hrFix.employeeDetail.saveEnrol')}
                 </Button>
               </div>
             </div>

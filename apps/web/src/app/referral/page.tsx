@@ -44,7 +44,7 @@ function ReferralInner() {
           <div className="surface relative overflow-hidden rounded-[20px] border border-app p-6">
             <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-brand-700">
               <Gift size={16} weight="fill" />
-              Kode referral kamu
+              {t('hrFix.referral.yourCode')}
             </div>
             <div className="mt-3 flex items-center gap-3">
               <code className="flex-1 rounded-xl border border-dashed border-app px-4 py-3 text-center font-mono text-lg font-extrabold tracking-[0.1em]">
@@ -60,7 +60,7 @@ function ReferralInner() {
               </button>
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-muted">
-              Bagikan kode ini. Teman dapat potongan di pesanan pertama, kamu dapat poin saat pesanannya selesai.
+              {t('hrFix.referral.shareHint')}
             </p>
           </div>
 

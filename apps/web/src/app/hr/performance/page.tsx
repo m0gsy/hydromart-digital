@@ -120,7 +120,7 @@ function PerformanceInner() {
             was still a UUID field. */}
         <EmployeeSelect value={employeeId} onChange={setEmployeeId} className="w-64" />
         <Button variant="secondary" onClick={load}>
-          Muat riwayat
+          {t('hrFix.performance.loadHistory')}
         </Button>
       </Card>
 
@@ -144,7 +144,7 @@ function PerformanceInner() {
           {isAdmin && (
             <Card className="flex flex-wrap items-end gap-3 p-4">
               <label className="text-sm">
-                Periode
+                {t('hrFix.performance.period2')}
                 <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
               </label>
               <label className="text-sm">
@@ -159,14 +159,14 @@ function PerformanceInner() {
                 />
               </label>
               <label className="text-sm">
-                Catatan
+                {t('hrFix.performance.note2')}
                 <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" />
               </label>
               <Button variant="secondary" onClick={computeScore} loading={scoring}>
                 Hitung skor
               </Button>
               <Button onClick={save} loading={busy}>
-                Simpan manual
+                {t('hrFix.performance.saveManual')}
               </Button>
               {computed?.score.final != null && (
                 <p className="w-full text-xs text-muted">
@@ -231,11 +231,11 @@ function ScoreDashboard({
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">
-          Periode
+          {t('hrFix.performance.period3')}
           <Input type="month" value={period} onChange={(e) => onPeriod(e.target.value)} />
         </label>
         <label className="text-sm">
-          Depot
+          {t('hrFix.performance.depot2')}
           <select
             value={depotId}
             onChange={(e) => setDepotId(e.target.value)}
@@ -270,7 +270,7 @@ function ScoreDashboard({
               {board.data.length === 0 && (
                 <tr>
                   <td colSpan={isAdmin ? 6 : 5} className="py-3 text-muted">
-                    Tidak ada karyawan aktif pada lingkup ini.
+                    {t('hrFix.performance.noActiveEmployees')}
                   </td>
                 </tr>
               )}
@@ -296,7 +296,7 @@ function ScoreDashboard({
                         loading={saving === r.employeeId}
                         onClick={() => persist(r)}
                       >
-                        Simpan
+                        {t('hrFix.performance.save2')}
                       </Button>
                     </td>
                   )}

@@ -3,6 +3,10 @@ import { auth as base } from '../id/auth';
 // English — mirrors the shape of id/auth.ts (the source of truth for keys).
 export const auth: typeof base = {
   login: {
+    biometricHint: 'Your session is still stored on this device. Open it with a fingerprint or PIN, no SMS code needed.',
+    biometricFailed: 'Not unlocked. Try again, or sign in with an SMS code below.',
+    heroLine2: "delivered in minutes.",
+    heroBody: "Refill gallons, bottled water and dispensers from your nearest depot. Sign in to reorder in one tap.",
     heading: 'Welcome back',
     subtitle: 'Sign in with your phone number — we send a one-time code.',
     phoneLabel: 'Phone number',
@@ -13,6 +17,7 @@ export const auth: typeof base = {
     registerCta: 'Register now',
   },
   register: {
+    bonusPoints: "+50 points",
     heading: 'Create a new account',
     subtitle: 'We send a one-time code to verify your number.',
     phoneLabel: 'Phone number',

@@ -50,11 +50,12 @@ function Stat({
 
 /** Bare CSS bar chart — the variance history does not warrant a charting library. */
 function VarianceChart({ rows }: { rows: MeterHistoryRow[] }) {
+  const { t } = useT();
   const withVariance = rows.filter((r) => r.varianceLiters != null);
   if (withVariance.length === 0) {
     return (
       <p className="py-3 text-sm text-[color:var(--text-muted)]">
-        Belum ada hari yang meterannya sudah ditutup.
+        {t('hrFix.meter.noClosedDays')}
       </p>
     );
   }
@@ -211,7 +212,7 @@ function MeterBody() {
             {saving ? t('hrFix.meter.saving') : t('hrFix.meter.save')}
           </Button>
           <p className="text-xs text-[color:var(--text-muted)]">
-            Isi angka pagi saat buka, angka sore saat tutup. Form yang sama dipakai dua kali.
+            {t('hrFix.meter.twiceHint')}
           </p>
         </Card>
       )}
@@ -301,7 +302,7 @@ function MeterBody() {
           <Card className="flex flex-col gap-3 p-5">
             <h2 className="flex items-center gap-2 font-semibold">
               <Drop size={18} weight="fill" className="text-brand-500" />
-              Riwayat selisih
+              {t('hrFix.meter.varianceHistory')}
             </h2>
             {history.loading ? (
               <Skeleton className="h-32 w-full" />
@@ -332,7 +333,7 @@ function Gate() {
   if (!canViewMeterReading(customer?.role)) {
     return (
       <CenterState title={t('hrFix.meter.restricted')} icon={<Lock size={40} weight="fill" />}>
-        Rekonsiliasi meteran air hanya untuk staf depot ke atas.
+        {t('hrFix.meter.gateBody2')}
       </CenterState>
     );
   }

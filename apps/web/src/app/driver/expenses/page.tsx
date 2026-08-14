@@ -119,7 +119,7 @@ function Expenses() {
         </Field>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button loading={busy} disabled={want <= 0 || desc.trim() === ''} className="w-full" onClick={submit}>
-          Kirim klaim
+          {t('hrFix.expenses.submitClaim')}
         </Button>
         <p className="text-center text-[11px] text-[color:var(--muted)]">
           Klaim kecil disetujui otomatis; sisanya menunggu persetujuan depot.
@@ -133,7 +133,7 @@ function Expenses() {
         <ErrorState message={load.error} onRetry={load.reload} />
       ) : claims.length === 0 ? (
         <CenterState icon={<Receipt size={32} />} title={t('hrFix.expenses.emptyTitle')}>
-          Klaim pengeluaran yang kamu kirim akan muncul di sini.
+          {t('hrFix.expenses.emptyBody2')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2">

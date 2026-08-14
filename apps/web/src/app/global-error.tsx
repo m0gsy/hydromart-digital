@@ -40,6 +40,10 @@ export default function GlobalError({
           margin: 0,
         }}
       >
+        {/* Untranslated on purpose: this boundary catches a failure in the ROOT layout,
+            which is where LocaleProvider lives. There is no translator to call — rendering
+            when the app around it did not is the whole point. check-i18n.mjs skips this
+            file by path for that reason. */}
         <main style={{ textAlign: 'center', padding: '1.5rem', color: '#16282e' }}>
           <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', fontWeight: 800 }}>
             Ada yang tidak beres

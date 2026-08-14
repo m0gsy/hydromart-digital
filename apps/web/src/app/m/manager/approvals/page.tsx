@@ -68,7 +68,7 @@ export default function ApprovalsPage() {
       <header>
         <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerApprovals.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
-          Permintaan yang butuh persetujuan manajer.
+          {t('hrFix.managerApprovals.subtitle2')}
         </p>
       </header>
 
@@ -78,7 +78,7 @@ export default function ApprovalsPage() {
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.length === 0 ? (
         <CenterState icon={<Gavel size={32} />} title={t('hrFix.managerApprovals.empty')}>
-          Semua permintaan sudah diproses.
+          {t('hrFix.managerApprovals.allDone')}
         </CenterState>
       ) : (
         <div className="space-y-2.5">

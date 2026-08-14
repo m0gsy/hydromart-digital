@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Fingerprint } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
+import { useT } from '@/lib/locale-context';
 import { hasTokens, retryUnlock, unlockWasCancelled } from '@/lib/token-store';
 
 /**
@@ -19,6 +20,7 @@ import { hasTokens, retryUnlock, unlockWasCancelled } from '@/lib/token-store';
  * reached after the unlock has already settled.
  */
 export function BiometricRetry() {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -42,7 +44,7 @@ export function BiometricRetry() {
   return (
     <div className="flex w-full max-w-[360px] flex-col gap-2 rounded-[14px] border border-app bg-[color:var(--surface-elevated)] p-4">
       <p className="text-[13px] text-muted">
-        Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.
+        {t('auth.login.biometricHint')}
       </p>
       <Button
         variant="secondary"
@@ -55,7 +57,7 @@ export function BiometricRetry() {
       </Button>
       {failed && (
         <p role="alert" className="text-[12.5px] text-[color:var(--danger)]">
-          Belum terbuka. Coba lagi, atau masuk dengan kode SMS di bawah.
+          {t('auth.login.biometricFailed')}
         </p>
       )}
     </div>

@@ -386,7 +386,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               : t('hrFix.employeeForm.addEmployee')}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.back()}>
-          Batal
+          {t('hrFix.employeeForm.cancel2')}
         </Button>
       </div>
     </form>

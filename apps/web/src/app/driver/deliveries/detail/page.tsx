@@ -166,7 +166,7 @@ function Detail() {
       {delivery.status === 'PICKED_UP' && (
         <Button loading={busy} className="flex w-full items-center justify-center gap-2" onClick={() => act(() => api.patch(endpoints.deliveries.driver.start(id), undefined, true))}>
           <Truck size={19} weight="fill" />
-          Mulai antar
+          {t('hrFix.deliveryDetail.startDelivery')}
         </Button>
       )}
       {delivery.status === 'ON_DELIVERY' &&
@@ -184,7 +184,7 @@ function Detail() {
             ) : (
               <Button className="flex w-full items-center justify-center gap-2" onClick={() => setCapturing(true)}>
                 <SealCheck size={19} weight="fill" />
-                Sampai tujuan · ambil bukti
+                {t('hrFix.deliveryDetail.arrived')}
               </Button>
             )}
             <button
@@ -201,17 +201,17 @@ function Detail() {
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold"
             >
               <Recycle size={18} weight="fill" className="text-brand-700" />
-              Retur galon kosong
+              {t('hrFix.deliveryDetail.returnEmpties')}
             </button>
             <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--muted)]">
               <button type="button" onClick={() => router.push(`/driver/deliveries/detail/no-show?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
-                Tidak di tempat
+                {t('hrFix.deliveryDetail.noShow')}
               </button>
               <button type="button" onClick={() => router.push(`/driver/deliveries/detail/reschedule?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
-                Jadwal ulang
+                {t('hrFix.deliveryDetail.reschedule')}
               </button>
               <button type="button" onClick={() => router.push(`/driver/deliveries/detail/fail?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2 text-red-600">
-                Gagal
+                {t('hrFix.deliveryDetail.failed2')}
               </button>
             </div>
           </div>

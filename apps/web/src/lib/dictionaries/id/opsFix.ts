@@ -104,6 +104,12 @@ export const opsFix = {
     error: 'Gagal menyimpan titik pesan ulang.',
   },
   poDraft: {
+    sendToSupplier: "Kirim ke pemasok",
+    receive: "Terima → RECEIPT",
+    fromForecast: "Buat dari forecast",
+    noDepots2: "Belum ada depot yang dikonfigurasi.",
+    noOrders: "Belum ada pesanan pembelian untuk filter ini.",
+    gateBody2: "Pengadaan tersedia untuk manajer depot dan super admin.",
     open: 'Buat PO dari stok menipis',
     title: 'PO draft dari stok menipis',
     subtitle: 'Pilih item di bawah titik pesan ulang, tetapkan pemasok, lalu buat PO draft.',
@@ -183,6 +189,7 @@ export const opsFix = {
   },
   // dashboard/reports — PR-8: layar ini seluruhnya hardcoded sebelumnya.
   reports: {
+    gateBody2: "Laporan operasional depot tersedia untuk operator dan manajer depot.",
     exportExcel: 'Ekspor Excel',
     exportCsv: 'CSV',
     exportError: 'Gagal mengekspor laporan.',
@@ -278,6 +285,9 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Layar kasir, sebelumnya seluruhnya hardcoded.
   walkIn: {
+    reload: "Muat ulang",
+    discountHint: "Potongan tier/harga agen/voucher dihitung saat disimpan dan tercetak di struk.",
+    methodOffHint: "Metode yang mati belum diatur depot — isi QRIS/rekening di halaman Depot.",
     title: 'Penjualan di depot',
     subtitle: 'Pembeli datang langsung, bayar tunai.',
     pickProductFirst: 'Pilih produk dulu.',
@@ -377,6 +387,7 @@ export const opsFix = {
   },
   // dashboard/earning-rules — PR-8. Sebelumnya seluruhnya hardcoded.
   earningRules: {
+    newRule: "Aturan baru",
     title: 'Aturan penghasilan kurir',
     applyTitle: 'Terapkan aturan penghasilan baru',
     applyHint: 'Aturan bersifat efektif-tanggal dan tidak menimpa yang lama — pay pengantaran lampau tetap bisa direproduksi.',
@@ -463,6 +474,7 @@ export const opsFix = {
   },
   // dashboard/targets — PR-8. Sebelumnya seluruhnya hardcoded.
   targets: {
+    editTarget: "Ubah target",
     title: 'Target depot',
     headerSub: '{month} · hari ke-{day} dari {days}',
     editTitle: 'Ubah target {month}',
@@ -532,6 +544,8 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Sebelumnya seluruhnya hardcoded.
   cashbook: {
+    exportExcel: "Ekspor Excel",
+    dailyReport: "Laporan harian",
     title: 'Buku kas',
     today: 'Hari ini',
     in: 'Masuk',

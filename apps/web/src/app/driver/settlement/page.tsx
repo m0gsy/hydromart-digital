@@ -84,10 +84,10 @@ function Settlement() {
           <Wallet size={40} className="text-[color:var(--muted)]" />
           <div className="text-base font-extrabold">{t('hrFix.settlement.nothingToSettle')}</div>
           <p className="text-sm text-[color:var(--muted)]">
-            Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.
+            {t('hrFix.settlement.checkOutFirst')}
           </p>
           <Button variant="ghost" className="mt-2" onClick={() => router.push('/driver/settlement/history')}>
-            Lihat riwayat setoran
+            {t('hrFix.settlement.viewHistory')}
           </Button>
         </Card>
       ) : (
@@ -98,7 +98,7 @@ function Settlement() {
               Check-out {shift.checkOutAt ? WHEN.format(new Date(shift.checkOutAt)) : '—'}
             </div>
             <p className="mt-2 text-[12px] text-black/60">
-              Hitung semua uang tunai COD yang kamu kumpulkan shift ini, lalu masukkan jumlah yang kamu setor ke kasir.
+              {t('hrFix.settlement.countHint')}
             </p>
           </Card>
 
@@ -121,10 +121,10 @@ function Settlement() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button loading={busy} disabled={cash === ''} className="w-full" onClick={submit}>
-            Setor ke kasir
+            {t('hrFix.settlement.handToCashier')}
           </Button>
           <p className="text-center text-[11px] text-[color:var(--muted)]">
-            Kasir akan mencocokkan setoranmu dengan total tagihan COD.
+            {t('hrFix.settlement.cashierMatchHint')}
           </p>
         </>
       )}
@@ -167,7 +167,7 @@ function SettlementReceipt({
       </div>
       {onDone && (
         <Button variant="ghost" className="mt-1" onClick={onDone}>
-          Selesai
+          {t('hrFix.settlement.done2')}
         </Button>
       )}
     </Card>

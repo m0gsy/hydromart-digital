@@ -94,7 +94,7 @@ export default function ManagerPricingPage() {
 
       {ready && depots.length === 0 && !depotId ? (
         <CenterState icon={<Tag size={32} />} title={t('hrFix.managerPricing.noDepot')}>
-          Belum ada depot yang dikonfigurasi.
+          {t('hrFix.managerPricing.noDepots2')}
         </CenterState>
       ) : rules.loading ? (
         <Skeleton className="h-64 w-full" />
@@ -102,7 +102,7 @@ export default function ManagerPricingPage() {
         <ErrorState message={rules.error} onRetry={rules.reload} />
       ) : !rules.data || rules.data.length === 0 ? (
         <CenterState icon={<Tag size={32} />} title={t('hrFix.managerPricing.empty')}>
-          Aturan harga depot akan tampil di sini.
+          {t('hrFix.managerPricing.emptyBody2')}
         </CenterState>
       ) : (
         <div className="space-y-2.5">
