@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, Info, Lock } from '@phosphor-icons/react';
 
@@ -15,10 +16,11 @@ import { useAsync } from '@/lib/use-async';
 import type { PoStatus, PurchaseOrder } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
+// Dictionary KEYS — module scope, so t() runs where each step is rendered.
 const STEPS: { status: PoStatus; label: string }[] = [
-  { status: 'DRAFT', label: 'Draft' },
-  { status: 'SENT', label: 'Dikirim' },
-  { status: 'RECEIVED', label: 'Diterima' },
+  { status: 'DRAFT', label: 'hrFix.poDetail.draft' },
+  { status: 'SENT', label: 'hrFix.poDetail.sent' },
+  { status: 'RECEIVED', label: 'hrFix.poDetail.received' },
 ];
 
 const STATUS_TONE: Record<PoStatus, 'warning' | 'brand' | 'success'> = {
@@ -29,6 +31,7 @@ const STATUS_TONE: Record<PoStatus, 'warning' | 'brand' | 'success'> = {
 
 /** Draft → Dikirim → Diterima progress. */
 function Stepper({ status }: { status: PoStatus }) {
+  const { t } = useT();
   const active = STEPS.findIndex((s) => s.status === status);
   return (
     <div className="flex items-center gap-2">
@@ -42,7 +45,7 @@ function Stepper({ status }: { status: PoStatus }) {
             >
               {i + 1}
             </div>
-            <span className={`text-[11px] font-semibold ${i <= active ? '' : 'text-muted'}`}>{s.label}</span>
+            <span className={`text-[11px] font-semibold ${i <= active ? '' : 'text-muted'}`}>{t(s.label)}</span>
           </div>
           {i < STEPS.length - 1 && (
             <div className={`h-0.5 flex-1 ${i < active ? 'bg-brand-500' : 'bg-[color:var(--border)]'}`} />
@@ -54,6 +57,7 @@ function Stepper({ status }: { status: PoStatus }) {
 }
 
 function Detail({ id }: { id: string }) {
+  const { t } = useT();
   const detail = useAsync<PurchaseOrder>(() => api.get(endpoints.procurement.purchaseOrders.detail(id), true), [id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +73,7 @@ function Detail({ id }: { id: string }) {
       await api.post(url, {}, true);
       detail.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.poDetail.actionFailed'));
     } finally {
       setBusy(false);
     }
@@ -79,7 +83,7 @@ function Detail({ id }: { id: string }) {
   if (detail.error) return <ErrorState message={detail.error} onRetry={detail.reload} />;
   if (!detail.data) {
     return (
-      <CenterState title="PO tidak ditemukan">
+      <CenterState title={t('hrFix.poDetail.notFound')}>
         <Link href="/dashboard/purchase-orders" className="font-bold text-brand-700">
           Kembali ke daftar
         </Link>
@@ -95,7 +99,7 @@ function Detail({ id }: { id: string }) {
         <Link
           href="/dashboard/purchase-orders"
           className="flex size-9 items-center justify-center rounded-xl border border-app"
-          aria-label="Kembali"
+          aria-label={t('hrFix.poDetail.backAria')}
         >
           <ArrowLeft size={18} />
         </Link>
@@ -105,7 +109,7 @@ function Detail({ id }: { id: string }) {
             {po.supplierName} · {formatDateTime(po.createdAt)}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[po.status]}>{STEPS.find((s) => s.status === po.status)?.label}</Badge>
+        <Badge tone={STATUS_TONE[po.status]}>{t(STEPS.find((s) => s.status === po.status)?.label ?? '')}</Badge>
       </header>
 
       <Card className="p-4">
@@ -116,9 +120,9 @@ function Detail({ id }: { id: string }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-app text-left text-[11px] uppercase tracking-wide text-muted">
-              <th className="px-4 py-2 font-bold">Item</th>
-              <th className="px-4 py-2 text-right font-bold">Qty × Harga</th>
-              <th className="px-4 py-2 text-right font-bold">Subtotal</th>
+              <th className="px-4 py-2 font-bold">{t('hrFix.poDetail.items')}</th>
+              <th className="px-4 py-2 text-right font-bold">{t('hrFix.poDetail.qtyPrice')}</th>
+              <th className="px-4 py-2 text-right font-bold">{t('hrFix.poDetail.subtotal')}</th>
             </tr>
           </thead>
           <tbody>
@@ -142,15 +146,15 @@ function Detail({ id }: { id: string }) {
 
       <Card className="px-4 py-1">
         <div className="flex items-center justify-between py-2">
-          <span className="text-sm text-muted">Subtotal</span>
+          <span className="text-sm text-muted">{t('hrFix.poDetail.subtotal')}</span>
           <Money amount={po.subtotalIdr} className="font-semibold tabular-nums" />
         </div>
         <div className="flex items-center justify-between border-t border-app py-2">
-          <span className="text-sm text-muted">Ongkos kirim</span>
+          <span className="text-sm text-muted">{t('hrFix.poDetail.shipping')}</span>
           <Money amount={po.shippingIdr} className="font-semibold tabular-nums" />
         </div>
         <div className="flex items-center justify-between border-t border-app py-2">
-          <span className="text-sm font-bold">Total</span>
+          <span className="text-sm font-bold">{t('hrFix.poDetail.total')}</span>
           <Money amount={po.totalIdr} className="text-lg font-extrabold tabular-nums" />
         </div>
       </Card>
@@ -187,10 +191,11 @@ function Detail({ id }: { id: string }) {
 }
 
 function Gate({ id }: { id: string }) {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageProcurement(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.poDetail.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         Pengadaan tersedia untuk manajer depot dan super admin.
       </CenterState>
     );
