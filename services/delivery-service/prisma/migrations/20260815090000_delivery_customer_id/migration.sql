@@ -12,4 +12,9 @@
 ALTER TABLE "deliveries" ADD COLUMN "customerId" UUID;
 
 -- The feed read is "this customer's deliveries, newest first".
-CREATE INDEX "deliveries_customerId_createdAt_idx" ON "deliveries" ("customerId", "createdAt" DESC);
+--
+-- IF NOT EXISTS, because `scripts/create-indexes.sh` builds it CONCURRENTLY before the
+-- migration runs: a plain build takes a lock that blocks writes to `deliveries` for as long
+-- as it lasts, and CONCURRENTLY cannot run inside the transaction Prisma wraps this file in.
+-- `check-index-concurrency.mjs` is the gate that made this the only way in.
+CREATE INDEX IF NOT EXISTS "deliveries_customerId_createdAt_idx" ON "deliveries" ("customerId", "createdAt" DESC);
