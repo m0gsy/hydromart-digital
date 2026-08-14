@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { FaceCapture } from '@/components/hr/face-capture';
 import { OfflineQueueBanner } from '@/components/offline-queue-banner';
@@ -12,22 +13,32 @@ import { runOrQueue } from '@/lib/offline-queue';
 
 type Mode = 'in' | 'out';
 
-/** Resolve the device GPS position (needed for the attendance geofence). */
-function getPosition(): Promise<{ lat: number; lng: number }> {
+/**
+ * Resolve the device GPS position (needed for the attendance geofence).
+ *
+ * Both refusal messages are passed in rather than translated here: this is a plain
+ * function and a hook has no business in one — and both strings DO reach the employee,
+ * so leaving them hardcoded was not an option either.
+ */
+function getPosition(messages: {
+  noGps: string;
+  allowGps: string;
+}): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
-      reject(new Error('Perangkat tidak mendukung GPS'));
+      reject(new Error(messages.noGps));
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => reject(new Error('Izinkan akses lokasi (GPS) untuk absen')),
+      () => reject(new Error(messages.allowGps)),
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
     );
   });
 }
 
 export default function MeCheckInPage() {
+  const { t } = useT();
   const { toast } = useToast();
   const [mode, setMode] = useState<Mode>('in');
   const [busy, setBusy] = useState(false);
@@ -38,12 +49,15 @@ export default function MeCheckInPage() {
   // be an anti-spoofing control there (B-7); the face match is.
   async function punch(dataUrl: string, live: boolean) {
     if (!live) {
-      toast('Deteksi wajah kurang meyakinkan. Gerakkan kepala/kedip lalu coba lagi.', 'error');
+      toast(t('hrFix.checkIn.faceUnsure'), 'error');
       return;
     }
     setBusy(true);
     try {
-      const { lat, lng } = await getPosition();
+      const { lat, lng } = await getPosition({
+        noGps: t('hrFix.checkIn.noGps'),
+        allowGps: t('hrFix.checkIn.allowGps'),
+      });
       // Offline keeps the punch on the device with its capture time. A quick sync still
       // counts normally; one that sits here too long is held for HR to approve.
       const sent = await runOrQueue<Attendance>({
@@ -52,13 +66,13 @@ export default function MeCheckInPage() {
       });
       if (sent.outcome === 'queued') {
         setResult(null);
-        toast('Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti.');
+        toast(t('hrFix.checkIn.offlineQueued'));
         return;
       }
       setResult(sent.result);
       toast(mode === 'in' ? 'Check-in berhasil' : 'Check-out berhasil');
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Gagal absen', 'error');
+      toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : t('hrFix.checkIn.failed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -66,13 +80,13 @@ export default function MeCheckInPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5 px-4 py-6">
-      <SectionHeader title="Absensi Wajah" />
+      <SectionHeader title={t('hrFix.checkIn.title')} />
 
       <OfflineQueueBanner />
 
       <div className="flex gap-2">
-        <Button variant={mode === 'in' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('in')}>Check-in</Button>
-        <Button variant={mode === 'out' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('out')}>Check-out</Button>
+        <Button variant={mode === 'in' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('in')}>{t('hrFix.checkIn.checkIn')}</Button>
+        <Button variant={mode === 'out' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('out')}>{t('hrFix.checkIn.checkOut')}</Button>
       </div>
 
       <Card className="p-5">

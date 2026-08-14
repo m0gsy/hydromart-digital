@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { Button } from '@/components/ui';
 
@@ -17,6 +18,7 @@ const SAMPLE = 64; // downscale size for the cheap motion/sharpness math
  * server ArcFace verifier gates identity regardless.
  */
 export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: string, live: boolean) => void; disabled?: boolean }) {
+  const { t } = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,8 +100,8 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
   return (
     <div className="space-y-3">
       <video ref={videoRef} autoPlay playsInline muted className="mx-auto aspect-square w-full max-w-xs rounded-2xl bg-black object-cover" />
-      <Button type="button" onClick={capture} loading={busy} disabled={disabled || !ready} className="w-full">Ambil Foto</Button>
-      <p className="text-center text-xs text-muted">Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.</p>
+      <Button type="button" onClick={capture} loading={busy} disabled={disabled || !ready} className="w-full">{t('hrFix.faceCapture.take')}</Button>
+      <p className="text-center text-xs text-muted">{t('hrFix.faceCapture.hint')}</p>
     </div>
   );
 }

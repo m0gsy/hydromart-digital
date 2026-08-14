@@ -1124,4 +1124,91 @@ export const hrFix = {
     empty: "No documents yet.",
     docType: "Document type",
   },
+  hrImport: {
+    title: "Import employees",
+    upsert: "Update employees that already exist",
+  },
+  employeeNew: {
+    title: "Add employee",
+    subtitle: "The HR-#### code is generated automatically",
+  },
+  checkIn: {
+    title: "Face attendance",
+    checkIn: "Check in",
+    checkOut: "Check out",
+    noGps: "This device has no GPS",
+    allowGps: "Allow location access (GPS) to clock in",
+    faceUnsure: "The face match is not confident enough. Move your head or blink, then try again.",
+    offlineQueued: "No signal. The punch is stored on the device and sent automatically later.",
+    failed: "Could not clock in",
+  },
+  notFound: {
+    title: "Page not found",
+    toCatalog: "Go to the catalogue",
+  },
+  referral: {
+    title: "Invite a friend",
+    accountAria: "Account",
+    copyAria: "Copy the code",
+    invited: "Invited",
+    succeeded: "Joined",
+    points: "Points",
+  },
+  depotMap: {
+    empty: "No depot has coordinates yet.",
+    caption: "Positions are relative to each depot's coordinates.",
+  },
+  faceCapture: {
+    take: "Take photo",
+    hint: "Move your head slightly or blink while the photo is taken.",
+  },
+  imports: {
+    customers: "Import customers",
+  },
+  importsInventory: {
+    title: "Import stock",
+  },
+  importsPricing: {
+    title: "Import depot prices",
+  },
+  errorPage: {
+    title: "Something went wrong",
+    retry: "Try again",
+  },
+  favorites: {
+    title: "Favourites",
+    empty: "No favourites yet. Tap the heart on a product to save it.",
+    accountAria: "Account",
+  },
+  hrAllowances: {
+    title: "Allowances",
+    subtitle: "Fixed recurring pay — listed separately from bonuses on the payslip",
+  },
+  audit: {
+    title: "Audit log",
+    filterHint: "Filter by entity (employees, payroll, …)",
+    empty: "No entries yet.",
+  },
+  employeeEdit: {
+    title: "Edit employee",
+  },
+  balancesImport: {
+    title: "Import opening leave balances",
+  },
+  managerApprovals: {
+    title: "Approvals",
+    empty: "No approvals",
+  },
+  liveNav: {
+    locating: "Finding your location…",
+  },
+  managerShell: {
+    managerOnly: "Depot managers only",
+  },
+  offlineBanner: {
+    clearAria: "Clear the offline data",
+  },
+  operatorShell: {
+    title: "Depot operator",
+  },
 };

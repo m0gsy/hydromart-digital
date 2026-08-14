@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { usePathname } from 'next/navigation';
 import { Bell, Drop } from '@phosphor-icons/react';
 
@@ -75,6 +76,7 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
 }
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   const pathname = usePathname() ?? '/dashboard';
   const { customer } = useAuth();
   const { selected, depots } = useDepot();
@@ -116,7 +118,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
               </span>
               <span className="hidden sm:block">
                 <span className="block text-[12.5px] font-extrabold leading-tight">{name}</span>
-                <span className="block text-[10.5px] text-[color:var(--text-muted)]">Operator depot</span>
+                <span className="block text-[10.5px] text-[color:var(--text-muted)]">{t('hrFix.operatorShell.title')}</span>
               </span>
             </span>
           </div>

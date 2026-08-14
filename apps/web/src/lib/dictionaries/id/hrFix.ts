@@ -1136,4 +1136,91 @@ export const hrFix = {
     empty: "Belum ada dokumen.",
     docType: "Jenis dokumen",
   },
+  hrImport: {
+    title: "Import Karyawan",
+    upsert: "Perbarui karyawan yang sudah ada",
+  },
+  employeeNew: {
+    title: "Tambah Karyawan",
+    subtitle: "Kode HR-#### dibuat otomatis",
+  },
+  checkIn: {
+    title: "Absensi Wajah",
+    checkIn: "Check-in",
+    checkOut: "Check-out",
+    noGps: "Perangkat tidak mendukung GPS",
+    allowGps: "Izinkan akses lokasi (GPS) untuk absen",
+    faceUnsure: "Deteksi wajah kurang meyakinkan. Gerakkan kepala/kedip lalu coba lagi.",
+    offlineQueued: "Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti.",
+    failed: "Gagal absen",
+  },
+  notFound: {
+    title: "Halaman tidak ditemukan",
+    toCatalog: "Ke katalog",
+  },
+  referral: {
+    title: "Ajak teman",
+    accountAria: "Akun",
+    copyAria: "Salin kode",
+    invited: "Diundang",
+    succeeded: "Berhasil",
+    points: "Poin",
+  },
+  depotMap: {
+    empty: "Belum ada depot dengan koordinat.",
+    caption: "Posisi relatif dari koordinat depot.",
+  },
+  faceCapture: {
+    take: "Ambil Foto",
+    hint: "Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.",
+  },
+  imports: {
+    customers: "Import Pelanggan",
+  },
+  importsInventory: {
+    title: "Import Stok",
+  },
+  importsPricing: {
+    title: "Import Harga Depot",
+  },
+  errorPage: {
+    title: "Ada yang tidak beres",
+    retry: "Coba lagi",
+  },
+  favorites: {
+    title: "Favorit",
+    empty: "Belum ada produk favorit. Ketuk ikon hati di produk untuk menyimpannya.",
+    accountAria: "Akun",
+  },
+  hrAllowances: {
+    title: "Tunjangan",
+    subtitle: "Komponen gaji tetap berulang — terpisah dari bonus di slip gaji",
+  },
+  audit: {
+    title: "Log Audit",
+    filterHint: "Filter entity (employees, payroll, …)",
+    empty: "Belum ada log.",
+  },
+  employeeEdit: {
+    title: "Edit Karyawan",
+  },
+  balancesImport: {
+    title: "Import Saldo Cuti Awal",
+  },
+  managerApprovals: {
+    title: "Approval",
+    empty: "Tidak ada approval",
+  },
+  liveNav: {
+    locating: "Mencari lokasi kamu…",
+  },
+  managerShell: {
+    managerOnly: "Halaman khusus manajer depot",
+  },
+  offlineBanner: {
+    clearAria: "Hapus data offline",
+  },
+  operatorShell: {
+    title: "Operator depot",
+  },
 };

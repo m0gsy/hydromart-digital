@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 
 import { STAFF_IMPORT_ROLES } from '@hydromart/access';
 import {
@@ -47,6 +48,7 @@ function nikCell(raw: string): string {
 }
 
 export default function ImportEmployeesPage() {
+  const { t } = useT();
   const { depots } = useDepot();
   const [upsert, setUpsert] = useState(false);
   const departments = useAsync<Department[]>(
@@ -166,7 +168,7 @@ export default function ImportEmployeesPage() {
           className="mt-0.5 h-4 w-4"
         />
         <span>
-          <span className="font-semibold">Perbarui karyawan yang sudah ada</span>
+          <span className="font-semibold">{t('hrFix.hrImport.upsert')}</span>
           <span className="block text-[12.5px] text-muted">
             Baris yang cocok (kode karyawan, lalu NIK, lalu no. HP) ditimpa dengan isi file —
             dipakai untuk kenaikan gaji atau pindah departemen massal. Tanpa centang ini, karyawan
@@ -176,7 +178,7 @@ export default function ImportEmployeesPage() {
       </label>
 
       <CsvImport
-        title="Import Karyawan"
+        title={t('hrFix.hrImport.title')}
         description="Unggah Excel atau CSV untuk menambah banyak karyawan sekaligus. Setiap baris baru juga dibuatkan akun login (OTP) sesuai kolom role, dan langsung tertaut ke depot yang ditulis."
         columns={columns}
         endpoint={endpoints.hr.importEmployees}

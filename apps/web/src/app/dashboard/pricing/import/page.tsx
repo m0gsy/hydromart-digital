@@ -1,6 +1,7 @@
 'use client';
 
 import { CsvImport, intCell, numberCell, type ImportColumn } from '@/components/csv-import';
+import { useT } from '@/lib/locale-context';
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -20,6 +21,7 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportPricesPage() {
+  const { t } = useT();
   const { selectedId, ready } = useDepot();
 
   // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
@@ -30,7 +32,7 @@ export default function ImportPricesPage() {
 
   return (
     <CsvImport
-      title="Import Harga Depot"
+      title={t('hrFix.importsPricing.title')}
       description="Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku."
       columns={COLUMNS}
       endpoint={endpoints.priceOverrides.import(selectedId)}

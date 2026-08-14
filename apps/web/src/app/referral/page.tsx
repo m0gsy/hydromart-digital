@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { ArrowLeft, Gift, Copy, UsersThree, SealCheck, Coin } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -12,6 +13,7 @@ import type { ReferralSummary } from '@/lib/types';
 
 // ponytail: inline ID copy (app is ID-primary); wire useT keys when EN parity matters.
 function ReferralInner() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<ReferralSummary>(() =>
     api.get(endpoints.referrals.me, true),
   );
@@ -25,12 +27,12 @@ function ReferralInner() {
       <div className="flex items-center gap-3">
         <Link
           href="/account"
-          aria-label="Akun"
+          aria-label={t('hrFix.referral.accountAria')}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app transition-colors hover:bg-brand-50"
         >
           <ArrowLeft size={18} weight="bold" />
         </Link>
-        <h1 className="hidden text-[22px] font-extrabold tracking-tight sm:block">Ajak teman</h1>
+        <h1 className="hidden text-[22px] font-extrabold tracking-tight sm:block">{t('hrFix.referral.title')}</h1>
       </div>
 
       {loading ? (
@@ -52,7 +54,7 @@ function ReferralInner() {
                 type="button"
                 onClick={() => copy(data.code.code)}
                 className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white transition-colors hover:bg-brand-700"
-                aria-label="Salin kode"
+                aria-label={t('hrFix.referral.copyAria')}
               >
                 <Copy size={20} weight="bold" />
               </button>
@@ -63,9 +65,9 @@ function ReferralInner() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Stat icon={<UsersThree size={18} weight="fill" />} label="Diundang" value={data.referredCount} />
-            <Stat icon={<SealCheck size={18} weight="fill" />} label="Berhasil" value={data.qualifiedCount} />
-            <Stat icon={<Coin size={18} weight="fill" />} label="Poin" value={data.pointsEarned} />
+            <Stat icon={<UsersThree size={18} weight="fill" />} label={t('hrFix.referral.invited')} value={data.referredCount} />
+            <Stat icon={<SealCheck size={18} weight="fill" />} label={t('hrFix.referral.succeeded')} value={data.qualifiedCount} />
+            <Stat icon={<Coin size={18} weight="fill" />} label={t('hrFix.referral.points')} value={data.pointsEarned} />
           </div>
         </>
       )}

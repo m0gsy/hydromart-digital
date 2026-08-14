@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/locale-context';
 import { CaretRight, Gavel } from '@phosphor-icons/react';
 
 import { Badge, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
@@ -52,6 +53,7 @@ function Row({ a }: { a: Approval }) {
 }
 
 export default function ApprovalsPage() {
+  const { t } = useT();
   const { scopedId } = useDepot();
   const list = useAsync<Approval[]>(
     () =>
@@ -64,7 +66,7 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-3 px-4 py-6">
       <header>
-        <h1 className="text-xl font-extrabold tracking-tight">Approval</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">{t('hrFix.managerApprovals.title')}</h1>
         <p className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">
           Permintaan yang butuh persetujuan manajer.
         </p>
@@ -75,7 +77,7 @@ export default function ApprovalsPage() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.length === 0 ? (
-        <CenterState icon={<Gavel size={32} />} title="Tidak ada approval">
+        <CenterState icon={<Gavel size={32} />} title={t('hrFix.managerApprovals.empty')}>
           Semua permintaan sudah diproses.
         </CenterState>
       ) : (

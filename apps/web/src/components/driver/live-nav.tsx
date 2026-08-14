@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { MapPinLine, WarningCircle } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
@@ -52,6 +53,7 @@ interface Props {
  * shows a rough ETA, and offers "Sampai tujuan" to advance to proof-of-delivery.
  */
 export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }: Props) {
+  const { t } = useT();
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [geoError, setGeoError] = useState(false);
   const lastPingAt = useRef<number | null>(null);
@@ -92,7 +94,7 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
         <div className="flex items-center gap-2 text-sm">
           <MapPinLine size={18} weight="fill" className="text-brand-700" />
           {eta === null ? (
-            <span className="text-[color:var(--muted)]">Mencari lokasi kamu…</span>
+            <span className="text-[color:var(--muted)]">{t('hrFix.liveNav.locating')}</span>
           ) : (
             <span className="font-bold">
               Perkiraan tiba <span className="tabular-nums">{eta} mnt</span>

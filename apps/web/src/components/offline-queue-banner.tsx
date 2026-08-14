@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/locale-context';
 import { ArrowsClockwise, CloudSlash, Trash } from '@phosphor-icons/react';
 
 import { Button } from '@/components/ui';
@@ -25,6 +26,7 @@ const LABELS: Record<QueuedJob['kind'], string> = {
  * can be mounted unconditionally in the HR and driver layouts.
  */
 export function OfflineQueueBanner() {
+  const { t } = useT();
   const [jobs, setJobs] = useState<QueuedJob[]>(pending());
   const [busy, setBusy] = useState(false);
 
@@ -63,7 +65,7 @@ export function OfflineQueueBanner() {
             </span>
             <button
               type="button"
-              aria-label="Hapus data offline"
+              aria-label={t('hrFix.offlineBanner.clearAria')}
               onClick={() => void discard(job.id)}
               className="shrink-0 text-amber-900/70 hover:text-red-700"
             >
