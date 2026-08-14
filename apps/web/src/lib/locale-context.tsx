@@ -48,6 +48,11 @@ function loadDictionary(locale: Locale): Promise<Dictionary> {
 }
 
 function resolve(dict: Dictionary, key: string, vars?: TVars): string {
+  // Every `t(MAP[value])` in the app is one unexpected enum member away from calling this
+  // with `undefined`, and `undefined.split` is an uncaught TypeError — a white screen with
+  // no error state, which is what `/hr/me/payroll/detail` did. The guard belongs here
+  // rather than at each of the ~40 call sites: they all arrive through this one function.
+  if (typeof key !== 'string' || !key) return '';
   const value = key
     .split('.')
     .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);

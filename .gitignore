@@ -72,3 +72,9 @@ uat.json
 # Signed bundles and listing assets pulled down from a Mobile release run, for uploading
 # by hand. Never committed: they are build output, and the .aab is signed.
 release-*/
+
+# Local sweep artefacts (scripts/role-browser-pass.mjs)
+role-pass-*.json
+fase0-*.txt
+probe.mjs
+cart-seed.mjs

@@ -163,6 +163,22 @@ describe('consoleHome', () => {
     for (const r of ['CUSTOMER', '', null, undefined]) expect(consoleHome(r)).toBe('/products');
   });
 
+  /**
+   * `/m/manager` is the manager's phone console — eight screens that shipped inside the
+   * Ops binary with nothing in the repo linking to them, this function included. It goes
+   * ahead of `/dashboard` only in the native shell: on the web a manager has the width
+   * the wide console was drawn for, and moving them would be a downgrade.
+   */
+  it('sends a manager to the phone console inside the binary, and only there', () => {
+    expect(consoleHome('MANAGER', true)).toBe('/m/manager');
+    expect(consoleHome('MANAGER', false)).toBe('/dashboard');
+    // A courier is a courier in both: /driver comes first either way.
+    expect(consoleHome('STAFF_DEPOT', true)).toBe('/driver');
+    // Not a manager console, so the native flag changes nothing.
+    expect(consoleHome('KEPALA_DEPOT', true)).toBe('/dashboard');
+    expect(consoleHome('CUSTOMER', true)).toBe('/products');
+  });
+
   // The regression this fixes: /hq/login bounced on an exact HEAD_OFFICE/SUPER_ADMIN
   // check, so a DIREKTUR signed in and then sat on the login screen.
   it('never lands a role on a page its own gate would deny', () => {

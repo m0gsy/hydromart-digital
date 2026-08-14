@@ -109,6 +109,9 @@ export const mgrFix = {
     accountTitle: 'Akun',
     notifTitle: 'Notifikasi ops',
     notifSubtitle: 'Peringatan operasional terbaru.',
+    opsNotif: 'Notifikasi operasional',
+    pricing: 'Harga depot',
+    pricingHint: 'Atur harga jual & diskon',
     events: {
       STOCK_LOW: 'Stok kritis',
       COURIER_INCIDENT: 'Insiden kurir',

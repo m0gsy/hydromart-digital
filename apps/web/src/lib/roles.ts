@@ -7,6 +7,7 @@
 import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
 
 import { isServedHere } from './deep-link';
+import { isNativeShell } from './platform';
 
 export { CAPABILITIES };
 export type { Capability };
@@ -231,7 +232,10 @@ export function staffDoor(pathname: string | null | undefined): string {
   return isServedHere('/hq/login') ? '/hq/login' : '/login';
 }
 
-export function consoleHome(role: string | null | undefined): string {
+export function consoleHome(
+  role: string | null | undefined,
+  native: boolean = isNativeShell(),
+): string {
   // Every candidate is checked against what THIS binary serves. The Ops app prunes `/hq` and
   // the HR console (keeping `/hr/me`), so an HQ or HR role was sent to a route that is not in
   // the bundle — "Kembali ke konsol" landed on nothing. Falling through to the next surface the
@@ -245,6 +249,15 @@ export function consoleHome(role: string | null | undefined): string {
   }
   if (canUseCourierApp(role)) {
     const home = first('/driver', '/hr/me');
+    if (home) return home;
+  }
+  // `/m/manager` is eight screens built, translated and shipped inside the Ops binary that
+  // NOTHING linked to: not this function, not a nav, not a rail — zero inbound references
+  // in the whole repo. On a phone it is the manager's console, so it goes ahead of
+  // `/dashboard`, which is the desktop rail. On the web the order is unchanged, because
+  // there a manager has the room the wide console was drawn for.
+  if (native && canUseManagerConsole(role)) {
+    const home = first('/m/manager', '/dashboard');
     if (home) return home;
   }
   if (dashboardLandingView(role) !== 'denied') {

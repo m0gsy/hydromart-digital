@@ -61,3 +61,26 @@ describe('locale keys', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * The app-bar title of every pushed screen is a dictionary key held in a map, which is a
+ * shape the scanner above does not read — and `/referral` shipped with
+ * `profile.referral.title` when the key lives at `profile.rewards.referral.title`. The
+ * app bar printed the key itself, in both locales, on a screen in the customer binary.
+ */
+describe('screen-chrome titles resolve', () => {
+  const src = readFileSync(join(__dirname, '..', 'src', 'lib', 'screen-chrome.ts'), 'utf8');
+  const keys = [...src.matchAll(/'(\/[^']*)':\s*'([a-z][A-Za-z0-9_.]+)'/g)].map((m) => ({
+    route: m[1],
+    key: m[2],
+  }));
+
+  it('finds the title map at all', () => {
+    expect(keys.length).toBeGreaterThan(8);
+  });
+
+  it.each(keys)('$route → $key exists in both dictionaries', ({ key }) => {
+    expect(typeof lookup(id, key)).toBe('string');
+    expect(typeof lookup(en, key)).toBe('string');
+  });
+});

@@ -106,6 +106,9 @@ export const mgrFix = {
     accountTitle: 'Account',
     notifTitle: 'Ops notifications',
     notifSubtitle: 'Latest operational alerts.',
+    opsNotif: 'Operational notifications',
+    pricing: 'Depot pricing',
+    pricingHint: 'Set selling price & discounts',
     events: {
       STOCK_LOW: 'Critical stock',
       COURIER_INCIDENT: 'Courier incident',

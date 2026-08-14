@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { consoleHome } from '@/lib/roles';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
 const RESEND_SECONDS = 30;
@@ -23,7 +24,11 @@ function VerifyForm() {
   const params = useSearchParams();
   const phone = params.get('phone') ?? '';
   const purpose = (params.get('purpose') as OtpPurpose) ?? 'LOGIN';
-  const next = params.get('next') ?? '/products';
+  // No explicit `next` means "wherever this person belongs", and that is not the shop for
+  // four roles out of five. Signing in as a courier, a manager, an operator or an HQ admin
+  // landed every one of them in the customer catalogue, with `consoleHome()` sitting right
+  // there unused. Resolved after the session lands, because the role is what decides it.
+  const next = params.get('next');
   // Referral code carried from /register (spec 5c). Redeemed once, post-signup.
   const referral = params.get('ref')?.trim() ?? '';
 
@@ -57,7 +62,7 @@ function VerifyForm() {
           /* bad/duplicate code — signup still succeeds */
         }
       }
-      router.replace(next);
+      router.replace(next ?? consoleHome(session.customer.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.error'));
       setLoading(false);

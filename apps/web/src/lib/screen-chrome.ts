@@ -55,7 +55,7 @@ const PUSHED: Record<string, string> = {
   '/vouchers': 'profile.rewards.wallet.title',
   '/subscriptions': 'subscriptions.title',
   '/addresses': 'profile.addresses.list.title',
-  '/referral': 'profile.referral.title',
+  '/referral': 'profile.rewards.referral.title',
   '/help': 'help.title',
   '/notifications': 'notifications.title',
 };

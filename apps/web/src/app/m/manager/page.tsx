@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CaretRight, Motorcycle, Package, WarningOctagon } from '@phosphor-icons/react';
+import { CaretRight, Motorcycle, Package, Tag, WarningOctagon } from '@phosphor-icons/react';
 
 import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -157,7 +157,27 @@ export default function ManagerHomePage() {
         <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
           <Package size={19} weight="fill" />
         </span>
-        <span className="flex-1 text-sm font-semibold">Notifikasi operasional</span>
+        <span className="flex-1 text-sm font-semibold">{t('mgrFix.mMgr.opsNotif')}</span>
+        <CaretRight size={15} className="text-[color:var(--text-muted)]" />
+      </Link>
+
+      {/* `/m/manager/pricing` was built, translated and shipped in the Ops binary with
+          nothing anywhere linking to it — the bottom nav has five tabs and none is this
+          one. A row on the console home is the reachable place for it that does not cost
+          a sixth tab. */}
+      <Link
+        href="/m/manager/pricing"
+        className="flex items-center gap-3 rounded-2xl border border-app bg-[color:var(--surface)] p-4"
+      >
+        <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <Tag size={19} weight="fill" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-semibold">{t('mgrFix.mMgr.pricing')}</span>
+          <span className="text-[11.5px] text-[color:var(--text-muted)]">
+            {t('mgrFix.mMgr.pricingHint')}
+          </span>
+        </span>
         <CaretRight size={15} className="text-[color:var(--text-muted)]" />
       </Link>
     </div>
