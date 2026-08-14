@@ -65,7 +65,7 @@ export function OpsBottomNav() {
        pushing the page sideways. `min-w-0` on the tabs lets them shrink; `px-1` gives
        back the 8px the bar did not have. */
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-1 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] sm:px-2 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex max-w-[100vw] items-end justify-around overflow-hidden border-t border-app bg-[color:var(--surface)]/95 px-1 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] sm:px-2 lg:hidden"
       aria-label="Navigasi operasi"
     >
       {visible.map((tab) => {
@@ -77,12 +77,15 @@ export function OpsBottomNav() {
             href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex min-w-0 flex-col items-center gap-[3px] px-0.5 text-center text-[10px] font-extrabold leading-tight transition-colors ' +
+              'flex min-w-0 flex-1 flex-col items-center gap-[3px] px-0.5 text-center text-[10px] font-extrabold leading-tight transition-colors ' +
               (on ? 'text-brand-600' : 'text-[color:var(--text-muted)]')
             }
           >
             <Ic size={21} weight={on ? 'fill' : 'regular'} />
-            {t(tab.label)}
+            {/* The English labels are longer than the Indonesian ones and made the bar itself
+                18px wider than a 320px screen. A tab that cannot shrink below its longest
+                word is a tab that pushes the whole page sideways. */}
+            <span className="w-full truncate">{t(tab.label)}</span>
           </Link>
         );
       })}

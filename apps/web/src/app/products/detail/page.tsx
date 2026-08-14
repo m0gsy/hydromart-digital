@@ -285,7 +285,7 @@ export default function ProductDetailPage() {
               <Button
                 onClick={addToCart}
                 loading={adding}
-                className="h-[54px] flex-1 rounded-full text-[15.5px] font-extrabold"
+                className="h-[54px] min-w-0 flex-1 basis-full rounded-full text-[15.5px] font-extrabold sm:basis-auto"
               >
                 {added ? (
                   <>

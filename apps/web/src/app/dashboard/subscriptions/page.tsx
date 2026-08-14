@@ -299,7 +299,9 @@ function SubscriptionsBody() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
+      {/* `flex-wrap`: heading + action button on one non-wrapping row ran past a 320px
+          screen in English, and `body` clips rather than scrolls. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <ArrowsClockwise size={24} weight="fill" className="text-brand-500" />
           <div>

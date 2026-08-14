@@ -620,7 +620,11 @@ export function StickyActionBar({
   return (
     <div
       className={cx(
-        'z-10 flex items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 pt-3',
+        // `flex-wrap`: at 320px the stepper, the CTA and the favourite button together
+        // ran 119px past the screen, and `body` clips rather than scrolls — the CTA of the
+        // busiest customer screen was partly off it. Wrapping puts the CTA on its own row
+        // instead of off the edge.
+        'z-10 flex flex-wrap items-center gap-3.5 border-t border-app bg-[color:var(--surface)] px-4 pt-3',
         // A3+E0. The gesture bar sits under this. `env(safe-area-inset-bottom)` alone is 0
         // on a WebView older than 140, which is most of the fleet, so the bar lands under
         // the system navigation and the CTA — the entire point of the screen — is a strip

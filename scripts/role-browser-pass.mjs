@@ -267,6 +267,17 @@ const MEASURE = ({ tapMin }) => {
           docCulprits.push({ el: `wide: ${sel(el)}`, over: Math.round(r.width - vw) });
       }
     }
+    // Still nothing: name whatever reaches furthest right, contained or not. An empty
+    // culprit list next to a real overflow number is the least useful thing this can say.
+    if (!docCulprits.length) {
+      const far = [...document.querySelectorAll('body *')]
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter((x) => x.r.width > 0 && x.r.height > 0)
+        .sort((a, b) => b.r.right - a.r.right)
+        .slice(0, 3);
+      for (const x of far)
+        docCulprits.push({ el: `rightmost: ${sel(x.el)}`, over: Math.round(x.r.right - vw) });
+    }
   }
   const clipped = new Map();
   for (const el of document.querySelectorAll('body *')) {
