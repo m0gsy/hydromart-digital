@@ -67,6 +67,25 @@ for (const service of readdirSync('services')) {
   }
 }
 
+// Half the rule is "the index is named in create-indexes.sh" (above); the other half is
+// "that script actually runs, first". Deploy fires by itself on merge, so the ordering
+// cannot live in a runbook — deploy.sh has to build concurrently BEFORE it migrates, and
+// this is what keeps that call from being quietly deleted.
+const deploy = readFileSync('scripts/deploy.sh', 'utf8');
+const buildAt = deploy.indexOf('scripts/create-indexes.sh');
+const migrateAt = deploy.indexOf('scripts/migrate-prod.sh');
+if (buildAt === -1) {
+  problems.push(
+    'scripts/deploy.sh never runs scripts/create-indexes.sh — every new index would be ' +
+      'built by the migration itself, under a write lock (audit H-39).',
+  );
+} else if (migrateAt !== -1 && buildAt > migrateAt) {
+  problems.push(
+    'scripts/deploy.sh runs create-indexes.sh AFTER migrate-prod.sh — by then the ' +
+      'migration has already built the index under a write lock. Build first.',
+  );
+}
+
 if (problems.length > 0) {
   console.error('Index-build check FAILED:');
   for (const p of problems) console.error(`  - ${p}`);

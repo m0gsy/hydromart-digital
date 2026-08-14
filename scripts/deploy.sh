@@ -91,6 +91,26 @@ if [ -n "$MIGRATIONS" ]; then
   log "incoming commit adds migrations:"
   echo "$MIGRATIONS" | sed 's/^/  /'
   if [ "${DEPLOY_MIGRATE:-apply}" = "apply" ]; then
+    # H-39, the half that was only ever a note. Every migration builds its indexes with a
+    # plain `CREATE INDEX IF NOT EXISTS`, which blocks writes to the table for the whole
+    # build — the split that makes that safe is "build it CONCURRENTLY first, let the
+    # migration find it already there". Nothing ran that first half: deploy fires by itself
+    # on merge, so a human remembering to ssh in beforehand is not a mechanism. On 2026-08-14
+    # two indexes shipped this way and locked their tables inside the migration; both tables
+    # were near-empty, so it cost nothing and proved nothing.
+    #
+    # Idempotent (every statement is IF NOT EXISTS) and a no-op when the indexes are already
+    # there, so it runs on every migrating deploy rather than being conditional on which
+    # index changed. Fails CLOSED: an index it could not build concurrently is one the
+    # migration is about to build under a write lock instead.
+    log "building new indexes concurrently first (writes stay open)"
+    if ! bash scripts/create-indexes.sh; then
+      log "!! concurrent index build FAILED — refusing to let the migration build it under a lock"
+      log "   fix the index by hand (the script names it), then re-run this deploy"
+      git reset --hard "$PREV_SHA"
+      alert "deploy aborted: concurrent index build failed on $NEW_SHA (stack still serving $PREV_SHA)"
+      exit 1
+    fi
     log "applying them before any container starts on the new code"
     # The backup at the top of this script is minutes old — do not take a second one.
     if ! MIGRATE_SKIP_BACKUP=1 bash scripts/migrate-prod.sh; then
