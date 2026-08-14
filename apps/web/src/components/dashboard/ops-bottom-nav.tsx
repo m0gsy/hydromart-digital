@@ -39,15 +39,16 @@ interface Tab {
 // small screens this carries dashboard navigation. Role-filtered; capped at the
 // first 4 the role can see so the bar never overflows.
 const TABS: Tab[] = [
-  { href: '/dashboard/franchise', label: 'Ringkasan', icon: Buildings, show: canViewFranchise },
-  { href: '/dashboard', label: 'Ringkasan', icon: ChartLineUp, show: canViewDashboard },
-  { href: '/dashboard/orders', label: 'Antrean', icon: ClipboardText, show: isStaff },
-  { href: '/dashboard/inventory', label: 'Inventori', icon: Package, show: canViewInventory },
-  { href: '/dashboard/forecast', label: 'Perkiraan', icon: TrendUp, show: canViewForecast },
-  { href: '/dashboard/pricing', label: 'Harga', icon: Tag, show: canManagePricing },
+  { href: '/dashboard/franchise', label: 'hrFix.opsNav.summary', icon: Buildings, show: canViewFranchise },
+  { href: '/dashboard', label: 'hrFix.opsNav.summary', icon: ChartLineUp, show: canViewDashboard },
+  { href: '/dashboard/orders', label: 'hrFix.opsNav.queue', icon: ClipboardText, show: isStaff },
+  { href: '/dashboard/inventory', label: 'hrFix.opsNav.inventory', icon: Package, show: canViewInventory },
+  { href: '/dashboard/forecast', label: 'hrFix.opsNav.forecast', icon: TrendUp, show: canViewForecast },
+  { href: '/dashboard/pricing', label: 'hrFix.opsNav.pricing', icon: Tag, show: canManagePricing },
 ];
 
 export function OpsBottomNav() {
+  const { t } = useT();
   const pathname = usePathname();
   const { customer } = useAuth();
   const role = customer?.role;
@@ -63,13 +64,13 @@ export function OpsBottomNav() {
       className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
       aria-label="Navigasi operasi"
     >
-      {visible.map((t) => {
-        const on = isActive(t.href);
-        const Ic = t.icon;
+      {visible.map((tab) => {
+        const on = isActive(tab.href);
+        const Ic = tab.icon;
         return (
           <Link
-            key={t.href + t.label}
-            href={t.href}
+            key={tab.href + tab.label}
+            href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
               'flex flex-col items-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
@@ -77,7 +78,7 @@ export function OpsBottomNav() {
             }
           >
             <Ic size={21} weight={on ? 'fill' : 'regular'} />
-            {t.label}
+            {t(tab.label)}
           </Link>
         );
       })}
