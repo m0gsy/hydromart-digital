@@ -1347,6 +1347,9 @@ export const hq = {
     save: 'Save',
     savedOk: 'Retention window updated',
     datasets: {
+      hr_face_embeddings: 'Face embeddings (attendance)',
+      log_audit: 'Audit log (legacy name)',
+      pesanan: 'Orders (legacy name)',
       orders_transactions: 'Orders & transactions',
       audit_logs: 'Audit logs',
       proof_of_delivery: 'Proof of delivery (PoD)',

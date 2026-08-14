@@ -362,7 +362,7 @@ export function RbacMatrix() {
                     type="button"
                     onClick={() => toggleRole(r)}
                     title={`${t(`hq.roles.${r}`)} — ${t('hqFix.toggleCol')}`}
-                    className="w-full rounded px-1 py-0.5 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                    className="min-h-11 w-full rounded px-1 py-0.5 transition-colors hover:bg-brand-50 hover:text-brand-700"
                   >
                     {ROLE_ABBR[r]}
                   </button>
@@ -428,7 +428,7 @@ function SectionRows({
               type="button"
               onClick={() => onToggleCap(cap)}
               title={t('hqFix.toggleRow')}
-              className="text-left transition-opacity hover:opacity-70"
+              className="min-h-11 text-left transition-opacity hover:opacity-70"
             >
               {t(`hq.access.caps.${cap}`)}
             </button>

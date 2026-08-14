@@ -27,7 +27,7 @@ type FormatKey = 'xlsx' | 'csv';
 
 const RANGE_DAYS: Record<Exclude<RangeKey, 'custom'>, number> = { d7: 7, d30: 30, quarter: 90 };
 const CHIP =
-  'rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
+  'min-h-11 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
 
 /** yyyy-mm-dd for `n` days ago / today — client-only, no module-scope Date. */
 function isoDay(offsetDays = 0): string {

@@ -426,7 +426,7 @@ function MyRedemptions({
                   </div>
                 )}
               </div>
-              <span className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${REDEMPTION_TONE[row.status]}`}>
+              <span className={`min-h-11 rounded-full px-3 py-1.5 text-xs font-extrabold ${REDEMPTION_TONE[row.status]}`}>
                 {t(`profile.rewards.redemptions.status.${row.status}`)}
               </span>
               {row.status === 'ACTIVE' && (

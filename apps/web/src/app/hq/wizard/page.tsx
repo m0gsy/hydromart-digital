@@ -95,7 +95,7 @@ export default function HqWizardPage() {
                     type="button"
                     disabled={busy === step.key}
                     onClick={() => mark(step.key, false)}
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:bg-[color:var(--surface-soft)] disabled:opacity-60"
+                    className="min-h-11 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:bg-[color:var(--surface-soft)] disabled:opacity-60"
                   >
                     {t('hq.wizard.undo')}
                   </button>
@@ -105,7 +105,7 @@ export default function HqWizardPage() {
                       type="button"
                       disabled={busy === step.key}
                       onClick={() => mark(step.key, true)}
-                      className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-[color:var(--surface-soft)] disabled:opacity-60"
+                      className="min-h-11 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-[color:var(--surface-soft)] disabled:opacity-60"
                     >
                       {t('hq.wizard.markDone')}
                     </button>

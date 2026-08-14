@@ -111,7 +111,7 @@ export default function HqBroadcastPage() {
                 type="button"
                 onClick={() => setAudience(a)}
                 aria-pressed={audience === a}
-                className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
                   audience === a ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
                 }`}
               >

@@ -79,7 +79,7 @@ export default function HqIncidentsPage() {
             type="button"
             onClick={() => setFilter(f)}
             aria-pressed={filter === f}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-bold transition-colors ${
+            className={`min-h-11 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-colors ${
               filter === f ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
             }`}
           >

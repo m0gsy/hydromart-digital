@@ -152,7 +152,7 @@ function AddressesInner() {
                       variant="secondary"
                       onClick={() => setPrimary(a.id)}
                       loading={rowBusy}
-                      className="rounded-full px-3.5 py-1.5 text-[13px]"
+                      className="min-h-11 rounded-full px-3.5 py-1.5 text-[13px]"
                     >
                       <Star size={14} />
                       {t('profile.addresses.list.makePrimary')}
@@ -162,7 +162,7 @@ function AddressesInner() {
                     type="button"
                     variant="secondary"
                     onClick={() => openEdit(a)}
-                    className="rounded-full px-3.5 py-1.5 text-[13px]"
+                    className="min-h-11 rounded-full px-3.5 py-1.5 text-[13px]"
                   >
                     <PencilSimple size={14} />
                     {t('profile.addresses.list.edit')}
@@ -172,7 +172,7 @@ function AddressesInner() {
                     variant="secondary"
                     onClick={() => setPendingDelete(a)}
                     disabled={rowBusy}
-                    className="rounded-full px-3.5 py-1.5 text-[13px] text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
+                    className="min-h-11 rounded-full px-3.5 py-1.5 text-[13px] text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
                   >
                     <Trash size={14} />
                     {t('profile.addresses.list.delete')}

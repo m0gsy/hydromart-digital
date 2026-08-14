@@ -55,16 +55,60 @@
                     android:host="${webHost}"
                     android:pathPrefix="${linkPrefix}" />
                 <!--
-                  A second claimed prefix, because one was not enough for the Ops build: it
-                  claimed `/driver` alone, so every manager approval link — the whole
-                  `/m/manager/*` console that ships inside that same binary — opened in a
-                  browser and never in the app. Defaults to the first prefix, which makes
-                  it a harmless duplicate for the customer build.
+                  Eleven more claimed prefixes, because one was not enough for either build.
+                  Ops claimed `/driver` alone, so every manager approval link — the whole
+                  `/m/manager/*` console shipped inside that same binary — opened in a
+                  browser and never in the app. And the customer build claimed `/`, which
+                  means it claimed `/driver` and `/m` too: on a staff phone with both apps,
+                  Android had two verified claimants for one link and asked every time.
+                  Naming the surfaces each binary actually SERVES is what removes that.
+                  Unused slots default to the first prefix, and a duplicate `<data>` is
+                  something Android collapses — so a build that needs one claim writes one.
                 -->
                 <data
                     android:scheme="https"
                     android:host="${webHost}"
                     android:pathPrefix="${linkPrefix2}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix3}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix4}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix5}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix6}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix7}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix8}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix9}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix10}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix11}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix12}" />
             </intent-filter>
 
         </activity>

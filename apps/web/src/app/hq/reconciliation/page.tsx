@@ -248,7 +248,7 @@ export default function HqReconciliationPage() {
             />
           </dl>
 
-          <div className="mt-4 flex items-center justify-between rounded-xl bg-deep-teal px-4 py-4 text-white">
+          <div className="mt-4 flex min-h-11 items-center justify-between rounded-xl bg-deep-teal px-4 py-4 text-white">
             <span className="font-semibold">{t('hq.reconciliation.lines.net')}</span>
             <span className="text-xl font-bold tabular-nums">
               {net == null ? dash20 : <Money amount={net} />}

@@ -436,7 +436,7 @@ function StockRow({
         <button
           type="button"
           onClick={() => onOpen('none', false)}
-          className="flex min-w-0 items-center gap-2 text-left"
+          className="flex min-h-11 min-w-0 items-center gap-2 text-left"
           aria-expanded={expanded}
         >
           <span className="shrink-0 rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">

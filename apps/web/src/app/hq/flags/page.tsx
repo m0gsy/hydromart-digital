@@ -78,7 +78,7 @@ export default function HqFlagsPage() {
                   disabled={busyKey === f.key}
                   onClick={() => setState(f, s)}
                   aria-pressed={f.state === s}
-                  className={`px-2.5 py-1 transition-colors disabled:opacity-60 ${
+                  className={`min-h-11 px-2.5 py-1 transition-colors disabled:opacity-60 ${
                     f.state === s ? STATE_STYLE[s] : 'text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >

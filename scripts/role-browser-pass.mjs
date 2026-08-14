@@ -170,11 +170,12 @@ const KEY_RE = new RegExp(
   'g',
 );
 /**
- * Two screens print dictionary-shaped text on purpose: `/hq/content` IS the dictionary
- * editor, and the audit logs render server event codes (`auth.login.succeeded`). Skipping
- * them by route beats weakening the pattern for every other screen.
+ * A few screens print dictionary-shaped text on purpose: `/hq/content` IS the dictionary
+ * editor, the audit logs render server event codes (`auth.login.succeeded`), and
+ * `/hq/webhooks` lists the webhook events a subscription can carry (`order.created`).
+ * Skipping them by route beats weakening the pattern for every other screen.
  */
-const KEY_EXEMPT = /^\/(hq\/content|hq\/audit|dashboard\/audit)$/;
+const KEY_EXEMPT = /^\/(hq\/content|hq\/audit|dashboard\/audit|hq\/webhooks)$/;
 
 // Not a bare `403`: an id or a phone number containing those digits made every screen
 // look like a denial.

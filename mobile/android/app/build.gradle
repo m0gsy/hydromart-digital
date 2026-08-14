@@ -37,9 +37,23 @@ def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
  */
 def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart.id'
 def hydromartLinkPrefix = project.findProperty('hydromartLinkPrefix') ?: '/'
-// Second claimed path prefix. The Ops binary needs two (`/driver` and `/m`); everything
-// else repeats the first, which Android treats as one claim.
+/**
+ * Up to twelve claimed path prefixes. Ops needs two (`/driver`, `/m`); the customer build
+ * needs one per shop surface, because claiming `/` claimed the ops surfaces too and left
+ * Android with two verified apps for one link. An unset slot repeats the first, and Android
+ * collapses the duplicate — so a binary that wants one claim still writes one.
+ */
 def hydromartLinkPrefix2 = project.findProperty('hydromartLinkPrefix2') ?: hydromartLinkPrefix
+def hydromartLinkPrefix3 = project.findProperty('hydromartLinkPrefix3') ?: hydromartLinkPrefix
+def hydromartLinkPrefix4 = project.findProperty('hydromartLinkPrefix4') ?: hydromartLinkPrefix
+def hydromartLinkPrefix5 = project.findProperty('hydromartLinkPrefix5') ?: hydromartLinkPrefix
+def hydromartLinkPrefix6 = project.findProperty('hydromartLinkPrefix6') ?: hydromartLinkPrefix
+def hydromartLinkPrefix7 = project.findProperty('hydromartLinkPrefix7') ?: hydromartLinkPrefix
+def hydromartLinkPrefix8 = project.findProperty('hydromartLinkPrefix8') ?: hydromartLinkPrefix
+def hydromartLinkPrefix9 = project.findProperty('hydromartLinkPrefix9') ?: hydromartLinkPrefix
+def hydromartLinkPrefix10 = project.findProperty('hydromartLinkPrefix10') ?: hydromartLinkPrefix
+def hydromartLinkPrefix11 = project.findProperty('hydromartLinkPrefix11') ?: hydromartLinkPrefix
+def hydromartLinkPrefix12 = project.findProperty('hydromartLinkPrefix12') ?: hydromartLinkPrefix
 def hydromartKeystore = rootProject.file('upload.jks')
 
 android {
@@ -63,6 +77,16 @@ android {
             webHost: hydromartWebHost,
             linkPrefix: hydromartLinkPrefix,
             linkPrefix2: hydromartLinkPrefix2,
+            linkPrefix3: hydromartLinkPrefix3,
+            linkPrefix4: hydromartLinkPrefix4,
+            linkPrefix5: hydromartLinkPrefix5,
+            linkPrefix6: hydromartLinkPrefix6,
+            linkPrefix7: hydromartLinkPrefix7,
+            linkPrefix8: hydromartLinkPrefix8,
+            linkPrefix9: hydromartLinkPrefix9,
+            linkPrefix10: hydromartLinkPrefix10,
+            linkPrefix11: hydromartLinkPrefix11,
+            linkPrefix12: hydromartLinkPrefix12,
         ]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

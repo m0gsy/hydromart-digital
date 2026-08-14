@@ -144,7 +144,7 @@ ${body.trim()}`,
                 type="button"
                 onClick={() => setAudience(a)}
                 aria-pressed={active}
-                className={`rounded-xl border px-3 py-2 text-[12px] font-extrabold transition ${
+                className={`min-h-11 rounded-xl border px-3 py-2 text-[12px] font-extrabold transition ${
                   active ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app bg-[color:var(--surface)] text-[color:var(--text-muted)]'
                 }`}
               >

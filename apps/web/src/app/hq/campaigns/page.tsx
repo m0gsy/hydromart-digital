@@ -151,7 +151,7 @@ export default function HqCampaignBuilderPage() {
                   disabled={handoff !== null}
                   onClick={() => setSegment(s)}
                   aria-pressed={handoff === null && segment === s}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                  className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
                     segment === s ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >

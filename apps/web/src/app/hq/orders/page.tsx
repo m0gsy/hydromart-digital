@@ -32,7 +32,7 @@ function TrayTab({
       onClick={onClick}
       aria-pressed={active}
       className={
-        'rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
+        'min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
         (active ? 'bg-brand-600 text-on-brand' : 'border border-app text-muted hover:bg-brand-50')
       }
     >

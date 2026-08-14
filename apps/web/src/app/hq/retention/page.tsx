@@ -95,7 +95,13 @@ export default function HqRetentionPage() {
             {policies.map((r) => (
               <tr key={r.id} className="border-b border-app last:border-0">
                 <td className="px-4 py-2.5 font-semibold">
-                  {t(`hq.retention.datasets.${r.dataset}`)}
+                  {/* Two vocabularies name the same things here — the seeded rows carry `pesanan` and
+                      `log_audit` alongside `orders_transactions` and `audit_logs`. The dictionary
+                      carries both, and an unknown dataset falls back to its own name: a raw
+                      `hq.retention.datasets.x` on screen tells the reader nothing. */}
+                  {t(`hq.retention.datasets.${r.dataset}`) === `hq.retention.datasets.${r.dataset}`
+                    ? r.dataset
+                    : t(`hq.retention.datasets.${r.dataset}`)}
                 </td>
                 <td className="px-4 py-2.5 text-muted">
                   {r.windowLabel}

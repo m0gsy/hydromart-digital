@@ -343,7 +343,7 @@ function QueueBody() {
               <button
                 key={c.value}
                 onClick={() => setGroup(c.value)}
-                className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                className={`min-h-11 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
                   group === c.value
                     ? 'bg-brand-600 text-on-brand'
                     : 'surface-elevated border border-app hover:bg-brand-50'

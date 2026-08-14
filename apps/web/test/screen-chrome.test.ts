@@ -84,6 +84,14 @@ describe('screenChrome', () => {
   // A browser pass found these two pushed with an empty app bar: the chevron was there,
   // the middle was blank, and nothing on screen said which page you were on. Unlike
   // `/promo` above, neither has a heading of its own to stand in for the title.
+  // A deep link opens either of these with one history entry, and `router.back()` there
+  // exits the app. Named rather than left to the default, so a change to the default cannot
+  // move them without a failing test.
+  it('sends /promo and /waralaba back to the shop home', () => {
+    expect(screenChrome('/promo').backHref).toBe('/');
+    expect(screenChrome('/waralaba').backHref).toBe('/');
+  });
+
   it('titles the two pushed screens that had no heading at all', () => {
     expect(screenChrome('/waralaba').titleKey).toBe('franchise.title');
     expect(screenChrome('/favorites').titleKey).toBe('hrFix.favorites.title');

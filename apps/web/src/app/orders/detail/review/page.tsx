@@ -144,7 +144,7 @@ function Form({ order }: { order: Order }) {
               type="button"
               onClick={() => setTip(amt)}
               aria-pressed={tip === amt}
-              className={`rounded-lg px-2.5 py-1.5 text-[11.5px] font-extrabold transition-colors ${
+              className={`min-h-11 rounded-lg px-2.5 py-1.5 text-[11.5px] font-extrabold transition-colors ${
                 tip === amt ? 'bg-brand-600 text-on-brand' : 'surface border border-app'
               }`}
             >

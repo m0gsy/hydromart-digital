@@ -121,7 +121,18 @@ jobs:
             -PhydromartAppId=id.hydromart.app \
             -PhydromartAppName=Hydromart \
             -PhydromartWebHost=hydromart.example \
-            -PhydromartLinkPrefix=/
+            -PhydromartLinkPrefix=/products \
+            -PhydromartLinkPrefix2=/orders \
+            -PhydromartLinkPrefix3=/cart \
+            -PhydromartLinkPrefix4=/checkout \
+            -PhydromartLinkPrefix5=/account \
+            -PhydromartLinkPrefix6=/promo \
+            -PhydromartLinkPrefix7=/rewards \
+            -PhydromartLinkPrefix8=/vouchers \
+            -PhydromartLinkPrefix9=/referral \
+            -PhydromartLinkPrefix10=/subscriptions \
+            -PhydromartLinkPrefix11=/waralaba \
+            -PhydromartLinkPrefix12=/help
 
       - name: Permissions are the ones we justified
         working-directory: mobile
@@ -212,7 +223,18 @@ jobs:
             -PhydromartAppId=id.hydromart.app \
             -PhydromartAppName=Hydromart \
             -PhydromartWebHost=${{ vars.MOBILE_WEB_HOST || 'hydromart.example' }} \
-            -PhydromartLinkPrefix=/
+            -PhydromartLinkPrefix=/products \
+            -PhydromartLinkPrefix2=/orders \
+            -PhydromartLinkPrefix3=/cart \
+            -PhydromartLinkPrefix4=/checkout \
+            -PhydromartLinkPrefix5=/account \
+            -PhydromartLinkPrefix6=/promo \
+            -PhydromartLinkPrefix7=/rewards \
+            -PhydromartLinkPrefix8=/vouchers \
+            -PhydromartLinkPrefix9=/referral \
+            -PhydromartLinkPrefix10=/subscriptions \
+            -PhydromartLinkPrefix11=/waralaba \
+            -PhydromartLinkPrefix12=/help
           mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-customer-debug.apk"
 
       - name: Ops — sync
@@ -358,7 +380,18 @@ jobs:
             -PhydromartAppId=id.hydromart.app \
             -PhydromartAppName=Hydromart \
             -PhydromartWebHost='${{ vars.MOBILE_WEB_HOST }}' \
-            -PhydromartLinkPrefix=/ \
+            -PhydromartLinkPrefix=/products \
+            -PhydromartLinkPrefix2=/orders \
+            -PhydromartLinkPrefix3=/cart \
+            -PhydromartLinkPrefix4=/checkout \
+            -PhydromartLinkPrefix5=/account \
+            -PhydromartLinkPrefix6=/promo \
+            -PhydromartLinkPrefix7=/rewards \
+            -PhydromartLinkPrefix8=/vouchers \
+            -PhydromartLinkPrefix9=/referral \
+            -PhydromartLinkPrefix10=/subscriptions \
+            -PhydromartLinkPrefix11=/waralaba \
+            -PhydromartLinkPrefix12=/help \
             -PhydromartVersionCode=${{ steps.version.outputs.code }} \
             -PhydromartVersionName=${{ steps.version.outputs.name }}
 

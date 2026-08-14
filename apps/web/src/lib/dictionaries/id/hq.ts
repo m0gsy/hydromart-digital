@@ -1350,6 +1350,9 @@ export const hq = {
     save: 'Simpan',
     savedOk: 'Masa simpan diperbarui',
     datasets: {
+      hr_face_embeddings: 'Embedding wajah (absen)',
+      log_audit: 'Log audit (nama lama)',
+      pesanan: 'Pesanan (nama lama)',
       orders_transactions: 'Pesanan & transaksi',
       audit_logs: 'Log audit',
       proof_of_delivery: 'Bukti pengantaran (PoD)',

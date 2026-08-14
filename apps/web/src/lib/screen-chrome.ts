@@ -90,6 +90,12 @@ const BACK: Record<string, string> = {
   '/notifications': '/account',
   '/checkout': '/cart',
   '/cart': '/products',
+  // Both are reached from the shop home, and both are deep-linkable: a push or a WhatsApp
+  // link opens them with one history entry, where `router.back()` would exit the app. The
+  // fallback to `/` was already correct for them — this states it rather than relying on it,
+  // so a later change to the default cannot silently move these two.
+  '/promo': '/',
+  '/waralaba': '/',
 };
 
 /**

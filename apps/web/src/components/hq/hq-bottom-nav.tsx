@@ -40,7 +40,7 @@ export function HqBottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex max-w-[100vw] items-end justify-around overflow-hidden border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
       aria-label="Navigasi HQ"
     >
       {TABS.map((tab) => {
@@ -52,7 +52,9 @@ export function HqBottomNav() {
             href={tab.href}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
+              // `flex-1`: four labels sharing the bar means a 78px target each; content-width made
+              // "Akses" a 35px one, tall enough and too narrow to hit.
+              'flex min-h-11 flex-1 flex-col items-center justify-center gap-[3px] text-[10px] font-extrabold transition-colors ' +
               (on ? 'text-brand-600' : 'text-[color:var(--text-muted)]')
             }
           >

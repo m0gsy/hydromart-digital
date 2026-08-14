@@ -152,7 +152,7 @@ export default function HqPricingRuleFormPage() {
         </div>
 
         {/* Live effective-price preview (real, computed from catalog base). */}
-        <div className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+        <div className="flex min-h-11 items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
           <span className="text-xs font-bold uppercase tracking-wide text-brand-800">
             {t('hq.forms.pricingRule.preview')}
           </span>
