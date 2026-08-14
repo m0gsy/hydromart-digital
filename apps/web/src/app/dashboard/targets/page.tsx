@@ -103,7 +103,7 @@ function TargetForm({
       newCustomersTarget: Number(newCustomers),
     };
     if (Object.values(body).some((v) => typeof v === 'number' && !Number.isFinite(v))) {
-      setError('Semua target harus berupa angka.');
+      setError(t('hrFix.depotTargets.mustBeNumbers'));
       return;
     }
     setBusy(true);

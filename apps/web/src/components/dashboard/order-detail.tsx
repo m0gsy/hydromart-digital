@@ -212,7 +212,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
 
 /** Full order drill-down (7a/3i): items, address, status timeline, advance + assign. */
 export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClose: () => void; onChanged: () => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = nextStatus(order.status);
@@ -343,7 +343,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => printReceipt(order)}>
+          <Button variant="ghost" onClick={() => printReceipt(order, { t, locale })}>
             Cetak struk
           </Button>
           {canAdvance && (

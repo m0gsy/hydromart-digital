@@ -129,7 +129,7 @@ export default function HqReportsExportPage() {
         downloadCsv(`${name}.csv`, toCsv(headers, body));
       }
     } catch {
-      toast('Gagal membuat file. Coba format CSV.', 'error');
+      toast(t('hrFix.reportsExport.fileFailed'), 'error');
     }
   }
 

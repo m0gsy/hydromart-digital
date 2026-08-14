@@ -231,7 +231,7 @@ function EditWindowSheet({
             id="ret-label"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="7 tahun (UU PDP)"
+            placeholder={t('hrFix.retention.yearsHint')}
           />
         </Field>
         <Field label={t('hq.retention.days')} htmlFor="ret-days">

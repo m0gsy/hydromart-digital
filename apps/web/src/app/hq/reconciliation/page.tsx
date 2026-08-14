@@ -168,13 +168,13 @@ export default function HqReconciliationPage() {
     try {
       await downloadXlsx(
         `rekonsiliasi-${depot.code}.xlsx`,
-        ['Komponen', 'Jumlah (IDR)'],
+        ['Komponen', t('hrFix.reconciliation.amountIdr')],
         rows,
         'Rekonsiliasi',
       );
       toast(t('hq.reconciliation.downloaded'), 'success');
     } catch {
-      toast('Gagal membuat berkas.', 'error');
+      toast(t('hrFix.reconciliation.fileFailed'), 'error');
     }
   }
 

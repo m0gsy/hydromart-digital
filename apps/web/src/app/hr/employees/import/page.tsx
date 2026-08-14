@@ -178,7 +178,7 @@ export default function ImportEmployeesPage() {
       </label>
 
       <CsvImport
-        title={t('hrFix.hrImport.title')}
+        title="hrFix.hrImport.title"
         description="Unggah Excel atau CSV untuk menambah banyak karyawan sekaligus. Setiap baris baru juga dibuatkan akun login (OTP) sesuai kolom role, dan langsung tertaut ke depot yang ditulis."
         columns={columns}
         endpoint={endpoints.hr.importEmployees}

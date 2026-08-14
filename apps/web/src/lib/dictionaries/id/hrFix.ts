@@ -1175,6 +1175,14 @@ export const hrFix = {
     hint: "Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.",
   },
   imports: {
+    resellers: "Import Reseller / Agen",
+    staff: "Impor Staf Massal",
+    deductions: "Import Potongan",
+    allowances: "Import Tunjangan",
+    assets: "Import Aset",
+    loans: "Import Pinjaman",
+    pickDepot: "Pilih satu depot dulu di pemilih depot",
+    loadingDepots: "Memuat depot…",
     customers: "Import Pelanggan",
   },
   importsInventory: {
@@ -1222,5 +1230,151 @@ export const hrFix = {
   },
   operatorShell: {
     title: "Operator depot",
+  },
+  receipt: {
+    title: "Struk",
+    discount: "Diskon",
+    cash: "Tunai",
+    change: "Kembali",
+    method: "Metode",
+    subtotal: "Subtotal",
+    deliveryFee: "Ongkir",
+    total: "Total",
+    thanks: "Terima kasih telah memesan di Hydromart.",
+  },
+  depotCustomers: {
+    gallonNotLinked: "Data galon depot belum tersambung",
+    notLinked: "belum tersambung",
+  },
+  staff: {
+    nameHint: "mis. Budi",
+    plateHint: "mis. B 1234 ABC",
+  },
+  myAttendance: {
+    emptyBody: "Absensi kamu akan muncul di sini.",
+    empty: "Belum ada absensi",
+  },
+  payrollDetail: {
+    failed: "Gagal",
+    downloadFailed: "Gagal unduh",
+    netPay: "Gaji Bersih (Net)",
+    approved: "Payroll disetujui",
+    markPaid: "Tandai Dibayar",
+    markedPaid: "Ditandai dibayar",
+  },
+  loginPage: {
+    avgDelivery: "rata-rata antar",
+    partnerDepots: "depot mitra",
+  },
+  staffInvite: {
+    nameHint: "mis. Budi",
+    positionHint: "mis. Kurir",
+  },
+  employeeSelect: {
+    label: "Karyawan",
+    placeholder: "Pilih karyawan…",
+  },
+  accountEdit: {
+    emailHint: "nama@email.com",
+  },
+  customerDetail: {
+    pickDepot: "Pilih depot dari switcher.",
+    notLinked: "— belum tersambung",
+  },
+  depotReports: {
+    time: "Waktu",
+    cancelled: "Dibatalkan",
+    recipient: "Penerima",
+    subtotal: "Subtotal",
+    deliveryFee: "Ongkir",
+    discount: "Diskon",
+    orderNo: "No. pesanan",
+    status: "Status",
+    courier: "Kurir",
+    gallons: "Galon",
+    total: "Total",
+    counterSale: "Penjualan konter",
+    staffOnly: "Khusus staf depot",
+  },
+  depotSubscriptions: {
+    daily: "Tiap hari",
+    every3Days: "Tiap 3 hari",
+    weekly: "Tiap minggu",
+    every2Weeks: "Tiap 2 minggu",
+    monthly: "Tiap bulan",
+    help: "Pilih pelanggan terdaftar, lalu isi produk dan jumlah galon (≥1).",
+    loadingCustomers: "Memuat pelanggan…",
+    pickCustomer: "Pilih pelanggan terdaftar",
+    noName: "Tanpa nama",
+    statusFailed: "Gagal mengubah status langganan.",
+    notScheduled: "belum dijadwalkan",
+  },
+  depotTargets: {
+    mustBeNumbers: "Semua target harus berupa angka.",
+  },
+  hqCatalog: {
+    unitHint: "galon / dus / pcs",
+  },
+  reconciliation: {
+    amountIdr: "Jumlah (IDR)",
+    fileFailed: "Gagal membuat berkas.",
+  },
+  reportsExport: {
+    fileFailed: "Gagal membuat file. Coba format CSV.",
+  },
+  retention: {
+    yearsHint: "7 tahun (UU PDP)",
+  },
+  employeeDetailExtra: {
+    faceEnrolled: "Wajah berhasil di-enroll",
+    faceFailed: "Gagal enroll wajah",
+    unreadable: "Tidak terbaca",
+  },
+  myPayrollDetail: {
+    downloadFailed: "Gagal unduh",
+    netPay: "Gaji Bersih (Net)",
+  },
+  settingsExtra: {
+    overrideRemoved: "Override dihapus",
+    resetFailed: "Gagal reset",
+  },
+  approvalDetailExtra: {
+    opnameVariance: "Selisih opname",
+    depositRefund: "Refund deposit galon",
+    codShortfall: "Kurang setoran (COD)",
+    returnVariance: "Selisih retur galon",
+    actionFailed: "Aksi gagal. Coba lagi.",
+    value: "Nilai",
+  },
+  managerHome: {
+    gallonsDelivered: "Galon terkirim",
+    yourDepot: "Depot kamu",
+    loadFailed: "Gagal memuat",
+  },
+  registerPage: {
+    addPhoto: "Tambahkan foto (opsional)",
+  },
+  assets2: {
+    none: "Tidak ada aset perusahaan yang dipegang.",
+  },
+  documents2: {
+    pickFile: "Pilih file dulu.",
+    uploadFailed: "Gagal mengunggah dokumen.",
+  },
+  checkoutFix: {
+    depotOnBreak: "Depot sedang istirahat — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.",
+    depotClosed: "Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.",
+    agentPrice: "Harga agen",
+    computedAtOrder: "dihitung saat pesanan dibuat",
+  },
+  orderDetailPay: {
+    noBankAccount: "Depot belum mengatur rekening. Hubungi depot.",
+    noQris: "Depot belum mengatur QRIS. Hubungi depot.",
+  },
+  documents3: {
+    expiresOpt: "Berlaku sampai (opsional)",
+  },
+  faceCapture2: {
+    cameraDenied: "Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.",
   },
 };

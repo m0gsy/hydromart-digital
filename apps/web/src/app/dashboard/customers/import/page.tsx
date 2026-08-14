@@ -23,12 +23,12 @@ export default function ImportCustomersPage() {
   // back to depots[0] whenever the switcher says "Semua depot" — which would file every
   // row under whichever depot happened to sort first, with nothing on screen saying so.
   if (!selectedId) {
-    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
+    return <CenterState title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')} />;
   }
 
   return (
     <CsvImport
-      title={t('hrFix.imports.customers')}
+      title="hrFix.imports.customers"
       description="Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota dan provinsi wajib diisi."
       columns={COLUMNS}
       endpoint={endpoints.depotCrm.import}

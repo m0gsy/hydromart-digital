@@ -32,7 +32,7 @@ export default function PayrollDetailPage() {
       toast(ok);
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.payrollDetail.failed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -42,7 +42,7 @@ export default function PayrollDetailPage() {
     try {
       downloadBlob(`slip-${id}.pdf`, await getBlob(endpoints.hr.payrollSlip(id)));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
+      toast(e instanceof Error ? e.message : t('hrFix.payrollDetail.downloadFailed'), 'error');
     }
   }
 
@@ -78,7 +78,7 @@ export default function PayrollDetailPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-app font-bold">
-              <td className="pt-3">Gaji Bersih (Net)</td>
+              <td className="pt-3">{t('hrFix.payrollDetail.netPay')}</td>
               <td className="pt-3 text-right"><Money amount={Number(p.net)} /></td>
             </tr>
           </tfoot>
@@ -93,8 +93,8 @@ export default function PayrollDetailPage() {
 
       {canRun && (
         <div className="flex gap-3">
-          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), 'Payroll disetujui')} loading={busy}>Setujui</Button>}
-          {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), 'Ditandai dibayar')} loading={busy}>Tandai Dibayar</Button>}
+          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), t('hrFix.payrollDetail.approved'))} loading={busy}>Setujui</Button>}
+          {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), t('hrFix.payrollDetail.markedPaid'))} loading={busy}>{t('hrFix.payrollDetail.markPaid')}</Button>}
         </div>
       )}
     </div>

@@ -28,12 +28,13 @@ import type { DepotCustomer, DepotSubscription, DepotSubscriptionCadence } from 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const CADENCE_LABEL: Record<DepotSubscriptionCadence, string> = {
-  DAILY: 'Tiap hari',
-  EVERY_3_DAYS: 'Tiap 3 hari',
-  WEEKLY: 'Tiap minggu',
-  BIWEEKLY: 'Tiap 2 minggu',
-  MONTHLY: 'Tiap bulan',
+  DAILY: 'hrFix.depotSubscriptions.daily',
+  EVERY_3_DAYS: 'hrFix.depotSubscriptions.every3Days',
+  WEEKLY: 'hrFix.depotSubscriptions.weekly',
+  BIWEEKLY: 'hrFix.depotSubscriptions.every2Weeks',
+  MONTHLY: 'hrFix.depotSubscriptions.monthly',
 };
 
 const CADENCES = Object.keys(CADENCE_LABEL) as DepotSubscriptionCadence[];
@@ -87,7 +88,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
     const qty = Number(quantity);
     const picked = (customers.data ?? []).find((c) => c.id === customerId);
     if (!picked || !productLabel.trim() || !Number.isFinite(qty) || qty < 1) {
-      setError('Pilih pelanggan terdaftar, lalu isi produk dan jumlah galon (≥1).');
+      setError(t('hrFix.depotSubscriptions.help'));
       return;
     }
     setBusy(true);
@@ -136,11 +137,11 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             className={`${inputClass} min-w-56`}
           >
             <option value="">
-              {customers.loading ? 'Memuat pelanggan…' : 'Pilih pelanggan terdaftar'}
+              {customers.loading ? t('hrFix.depotSubscriptions.loadingCustomers') : t('hrFix.depotSubscriptions.pickCustomer')}
             </option>
             {(customers.data ?? []).map((c) => (
               <option key={c.id} value={c.id}>
-                {c.fullName ?? 'Tanpa nama'}
+                {c.fullName ?? t('hrFix.depotSubscriptions.noName')}
                 {c.phone ? ` · ${c.phone}` : ''}
               </option>
             ))}
@@ -174,7 +175,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
           >
             {CADENCES.map((c) => (
               <option key={c} value={c}>
-                {CADENCE_LABEL[c]}
+                {t(CADENCE_LABEL[c])}
               </option>
             ))}
           </select>
@@ -228,7 +229,7 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
       // try/finally with no catch: the spinner stopped, the row did not move, and nothing
       // said why. Pausing a subscription that quietly stayed active is a delivery the
       // customer did not want and nobody chose to send.
-      setError(err instanceof ApiError ? err.message : 'Gagal mengubah status langganan.');
+      setError(err instanceof ApiError ? err.message : t('hrFix.depotSubscriptions.statusFailed'));
     } finally {
       setBusy(false);
     }
@@ -236,7 +237,7 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
 
   const sublabel = [
     CADENCE_LABEL[sub.cadence],
-    sub.nextRunAt ? `berikutnya ${formatDateTime(sub.nextRunAt)}` : 'belum dijadwalkan',
+    sub.nextRunAt ? `berikutnya ${formatDateTime(sub.nextRunAt)}` : t('hrFix.depotSubscriptions.notScheduled'),
   ].join(' · ');
 
   return (

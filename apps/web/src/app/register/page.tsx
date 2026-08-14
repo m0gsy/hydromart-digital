@@ -91,7 +91,7 @@ function RegisterForm() {
             <Camera size={15} weight="fill" />
           </span>
         </div>
-        <p className="text-[13px] text-muted">Tambahkan foto (opsional)</p>
+        <p className="text-[13px] text-muted">{t('hrFix.registerPage.addPhoto')}</p>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3.5">

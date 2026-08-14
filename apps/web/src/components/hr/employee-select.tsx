@@ -1,6 +1,7 @@
 'use client';
 
 import { api } from '@/lib/api';
+import { useT } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
 import { ErrorState, Skeleton } from '@/components/ui';
 import { useAsync } from '@/lib/use-async';
@@ -22,8 +23,8 @@ import type { Employee, HrPage } from '@/lib/hr';
 export function EmployeeSelect({
   value,
   onChange,
-  label = 'Karyawan',
-  placeholder = 'Pilih karyawan…',
+  label,
+  placeholder,
   className = '',
   disabled = false,
 }: {
@@ -34,6 +35,7 @@ export function EmployeeSelect({
   className?: string;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const employees = useAsync<HrPage<Employee>>(
     () =>
       api.getCached<HrPage<Employee>>(
@@ -52,14 +54,14 @@ export function EmployeeSelect({
 
   return (
     <label className={`text-sm ${className}`}>
-      {label}
+      {label ?? t('hrFix.employeeSelect.label')}
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className="surface-elevated mt-1 block w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
       >
-        <option value="">{placeholder}</option>
+        <option value="">{placeholder ?? t('hrFix.employeeSelect.placeholder')}</option>
         {(employees.data?.rows ?? []).map((e) => (
           <option key={e.id} value={e.id}>
             {e.employeeCode} — {e.fullName}

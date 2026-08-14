@@ -1163,6 +1163,14 @@ export const hrFix = {
     hint: "Move your head slightly or blink while the photo is taken.",
   },
   imports: {
+    resellers: "Import resellers / agents",
+    staff: "Bulk staff import",
+    deductions: "Import deductions",
+    allowances: "Import allowances",
+    assets: "Import assets",
+    loans: "Import loans",
+    pickDepot: "Pick one depot in the depot switcher first",
+    loadingDepots: "Loading depots…",
     customers: "Import customers",
   },
   importsInventory: {
@@ -1210,5 +1218,151 @@ export const hrFix = {
   },
   operatorShell: {
     title: "Depot operator",
+  },
+  receipt: {
+    title: "Receipt",
+    discount: "Discount",
+    cash: "Cash",
+    change: "Change",
+    method: "Method",
+    subtotal: "Subtotal",
+    deliveryFee: "Delivery fee",
+    total: "Total",
+    thanks: "Thank you for ordering from Hydromart.",
+  },
+  depotCustomers: {
+    gallonNotLinked: "Depot gallon data is not connected yet",
+    notLinked: "not connected",
+  },
+  staff: {
+    nameHint: "e.g. Budi",
+    plateHint: "e.g. B 1234 ABC",
+  },
+  myAttendance: {
+    emptyBody: "Your attendance will appear here.",
+    empty: "No attendance yet",
+  },
+  payrollDetail: {
+    failed: "Failed",
+    downloadFailed: "Download failed",
+    netPay: "Net pay",
+    approved: "Payroll approved",
+    markPaid: "Mark as paid",
+    markedPaid: "Marked as paid",
+  },
+  loginPage: {
+    avgDelivery: "average delivery",
+    partnerDepots: "partner depots",
+  },
+  staffInvite: {
+    nameHint: "e.g. Budi",
+    positionHint: "e.g. Courier",
+  },
+  employeeSelect: {
+    label: "Employee",
+    placeholder: "Select an employee…",
+  },
+  accountEdit: {
+    emailHint: "name@email.com",
+  },
+  customerDetail: {
+    pickDepot: "Pick a depot in the switcher.",
+    notLinked: "— not connected",
+  },
+  depotReports: {
+    time: "Time",
+    cancelled: "Cancelled",
+    recipient: "Recipient",
+    subtotal: "Subtotal",
+    deliveryFee: "Delivery fee",
+    discount: "Discount",
+    orderNo: "Order no.",
+    status: "Status",
+    courier: "Courier",
+    gallons: "Gallons",
+    total: "Total",
+    counterSale: "Counter sale",
+    staffOnly: "Depot staff only",
+  },
+  depotSubscriptions: {
+    daily: "Every day",
+    every3Days: "Every 3 days",
+    weekly: "Every week",
+    every2Weeks: "Every 2 weeks",
+    monthly: "Every month",
+    help: "Pick a registered customer, then choose the product and gallon count (1 or more).",
+    loadingCustomers: "Loading customers…",
+    pickCustomer: "Pick a registered customer",
+    noName: "No name",
+    statusFailed: "Could not change the subscription's status.",
+    notScheduled: "not scheduled yet",
+  },
+  depotTargets: {
+    mustBeNumbers: "Every target must be a number.",
+  },
+  hqCatalog: {
+    unitHint: "gallon / box / pcs",
+  },
+  reconciliation: {
+    amountIdr: "Amount (IDR)",
+    fileFailed: "Could not build the file.",
+  },
+  reportsExport: {
+    fileFailed: "Could not build the file. Try the CSV format.",
+  },
+  retention: {
+    yearsHint: "7 years (Indonesian data-protection law)",
+  },
+  employeeDetailExtra: {
+    faceEnrolled: "Face enrolled",
+    faceFailed: "Face enrolment failed",
+    unreadable: "Could not be read",
+  },
+  myPayrollDetail: {
+    downloadFailed: "Download failed",
+    netPay: "Net pay",
+  },
+  settingsExtra: {
+    overrideRemoved: "Override removed",
+    resetFailed: "Reset failed",
+  },
+  approvalDetailExtra: {
+    opnameVariance: "Stocktake variance",
+    depositRefund: "Gallon deposit refund",
+    codShortfall: "COD settlement shortfall",
+    returnVariance: "Gallon return variance",
+    actionFailed: "That did not work. Try again.",
+    value: "Value",
+  },
+  managerHome: {
+    gallonsDelivered: "Gallons delivered",
+    yourDepot: "Your depot",
+    loadFailed: "Could not load",
+  },
+  registerPage: {
+    addPhoto: "Add a photo (optional)",
+  },
+  assets2: {
+    none: "No company property is held.",
+  },
+  documents2: {
+    pickFile: "Choose a file first.",
+    uploadFailed: "Could not upload the document.",
+  },
+  checkoutFix: {
+    depotOnBreak: "The depot is on a break — express delivery is unavailable. Scheduled orders still work.",
+    depotClosed: "The depot is closed — express delivery is unavailable. Scheduled orders still work.",
+    agentPrice: "Agent price",
+    computedAtOrder: "worked out when the order is placed",
+  },
+  orderDetailPay: {
+    noBankAccount: "The depot has not set up a bank account. Contact the depot.",
+    noQris: "The depot has not set up QRIS. Contact the depot.",
+  },
+  documents3: {
+    expiresOpt: "Valid until (optional)",
+  },
+  faceCapture2: {
+    cameraDenied: "The camera is unavailable. Allow camera access, then reload.",
   },
 };

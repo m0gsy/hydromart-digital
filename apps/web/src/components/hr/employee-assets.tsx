@@ -37,7 +37,7 @@ export function EmployeeAssets({ employeeId }: { employeeId: string }) {
         // Held company assets decide what an exit interview asks for.
         <LoadError onRetry={assets.reload} />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-muted">Tidak ada aset perusahaan yang dipegang.</p>
+        <p className="text-sm text-muted">{t('hrFix.assets2.none')}</p>
       ) : (
         <ul className="divide-y divide-[color:var(--border)]">
           {rows.map((a) => (

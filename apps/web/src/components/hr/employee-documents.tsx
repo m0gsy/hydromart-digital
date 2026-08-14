@@ -47,7 +47,7 @@ export function EmployeeDocuments({
     e.preventDefault();
     setErr(null);
     const file = fileRef.current?.files?.[0];
-    if (!file) return setErr('Pilih file dulu.');
+    if (!file) return setErr(t('hrFix.documents2.pickFile'));
     setSaving(true);
     try {
       await uploadFile(endpoints.hr.uploadEmployeeDocument, file, {
@@ -60,7 +60,7 @@ export function EmployeeDocuments({
       setExpiresAt('');
       documents.reload();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Gagal mengunggah dokumen.');
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.documents2.uploadFailed'));
     } finally {
       setSaving(false);
     }
@@ -127,7 +127,7 @@ export function EmployeeDocuments({
               ))}
             </select>
           </Field>
-          <Field label="Berlaku sampai (opsional)">
+          <Field label={t('hrFix.documents3.expiresOpt')}>
             <input
               type="date"
               value={expiresAt}

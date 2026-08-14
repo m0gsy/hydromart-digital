@@ -51,7 +51,7 @@ export default function ImportAssetsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title="Import Aset"
+        title="hrFix.imports.assets"
         description="Mendaftarkan aset perusahaan sekaligus, termasuk yang sudah dipegang karyawan. Penerima harus berada di depot yang sama dengan asetnya; jika tidak, asetnya tetap terdaftar tapi belum diserahkan."
         columns={columns}
         endpoint={endpoints.hr.importAssets}

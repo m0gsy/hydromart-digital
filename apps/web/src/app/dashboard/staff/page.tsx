@@ -98,7 +98,7 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
           <Input id="st-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+62812…" autoFocus />
         </Field>
         <Field label={t('dashC.staff.fullName')} htmlFor="st-name">
-          <Input id="st-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="mis. Budi" />
+          <Input id="st-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('hrFix.staff.nameHint')} />
         </Field>
       </div>
       <Field label={t('dashC.staff.role')} htmlFor="st-role">
@@ -119,7 +119,7 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
             </select>
           </Field>
           <Field label={t('dashC.staff.plate')} htmlFor="st-plate">
-            <Input id="st-plate" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="mis. B 1234 ABC" />
+            <Input id="st-plate" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder={t('hrFix.staff.plateHint')} />
           </Field>
         </div>
       )}

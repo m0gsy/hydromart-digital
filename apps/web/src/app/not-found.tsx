@@ -1,3 +1,7 @@
+'use client';
+
+// A client component ONLY because it reads its copy through useT(); the 404 itself has
+// nothing dynamic. LocaleProvider lives in the root layout, so it is in scope here.
 import { LinkButton } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 

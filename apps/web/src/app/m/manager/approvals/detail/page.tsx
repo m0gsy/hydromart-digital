@@ -13,11 +13,12 @@ import { useAsync } from '@/lib/use-async';
 import type { Approval, ApprovalType } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
+// Dictionary KEYS — module scope, so t() runs at the call site.
 const KIND_LABEL: Record<ApprovalType, string> = {
-  OPNAME_VARIANCE: 'Selisih opname',
-  DEPOSIT_REFUND: 'Refund deposit galon',
-  COD_VARIANCE: 'Kurang setoran (COD)',
-  GALLON_VARIANCE: 'Selisih retur galon',
+  OPNAME_VARIANCE: 'hrFix.approvalDetailExtra.opnameVariance',
+  DEPOSIT_REFUND: 'hrFix.approvalDetailExtra.depositRefund',
+  COD_VARIANCE: 'hrFix.approvalDetailExtra.codShortfall',
+  GALLON_VARIANCE: 'hrFix.approvalDetailExtra.returnVariance',
 };
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -37,7 +38,7 @@ export default function ApprovalDetailPage() {
       await api.patch(endpoints.approvals.decide(id), { decision }, true);
       router.push('/m/manager/approvals');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('hrFix.approvalDetailExtra.actionFailed'));
       setBusy(null);
     }
   };
@@ -91,7 +92,7 @@ export default function ApprovalDetailPage() {
             {a.subjectRef ?? KIND_LABEL[a.type]}
           </div>
         </div>
-        <Badge tone="warning">{KIND_LABEL[a.type]}</Badge>
+        <Badge tone="warning">{t(KIND_LABEL[a.type])}</Badge>
       </header>
 
       <div className="flex-1 space-y-3 px-4 pb-6">
@@ -149,7 +150,7 @@ export default function ApprovalDetailPage() {
         )}
 
         <div className="rounded-2xl border border-app bg-[color:var(--surface)] px-4 py-1">
-          <RowLine label="Nilai">
+          <RowLine label={t('hrFix.approvalDetailExtra.value')}>
             <span className="font-extrabold tabular-nums text-[color:var(--danger)]">
               <Money amount={Math.abs(a.amountIdr)} />
             </span>

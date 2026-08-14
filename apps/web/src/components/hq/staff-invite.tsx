@@ -128,7 +128,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
             id="hq-st-name"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="mis. Budi"
+            placeholder={t('hrFix.staffInvite.nameHint')}
           />
         </Field>
       </div>
@@ -179,7 +179,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
               id="hq-st-position"
               value={position}
               onChange={(e) => setPosition(e.target.value)}
-              placeholder="mis. Kurir"
+              placeholder={t('hrFix.staffInvite.positionHint')}
             />
           </Field>
           <Field label={t('hq.staff.form.joinDate')} htmlFor="hq-st-join">

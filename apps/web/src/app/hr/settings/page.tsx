@@ -60,10 +60,10 @@ export default function HrSettingsPage() {
   async function reset(key: string) {
     try {
       await api.del(endpoints.hr.resetSetting, { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key }, true);
-      toast('Override dihapus');
+      toast(t('hrFix.settingsExtra.overrideRemoved'));
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal reset', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.settingsExtra.resetFailed'), 'error');
     }
   }
 

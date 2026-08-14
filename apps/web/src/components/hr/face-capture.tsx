@@ -43,11 +43,15 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
           setReady(true);
         }
       })
-      .catch(() => setError('Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.'));
+      .catch(() => setError(t('hrFix.faceCapture2.cameraDenied')));
     return () => {
       cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
     };
+    // `t` is deliberately not a dependency: this effect OPENS THE CAMERA, and re-running it
+    // when the language toggles would stop and restart the stream mid-capture. The message
+    // is only read at failure time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Downscaled grayscale samples of the current frame, for motion/sharpness math. */

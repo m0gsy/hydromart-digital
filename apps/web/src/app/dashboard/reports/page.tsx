@@ -37,19 +37,21 @@ interface DailyExportRow {
   isWalkIn: boolean;
 }
 
-const DAILY_HEADERS = [
-  'No. pesanan',
-  'Waktu',
-  'Status',
-  'Dibatalkan',
-  'Penerima',
-  'Kurir',
-  'Galon',
-  'Subtotal',
-  'Ongkir',
-  'Diskon',
-  'Total',
-  'Penjualan konter',
+// A function of `t`, not a constant: these are the CSV column headers an operator opens
+// in Excel, and a module constant cannot call a hook.
+const dailyHeaders = (t: (k: string) => string) => [
+  t('hrFix.depotReports.orderNo'),
+  t('hrFix.depotReports.time'),
+  t('hrFix.depotReports.status'),
+  t('hrFix.depotReports.cancelled'),
+  t('hrFix.depotReports.recipient'),
+  t('hrFix.depotReports.courier'),
+  t('hrFix.depotReports.gallons'),
+  t('hrFix.depotReports.subtotal'),
+  t('hrFix.depotReports.deliveryFee'),
+  t('hrFix.depotReports.discount'),
+  t('hrFix.depotReports.total'),
+  t('hrFix.depotReports.counterSale'),
 ];
 
 const dailyRow = (r: DailyExportRow): CsvCell[] => [
@@ -93,12 +95,12 @@ function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
       if (format === 'xlsx') {
         await downloadXlsx(
           `${t('opsFix.reports.fileName')}-${date}.xlsx`,
-          DAILY_HEADERS,
+          dailyHeaders(t),
           rows,
           t('opsFix.reports.sheetName'),
         );
       } else {
-        downloadCsv(`${t('opsFix.reports.fileName')}-${date}.csv`, toCsv(DAILY_HEADERS, rows));
+        downloadCsv(`${t('opsFix.reports.fileName')}-${date}.csv`, toCsv(dailyHeaders(t), rows));
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('opsFix.reports.exportError'));
@@ -511,12 +513,13 @@ function Body() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   // Operators own the depot report screens (design 2d/7d), so isStaff opens the gate
   // alongside the dashboard capability held by managers/HQ.
   if (!isStaff(customer?.role) && !canViewDashboard(customer?.role)) {
     return (
-      <CenterState title="Khusus staf depot" icon={<Lock size={40} weight="fill" />}>
+      <CenterState title={t('hrFix.depotReports.staffOnly')} icon={<Lock size={40} weight="fill" />}>
         Laporan operasional depot tersedia untuk operator dan manajer depot.
       </CenterState>
     );

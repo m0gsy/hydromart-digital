@@ -63,10 +63,10 @@ export default function EmployeeDetailPage() {
     setEnrolling(true);
     try {
       await api.post(endpoints.hr.enrollFace(id), { images: frames }, true);
-      toast('Wajah berhasil di-enroll');
+      toast(t('hrFix.employeeDetailExtra.faceEnrolled'));
       setFrames([]);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal enroll wajah', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.employeeDetailExtra.faceFailed'), 'error');
     } finally {
       setEnrolling(false);
     }
@@ -112,7 +112,7 @@ export default function EmployeeDetailPage() {
           label={t('hrFix.employeeDetail.department')}
           value={
             departments.error
-              ? 'Tidak terbaca'
+              ? t('hrFix.employeeDetailExtra.unreadable')
               : departmentLabel(departments.data ?? [], e.departmentId, t)
           }
         />

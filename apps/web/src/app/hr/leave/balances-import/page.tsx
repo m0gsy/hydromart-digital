@@ -2,7 +2,6 @@
 // state, no effect and no handler — it only composes client components, which carry
 // their own boundary. Rendering it on the server keeps its own code out of the bundle.
 import { CsvImport, intCell, type ImportColumn } from '@/components/csv-import';
-import { useT } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
 
 const COLUMNS: ImportColumn[] = [
@@ -14,11 +13,10 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportLeaveBalancesPage() {
-  const { t } = useT();
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title={t('hrFix.balancesImport.title')}
+        title="hrFix.balancesImport.title"
         description="Memindahkan kuota cuti dan cuti yang sudah terpakai dari sistem lama. Tanpa ini, pindah sistem di tengah tahun membuat semua orang seolah punya kuota penuh lagi. Tahun yang sudah punya saldo akan ditimpa."
         columns={COLUMNS}
         endpoint={endpoints.hr.importLeaveBalances}

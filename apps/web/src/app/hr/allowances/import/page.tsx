@@ -22,7 +22,7 @@ export default function ImportAllowancesPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title="Import Tunjangan"
+        title="hrFix.imports.allowances"
         description="Unggah tunjangan tetap (transport, makan, jabatan) untuk banyak karyawan sekaligus. Setiap baris ditambahkan — mengunggah file yang sama dua kali menghasilkan tunjangan ganda."
         columns={COLUMNS}
         endpoint={endpoints.hr.importAllowances}

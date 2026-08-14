@@ -49,10 +49,11 @@ function Avatar({ name }: { name: string | null }) {
  * and keeps the plain dash.
  */
 function GallonCell({ gallons, deposit }: { gallons: number | null; deposit: number | null }) {
+  const { t } = useT();
   if (gallons == null) {
     return (
-      <span className="text-[color:var(--text-muted)]" title="Data galon depot belum tersambung">
-        — <span className="text-xs">belum tersambung</span>
+      <span className="text-[color:var(--text-muted)]" title={t('hrFix.depotCustomers.gallonNotLinked')}>
+        — <span className="text-xs">{t('hrFix.depotCustomers.notLinked')}</span>
       </span>
     );
   }

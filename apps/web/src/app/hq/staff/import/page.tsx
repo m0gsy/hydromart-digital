@@ -90,7 +90,7 @@ export default function HqStaffImportPage() {
           row for a depot code that exists — and the operator fixes a correct file. */}
       {depots.error && <LoadError onRetry={depots.reload} />}
       <CsvImport
-        title="Impor Staf Massal"
+        title="hrFix.imports.staff"
         description="Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis, dan setiap baris juga membuka kartu karyawan di HR. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot; isi dailyRate untuk gaji harian, monthlyRate untuk bulanan."
         columns={columns}
         endpoint={endpoints.auth.importStaff}

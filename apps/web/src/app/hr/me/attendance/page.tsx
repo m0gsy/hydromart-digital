@@ -23,7 +23,7 @@ export default function MyAttendancePage() {
       <SectionHeader title="Absensi Saya" />
       {loading && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <CenterState title="Belum ada absensi">Absensi kamu akan muncul di sini.</CenterState>}
+      {data && data.rows.length === 0 && <CenterState title={t('hrFix.myAttendance.empty')}>{t('hrFix.myAttendance.emptyBody')}</CenterState>}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((a) => (

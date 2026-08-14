@@ -48,7 +48,7 @@ type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
  * land on a real account; left blank the sale is anonymous, which earns nothing.
  */
 function WalkIn({ depotId }: { depotId: string }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { toast } = useToast();
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
@@ -220,7 +220,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     const receipt =
       method === 'CASH' ? { cashReceived, change: cashReceived - order.total } : undefined;
     setLastSale({ order, cash: receipt, method });
-    if (!printReceipt(order, receipt, method)) {
+    if (!printReceipt(order, { t, locale }, receipt, method)) {
       toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
     setQty({});
@@ -275,7 +275,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="ghost"
-              onClick={() => printReceipt(lastSale.order, lastSale.cash, lastSale.method)}
+              onClick={() => printReceipt(lastSale.order, { t, locale }, lastSale.cash, lastSale.method)}
             >
               <Printer size={18} className="mr-1" />
               {t('opsFix.walkIn.reprint')}

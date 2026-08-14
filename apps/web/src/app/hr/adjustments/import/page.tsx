@@ -18,7 +18,7 @@ export default function ImportDeductionsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title="Import Potongan"
+        title="hrFix.imports.deductions"
         description="Unggah potongan gaji untuk satu periode. Setiap baris ditambahkan apa adanya — dua potongan MANUAL bernilai sama dalam satu bulan memang bisa sah, jadi tidak ada yang digabung otomatis."
         columns={COLUMNS}
         endpoint={endpoints.hr.importDeductions}

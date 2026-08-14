@@ -42,7 +42,7 @@ export default function MyPayrollDetailPage() {
     try {
       downloadBlob(`slip-${id}.pdf`, await getBlob(endpoints.hr.payrollMeSlip(id)));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
+      toast(e instanceof Error ? e.message : t('hrFix.myPayrollDetail.downloadFailed'), 'error');
     }
   }
 
@@ -81,7 +81,7 @@ export default function MyPayrollDetailPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-app font-bold">
-              <td className="pt-3">Gaji Bersih (Net)</td>
+              <td className="pt-3">{t('hrFix.myPayrollDetail.netPay')}</td>
               <td className="pt-3 text-right">
                 <Money amount={Number(p.net)} />
               </td>

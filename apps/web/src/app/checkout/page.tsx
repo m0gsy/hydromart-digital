@@ -674,8 +674,8 @@ function CheckoutInner() {
       {depotState !== 'buka' && (
         <p className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-[13px] text-muted">
           {depotState === 'istirahat'
-            ? 'Depot sedang istirahat — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'
-            : 'Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.'}
+            ? t('hrFix.checkoutFix.depotOnBreak')
+            : t('hrFix.checkoutFix.depotClosed')}
         </p>
       )}
 
@@ -951,8 +951,8 @@ function CheckoutInner() {
         )}
         {isReseller && (
           <div className="flex justify-between text-[color:var(--success)]">
-            <span>Harga agen</span>
-            <span className="text-xs font-semibold">dihitung saat pesanan dibuat</span>
+            <span>{t('hrFix.checkoutFix.agentPrice')}</span>
+            <span className="text-xs font-semibold">{t('hrFix.checkoutFix.computedAtOrder')}</span>
           </div>
         )}
         {voucherEffect > 0 && (

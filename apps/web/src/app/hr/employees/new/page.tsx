@@ -1,7 +1,10 @@
-// Audit F-6: every one of the 226 pages was marked 'use client'. This one holds no
-// state, no effect and no handler — it only composes client components, which carry
-// their own boundary. Rendering it on the server keeps its own code out of the bundle.
-// The query-string prefill lives in its own client island for exactly that reason.
+'use client';
+
+// Audit F-6 kept this page on the server: it holds no state, no effect and no handler,
+// and the query-string prefill lives in its own client island. PR-8 spends that back for
+// the two heading strings — `useT` is a client hook, and the alternative was leaving the
+// only Indonesian left on the page hardcoded. Everything below still renders in client
+// components either way, so what moved is the heading, not the form.
 import { Suspense } from 'react';
 import { useT } from '@/lib/locale-context';
 

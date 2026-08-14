@@ -18,6 +18,7 @@ function firstName(name: string | null | undefined): string {
 }
 
 function Kpis({ d }: { d: ExecutiveDashboard }) {
+  const { t } = useT();
   const orders = (d.sales?.buckets ?? []).reduce((s, b) => s + b.orderCount, 0);
   const revenue = (d.sales?.buckets ?? []).reduce((s, b) => s + b.revenue, 0);
   // ponytail: no gallon KPI in the dashboard BFF — delivered count is the closest real
@@ -29,7 +30,7 @@ function Kpis({ d }: { d: ExecutiveDashboard }) {
     <Card className="grid grid-cols-2 gap-y-4 p-5">
       <Kpi label="Order" value={orders.toLocaleString('id-ID')} />
       <Kpi label="Pendapatan" value={<Money amount={revenue} />} />
-      <Kpi label="Galon terkirim" value={gallons.toLocaleString('id-ID')} />
+      <Kpi label={t('hrFix.managerHome.gallonsDelivered')} value={gallons.toLocaleString('id-ID')} />
       <Kpi label="SLA tepat waktu" value={sla === null ? '—' : `${sla}%`} />
     </Card>
   );
@@ -91,7 +92,7 @@ export default function ManagerHomePage() {
   const depotName =
     selected?.name ??
     depots.find((dep) => dep.id === customer?.assignedDepotId)?.name ??
-    'Depot kamu';
+    t('hrFix.managerHome.yourDepot');
   const pending = counts.data?.total ?? 0;
   const stockCritical = lowStock.data?.length ?? null;
   const activeCouriers = onDelivery.data?.items.length ?? null;
@@ -107,7 +108,7 @@ export default function ManagerHomePage() {
       {dash.loading ? (
         <Skeleton className="h-36 w-full" />
       ) : dash.error || !dash.data ? (
-        <ErrorState message={dash.error ?? 'Gagal memuat'} onRetry={dash.reload} />
+        <ErrorState message={dash.error ?? t('hrFix.managerHome.loadFailed')} onRetry={dash.reload} />
       ) : (
         <Kpis d={dash.data} />
       )}
