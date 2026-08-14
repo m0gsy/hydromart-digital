@@ -153,6 +153,7 @@ export const dashC = {
       courierSettle: 'Setoran COD kurir',
       expenseApprove: 'Setujui klaim biaya',
       depotBroadcast: 'Broadcast ke kurir',
+      depotBroadcastRead: 'Baca broadcast depot',
       courierReturn: 'Ambil galon kosong (kurir)',
       depotCrm: 'Direktori pelanggan (CRM)',
       incidents: 'Insiden operasional',

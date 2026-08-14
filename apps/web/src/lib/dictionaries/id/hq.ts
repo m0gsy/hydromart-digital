@@ -258,6 +258,7 @@ export const hq = {
       courierReturn: 'Retur galon di pelanggan',
       expenseApprove: 'Setujui klaim biaya',
       depotBroadcast: 'Broadcast ke kurir',
+      depotBroadcastRead: 'Baca broadcast depot',
       depotCampaign: 'Blast pelanggan depot sendiri',
       depotCrm: 'CRM pelanggan depot',
       incidents: 'Insiden operasional',

@@ -183,6 +183,12 @@ export const CAPABILITIES = {
   expenseApprove: ['MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // crm-service — depot -> courier in-app announcements (not customer campaigns).
   depotBroadcast: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  // Reading that list is a wider circle than posting to it. The route is the courier's
+  // inbox, so it was `@Roles(STAFF_DEPOT)` — which meant the depot operator could POST a
+  // broadcast and then not see it, on the very screen they posted it from. Split rather
+  // than widened: whoever may post may read, couriers keep their inbox, and nobody gains
+  // the power to post by being able to read.
+  depotBroadcastRead: ['STAFF_DEPOT', 'KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — a courier records empties taken back at the customer's door.
   // Narrower than returnsWrite: the refund amount is derived server-side from the
   // depot's deposit rate, never supplied by the courier.

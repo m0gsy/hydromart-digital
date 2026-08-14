@@ -81,6 +81,11 @@ export const canViewReturns = (role: string | null | undefined) => can('returnsR
 export const canWriteReturns = (role: string | null | undefined) => can('returnsWrite', role);
 export const canViewCampaigns = (role: string | null | undefined) => can('campaignRead', role);
 export const canManageCampaigns = (role: string | null | undefined) => can('campaignWrite', role);
+// Promotions are their own capability now, not CRM campaigns: /dashboard/promotions gated
+// on campaignRead (marketing-only) while promo-service answered a different list entirely,
+// and the depot operator — whose shell carries a Promo tab — failed both.
+export const canViewPromotions = (role: string | null | undefined) => can('promotionRead', role);
+export const canManagePromotions = (role: string | null | undefined) => can('promotionWrite', role);
 export const canViewVouchers = (role: string | null | undefined) => can('voucherRead', role);
 export const canManageVouchers = (role: string | null | undefined) => can('voucherWrite', role);
 export const canManageDepots = (role: string | null | undefined) => can('depotAdmin', role);

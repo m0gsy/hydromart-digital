@@ -383,12 +383,23 @@ function DepotsBody() {
   const { t } = useT();
   const { customer } = useAuth();
   const canWrite = canManageDepots(customer?.role);
+  // `GET /depots/manage` lists the WHOLE network including inactive depots, so it stays
+  // depotAdmin. A read-only caller (the depot operator, whose shell carries this tab) reads
+  // exactly one record instead: their own. Widening the network list to reach the tab would
+  // have handed every operator every depot's address and bank details.
+  const ownDepotId = customer?.assignedDepotId ?? null;
   const [editing, setEditing] = useState<DepotAdmin | null | 'new'>(null);
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const [detail, setDetail] = useState<DepotAdmin | null>(null);
   const [view, setView] = useState<'list' | 'map'>('list');
-  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
-  const items = list.data?.items ?? [];
+  const list = useAsync<Page<DepotAdmin> | DepotAdmin>(() =>
+    canWrite
+      ? api.getCached(endpoints.depots.manage({ limit: 100 }), true)
+      : ownDepotId
+        ? api.getCached(endpoints.depots.manageDetail(ownDepotId), true)
+        : Promise.resolve({ items: [], total: 0, page: 1, limit: 0 } as Page<DepotAdmin>),
+  );
+  const items = list.data ? ('items' in list.data ? list.data.items : [list.data]) : [];
 
   function closeForm() {
     setEditing(null);

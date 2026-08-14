@@ -40,7 +40,7 @@ export class BroadcastController {
   // Courier inbox: broadcasts for the courier's depot with per-courier read flags. The
   // courier passes their own assigned depot; broadcasts are low-sensitivity ops notices.
   @ApiOkResponse({ type: BroadcastDto, isArray: true })
-  @Roles(Role.STAFF_DEPOT)
+  @Can('depotBroadcastRead')
   @Get()
   @ApiOperation({ summary: "List a depot's broadcasts for the current courier" })
   async list(

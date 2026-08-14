@@ -255,6 +255,7 @@ export const hq = {
       courierReturn: 'Doorstep gallon returns',
       expenseApprove: 'Approve expense claims',
       depotBroadcast: 'Broadcast to couriers',
+      depotBroadcastRead: 'Read depot broadcasts',
       depotCampaign: "Blast the depot's own customers",
       depotCrm: 'Depot customer CRM',
       incidents: 'Operational incidents',

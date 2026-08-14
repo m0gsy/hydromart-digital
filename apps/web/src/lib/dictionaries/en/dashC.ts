@@ -151,6 +151,7 @@ export const dashC = {
       courierSettle: 'Courier COD deposits',
       expenseApprove: 'Approve expense claims',
       depotBroadcast: 'Broadcast to couriers',
+      depotBroadcastRead: 'Read depot broadcasts',
       courierReturn: 'Collect empty gallons (courier)',
       depotCrm: 'Customer directory (CRM)',
       incidents: 'Operational incidents',

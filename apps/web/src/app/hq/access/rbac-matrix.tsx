@@ -69,7 +69,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
   },
   {
     key: 'courier',
-    caps: ['courierPayout', 'courierSettle', 'courierReturn', 'expenseApprove', 'depotBroadcast'],
+    caps: ['courierPayout', 'courierSettle', 'courierReturn', 'expenseApprove', 'depotBroadcast', 'depotBroadcastRead'],
   },
   {
     key: 'depotTeam',
