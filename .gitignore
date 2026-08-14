@@ -83,3 +83,4 @@ cov-*.txt
 next-start.log
 export-*.txt
 tap-*.txt
+export-sweep-*.txt
