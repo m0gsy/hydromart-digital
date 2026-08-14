@@ -82,3 +82,4 @@ verify-*.txt
 cov-*.txt
 next-start.log
 export-*.txt
+tap-*.txt
