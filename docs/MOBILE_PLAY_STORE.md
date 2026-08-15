@@ -425,6 +425,12 @@ Tidak satu pun bisa diselesaikan dari repo ini.
       satu per `package_name`, lalu commit + deploy web. Berkas itu dilayani aplikasi web
       sendiri, jadi tidak ada perubahan Caddy atau env. **Bukan** sidik jari keystore
       upload — Play menandatangani ulang setiap AAB
+- [ ] **SEMUA** sertifikat App signing, bukan yang pertama saja. Play memegang kunci
+      klasik dan kunci pasca-kuantum berdampingan, dan verifikasi bisa memeriksa yang mana
+      pun. `id.hydromart.ops` sempat terkirim satu rilis penuh hanya dengan satu dari tiga,
+      ditambah kunci upload yang justru dilarang di atas — dan tidak ada apa pun yang
+      berbunyi, karena App Links gagal terbuka: tautan diam-diam tetap membuka browser.
+      `scripts/check-assetlinks.mjs` kini menolak keduanya di CI
 - [ ] Cek `curl -s https://<WEB_DOMAIN>/.well-known/assetlinks.json`
 - [ ] Di perangkat uji: `adb shell pm verify-app-links --re-verify id.hydromart.app`,
       karena Android menyimpan hasil verifikasinya
