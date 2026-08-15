@@ -147,6 +147,10 @@ const READ = `(() => {
     width: document.documentElement.clientWidth,
     over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     chars: (document.body.innerText || '').trim().length,
+    // \`ErrorState\` marks itself; see components/ui.tsx. A screen that failed to load has a
+    // heading, a paragraph and a button, so counting characters calls it content and passes it.
+    errored: !!document.querySelector('[data-state="error"]'),
+    text: (document.body.innerText || '').trim().replace(/\\s+/g, ' '),
     bare,
     custom: {
       top: cs.getPropertyValue('--safe-area-inset-top').trim(),
@@ -239,20 +243,39 @@ adb('shell', 'monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1
 await sleep(6000);
 
 const findings = [];
+/**
+ * Sign in ONCE for the whole run, not once per width.
+ *
+ * `POST /auth/login` is rate-limited to one OTP per phone per minute, so a login at every
+ * width fails four times out of five with "Please wait 59s before requesting another code" —
+ * and every route after it is then measured signed out, which is the exact failure this run
+ * exists to avoid. The session survives the width changes for two reasons: the tokens live in
+ * the Android Keystore rather than in the page, and `MainActivity` declares `screenSize` and
+ * `density` in `configChanges`, so `wm size` does not restart the Activity or the WebView.
+ *
+ * It is re-armed when a route bounces to `/login`, so an expiry mid-run costs one width's
+ * worth of readings rather than the rest of the sweep.
+ */
+let signedIn = false;
+/** Rendered text -> the first route that produced it, per width. See the duplicate check below. */
+let textSeen = new Map();
 try {
   // px === dp, so a 320 here is the 320 the CSS sees.
   adb('shell', 'wm', 'density', '160');
   for (const width of WIDTHS) {
     adb('shell', 'wm', 'size', `${width}x800`);
     await sleep(2500);
+    // Per width: the same route legitimately reads the same at 390 and 412dp.
+    textSeen = new Map();
     const conn = cdp(await devtoolsUrl());
     await conn.ready;
     await conn.send('Runtime.enable');
     await skipOnboarding(conn);
-    if (loginPhone) {
+    if (loginPhone && !signedIn) {
       const failed = await login(conn, loginPhone, loginOtp);
       console.log(`  login ${loginPhone}: ${failed ?? 'ok'}`);
       if (failed) findings.push(`login at ${width}dp: ${failed}`);
+      signedIn = !failed;
     }
     for (const route of routes) {
       // The APK loads from a file/asset origin, so a route is a path under it; navigating by
@@ -263,11 +286,30 @@ try {
       // `location.assign` destroys the execution context, so the read has to wait for the new
       // one AND be prepared to find it not ready: the first attempt after a navigation
       // routinely comes back `undefined` rather than throwing.
+      //
+      // Taking the FIRST readable answer is not enough, and that is worth spelling out: a
+      // client-fetched screen is readable the moment the shell paints, several seconds before
+      // its data lands. Read that instant and `/orders/` measures 0 characters and no overflow —
+      // a screen that looks broken and, worse, a width that looks safe because nothing was on it
+      // yet. So keep reading until the same non-trivial length comes back twice, and keep the
+      // last answer either way, so a screen that really is empty still reports as empty.
+      //
+      // THREE equal readings, not two. Two was not enough and the miss is instructive:
+      // `/account/` settled at 33 characters — the avatar and the name — while the menu
+      // beneath it was still arriving, because two consecutive polls happened to land inside
+      // the same half-rendered moment. A screen measured half-rendered can hide an overflow
+      // that only the finished layout has, which is the one thing these widths exist to find.
       let v = null;
-      for (let attempt = 0; attempt < 6 && !v; attempt++) {
-        await sleep(1500);
+      let previousChars = -1;
+      let stable = 0;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await sleep(1200);
         const res = await conn.send('Runtime.evaluate', { expression: READ, returnByValue: true });
-        if (typeof res.result?.value === 'string') v = JSON.parse(res.result.value);
+        if (typeof res.result?.value !== 'string') continue;
+        v = JSON.parse(res.result.value);
+        stable = v.chars === previousChars ? stable + 1 : 0;
+        if (v.chars >= 20 && stable >= 2) break;
+        previousChars = v.chars;
       }
       if (!v) {
         console.log(`${String(width).padStart(4)} ${route.padEnd(24)} (no read)`);
@@ -281,10 +323,31 @@ try {
       console.log(line);
       if (v.over > 0) findings.push(`${route} at ${width}dp: ${v.over}px overflow`);
       if (v.chars < 20) findings.push(`${route} at ${width}dp: rendered ${v.chars} chars`);
+      if (v.errored)
+        findings.push(`${route} at ${width}dp: error state — "${v.text.slice(0, 60)}"`);
+      // Where it ACTUALLY ended up. A route that redirects was not measured, and saying so is
+      // more use than the duplicate-text line it would otherwise produce: `/driver/shift/check-in/`
+      // sends a courier who is already on shift to `/driver/`, which is correct behaviour and a
+      // reading that does not exist. Reported either way — an unmeasured route is not a pass.
+      const asked = route.split('?')[0];
+      const landed = v.path?.endsWith('/') ? v.path : `${v.path}/`;
+      if (landed !== asked) {
+        findings.push(`${route} at ${width}dp: redirected to ${landed} — not measured`);
+      } else {
+        // Two different routes rendering the same words is always wrong, whatever the reason —
+        // a shared failure card, an SPA fallback serving one document, a nav that never moved.
+        // One map catches the whole class, including the ones nobody predicted.
+        const seenAt = textSeen.get(v.text);
+        if (seenAt && seenAt !== route)
+          findings.push(`${route} at ${width}dp: identical text to ${seenAt}`);
+        else textSeen.set(v.text, route);
+      }
       // A route that answered from `/login` was measured without its data, which is the one
       // thing this run exists to avoid — so it counts, rather than passing quietly.
-      if (loginPhone && /^\/(login|verify)/.test(v.path ?? ''))
+      if (loginPhone && /^\/(login|verify)/.test(v.path ?? '')) {
         findings.push(`${route} at ${width}dp: bounced to ${v.path} — measured with no data`);
+        signedIn = false;
+      }
     }
     conn.close();
   }
