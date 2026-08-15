@@ -104,12 +104,25 @@ export function onPluginEvent(
   event: string,
   handler: (payload: never) => void,
 ): () => void {
+  type Handle = { remove?: () => void };
   const target = bridge()?.Plugins?.[plugin] as
-    | { addListener?: (e: string, h: (p: never) => void) => Promise<{ remove: () => void }> }
+    // Both shapes, because the bridge really returns both: `@capacitor/app` hands back a
+    // plain `PluginListenerHandle` from the native proxy, while other plugins return a
+    // promise for one. Typing it as only the promise is what hid the bug below.
+    | { addListener?: (e: string, h: (p: never) => void) => Handle | Promise<Handle> }
     | undefined;
   if (typeof target?.addListener !== 'function') return () => {};
   const handle = target.addListener(event, handler);
   return () => {
-    void handle.then((h) => h.remove()).catch(() => {});
+    // `Promise.resolve(handle)`, not `handle.then(...)`. When `addListener` returns a plain
+    // handle, `.then` does not exist and the cleanup throws `TypeError: u.then is not a
+    // function` — inside a `useEffect` teardown in the ROOT layout (`native-bridge.tsx`
+    // registers the back-button listener there), so React had no boundary below it and the
+    // whole app fell to `global-error`: the "Ada yang tidak beres" screen, on any route,
+    // whenever that effect happened to tear down. `callPlugin` twenty lines up already
+    // wraps its call in `Promise.resolve` for the same reason; this one was missed.
+    void Promise.resolve(handle)
+      .then((h) => h?.remove?.())
+      .catch(() => {});
   };
 }

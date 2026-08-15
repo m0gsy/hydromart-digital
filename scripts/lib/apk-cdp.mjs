@@ -107,9 +107,12 @@ export function cdp(url) {
         // A `location.assign` destroys the execution context that owed us this reply, and
         // then nothing ever answers: the process ends on "unsettled top-level await" with no
         // output at all. A lost reply has to look like `undefined`, not like a hang.
+        // NOT unref'd: an unref'd timer lets node exit the moment the socket dies, which
+        // turns the lost reply back into the same "unsettled top-level await" it was added
+        // to prevent — just faster.
         setTimeout(() => {
           if (pending.delete(id)) resolve({});
-        }, 20_000).unref?.();
+        }, 8_000);
         ws.send(JSON.stringify({ id, method, params }));
       });
     },
