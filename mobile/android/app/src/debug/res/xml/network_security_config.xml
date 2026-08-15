@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug source set only — `bundleRelease` never sees this file, so nothing here can reach Play.
+
+  A debug APK exists to be pointed at a developer's own stack, and `api.ts` falls back to
+  `http://localhost:8080` when `NEXT_PUBLIC_API_URL` is unset. Android refuses that before any
+  browser rule applies: the main manifest sets `usesCleartextTraffic="false"` and every request
+  dies as `net::ERR_CLEARTEXT_NOT_PERMITTED` — which reads on screen as "Cannot reach the
+  server", i.e. exactly like a stack that is down. It is not the WebView's mixed-content check
+  (that one does exempt loopback), it is the platform's, and it fires first.
+
+  Scoped to the three names that can only mean "this machine": `localhost` (what `adb reverse`
+  makes the host's port look like from inside the device) and the emulator's own aliases. Anything
+  else stays https-only even in debug, so a debug build still cannot silently talk to a staging
+  box in the clear.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
