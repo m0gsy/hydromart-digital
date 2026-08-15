@@ -8,6 +8,7 @@ import { OfflineQueueBanner } from '@/components/offline-queue-banner';
 import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { currentPosition, GeoError } from '@/lib/geo';
 import { fmtTime, type Attendance } from '@/lib/hr';
 import { runOrQueue } from '@/lib/offline-queue';
 
@@ -24,17 +25,17 @@ function getPosition(messages: {
   noGps: string;
   allowGps: string;
 }): Promise<{ lat: number; lng: number }> {
-  return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error(messages.noGps));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => reject(new Error(messages.allowGps)),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
-    );
-  });
+  // Through the shared `currentPosition`: it falls back to the coarse provider, which is the
+  // only one an employee who granted "Perkiraan" (Android 12+) has. A precise-only request
+  // on that phone times out and the employee is told to grant an already-granted permission
+  // — a check-in they cannot complete because of a message that is not true.
+  return currentPosition().then(
+    (pos) => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    (err: unknown) => {
+      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      throw new Error(reason === 'unsupported' ? messages.noGps : messages.allowGps);
+    },
+  );
 }
 
 export default function MeCheckInPage() {

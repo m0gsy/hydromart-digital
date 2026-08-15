@@ -63,21 +63,41 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
       setGeoError(true);
       return;
     }
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setGeoError(false);
-        const { latitude, longitude } = pos.coords;
-        setDistanceKm(haversineKm(latitude, longitude, destinationLat, destinationLng));
-        const now = Date.now();
-        if (shouldPing(lastPingAt.current, now)) {
-          lastPingAt.current = now;
-          // Fire-and-forget: a dropped ping just means the map is a few seconds stale.
-          void api.post(endpoints.deliveries.driver.location(deliveryId), { lat: latitude, lng: longitude }, true).catch(() => {});
-        }
-      },
-      () => setGeoError(true),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
-    );
+    // A watch, so `currentPosition` (single-shot) is not the shared helper to reuse here —
+    // but the same fallback is: a courier who granted "Perkiraan" (Android 12+) holds
+    // COARSE only, and a precise-only watch on that phone never produces a fix. Giving up
+    // on the first error left the delivery screen with no distance and no pings for the
+    // whole trip. So: downgrade once, then stay.
+    let watchId: number;
+    let downgraded = false;
+    const start = (high: boolean) =>
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          setGeoError(false);
+          const { latitude, longitude } = pos.coords;
+          setDistanceKm(haversineKm(latitude, longitude, destinationLat, destinationLng));
+          const now = Date.now();
+          if (shouldPing(lastPingAt.current, now)) {
+            lastPingAt.current = now;
+            // Fire-and-forget: a dropped ping just means the map is a few seconds stale.
+            void api.post(endpoints.deliveries.driver.location(deliveryId), { lat: latitude, lng: longitude }, true).catch(() => {});
+          }
+        },
+        (err) => {
+          // A refusal cannot be retried into a yes; anything else gets the coarse provider.
+          if (!downgraded && err.code !== err.PERMISSION_DENIED) {
+            downgraded = true;
+            navigator.geolocation.clearWatch(watchId);
+            watchId = start(false);
+            return;
+          }
+          setGeoError(true);
+        },
+        high
+          ? { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+          : { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 },
+      );
+    watchId = start(true);
     return () => navigator.geolocation.clearWatch(watchId);
   }, [deliveryId, destinationLat, destinationLng]);
 
