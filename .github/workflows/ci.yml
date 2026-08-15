@@ -187,6 +187,13 @@ jobs:
       - name: Safe-area insets are WebView-safe
         run: node scripts/check-safe-area.mjs
 
+      # App Links fail OPEN: a wrong or missing signing certificate means links quietly keep
+      # opening in the browser, with no error in the app, the build or Play. The ops binary
+      # shipped a whole release listing the upload key and only one of its three Play
+      # certificates, and nothing anywhere said so.
+      - name: App Links certificates can actually verify
+        run: node scripts/check-assetlinks.mjs
+
       # A new CREATE INDEX in a migration locks writes on that table for the whole build.
       # This fails the PR unless the index also has a CONCURRENTLY build in
       # scripts/create-indexes.sh, which is what production runs first (audit H-39).
