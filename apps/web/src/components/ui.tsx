@@ -130,11 +130,7 @@ export function Card({
 }) {
   return (
     <div
-      className={cx(
-        'surface rounded-2xl border border-app',
-        elevated && 'shadow-card',
-        className,
-      )}
+      className={cx('surface rounded-2xl border border-app', elevated && 'shadow-card', className)}
     >
       {children}
     </div>
@@ -238,9 +234,7 @@ export function RadioCard({
       className={cx(
         'flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
-        selected
-          ? 'border-brand-600 bg-brand-50'
-          : 'border-app hover:border-brand-400',
+        selected ? 'border-brand-600 bg-brand-50' : 'border-app hover:border-brand-400',
         className,
       )}
     >
@@ -402,14 +396,21 @@ export function Spinner({ size = 20 }: { size?: number }) {
       aria-hidden="true"
     >
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 /* ---------- State blocks ---------- */
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx('animate-pulse rounded-lg bg-[color:var(--surface-muted)]', className)} />;
+  return (
+    <div className={cx('animate-pulse rounded-lg bg-[color:var(--surface-muted)]', className)} />
+  );
 }
 
 export function CenterState({
@@ -417,14 +418,28 @@ export function CenterState({
   title,
   children,
   action,
+  state,
 }: {
   icon?: ReactNode;
   title: string;
   children?: ReactNode;
   action?: ReactNode;
+  /**
+   * What this block MEANS, for anything reading the DOM rather than looking at it.
+   *
+   * A screen that failed to load renders here, and from the outside it is indistinguishable
+   * from a screen that loaded fine: it has a heading, a paragraph and a button, so a harness
+   * counting characters calls it content and passes. That is not hypothetical — the APK sweep
+   * passed eight signed-out screens that way, every one of them showing "Missing bearer token".
+   * Matching the copy instead would tie the check to one language and break on the next reword.
+   */
+  state?: 'error';
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+    <div
+      data-state={state}
+      className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center"
+    >
       {icon && <div className="text-brand-500">{icon}</div>}
       <h2 className="text-lg font-semibold">{title}</h2>
       {children && <p className="max-w-sm text-sm text-muted">{children}</p>}
@@ -437,6 +452,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   const { t } = useT();
   return (
     <CenterState
+      state="error"
       title={t('common.somethingWrong')}
       action={
         onRetry ? (
