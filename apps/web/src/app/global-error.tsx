@@ -8,12 +8,27 @@ import { callPlugin } from '@/lib/capacitor';
 // Tailwind/layout chrome may be unavailable — so it renders its own <html>/<body>
 // with inline styles. Keep it dependency-free.
 export default function GlobalError({
-  error: _error,
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // The error used to be received and discarded (`error: _error`). That is why this screen
+  // has been unexplainable on a real device: a Play build has no WebView debugging, Capacitor
+  // writes no console to logcat in release, and this boundary — the only thing that ever held
+  // the error — dropped it. So it is both logged (for any build that CAN read a console) and
+  // printed on the screen (for the build a user is actually holding, where a screenshot is
+  // the only channel there is).
+  useEffect(() => {
+    console.error('[global-error]', error);
+  }, [error]);
+
+  // `digest` is a production build's stable fingerprint for the error; `message` is minified
+  // but still names the React error number, which is enough to look up.
+  const detail = [error?.name, error?.message, error?.digest && `digest ${error.digest}`]
+    .filter(Boolean)
+    .join(' · ');
   // E1. On native the splash is dismissed by JS and by nothing else
   // (`launchAutoHide: false`), and its only caller lives inside the root layout — the
   // very thing that just failed. Rendering this screen therefore has to hide the splash
@@ -51,6 +66,20 @@ export default function GlobalError({
           <p style={{ color: '#64757c', marginBottom: '1rem' }}>
             Aplikasi gagal dimuat. Silakan coba lagi.
           </p>
+          {detail && (
+            <p
+              style={{
+                color: '#8a979c',
+                marginBottom: '1rem',
+                fontFamily: 'ui-monospace, Menlo, monospace',
+                fontSize: '0.75rem',
+                lineHeight: 1.5,
+                wordBreak: 'break-word',
+              }}
+            >
+              {detail}
+            </p>
+          )}
           <button
             onClick={reset}
             style={{
