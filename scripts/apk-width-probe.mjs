@@ -55,6 +55,29 @@ const adb = (...args) => execFileSync(ADB, args, { encoding: 'utf8' }).trim();
 /** Widths the app is held at, in dp. Density is pinned to 160 so px === dp. */
 const WIDTHS = [320, 360, 390, 412, 428];
 
+/**
+ * Ask the bundle for the FILE, not the route — `/login/` becomes `/login/index.html`.
+ *
+ * Capacitor's local server runs with `server.html5mode` on (it defaults to true and nothing
+ * here turns it off), and its SPA fallback fires for any request whose last path segment has
+ * no dot in it: `WebViewLocalServer.handleLocalRequest` serves `index.html` and leaves the URL
+ * alone. So a navigation to `/login/` inside the APK answers with the HOME document while
+ * `location.pathname` still reads `/login/` — which is exactly the reading that was mistaken
+ * for a stale install: fifteen routes, one document, ~300 chars each, no login form anywhere.
+ * It reproduces on a freshly built bundle that demonstrably contains `login/index.html`.
+ *
+ * This costs the app nothing in practice — every real navigation is a client-side router push
+ * (deep links included, `resolveDeepLink` hands the router a path), and Capacitor reloads
+ * `appUrl` rather than the last URL after a process death, so no user ever issues one of these.
+ * A probe does, and naming the file is the whole fix: a segment with a dot skips the fallback.
+ */
+function asFile(route) {
+  const [path, query] = route.split('?');
+  const suffix = query ? `?${query}` : '';
+  if (path === '/' || path.endsWith('.html')) return route;
+  return `${path.endsWith('/') ? path : `${path}/`}index.html${suffix}`;
+}
+
 async function devtoolsUrl() {
   const pid = adb('shell', 'pidof', appId);
   if (!pid) throw new Error(`${appId} is not running`);
@@ -119,7 +142,8 @@ const READ = `(() => {
   const bare = { top: p.paddingTop, bottom: p.paddingBottom, left: p.paddingLeft, right: p.paddingRight };
   probe.remove();
   return JSON.stringify({
-    path: location.pathname,
+    // The route, not the file it was fetched as — see \`asFile\`.
+    path: location.pathname.replace(/index\\.html$/, ''),
     width: document.documentElement.clientWidth,
     over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     chars: (document.body.innerText || '').trim().length,
@@ -193,7 +217,7 @@ async function skipOnboarding(conn) {
 }
 
 async function login(conn, phone, otp) {
-  await evaluate(conn, `location.assign('/login/')`);
+  await evaluate(conn, `location.assign(${JSON.stringify(asFile('/login/'))})`);
   if (!(await until(conn, (p) => p.startsWith('/login')))) return 'never reached /login';
   // The document exists well before React has hydrated it, so the field is waited for rather
   // than asked about once — a single miss here reads as "this screen has no login form".
@@ -234,7 +258,7 @@ try {
       // The APK loads from a file/asset origin, so a route is a path under it; navigating by
       // `location.assign` keeps whatever origin the WebView already has.
       await conn.send('Runtime.evaluate', {
-        expression: `location.assign(${JSON.stringify(route)})`,
+        expression: `location.assign(${JSON.stringify(asFile(route))})`,
       });
       // `location.assign` destroys the execution context, so the read has to wait for the new
       // one AND be prepared to find it not ready: the first attempt after a navigation
