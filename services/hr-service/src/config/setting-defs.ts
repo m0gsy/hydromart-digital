@@ -211,6 +211,14 @@ export const SETTING_DEFS: SettingDef[] = [
    * Shape: {"A":[{"upToIdr":5400000,"rate":0},…],"B":[…],"C":[…]} with the top band of each
    * category open-ended (`upToIdr: null`). `assertTerTable` refuses anything partial,
    * unsorted, or with a percentage typed as a whole number.
+   *
+   * `reference/pph21-ter-pmk-168-2023.json` holds the regulation's own three tables in
+   * exactly that shape — 44, 40 and 41 bands — ready to paste into this setting. It is a
+   * reference, NOT a default: nothing loads it, and until somebody pastes it deliberately
+   * the annualised method keeps running. `test/unit/ter-table-reference.spec.ts` proves the
+   * file is shaped the way the loader above demands, which is the failure that would
+   * otherwise show up as a single ignored log line and a payroll run that quietly used the
+   * other method.
    */
   {
     key: 'pph21TerTableJson',
