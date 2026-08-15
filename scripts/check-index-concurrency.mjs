@@ -86,6 +86,53 @@ if (buildAt === -1) {
   );
 }
 
+/**
+ * The other half, learned from a deploy that refused: a migration may not ADD a column and
+ * index that same column. `create-indexes.sh` runs BEFORE migrations, so the concurrent
+ * build it is meant to do would hit a column that does not exist yet —
+ *
+ *     FAILED: ERROR: column "customerId" does not exist
+ *     FAILED - refusing to let the migration build it under a lock
+ *
+ * - and the guard above then refuses to let the migration build it under a lock instead.
+ * Both are correct; the ordering was what was wrong. A new column takes three releases: the
+ * column, then its index, then the code that reads it.
+ */
+/**
+ * Its own cutoff, later than the one above: `crm-service/20260813120000_campaign_scheduled_for`
+ * already does this and is already on production. Rewriting history would not un-apply it,
+ * and failing the build over a migration nobody can change teaches nothing. This guards the
+ * NEXT one.
+ */
+const COLUMN_INDEX_CUTOFF = '20260815100000';
+
+for (const svc of readdirSync('services')) {
+  const dir = join('services', svc, 'prisma', 'migrations');
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    continue;
+  }
+  for (const name of entries) {
+    if (name < COLUMN_INDEX_CUTOFF) continue;
+    const file = join(dir, name, 'migration.sql');
+    if (!existsSync(file)) continue;
+    const sql = readFileSync(file, 'utf8');
+    const added = [...sql.matchAll(/ADD COLUMN\s+"?([A-Za-z0-9_]+)"?/gi)].map((m) => m[1]);
+    if (!added.length) continue;
+    for (const m of sql.matchAll(/CREATE INDEX[^;]*/gi)) {
+      const clash = added.find((c) => m[0].includes(`"${c}"`));
+      if (clash)
+        problems.push(
+          `${svc}/${name}: adds column "${clash}" AND indexes it in the same migration - ` +
+            'an index cannot be pre-built concurrently on a column that does not exist yet. ' +
+            'Ship the column first and its index in the next release.',
+        );
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('Index-build check FAILED:');
   for (const p of problems) console.error(`  - ${p}`);

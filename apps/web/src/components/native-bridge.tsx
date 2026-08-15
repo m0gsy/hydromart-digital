@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
 import { resolveDeepLink } from '@/lib/deep-link';
+import { persistSafeAreaInsets } from '@/lib/safe-area-persist';
 import { isNativeShell, openExternal } from '@/lib/platform';
 
 /**
@@ -64,6 +65,12 @@ export function NativeBridge() {
   // this. A ref rather than the state value for exactly that reason.
   const blockedRef = useRef(false);
   const router = useRouter();
+
+  // The native safe-area values do not survive a navigation in an exported build — see
+  // `safe-area-persist.ts`. Re-applied before anything renders that depends on them.
+  useEffect(() => {
+    persistSafeAreaInsets();
+  }, []);
 
   useEffect(() => {
     if (!isNativeShell()) return;
