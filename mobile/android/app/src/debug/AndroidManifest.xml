@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only overlay. The release manifest is `src/main/AndroidManifest.xml` and is unchanged;
+  this file is merged into debug variants alone, so nothing it says can ship.
+
+  On Android 7.0+ a Network Security Configuration supersedes `usesCleartextTraffic`, which is
+  why the `false` in the main manifest needs no `tools:replace` — see the config itself for what
+  it permits and why.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>
