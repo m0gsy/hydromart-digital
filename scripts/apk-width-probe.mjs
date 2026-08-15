@@ -61,10 +61,12 @@ async function devtoolsUrl() {
   adb('forward', 'tcp:9222', `localabstract:webview_devtools_remote_${pid}`);
   for (let i = 0; i < 20; i++) {
     try {
-      // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
       // Plain HTTP on purpose and unavoidable: this is the Chrome DevTools socket that `adb
       // forward` exposes on loopback. It serves HTTP only, it is reachable from this machine
       // alone, and it carries no credential — the alternative is not measuring inside the APK.
+      // The marker has to sit on the line directly above the finding; a comment in between
+      // silently detaches it, which is how this rule stayed red for four commits.
+      // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
       const list = await fetch('http://127.0.0.1:9222/json/list').then((r) => r.json());
       const page = list.find((t) => t.type === 'page' && t.webSocketDebuggerUrl);
       if (page) return page.webSocketDebuggerUrl;
