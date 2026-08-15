@@ -20,14 +20,37 @@
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const appId = process.argv[2];
+const argv = process.argv.slice(2);
+/** `--login <phone>` signs in through the UI first, so the routes measured have data on them. */
+const flag = (name) => {
+  const i = argv.indexOf(name);
+  if (i === -1) return null;
+  const value = argv[i + 1] ?? null;
+  argv.splice(i, value === null ? 1 : 2);
+  return value;
+};
+const loginPhone = flag('--login');
+const loginOtp = flag('--otp') ?? '424242';
+
+const appId = argv[0];
 if (!appId) {
-  console.error('usage: node scripts/apk-width-probe.mjs <appId> [route ...]');
+  console.error(
+    'usage: node scripts/apk-width-probe.mjs <appId> [--login <phone>] [--otp <code>] [route ...]',
+  );
   process.exit(2);
 }
-const routes = process.argv.slice(3).length ? process.argv.slice(3) : ['/', '/products/'];
+const routes = argv.slice(1).length ? argv.slice(1) : ['/', '/products/'];
 
-const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8' }).trim();
+/**
+ * `adb` is rarely on PATH — and a Git Bash PATH reaches node on Windows colon-separated,
+ * which resolves nothing. `ANDROID_HOME` is the variable the SDK already sets.
+ */
+const ADB = process.env.ADB
+  ? process.env.ADB
+  : process.env.ANDROID_HOME
+    ? `${process.env.ANDROID_HOME.replace(/[\\/]+$/, '')}/platform-tools/adb`
+    : 'adb';
+const adb = (...args) => execFileSync(ADB, args, { encoding: 'utf8' }).trim();
 
 /** Widths the app is held at, in dp. Density is pinned to 160 so px === dp. */
 const WIDTHS = [320, 360, 390, 412, 428];
@@ -94,6 +117,7 @@ const READ = `(() => {
   const bare = { top: p.paddingTop, bottom: p.paddingBottom, left: p.paddingLeft, right: p.paddingRight };
   probe.remove();
   return JSON.stringify({
+    path: location.pathname,
     width: document.documentElement.clientWidth,
     over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     chars: (document.body.innerText || '').trim().length,
@@ -104,6 +128,82 @@ const READ = `(() => {
     },
   });
 })()`;
+
+/**
+ * A React-controlled input ignores `el.value = x` — React overwrites it on the next render.
+ * The native setter plus a bubbling `input` event is what its `onChange` actually listens to.
+ */
+const TYPE = (selector, value) => `(() => {
+  const el = document.querySelector(${JSON.stringify(selector)});
+  if (!el) return 'no-element';
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    .call(el, ${JSON.stringify(value)});
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  return 'ok';
+})()`;
+
+const evaluate = async (conn, expression) =>
+  (await conn.send('Runtime.evaluate', { expression, returnByValue: true })).result?.value;
+
+/** Wait for a field to exist, then set it. */
+async function fill(conn, selector, value, tries = 15) {
+  for (let i = 0; i < tries; i++) {
+    if ((await evaluate(conn, TYPE(selector, value))) === 'ok') return true;
+    await sleep(1000);
+  }
+  return false;
+}
+
+/** Poll `location.pathname` — a navigation here is a whole new document, not a router push. */
+async function until(conn, test, tries = 20) {
+  for (let i = 0; i < tries; i++) {
+    const p = await evaluate(conn, 'location.pathname');
+    if (typeof p === 'string' && test(p)) return p;
+    await sleep(1000);
+  }
+  return null;
+}
+
+/**
+ * Sign in the way a person does: the phone screen, then the OTP screen.
+ *
+ * Not by injecting a token. On native the tokens live in the Android Keystore
+ * (`token-store.ts`), so there is no storage for a probe to write — and driving the real
+ * screens is the only version of this that also proves login itself works inside the APK.
+ *
+ * Returns null on success, or the reason it stopped.
+ */
+/**
+ * Dismiss the first-run onboarding. On a fresh install it is a modal over EVERY route, so
+ * without this the probe measures the same three slides 15 times and no form is reachable —
+ * which is exactly what the first run of this looked like. The web sweeps set the same keys.
+ */
+async function skipOnboarding(conn) {
+  await evaluate(
+    conn,
+    `(() => {
+      localStorage.setItem('hydromart.onboarded', '1');
+      localStorage.setItem('hydromart_driver_onboarded', '1');
+      localStorage.setItem('hydromart.locale', 'id');
+      return 'ok';
+    })()`,
+  );
+}
+
+async function login(conn, phone, otp) {
+  await evaluate(conn, `location.assign('/login/')`);
+  if (!(await until(conn, (p) => p.startsWith('/login')))) return 'never reached /login';
+  // The document exists well before React has hydrated it, so the field is waited for rather
+  // than asked about once — a single miss here reads as "this screen has no login form".
+  if (!(await fill(conn, '#phone', phone))) return 'no phone field';
+  await evaluate(conn, `document.querySelector('#phone').closest('form').requestSubmit()`);
+  if (!(await until(conn, (p) => p.startsWith('/verify')))) return 'OTP was never requested';
+  // One box takes the whole code: `otp-input.tsx` spreads the digits across the rest and
+  // fires `onComplete`, the same path a paste takes.
+  if (!(await fill(conn, 'input[inputmode="numeric"]', otp))) return 'no OTP field';
+  const landed = await until(conn, (p) => !p.startsWith('/verify') && !p.startsWith('/login'), 25);
+  return landed ? null : 'OTP was not accepted';
+}
 
 const originalSize = adb('shell', 'wm', 'size');
 const originalDensity = adb('shell', 'wm', 'density');
@@ -122,6 +222,12 @@ try {
     const conn = cdp(await devtoolsUrl());
     await conn.ready;
     await conn.send('Runtime.enable');
+    await skipOnboarding(conn);
+    if (loginPhone) {
+      const failed = await login(conn, loginPhone, loginOtp);
+      console.log(`  login ${loginPhone}: ${failed ?? 'ok'}`);
+      if (failed) findings.push(`login at ${width}dp: ${failed}`);
+    }
     for (const route of routes) {
       // The APK loads from a file/asset origin, so a route is a path under it; navigating by
       // `location.assign` keeps whatever origin the WebView already has.
@@ -149,6 +255,10 @@ try {
       console.log(line);
       if (v.over > 0) findings.push(`${route} at ${width}dp: ${v.over}px overflow`);
       if (v.chars < 20) findings.push(`${route} at ${width}dp: rendered ${v.chars} chars`);
+      // A route that answered from `/login` was measured without its data, which is the one
+      // thing this run exists to avoid — so it counts, rather than passing quietly.
+      if (loginPhone && /^\/(login|verify)/.test(v.path ?? ''))
+        findings.push(`${route} at ${width}dp: bounced to ${v.path} — measured with no data`);
     }
     conn.close();
   }
