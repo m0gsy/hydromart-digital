@@ -19,10 +19,10 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import {
   adb,
   adbTry,
-  asFile,
   cdp,
   devtoolsUrl,
   evaluate,
+  goto,
   login,
   skipOnboarding,
   TYPE,
@@ -95,7 +95,7 @@ function imeAdjustMode() {
 }
 
 async function go(conn, route) {
-  await evaluate(conn, `location.assign(${JSON.stringify(asFile(route))})`);
+  await goto(conn, route);
   const landed = await until(conn, (p) => p.replace(/index\.html$/, '') === route.split('?')[0], 15);
   // Give the client fetch its turn; every screen here paints its shell first.
   await sleep(3500);

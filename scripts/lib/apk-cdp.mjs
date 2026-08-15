@@ -47,12 +47,53 @@ export const adbTry = (...args) => {
  * (deep links included, `resolveDeepLink` hands the router a path), and Capacitor reloads
  * `appUrl` rather than the last URL after a process death, so no user ever issues one of these.
  * A probe does, and naming the file is the whole fix: a segment with a dot skips the fallback.
+ *
+ * Naming the file is only HALF the fix, and the other half is `goto()` below. See its comment:
+ * the document is right, the pathname the app then reads is not.
  */
 export function asFile(route) {
   const [path, query] = route.split('?');
   const suffix = query ? `?${query}` : '';
   if (path === '/' || path.endsWith('.html')) return route;
   return `${path.endsWith('/') ? path : `${path}/`}index.html${suffix}`;
+}
+
+/** `/products/index.html` -> `/products/`. The route the file was prerendered for. */
+export function routePathname(pathname) {
+  return pathname.endsWith('/index.html')
+    ? pathname.slice(0, -'index.html'.length)
+    : pathname;
+}
+
+/**
+ * Runs in every new document BEFORE its bundle, so `usePathname()` never sees the file name.
+ *
+ * `asFile()` fetches the right document and leaves `location.pathname` reading
+ * `/products/index.html`. Nothing in the app normalises that: `screen-chrome.ts` looks the
+ * path up in its route table, misses, and calls the screen `pushed` — so the client renders a
+ * back chevron and no tab bar over static HTML that was prerendered as `root`, with a search
+ * bar and a tab bar. React 19 calls that an HTML hydration mismatch (error #418), throws away
+ * the server tree and rebuilds the whole root on the client.
+ *
+ * That is the ~10 #418s per probe run, measured and then measured away on an emulator: 0 on
+ * the launch document `/`, 2 per `…/index.html` load, 0 again with this installed. No user
+ * ever loads one of those URLs, so this was never an app bug — it was the probe changing what
+ * it was measuring. Every reading taken through `asFile()` before this was taken on the wrong
+ * chrome, after a full client re-render that also wiped the plugin's `--safe-area-inset-*`
+ * off `<html>`.
+ */
+export const PATH_FIX = `if (location.pathname.endsWith('/index.html')) history.replaceState(history.state, '', location.pathname.slice(0, -'index.html'.length) + location.search + location.hash);`;
+
+const patched = new WeakSet();
+
+/** Navigate to a route the way a probe has to, without lying to the app about where it is. */
+export async function goto(conn, route) {
+  if (!patched.has(conn)) {
+    patched.add(conn);
+    await conn.send('Page.enable');
+    await conn.send('Page.addScriptToEvaluateOnNewDocument', { source: PATH_FIX });
+  }
+  await evaluate(conn, `location.assign(${JSON.stringify(asFile(route))})`);
 }
 
 export async function devtoolsUrl(appId) {
@@ -188,7 +229,7 @@ export async function skipOnboarding(conn) {
  * Returns null on success, or the reason it stopped.
  */
 export async function login(conn, phone, otp) {
-  await evaluate(conn, `location.assign(${JSON.stringify(asFile('/login/'))})`);
+  await goto(conn, '/login/');
   if (!(await until(conn, (p) => p.startsWith('/login')))) return 'never reached /login';
   // The document exists well before React has hydrated it, so the field is waited for rather
   // than asked about once — a single miss here reads as "this screen has no login form".

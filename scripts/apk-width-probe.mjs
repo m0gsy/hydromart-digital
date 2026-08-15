@@ -19,7 +19,7 @@
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { adb, asFile, cdp, devtoolsUrl, login, skipOnboarding } from './lib/apk-cdp.mjs';
+import { adb, cdp, devtoolsUrl, goto, login, skipOnboarding } from './lib/apk-cdp.mjs';
 
 const argv = process.argv.slice(2);
 /** `--login <phone>` signs in through the UI first, so the routes measured have data on them. */
@@ -117,10 +117,10 @@ try {
     }
     for (const route of routes) {
       // The APK loads from a file/asset origin, so a route is a path under it; navigating by
-      // `location.assign` keeps whatever origin the WebView already has.
-      await conn.send('Runtime.evaluate', {
-        expression: `location.assign(${JSON.stringify(asFile(route))})`,
-      });
+      // `location.assign` keeps whatever origin the WebView already has. `goto` also stops the
+      // file name from reaching `usePathname()`, which used to make every screen measured here
+      // render its `pushed` chrome instead of its own — see `goto` in lib/apk-cdp.mjs.
+      await goto(conn, route);
       // `location.assign` destroys the execution context, so the read has to wait for the new
       // one AND be prepared to find it not ready: the first attempt after a navigation
       // routinely comes back `undefined` rather than throwing.
