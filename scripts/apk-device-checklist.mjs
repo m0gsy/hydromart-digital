@@ -301,9 +301,18 @@ async function item10(conn, routes) {
         el.scrollIntoView({ block: 'center' });
         const r = el.getBoundingClientRect();
         const d = window.devicePixelRatio;
+        // What is actually ON TOP at the point about to be tapped. A tap that lands on a
+        // sticky header, a toast or a transition wrapper focuses nothing, the IME never
+        // opens, and the run reports "keyboard never came up" — which reads like a device
+        // fact and is really a miss. Naming the element turns one into the other.
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return JSON.stringify({
           x: Math.round((r.left + r.width / 2) * d),
           y: Math.round((r.top + r.height / 2 + window.screenY) * d),
+          onTop: hit === el ? 'the element itself'
+            : hit ? hit.tagName.toLowerCase() + '.' + String(hit.className || '').slice(0, 40)
+            : '(nothing)',
+          rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
         }); })()`,
     );
     if (where === 'no-element') {
@@ -311,8 +320,10 @@ async function item10(conn, routes) {
       ok = false;
       continue;
     }
-    const { x, y } = JSON.parse(where);
-    evidence.push(`${route}: tapping ${selector} at screen ${x},${y}`);
+    const { x, y, onTop, rect } = JSON.parse(where);
+    evidence.push(
+      `${route}: tapping ${selector} at screen ${x},${y} · css rect [${rect}] · on top: ${onTop}`,
+    );
     // Before, so "the keyboard did not cover anything" can be told apart from "the viewport
     // never changed and the test could not have failed". `adjustResize` shrinks the window;
     // if neither number moves, nothing was actually measured.
@@ -503,8 +514,49 @@ if (want(10)) {
     // `/login` while believing it is `/verify` is worse than not measuring at all.
     return (await evaluate(c, 'location.pathname')).startsWith('/verify') ? landed : null;
   };
+  /**
+   * `/checkout` is the other screen the plan names, and it has no text field at all in the
+   * state a returning customer arrives in: the address form is HIDDEN while a saved address
+   * is selected, and one is selected for them automatically. So the probe reported "no
+   * element" and measured nothing — which reads like a missing screen and is really a
+   * customer with an address book. `+ Alamat baru` is what a person taps to type one — and
+   * it is two taps down, because the screen is a stepper whose sections start collapsed.
+   */
+  const toCheckout = async (c) => {
+    const landed = await go(c, '/checkout/');
+    console.log(`  /checkout/ landed=${landed}`);
+    if (!landed) return null;
+    // Polled, not asked once: this screen waits on the cart, the address book and a price
+    // quote before it draws anything, and a single look lands on the skeleton.
+    const tap = async (label) => {
+      for (let i = 0; i < 12; i++) {
+        const hit = await evaluate(
+          c,
+          `(() => {
+            const b = [...document.querySelectorAll('button')].find((x) => ${label}.test((x.textContent || '').trim()));
+            if (!b) return 'miss';
+            b.click();
+            return 'ok';
+          })()`,
+        );
+        if (hit === 'ok') return 'ok';
+        await sleep(1500);
+      }
+      return 'miss';
+    };
+    // The section, then the control inside it. Both are buttons; only the second one exists
+    // before the first has been pressed.
+    const section = await tap('/^Alamat pengiriman/i');
+    await sleep(1200);
+    const opened = section === 'ok' ? await tap('/Alamat baru/i') : 'section never opened';
+    console.log(`  /checkout/ address section: ${section} · new-address button: ${opened}`);
+    await sleep(1500);
+    return opened === 'ok' ? landed : null;
+  };
+
   const routes = [['/login/', '#phone']];
   if (flag('--verify')) routes.push(['/verify/', 'input[inputmode="numeric"]', toVerify]);
+  if (flag('--checkout')) routes.push(['/checkout/', '#recipientName', toCheckout]);
   for (const r of argv.slice(1)) routes.push([r, 'input:not([type=hidden]), textarea']);
   await item10(conn, routes);
 }
