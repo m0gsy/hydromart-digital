@@ -60,9 +60,11 @@ describe('home product rail', () => {
     const img = await screen.findByRole('img', { name: 'Galon 19L' });
     expect(img.getAttribute('src')).toBe('https://cdn.test/galon.jpg');
     // One call for the whole rail, not one per card.
-    const batchCalls = getCached.mock.calls.filter((c) => String(c[0]).includes('/products/batch'));
-    expect(batchCalls).toHaveLength(1);
-    expect(String(batchCalls[0][0])).toContain('ids=p-1');
+    const batchPaths = getCached.mock.calls
+      .map((c) => String(c[0]))
+      .filter((path) => path.includes('/products/batch'));
+    expect(batchPaths).toHaveLength(1);
+    expect(batchPaths.join('')).toContain('ids=p-1');
   });
 
   // The photos are a nicety; the rail is the feature. A catalogue that will not answer
