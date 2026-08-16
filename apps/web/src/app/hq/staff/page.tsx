@@ -88,6 +88,9 @@ export default function HqStaffPage() {
   const { t } = useT();
   // Deleting is SUPER_ADMIN-only; head office sees every other control on the row.
   const { customer } = useAuth();
+  // Every write on this page — invite, import, depot move, enable/disable — is gated
+  // `staffAdmin` server-side, which this console's DIREKTUR does not hold.
+  const canAdminStaff = can('staffAdmin', customer?.role);
   const [roleFilter, setRoleFilter] = useState('');
 
   const list = useAsync<Page<Customer>>(
@@ -133,11 +136,15 @@ export default function HqStaffPage() {
         icon={UserGear}
         title={t('hq.staff.title')}
         subtitle={t('hq.staff.subtitle')}
-        action={
-          <>
-            <StaffInvite onSaved={reloadAll} />
-          </>
-        }
+        /*
+         * Every write on this page needs `staffAdmin` (invite, import, depot move, enable
+         * / disable — account.controller gates all four), and this console admits DIREKTUR
+         * as well, who does not hold it. Only the delete button was ever guarded, so a
+         * DIREKTUR could open the depot picker, confirm the dialog, and collect a 403 the
+         * screen never warned them about. Guarded once, here and at each control, rather
+         * than per-symptom.
+         */
+        action={canAdminStaff ? <StaffInvite onSaved={reloadAll} /> : null}
       />
 
       {/* Role filter chips */}
@@ -190,12 +197,12 @@ export default function HqStaffPage() {
                     </a>
                   )}
                 </div>
-                <DepotPicker staff={s} depots={depots} onMoved={reloadAll} />
+                {canAdminStaff && <DepotPicker staff={s} depots={depots} onMoved={reloadAll} />}
                 <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
                 <Badge tone={active ? 'success' : 'neutral'}>
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>
-                <ActiveToggle staff={s} onChanged={reloadAll} />
+                {canAdminStaff && <ActiveToggle staff={s} onChanged={reloadAll} />}
                 {can('staffDelete', customer?.role) && (
                   <DeleteStaff staff={s} onDeleted={reloadAll} />
                 )}
