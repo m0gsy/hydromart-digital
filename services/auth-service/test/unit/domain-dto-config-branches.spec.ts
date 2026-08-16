@@ -90,14 +90,12 @@ describe('AuthConfigService getters', () => {
     expect(config.storageLocalDir).toBe('./var/uploads');
     expect(config.storagePublicBaseUrl).toBe('http://localhost:3001');
     expect(config.storageDriver).toBe('local');
-    expect(config.googleClientId).toBeUndefined();
   });
 
   it('strips a trailing slash from the public base url and reads s3 config', () => {
     const config = buildTestConfig({
       STORAGE_PUBLIC_BASE_URL: 'https://cdn.example//',
       STORAGE_DRIVER: 's3',
-      GOOGLE_OAUTH_CLIENT_ID: 'client-123',
       STORAGE_S3_ENDPOINT: 'https://nos.example',
       STORAGE_S3_BUCKET: 'bucket',
       STORAGE_S3_ACCESS_KEY_ID: 'ak',
@@ -105,7 +103,6 @@ describe('AuthConfigService getters', () => {
     });
     expect(config.storagePublicBaseUrl).toBe('https://cdn.example');
     expect(config.storageDriver).toBe('s3');
-    expect(config.googleClientId).toBe('client-123');
     expect(config.s3).toMatchObject({ endpoint: 'https://nos.example', region: 'auto', bucket: 'bucket' });
   });
 });

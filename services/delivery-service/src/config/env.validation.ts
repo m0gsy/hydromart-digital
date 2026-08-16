@@ -60,9 +60,9 @@ export const envValidationSchema = Joi.object({
   // Flat per-delivery commission paid to couriers from depot cash (design 11c). A pay/
   // display figure only; the default fills it, so no compose change is needed.
   COURIER_RATE_PER_DELIVERY_IDR: Joi.number().integer().positive().default(12000),
-  // UU PDP retention window for proof-of-delivery data (photo/signature/name/GPS).
-  // The scheduler purges rows older than this daily; the storage bucket must carry
-  // a matching lifecycle rule to expire the image files.
+  // (The PoD retention window used to be declared here. admin-service owns the retention
+  // policy now and sends the cutoff — see `purgeProofsOlderThan`. The comment outlived its
+  // key and sat above the next one, describing something this file no longer reads.)
   // Root dir the local-disk storage adapter writes uploads under (dev). Ignored
   // once a cloud storage adapter is wired.
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),

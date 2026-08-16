@@ -92,7 +92,6 @@ export const envValidationSchema = Joi.object({
   ZENZIVA_USERKEY: Joi.string().allow('').optional(),
   ZENZIVA_PASSKEY: Joi.string().allow('').optional(),
 
-  GOOGLE_OAUTH_CLIENT_ID: Joi.string().allow('').optional(),
 
   // Root dir the local-disk storage adapter writes avatar images under (dev).
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),

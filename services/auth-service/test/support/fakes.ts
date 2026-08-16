@@ -16,7 +16,6 @@ import {
   CreateCustomerData,
   CustomerRepository,
 } from '../../src/application/ports/customer.repository';
-import { GoogleIdentity, GoogleVerifierPort } from '../../src/application/ports/google-verifier.port';
 import { OtpDeliveryPort, OtpMessage } from '../../src/application/ports/otp-delivery.port';
 import {
   CreateOtpTokenData,
@@ -101,20 +100,6 @@ export class FakeOtpDelivery implements OtpDeliveryPort {
 export class FakeAccessTokenSigner implements AccessTokenSignerPort {
   async sign(claims: AccessTokenClaims): Promise<SignedAccessToken> {
     return { token: `access:${claims.sub}`, expiresIn: 900 };
-  }
-}
-
-export class FakeGoogleVerifier implements GoogleVerifierPort {
-  public identity: GoogleIdentity | null = null;
-  public error: Error | null = null;
-  async verify(_idToken: string): Promise<GoogleIdentity> {
-    if (this.error) {
-      throw this.error;
-    }
-    if (!this.identity) {
-      throw new Error('no identity configured');
-    }
-    return this.identity;
   }
 }
 

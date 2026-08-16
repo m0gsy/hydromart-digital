@@ -1,0 +1,43 @@
+# Uploads that actually work on a laptop.
+#
+# The dev stack points object storage at `STORAGE_S3_ENDPOINT=https://dummy.local`, so every
+# upload — a PoD photo, an avatar, a product image, an HR document — answers 503 after a ten
+# second timeout ("Penyimpanan foto sedang tidak tersedia"). That is correct for a machine
+# with no bucket, and it is invisible until you try: proving the offline proof-of-delivery
+# queue took a full afternoon partly because the last leg failed for this reason and not the
+# one under test.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.local-storage.yml up -d
+#
+# Deliberately an overlay file rather than `STORAGE_DRIVER=local` in `.env`:
+#
+#   * `.env` is the one file a deploy reads on the box, and a line left in it there sends
+#     every upload to a container filesystem no service mounts a volume for — destroyed by
+#     the next `up -d`, with a URL that serves nothing. `throwaway_storage_driver()` in
+#     `scripts/lib/deploy-common.sh` shouts about exactly that, and it reads `.env`. An
+#     overlay cannot reach production, so it cannot be forgotten into it.
+#   * It names the six services one at a time, so adding a seventh upload surface makes
+#     itself known here instead of quietly inheriting a setting.
+#
+# Files land under `STORAGE_LOCAL_DIR` (default `./var/uploads`) INSIDE each container and go
+# away with it. That is the point: this is for seeing an upload succeed, not for keeping one.
+services:
+  auth:
+    environment:
+      STORAGE_DRIVER: local
+  customer:
+    environment:
+      STORAGE_DRIVER: local
+  product:
+    environment:
+      STORAGE_DRIVER: local
+  delivery:
+    environment:
+      STORAGE_DRIVER: local
+  depot:
+    environment:
+      STORAGE_DRIVER: local
+  hr:
+    environment:
+      STORAGE_DRIVER: local
