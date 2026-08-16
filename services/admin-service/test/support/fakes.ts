@@ -41,6 +41,7 @@ import {
 } from '../../src/application/ports/scheduled-report.repository';
 import {
   ListSupportTicketsFilter,
+  CreateSupportTicketData,
   SupportTicketRecord,
   SupportTicketRepository,
 } from '../../src/application/ports/support-ticket.repository';
@@ -375,6 +376,32 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
 
 export class InMemorySupportTicketRepository implements SupportTicketRepository {
   rows: SupportTicketRecord[] = [];
+
+  async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
+    const id = randomUUID();
+    const row: SupportTicketRecord = {
+      id,
+      subject: data.subject,
+      customerRef: data.customerRef,
+      customerPhone: data.customerPhone,
+      orderRef: data.orderRef ?? null,
+      priority: data.priority ?? TicketPriority.MEDIUM,
+      status: TicketStatus.OPEN,
+      assigneeId: null,
+      createdAt: nextDate(),
+      messages: [
+        {
+          id: randomUUID(),
+          ticketId: id,
+          authorType: TicketAuthorType.CUSTOMER,
+          body: data.body,
+          createdAt: nextDate(),
+        },
+      ],
+    };
+    this.rows.push(row);
+    return { ...row, messages: [...row.messages] };
+  }
 
   async list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]> {
     let items = [...this.rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

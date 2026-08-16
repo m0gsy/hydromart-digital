@@ -37,6 +37,7 @@ import {
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentsForOrdersDto,
+  RefundCountsQueryDto,
   PaymentWebhookDto,
   RefundPaymentDto,
   StaffInitiatePaymentDto,
@@ -49,6 +50,7 @@ import {
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
   PaymentResponseDto,
+  RefundCountsResponseDto,
   UnsettledMethodAggregateResponseDto,
   Webhook3ResponseDto,
 } from './dto/responses.generated.dto';
@@ -177,6 +179,31 @@ export class PaymentController {
   @ApiOperation({ summary: 'Payments recorded against a set of orders (depot reconciliation)' })
   listForOrders(@Body() dto: PaymentsForOrdersDto): Promise<PaymentRecord[]> {
     return this.payments.listForOrders(dto.orderIds);
+  }
+
+  /*
+   * Fraud scan (15b): customers with repeated settled refunds in a window.
+   *
+   * Internal-key — the caller is admin-service's scheduled scan, which holds no token. It
+   * asks for a THRESHOLD rather than a list, so the answer is a review queue and never a
+   * customer export. Declared before ':id'.
+   */
+  @ApiOkResponse({ type: RefundCountsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/refund-counts')
+  @ApiOperation({ summary: 'Customers with repeated refunds in a window (internal service auth)' })
+  async refundCounts(
+    @Query() query: RefundCountsQueryDto,
+  ): Promise<{ customers: { customerId: string; refunds: number; amountIdr: number }[] }> {
+    return {
+      customers: await this.payments.refundCountsByCustomer(
+        new Date(query.from),
+        new Date(query.to),
+        query.minRefunds,
+      ),
+    };
   }
 
   @ApiOkResponse({ type: PagedPaymentResponseDto })

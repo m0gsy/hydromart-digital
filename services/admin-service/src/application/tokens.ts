@@ -10,6 +10,7 @@ export const ADMIN_TOKENS = {
   ReportSource: Symbol('ReportSource'),
   SupportTicketRepository: Symbol('SupportTicketRepository'),
   FraudFlagRepository: Symbol('FraudFlagRepository'),
+  FraudSignals: Symbol('FraudSignals'),
   IncidentRepository: Symbol('IncidentRepository'),
   SlaPolicyRepository: Symbol('SlaPolicyRepository'),
   RetentionRepository: Symbol('RetentionRepository'),

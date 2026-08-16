@@ -77,10 +77,8 @@ export const dashA = {
     activityForSuffix: '(dari switcher).',
     all: 'Semua',
     category: {
-      OPNAME: 'Opname',
-      RECEIPT: 'Penerimaan',
       HARGA: 'Harga',
-      SETORAN: 'Setoran',
+      REFUND: 'Pengembalian dana',
       STAF: 'Staf',
     },
     noDepotTitle: 'Belum ada depot',

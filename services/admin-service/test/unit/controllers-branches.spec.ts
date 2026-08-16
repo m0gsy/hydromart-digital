@@ -16,6 +16,7 @@ import { WebhooksController } from '../../src/modules/webhooks.controller';
 import { ApiKeyService } from '../../src/application/services/api-key.service';
 import { ExportLogService } from '../../src/application/services/export-log.service';
 import { FraudFlagService } from '../../src/application/services/fraud-flag.service';
+import { FraudScanService } from '../../src/application/services/fraud-scan.service';
 import { IncidentService } from '../../src/application/services/incident.service';
 import { AdminNotificationPrefService } from '../../src/application/services/admin-notification-pref.service';
 import { OnboardingStateService } from '../../src/application/services/onboarding-state.service';
@@ -197,8 +198,22 @@ describe('FraudFlagsController', () => {
     clear: jest.fn(),
     ingest: jest.fn(),
   };
-  const controller = new FraudFlagsController(fraud as unknown as FraudFlagService);
+  const scanner = { run: jest.fn() };
+  const controller = new FraudFlagsController(
+    fraud as unknown as FraudFlagService,
+    scanner as unknown as FraudScanService,
+  );
   beforeEach(() => jest.clearAllMocks());
+
+  // The scan route exists so the scheduler can fire it; the controller's only job is to
+  // hand back what the scan reports, including that it could not read anything.
+  it('scan forwards the scanner result verbatim', async () => {
+    const result = { scanned: 2, flagged: 1, skipped: 1, unavailable: false };
+    scanner.run.mockResolvedValue(result);
+    expect(await controller.scan()).toBe(result);
+    // Called with no argument: the scan decides its own window from `now`.
+    expect(scanner.run).toHaveBeenCalledWith();
+  });
 
   it('list forwards level/status filters', async () => {
     fraud.list.mockResolvedValue([makeFraudFlag()]);

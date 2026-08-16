@@ -66,6 +66,10 @@ admin: {
     },
     // (get removed, audit F: the ticket list carries the whole ticket, and reply/assign/
     // resolve act on it by id. No screen opens one on its own.)
+    // Staff open a ticket on a customer's behalf — a complaint taken at the counter or on
+    // the phone. Until this shipped, `/hq/tickets` could reply/assign/resolve a queue that
+    // nothing could add to.
+    create: '/admin/api/v1/tickets',
     reply: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/reply`,
     assign: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/assign`,
     resolve: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/resolve`,

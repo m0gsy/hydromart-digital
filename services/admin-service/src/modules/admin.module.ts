@@ -19,6 +19,7 @@ import { ScheduledReportService } from '../application/services/scheduled-report
 import { ScheduledReportRunnerService } from '../application/services/scheduled-report-runner.service';
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import { FraudFlagService } from '../application/services/fraud-flag.service';
+import { FraudScanService } from '../application/services/fraud-scan.service';
 import { IncidentService } from '../application/services/incident.service';
 import { SlaPolicyService } from '../application/services/sla-policy.service';
 import { RetentionService } from '../application/services/retention.service';
@@ -36,6 +37,7 @@ import { ScheduledReportPrismaRepository } from '../infrastructure/prisma/schedu
 import { ReportSourceHttpAdapter } from '../infrastructure/http/report-source.http.adapter';
 import { SupportTicketPrismaRepository } from '../infrastructure/prisma/support-ticket.prisma.repository';
 import { FraudFlagPrismaRepository } from '../infrastructure/prisma/fraud-flag.prisma.repository';
+import { FraudSignalsHttpAdapter } from '../infrastructure/http/fraud-signals.http.adapter';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { SlaPolicyPrismaRepository } from '../infrastructure/prisma/sla-policy.prisma.repository';
 import { RetentionPrismaRepository } from '../infrastructure/prisma/retention.prisma.repository';
@@ -78,6 +80,7 @@ const providers: Provider[] = [
   ScheduledReportRunnerService,
   SupportTicketService,
   FraudFlagService,
+  FraudScanService,
   IncidentService,
   SlaPolicyService,
   RetentionService,
@@ -98,6 +101,7 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.ReportSource, useClass: ReportSourceHttpAdapter },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
+  { provide: ADMIN_TOKENS.FraudSignals, useClass: FraudSignalsHttpAdapter },
   { provide: ADMIN_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: ADMIN_TOKENS.SlaPolicyRepository, useClass: SlaPolicyPrismaRepository },
   { provide: ADMIN_TOKENS.RetentionRepository, useClass: RetentionPrismaRepository },

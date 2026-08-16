@@ -57,6 +57,23 @@ describe('PaymentService', () => {
     expect(spy).toHaveBeenCalledWith([orderId]);
   });
 
+  /*
+   * Fraud scan (15b). The floor of two is here and not in the DTO on purpose: a caller
+   * asking for "customers with 1 or more refunds" is asking for a customer list, and this
+   * route answers a review queue.
+   */
+  it('never reports below two refunds, however low the caller asks', async () => {
+    const spy = jest.spyOn(repo, 'refundCountsByCustomer').mockResolvedValue([]);
+    const from = new Date('2026-07-01');
+    const to = new Date('2026-08-01');
+
+    await service.refundCountsByCustomer(from, to, 1);
+    expect(spy).toHaveBeenCalledWith(from, to, 2);
+
+    await service.refundCountsByCustomer(from, to, 5);
+    expect(spy).toHaveBeenLastCalledWith(from, to, 5);
+  });
+
   it('initiates an online payment with a gateway charge and reference', async () => {
     const payment = await initiate(PaymentMethod.VA);
     expect(payment.status).toBe(PaymentStatus.PENDING);

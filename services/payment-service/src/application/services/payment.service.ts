@@ -180,6 +180,20 @@ export class PaymentService {
   }
 
   /**
+   * Customers with `minRefunds` or more settled refunds in a window (fraud scan, 15b).
+   *
+   * The bound is on the ANSWER, not on the query: a network-wide scan is the point, and
+   * the filter is what keeps the result a review queue rather than a customer list.
+   */
+  async refundCountsByCustomer(
+    from: Date,
+    to: Date,
+    minRefunds: number,
+  ): Promise<{ customerId: string; refunds: number; amountIdr: number }[]> {
+    return this.payments.refundCountsByCustomer(from, to, Math.max(2, minRefunds));
+  }
+
+  /**
    * The payments recorded against a set of orders — the depot reconciliation read.
    *
    * Duplicate ids are collapsed so a caller cannot spend its bound twice on one order; the
@@ -482,7 +496,21 @@ export class PaymentService {
         actorId: changedBy || null,
         target: payment.reference ?? payment.id,
         success,
-        metadata: { ...metadata, paymentId: payment.id, orderId: payment.orderId },
+        /*
+         * `depotId` is what the depot-scoped audit view (design 8b) filters on, and without
+         * it every refund was HQ-only: a depot could not see a refund taken against its own
+         * sale. ponytail: `payment.depotId` is set for counter sales only (see the schema
+         * note on the column), so a refund on a DELIVERY order still reaches this trail
+         * with a null depot and stays visible to head office alone. Fixing that means
+         * asking order-service for the order's depot on the refund path — a round trip on
+         * a money path, for a filter.
+         */
+        metadata: {
+          ...metadata,
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          depotId: payment.depotId,
+        },
       },
       this.logger,
     );

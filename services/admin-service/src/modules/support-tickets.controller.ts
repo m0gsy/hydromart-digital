@@ -6,6 +6,7 @@ import { Can } from '@hydromart/platform';
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import {
   AssignTicketDto,
+  CreateTicketDto,
   ReplyTicketDto,
   SupportTicketDto,
   SupportTicketQueryDto,
@@ -26,6 +27,21 @@ export class SupportTicketsController {
   async list(@Query() query: SupportTicketQueryDto): Promise<SupportTicketDto[]> {
     const rows = await this.tickets.list({ status: query.status, priority: query.priority });
     return rows.map(SupportTicketDto.from);
+  }
+
+  /*
+   * Audit: this route did not exist. `/hq/tickets` could list, reply, assign and resolve,
+   * and nothing anywhere could open a ticket — the table only ever held rows put there by
+   * hand, so every one of those verbs acted on a queue that could not grow.
+   *
+   * Staff-raised, on a customer's behalf: the console is where a complaint taken at the
+   * counter or on the phone enters the system. Declared before ':id' so the static wins.
+   */
+  @ApiOkResponse({ type: SupportTicketDto })
+  @Post()
+  @ApiOperation({ summary: 'Open a support ticket on a customer behalf (15a)' })
+  async create(@Body() dto: CreateTicketDto): Promise<SupportTicketDto> {
+    return SupportTicketDto.from(await this.tickets.create(dto));
   }
 
   @ApiOkResponse({ type: SupportTicketDto })

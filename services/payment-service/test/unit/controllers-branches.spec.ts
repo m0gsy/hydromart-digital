@@ -21,6 +21,7 @@ describe('PaymentController', () => {
     listForCustomer: jest.fn(),
     listAll: jest.fn(),
     listForOrders: jest.fn(),
+    refundCountsByCustomer: jest.fn(),
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
@@ -80,6 +81,23 @@ describe('PaymentController', () => {
   it('listForOrders forwards the id set from the body', async () => {
     expect(await controller.listForOrders({ orderIds: ['o1', 'o2'] })).toBe('RESULT');
     expect(svc.listForOrders).toHaveBeenCalledWith(['o1', 'o2']);
+  });
+
+  it('refundCounts maps the ISO window to Dates and wraps the rows', async () => {
+    svc.refundCountsByCustomer.mockResolvedValueOnce([
+      { customerId: 'c1', refunds: 4, amountIdr: 240000 },
+    ]);
+    const out = await controller.refundCounts({
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-08-01T00:00:00.000Z',
+      minRefunds: 3,
+    });
+    expect(svc.refundCountsByCustomer).toHaveBeenCalledWith(
+      new Date('2026-07-01T00:00:00.000Z'),
+      new Date('2026-08-01T00:00:00.000Z'),
+      3,
+    );
+    expect(out).toEqual({ customers: [{ customerId: 'c1', refunds: 4, amountIdr: 240000 }] });
   });
 
   it('unsettledByMethod maps a present from/to window to Dates', async () => {

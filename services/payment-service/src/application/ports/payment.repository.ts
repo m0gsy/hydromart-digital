@@ -102,6 +102,16 @@ export interface PaymentRepository {
    * already read under its own depot scope instead, and this answers for exactly those.
    */
   findByOrderIds(orderIds: string[]): Promise<PaymentRecord[]>;
+/**
+ * Customers with repeated refunds in a window — the one fraud signal this platform can
+ * already answer without interpretation. A refund is a settled fact with a timestamp and an
+ * owner; nothing has to be guessed about intent to count them.
+ */
+  refundCountsByCustomer(
+    from: Date,
+    to: Date,
+    minRefunds: number,
+  ): Promise<{ customerId: string; refunds: number; amountIdr: number }[]>;
   /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
   listPendingRefunds(query: { page: number; limit: number }): Promise<{
     items: PaymentRecord[];

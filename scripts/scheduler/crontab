@@ -37,3 +37,10 @@
 # a single missed tick costs a whole day; the sweep is idempotent — it stamps nextRunAt, so
 # an extra tick finds nothing due. Offset off the hour so it does not pile onto :00.
 17 * * * * sh /scripts/sweep.sh scheduled-reports/internal/run-due admin:3017
+
+# Fraud scan (15b): customers with repeated settled refunds over the configured window.
+# Daily, not hourly — the window is 30 days, so an hourly sweep would re-read the same
+# month 24 times to find the same people. It raises REVIEW items only; nothing it does
+# blocks an account, and a case a human already has open is skipped rather than duplicated.
+# 04:10 UTC = 11:10 WIB, after the depots have opened and before HQ reviews the morning.
+10 4 * * * sh /scripts/sweep.sh fraud-flags/internal/scan admin:3017
