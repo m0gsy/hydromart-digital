@@ -106,6 +106,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   DELIVERY_URBAN_SPEED_KMPH: Joi.number().positive().default(18),
+  DELIVERY_ROUTE_STOP_MINUTES: Joi.number().min(0).default(4),
   // Q-6: shipped to every service by docker-compose's x-shared, and until now
   // validated by none of them. The capability poller reads it; unset, it fails open
   // and every service silently enforces the compiled RBAC defaults forever — which

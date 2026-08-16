@@ -512,7 +512,6 @@ services:
       <<: *shared
       PAYOUT_SERVICE_PORT: 3016
       PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
-      PAYOUT_COMMISSION_RATE: ${PAYOUT_COMMISSION_RATE:-0.05}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3016/api/v1/health"]
       interval: 30s

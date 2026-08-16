@@ -27,7 +27,10 @@ export const courierFix = {
   route: {
     title: 'Rute multi-stop',
     sorted: 'Diurutkan',
-    summary: '{stops} stop · {km} km · ± {min} mnt',
+    summary: '{stops} stop · {km} km',
+    // Appended only once the depot's ETA settings have loaded — the alternative was
+    // rendering the word "null" where a number belongs.
+    summaryEta: ' · ± {min} mnt',
     next: 'Berikutnya',
     cod: 'COD {amount}',
     paid: 'Lunas',

@@ -50,10 +50,6 @@ export class PayoutConfigService {
   get businessTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
-  /** HQ commission rate on gross sales (reporting only), default 5%. */
-  get commissionRate(): number {
-    return Number(this.config.get<string>('PAYOUT_COMMISSION_RATE', '0.05'));
-  }
   /** Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer). */
   expenseAutoApproveMaxIdr(depotId: string | null = null): number {
     return this.tunable(

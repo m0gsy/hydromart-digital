@@ -123,6 +123,17 @@ export class DeliveryConfigService {
       depotId,
     );
   }
+  /**
+   * Minutes spent at each drop, for the multi-stop route ETA. Paired with
+   * `urbanSpeedKmph`: riding time comes from the speed, standing time from this.
+   */
+  routeStopMinutes(depotId: string | null = null): number {
+    return this.tunable(
+      'routeStopMinutes',
+      Number(this.config.get('DELIVERY_ROUTE_STOP_MINUTES', 4)),
+      depotId,
+    );
+  }
   /** Weekly delivered-orders target on the courier performance card (design 4c). */
   courierWeeklyTarget(depotId: string | null = null): number {
     return this.tunable('courierWeeklyTarget', this.num('COURIER_WEEKLY_TARGET'), depotId);

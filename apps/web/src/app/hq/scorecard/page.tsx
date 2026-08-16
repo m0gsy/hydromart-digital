@@ -9,6 +9,7 @@ import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import { useAsync } from '@/lib/use-async';
 import type { NetworkDashboard } from '@/lib/types';
 
@@ -18,18 +19,27 @@ function range30(): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-// Design 22c — depot scorecard. Composite = 70% revenue + 30% SLA, both real from
-// the network roll-up (order-service revenue + delivery-service per-depot SLA).
+// Design 22c — depot scorecard. Composite = revenue and SLA, both real from the network
+// roll-up (order-service revenue + delivery-service per-depot SLA), weighted by
+// `scorecardRevenueWeightPct` from payout's settings. The weights used to be `0.7` and
+// `0.3` written here — two literals deciding where each franchisee sits in a league table,
+// changeable only by a deploy. One setting now, GLOBAL, and the SLA half is the remainder
+// so the pair can never stop summing to 100.
 export default function HqScorecardPage() {
   const { t } = useT();
   const range = useMemo(range30, []);
   const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
+  // No depot id: the weighting is head office's, and the setting is global-only.
+  const settings = useAsync<SettingsSchema>(() => fetchSettingsSchema('/payout/api/v1', null), []);
 
-  if (dash.loading) return <Skeleton className="h-96 w-full" />;
+  if (dash.loading || settings.loading) return <Skeleton className="h-96 w-full" />;
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
+  if (settings.error) return <ErrorState message={settings.error} onRetry={settings.reload} />;
 
   const items = dash.data?.depots ?? [];
   const maxRevenue = Math.max(1, ...items.map((d) => d.revenue ?? 0));
+  const revenueWeight = Number(settings.data?.effective?.scorecardRevenueWeightPct ?? 70) / 100;
+  const slaWeight = 1 - revenueWeight;
 
   const ranked = items
     .map((d) => {
@@ -41,7 +51,7 @@ export default function HqScorecardPage() {
        * league table for a limit in the report, and the row said "Rp 0" to back it up.
        */
       const score =
-        d.revenue != null ? (d.revenue / maxRevenue) * 0.7 + sla * 0.3 : sla;
+        d.revenue != null ? (d.revenue / maxRevenue) * revenueWeight + sla * slaWeight : sla;
       return {
         depotId: d.depotId,
         name: d.name,
