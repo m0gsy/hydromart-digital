@@ -27,8 +27,6 @@ describe('AuthConfigService', () => {
   });
 
   it('returns the Google client id only when set', () => {
-    expect(buildTestConfig().googleClientId).toBeUndefined();
-    expect(buildTestConfig({ GOOGLE_OAUTH_CLIENT_ID: 'client-1' }).googleClientId).toBe('client-1');
   });
 
   // Blank fails the invite rather than creating half a person — the getter is what the

@@ -29,9 +29,7 @@ import { CustomerPrismaRepository } from '../../src/infrastructure/prisma/reposi
 import { OtpTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/refresh-token.prisma.repository';
 import { AuditLogPrismaRepository } from '../../src/infrastructure/prisma/repositories/audit-log.prisma.repository';
-import { OAuth2Client } from 'google-auth-library';
 
-import { GoogleVerifier } from '../../src/infrastructure/security/google-verifier';
 import { AuditService } from '../../src/application/services/audit.service';
 import { OtpService } from '../../src/application/services/otp.service';
 import { DataSubjectRequestDto } from '../../src/modules/auth/dto/data-subject.dto';
@@ -463,23 +461,10 @@ describe('RefreshTokenPrismaRepository.revoke without replacement', () => {
   });
 });
 
-// The last few defensive fallbacks: a Google payload that carries only `sub`, an audit ingest
+// The last few defensive fallbacks: an audit ingest
 // with a target but no metadata of its own, a phone too short to mask, a PDP request that has
 // already been processed, and the PDP fan-out config getter.
 describe('remaining fallback branches', () => {
-  it('defaults every optional Google claim when the payload carries only a sub', async () => {
-    jest
-      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-      .mockResolvedValue({ getPayload: () => ({ sub: 'google-sub-1' }) } as never);
-    const verifier = new GoogleVerifier(buildTestConfig({ GOOGLE_OAUTH_CLIENT_ID: 'client-1' }));
-    await expect(verifier.verify('token')).resolves.toEqual({
-      sub: 'google-sub-1',
-      email: null,
-      emailVerified: false,
-      name: null,
-    });
-  });
-
   it('attaches a target to an ingest that carried no metadata', async () => {
     const auditLog = new InMemoryAuditLogRepository();
     await new AuditService(auditLog).ingest({

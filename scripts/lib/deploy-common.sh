@@ -289,11 +289,35 @@ health_ok() {
 # the new feature silently off. That is exactly how the meter-alert phone shipped dead.
 # Prints the missing keys (empty when there are none); never fails a deploy, because a
 # genuinely optional key must not take prod down.
+#
+# Only keys compose actually READS from .env count. On 2026-08-16 this printed 77 keys and
+# 65 of them were unactionable: compose writes those itself as literals (`JWT_ACCESS_TTL:
+# 900`, `ORDER_DELIVERY_FEE: 5000`, every `*_DATABASE_URL` and `*_SERVICE_PORT`), so setting
+# them in .env changes nothing. A warning that always fires is a warning nobody reads, and
+# three real findings had been hiding inside that list for months. The intersection with
+# `${KEY...}` occurrences is what turns it back into a signal.
 missing_env_keys() {
   [ -f .env.example ] && [ -f .env ] || return 0
   comm -23 \
+    <(comm -23 \
+      <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env.example | sort -u) \
+      <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env | sort -u)) \
+    <(compose_ignores_env) | tr '\n' ' '
+}
+
+# The .env.example keys no compose file interpolates — i.e. the ones .env has no say over.
+# Printed sorted, because `comm` demands it.
+compose_ignores_env() {
+  local referenced
+  referenced="$(cat docker-compose.yml docker-compose.prod.yml 2>/dev/null |
+    grep -oE '\$\{[A-Z_][A-Z0-9_]*' | cut -c3- | sort -u)"
+  # No compose file to read: filter nothing. Narrowing a warning on the strength of a file
+  # that is not there would turn "cannot tell" into "all clear", which is the one answer
+  # this check must never give.
+  [ -z "$referenced" ] && return 0
+  comm -23 \
     <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env.example | sort -u) \
-    <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env | sort -u) | tr '\n' ' '
+    <(printf '%s\n' "$referenced")
 }
 
 # `STORAGE_DRIVER=local` is a throwaway-box setting and .env.example already says so — but

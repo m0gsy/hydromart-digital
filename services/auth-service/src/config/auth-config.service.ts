@@ -94,10 +94,6 @@ export class AuthConfigService {
     };
   }
 
-  get googleClientId(): string | undefined {
-    const value = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID');
-    return value && value.length > 0 ? value : undefined;
-  }
 
   get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
     return {

@@ -96,9 +96,22 @@ is "a sha this checkout does not have falls back" \
 
 printf 'A=1\nORDER_ALERT_PHONE=\n# C=3\n' > "$tmp/.env.example"
 printf 'A=9\n' > "$tmp/.env"
+# Only keys compose reads from .env can be acted on, so the fixture has to say which those
+# are. Without this file the check cannot tell, and must keep reporting everything.
+printf 'services:\n  x:\n    environment:\n      A: ${A:-}\n      ORDER_ALERT_PHONE: ${ORDER_ALERT_PHONE:-}\n' > "$tmp/docker-compose.yml"
 is "missing key reported" "$(cd "$tmp" && missing_env_keys)" "ORDER_ALERT_PHONE "
 printf 'A=9\nORDER_ALERT_PHONE=62812\n' > "$tmp/.env"
 is "no gap reported"      "$(cd "$tmp" && missing_env_keys)" ""
+
+# 65 of the 77 keys this once reported were written by compose itself as literals, so .env
+# had no say over them and no operator could act on the warning.
+printf 'A=1\nJWT_ACCESS_TTL=900\n' > "$tmp/.env.example"
+printf 'A=9\n' > "$tmp/.env"
+printf 'services:\n  x:\n    environment:\n      A: ${A:-}\n      JWT_ACCESS_TTL: 900\n' > "$tmp/docker-compose.yml"
+is "a key compose hardcodes is not reported" "$(cd "$tmp" && missing_env_keys)" ""
+# The one answer this check must never give is a false all-clear.
+rm -f "$tmp/docker-compose.yml"
+is "no compose file: report everything"      "$(cd "$tmp" && missing_env_keys)" "JWT_ACCESS_TTL "
 
 # Object storage on the container disk loses every upload at the next deploy, silently.
 printf 'STORAGE_DRIVER=s3\nHR_STORAGE_DRIVER=s3\n' > "$tmp/.env"
