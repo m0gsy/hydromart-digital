@@ -25,6 +25,25 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 10000000,
     envDefault: 50000,
   },
+  {
+    // The platform's own cut of a depot's revenue, shown on the HQ reconciliation
+    // statement. It lived there as `const PLATFORM_FEE_PCT = 0.05` — an invented rate
+    // applied to REAL revenue on a page a franchise owner reads as what they are owed,
+    // and the last such number left in the console. Nothing charges it anywhere in the
+    // backend (the ledger has no platform-fee entry type), so this is a reporting rate,
+    // not a posting one.
+    //
+    // Whole percent, like order-service's `subscriptionDiscountPct`; the reader divides.
+    // envDefault 0 on purpose: no rate has ever been agreed, and a statement that reads
+    // "—" until somebody sets one is honest, where 5% only looked authoritative.
+    key: 'platformFeePct',
+    label: 'Biaya platform (% dari penjualan depot)',
+    type: 'number',
+    unit: '%',
+    min: 0,
+    max: 100,
+    envDefault: 0,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

@@ -116,3 +116,29 @@ describe('dictionary parity', () => {
     expect(enKeys.size).toBe(idKeys.size);
   });
 });
+
+/**
+ * A rate belongs to the number the code renders, never to the translation beside it.
+ *
+ * Both reconciliation money rows carried a percent inside the dictionary value
+ * ("Komisi waralaba (20%)", "Biaya platform (5%)") while the component appended the real
+ * one, so a depot on 25% read "Komisi waralaba (20%) (25%)" — the hardcoded 20% a code
+ * comment claimed to have deleted, still printed, next to the rate actually being billed,
+ * on the statement a franchise owner reads as what they are owed.
+ *
+ * Cheap to reintroduce (a translator "helpfully" restoring the number), invisible in
+ * review, and it lands on money. So it is asserted rather than remembered.
+ */
+describe('money-row labels carry no rate of their own', () => {
+  const rows = [
+    ['id', id.hq.reconciliation.lines],
+    ['en', en.hq.reconciliation.lines],
+  ] as const;
+
+  it.each(rows)('%s reconciliation lines have no embedded percentage', (_locale, lines) => {
+    for (const [key, label] of Object.entries(lines)) {
+      expect(String(label)).not.toMatch(/\d\s*%/);
+      expect(key).toBeTruthy();
+    }
+  });
+});

@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import { useAsync } from '@/lib/use-async';
 import { downloadXlsx } from '@/lib/xlsx';
 import type {
@@ -28,12 +29,18 @@ interface RefundsByDepot {
 }
 
 /**
- * Platform fee, the one number on this statement with no configured source. It is a constant
- * here and labelled as an estimate on screen; the moment a setting or a column exists for it,
- * this goes away. Named rather than inlined so it cannot be mistaken for a rate that came from
- * somewhere — which is exactly what happened to the franchise commission next to it.
+ * A money row's label with its own rate appended — "Komisi waralaba (25%)".
+ *
+ * Both dictionary strings used to CARRY a percent of their own ("Komisi waralaba (20%)",
+ * "Biaya platform (5%)") while the code appended the real one, so the screen read
+ * "Komisi waralaba (20%) (25%)" — the hardcoded 20% a code comment three lines away
+ * claimed to have removed, still printed, right beside the rate actually being billed.
+ * The percent belongs to the number, not to the translation.
+ *
+ * A null rate prints the bare label: the row beside it is already showing "—", and
+ * "(null%)" would be worse than saying nothing about a rate nobody could read.
  */
-const PLATFORM_FEE_PCT = 0.05;
+const pctLabel = (label: string, pct: number | null) => (pct == null ? label : `${label} (${pct}%)`);
 
 const SELECT_CLASS =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
@@ -48,8 +55,8 @@ function defaultRange(): { from: string; to: string } {
 // Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (executive topDepots),
 // ongkir (order shipping-by-depot), refunds (order refunds-by-depot, fed by payment-service
 // coordination) and gallon deposit (depot gallon-outstanding netDeposit) are all real;
-// the franchise commission now comes from the depot's own scheme, and the platform fee is the
-// one estimate left (no configured source) — labelled as such on screen.
+// the franchise commission comes from the depot's own scheme, and the platform fee now comes
+// from payout-service's settings slice. No number on this statement is invented any more.
 export default function HqReconciliationPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -65,13 +72,22 @@ export default function HqReconciliationPage() {
 
   const [depotId, setDepotId] = useState('');
 
-  if (depots.loading || dash.loading) return <Skeleton className="h-96 w-full" />;
-  if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
-  if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
-
+  // Resolved BEFORE the loading guard so the settings read below can be a hook keyed on the
+  // depot actually on screen. Hooks may not sit after an early return, and reading the
+  // GLOBAL value instead would quietly ignore a per-depot override — another wrong number.
   const items = depots.data?.items ?? [];
   const selected = depotId || items[0]?.id || '';
   const depot = items.find((d) => d.id === selected) ?? null;
+
+  // Payout's settings slice, scoped to this depot: GLOBAL value unless the depot overrides.
+  const payoutSettings = useAsync<SettingsSchema>(
+    () => fetchSettingsSchema('/payout/api/v1', selected || null),
+    [selected],
+  );
+
+  if (depots.loading || dash.loading) return <Skeleton className="h-96 w-full" />;
+  if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
+  if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
   // Real: this depot's revenue in the window (null when outside the top-depots list).
   const topRow = dash.data?.topDepots?.items.find((r) => r.depotId === selected) ?? null;
@@ -88,11 +104,26 @@ export default function HqReconciliationPage() {
   const scheme = schemes.data?.find((s) => s.depotId === selected) ?? null;
   const commission = sales != null && scheme ? Math.round(sales * (scheme.pct / 100)) : null;
   /**
-   * The platform fee has no configured source anywhere yet — there is no setting, no column
-   * and no endpoint for it. Kept visible and labelled as an estimate rather than silently
-   * folded into the net, which is what made the whole statement read as authoritative.
+   * The platform fee now comes from payout-service's own settings slice, GLOBAL with a
+   * per-depot override — the same store the settings screen already edits.
+   *
+   * It used to be `const PLATFORM_FEE_PCT = 0.05`: a rate nobody had agreed, applied to
+   * REAL revenue, on a statement a franchise owner reads as what they are owed. Being
+   * labelled "(estimasi 5%)" did not make it true. Its default is 0, so a network that has
+   * never set one reads `—` — the same refusal to guess the commission row already makes.
+   *
+   * A fee that is CONFIGURED as zero is zero, not unknown — only a settings read that
+   * failed or has not landed is unknown, and that is what turns the row (and the net
+   * below it) into `—`. HEAD_OFFICE currently cannot read this endpoint at all, which is
+   * a capability gap tracked separately; until it is closed they see `—` here rather than
+   * a number nobody agreed.
    */
-  const platformFee = sales != null ? Math.round(sales * PLATFORM_FEE_PCT) : null;
+  const platformFeePct =
+    payoutSettings.error || payoutSettings.loading
+      ? null
+      : Number(payoutSettings.data?.effective?.platformFeePct ?? 0);
+  const platformFee =
+    sales != null && platformFeePct != null ? Math.round(sales * (platformFeePct / 100)) : null;
 
   /*
    * Real lines — and NULL when their source could not be read.
@@ -146,14 +177,14 @@ export default function HqReconciliationPage() {
     const rows: (string | number)[][] = [
       [t('hq.reconciliation.lines.sales'), sales ?? ''],
       [
-        `${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`,
+        pctLabel(t('hq.reconciliation.lines.platformFee'), platformFeePct),
         platformFee == null ? '' : -platformFee,
       ],
       [t('hq.reconciliation.lines.shipping'), shippingBilled ?? ''],
       [t('hq.reconciliation.lines.refunds'), refunds == null ? '' : -refunds],
       [
         scheme
-          ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
+          ? pctLabel(t('hq.reconciliation.lines.commission'), scheme.pct)
           : schemes.error
             ? t('hqFix.recon.schemeUnreadable')
             : t('hqFix.recon.schemeMissing'),
@@ -220,7 +251,7 @@ export default function HqReconciliationPage() {
             <Line label={t('hq.reconciliation.lines.sales')} value={money(sales)} />
             {/* Labelled as an estimate: it is the one line with no configured source. */}
             <Line
-              label={`${t('hq.reconciliation.lines.platformFee')} (estimasi ${PLATFORM_FEE_PCT * 100}%)`}
+              label={pctLabel(t('hq.reconciliation.lines.platformFee'), platformFeePct)}
               value={money(platformFee == null ? null : -platformFee)}
             />
             <Line label={t('hq.reconciliation.lines.shipping')} value={money(shippingBilled)} />
@@ -232,7 +263,7 @@ export default function HqReconciliationPage() {
             <Line
               label={
                 scheme
-                  ? `${t('hq.reconciliation.lines.commission')} (${scheme.pct}%)`
+                  ? pctLabel(t('hq.reconciliation.lines.commission'), scheme.pct)
                   : schemes.error
                     ? // "Belum ada skema" is a statement about the contract. An unread
                       // scheme list is a statement about the read, and finance settles on

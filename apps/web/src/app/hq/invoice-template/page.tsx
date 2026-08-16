@@ -72,7 +72,18 @@ export default function HqInvoiceTemplatePage() {
 
         <div className="py-4">
           <p className="text-xs font-bold uppercase tracking-wide text-[#64757c]">{t('hq.invoiceTemplate.billTo')}</p>
-          <p className="mt-1 text-sm font-semibold">{t('hq.invoiceTemplate.sampleCustomer')}</p>
+          {/* The one line on this preview that stayed invented. Everything around it —
+              invoice number, date, line items — already branched to the real order, and
+              the "contoh data" badge above already appears only when there ISN'T one. So
+              a genuine order was billed to "Ibu Rina · Jl. Melati No. 8, Depok", with
+              nothing on screen admitting it. The staff order queue returns the recipient
+              and address unredacted (hq/orders renders the same fields), so there was
+              never anything to fetch — only a line nobody had wired. */}
+          <p className="mt-1 text-sm font-semibold">
+            {order
+              ? `${order.recipientName} · ${order.addressLine}, ${order.city}`
+              : t('hq.invoiceTemplate.sampleCustomer')}
+          </p>
         </div>
 
         <table className="w-full border-collapse text-sm">
