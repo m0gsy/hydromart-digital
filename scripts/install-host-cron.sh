@@ -95,8 +95,21 @@ for f in hydromart-backup hydromart-restore-drill hydromart-watchdog; do
   fi
 done
 
+# Retire the hand-written lines this block replaces, not just an older copy of the block.
+#
+# Measured on the live box 2026-08-17: installing the block left the four pre-marker lines
+# standing, so backup, restore-drill and watchdog were each scheduled TWICE — once in the
+# correct form and once in the `set -a; . ./.env` form that has been failing since
+# 2026-08-11. Two full pg_dumps at 03:00 and two watchdogs every five minutes is a worse
+# state than before the fix, and nothing would have said so.
+#
+# The two markers are narrow on purpose: `set -a` is the exact defect being retired, and
+# the home-dir BACKUP_DIR is the one override the old backup line carried. Anything else
+# in the user's crontab (docker-gc, whatever ops added by hand) is left alone.
+legacy='(set -a; *\. *\./\.env|BACKUP_DIR=.*/backups .*scripts/backup-db\.sh)'
+
 {
-  crontab -l 2>/dev/null | sed "\|^$BEGIN\$|,\|^$END\$|d"
+  crontab -l 2>/dev/null | sed "\|^$BEGIN\$|,\|^$END\$|d" | grep -Ev "$legacy"
   block
 } | crontab -
 
