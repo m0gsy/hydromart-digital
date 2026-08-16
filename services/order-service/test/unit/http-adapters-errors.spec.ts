@@ -256,11 +256,14 @@ describe('unparseable response bodies', () => {
     ).rejects.toThrow(/could not be applied/);
   });
 
-  it('promo.quote reads a 200 with no discount field as no discount', async () => {
+  // E-5: this used to assert `{discount: 0}`. A 200 whose body will not parse is not a
+  // voucher worth nothing — the customer's code was accepted on screen and then priced at
+  // full, with a discount of zero recorded against the order as if that were the answer.
+  it('promo.quote rejects a 200 whose body will not parse', async () => {
     fetchMock.mockResolvedValue(badJson(200));
     await expect(
       new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer x'),
-    ).resolves.toEqual({ discount: 0, discountType: undefined });
+    ).rejects.toThrow(/could not be applied/);
   });
 
   it('inventory.reserve reports a shortfall even when the 422 body is unreadable', async () => {

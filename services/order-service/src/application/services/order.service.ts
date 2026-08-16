@@ -358,6 +358,10 @@ export class OrderService {
     const voucherCode = isReseller ? null : input.voucherCode?.trim().toUpperCase() || null;
 
     let discount: number;
+    // E-5: a tier discount that could not be read is a 0 the customer was charged for, and
+    // it left no trace anywhere. Hoisted out of the branch so the order can be stamped
+    // after it exists, the same way catalogFallback is.
+    let membershipUnavailable = false;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
       discount = this.resellerDiscountFor(
@@ -396,8 +400,12 @@ export class OrderService {
       if (quoteSettled.status === 'rejected') throw quoteSettled.reason;
       // getDiscountRate is documented fail-open; a rejection here is a bug in the adapter,
       // not an outage, so it reads as 0 rather than failing a checkout that can be priced.
-      const membershipRate = membershipSettled.status === 'fulfilled' ? membershipSettled.value : 0;
-      const membershipDiscount = money(subtotal * membershipRate);
+      const membershipRate =
+        membershipSettled.status === 'fulfilled'
+          ? membershipSettled.value
+          : { rate: 0, unavailable: true };
+      membershipUnavailable = membershipRate.unavailable;
+      const membershipDiscount = money(subtotal * membershipRate.rate);
       const quote = quoteSettled.value;
       if (quote) {
         if (quote.discountType === 'FREE_SHIPPING') {
@@ -459,6 +467,7 @@ export class OrderService {
     );
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
+    if (membershipUnavailable) await this.markMembershipUnavailable(order);
     /*
      * §I: the depot they just bought from becomes their depot, if they had none. Until now
      * `favoriteDepotId` was written only by a depot's Excel import and by a `PATCH /profile`
@@ -598,6 +607,35 @@ export class OrderService {
           `Order ${order.orderNumber} (depot ${order.depotId}) dihargai dari katalog: depot-service tidak terjangkau`,
         ),
       });
+    }
+  }
+
+  /**
+   * Leave a trace when a checkout was priced without the customer's tier discount because
+   * loyalty-service could not be read.
+   *
+   * Same shape and same reasoning as `markCatalogPricing` above: the discount fails OPEN so
+   * an outage never blocks a checkout, but a PLATINUM customer charged full price is a
+   * complaint that arrives days later, and until now there was nothing on the order, in any
+   * ledger or in any log line tied to it, that could answer "kenapa harga saya penuh".
+   *
+   * No alert: unlike catalog pricing this does not change what the depot is owed, and the
+   * loyalty adapter already logs the outage itself.
+   */
+  private async markMembershipUnavailable(order: {
+    id: string;
+    status: OrderStatus;
+    orderNumber: string;
+  }): Promise<void> {
+    try {
+      await this.orders.appendNote(
+        order.id,
+        order.status,
+        'order-service',
+        'Diskon membership tidak dihitung: loyalty-service tidak terjangkau saat checkout',
+      );
+    } catch (err) {
+      this.logger.warn(`Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`);
     }
   }
 
@@ -926,7 +964,11 @@ export class OrderService {
       voucherDiscount = quote.discount;
     }
     // Same ceiling as checkout: the stack can wipe out the goods, never go past them.
-    return money(Math.min(subtotal, money(subtotal * membershipRate) + voucherDiscount));
+    // ponytail: the counter sale reads `.rate` and does NOT stamp a note when the tier was
+    // unreadable — the buyer is standing at the till and the cashier can say so out loud,
+    // and the note would have to be threaded back out of this pure helper. The checkout
+    // path, where the complaint arrives days later, is the one that leaves the trace.
+    return money(Math.min(subtotal, money(subtotal * membershipRate.rate) + voucherDiscount));
   }
 
   /**

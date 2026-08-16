@@ -29,19 +29,26 @@ export default function HqScorecardPage() {
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
   const items = dash.data?.depots ?? [];
-  const maxRevenue = Math.max(1, ...items.map((d) => d.revenue));
+  const maxRevenue = Math.max(1, ...items.map((d) => d.revenue ?? 0));
 
   const ranked = items
     .map((d) => {
       const sla = d.slaRate ?? 0; // no delivered orders in range → 0 SLA contribution
-      const revScore = d.revenue / maxRevenue;
+      /*
+       * E-3: a depot whose revenue never came back (outside the report's top-N) is scored
+       * on SLA alone, rescaled to the full 100, rather than counted as having earned Rp 0.
+       * Weighting an unknown as the worst possible number put depots at the bottom of a
+       * league table for a limit in the report, and the row said "Rp 0" to back it up.
+       */
+      const score =
+        d.revenue != null ? (d.revenue / maxRevenue) * 0.7 + sla * 0.3 : sla;
       return {
         depotId: d.depotId,
         name: d.name,
         revenue: d.revenue,
         orderCount: d.orderCount,
         sla,
-        score: revScore * 0.7 + sla * 0.3,
+        score,
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -65,7 +72,8 @@ export default function HqScorecardPage() {
                 caption={`${t('hq.scorecard.orders')}: ${r.orderCount} · SLA ${Math.round(r.sla * 100)}%`}
               />
               <div className="pl-9 text-xs text-muted">
-                {t('hq.scorecard.revenue')}: <Money amount={r.revenue} />
+                {t('hq.scorecard.revenue')}:{' '}
+                {r.revenue != null ? <Money amount={r.revenue} /> : t('hq.common.dash')}
               </div>
             </div>
           ))}

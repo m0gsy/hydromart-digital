@@ -49,13 +49,22 @@ describe('CourierCodHttpAdapter', () => {
     expect(init.headers['x-internal-key']).toBe('k');
   });
 
-  // A partial answer must not become a confident zero inside a signed-off total.
-  it('reads a missing field as zero rather than NaN', async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+  /*
+   * E-6. This test used to assert `{0, 0, 0}` under a comment saying a partial answer must
+   * not become a confident zero inside a signed-off total — which is exactly what it was
+   * pinning. A 200 with the figures missing means the answer could not be read, and the
+   * depot's day book was closed on the difference: no cash outstanding, nothing to explain.
+   */
+  it.each([
+    ['an empty body', {}],
+    ['one figure missing', { depositedIdr: 500_000, expectedIdr: 520_000 }],
+    ['a figure that is not a number', { depositedIdr: 'n/a', expectedIdr: 0, settlements: 0 }],
+  ])('refuses to close the book on %s', async (_label, body) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => body });
 
     await expect(
       new CourierCodHttpAdapter(configured).depositedInWindow('d1', from, to),
-    ).resolves.toEqual({ depositedIdr: 0, expectedIdr: 0, settlements: 0 });
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('raises when delivery-service refuses or cannot be reached', async () => {

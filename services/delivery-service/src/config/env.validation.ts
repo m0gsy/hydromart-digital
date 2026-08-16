@@ -57,9 +57,9 @@ export const envValidationSchema = Joi.object({
   // A display/goal only — nothing is blocked when unmet. Default fills it, so no
   // compose change is needed.
   COURIER_WEEKLY_TARGET: Joi.number().integer().positive().default(45),
-  // Flat per-delivery commission paid to couriers from depot cash (design 11c). A pay/
-  // display figure only; the default fills it, so no compose change is needed.
-  COURIER_RATE_PER_DELIVERY_IDR: Joi.number().integer().positive().default(12000),
+  // (COURIER_RATE_PER_DELIVERY_IDR used to be declared here. It funded the commission
+  // report's own flat rate, which disagreed with what payout-service actually paid — see
+  // E-1 in commission.service.ts. Nothing reads it now, so nothing declares it.)
   // (The PoD retention window used to be declared here. admin-service owns the retention
   // policy now and sends the cutoff — see `purgeProofsOlderThan`. The comment outlived its
   // key and sat above the next one, describing something this file no longer reads.)

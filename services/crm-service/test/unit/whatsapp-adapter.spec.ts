@@ -25,9 +25,12 @@ beforeEach(() => {
 });
 
 describe('WhatsappBroadcastHttpAdapter', () => {
-  it('runs in dev/console mode (reports success, no fetch) when baseUrl is blank', async () => {
+  // E-2: dev/console mode used to report `ok: true`, and campaign.service counts an `ok`
+  // into `result.sent` — so a campaign nobody received reported itself fully delivered.
+  it('reports NOT sent (and makes no request) when baseUrl is blank', async () => {
     const out = await new WhatsappBroadcastHttpAdapter(makeConfig('')).send('+6281', 'hi');
-    expect(out).toEqual({ ok: true });
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/WHATSAPP_API_URL/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -630,6 +630,7 @@ describe('CourierLedgerPrismaRepository', () => {
     aggregate: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn(),
   };
   const ruleModel = { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() };
   const prisma = {
@@ -729,6 +730,54 @@ describe('CourierLedgerPrismaRepository', () => {
     expect(ledgerModel.count).toHaveBeenCalledWith({
       where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since } },
     });
+
+    // Narrowed to one depot: the incentive ladder belongs to that depot's rule, so a
+    // courier's deliveries elsewhere must not walk it up.
+    await repo.countByType('cou-1', 'EARNING' as never, since, 'dep-1');
+    expect(ledgerModel.count).toHaveBeenLastCalledWith({
+      where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since }, depotId: 'dep-1' },
+    });
+  });
+
+  /*
+   * E-1. The depot's commission report reads this instead of multiplying its own delivery
+   * count by its own flat rate — a rate configured in delivery-service, which pays nobody,
+   * so the manager's report and the courier's ledger stated different amounts for the same
+   * work. Credits only: a deduction or a withdrawal is not pay.
+   */
+  it("sums a depot's paid earnings per courier, counting only EARNING as deliveries", async () => {
+    const from = new Date('2026-06-01');
+    const to = new Date('2026-07-01');
+    ledgerModel.groupBy.mockResolvedValue([
+      { courierId: 'cou-1', type: 'EARNING', _sum: { amount: '24000' }, _count: { _all: 2 } },
+      { courierId: 'cou-1', type: 'INCENTIVE', _sum: { amount: '50000' }, _count: { _all: 1 } },
+      { courierId: 'cou-2', type: 'EARNING', _sum: { amount: '12000' }, _count: { _all: 1 } },
+      // Paid a bonus and nothing else this window: money, but no delivery behind it.
+      { courierId: 'cou-3', type: 'INCENTIVE', _sum: { amount: '30000' }, _count: { _all: 1 } },
+      // Prisma answers a null sum for a group it cannot total; that is 0 rupiah, not NaN.
+      { courierId: 'cou-4', type: 'EARNING', _sum: { amount: null }, _count: { _all: 1 } },
+    ]);
+
+    const rows = await repo.earningsByDepot('dep-1', from, to);
+
+    expect(ledgerModel.groupBy).toHaveBeenCalledWith({
+      by: ['courierId', 'type'],
+      where: {
+        depotId: 'dep-1',
+        type: { in: ['EARNING', 'INCENTIVE'] },
+        occurredAt: { gte: from, lte: to },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    // The incentive is money the courier was paid, so it is in `earnedIdr` — but it is not
+    // a delivery, so it must not raise `paidDeliveries`.
+    expect(rows).toEqual([
+      { courierId: 'cou-1', earnedIdr: 74000, paidDeliveries: 2 },
+      { courierId: 'cou-2', earnedIdr: 12000, paidDeliveries: 1 },
+      { courierId: 'cou-3', earnedIdr: 30000, paidDeliveries: 0 },
+      { courierId: 'cou-4', earnedIdr: 0, paidDeliveries: 1 },
+    ]);
   });
 
   it('lists entries for a courier paginated with total', async () => {

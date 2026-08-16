@@ -45,9 +45,22 @@ function CourierRow({ c, name }: { c: CommissionCourier; name: string }) {
       <div className="min-w-0 flex-1">
         <p className="font-semibold">{name}</p>
         <p className="text-xs text-[color:var(--text-muted)] tabular-nums">
-          {c.delivered} antar × {formatIDR(c.ratePerDeliveryIdr)}
-          {c.shortfallIdr > 0 && " " + t('hrFix.commission.settlementDiff')}
+          {t('hrFix.commission.deliveredPaid', {
+            delivered: c.delivered,
+            gross: formatIDR(c.grossIdr),
+          })}
+          {c.shortfallIdr > 0 && ' ' + t('hrFix.commission.settlementDiff')}
         </p>
+        {/* E-1: a delivery this depot recorded that the payer never paid for. Shown rather
+            than smoothed over — the report used to multiply its own count by its own rate,
+            so it always balanced and this gap could not appear. */}
+        {c.paidDeliveries < c.delivered && (
+          <p className="text-xs font-semibold text-[color:var(--warning)] tabular-nums">
+            {t('hrFix.commission.unpaidDeliveries', {
+              n: c.delivered - c.paidDeliveries,
+            })}
+          </p>
+        )}
         {c.shortfallIdr > 0 && (
           <p className="text-xs font-semibold text-[color:var(--warning)] tabular-nums">
             − potong selisih <Money amount={c.shortfallIdr} />
@@ -97,6 +110,10 @@ function CommissionBody() {
         <Skeleton className="h-64 w-full" />
       ) : data.error ? (
         <ErrorState message={data.error} onRetry={data.reload} />
+      ) : run?.source === 'unavailable' ? (
+        // No local fallback rate, so no figures: the payer could not be read, and a number
+        // computed here instead is exactly the second opinion E-1 removed.
+        <ErrorState message={t('hrFix.commission.payoutUnavailable')} onRetry={data.reload} />
       ) : !run || run.couriers.length === 0 ? (
         <CenterState title={t('hrFix.commission.empty')} icon={<Wallet size={40} weight="fill" />}>
           {t('hrFix.commission.emptyBody', { month: MONTH })}
@@ -106,7 +123,7 @@ function CommissionBody() {
           <Card elevated className="flex items-center justify-between gap-4 bg-brand-700 p-6 text-on-brand">
             <div>
               <p className="text-sm font-medium text-on-brand/80">{t('hrFix.commission.periodTotal')}</p>
-              <Money amount={run.totalIdr} className="text-2xl font-bold" />
+              <Money amount={run.totalIdr ?? 0} className="text-2xl font-bold" />
             </div>
             <Button
               variant="secondary"

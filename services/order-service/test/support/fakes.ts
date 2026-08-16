@@ -59,7 +59,7 @@ import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coo
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
 import { ForecastCoordinationPort } from '../../src/application/ports/forecast-coordination.port';
-import { MembershipPort } from '../../src/application/ports/membership.port';
+import { MembershipPort, MembershipRate } from '../../src/application/ports/membership.port';
 import {
   ResellerDiscount,
   ResellerDiscountPort,
@@ -1010,16 +1010,24 @@ export class FakeInventory implements InventoryPort {
 
 export class FakeMembership implements MembershipPort {
   rate = 0;
+  /** Set to make the reads answer "we could not ask" rather than "no discount" (E-5). */
+  unavailable = false;
   calls: { authorization: string; depotId: string | null }[] = [];
   /** Counter-sale reads, which are by customer id rather than by token. */
   byCustomerCalls: { customerId: string; depotId: string | null }[] = [];
-  async getDiscountRate(authorization: string, depotId: string | null = null): Promise<number> {
+  async getDiscountRate(
+    authorization: string,
+    depotId: string | null = null,
+  ): Promise<MembershipRate> {
     this.calls.push({ authorization, depotId });
-    return this.rate;
+    return { rate: this.rate, unavailable: this.unavailable };
   }
-  async getDiscountRateFor(customerId: string, depotId: string | null = null): Promise<number> {
+  async getDiscountRateFor(
+    customerId: string,
+    depotId: string | null = null,
+  ): Promise<MembershipRate> {
     this.byCustomerCalls.push({ customerId, depotId });
-    return this.rate;
+    return { rate: this.rate, unavailable: this.unavailable };
   }
 }
 

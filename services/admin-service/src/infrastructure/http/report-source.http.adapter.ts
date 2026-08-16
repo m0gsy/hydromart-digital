@@ -54,6 +54,27 @@ export class ReportSourceHttpAdapter implements ReportSourcePort {
       this.logger.warn(`report rows for ${dataset} failed: ${res.status}`);
       throw new Error(`${source.service}-service responded ${res.status}`);
     }
-    return ((await res.json()) as { rows: ReportRow[] }).rows;
+    const body = (await res.json()) as { rows: ReportRow[]; truncated?: boolean };
+    /*
+     * E-4: the row source caps at 100 and used to say nothing about it, so a network past
+     * its 100th depot handed finance a spreadsheet that simply stopped — a short month and
+     * a cut-off month are the same file once the cap is invisible.
+     *
+     * ponytail: the warning is a final ROW rather than a column or a status on the run,
+     * because the row is what lands in the file somebody actually opens. Zeroed figures so
+     * a spreadsheet SUM over the column is unchanged by it.
+     */
+    if (body.truncated) {
+      this.logger.warn(`report rows for ${dataset} were truncated by the source's row cap`);
+      return [
+        ...body.rows,
+        {
+          label: `— TERPOTONG: hanya ${body.rows.length} baris teratas yang masuk laporan ini —`,
+          orders: 0,
+          revenue: 0,
+        },
+      ];
+    }
+    return body.rows;
   }
 }

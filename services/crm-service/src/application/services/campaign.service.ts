@@ -186,6 +186,20 @@ export class CampaignService {
    * cursor in the database.
    */
   async processSending(now = new Date()): Promise<CampaignSweepResult> {
+    /*
+     * E-2: refuse the sweep outright when there is no WhatsApp endpoint to send through.
+     *
+     * Without this the sweep claims a batch, fails every recipient and moves the cursor —
+     * spending a real audience on a missing environment variable. Left untouched they stay
+     * PENDING and go out the moment it is configured. Logged at error: a marketing campaign
+     * that is going nowhere is not a debug detail.
+     */
+    if (!this.whatsapp.configured()) {
+      this.logger.error(
+        'Sapuan kampanye dilewati: WHATSAPP_API_URL belum diset, jadi tidak ada pesan yang bisa dikirim.',
+      );
+      return { campaigns: 0, sent: 0, failed: 0, completed: 0 };
+    }
     const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
     const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
 

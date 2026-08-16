@@ -31,6 +31,37 @@ describe('CampaignService branches', () => {
     );
   });
 
+  /*
+   * E-2. A blank WHATSAPP_API_URL used to make the adapter log each message and report
+   * success, so `result.sent` counted an audience nobody contacted — a campaign to every
+   * customer reported itself fully delivered.
+   *
+   * The sweep now refuses before it claims anybody. Claiming and failing them would spend a
+   * real audience on a missing environment variable; left PENDING they go out the moment it
+   * is set. (Refusing at BOOT was the first fix and was wrong: prod compose defaults the
+   * variable to empty, so it would have stopped crm-service from starting.)
+   */
+  it('refuses the sweep, and consumes nobody, when WhatsApp is not configured', async () => {
+    const whatsapp = new FakeWhatsappBroadcast();
+    const svc = service(whatsapp);
+    const created = await svc.create('staff', 'Blast', 'Hi', [
+      { phone: '+6281' },
+      { phone: '+6282' },
+    ]);
+    await svc.send(created.id);
+    whatsapp.isConfigured = false;
+
+    const result = await svc.processSending();
+
+    expect(result).toEqual({ campaigns: 0, sent: 0, failed: 0, completed: 0 });
+    expect(whatsapp.sent).toHaveLength(0);
+
+    // Nobody was burned: once configured, the same sweep delivers them.
+    whatsapp.isConfigured = true;
+    const after = await svc.processSending();
+    expect(after.sent).toBe(2);
+  });
+
   it('list() clamps page and limit to the allowed range', async () => {
     const svc = service(new FakeWhatsappBroadcast());
     await svc.create('staff', 'A', 'Hi', [{ phone: '+6281' }]);
@@ -45,7 +76,7 @@ describe('CampaignService branches', () => {
   });
 
   it('sends to a nameless recipient and records "unknown error" when the transport gives none', async () => {
-    const whatsapp: WhatsappBroadcastPort = { send: async () => ({ ok: false }) };
+    const whatsapp: WhatsappBroadcastPort = { send: async () => ({ ok: false }), configured: () => true };
     const svc = service(whatsapp);
     const created = await svc.create('staff', 'Blast', 'Hi {{name}}', [{ phone: '+6281' }]);
     await svc.send(created.id);

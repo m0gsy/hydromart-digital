@@ -18,6 +18,7 @@ describe('CourierPayoutController', () => {
     withdrawalHistory: jest.fn().mockResolvedValue([]),
     recordDeliveryEarning: jest.fn(),
     recordCashVariance: jest.fn(),
+    earningsByDepot: jest.fn().mockResolvedValue([]),
     effectiveRule: jest.fn().mockResolvedValue(null),
   };
   const expenses = {
@@ -133,6 +134,25 @@ describe('CourierPayoutController', () => {
       onTime: false,
     });
     expect(res).toEqual({ recorded: false });
+  });
+
+  // E-1: the read delivery-service's commission report uses instead of its own flat rate.
+  it('depotEarnings turns the ISO window into Dates and wraps the rows', async () => {
+    const rows = [{ courierId: 'c1', earnedIdr: 27500, paidDeliveries: 2 }];
+    payout.earningsByDepot.mockResolvedValueOnce(rows);
+
+    const res = await controller.depotEarnings({
+      depotId: 'd1',
+      from: '2026-06-01T00:00:00.000Z',
+      to: '2026-07-01T00:00:00.000Z',
+    });
+
+    expect(payout.earningsByDepot).toHaveBeenCalledWith(
+      'd1',
+      new Date('2026-06-01T00:00:00.000Z'),
+      new Date('2026-07-01T00:00:00.000Z'),
+    );
+    expect(res).toEqual({ couriers: rows });
   });
 
   it('recordVariance maps dto (depotId provided) and reports recorded=true', async () => {

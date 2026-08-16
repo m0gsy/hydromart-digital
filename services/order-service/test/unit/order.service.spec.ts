@@ -186,6 +186,40 @@ describe('OrderService', () => {
       expect(orders.notes).toEqual([]);
     });
 
+    /*
+     * E-5. The tier discount fails open to 0, which is right — a loyalty outage must not
+     * stop somebody buying water. What was wrong is that it left NOTHING behind: a PLATINUM
+     * customer paid full price and no note, ledger or log tied to the order could say why.
+     */
+    it('marks an order priced without the tier discount because loyalty was unreachable', async () => {
+      await addToCart(20000, 2);
+      membership.rate = 0.1;
+      membership.unavailable = true;
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Diskon membership tidak dihitung: loyalty-service tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
+    // The other half: a customer whose tier is genuinely worth nothing is not an outage,
+    // and stamping every REGULAR checkout would bury the note that matters.
+    it('says nothing when loyalty answered that the tier is worth nothing', async () => {
+      await addToCart(20000, 1);
+      membership.rate = 0;
+      membership.unavailable = false;
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([]);
+    });
+
     // A subscription delivery is placed by a sweep with nobody watching it, so the note on
     // the order is the ONLY trace that it was billed from the catalog instead of the depot.
     it('marks a scheduled delivery the same way', async () => {

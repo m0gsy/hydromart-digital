@@ -35,12 +35,31 @@ export interface CreateEarningRuleData extends CourierEarningRule {
   effectiveDate: Date;
 }
 
+/**
+ * What one courier was actually paid at one depot over a window (audit E-1).
+ *
+ * `earnedIdr` is the credit side of the ledger — the fares plus the incentive rungs that
+ * were really posted — not a rate multiplied by a delivery count. `paidDeliveries` counts
+ * the EARNING entries behind it, so a depot's own delivered count can be compared against
+ * what the payer recorded instead of being multiplied by a second rate nobody pays.
+ */
+export interface CourierEarningsRow {
+  courierId: string;
+  earnedIdr: number;
+  paidDeliveries: number;
+}
+
 export interface CourierLedgerRepository {
   create(data: CreateCourierLedgerData): Promise<CourierLedgerEntryRecord>;
   /** The entry with this idempotency ref, if one was already posted. */
   findBySourceRef(sourceRef: string): Promise<CourierLedgerEntryRecord | null>;
   /** Signed sum of every entry for one courier (the available balance). */
   balanceFor(courierId: string): Promise<number>;
+  /**
+   * Every courier's paid earnings at one depot over a window, for the depot's commission
+   * report (E-1). Credits only — deductions and withdrawals are not pay.
+   */
+  earningsByDepot(depotId: string, from: Date, to: Date): Promise<CourierEarningsRow[]>;
   /** Sum of entries of one type since an inclusive date (e.g. this month's earnings). */
   sumByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
   /**

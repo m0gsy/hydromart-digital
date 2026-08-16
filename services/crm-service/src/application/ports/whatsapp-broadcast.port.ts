@@ -5,4 +5,12 @@
  */
 export interface WhatsappBroadcastPort {
   send(phone: string, message: string): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Whether a real WhatsApp endpoint is configured at all.
+   *
+   * The sweep asks BEFORE claiming recipients: without it, an unconfigured deployment walks
+   * the whole audience and marks every one FAILED, spending the queue on a missing
+   * environment variable. Recipients left PENDING are sent the moment it is set.
+   */
+  configured(): boolean;
 }

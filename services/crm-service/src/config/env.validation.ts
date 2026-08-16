@@ -11,7 +11,18 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
-  // Optional: blank WHATSAPP_API_URL runs the broadcast adapter in console/dev mode.
+  /*
+   * Blank = WhatsApp is not configured. E-2: a blank URL used to make `send()` log the
+   * message and report success, so a campaign whose whole audience was never contacted read
+   * as fully delivered.
+   *
+   * The first fix here REFUSED to boot in production on a blank value, mirroring
+   * auth-service's `console` OTP guard. That was rejected on purpose: `docker-compose.prod.yml`
+   * defaults both of these to empty, so the guard would have stopped crm-service from
+   * starting on the next deploy — trading a reporting lie for an outage. The lie is fixed
+   * where it lived instead: the adapter reports NOT sent, and `processSending` refuses to
+   * consume a queue it cannot deliver (see campaign.service.ts).
+   */
   WHATSAPP_API_URL: Joi.string().allow('').default(''),
   WHATSAPP_API_TOKEN: Joi.string().allow('').default(''),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.

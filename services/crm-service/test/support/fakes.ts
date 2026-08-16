@@ -318,7 +318,13 @@ export class FakeActivitySegment implements ActivitySegmentPort {
 /** WhatsApp fake: reports success unless a phone is registered via failOn(...). Never throws. */
 export class FakeWhatsappBroadcast implements WhatsappBroadcastPort {
   sent: { phone: string; message: string }[] = [];
+  /** Set false to stand in for a deployment with no WHATSAPP_API_URL (E-2). */
+  isConfigured = true;
   private readonly failPhones = new Set<string>();
+
+  configured(): boolean {
+    return this.isConfigured;
+  }
 
   failOn(...phones: string[]): void {
     for (const p of phones) this.failPhones.add(p);

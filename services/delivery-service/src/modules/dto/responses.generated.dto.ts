@@ -88,7 +88,7 @@ export class CourierCommissionRowResponseDto {
   @ApiProperty({ type: Number })
   delivered!: number;
   @ApiProperty({ type: Number })
-  ratePerDeliveryIdr!: number;
+  paidDeliveries!: number;
   @ApiProperty({ type: Number })
   grossIdr!: number;
   @ApiProperty({ type: Number })
@@ -105,12 +105,12 @@ export class CommissionRunResponseDto {
   from!: string;
   @ApiProperty({ type: String })
   to!: string;
-  @ApiProperty({ type: Number })
-  ratePerDeliveryIdr!: number;
   @ApiProperty({ type: [CourierCommissionRowResponseDto] })
   couriers!: CourierCommissionRowResponseDto[];
-  @ApiProperty({ type: Number })
-  totalIdr!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  totalIdr!: number | null;
+  @ApiProperty({ type: String, enum: ['payout', 'unavailable'] })
+  source!: 'payout' | 'unavailable';
 }
 
 /** Mirrors `DeliveryItem` exactly — generated for audit D-6, no field added or removed. */

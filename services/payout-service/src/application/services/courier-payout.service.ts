@@ -9,6 +9,7 @@ import {
 } from '../../domain/errors';
 import {
   CourierEarningRuleRecord,
+  CourierEarningsRow,
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
   CreateEarningRuleData,
@@ -149,6 +150,19 @@ export class CourierPayoutService {
   /** The earning rule in force for a depot — the courier's goal/tier config (design 6b). */
   effectiveRule(depotId: string | null): Promise<CourierEarningRuleRecord | null> {
     return this.ledger.currentRule(depotId);
+  }
+
+  /**
+   * What each courier at a depot was actually paid over a window (E-1).
+   *
+   * This exists so the depot's commission REPORT can read the payer's own numbers.
+   * delivery-service used to answer that report from `delivered × courierRatePerDeliveryIdr`,
+   * a flat rate configured in a different service from the one that pays — so a manager's
+   * report and a courier's ledger stated two different amounts for the same work, and both
+   * were live.
+   */
+  async earningsByDepot(depotId: string, from: Date, to: Date): Promise<CourierEarningsRow[]> {
+    return this.ledger.earningsByDepot(depotId, from, to);
   }
 
   /**

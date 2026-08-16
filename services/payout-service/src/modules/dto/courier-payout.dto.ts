@@ -72,3 +72,21 @@ export class CourierLedgerQueryDto {
   @Max(100)
   limit = 20;
 }
+
+/**
+ * Window for a depot's paid-earnings read (E-1). Dates as ISO strings, like every other
+ * internal window in this service.
+ */
+export class DepotEarningsQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  to!: string;
+}

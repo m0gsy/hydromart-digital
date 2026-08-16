@@ -54,6 +54,9 @@ class Ledger implements CourierLedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
+  async earningsByDepot(): Promise<{ courierId: string; earnedIdr: number; paidDeliveries: number }[]> {
+    return [];
+  }
   async countByType(): Promise<number> {
     return 0;
   }

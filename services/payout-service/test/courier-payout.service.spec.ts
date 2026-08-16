@@ -70,6 +70,19 @@ class FakeCourierLedger implements CourierLedgerRepository {
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
+  async earningsByDepot(depotId: string, from: Date, to: Date) {
+    const rows = new Map<string, { courierId: string; earnedIdr: number; paidDeliveries: number }>();
+    for (const e of this.entries) {
+      if (e.depotId !== depotId) continue;
+      if (e.type !== 'EARNING' && e.type !== 'INCENTIVE') continue;
+      if (e.occurredAt < from || e.occurredAt > to) continue;
+      const row = rows.get(e.courierId) ?? { courierId: e.courierId, earnedIdr: 0, paidDeliveries: 0 };
+      row.earnedIdr += e.amount;
+      if (e.type === 'EARNING') row.paidDeliveries += 1;
+      rows.set(e.courierId, row);
+    }
+    return [...rows.values()];
+  }
   async countByType(
     courierId: string,
     type: CourierLedgerEntryType,
@@ -204,6 +217,28 @@ describe('CourierPayoutService', () => {
     const entry = await service.recordDeliveryEarning(event('d1', PEAK_UTC, true));
     expect(entry?.type).toBe('EARNING');
     expect(entry?.amount).toBe(8000); // 5000 + 2000 peak + 1000 on-time
+  });
+
+  /*
+   * E-1. delivery-service's commission report reads this instead of multiplying its own
+   * delivery count by its own flat rate — the rate that disagreed with what was actually
+   * paid. Scoped to the depot: money earned elsewhere is not this depot's commission run.
+   */
+  it("answers a depot's paid earnings from the ledger the courier is actually paid from", async () => {
+    const depot = '00000000-0000-4000-8000-0000000000d1';
+    const elsewhere = '00000000-0000-4000-8000-0000000000d2';
+    await service.recordDeliveryEarning(event('d-a', PEAK_UTC, true, depot));
+    await service.recordDeliveryEarning(event('d-b', OFFPEAK_UTC, false, depot));
+    await service.recordDeliveryEarning(event('d-c', OFFPEAK_UTC, false, elsewhere));
+
+    const rows = await service.earningsByDepot(
+      depot,
+      new Date('2000-01-01T00:00:00.000Z'),
+      new Date('2100-01-01T00:00:00.000Z'),
+    );
+
+    // 8000 (peak + on-time) + 5000 (base). The delivery at the other depot is not here.
+    expect(rows).toEqual([{ courierId: COURIER, earnedIdr: 13000, paidDeliveries: 2 }]);
   });
 
   it('credits base only for an off-peak, late delivery', async () => {

@@ -88,7 +88,17 @@ export class PromoHttpAdapter implements PromoPort {
     }
     // discountType decides which ceiling the discount is capped against at checkout
     // (value vs delivery fee) — promo-service already returns it on every quote.
-    return { discount: body.discount ?? 0, discountType: body.discountType };
+    //
+    // E-5: this was `body.discount ?? 0`. A 200 whose body carries no readable discount is
+    // not a voucher worth nothing — it is a quote we could not read, and silently pricing
+    // it at zero charges the customer full price for a voucher the screen accepted. Every
+    // other unreadable answer on this path rejects; so does this one.
+    const discount = Number(body.discount);
+    if (!Number.isFinite(discount) || discount < 0) {
+      this.logger.warn(`Voucher quote for ${code} carried no readable discount`);
+      throw new VoucherRejectedError('This voucher could not be applied.');
+    }
+    return { discount, discountType: body.discountType };
   }
 
   async redeem(

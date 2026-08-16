@@ -1046,6 +1046,9 @@ export const hrFix = {
     enrollFailed: "Gagal enroll",
   },
   commission: {
+    deliveredPaid: '{delivered} antar · dibayar {gross}',
+    unpaidDeliveries: '{n} antar belum tercatat di buku pembayaran kurir',
+    payoutUnavailable: 'Angka pembayaran kurir tidak bisa dibaca sekarang, jadi komisi periode ini belum bisa ditampilkan. Layar ini tidak menghitung sendiri — angka yang dihitung di sini pernah berbeda dari yang benar-benar dibayarkan.',
     emptyBody: 'Belum ada pengantaran terselesaikan untuk depot ini pada periode {month}.',
     gateBody2: "Pembayaran komisi kurir hanya untuk Manajer depot.",
     title: "Komisi kurir",

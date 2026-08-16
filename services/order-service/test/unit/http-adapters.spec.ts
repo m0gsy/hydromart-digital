@@ -575,21 +575,38 @@ describe('LoyaltyCoordinationHttpAdapter', () => {
 });
 
 describe('MembershipHttpAdapter', () => {
-  it('returns 0 without authorization', async () => {
-    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('')).toBe(0);
+  /*
+   * E-5: every one of these used to answer a bare `0`, so "this tier is worth nothing",
+   * "there is no customer to ask about" and "loyalty-service is down" were the same value.
+   * The rate is unchanged; what each answer now also carries is whether it is a fact.
+   */
+  it('returns 0 without authorization — a guest, not an outage', async () => {
+    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('')).toEqual({
+      rate: 0,
+      unavailable: false,
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('returns a valid discount rate', async () => {
     fetchMock.mockResolvedValue(res({ body: { discountRate: 0.1 } }));
-    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toBe(0.1);
+    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toEqual({
+      rate: 0.1,
+      unavailable: false,
+    });
   });
-  it('clamps out-of-range/invalid rate to 0', async () => {
+  it('clamps an out-of-range rate to 0 — read, and worth nothing', async () => {
     fetchMock.mockResolvedValue(res({ body: { discountRate: 2 } }));
-    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toBe(0);
+    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toEqual({
+      rate: 0,
+      unavailable: false,
+    });
   });
-  it('returns 0 (fail open) on non-2xx', async () => {
+  it('fails open on non-2xx, and says the rate was never read', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toBe(0);
+    expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toEqual({
+      rate: 0,
+      unavailable: true,
+    });
   });
   it('scopes the lookup to the fulfilling depot when one is given', async () => {
     fetchMock.mockResolvedValue(res({ body: { discountRate: 0.03 } }));
@@ -687,6 +704,31 @@ describe('PromoHttpAdapter', () => {
     );
     expect(out).toEqual({ discount: 5000, discountType: undefined });
   });
+  /*
+   * E-5: `body.discount ?? 0` turned a 200 with no readable discount into a voucher worth
+   * nothing — the screen accepted the code, the customer was charged full price, and the
+   * order carried a voucher that discounted zero. Every other unreadable answer on this
+   * path rejects; this one used to be the exception.
+   */
+  it.each([
+    ['no discount field', {}],
+    ['a discount that is not a number', { discount: 'lima ribu' }],
+    ['a negative discount', { discount: -5000 }],
+  ])('quote: rejects a 200 carrying %s', async (_label, body) => {
+    fetchMock.mockResolvedValue(res({ body }));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quote('HEMAT', 'c1', 50000, 3000, 'Bearer x'),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
+  });
+
+  // A voucher legitimately worth nothing right now is still a readable answer.
+  it('quote: accepts an explicit zero discount', async () => {
+    fetchMock.mockResolvedValue(res({ body: { discount: 0 } }));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quote('HEMAT', 'c1', 50000, 3000, 'Bearer x'),
+    ).resolves.toEqual({ discount: 0, discountType: undefined });
+  });
+
   it('quote: forwards discountType so checkout can pick the right ceiling (M5-18)', async () => {
     fetchMock.mockResolvedValue(res({ body: { discount: 3000, discountType: 'FREE_SHIPPING' } }));
     const out = await new PromoHttpAdapter(makeConfig()).quote(
@@ -1027,7 +1069,7 @@ describe('counter-sale reads that name the buyer', () => {
   it('membership: reads the named customer over the internal key', async () => {
     fetchMock.mockResolvedValue(res({ ok: true, body: { discountRate: 0.05 } }));
     const rate = await new MembershipHttpAdapter(makeConfig()).getDiscountRateFor('cust-9', 'd1');
-    expect(rate).toBe(0.05);
+    expect(rate).toEqual({ rate: 0.05, unavailable: false });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://loyalty:3009/api/v1/loyalty/accounts/cust-9?depotId=d1');
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
@@ -1042,10 +1084,12 @@ describe('counter-sale reads that name the buyer', () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     await expect(
       new MembershipHttpAdapter(makeConfig()).getDiscountRateFor('cust-9'),
-    ).resolves.toBe(0);
+    ).resolves.toEqual({ rate: 0, unavailable: true });
+    // No internal key is a misconfigured path, not a buyer without a tier — the difference
+    // between "nothing to give" and "never asked" is the whole of E-5.
     await expect(
       new MembershipHttpAdapter(makeConfig({ internalServiceKey: '' })).getDiscountRateFor('c'),
-    ).resolves.toBe(0);
+    ).resolves.toEqual({ rate: 0, unavailable: true });
   });
 
   it('promo: quotes the named wallet over the internal route', async () => {

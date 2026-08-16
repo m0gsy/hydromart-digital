@@ -18,8 +18,14 @@ export interface NetworkDepotRow {
   name: string;
   active: boolean;
   ownershipType: string;
-  revenue: number;
-  orderCount: number;
+  /**
+   * E-3: `number | null`, not `number`. Revenue is read off order-service's TOP-N report,
+   * so a depot outside that N came back absent — and absent was folded to 0. Depot 101 read
+   * "Rp 0" while `sources.order` still said 'ok', and that zero was summed into the network
+   * total. Null now means "not in the report", which the console renders as `—`.
+   */
+  revenue: number | null;
+  orderCount: number | null;
   /** On-time rate 0..1, or null when the depot has no delivered orders in range. */
   slaRate: number | null;
   /** Average delivered-order lead time in minutes, or null when none delivered. */
@@ -35,7 +41,8 @@ export interface NetworkDashboard {
   depots: NetworkDepotRow[];
   sources: {
     depot: 'ok' | 'unavailable';
-    order: 'ok' | 'unavailable';
+    /** 'partial': the report answered, but it is a top-N and some depots fell outside it. */
+    order: 'ok' | 'partial' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
   };
@@ -93,7 +100,8 @@ export interface FranchiseDashboard {
   crm: FranchiseCrm | null;
   sources: {
     depot: 'ok' | 'unavailable';
-    order: 'ok' | 'unavailable';
+    /** 'partial': the report answered, but it is a top-N and some depots fell outside it. */
+    order: 'ok' | 'partial' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
     hr: 'ok' | 'unavailable';
@@ -252,6 +260,15 @@ export class DashboardService {
     for (const item of topDepots?.items ?? []) {
       revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
     }
+    /*
+     * E-3. `topDepots` is a TOP-N report, so a depot missing from it is either a depot that
+     * sold nothing or a depot past the Nth — and the only thing that can tell them apart is
+     * whether the report came back full. Folding both to 0 gave depot 101 a confident
+     * "Rp 0" with `sources.order` still reading 'ok', and that zero was then summed into
+     * the network total. Below the limit, absence really does mean nothing sold.
+     */
+    const reportFull = (topDepots?.items.length ?? 0) >= DashboardService.NETWORK_TOP_LIMIT;
+    let missingFromReport = false;
     const slaByDepotId = new Map<string, number>();
     const avgMinutesByDepot = new Map<string, number | null>();
     for (const row of slaByDepot?.depots ?? []) {
@@ -273,14 +290,17 @@ export class DashboardService {
       const rev = revenueByDepot.get(d.id);
       const low = lowStockLists[i];
       if (low === null) inventoryOk = false;
+      // Outside a full top-N: we do not know this depot's revenue, so we do not claim one.
+      const unrepresented = !rev && reportFull;
+      if (unrepresented) missingFromReport = true;
       return {
         depotId: d.id,
         code: d.code,
         name: d.name,
         active: d.active,
         ownershipType: d.ownershipType,
-        revenue: rev?.revenue ?? 0,
-        orderCount: rev?.orderCount ?? 0,
+        revenue: unrepresented ? null : (rev?.revenue ?? 0),
+        orderCount: unrepresented ? null : (rev?.orderCount ?? 0),
         slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
         avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,
         rating: ratingByDepotId.has(d.id) ? ratingByDepotId.get(d.id)! : null,
@@ -294,7 +314,8 @@ export class DashboardService {
       depots: rows,
       sources: {
         depot: depots !== null ? 'ok' : 'unavailable',
-        order: topDepots !== null ? 'ok' : 'unavailable',
+        order:
+          topDepots === null ? 'unavailable' : missingFromReport ? 'partial' : 'ok',
         delivery: slaByDepot !== null ? 'ok' : 'unavailable',
         inventory: inventoryOk ? 'ok' : 'unavailable',
       },

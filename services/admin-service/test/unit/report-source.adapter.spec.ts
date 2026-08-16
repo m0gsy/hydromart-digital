@@ -41,6 +41,31 @@ describe('ReportSourceHttpAdapter', () => {
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
   });
 
+  /*
+   * E-4. The row source caps at 100. Finance opened a spreadsheet that simply stopped at
+   * the 100th depot, with nothing in the file saying the rest existed — and a short month
+   * and a cut-off month are indistinguishable once they are rows.
+   */
+  it('marks a truncated report in the file itself', async () => {
+    const rows = [{ label: 'Depot A', orders: 2, revenue: 5000 }];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ rows, truncated: true }),
+    });
+
+    const out = await new ReportSourceHttpAdapter(config()).rowsFor(
+      ReportDataset.REVENUE_BY_DEPOT,
+      FROM,
+      TO,
+    );
+
+    expect(out).toHaveLength(2);
+    expect(out[1].label).toMatch(/TERPOTONG/);
+    // Zeroed, so a SUM over the money column is not changed by the warning.
+    expect(out[1]).toMatchObject({ orders: 0, revenue: 0 });
+  });
+
   it('reads the product grouping from order-service too', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ rows: [] }) });
     await new ReportSourceHttpAdapter(config()).rowsFor(ReportDataset.REVENUE_BY_PRODUCT, FROM, TO);

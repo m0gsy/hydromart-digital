@@ -1034,6 +1034,9 @@ export const hrFix = {
     enrollFailed: "Enrolment failed",
   },
   commission: {
+    deliveredPaid: '{delivered} deliveries · paid {gross}',
+    unpaidDeliveries: '{n} deliveries are not in the courier payment ledger',
+    payoutUnavailable: 'The courier payment figures cannot be read right now, so this period’s commission is not shown. This screen does not work them out itself — a figure computed here once differed from what was actually paid.',
     emptyBody: 'No completed deliveries for this depot in {month}.',
     gateBody2: "Courier commission payouts are for depot managers only.",
     title: "Courier commission",
