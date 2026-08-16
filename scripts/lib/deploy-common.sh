@@ -354,6 +354,23 @@ throwaway_storage_driver() {
     { grep -vE '=(s3)?$' || true; } | tr '\n' ' '
 }
 
+# Every upload bucket named in .env, deduplicated, one per line.
+#
+# Read out of the file rather than listed here: this box prefixes the keys per service
+# (`DELIVERY_STORAGE_S3_BUCKET`, `PRODUCT_…`, `AUTH_…`, `HR_…`), two of them point at the
+# SAME bucket, and a bucket added tomorrow must be probed tomorrow — not whenever somebody
+# remembers to edit a list. `storage-policy.sh` shipped with a hardcoded trio and a guard on
+# the unprefixed `STORAGE_S3_ACCESS_KEY_ID` that this .env has never had, so its very first
+# production run could not have worked whatever else was fixed.
+storage_buckets() {
+  [ -f .env ] || return 0
+  tr -d '\r' < .env |
+    { grep -E '^[A-Z0-9_]*STORAGE_S3_BUCKET=.' || true; } |
+    cut -d= -f2- |
+    sed -e 's/^["'\'']//' -e 's/["'\'']$//' |
+    sort -u
+}
+
 # Fire-and-forget ops ping, same webhook the services use. No-op when unset.
 alert() {
   local url="${ALERT_WEBHOOK_URL:-}" text
