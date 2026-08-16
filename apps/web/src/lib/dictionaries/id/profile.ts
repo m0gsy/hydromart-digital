@@ -15,7 +15,6 @@ export const profile = {
     points: {
       label: 'Poin kamu',
       unit: 'poin',
-      worth: '≈ {amount} untuk potongan belanja',
       redeemCta: 'Tukar poin',
     },
     wallet: {

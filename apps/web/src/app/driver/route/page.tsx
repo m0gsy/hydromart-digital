@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { MapTrifold, NavigationArrow, Package, Sparkle } from '@phosphor-icons/react';
+import { NavigationArrow, Package, Sparkle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -75,19 +75,17 @@ function RouteView() {
         <h1 className="text-xl font-extrabold tracking-tight">{t('courierFix.route.title')}</h1>
       </header>
 
-      {/* Map placeholder — numbered pins over a schematic grid (no SDK key yet). */}
-      <Card className="relative h-40 overflow-hidden p-0">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(90deg,transparent 28%,#d5ddd3 28%,#d5ddd3 32%,transparent 32%),linear-gradient(0deg,transparent 44%,#d5ddd3 44%,#d5ddd3 48%,transparent 48%),#e8ede6',
-          }}
-        />
-        <div className="absolute inset-0 flex items-center justify-center text-[color:var(--muted)]">
-          <MapTrifold size={26} />
-        </div>
-        <span className="absolute bottom-2.5 left-2.5 rounded-lg bg-white px-2.5 py-1 text-[11px] font-extrabold text-[color:var(--fg)] shadow-sm tabular-nums">
+      {/*
+       * The route summary, and only the summary.
+       *
+       * This used to sit on top of a 160px "map": a CSS linear-gradient grid with a map
+       * icon in the middle and not a single pin on it. Maps were dropped by decision
+       * (2026-07-24, no SDK, no tiles), so it was never going to become a map — it was a
+       * picture of one, on the screen a courier opens to find their way. The numbers below
+       * are real (haversine over the stops' own destinationLat/Lng); the drawing was not.
+       */}
+      <Card className="px-3.5 py-3">
+        <span className="text-[11px] font-extrabold tabular-nums text-[color:var(--fg)]">
           {t('courierFix.route.summary', {
             stops: stops.length,
             km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),

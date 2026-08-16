@@ -17,10 +17,10 @@ import { SavedSegmentPrismaRepository } from '../infrastructure/prisma/saved-seg
 import { NotificationPrismaRepository } from '../infrastructure/prisma/notification.prisma.repository';
 import { BroadcastPrismaRepository } from '../infrastructure/prisma/broadcast.prisma.repository';
 import { PushSubscriptionPrismaRepository } from '../infrastructure/prisma/push.prisma.repository';
-import { WhatsappBroadcastHttpAdapter } from '../infrastructure/whatsapp/whatsapp-broadcast.http.adapter';
 import { WebPushSenderAdapter } from '../infrastructure/webpush/web-push.sender.adapter';
 import { FcmSenderAdapter } from '../infrastructure/fcm/fcm.sender.adapter';
 import { CompositePushSender } from '../infrastructure/push/composite-push.sender';
+import { InboxBroadcastDelivery } from '../infrastructure/notification/inbox-broadcast.delivery';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
 import { CampaignController } from './campaign.controller';
@@ -41,7 +41,7 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.SavedSegmentRepository, useClass: SavedSegmentPrismaRepository },
   { provide: CRM_TOKENS.NotificationRepository, useClass: NotificationPrismaRepository },
   { provide: CRM_TOKENS.BroadcastRepository, useClass: BroadcastPrismaRepository },
-  { provide: CRM_TOKENS.WhatsappBroadcast, useClass: WhatsappBroadcastHttpAdapter },
+  { provide: CRM_TOKENS.BroadcastDelivery, useClass: InboxBroadcastDelivery },
   { provide: CRM_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: CRM_TOKENS.ActivitySegment, useClass: ActivitySegmentHttpAdapter },
   { provide: CRM_TOKENS.PushSubscriptionRepository, useClass: PushSubscriptionPrismaRepository },

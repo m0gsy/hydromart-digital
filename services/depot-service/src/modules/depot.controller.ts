@@ -34,6 +34,7 @@ import { Page } from '../application/pagination';
 import {
   BrowseDepotsQueryDto,
   CreateDepotDto,
+  DepotContactView,
   DepotPaymentInfoView,
   NearbyDepotsQueryDto,
   NearbyDepotView,
@@ -195,6 +196,17 @@ export class DepotController {
   @ApiOperation({ summary: "A depot's payment destination (signed-in callers)" })
   async paymentInfo(@Param('id', ParseUUIDPipe) id: string): Promise<DepotPaymentInfoView> {
     return DepotPaymentInfoView.from(await this.depots.get(id, true));
+  }
+
+  // The depot's own phone, for the customer help screen. Same guard as payment-info and
+  // for the same reason: one depot at a time to a signed-in caller is fine, a public bulk
+  // directory of every depot's line is not. Declared before `:id` so it is not swallowed.
+  @ApiOkResponse({ type: DepotContactView })
+  @ApiBearerAuth()
+  @Get(':id/contact')
+  @ApiOperation({ summary: "A depot's contact phone (signed-in callers)" })
+  async contact(@Param('id', ParseUUIDPipe) id: string): Promise<DepotContactView> {
+    return DepotContactView.from(await this.depots.get(id, true));
   }
 
   @ApiOkResponse({ type: PublicDepotView })

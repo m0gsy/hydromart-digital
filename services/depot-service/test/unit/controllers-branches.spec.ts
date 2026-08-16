@@ -823,7 +823,12 @@ describe('DepotController', () => {
       page: 1,
       limit: 20,
     });
-    svc.get.mockResolvedValue({ id: DEPOT, name: 'D', paymentBankAccountNumber: '123' });
+    svc.get.mockResolvedValue({
+      id: DEPOT,
+      name: 'D',
+      paymentBankAccountNumber: '123',
+      contactPhone: '0811',
+    });
     // nearby maps through NearbyDepotView for the same reason browse/get do.
     svc.findNearby.mockResolvedValue([
       { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', distanceKm: 1.2, withinService: true },
@@ -878,6 +883,24 @@ describe('DepotController', () => {
    * If this test fails because the route was locked down, the checkout screen broke. Widen
    * it back, or move the payment destination into the order the customer is paying for.
    */
+  /**
+   * The customer help screen's CS number. Same shape as payment-info, same reasoning: a
+   * customer holds no depot capability, so the route cannot demand one — but it serves one
+   * depot at a time to a signed-in caller, never the anonymous bulk directory that
+   * `internal/contacts` exists to avoid.
+   *
+   * Before this route the help page shipped `+62 812-9000-0100` as a literal, so every
+   * customer who pressed "hubungi kami" called a number nobody at Hydromart owns.
+   */
+  it('serves the depot contact phone to a signed-in caller, one depot at a time', async () => {
+    await expect(c.contact(DEPOT)).resolves.toEqual({ name: 'D', contactPhone: '0811' });
+
+    const handler = DepotController.prototype.contact;
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeFalsy();
+    expect(Reflect.getMetadata(ROLES_KEY, handler)).toBeUndefined();
+    expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
+  });
+
   it('is deliberately readable by any signed-in caller — checkout depends on it', () => {
     const handler = DepotController.prototype.paymentInfo;
     // No @Public(): the route is authenticated, the global JwtAuthGuard reads this key.

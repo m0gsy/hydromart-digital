@@ -43,6 +43,9 @@ depots: {
   manageDetail: (id: string) => `/depots/api/v1/depots/manage/${id}`,
   // Where to send money for ONE depot. Any signed-in user; never anonymous.
   paymentInfo: (id: string) => `/depots/api/v1/depots/${id}/payment-info`,
+  // The depot's own phone, for the help screen. Signed-in only, one depot at a time —
+  // contactPhone is deliberately absent from the public projection.
+  contact: (id: string) => `/depots/api/v1/depots/${id}/contact`,
   // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
   uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
   // "Tutup buku": one depot declaring one day counted. GET reads the state plus whatever

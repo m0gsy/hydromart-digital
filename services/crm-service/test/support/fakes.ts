@@ -20,7 +20,7 @@ import {
   ActivityConditions,
   ActivitySegmentPort,
 } from '../../src/application/ports/activity-segment.port';
-import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
+import { BroadcastDeliveryPort } from '../../src/application/ports/broadcast-delivery.port';
 import {
   SavedSegmentRecord,
   SavedSegmentRepository,
@@ -316,24 +316,24 @@ export class FakeActivitySegment implements ActivitySegmentPort {
 }
 
 /** WhatsApp fake: reports success unless a phone is registered via failOn(...). Never throws. */
-export class FakeWhatsappBroadcast implements WhatsappBroadcastPort {
-  sent: { phone: string; message: string }[] = [];
-  /** Set false to stand in for a deployment with no WHATSAPP_API_URL (E-2). */
-  isConfigured = true;
+/**
+ * Campaign delivery fake. Records what the sweep tried to deliver, and can be told to
+ * throw for a given phone so the FAILED branch is reachable — the port throws on failure
+ * rather than returning an outcome, because the inbox write either happens or raises.
+ */
+export class FakeBroadcastDelivery implements BroadcastDeliveryPort {
+  sent: { phone: string; message: string; customerId: string }[] = [];
   private readonly failPhones = new Set<string>();
-
-  configured(): boolean {
-    return this.isConfigured;
-  }
 
   failOn(...phones: string[]): void {
     for (const p of phones) this.failPhones.add(p);
   }
 
-  async send(phone: string, message: string): Promise<{ ok: boolean; error?: string }> {
-    this.sent.push({ phone, message });
-    if (this.failPhones.has(phone)) return { ok: false, error: 'simulated failure' };
-    return { ok: true };
+  async deliver(phone: string, message: string, customerId: string): Promise<void> {
+    // Recorded before the throw: this list is what the sweep ATTEMPTED, which is what the
+    // per-recipient rendering tests assert. Whether it succeeded is on the recipient row.
+    this.sent.push({ phone, message, customerId });
+    if (this.failPhones.has(phone)) throw new Error('simulated failure');
   }
 }
 

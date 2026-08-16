@@ -53,14 +53,6 @@ describe('CrmConfigService', () => {
     });
   });
 
-  it('reads WhatsApp config (blank defaults)', () => {
-    expect(cfg({}).whatsapp).toEqual({ baseUrl: '', token: '' });
-    expect(cfg({ WHATSAPP_API_URL: 'http://wa', WHATSAPP_API_TOKEN: 'tok' }).whatsapp).toEqual({
-      baseUrl: 'http://wa',
-      token: 'tok',
-    });
-  });
-
   it('trims the customer-service URL', () => {
     expect(cfg({ CUSTOMER_SERVICE_URL: '  http://cust  ' }).customerServiceUrl).toBe('http://cust');
     // The activity half of a segment. Blank either one and the resolution fails closed,

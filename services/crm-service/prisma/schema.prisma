@@ -27,9 +27,13 @@ enum CampaignStatus {
   SENT
 }
 
-/// Broadcast channel. WhatsApp only for now (FR-094).
+/// Broadcast channel. IN_APP is what campaigns use now — an inbox row plus best-effort
+/// push, the same transport as transactional notifications. WHATSAPP is kept because
+/// historical rows carry it and that is the truth about how they were delivered; nothing
+/// writes it any more.
 enum CampaignChannel {
   WHATSAPP
+  IN_APP
 }
 
 /// Per-recipient delivery state within a campaign send.
@@ -53,7 +57,7 @@ enum NotificationStatus {
 model Campaign {
   id              String              @id @default(uuid())
   name            String
-  channel         CampaignChannel     @default(WHATSAPP)
+  channel         CampaignChannel     @default(IN_APP)
   messageTemplate String
   status          CampaignStatus      @default(DRAFT)
   totalRecipients Int                 @default(0)

@@ -29,16 +29,6 @@ export class CrmConfigService {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
   /**
-   * WhatsApp Cloud API base URL + bearer token (FR-094). A blank baseUrl selects the
-   * broadcast adapter's console/dev mode (logs the message, reports success).
-   */
-  get whatsapp(): { baseUrl: string; token: string } {
-    return {
-      baseUrl: this.config.get<string>('WHATSAPP_API_URL', ''),
-      token: this.config.get<string>('WHATSAPP_API_TOKEN', ''),
-    };
-  }
-  /**
    * customer-service base URL for the CRM broadcast directory (FR-087 segmentation). Blank
    * disables segment targeting — a segment request then fails closed (SegmentUnavailableError).
    */
