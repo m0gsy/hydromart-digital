@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { NavigationArrow, Package, Sparkle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -13,7 +13,11 @@ import { useT } from '@/lib/locale-context';
 import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
-const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+const IDR = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+});
 
 /** The depot every stop on this route belongs to — a courier works one at a time. */
 function depotIdOf(page: Page<Delivery> | null): string | null {
@@ -39,7 +43,10 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
 function RouteView() {
   const { t } = useT();
   const router = useRouter();
-  const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
+  const list = useAsync<Page<Delivery>>(
+    () => api.get(endpoints.deliveries.driver.list(), true),
+    [],
+  );
   /*
    * The ETA's two constants, from the depot's own settings rather than from this file.
    *
@@ -58,8 +65,18 @@ function RouteView() {
     [depotIdOf(list.data)],
   );
 
-  if (list.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
-  if (list.error) return <div className="p-5"><ErrorState message={list.error} onRetry={list.reload} /></div>;
+  if (list.loading)
+    return (
+      <div className="p-5">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  if (list.error)
+    return (
+      <div className="p-5">
+        <ErrorState message={list.error} onRetry={list.reload} />
+      </div>
+    );
 
   const stops = (list.data?.items ?? [])
     .filter((d) => ACTIVE.includes(d.status))
@@ -81,11 +98,18 @@ function RouteView() {
     const prev = stops[i - 1];
     if (!prev) return null;
     if (
-      prev.destinationLat == null || prev.destinationLng == null ||
-      d.destinationLat == null || d.destinationLng == null
+      prev.destinationLat == null ||
+      prev.destinationLng == null ||
+      d.destinationLat == null ||
+      d.destinationLng == null
     )
       return null;
-    return haversineKm(prev.destinationLat, prev.destinationLng, d.destinationLat, d.destinationLng);
+    return haversineKm(
+      prev.destinationLat,
+      prev.destinationLng,
+      d.destinationLat,
+      d.destinationLng,
+    );
   });
   const totalKm = legs.reduce<number>((sum, km) => sum + (km ?? 0), 0);
   // ponytail: straight-line distance at a flat average speed — no traffic, no road network.
@@ -105,24 +129,17 @@ function RouteView() {
       </header>
 
       {/*
-       * The route summary, and only the summary.
+       * There is no map here on purpose.
        *
-       * This used to sit on top of a 160px "map": a CSS linear-gradient grid with a map
-       * icon in the middle and not a single pin on it. Maps were dropped by decision
-       * (2026-07-24, no SDK, no tiles), so it was never going to become a map — it was a
-       * picture of one, on the screen a courier opens to find their way. The numbers below
-       * are real (haversine over the stops' own destinationLat/Lng); the drawing was not.
+       * A 160px "map" used to sit at the top of this screen: a CSS linear-gradient grid
+       * with a map icon in the middle and not a single pin on it. Maps were dropped by
+       * decision (2026-07-24, no SDK, no tiles), so it was never going to become one — it
+       * was a picture of a map, on the screen a courier opens to find their way.
+       *
+       * Removing it left the route summary printed twice, because the chip that sat on the
+       * map said the same thing as the row below. This is that row; the numbers are real
+       * (haversine over the stops' own destinationLat/Lng, at the depot's configured speed).
        */}
-      <Card className="px-3.5 py-3">
-        <span className="text-[11px] font-extrabold tabular-nums text-[color:var(--fg)]">
-          {t('courierFix.route.summary', {
-            stops: stops.length,
-            km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
-          })}
-          {estMin !== null && t('courierFix.route.summaryEta', { min: estMin })}
-        </span>
-      </Card>
-
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-[color:var(--muted)] tabular-nums">
           {t('courierFix.route.summary', {
@@ -152,7 +169,12 @@ function RouteView() {
                 >
                   {i + 1}
                 </span>
-                {i < stops.length - 1 && <span className="w-0.5 flex-1 bg-[color:var(--border)]" style={{ minHeight: 18 }} />}
+                {i < stops.length - 1 && (
+                  <span
+                    className="w-0.5 flex-1 bg-[color:var(--border)]"
+                    style={{ minHeight: 18 }}
+                  />
+                )}
               </div>
               <Link
                 href={`/driver/deliveries/detail?id=${d.id}`}
@@ -162,13 +184,20 @@ function RouteView() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[12.5px] font-extrabold tabular-nums">{d.orderNumber}</span>
-                  {isNext && <span className="text-[11px] font-extrabold text-brand-700">{t('courierFix.route.next')}</span>}
+                  {isNext && (
+                    <span className="text-[11px] font-extrabold text-brand-700">
+                      {t('courierFix.route.next')}
+                    </span>
+                  )}
                 </div>
                 <div className="mt-1 text-xs leading-snug text-[color:var(--muted)]">
                   {d.destinationAddress}
-                  {leg != null && ` · ${leg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`}
+                  {leg != null &&
+                    ` · ${leg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`}
                   {' · '}
-                  {cod ? t('courierFix.route.cod', { amount: IDR.format(d.codAmount as number) }) : t('courierFix.route.paid')}
+                  {cod
+                    ? t('courierFix.route.cod', { amount: IDR.format(d.codAmount as number) })
+                    : t('courierFix.route.paid')}
                 </div>
               </Link>
             </li>
