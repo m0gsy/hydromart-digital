@@ -376,11 +376,20 @@ async function eventually(read, done, message, tries = 20) {
   throw new Error(`${message} — last saw ${JSON.stringify(last)}`);
 }
 
-/** A token for an account that really exists — see inviteDriver for why that matters. */
-function roleToken(sub, role, phone) {
+/**
+ * A token for an account that really exists — see inviteDriver for why that matters.
+ *
+ * `depotId` is not optional decoration. A real access token carries
+ * `depotId: customer.assignedDepotId` (session.service.ts), and DepotScopeGuard starts
+ * from exactly that claim: `const own = user.depotId ? [user.depotId] : []`. Minted
+ * without it, a courier who genuinely belongs to the depot is refused with
+ * "hanya boleh mengakses depot yang menjadi tanggung jawabnya" — a fixture that tests
+ * the guard's fallback path instead of the delivery flow.
+ */
+function roleToken(sub, role, phone, depotId) {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
-  const body = { sub, role, phone, iat: now, exp: now + 900 };
+  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 900 };
   const data = `${b64(head)}.${b64(body)}`;
   return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
 }
@@ -423,7 +432,7 @@ async function inviteDriver(staff, depotId) {
   });
   ok(res, 'invite driver');
   assert(res.body.id, `no driver id: ${JSON.stringify(res.body)}`);
-  return { id: res.body.id, phone, token: roleToken(res.body.id, 'STAFF_DEPOT', phone) };
+  return { id: res.body.id, phone, token: roleToken(res.body.id, 'STAFF_DEPOT', phone, depotId) };
 }
 
 
