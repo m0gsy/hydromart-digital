@@ -177,6 +177,30 @@ export class OrderController {
     return this.outboxService.processDue();
   }
 
+  /**
+   * The same sweep, for the scheduler.
+   *
+   * `outbox/process` above is SUPER_ADMIN-only, which is right for a human pressing it and
+   * useless for crond: `sweep.sh` authenticates with `x-internal-key` and holds no JWT. So
+   * for the whole life of the outbox there was no cron line for it, and there could not
+   * have been — the retry path for a failed stock consume, loyalty award, referral
+   * qualification or franchise-owner credit simply never ran. The happy path runs inline,
+   * so nothing looked broken; a PENDING row just sat there with money owed against it.
+   *
+   * Same shape as `subscriptions/process-due` and `campaigns/internal/process-sending`:
+   * @Public() takes it out of the global JWT guard, InternalAuthGuard is the only auth.
+   */
+  @ApiOkResponse({ description: 'Counts for this sweep: claimed, delivered, failed, dead.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('outbox/internal/process')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry the order side effects still owed (scheduler sweep)' })
+  processOutboxInternal(): Promise<OutboxSweepResult> {
+    return this.outboxService.processDue();
+  }
+
   /** What the sweep still owes, so a queue that stops draining is visible. */
   @Roles(Role.SUPER_ADMIN)
   @Get('outbox/pending')
@@ -203,6 +227,30 @@ export class OrderController {
       authorization,
       minutes && minutes > 0 ? minutes : undefined,
     );
+  }
+
+  /**
+   * Abandoned-order expiry, for the scheduler — same reason as the outbox sibling above:
+   * the SUPER_ADMIN route cannot be called by crond, so it never had a cron line and
+   * abandoned orders held their stock reservation indefinitely. A reservation nobody ever
+   * releases is a slow leak into false out-of-stock.
+   *
+   * `changedBy` is a fixed system identifier rather than a user id, because there is no
+   * user: the status-history row should say a sweep did this, not name whoever happened to
+   * hold the admin token. The empty authorization is deliberate and safe — `releaseStock`
+   * reaches depot-service with `x-internal-key` and ignores the bearer entirely.
+   */
+  @ApiOkResponse({ type: ExpireAbandoned2ResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/expire-abandoned')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Auto-cancel unconfirmed abandoned orders, releasing their stock (scheduler sweep)',
+  })
+  expireAbandonedInternal(): Promise<{ cancelled: number }> {
+    return this.orders.expireAbandoned('system:scheduler');
   }
 
   @ApiOkResponse({ type: PagedOrderResponseDto })

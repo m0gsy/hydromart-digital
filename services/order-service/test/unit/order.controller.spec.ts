@@ -1,6 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 
-import { Role } from '@hydromart/platform';
+import {
+  CAPABILITY_KEY,
+  IS_PUBLIC_KEY,
+  InternalAuthGuard,
+  ROLES_KEY,
+  Role,
+} from '@hydromart/platform';
 
 import { OrderController } from '../../src/modules/order.controller';
 import { OrderService } from '../../src/application/services/order.service';
@@ -451,5 +457,34 @@ describe('OrderController', () => {
   it('outbox: runs the sweep and reports what is still owed', async () => {
     await expect(controller.processOutbox()).resolves.toMatchObject({ delivered: 2 });
     await expect(controller.outboxPending()).resolves.toMatchObject({ PENDING: 1 });
+  });
+
+  /*
+   * The scheduler's own doors.
+   *
+   * Both sweeps existed only behind @Roles(SUPER_ADMIN), and `sweep.sh` carries an
+   * `x-internal-key` and no JWT — so neither could ever be given a cron line, and neither
+   * had one. The outbox retry path never ran, and abandoned orders kept their stock
+   * reservation for good. These two routes are what make the schedule possible, so the
+   * test that matters is the auth shape: internal-key only, never a bearer.
+   */
+  it('exposes both sweeps to the scheduler under the internal key, not a JWT', async () => {
+    await expect(controller.processOutboxInternal()).resolves.toMatchObject({ delivered: 2 });
+    await expect(controller.expireAbandonedInternal()).resolves.toEqual({ cancelled: 3 });
+
+    // No user to attribute it to, so the history row names the sweep itself — and the
+    // empty bearer is safe because releaseStock reaches depot-service with the internal key.
+    expect(service.expireAbandoned).toHaveBeenLastCalledWith('system:scheduler');
+
+    for (const handler of [
+      OrderController.prototype.processOutboxInternal,
+      OrderController.prototype.expireAbandonedInternal,
+    ]) {
+      // @Public() takes it out of the global JwtAuthGuard; InternalAuthGuard is the sole auth.
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBe(true);
+      expect(Reflect.getMetadata(ROLES_KEY, handler)).toBeUndefined();
+      expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
+      expect(Reflect.getMetadata('__guards__', handler)).toContain(InternalAuthGuard);
+    }
   });
 });
