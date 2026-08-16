@@ -485,6 +485,17 @@ export class AccountService {
    * Until now the ONLY way to change an account's depot from the console was to re-invite
    * the same phone number, which happened to overwrite it — a transfer disguised as an
    * invitation. A depot-locked role still cannot end up with no depot.
+   *
+   * The move reaches the EMPLOYEE record too, exactly like `setStaffActive` below. Without
+   * that push this method wrote one half of a transfer: the login moved and hr-service
+   * kept rostering, geofencing and paying the same person at the depot they had left, with
+   * nothing anywhere reporting that the two records disagreed. It is the only console
+   * write to `assignedDepotId` that ever lacked one — invite and import carry the depot in
+   * their provision call, and `setStaffRole` is reached only FROM hr-service.
+   *
+   * Pushed AFTER the local write, like `setStaffActive`, and hard: hr-service refuses a
+   * move that would strand the employee in another depot's department, and that refusal
+   * has to fail the whole transfer rather than leave the halves disagreeing.
    */
   async setStaffDepot(customerId: string, depotId: string | null): Promise<PublicCustomer> {
     const customer = await this.customers.findById(customerId);
@@ -498,7 +509,12 @@ export class AccountService {
       throw new StaffDepotRequiredError();
     }
     customer.assignDepot(depotId);
-    return toPublicCustomer(await this.customers.save(customer));
+    const staff = toPublicCustomer(await this.customers.save(customer));
+    // A franchise owner has no employee record to move — same skip as setStaffActive.
+    if (this.hr && staff.role !== Role.FRANCHISE_OWNER) {
+      await this.hr.setEmployeeDepot(staff.id, depotId);
+    }
+    return staff;
   }
 
   /**

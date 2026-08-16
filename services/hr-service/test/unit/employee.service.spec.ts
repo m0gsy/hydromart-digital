@@ -415,6 +415,74 @@ describe('EmployeeService (M1)', () => {
     expect(identity.activeCalls).toEqual([]);
   });
 
+  /*
+   * The other console mirror, and the bug it closes: the staff console could move an
+   * account to another depot and this table never heard about it, so the same person was
+   * rostered, geofenced and paid at the depot they had just left.
+   */
+  it('mirrors a console depot transfer without calling auth-service back', async () => {
+    const { repo, identity, svc } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    identity.roleCalls.length = 0;
+
+    await expect(
+      svc.setDepotInternal('11111111-1111-4111-8111-111111111111', DEPOT_B),
+    ).resolves.toEqual({ updated: true });
+
+    expect(repo.rows[0]?.depotId).toBe(DEPOT_B);
+    expect(identity.roleCalls).toEqual([]);
+  });
+
+  it('reports nothing changed for the same depot, and for an account it does not know', async () => {
+    const { repo, svc } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    // Re-sending the depot the employee already has must not write a history row.
+    await expect(
+      svc.setDepotInternal('11111111-1111-4111-8111-111111111111', DEPOT_A),
+    ).resolves.toEqual({ updated: false });
+
+    // auth-service also holds identities that were never employees.
+    await expect(
+      svc.setDepotInternal('22222222-2222-4222-8222-222222222222', DEPOT_B),
+    ).resolves.toEqual({ updated: false });
+    expect(repo.rows[0]?.depotId).toBe(DEPOT_A);
+  });
+
+  /*
+   * An internal-key route carries no AuthenticatedUser, so `assertDepotAccess` — the check
+   * that guards every console-side edit — is not in this path at all. Without the
+   * department check here, this route would be the one door into exactly the inconsistency
+   * that rule exists to prevent: a JKT clerk sitting inside "Gudang SBY".
+   */
+  it('refuses a transfer that would strand the employee in another depot’s department', async () => {
+    const repo = new FakeRepo();
+    const identity = fakeIdentity();
+    const departments = {
+      async findById(id: string) {
+        return { id, code: 'GD-SBY', depotId: DEPOT_B };
+      },
+    };
+    const svc = new EmployeeService(repo, identity, departments as never);
+    const e = await svc.create(hr, {
+      ...baseInput,
+      depotId: DEPOT_B,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    await svc.update(hr, e.id, { departmentId: '33333333-3333-4333-8333-333333333333' });
+
+    await expect(
+      svc.setDepotInternal('11111111-1111-4111-8111-111111111111', DEPOT_A),
+    ).rejects.toThrow('milik depot lain');
+    expect(repo.rows[0]?.depotId).toBe(DEPOT_B);
+  });
+
   it('leaves RESIGNED alone and reports nothing changed for an account it does not know', async () => {
     const { repo, svc } = make();
     const e = await svc.create(hr, {

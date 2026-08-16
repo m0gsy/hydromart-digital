@@ -258,6 +258,22 @@ export class SetEmployeeActiveDto {
   active!: boolean;
 }
 
+/**
+ * A depot transfer made in the staff console, arriving over the internal key.
+ *
+ * `depotId` is optional AND nullable because the console genuinely sends null: an
+ * employee above any single depot (Asisten SPV, SPV, Manager, Direktur) has no home
+ * depot, and auth-service only refuses null for the roles that are depot-locked.
+ */
+export class SetEmployeeDepotDto {
+  @IsUUID()
+  authSubjectId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  depotId?: string | null;
+}
+
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId
  * (the import gets that back from auth-service, it is never supplied by the file). */
 export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, [

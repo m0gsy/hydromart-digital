@@ -393,6 +393,7 @@ describe('EmployeesController', () => {
     'provisionFromInvite',
     'provisionManyFromInvite',
     'setActiveInternal',
+    'setDepotInternal',
     'anonymiseByAccount',
     'createAccountFor',
   ]);
@@ -444,6 +445,13 @@ describe('EmployeesController', () => {
 
     c.setActive({ authSubjectId: 'a1', active: false } as never);
     expect(emp.setActiveInternal).toHaveBeenCalledWith('a1', false);
+
+    c.setDepot({ authSubjectId: 'a1', depotId: 'd2' } as never);
+    expect(emp.setDepotInternal).toHaveBeenCalledWith('a1', 'd2');
+    // An absent depotId is a move to NO depot, not a missing argument: a role above any
+    // single depot legitimately has none, and `?? null` is what keeps that meaning.
+    c.setDepot({ authSubjectId: 'a1' } as never);
+    expect(emp.setDepotInternal).toHaveBeenLastCalledWith('a1', null);
 
     c.anonymiseByAccount({ authSubjectId: 'a1' } as never);
     expect(emp.anonymiseByAccount).toHaveBeenCalledWith('a1');

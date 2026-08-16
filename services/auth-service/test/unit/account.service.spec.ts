@@ -46,6 +46,10 @@ describe('AccountService', () => {
       inputs: readonly ProvisionEmployeeInput[],
     ): Promise<{ index: number; ok: boolean; message: string | null }[]>;
     setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
+    depotCalls: { authSubjectId: string; depotId: string | null }[];
+    setEmployeeDepot(authSubjectId: string, depotId: string | null): Promise<void>;
+    /** Set to make the push refuse, the way hr-service does for a department mismatch. */
+    depotRejects: Error | null;
     anonymiseEmployee(authSubjectId: string): Promise<void>;
   };
 
@@ -74,6 +78,12 @@ describe('AccountService', () => {
         }),
       setEmployeeActive: async (authSubjectId, active) =>
         void hr.activeCalls.push({ authSubjectId, active }),
+      depotCalls: [],
+      depotRejects: null,
+      setEmployeeDepot: async (authSubjectId, depotId) => {
+        if (hr.depotRejects) throw hr.depotRejects;
+        hr.depotCalls.push({ authSubjectId, depotId });
+      },
       anonymiseEmployee: async (authSubjectId) => void hr.anonymised.push(authSubjectId),
       anonymised: [],
     };
@@ -888,6 +898,58 @@ describe('AccountService', () => {
       await expect(service.setStaffDepot(staff.id, null)).rejects.toBeInstanceOf(
         StaffDepotRequiredError,
       );
+    });
+
+    // The bug this closes: the login moved and the employee record stayed behind, so the
+    // same person was rostered, geofenced and paid at the depot they had just left.
+    it('carries the move through to the employee record', async () => {
+      const staff = await service.inviteStaff('+628990006004', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      hr.depotCalls.length = 0;
+
+      await service.setStaffDepot(staff.id, 'depot-2');
+
+      expect(hr.depotCalls).toEqual([{ authSubjectId: staff.id, depotId: 'depot-2' }]);
+    });
+
+    // A role above any single depot legitimately has none, and null must survive the hop
+    // rather than being coerced into "no push".
+    it('pushes a null depot for a role that is not depot-locked', async () => {
+      const staff = await service.inviteStaff('+628990006005', Role.MANAGER, 'Rina', 'depot-1');
+      hr.depotCalls.length = 0;
+
+      await service.setStaffDepot(staff.id, null);
+
+      expect(hr.depotCalls).toEqual([{ authSubjectId: staff.id, depotId: null }]);
+    });
+
+    it('does not push for a franchise owner, who has no employee record', async () => {
+      const staff = await service.inviteStaff('+628990006006', Role.FRANCHISE_OWNER, 'Bu Sri', null);
+      hr.depotCalls.length = 0;
+
+      await service.setStaffDepot(staff.id, 'depot-2');
+
+      expect(hr.depotCalls).toEqual([]);
+    });
+
+    // Fails HARD: hr-service refuses a move that would strand the employee in another
+    // depot's department, and that refusal must reach the console rather than leaving the
+    // login moved and the employee behind — which is the very split being closed.
+    it('surfaces a refused push instead of swallowing it', async () => {
+      const staff = await service.inviteStaff('+628990006007', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      hr.depotRejects = new Error('Departemen GD-SBY milik depot lain');
+
+      await expect(service.setStaffDepot(staff.id, 'depot-2')).rejects.toThrow(
+        'Departemen GD-SBY milik depot lain',
+      );
+    });
+
+    it('works without an hr-service wired at all', async () => {
+      const svc = new AccountService(customers, sessions, new AuditService(audit));
+      const staff = await svc.inviteStaff('+628990006008', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+
+      await expect(svc.setStaffDepot(staff.id, 'depot-2')).resolves.toMatchObject({
+        assignedDepotId: 'depot-2',
+      });
     });
   });
 

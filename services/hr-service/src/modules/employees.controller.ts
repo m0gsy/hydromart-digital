@@ -25,6 +25,7 @@ import {
   ProvisionEmployeesDto,
   RetentionReportDto,
   SetEmployeeActiveDto,
+  SetEmployeeDepotDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
 import { Employee, EmploymentHistory } from '../../prisma/generated/client';
@@ -133,6 +134,24 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Mirror a login enable/disable onto the employee record' })
   setActive(@Body() dto: SetEmployeeActiveDto): Promise<{ updated: boolean }> {
     return this.employees.setActiveInternal(dto.authSubjectId, dto.active);
+  }
+
+  /**
+   * auth-service reporting that a staff account was moved to another depot in the console.
+   *
+   * Writes only — see EmployeeService.setDepotInternal for why it must not answer back.
+   * Reuses SetActive2ResponseDto: the shape is the same `{updated}` verdict, and minting a
+   * second identical class would only add a name.
+   */
+  @ApiOkResponse({ type: SetActive2ResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/depot')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mirror a console depot transfer onto the employee record' })
+  setDepot(@Body() dto: SetEmployeeDepotDto): Promise<{ updated: boolean }> {
+    return this.employees.setDepotInternal(dto.authSubjectId, dto.depotId ?? null);
   }
 
   /**
