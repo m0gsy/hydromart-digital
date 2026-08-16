@@ -21,6 +21,10 @@ export class WhatsappBroadcastHttpAdapter implements WhatsappBroadcastPort {
 
   constructor(private readonly config: CrmConfigService) {}
 
+  configured(): boolean {
+    return !!this.config.whatsapp.baseUrl;
+  }
+
   async send(phone: string, message: string): Promise<{ ok: boolean; error?: string }> {
     const { baseUrl, token } = this.config.whatsapp;
 
