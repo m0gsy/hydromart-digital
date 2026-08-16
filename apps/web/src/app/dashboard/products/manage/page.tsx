@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Lock, Info, Package, Plus, Trash } from '@phosphor-icons/react';
 
+import { ProductImageInput } from '@/components/product-image-input';
 import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import {
@@ -136,19 +137,26 @@ function ProductForm({
           </select>
         </Field>
       </div>
-      <Field label={t('dashC.productsManage.mainImage')} htmlFor="pf-image" hint={t('dashC.productsManage.mainImageHint')}>
-        <Input id="pf-image" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+      <Field label={t('dashC.productsManage.mainImage')} hint={t('dashC.productsManage.mainImageHint')}>
+        <ProductImageInput
+          value={imageUrl}
+          onChange={setImageUrl}
+          onRemove={imageUrl ? () => setImageUrl('') : undefined}
+          ariaLabel={t('dashC.productsManage.mainImage')}
+        />
       </Field>
       <Field label={t('dashC.productsManage.extraImages')} hint={t('dashC.productsManage.extraImagesHint')}>
         <div className="flex flex-col gap-2">
           {images.map((url, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <Input
-                value={url}
-                onChange={(e) => setImageAt(i, e.target.value)}
-                placeholder="https://…"
-                aria-label={t('dashC.productsManage.extraImageAria', { n: i + 1 })}
-              />
+              <div className="min-w-0 flex-1">
+                <ProductImageInput
+                  compact
+                  value={url}
+                  onChange={(next) => setImageAt(i, next)}
+                  ariaLabel={t('dashC.productsManage.extraImageAria', { n: i + 1 })}
+                />
+              </div>
               <Button
                 variant="ghost"
                 onClick={() => moveImage(i, -1)}

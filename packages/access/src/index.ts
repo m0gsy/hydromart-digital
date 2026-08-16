@@ -364,7 +364,15 @@ export const CAPABILITIES = {
   // role tuples they replace — this widens nothing on its own.
   //
   // product-service — the whole catalogue write surface (products, categories, uploads).
-  catalogWrite: ['MANAGER', 'SUPER_ADMIN'],
+  //
+  // HEAD_OFFICE is the one entry here that is NOT the original role tuple. It was added
+  // because `/hq/catalog` is reachable by HEAD_OFFICE, DIREKTUR and SUPER_ADMIN (see
+  // `isHq` in the web app) while MANAGER is deliberately kept OUT of the HQ console — so
+  // the set of people who could open the catalogue form and the set who could save it
+  // intersected at SUPER_ADMIN alone. A head-office user filled the form and got a 403,
+  // with nothing on screen explaining why. DIREKTUR stays out on purpose: it is an
+  // oversight role everywhere else in this matrix and reads without writing.
+  catalogWrite: ['MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   // order-service — network-wide order reporting.
   orderReports: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
   // order-service — the same reports scoped to one depot, which a depot head may read.

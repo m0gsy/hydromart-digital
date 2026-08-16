@@ -1008,6 +1008,8 @@ export const hq = {
       sku: 'SKU',
       unit: 'Unit',
       volumeMl: 'Volume (ml)',
+      image: 'Product photo',
+      imageHint: 'JPG, PNG or WebP, 5 MB maximum.',
       isGallon: 'Refillable gallon',
       price: 'Base price',
       category: 'Category',

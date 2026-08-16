@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Package } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
+import { ProductImageInput } from '@/components/product-image-input';
 import { Badge, Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -27,6 +28,9 @@ interface ProductForm {
   categoryId: string;
   description: string;
   active: boolean;
+  /** Main product photo. This form had no image field at all, so a product created from
+   *  HQ could never be given one — the depot form was the only way in. */
+  imageUrl: string;
 }
 
 function formFrom(p: Product): ProductForm {
@@ -40,6 +44,7 @@ function formFrom(p: Product): ProductForm {
     categoryId: p.categoryId ?? '',
     description: p.description ?? '',
     active: p.active,
+    imageUrl: p.imageUrl ?? '',
   };
 }
 
@@ -53,6 +58,7 @@ const EMPTY: ProductForm = {
   categoryId: '',
   description: '',
   active: true,
+  imageUrl: '',
 };
 
 function ProductEditor({
@@ -91,6 +97,7 @@ function ProductEditor({
         basePrice: price,
         categoryId: form.categoryId || null,
         description: form.description.trim() || null,
+        imageUrl: form.imageUrl.trim() || null,
       };
       if (product) {
         payload.active = form.active;
@@ -156,6 +163,14 @@ function ProductEditor({
         {form.isGallon && form.volumeMl.trim() === '' && (
           <p className="text-xs text-muted">{t('hq.catalog.gallonNoVolume')}</p>
         )}
+        <Field label={t('hq.catalog.fields.image')} hint={t('hq.catalog.fields.imageHint')}>
+          <ProductImageInput
+            value={form.imageUrl}
+            onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
+            onRemove={form.imageUrl ? () => setForm((f) => ({ ...f, imageUrl: '' })) : undefined}
+            ariaLabel={t('hq.catalog.fields.image')}
+          />
+        </Field>
         <Field label={t('hq.catalog.fields.category')}>
           <select value={form.categoryId} onChange={set('categoryId')} className={inputClass}>
             <option value="">{t('hq.catalog.noCategory')}</option>
