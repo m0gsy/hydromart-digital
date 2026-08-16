@@ -411,6 +411,14 @@ async function inviteDriver(staff, depotId) {
       joinDate: new Date().toISOString().slice(0, 10),
       employmentStatus: 'PERMANENT',
       salaryType: 'MONTHLY',
+      /*
+       * Not decoration. hr-service refuses a MONTHLY employee with no monthly rate
+       * (`employee.service.ts` salaryRates), and auth-service reports that refusal as
+       * `503 — hr-service menolak permintaan (400)`, which names neither the field nor
+       * the service that wanted it. The invite DTO now rejects the pair itself; this is
+       * the value that satisfies it.
+       */
+      monthlyRate: 4_500_000,
     },
   });
   ok(res, 'invite driver');

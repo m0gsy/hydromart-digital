@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsEnum,
   IsIn,
   IsISO8601,
@@ -135,14 +136,26 @@ export class InviteStaffDto {
   @IsIn(SALARY_TYPES)
   salaryType!: string;
 
+  /*
+   * "Required when salaryType is DAILY" was a sentence in the docs and nowhere in the code.
+   * hr-service enforces it for real (`salaryRates` throws), but that refusal crosses a
+   * service boundary and arrives at the caller as `503 — hr-service menolak permintaan
+   * (400)`: no field name, no service name, and an account already minted with no employee
+   * half behind it. The pair is checked here instead, before anything is written.
+   *
+   * `@Min(0)` and not "positive": the console sends `monthlyRate: 0` for FRANCHISE_OWNER,
+   * the one role that skips the employee record entirely. Presence is what was missing.
+   */
   @ApiPropertyOptional({ example: 150000, description: 'Required when salaryType is DAILY.' })
-  @IsOptional()
+  @ValidateIf((o: InviteStaffDto) => o.salaryType === 'DAILY' || o.dailyRate !== undefined)
+  @IsDefined({ message: 'dailyRate wajib diisi untuk tipe gaji DAILY' })
   @IsNumber()
   @Min(0)
   dailyRate?: number;
 
   @ApiPropertyOptional({ example: 4500000, description: 'Required when salaryType is MONTHLY.' })
-  @IsOptional()
+  @ValidateIf((o: InviteStaffDto) => o.salaryType === 'MONTHLY' || o.monthlyRate !== undefined)
+  @IsDefined({ message: 'monthlyRate wajib diisi untuk tipe gaji MONTHLY' })
   @IsNumber()
   @Min(0)
   monthlyRate?: number;
