@@ -103,8 +103,19 @@ const SHOP = R(`
 /kebijakan-privasi /hapus-akun /waralaba /login /register /verify
 `);
 
+/*
+ * `hq` is a SUPER_ADMIN, and a super admin holds EVERY capability by definition — so this
+ * sweep proved the HQ console works for the one role that can never be refused anything,
+ * and nothing about the roles it was actually built for.
+ *
+ * HEAD_OFFICE and DIREKTUR both reach `/hq` (see `isHq`), and neither holds `depotAdmin` —
+ * which 17 of these pages read through `endpoints.depots.manage`. Running them here is the
+ * measurement; whatever it reports is the work.
+ */
 const ROLES = {
   hq: { phone: '+6281100000001', routes: HQ },
+  head_office: { phone: '+6281100000011', routes: HQ },
+  direktur: { phone: '+6281100000008', routes: HQ },
   operator: { phone: '+6281100000005', routes: OPS },
   manager: { phone: '+6281100000002', routes: MANAGER },
   courier: { phone: '+6281100000003', routes: DRIVER },

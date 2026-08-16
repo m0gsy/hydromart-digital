@@ -29,7 +29,13 @@ import { PendingPayoutResponseDto, WithdrawalResponseDto } from './dto/responses
 export class HqPayoutController {
   constructor(private readonly payout: PayoutService) {}
 
+  // Same read as `owner/:ownerId` below, for the whole network instead of one owner — so it
+  // carries the same capability. Inheriting the class-level `hqPayout` (FINANCE) meant
+  // HEAD_OFFICE, whose own console shows this queue on /hq/payments and /hq/franchise, got
+  // a 403 on the LIST while being explicitly allowed the per-owner form of the same figures.
+  // Releasing money stays FINANCE/SUPER_ADMIN, which is what `hqPayout` is actually for.
   @ApiOkResponse({ type: PendingPayoutResponseDto, isArray: true })
+  @Can('hqPayoutRead')
   @Get('pending')
   @ApiOperation({ summary: 'Owners across the network with a positive balance awaiting release' })
   pending(): Promise<PendingPayout[]> {
