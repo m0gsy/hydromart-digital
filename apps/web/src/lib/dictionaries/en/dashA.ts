@@ -76,10 +76,8 @@ export const dashA = {
     activityForSuffix: '(from the switcher).',
     all: 'All',
     category: {
-      OPNAME: 'Stock count',
-      RECEIPT: 'Receiving',
       HARGA: 'Pricing',
-      SETORAN: 'Remittance',
+      REFUND: 'Refunds',
       STAF: 'Staff',
     },
     noDepotTitle: 'No depots yet',

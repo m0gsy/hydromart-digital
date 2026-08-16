@@ -12,11 +12,25 @@ import { AUTH_TOKENS } from '../tokens';
  * case-insensitively. Single source shared by the Prisma repo (server filter) and
  * the in-memory fake; the web console mirrors the keys for its chip labels.
  */
+/*
+ * Audit: five chips, three of which could not match anything. Every action that reaches this
+ * trail comes from one of three places, and they are the whole list:
+ *   auth-service       auth.register.* / auth.otp.* / auth.login.* / auth.token.* / auth.logout*
+ *   payment-service    payment.refund.requested | rejected | settled
+ *   depot-service      depot.price_override.approved | rejected | self_approve_blocked
+ *
+ * OPNAME ('opname', 'stock') and RECEIPT ('receipt', 'restock', 'purchase') matched none of
+ * them — nothing writes stock movements to this trail — and SETORAN's words ('settlement',
+ * 'cod', 'deposit', 'payout') appear in none of them either. A filter that always returns
+ * nothing reads as "no such activity", which is a different claim from "not recorded here".
+ *
+ * What is left matches what is written. REFUND replaces SETORAN because a refund is what
+ * payment-service actually records, and calling it a deposit would be the same lie in the
+ * other direction.
+ */
 export const AUDIT_CATEGORIES: Record<string, string[]> = {
-  OPNAME: ['opname', 'stock'],
-  RECEIPT: ['receipt', 'restock', 'purchase'],
   HARGA: ['price', 'pricing', 'harga'],
-  SETORAN: ['settlement', 'cod', 'deposit', 'payout', 'setoran'],
+  REFUND: ['refund'],
   STAF: ['staff', 'role', 'invite', 'login', 'logout'],
 };
 

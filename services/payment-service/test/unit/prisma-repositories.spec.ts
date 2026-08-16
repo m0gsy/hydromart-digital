@@ -177,6 +177,35 @@ describe('PaymentPrismaRepository', () => {
     expect(model.findMany).not.toHaveBeenCalled();
   });
 
+  /*
+   * Fraud scan (15b). Grouped on `refundedAt`, not `createdAt`: the window is about when
+   * money went back, so a refund settled today on a March payment belongs to today.
+   */
+  it('counts settled refunds per customer over a window, above a threshold', async () => {
+    const from = new Date('2026-07-01');
+    const to = new Date('2026-08-01');
+    model.groupBy.mockResolvedValue([
+      { customerId: 'cust-1', _sum: { refundedAmount: '240000' }, _count: { _all: 4 } },
+      { customerId: 'cust-2', _sum: { refundedAmount: '18000' }, _count: { _all: 1 } },
+      { customerId: 'cust-3', _sum: { refundedAmount: null }, _count: { _all: 3 } },
+    ]);
+
+    const rows = await repo.refundCountsByCustomer(from, to, 3);
+
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['customerId'],
+      where: { status: PaymentStatus.REFUNDED, refundedAt: { gte: from, lte: to } },
+      _sum: { refundedAmount: true },
+      _count: { _all: true },
+    });
+    // cust-2 is under the threshold and must not appear: the answer is a review queue, and
+    // one refund is a customer, not a case.
+    expect(rows).toEqual([
+      { customerId: 'cust-1', refunds: 4, amountIdr: 240000 },
+      { customerId: 'cust-3', refunds: 3, amountIdr: 0 },
+    ]);
+  });
+
   it('listPendingRefunds filters on PENDING approval, newest updated first', async () => {
     model.findMany.mockResolvedValue([fullRow()]);
     model.count.mockResolvedValue(1);

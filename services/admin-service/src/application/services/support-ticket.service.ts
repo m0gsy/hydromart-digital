@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { SupportTicketNotFoundError } from '../../domain/errors';
 import {
+  CreateSupportTicketData,
   ListSupportTicketsFilter,
   SupportTicketRecord,
   SupportTicketRepository,
@@ -18,6 +19,16 @@ export class SupportTicketService {
   /** Support tickets (Design 15a), newest first, optionally filtered. */
   list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]> {
     return this.repo.list(filter);
+  }
+
+  /**
+   * Open a ticket. Staff-raised: the console is how a complaint taken at the counter or on
+   * the phone enters the system, so the caller is authenticated staff and the customer is
+   * named in the body. A customer-facing route is a separate decision — `/help` is static
+   * today, and opening that path needs moderation, not just an endpoint.
+   */
+  create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
+    return this.repo.create(data);
   }
 
   /** A single ticket with its message thread. 404 when the id is unknown. */

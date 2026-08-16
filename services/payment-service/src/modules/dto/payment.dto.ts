@@ -233,3 +233,21 @@ export class PaymentWebhookDto {
   @MaxLength(200)
   signature!: string;
 }
+
+/** Window + threshold for the repeated-refund fraud scan (15b, internal auth). */
+export class RefundCountsQueryDto {
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  to!: string;
+
+  @ApiProperty({ minimum: 2, maximum: 100, description: 'Least refunds to be reported.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(100)
+  minRefunds!: number;
+}

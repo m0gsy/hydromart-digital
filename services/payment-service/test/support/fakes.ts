@@ -82,6 +82,26 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
+  async refundCountsByCustomer(
+    from: Date,
+    to: Date,
+    minRefunds: number,
+  ): Promise<{ customerId: string; refunds: number; amountIdr: number }[]> {
+    const byCustomer = new Map<string, { refunds: number; amountIdr: number }>();
+    for (const r of this.rows) {
+      if (r.status !== PaymentStatus.REFUNDED || !r.refundedAt) continue;
+      if (r.refundedAt < from || r.refundedAt > to) continue;
+      const row = byCustomer.get(r.customerId) ?? { refunds: 0, amountIdr: 0 };
+      row.refunds += 1;
+      row.amountIdr += Math.round(r.refundedAmount ?? 0);
+      byCustomer.set(r.customerId, row);
+    }
+    return [...byCustomer.entries()]
+      .filter(([, v]) => v.refunds >= minRefunds)
+      .map(([customerId, v]) => ({ customerId, ...v }))
+      .sort((a, b) => b.refunds - a.refunds);
+  }
+
   async findByOrderIds(orderIds: string[]): Promise<PaymentRecord[]> {
     return this.rows
       .filter((r) => orderIds.includes(r.orderId))

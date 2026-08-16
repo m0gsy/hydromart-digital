@@ -26,7 +26,27 @@ export interface ListSupportTicketsFilter {
   priority?: TicketPriority;
 }
 
+/**
+ * A ticket raised at the counter or on the phone, with the complaint as its first message.
+ *
+ * Audit: `/hq/tickets` could list, reply, assign and resolve — but nothing anywhere could
+ * CREATE one, so the table only ever held rows put there by hand. `authorType` on that first
+ * message is CUSTOMER: staff are typing down what the customer said, and a thread whose
+ * opening line is attributed to staff reads as the depot complaining to itself.
+ */
+export interface CreateSupportTicketData {
+  subject: string;
+  customerRef: string;
+  customerPhone: string;
+  orderRef?: string | null;
+  priority?: TicketPriority;
+  /** The complaint itself — a ticket with no first message is a subject line. */
+  body: string;
+}
+
 export interface SupportTicketRepository {
+  /** Open a ticket with its first (customer) message. */
+  create(data: CreateSupportTicketData): Promise<SupportTicketRecord>;
   /** Tickets (newest-first), optionally filtered, each with its message thread. */
   list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]>;
   findById(id: string): Promise<SupportTicketRecord | null>;

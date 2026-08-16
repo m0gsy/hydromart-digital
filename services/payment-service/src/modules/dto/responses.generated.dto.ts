@@ -149,3 +149,18 @@ export class InternalExportRowsResponseDto {
   @ApiProperty({ type: [ExportRowResponseDto] })
   rows!: ExportRowResponseDto[];
 }
+
+/** Mirrors the repeated-refund scan answer exactly (15b). */
+export class RefundCountRowResponseDto {
+  @ApiProperty({ type: String })
+  customerId!: string;
+  @ApiProperty({ type: Number })
+  refunds!: number;
+  @ApiProperty({ type: Number })
+  amountIdr!: number;
+}
+
+export class RefundCountsResponseDto {
+  @ApiProperty({ type: [RefundCountRowResponseDto] })
+  customers!: RefundCountRowResponseDto[];
+}

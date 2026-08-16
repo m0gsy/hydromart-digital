@@ -95,3 +95,15 @@ export class FraudFlagDto {
     };
   }
 }
+
+/** Mirrors `FraudScanResult` exactly — what one scheduled scan did. */
+export class FraudScanResultDto {
+  @ApiProperty({ type: Number })
+  scanned!: number;
+  @ApiProperty({ type: Number })
+  flagged!: number;
+  @ApiProperty({ type: Number })
+  skipped!: number;
+  @ApiProperty({ type: Boolean, description: 'True = signals unreadable; `scanned` means nothing.' })
+  unavailable!: boolean;
+}

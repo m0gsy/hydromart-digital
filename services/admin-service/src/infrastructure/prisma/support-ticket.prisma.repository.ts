@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../domain/ticket';
 import {
+  CreateSupportTicketData,
   ListSupportTicketsFilter,
   SupportTicketRecord,
   SupportTicketRepository,
@@ -68,6 +69,23 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
       include: { messages: THREAD_TAIL },
     });
     return rows.map((r) => this.toRecord(r));
+  }
+
+  async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
+    // One transaction: a ticket that exists without its complaint is a subject line, and
+    // the thread view would render it as an empty conversation nobody can answer.
+    const created = await this.prisma.supportTicket.create({
+      data: {
+        subject: data.subject,
+        customerRef: data.customerRef,
+        customerPhone: data.customerPhone,
+        orderRef: data.orderRef ?? null,
+        ...(data.priority ? { priority: data.priority } : {}),
+        messages: { create: { authorType: TicketAuthorType.CUSTOMER, body: data.body } },
+      },
+      include: { messages: THREAD_TAIL },
+    });
+    return this.toRecord(created);
   }
 
   async findById(id: string): Promise<SupportTicketRecord | null> {

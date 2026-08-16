@@ -150,6 +150,29 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  async refundCountsByCustomer(
+    from: Date,
+    to: Date,
+    minRefunds: number,
+  ): Promise<{ customerId: string; refunds: number; amountIdr: number }[]> {
+    // `refundedAt`, not `createdAt`: the window is about when money went back, not when the
+    // payment was taken. A refund settled today on a payment from March belongs to today.
+    const grouped = await this.prisma.payment.groupBy({
+      by: ['customerId'],
+      where: { status: PaymentStatus.REFUNDED, refundedAt: { gte: from, lte: to } },
+      _sum: { refundedAmount: true },
+      _count: { _all: true },
+    });
+    return grouped
+      .filter((g) => g._count._all >= minRefunds)
+      .map((g) => ({
+        customerId: g.customerId,
+        refunds: g._count._all,
+        amountIdr: g._sum.refundedAmount ? Math.round(Number(g._sum.refundedAmount)) : 0,
+      }))
+      .sort((a, b) => b.refunds - a.refunds);
+  }
+
   async listPendingRefunds(query: {
     page: number;
     limit: number;

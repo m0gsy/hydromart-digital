@@ -17,11 +17,12 @@ import type { AuditEntry, Page } from '@/lib/types';
 
 // Category chips (design 8b). Mirrors AUDIT_CATEGORIES in auth-service: the substrings
 // let the timeline badge each row, while the chip sends `type` for the server filter.
+// OPNAME, RECEIPT and SETORAN were here and matched no action that is ever recorded — see
+// AUDIT_CATEGORIES in auth-service for the full list of what reaches this trail. A chip that
+// can only ever come back empty says "no such activity" when the truth is "not recorded here".
 const CATEGORIES: { key: string; match: string[] }[] = [
-  { key: 'OPNAME', match: ['opname', 'stock'] },
-  { key: 'RECEIPT', match: ['receipt', 'restock', 'purchase'] },
   { key: 'HARGA', match: ['price', 'pricing', 'harga'] },
-  { key: 'SETORAN', match: ['settlement', 'cod', 'deposit', 'payout', 'setoran'] },
+  { key: 'REFUND', match: ['refund'] },
   { key: 'STAF', match: ['staff', 'role', 'invite', 'login', 'logout'] },
 ];
 

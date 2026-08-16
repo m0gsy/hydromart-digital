@@ -14,7 +14,13 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { FraudFlagService } from '../application/services/fraud-flag.service';
-import { FraudFlagDto, FraudFlagQueryDto, IngestFraudFlagDto } from './dto/fraud-flag.dto';
+import { FraudScanResult, FraudScanService } from '../application/services/fraud-scan.service';
+import {
+  FraudFlagDto,
+  FraudFlagQueryDto,
+  FraudScanResultDto,
+  IngestFraudFlagDto,
+} from './dto/fraud-flag.dto';
 
 // Design 15b — fraud & risk queue. HEAD_OFFICE + SUPER_ADMIN read (highest-score-then-newest,
 // filter level/status) + review / block / clear. Ingest is service-to-service (internal key):
@@ -23,7 +29,10 @@ import { FraudFlagDto, FraudFlagQueryDto, IngestFraudFlagDto } from './dto/fraud
 @ApiBearerAuth()
 @Controller({ path: 'fraud-flags', version: '1' })
 export class FraudFlagsController {
-  constructor(private readonly fraud: FraudFlagService) {}
+  constructor(
+    private readonly fraud: FraudFlagService,
+    private readonly scanner: FraudScanService,
+  ) {}
 
   @ApiOkResponse({ type: FraudFlagDto, isArray: true })
   @Can('fraudReview')
@@ -56,6 +65,25 @@ export class FraudFlagsController {
   @ApiOperation({ summary: 'Clear the flag (no fraud)' })
   async clear(@Param('id') id: string): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.clear(id));
+  }
+
+  /*
+   * The scoring job itself (15b), fired by the scheduler — which is why it is internal-key
+   * and not a bearer route.
+   *
+   * Until this shipped nothing anywhere raised a flag, so `/hq/fraud` could review, block
+   * and clear a queue that only ever held rows put there by hand. Declared before the
+   * ingest below; both are static so the order is only for reading.
+   */
+  @ApiOkResponse({ type: FraudScanResultDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/scan')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Run the repeated-refund fraud scan (internal service auth)' })
+  async scan(): Promise<FraudScanResult> {
+    return this.scanner.run();
   }
 
   // Service-to-service ingest: a scoring job records a risk flag. @Public() bypasses the JWT

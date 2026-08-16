@@ -61,6 +61,22 @@ export class AdminConfigService {
     return out;
   }
 
+  /**
+   * Fraud scan thresholds (15b).
+   *
+   * Configuration, not literals: the numbers below decide whether a real customer lands in
+   * a review queue, and nobody has tuned them against real data yet. Env-declared and
+   * validated like every other tunable this platform has before it earns a per-depot
+   * setting — changeable without shipping code, and visible in the env contract.
+   */
+  get fraudScan(): { windowDays: number; minRefunds: number; highRefunds: number } {
+    return {
+      windowDays: Number(this.config.get('FRAUD_SCAN_WINDOW_DAYS', 30)),
+      minRefunds: Number(this.config.get('FRAUD_SCAN_MIN_REFUNDS', 3)),
+      highRefunds: Number(this.config.get('FRAUD_SCAN_HIGH_REFUNDS', 5)),
+    };
+  }
+
   /** Base URL of one peer, or '' when this environment does not reach it. */
   serviceUrl(envKey: string): string {
     return (this.config.get<string>(envKey) ?? '').replace(/\/+$/, '');

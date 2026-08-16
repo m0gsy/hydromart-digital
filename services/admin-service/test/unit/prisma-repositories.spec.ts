@@ -768,7 +768,7 @@ describe('SlaPolicyPrismaRepository', () => {
 });
 
 describe('SupportTicketPrismaRepository', () => {
-  const supportTicket = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const supportTicket = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), create: jest.fn() };
   const ticketMessage = { create: jest.fn() };
   const prisma = { supportTicket, ticketMessage } as unknown as PrismaService;
   const repo = new SupportTicketPrismaRepository(prisma);
@@ -788,6 +788,50 @@ describe('SupportTicketPrismaRepository', () => {
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * Audit: the table could be read, replied to, assigned and resolved — and nothing could
+   * create a row, so every one of those acted on a queue that could not grow. One write,
+   * because a ticket without its complaint is a subject line and the thread view would
+   * render it as an empty conversation nobody can answer.
+   */
+  it('opens a ticket and its first message in a single write', async () => {
+    supportTicket.create.mockResolvedValue(row());
+
+    await repo.create({
+      subject: 'Galon bocor',
+      customerRef: 'Ibu Rina',
+      customerPhone: '081234567890',
+      body: 'Air tumpah di teras.',
+    });
+
+    const arg = supportTicket.create.mock.calls[0][0];
+    expect(arg.data).toMatchObject({
+      subject: 'Galon bocor',
+      customerRef: 'Ibu Rina',
+      customerPhone: '081234567890',
+      orderRef: null,
+    });
+    // Attributed to the CUSTOMER: staff are typing down what was said to them.
+    expect(arg.data.messages.create).toMatchObject({
+      authorType: 'CUSTOMER',
+      body: 'Air tumpah di teras.',
+    });
+    // No priority sent means the column default decides, not a value invented here.
+    expect(arg.data.priority).toBeUndefined();
+  });
+
+  it('passes an explicit priority through when one is chosen', async () => {
+    supportTicket.create.mockResolvedValue(row());
+    await repo.create({
+      subject: 'S',
+      customerRef: 'C',
+      customerPhone: '08',
+      priority: TicketPriority.HIGH,
+      body: 'B',
+    });
+    expect(supportTicket.create.mock.calls[0][0].data.priority).toBe(TicketPriority.HIGH);
+  });
 
   it('list filters, orders newest-first, includes messages asc and casts enums', async () => {
     supportTicket.findMany.mockResolvedValue([row()]);

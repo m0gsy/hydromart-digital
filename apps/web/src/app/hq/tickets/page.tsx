@@ -70,6 +70,8 @@ export default function HqTicketsPage() {
     <div className="flex flex-col gap-6">
       <HqPageHeader icon={ChatCircleDots} title={t('hq.tickets.title')} subtitle={t('hq.tickets.subtitle')} />
 
+      <NewTicket onCreated={query.reload} />
+
       <div className="flex flex-wrap gap-2">
         {chips.map((f) => (
           <button
@@ -151,6 +153,84 @@ export default function HqTicketsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Open a ticket on a customer's behalf.
+ *
+ * The queue could be filtered, replied to, assigned and resolved — and nothing anywhere
+ * could put a row in it, so every one of those acted on a list that could not grow. Staff
+ * type down what the customer said; the complaint becomes the thread's first message,
+ * attributed to the CUSTOMER, because that is who said it.
+ */
+function NewTicket({ onCreated }: { onCreated: () => void }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ subject: '', customerRef: '', customerPhone: '', orderRef: '', body: '' });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const ready = form.subject.trim() && form.customerRef.trim() && form.customerPhone.trim() && form.body.trim();
+
+  async function submit() {
+    if (!ready) return;
+    setBusy(true);
+    try {
+      await api.post(
+        endpoints.admin.tickets.create,
+        {
+          subject: form.subject.trim(),
+          customerRef: form.customerRef.trim(),
+          customerPhone: form.customerPhone.trim(),
+          // Omitted rather than sent empty: an order reference of '' is not a reference.
+          ...(form.orderRef.trim() ? { orderRef: form.orderRef.trim() } : {}),
+          body: form.body.trim(),
+        },
+        true,
+      );
+      setForm({ subject: '', customerRef: '', customerPhone: '', orderRef: '', body: '' });
+      setOpen(false);
+      toast(t('hq.tickets.created'), 'success');
+      onCreated();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.tickets.saveError'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          {t('hq.tickets.newTicket')}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <p className="font-semibold">{t('hq.tickets.newTicket')}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input value={form.subject} onChange={set('subject')} placeholder={t('hq.tickets.subjectPlaceholder')} />
+        <Input value={form.customerRef} onChange={set('customerRef')} placeholder={t('hq.tickets.customerPlaceholder')} />
+        <Input value={form.customerPhone} onChange={set('customerPhone')} inputMode="tel" placeholder={t('hq.tickets.phonePlaceholder')} />
+        <Input value={form.orderRef} onChange={set('orderRef')} placeholder={t('hq.tickets.orderPlaceholder')} />
+      </div>
+      <Input value={form.body} onChange={set('body')} placeholder={t('hq.tickets.bodyPlaceholder')} />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => setOpen(false)}>
+          {t('hq.common.cancel')}
+        </Button>
+        <Button onClick={submit} disabled={!ready} loading={busy}>
+          {t('hq.tickets.createTicket')}
+        </Button>
+      </div>
+    </Card>
   );
 }
 
