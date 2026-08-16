@@ -1,6 +1,7 @@
 'use client';
 
 import { endpoints } from './endpoints';
+import { translate } from './locale-context';
 import { isNativeShell } from './platform';
 import { getSession, setSession } from './session-store';
 import {
@@ -46,10 +47,13 @@ function messageFrom(status: number, body: unknown): string {
     if (Array.isArray(m)) return m.join(', ');
     if (typeof m === 'string') return m;
   }
-  if (status === 0) return 'Cannot reach the server. Check your connection and try again.';
-  if (status === 408) return 'The server took too long to answer. Try again.';
-  if (status === 429) return 'Too many requests right now. Wait a moment and try again.';
-  return `Request failed (${status}).`;
+  // These four are read by a person, on every screen, and they were English literals — so a
+  // courier who lost signal got "Cannot reach the server" under `lang="id"`. This module is
+  // not a component and cannot hold a hook; `translate` is the same resolver `useT` uses.
+  if (status === 0) return translate('common.netUnreachable');
+  if (status === 408) return translate('common.netTimeout');
+  if (status === 429) return translate('common.netTooMany');
+  return translate('common.netFailed', { status });
 }
 
 /**

@@ -153,6 +153,14 @@ export const id = {
     // Used by the HQ order queue's assign-depot failure; without it the screen printed
     // the key itself at the user.
     error: 'Ada yang tidak beres.',
+    // The four answers `api.ts` gives when the server said nothing usable. They lived as
+    // English literals inside that module — reached by every screen, translated by none —
+    // and the OTP screen showed "Cannot reach the server" under `lang="id"` the first time
+    // a phone lost signal.
+    netUnreachable: 'Tidak bisa menghubungi server. Periksa koneksimu lalu coba lagi.',
+    netTimeout: 'Server terlalu lama menjawab. Coba lagi.',
+    netTooMany: 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.',
+    netFailed: 'Permintaan gagal ({status}).',
   },
   home,
   shop,

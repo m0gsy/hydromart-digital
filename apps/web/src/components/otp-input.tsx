@@ -35,6 +35,28 @@ export function OtpInput({
     if (clean.length === length) onComplete?.(clean);
   }
 
+  /**
+   * A box past the end of what has been typed cannot hold a digit.
+   *
+   * `value` is a compact string — box i shows `value[i]` — so a digit "typed into box 3"
+   * while 1 and 2 are empty is spliced into a sparse array and `join('')` closes the gaps:
+   * it lands in box 1. Measured on both WebView 133 and 150, from a plain tap. Sending the
+   * press to the first empty box instead makes the caret sit where the digit will actually
+   * go, which is also how every other OTP field behaves.
+   *
+   * On the PRESS, not on focus: `focusBox()` moves focus from inside `handleChange`, before
+   * React has committed the digit, so a focus-time check reads a stale `value`, decides box
+   * 2 is out of reach and drags the caret back to box 1 on every keystroke. A pointer press
+   * only ever happens between renders, where `value` is what the user can see.
+   */
+  function handlePress(i: number, e: React.MouseEvent<HTMLInputElement>) {
+    const frontier = Math.min(value.length, length - 1);
+    if (i <= frontier) return;
+    // Default would focus the box that was pressed; this is the whole redirection.
+    e.preventDefault();
+    focusBox(frontier);
+  }
+
   function handleChange(i: number, raw: string) {
     const digits = raw.replace(/\D/g, '');
     if (!digits) return; // deletions are handled in keydown
@@ -93,6 +115,7 @@ export function OtpInput({
             onKeyDown={(e) => handleKeyDown(i, e)}
             onPaste={handlePaste}
             onFocus={(e) => e.target.select()}
+            onMouseDown={(e) => handlePress(i, e)}
             style={{ height: 60 }}
             className={
               'min-w-0 flex-1 rounded-[14px] bg-[color:var(--surface-elevated)] text-center text-[24px] font-extrabold tabular-nums caret-brand-600 outline-none focus:border-2 focus:border-brand-600 disabled:opacity-60 ' +
