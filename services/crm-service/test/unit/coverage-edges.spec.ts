@@ -173,6 +173,35 @@ describe('env validation schema', () => {
     expect(error).toBeDefined();
   });
 
+  /*
+   * E-2. A blank WHATSAPP_API_URL is a legitimate dev setting and a silent production
+   * outage: every message is logged instead of sent, and the campaign reports the whole
+   * audience as reached. Production must not start on it — the same rule auth-service
+   * applies to a `console` OTP channel.
+   */
+  it('refuses to boot in production with no WhatsApp endpoint', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      DEPOT_SERVICE_URL: 'http://depot:3000',
+      AUTH_SERVICE_URL: 'http://auth:3000',
+      WHATSAPP_API_TOKEN: 'a-token',
+    };
+    for (const url of [undefined, '']) {
+      const { error } = envValidationSchema.validate(
+        { ...prod, WHATSAPP_API_URL: url },
+        { allowUnknown: true },
+      );
+      expect(error?.message).toMatch(/WHATSAPP_API_URL/);
+    }
+    // Configured, it boots — the guard is about blankness, not about the variable existing.
+    const { error } = envValidationSchema.validate(
+      { ...prod, WHATSAPP_API_URL: 'https://graph.facebook.com/v20.0/1234' },
+      { allowUnknown: true },
+    );
+    expect(error).toBeUndefined();
+  });
+
   it('rejects an unknown NODE_ENV', () => {
     const { error } = envValidationSchema.validate(
       { ...base, NODE_ENV: 'staging' },

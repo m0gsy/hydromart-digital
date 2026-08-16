@@ -41,10 +41,23 @@ export class CourierCodHttpAdapter implements CourierCodPort {
         throw new ServiceUnavailableException(`delivery-service menjawab ${res.status}`);
       }
       const body = (await res.json()) as Partial<DepositedCod>;
+      // E-6: this used to be `Number(body.x ?? 0)`. A 200 whose body is missing a figure
+      // is not a depot that took no cash — it is an answer we could not read, and the day
+      // book was being closed on the difference. Every other failure in this file throws;
+      // this was the one hole. A non-numeric value is the same unreadable answer.
+      const read = (value: unknown, field: string): number => {
+        const n = Number(value);
+        if (value == null || !Number.isFinite(n)) {
+          throw new ServiceUnavailableException(
+            `delivery-service menjawab tanpa ${field} yang terbaca; setoran tidak bisa dihitung.`,
+          );
+        }
+        return n;
+      };
       return {
-        depositedIdr: Number(body.depositedIdr ?? 0),
-        expectedIdr: Number(body.expectedIdr ?? 0),
-        settlements: Number(body.settlements ?? 0),
+        depositedIdr: read(body.depositedIdr, 'depositedIdr'),
+        expectedIdr: read(body.expectedIdr, 'expectedIdr'),
+        settlements: read(body.settlements, 'settlements'),
       };
     } catch (err) {
       if (err instanceof ServiceUnavailableException) throw err;

@@ -11,9 +11,21 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
-  // Optional: blank WHATSAPP_API_URL runs the broadcast adapter in console/dev mode.
-  WHATSAPP_API_URL: Joi.string().allow('').default(''),
-  WHATSAPP_API_TOKEN: Joi.string().allow('').default(''),
+  // Blank runs the broadcast adapter in console/dev mode — allowed in dev, REFUSED in
+  // production. E-2: a blank URL made `send()` log the message and report success, and
+  // campaign.service counted it into `result.sent`. A campaign to 4.000 customers reported
+  // "4.000 terkirim" for 4.000 messages that were never sent, and nothing anywhere said
+  // otherwise. auth-service refuses to boot in production on a `console` OTP channel for
+  // exactly this reason (env.validation.ts:150-160); this is the same guard on the same
+  // failure. Same `.when` shape as DEPOT_SERVICE_URL below.
+  WHATSAPP_API_URL: Joi.string()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  WHATSAPP_API_TOKEN: Joi.string()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().required().invalid('') }),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
   CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
   // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/
