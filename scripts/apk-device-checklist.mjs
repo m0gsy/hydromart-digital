@@ -27,6 +27,7 @@ import {
   skipOnboarding,
   TYPE,
   until,
+  viewportTop,
 } from './lib/apk-cdp.mjs';
 
 const argv = process.argv.slice(2);
@@ -281,6 +282,11 @@ async function item8(conn) {
 async function item10(conn, routes) {
   const evidence = [];
   let ok = true;
+  // Page y=0 is NOT screen y=0 here — see `viewportTop()`. Read once: it is the status bar,
+  // and nothing on this screen moves it. Every screen-pixel number below goes through it, both
+  // the tap target and the boxes compared against the keyboard's own frame.
+  const top = viewportTop();
+  evidence.push(`page y=0 sits at screen y=${top} (status bar); window.screenY claims 0`);
   for (const [route, selector, prepare] of routes) {
     // `/verify` only exists between "send me a code" and the code arriving — navigating
     // straight to it lands on `/login`, which is why the first run reported "no element"
@@ -308,7 +314,7 @@ async function item10(conn, routes) {
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return JSON.stringify({
           x: Math.round((r.left + r.width / 2) * d),
-          y: Math.round((r.top + r.height / 2 + window.screenY) * d),
+          y: Math.round((r.top + r.height / 2) * d) + ${top},
           onTop: hit === el ? 'the element itself'
             : hit ? hit.tagName.toLowerCase() + '.' + String(hit.className || '').slice(0, 40)
             : '(nothing)',
@@ -348,8 +354,8 @@ async function item10(conn, routes) {
         const box = (el) => {
           if (!el) return null;
           const r = el.getBoundingClientRect();
-          return { top: Math.round((r.top + window.screenY) * d),
-                   bottom: Math.round((r.bottom + window.screenY) * d) };
+          return { top: Math.round(r.top * d) + ${top},
+                   bottom: Math.round(r.bottom * d) + ${top} };
         };
         return JSON.stringify({
           innerHeight: window.innerHeight,
@@ -446,27 +452,169 @@ async function item1b(conn, route) {
 // The cashier's receipt. `printDocument` deliberately shares an HTML file rather than
 // printing (Android has no print API a Capacitor core plugin exposes), so what is proven
 // here is that the native share sheet actually comes up for it.
+/**
+ * In-app navigation, by pressing the link a person presses.
+ *
+ * `go()` loads the document, and a console route answers that with its role landing: asking
+ * for `/dashboard/walk-in/` as a document put the probe on `/dashboard/` with no walk-in form
+ * anywhere, which reads like a missing screen. Nothing in the app issues such a load — every
+ * move inside the console is a router push — so the probe stops issuing them too.
+ */
+async function follow(conn, href, tries = 15) {
+  for (let i = 0; i < tries; i++) {
+    const hit = await evaluate(
+      conn,
+      `(() => {
+        const a = [...document.querySelectorAll('a')].find((x) => x.getAttribute('href') === ${JSON.stringify(href)});
+        if (!a) return 'miss';
+        a.click();
+        return 'ok';
+      })()`,
+    );
+    if (hit === 'ok') break;
+    await sleep(1000);
+  }
+  const landed = await until(conn, (p) => p.startsWith(href.replace(/\/$/, '')), 15);
+  await sleep(3500);
+  return landed;
+}
+
+/** Press the first enabled button whose label matches, waiting for it to exist. */
+async function press(conn, re, tries = 15) {
+  for (let i = 0; i < tries; i++) {
+    const hit = await evaluate(
+      conn,
+      `(() => {
+        const b = [...document.querySelectorAll('button')]
+          .find((x) => ${re}.test((x.innerText || x.getAttribute('aria-label') || '').trim()) && !x.disabled);
+        if (!b) return 'miss';
+        b.click();
+        return 'ok';
+      })()`,
+    );
+    if (hit === 'ok') return 'ok';
+    await sleep(1500);
+  }
+  return 'never appeared';
+}
+
 async function item9(conn) {
   const evidence = [];
-  const landed = await go(conn, '/dashboard/walk-in/');
+  const landed = await follow(conn, '/dashboard/walk-in/');
   evidence.push(`/dashboard/walk-in/ → ${landed}`);
-  const before = resumedActivity();
-  const clicked = await evaluate(
-    conn,
-    `(() => {
-      const b = [...document.querySelectorAll('button')]
-        .find((x) => /cetak|struk|print/i.test(x.innerText));
-      if (!b) return 'no print button on this screen';
-      b.click();
-      return 'clicked "' + b.innerText.trim().slice(0, 30) + '"';
-    })()`,
+  // A real sale, because the receipt is what is being tested and there is no receipt without
+  // one. Needs an OPEN cashier shift; `CashierShiftBar` disables the submit button without it.
+  evidence.push(`quantity +1: ${await press(conn, '/^Increase quantity$/i')}`);
+  await evaluate(conn, TYPE('#wi-cash', '100000'));
+  await sleep(1200);
+  evidence.push(
+    `total on screen: ${await evaluate(conn, `(document.body.innerText.match(/Total\\s+Rp\\s*[\\d.]+/) || ['(none)'])[0].replace(/\\s+/g, ' ')`)}`,
   );
-  evidence.push(clicked);
-  await sleep(4000);
-  const after = resumedActivity();
+  const before = resumedActivity();
+  const clicked = await press(conn, '/cetak struk/i');
+  evidence.push(`"Simpan & cetak struk": ${clicked}`);
+  // The share sheet is a separate activity and it is not instant — the sale posts, the payment
+  // confirms and only then is the file written and shared.
+  let after = before;
+  for (let i = 0; i < 12 && after === before; i++) {
+    await sleep(1500);
+    after = resumedActivity();
+  }
   evidence.push(`foreground activity ${before} → ${after}`);
   record(9, 'walk-in receipt reaches the native share/print path',
-    clicked.startsWith('clicked') && after !== before ? 'PASS' : 'FAIL', evidence);
+    clicked === 'ok' && after !== before ? 'PASS' : 'FAIL', evidence);
+}
+
+// ── item 6 ──────────────────────────────────────────────────────────────────────────────
+// The offline capture queue, on the surface it exists for: proof of delivery. The photo is
+// built in the page and handed to the real file input through a `DataTransfer`, so no camera
+// is needed; the network is cut with CDP rather than the radio, so only the WebView loses the
+// link and adb keeps working.
+async function item6(conn, deliveryId) {
+  const evidence = [];
+  const queued = () =>
+    evaluate(
+      conn,
+      `new Promise((res) => {
+        const req = indexedDB.open('hm.offline', 1);
+        req.onerror = () => res('open failed');
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('jobs')) { db.close(); return res('[]'); }
+          const all = db.transaction('jobs', 'readonly').objectStore('jobs').getAll();
+          all.onsuccess = () => { db.close(); res(JSON.stringify(all.result.map((j) => ({
+            kind: j.kind, delivery: (j.payload?.deliveryId || '').slice(0, 8),
+            photoChars: j.payload?.photo?.length, attempts: j.attempts ?? 0, error: j.error ?? null,
+          })))); };
+          all.onerror = () => { db.close(); res('read failed'); };
+        };
+      })`,
+    );
+
+  await goto(conn, `/driver/deliveries/detail/?id=${deliveryId}`);
+  await until(conn, (p) => p.startsWith('/driver/deliveries/detail'), 15);
+  await sleep(4000);
+  evidence.push(`opened delivery ${deliveryId.slice(0, 8)} · ${await evaluate(conn, 'location.pathname')}`);
+  evidence.push(`"Sampai tujuan": ${await press(conn, '/Sampai tujuan/i')}`);
+  for (let i = 0; i < 10; i++) {
+    if (await evaluate(conn, `!!document.querySelector('input[type="file"][capture]')`)) break;
+    await sleep(1000);
+  }
+  const photo = await evaluate(
+    conn,
+    `(async () => {
+      const input = document.querySelector('input[type="file"][capture]');
+      if (!input) return 'no capture input on this screen';
+      const c = document.createElement('canvas');
+      c.width = 640; c.height = 480;
+      const g = c.getContext('2d');
+      g.fillStyle = '#0f766e'; g.fillRect(0, 0, 640, 480);
+      g.fillStyle = '#fff'; g.font = '32px sans-serif'; g.fillText('BUKTI ANTAR', 160, 250);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+      // \`input.files\` is read-only; a DataTransfer is the only way to fill it from script.
+      const dt = new DataTransfer();
+      dt.items.add(new File([blob], 'pod.jpg', { type: 'image/jpeg' }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return blob.size + ' byte JPEG';
+    })()`,
+  );
+  evidence.push(`photo: ${photo}`);
+  evidence.push(
+    `seal: ${await evaluate(conn, `(() => { const c = document.querySelector('input[type="checkbox"]'); if (!c) return 'no checkbox'; c.click(); return c.checked; })()`)}`,
+  );
+  await evaluate(conn, TYPE('input[maxlength="120"]', 'Bu Sari'));
+
+  await conn.send('Network.enable');
+  await conn.send('Network.emulateNetworkConditions', {
+    offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0,
+  });
+  evidence.push(`network cut · navigator.onLine=${await evaluate(conn, 'navigator.onLine')}`);
+  evidence.push(`submit offline: ${await press(conn, '/Selesaikan|Selesai|Kirim|Simpan/i')}`);
+
+  let offline = '[]';
+  for (let i = 0; i < 20 && offline === '[]'; i++) {
+    await sleep(2000);
+    offline = await queued();
+  }
+  evidence.push(`IndexedDB hm.offline/jobs while offline: ${offline}`);
+
+  await conn.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
+  });
+  // The app flushes on `online` and on app resume; `online` is the event a returning signal
+  // fires, so that is the one used here. Its first attempt sets a 30s backoff if it fails, and
+  // `flushNow` (the "Kirim sekarang" button) is what ignores that — which is why both run.
+  await evaluate(conn, `window.dispatchEvent(new Event('online'))`);
+  let drained = offline;
+  for (let i = 0; i < 12 && drained !== '[]'; i++) {
+    await sleep(2500);
+    if (i === 4) await press(conn, '/Kirim sekarang/i', 1);
+    drained = await queued();
+  }
+  evidence.push(`after reconnect: ${drained}`);
+  record(6, 'proof of delivery survives being captured offline and flushes on reconnect',
+    offline.startsWith('[{') && drained === '[]' ? 'PASS' : 'FAIL', evidence);
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────
@@ -495,6 +643,7 @@ if (want('1a')) await item1a(conn, flag('--face-route') ?? '/hr/me/check-in/');
 if (want('1b')) await item1b(conn, flag('--pod-route') ?? '/driver/');
 if (want(2)) await item2(conn);
 if (want(5)) await item5(conn);
+if (want(6)) await item6(conn, flag('--delivery') ?? '7c0050d5-5bd3-4b9a-962f-f70b0847f5ec');
 if (want(9)) await item9(conn);
 if (want(10)) {
   /**

@@ -34,6 +34,30 @@ export const adbTry = (...args) => {
 };
 
 /**
+ * Screen y of the page's y=0 — the term `screen = cssY * devicePixelRatio` is missing.
+ *
+ * `window.screenY` reads **0** inside this WebView and it is wrong: the activity window does
+ * fill the screen (`(0,0)(fillxfill)`), but the view inside it is laid out under the status
+ * bar, so page y=0 sits 132px down on this device. Every `adb shell input tap` computed from
+ * a `getBoundingClientRect()` therefore landed 132px too high. On `/login` that is a hair
+ * inside a 52px-tall field, so it passed and hid the bug; on `/verify` it is two thirds of an
+ * OTP box, so the tap landed on the "kembali ke masuk" LINK above the boxes and navigated to
+ * `/login` — which is exactly the "tap does not focus the box" and the "bounce back to
+ * /login" that were about to be reported as app bugs.
+ *
+ * Measured, not assumed: taps at three heights all came back with `e.screenY - e.clientY`
+ * equal to 48 CSS px = 132 screen px, the status-bar inset the window manager reports.
+ */
+export function viewportTop() {
+  // The id is hex (`2eb00000`), not decimal — `id=\d+` matches nothing.
+  const line = adbTry('shell', 'dumpsys', 'window')
+    .split('\n')
+    .find((l) => /InsetsSource id=\S+ type=statusBars /.test(l) && /visible=true/.test(l));
+  const frame = line && /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(line);
+  return frame ? Number(frame[4]) : 0;
+}
+
+/**
  * Ask the bundle for the FILE, not the route — `/login/` becomes `/login/index.html`.
  *
  * Capacitor's local server runs with `server.html5mode` on (it defaults to true and nothing
