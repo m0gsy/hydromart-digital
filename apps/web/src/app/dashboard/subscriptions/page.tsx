@@ -343,10 +343,7 @@ function SubscriptionsBody() {
 
       <Card className="flex items-start gap-3 bg-brand-50 p-4" elevated={false}>
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
-        <p className="text-[12.5px] text-[color:var(--text)]">
-          Pesanan langganan dibuat otomatis pada pagi hari jadwal dan langsung masuk antrean
-          pengiriman. Pelanggan bisa menjeda kapan saja lewat aplikasi.
-        </p>
+        <p className="text-[12.5px] text-[color:var(--text)]">{t('opsFix.subs.autoOrderHint')}</p>
       </Card>
     </div>
   );

@@ -80,9 +80,7 @@ function WastageBody() {
               {t('hrFix.wastage.details')}
             </h2>
             {items.length === 0 ? (
-              <p className="py-3 text-sm text-[color:var(--text-muted)]">
-                Belum ada penyusutan (ADJUSTMENT negatif) pada periode ini.
-              </p>
+              <p className="py-3 text-sm text-[color:var(--text-muted)]">{t('hrFix.wastage.empty')}</p>
             ) : (
               <ul className="divide-y divide-[color:var(--border)]">
                 {items.map((b) => (
@@ -108,9 +106,7 @@ function WastageBody() {
         <Info size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
         <p className="text-[12.5px] text-brand-800/80">
           Setiap wastage tercatat sebagai satu pergerakan inventori bertipe{' '}
-          <strong>ADJUSTMENT</strong> dengan delta negatif, sehingga stok dan nilai kerugian selalu
-          sinkron dengan buku persediaan. Nilai rupiah hanya muncul untuk item yang punya harga jual.
-        </p>
+          <strong>ADJUSTMENT</strong>{t('hrFix.wastage.sourceHint')}</p>
       </Card>
     </div>
   );

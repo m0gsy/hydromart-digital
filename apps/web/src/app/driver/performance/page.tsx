@@ -14,6 +14,7 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 
+import { shortWeekdays } from '@/lib/format';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -23,7 +24,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
 import type { CourierPerformance } from '@/lib/types';
 
-const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 const RANGE = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' });
 
 /**
@@ -71,7 +71,11 @@ function Performance() {
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.driverPerf.title')}</div>
         <div className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-2.5 py-1.5">
-          <button type="button" aria-label={t('hrFix.driverPerf.prevWeek')} onClick={() => setWeeksAgo((w) => w + 1)}>
+          <button
+            type="button"
+            aria-label={t('hrFix.driverPerf.prevWeek')}
+            onClick={() => setWeeksAgo((w) => w + 1)}
+          >
             <CaretLeft size={13} />
           </button>
           <span className="text-[11.5px] font-bold tabular-nums">{weekRangeLabel(weekStart)}</span>
@@ -99,11 +103,16 @@ function Performance() {
 }
 
 function Body({ p }: { p: CourierPerformance }) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const DAY_LABELS = shortWeekdays(locale);
   const deliveredDelta =
-    p.deliveredPrev > 0 ? Math.round(((p.delivered - p.deliveredPrev) / p.deliveredPrev) * 100) : null;
+    p.deliveredPrev > 0
+      ? Math.round(((p.delivered - p.deliveredPrev) / p.deliveredPrev) * 100)
+      : null;
   const ratingDelta =
-    p.rating !== null && p.ratingPrev !== null ? Math.round((p.rating - p.ratingPrev) * 10) / 10 : null;
+    p.rating !== null && p.ratingPrev !== null
+      ? Math.round((p.rating - p.ratingPrev) * 10) / 10
+      : null;
   const maxDay = Math.max(1, ...p.perDay);
   const avgDay = p.delivered === 0 ? 0 : Math.round((p.delivered / 7) * 10) / 10;
 
@@ -130,7 +139,11 @@ function Body({ p }: { p: CourierPerformance }) {
       )}
 
       <div className="flex gap-2.5">
-        <Stat value={String(p.delivered)} label={t('hrFix.driverPerf.completed')} delta={deltaText(deliveredDelta, '%')} />
+        <Stat
+          value={String(p.delivered)}
+          label={t('hrFix.driverPerf.completed')}
+          delta={deltaText(deliveredDelta, '%')}
+        />
         <Stat
           value={p.rating === null ? '—' : p.rating.toLocaleString('id-ID')}
           label={t('hrFix.driverPerf.rating')}
@@ -142,7 +155,9 @@ function Body({ p }: { p: CourierPerformance }) {
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-extrabold">{t('hrFix.driverPerf.perDay')}</span>
-          <span className="text-[11px] text-[color:var(--muted)]">rata-rata {avgDay.toLocaleString('id-ID')}</span>
+          <span className="text-[11px] text-[color:var(--muted)]">
+            rata-rata {avgDay.toLocaleString('id-ID')}
+          </span>
         </div>
         <div className="flex h-24 items-end justify-between gap-2">
           {p.perDay.map((n, i) => (
@@ -151,7 +166,9 @@ function Body({ p }: { p: CourierPerformance }) {
                 className={`w-full rounded ${n === maxDay && n > 0 ? 'bg-brand-600' : 'bg-brand-100'}`}
                 style={{ height: `${Math.round((n / maxDay) * 72) + 4}px` }}
               />
-              <span className="text-[10px] font-bold text-[color:var(--muted)]">{DAY_LABELS[i]}</span>
+              <span className="text-[10px] font-bold text-[color:var(--muted)]">
+                {DAY_LABELS[i]}
+              </span>
             </div>
           ))}
         </div>
@@ -163,10 +180,18 @@ function Body({ p }: { p: CourierPerformance }) {
             {Math.round(p.onTimeRate * 100)}%
           </span>
         </Row>
-        <Row icon={<XCircle size={17} weight="fill" />} label={t('hrFix.driverPerf.failedDeliveries')} divider>
+        <Row
+          icon={<XCircle size={17} weight="fill" />}
+          label={t('hrFix.driverPerf.failedDeliveries')}
+          divider
+        >
           <span className="font-extrabold tabular-nums">{p.failed}</span>
         </Row>
-        <Row icon={<Target size={17} weight="fill" />} label={t('courierFix.perf.weeklyTarget', { n: p.target })} divider>
+        <Row
+          icon={<Target size={17} weight="fill" />}
+          label={t('courierFix.perf.weeklyTarget', { n: p.target })}
+          divider
+        >
           {p.targetMet ? (
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-extrabold text-green-700">
               Tercapai

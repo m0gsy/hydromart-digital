@@ -192,9 +192,7 @@ function Detail() {
               onClick={() => router.push(`/driver/deliveries/detail/pay?id=${id}`)}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold"
             >
-              <Coins size={18} weight="fill" className="text-brand-700" />
-              Terima pembayaran tunai (COD)
-            </button>
+              <Coins size={18} weight="fill" className="text-brand-700" />{t('hrFix.deliveryDetail.takeCash')}</button>
             <button
               type="button"
               onClick={() => router.push(`/driver/deliveries/detail/returns?id=${id}`)}
@@ -261,9 +259,7 @@ function Detail() {
               </dd>
             </div>
           </dl>
-          <p className="text-[11px] leading-relaxed text-[color:var(--muted)]">
-            Bukti antar (foto, tanda tangan, GPS) disimpan selama 12 bulan sesuai UU PDP, lalu dihapus otomatis.
-          </p>
+          <p className="text-[11px] leading-relaxed text-[color:var(--muted)]">{t('hrFix.deliveryDetail.podRetention')}</p>
         </Card>
       )}
     </div>

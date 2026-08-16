@@ -52,8 +52,13 @@ export default function HqCommissionFormPage() {
       })
       .filter((x): x is { depotId: string; ownerName: string; pct: number } => x !== null);
 
+    /*
+     * Nothing edited, or every edit typed back the value that was already stored. Say so
+     * rather than claiming a success: "Komisi diterapkan" after a POST that never happened
+     * reads exactly like one that did, and the operator walks away believing a rate changed.
+     */
     if (changed.length === 0) {
-      toast(t('hq.forms.commission.applied'), 'success');
+      toast(t('hq.forms.commission.noChanges'), 'info');
       return;
     }
     setBusy(true);

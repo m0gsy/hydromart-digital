@@ -148,8 +148,7 @@ export default function AssetsPage() {
                       {a.status === 'ASSIGNED' ? ` · dipegang ${nameOf(a.holderId)}` : ''}
                     </p>
                     {a.value && (
-                      <p className="text-xs text-muted">
-                        Nilai <Money amount={Number(a.value)} />
+                      <p className="text-xs text-muted">{t('hrFix.assets.valueLabel')}<Money amount={Number(a.value)} />
                       </p>
                     )}
                   </div>

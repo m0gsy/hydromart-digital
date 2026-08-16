@@ -711,6 +711,7 @@ export const hq = {
       next: 'New',
       apply: 'Apply new scheme',
       applied: 'New commission scheme applied.',
+      noChanges: 'Nothing changed, so nothing was applied.',
       applyError: 'Failed to apply the commission scheme.',
       effective: 'Effective',
       effectiveLabel: 'Effective date',

@@ -314,10 +314,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           // Surface the cancellation + the refund rule honestly instead of faking it.
           <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-950/20">
             <p className="font-semibold text-red-700">{t('hrFix.orderDetail.cancelled')}</p>
-            <p className="text-red-700/80">
-              Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service
-              (belum tersambung ke antrean ini).
-            </p>
+            <p className="text-red-700/80">{t('hrFix.orderDetail.onlineRefundHint')}</p>
           </div>
         )}
 

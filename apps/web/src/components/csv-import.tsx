@@ -339,8 +339,7 @@ export function CsvImport({
       <Card className="flex flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <Button variant="secondary" onClick={downloadTemplate}>
-            <DownloadSimple size={16} weight="bold" /> Unduh template Excel
-          </Button>
+            <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadTemplate')}</Button>
           <label className="inline-flex">
             <input
               type="file"
@@ -349,8 +348,7 @@ export function CsvImport({
               className="hidden"
             />
             <span className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white">
-              <UploadSimple size={16} weight="bold" /> Pilih file
-            </span>
+              <UploadSimple size={16} weight="bold" />{t('opsFix.import.pickFile')}</span>
           </label>
         </div>
         <p className="text-[12.5px] text-muted">
@@ -422,8 +420,7 @@ export function CsvImport({
             </Button>
             {invalid.length > 0 && (
               <Button variant="secondary" onClick={() => void downloadFailed()}>
-                <DownloadSimple size={16} weight="bold" /> Unduh baris bermasalah
-              </Button>
+                <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadProblemRows')}</Button>
             )}
           </div>
         </Card>
@@ -449,8 +446,7 @@ export function CsvImport({
           </ul>
           {(result.failed > 0 || invalid.length > 0) && (
             <Button variant="secondary" onClick={() => void downloadFailed()} className="self-start">
-              <DownloadSimple size={16} weight="bold" /> Unduh baris gagal
-            </Button>
+              <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadFailedRows')}</Button>
           )}
         </Card>
       )}

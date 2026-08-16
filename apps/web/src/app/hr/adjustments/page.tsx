@@ -122,8 +122,7 @@ export default function AdjustmentsPage() {
             <Card className="space-y-3 p-4">
               <h3 className="font-bold">{t('hrFix.adjustments.add')}</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <label className="text-sm">Jenis
-                  <select value={kind} onChange={(e) => { setKind(e.target.value as Kind); setType(e.target.value === 'bonus' ? 'MANUAL' : 'MANUAL'); }} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
+                <label className="text-sm">{t('hrFix.adjustments.kindLabel')}<select value={kind} onChange={(e) => { setKind(e.target.value as Kind); setType(e.target.value === 'bonus' ? 'MANUAL' : 'MANUAL'); }} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
                     <option value="bonus">{t('hrFix.adjustments.bonus')}</option>
                     <option value="deduction">{t('hrFix.adjustments.deduction')}</option>
                   </select>

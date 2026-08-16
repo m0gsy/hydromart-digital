@@ -1,7 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarBlank, CaretLeft, CaretRight, DownloadSimple, Lock, PencilSimple, UsersThree } from '@phosphor-icons/react';
+import {
+  CalendarBlank,
+  CaretLeft,
+  CaretRight,
+  DownloadSimple,
+  Lock,
+  PencilSimple,
+  UsersThree,
+} from '@phosphor-icons/react';
+import { shortMonths, shortWeekdays } from '@/lib/format';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -15,9 +24,6 @@ import { canManageRoster, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
-
-const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 // Pagi → Sore → Libur → Pagi. An empty cell is treated as Libur.
 const CYCLE: Record<ShiftKind, ShiftKind> = { OFF: 'MORNING', MORNING: 'EVENING', EVENING: 'OFF' };
@@ -47,7 +53,8 @@ function shiftWeek(weekStart: string, deltaWeeks: number): string {
   d.setDate(d.getDate() + deltaWeeks * 7);
   return isoDate(d);
 }
-function weekLabel(weekStart: string): string {
+function weekLabel(weekStart: string, locale: string, weekWord: string): string {
+  const MONTHS = shortMonths(locale);
   const s = new Date(`${weekStart}T00:00:00`);
   const e = new Date(s);
   e.setDate(e.getDate() + 6);
@@ -55,7 +62,7 @@ function weekLabel(weekStart: string): string {
     s.getMonth() === e.getMonth()
       ? `${s.getDate()}–${e.getDate()} ${MONTHS[e.getMonth()]}`
       : `${s.getDate()} ${MONTHS[s.getMonth()]} – ${e.getDate()} ${MONTHS[e.getMonth()]}`;
-  return `Pekan ${range}`;
+  return `${weekWord} ${range}`;
 }
 
 const cellKey = (staffId: string, day: number) => `${staffId}|${day}`;
@@ -79,7 +86,8 @@ function Legend() {
 }
 
 function RosterBody() {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const DAY_LABELS = shortWeekdays(locale);
   const { scopedId, selected, depots, ready } = useDepot();
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [editing, setEditing] = useState(false);
@@ -91,7 +99,8 @@ function RosterBody() {
 
   const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
   const roster = useAsync<ShiftAssignment[]>(
-    () => (scopedId ? api.get(endpoints.roster.week(scopedId, weekStart), true) : Promise.resolve([])),
+    () =>
+      scopedId ? api.get(endpoints.roster.week(scopedId, weekStart), true) : Promise.resolve([]),
     [scopedId, weekStart],
   );
 
@@ -175,7 +184,9 @@ function RosterBody() {
           <CalendarBlank size={24} weight="fill" className="text-brand-500" />
           <div>
             <h1 className="text-2xl font-bold">{t('opsFix.shift.title')}</h1>
-            {scopedDepot && <p className="text-[12.5px] text-[color:var(--text-muted)]">{scopedDepot.name}</p>}
+            {scopedDepot && (
+              <p className="text-[12.5px] text-[color:var(--text-muted)]">{scopedDepot.name}</p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -205,11 +216,21 @@ function RosterBody() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, -1))} aria-label={t('opsFix.shift.prevWeek')}>
+          <Button
+            variant="ghost"
+            onClick={() => setWeekStart((w) => shiftWeek(w, -1))}
+            aria-label={t('opsFix.shift.prevWeek')}
+          >
             <CaretLeft size={18} weight="bold" />
           </Button>
-          <span className="min-w-[9rem] text-center font-semibold">{weekLabel(weekStart)}</span>
-          <Button variant="ghost" onClick={() => setWeekStart((w) => shiftWeek(w, 1))} aria-label={t('opsFix.shift.nextWeek')}>
+          <span className="min-w-[9rem] text-center font-semibold">
+            {weekLabel(weekStart, locale, t('hrFix.shift.week'))}
+          </span>
+          <Button
+            variant="ghost"
+            onClick={() => setWeekStart((w) => shiftWeek(w, 1))}
+            aria-label={t('opsFix.shift.nextWeek')}
+          >
             <CaretRight size={18} weight="bold" />
           </Button>
         </div>
@@ -223,7 +244,10 @@ function RosterBody() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('opsFix.shift.noDepots')} icon={<CalendarBlank size={40} weight="fill" />}>
+        <CenterState
+          title={t('opsFix.shift.noDepots')}
+          icon={<CalendarBlank size={40} weight="fill" />}
+        >
           {t('opsFix.shift.noDepotsBody')}
         </CenterState>
       ) : loading ? (
@@ -235,7 +259,10 @@ function RosterBody() {
         // the depot has no active couriers to schedule — an answer, not an outage.
         <ErrorState message={drivers.error} onRetry={drivers.reload} />
       ) : staff.length === 0 ? (
-        <CenterState title={t('opsFix.shift.noCouriers')} icon={<UsersThree size={40} weight="fill" />}>
+        <CenterState
+          title={t('opsFix.shift.noCouriers')}
+          icon={<UsersThree size={40} weight="fill" />}
+        >
           {t('opsFix.shift.noCouriersBody')}
         </CenterState>
       ) : (
@@ -243,7 +270,9 @@ function RosterBody() {
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-app text-[color:var(--text-muted)]">
-                <th className="px-4 py-3 text-left font-semibold">{t('opsFix.shift.colCourier')}</th>
+                <th className="px-4 py-3 text-left font-semibold">
+                  {t('opsFix.shift.colCourier')}
+                </th>
                 {DAY_LABELS.map((d) => (
                   <th key={d} className="px-2 py-3 text-center font-semibold">
                     {d}

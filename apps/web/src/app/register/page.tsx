@@ -152,9 +152,7 @@ function RegisterForm() {
 
         {/* Referral (optional) — code is carried to /verify and redeemed post-signup. */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="referral" className="text-[12.5px] font-bold">
-            Kode referral (opsional)
-          </label>
+          <label htmlFor="referral" className="text-[12.5px] font-bold">{t('auth.register.referralLabel')}</label>
           <div
             className="flex items-center gap-2 rounded-[14px] border-[1.5px] border-app bg-[color:var(--surface-elevated)] px-3.5"
             style={{ height: 52 }}

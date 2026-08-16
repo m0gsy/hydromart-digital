@@ -83,8 +83,7 @@ function Earnings() {
         <div className="text-xs font-bold opacity-80">{t('hrFix.earnings.available')}</div>
         <Money amount={availableBalance} className="mt-1 text-3xl font-extrabold" />
         <div className="mt-3 flex items-center gap-1.5 text-xs opacity-90">
-          <TrendUp size={15} weight="fill" />
-          Bulan ini <Money amount={monthEarnings} className="font-bold" />
+          <TrendUp size={15} weight="fill" />{t('hrFix.earnings.thisMonth')}<Money amount={monthEarnings} className="font-bold" />
         </div>
       </Card>
 

@@ -173,11 +173,7 @@ export default function ImportEmployeesPage() {
         />
         <span>
           <span className="font-semibold">{t('hrFix.hrImport.upsert')}</span>
-          <span className="block text-[12.5px] text-muted">
-            Baris yang cocok (kode karyawan, lalu NIK, lalu no. HP) ditimpa dengan isi file —
-            dipakai untuk kenaikan gaji atau pindah departemen massal. Tanpa centang ini, karyawan
-            yang sudah ada dilewati. Role login tidak pernah ikut berubah.
-          </span>
+          <span className="block text-[12.5px] text-muted">{t('opsFix.import.upsertHint')}</span>
         </span>
       </label>
 

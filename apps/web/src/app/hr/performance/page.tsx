@@ -306,11 +306,7 @@ function ScoreDashboard({
           </table>
         </div>
       )}
-      <p className="text-xs text-muted">
-        “—” berarti komponen itu tidak bisa diukur pada periode ini (tidak ada hari kerja terjadwal,
-        tidak ada kehadiran, atau target penjualan belum diatur) — bukan nilai nol. Bobot komponen
-        diatur di Konfigurasi Gaji.
-      </p>
+      <p className="text-xs text-muted">{t('hrFix.performance.dashHint')}</p>
     </Card>
   );
 }

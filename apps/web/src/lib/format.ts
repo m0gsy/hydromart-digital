@@ -85,3 +85,32 @@ export function mediaUrl(url: string | null | undefined): string | null {
   if (/^https?:\/\//i.test(url)) return url;
   return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
+
+/*
+ * Short weekday and month names, in the reader's language.
+ *
+ * Five screens carried their own `['Sen','Sel',…]` and `['Jan',…,'Des']` arrays, so an
+ * English reader got Indonesian day and month labels on a roster, two pricing screens, a
+ * courier performance chart and the checkout. `Intl` already knows every one of these
+ * names in both languages, which beats twenty-odd dictionary keys nobody would keep in
+ * step — and it produces exactly the strings the hardcoded arrays held.
+ *
+ * The two orderings both existed in the wild: a roster starts on Monday, a `daysOfWeek`
+ * index from the API is JavaScript's own Sunday-first numbering. Hence the flag rather
+ * than a second copy.
+ */
+const DAY_MS = 86_400_000;
+const intlLocale = (locale: string) => (locale === 'en' ? 'en-GB' : 'id-ID');
+
+export function shortWeekdays(locale: string, mondayFirst = true): string[] {
+  const fmt = new Intl.DateTimeFormat(intlLocale(locale), { weekday: 'short', timeZone: 'UTC' });
+  // 2024-01-07 was a Sunday, so index 0 of this base is Sunday.
+  const sunday = Date.UTC(2024, 0, 7);
+  const order = mondayFirst ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  return order.map((d) => fmt.format(new Date(sunday + d * DAY_MS)));
+}
+
+export function shortMonths(locale: string): string[] {
+  const fmt = new Intl.DateTimeFormat(intlLocale(locale), { month: 'short', timeZone: 'UTC' });
+  return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(Date.UTC(2024, m, 1))));
+}

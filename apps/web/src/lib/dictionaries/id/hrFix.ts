@@ -161,6 +161,7 @@ export const hrFix = {
     exitBeforeJoin: 'Tanggal keluar tidak boleh sebelum tanggal masuk.',
   },
   assets: {
+    valueLabel: 'Nilai',
     movedFrom: " · dari {name}",
     editDetail2: "Ubah Detail",
     kind2: "Jenis",
@@ -203,6 +204,8 @@ export const hrFix = {
     registerFailed: "Gagal mendaftarkan aset",
   },
   shift: {
+    week: 'Pekan',
+    assignmentHint: 'Penugasan bersifat tambah — penugasan lama tetap tersimpan sebagai riwayat. Karyawan tanpa penugasan tetap dinilai terhadap shift depot seperti sebelumnya.',
     createRotation2: "Buat Rotasi",
     title: "Shift & Rotasi",
     subtitle: "Jadwal kerja per karyawan. Absensi menilai terlambat terhadap shift karyawan, bukan shift depot.",
@@ -242,6 +245,7 @@ export const hrFix = {
     rotation: "Rotasi",
   },
   employeeForm: {
+    resignedHint: 'Status RESIGNED tidak menghentikan gaji — isi tanggal keluar, itu yang dibaca payroll.',
     cancel2: "Batal",
     pickDepot: "Pilih depot…",
     daily: "Harian",
@@ -317,6 +321,7 @@ export const hrFix = {
     activate: "Aktifkan",
   },
   adjustments: {
+    kindLabel: 'Jenis',
     importDeductions: "Import Potongan",
     title: "Bonus & Potongan",
     subtitle: "Per karyawan per periode",
@@ -419,6 +424,7 @@ export const hrFix = {
     activate: "Aktifkan",
   },
   reports: {
+    rangeHint: 'Rentang tanggal dipakai absensi, keterlambatan, cuti, dan pengumuman. Periode dipakai payroll dan kinerja. PDF memotong laporan panjang dan menyebutkannya di halaman.',
     from2: "Dari",
     period2: "Periode",
     scoreHint: "Skor per periode. Komponen yang tidak terukur tampil kosong, bukan nol.",
@@ -456,6 +462,7 @@ export const hrFix = {
     enrollFace: "Daftar / Perbarui Wajah",
   },
   attendance: {
+    pendingReason: 'Terkirim jauh setelah waktu absen sehingga jamnya berasal dari perangkat, atau diambil di luar area semua depot yang jadi tanggung jawabnya. Belum dihitung hadir.',
     title: "Absensi",
     correctStatus: "Koreksi status",
     reject: "Tolak",
@@ -504,6 +511,7 @@ export const hrFix = {
     failed: "Gagal memproses",
   },
   performance: {
+    dashHint: '“—” berarti komponen itu tidak bisa diukur pada periode ini (tidak ada hari kerja terjadwal, tidak ada kehadiran, atau target penjualan belum diatur) — bukan nilai nol. Bobot komponen diatur di Konfigurasi Gaji.',
     savedFor: "Penilaian {name} tersimpan",
     period3: "Periode",
     loadHistory: "Muat riwayat",
@@ -606,6 +614,7 @@ export const hrFix = {
     uploadPhoto: "Unggah foto agen",
   },
   orderDetail: {
+    onlineRefundHint: 'Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service (belum tersambung ke antrean ini).',
     printReceipt2: "Cetak struk",
     assignCourier: "Tugaskan kurir",
     loadingCouriers: "Memuat kurir…",
@@ -703,6 +712,7 @@ export const hrFix = {
     difference: "Selisih",
   },
   earnings: {
+    thisMonth: 'Bulan ini',
     cancel2: "Batal",
     emptyBody2: "Ongkos antar akan muncul di sini setelah kamu menyelesaikan pengantaran.",
     title: "Pendapatan",
@@ -815,6 +825,8 @@ export const hrFix = {
     bankHolder: "Atas nama",
   },
   pod: {
+    sealIntact: 'Segel galon utuh & tidak bocor',
+    clearSignature: 'Hapus tanda tangan',
     heading: 'Bukti pengantaran · {order}',
     previewAlt: 'Pratinjau foto pengantaran',
     photo: "Foto pengantaran",
@@ -834,6 +846,8 @@ export const hrFix = {
     finish: "Selesaikan pengantaran",
   },
   poDetail: {
+    receiveHintPost: 'ke inventory depot untuk setiap baris.',
+    receiveHintPre: 'Terima barang mencatat',
     backToList: "Kembali ke daftar",
     sendToSupplier: "Kirim ke pemasok",
     receiveGoods: "Terima barang → RECEIPT",
@@ -1078,6 +1092,8 @@ export const hrFix = {
     allDepots: "Semua depot — pilih depot di switcher untuk menyaring.",
   },
   meter: {
+    sameDayHint: 'Perbandingan ini cocok untuk depot yang mengisi galon saat ada penjualan. Kalau depot mengisi stok galon lebih dulu lalu menjualnya esok hari, meteran hari ini memang tidak akan sama dengan penjualan hari ini.',
+    noVolumeHint: 'hari ini belum punya isi liter, jadi tidak ikut dihitung. Isi kolom volume produknya di katalog supaya selisih ini akurat.',
     noClosedDays: "Belum ada hari yang meterannya sudah ditutup.",
     twiceHint: "Isi angka pagi saat buka, angka sore saat tutup. Form yang sama dipakai dua kali.",
     varianceHistory: "Riwayat selisih",
@@ -1100,6 +1116,8 @@ export const hrFix = {
     save: "Simpan",
   },
   wastage: {
+    sourceHint: 'dengan delta negatif, sehingga stok dan nilai kerugian selalu sinkron dengan buku persediaan. Nilai rupiah hanya muncul untuk item yang punya harga jual.',
+    empty: 'Belum ada penyusutan (ADJUSTMENT negatif) pada periode ini.',
     details: "Rincian",
     gateBody2: "Pelacakan wastage hanya untuk Manajer depot.",
     title: "Wastage",
@@ -1212,6 +1230,8 @@ export const hrFix = {
     info: "Info",
   },
   deliveryDetail: {
+    podRetention: 'Bukti antar (foto, tanda tangan, GPS) disimpan selama 12 bulan sesuai UU PDP, lalu dihapus otomatis.',
+    takeCash: 'Terima pembayaran tunai (COD)',
     startDelivery: "Mulai antar",
     arrived: "Sampai tujuan · ambil bukti",
     returnEmpties: "Retur galon kosong",
@@ -1314,6 +1334,8 @@ export const hrFix = {
     points: "Poin",
   },
   depotMap: {
+    inactive: 'Nonaktif',
+    active: 'Aktif',
     empty: "Belum ada depot dengan koordinat.",
     caption: "Posisi relatif dari koordinat depot.",
   },

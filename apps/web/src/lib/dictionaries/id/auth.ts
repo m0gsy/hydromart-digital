@@ -15,6 +15,7 @@ export const auth = {
     registerCta: 'Daftar sekarang',
   },
   register: {
+    referralLabel: 'Kode referral (opsional)',
     bonusPoints: "+50 poin",
     heading: 'Buat akun baru',
     subtitle: 'Kami kirim kode sekali pakai untuk verifikasi nomormu.',
