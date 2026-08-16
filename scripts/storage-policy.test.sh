@@ -22,7 +22,7 @@ trap 'rm -rf "$tmp"' EXIT
 # the shape that broke it.
 cat > "$tmp/.env" <<'EOF'
 STORAGE_S3_ENDPOINT=https://storage.invalid
-FCM_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----abc-----END PRIVATE KEY-----
+FCM_PRIVATE_KEY=---- BEGIN NOT A KEY ---- body with spaces ---- END ----
 STORAGE_S3_ACCESS_KEY_ID=test
 STORAGE_S3_SECRET_ACCESS_KEY=test
 EOF
