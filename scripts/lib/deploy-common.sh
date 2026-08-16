@@ -308,9 +308,18 @@ missing_env_keys() {
 # The .env.example keys no compose file interpolates — i.e. the ones .env has no say over.
 # Printed sorted, because `comm` demands it.
 compose_ignores_env() {
-  local referenced
-  referenced="$(cat docker-compose.yml docker-compose.prod.yml 2>/dev/null |
-    grep -oE '\$\{[A-Z_][A-Z0-9_]*' | cut -c3- | sort -u)"
+  local referenced files=() f
+  # Named one by one rather than `cat`-ed together: under `set -euo pipefail` a `cat` of a
+  # file that is not there fails the whole pipeline, `set -e` kills this subshell before
+  # `referenced` is ever read, and the caller sees an EMPTY filter — the warning then lists
+  # every key again with nothing saying why. That is how a deploy printed 75 keys on a box
+  # where this narrowing was already installed.
+  for f in docker-compose.yml docker-compose.prod.yml; do
+    [ -r "$f" ] && files+=("$f")
+  done
+  [ ${#files[@]} -eq 0 ] && return 0
+  # `|| true`: a grep that matches nothing exits 1, and pipefail would make that fatal.
+  referenced="$(grep -hoE '\$\{[A-Z_][A-Z0-9_]*' "${files[@]}" | cut -c3- | sort -u || true)"
   # No compose file to read: filter nothing. Narrowing a warning on the strength of a file
   # that is not there would turn "cannot tell" into "all clear", which is the one answer
   # this check must never give.
@@ -329,11 +338,20 @@ compose_ignores_env() {
 # Empty value counts as fine — compose reads it as `${STORAGE_DRIVER:-s3}`.
 # Prints the offending assignments (empty when there are none); like `missing_env_keys` it
 # only reports, because a deploy that refuses to run is its own outage.
+#
+# `|| true` for the same reason the scheduler-TZ probe above carries one, and this is the
+# second time that lesson has been paid for: `grep -v` exits 1 when it selects NOTHING,
+# which here means every driver is correctly `s3`. Under `set -euo pipefail` that status
+# reached the caller's `BAD_STORAGE="$(...)"` and `set -e` ended the script — right after
+# it had logged DEPLOY OK. So the deploy went RED exactly when object storage was configured
+# CORRECTLY, and green only while the misconfiguration this hunts was present. It passed
+# review because the box still had a leftover `STORAGE_DRIVER=local`; the run that removed
+# it is the run that broke.
 throwaway_storage_driver() {
   [ -f .env ] || return 0
   tr -d '\r' < .env |
     sed -n 's/^\([A-Z_]*STORAGE_DRIVER=.*\)/\1/p' |
-    grep -vE '=(s3)?$' | tr '\n' ' '
+    { grep -vE '=(s3)?$' || true; } | tr '\n' ' '
 }
 
 # Fire-and-forget ops ping, same webhook the services use. No-op when unset.
