@@ -66,6 +66,8 @@ export const home = {
   },
   location: {
     unsupported: 'Perangkat tidak mendukung lokasi.',
+    unavailable: 'Lokasi tidak bisa didapat. Nyalakan Lokasi/GPS di perangkat, lalu coba lagi.',
+    timeout: 'Sinyal lokasi belum ketemu. Coba lagi, atau pilih kota.',
     myLocation: 'Lokasi saya',
     near: 'Dekat {city}',
     denied: 'Tidak bisa mengakses lokasi. Izinkan akses atau pilih kota.',

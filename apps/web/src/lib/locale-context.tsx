@@ -73,10 +73,20 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     if (saved === 'id' || saved === 'en') setLocaleState(saved);
   }, []);
 
+  // `<html lang>` follows the locale wherever the locale came from. It used to be stamped
+  // only by `setLocale`, i.e. only when someone flipped the switch in THIS document — so a
+  // returning English reader got English text under `lang="id"` on every page, and a screen
+  // reader pronounced all of it as Indonesian. The layout's static `lang="id"` is the
+  // server's honest answer (the choice lives in localStorage); this is where it stops being
+  // the answer. An effect, so nothing about the first paint changes and hydration still
+  // matches the prerendered HTML.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     localStorage.setItem(STORAGE_KEY, l);
-    document.documentElement.lang = l;
   }, []);
 
   // Fetch whatever the current locale needs. Until it lands, `t` falls back to

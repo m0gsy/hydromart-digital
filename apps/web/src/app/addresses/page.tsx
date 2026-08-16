@@ -8,6 +8,7 @@ import { ConfirmDialog, Sheet } from '@/components/overlay';
 import { Button, Card, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { currentPosition, GeoError } from '@/lib/geo';
 import {
   AddressBookForm,
   EMPTY_ADDRESS_FORM,
@@ -245,24 +246,25 @@ function AddressForm({
 
   const pinned = form.latitude.trim() !== '' && form.longitude.trim() !== '';
 
-  function locate() {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-      setGeoHint(t('profile.addresses.pin.unsupported'));
-      return;
-    }
+  async function locate() {
     setGeoHint(null);
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords(pos.coords.latitude, pos.coords.longitude);
-        setLocating(false);
-      },
-      () => {
-        setGeoHint(t('profile.addresses.pin.failed'));
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+    try {
+      // Shared `currentPosition`, not a second copy: precise first, then the coarse
+      // provider. A phone whose owner chose "Perkiraan" in the Android 12+ permission
+      // dialog holds COARSE only, and a high-accuracy-only request there simply times out.
+      const pos = await currentPosition();
+      setCoords(pos.coords.latitude, pos.coords.longitude);
+    } catch (err) {
+      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      setGeoHint(
+        reason === 'unsupported'
+          ? t('profile.addresses.pin.unsupported')
+          : t(`home.location.${reason}`),
+      );
+    } finally {
+      setLocating(false);
+    }
   }
 
   return (

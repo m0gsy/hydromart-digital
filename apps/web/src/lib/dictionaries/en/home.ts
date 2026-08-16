@@ -68,6 +68,8 @@ export const home: typeof base = {
   },
   location: {
     unsupported: 'Your device does not support location.',
+    unavailable: 'Could not get a location. Turn on Location/GPS on your device, then try again.',
+    timeout: 'No location signal yet. Try again, or pick a city.',
     myLocation: 'My location',
     near: 'Near {city}',
     denied: 'Cannot access location. Allow access or pick a city.',

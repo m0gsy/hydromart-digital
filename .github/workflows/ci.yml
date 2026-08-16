@@ -181,6 +181,13 @@ jobs:
       - name: mobile release gate self-check
         run: bash scripts/mobile-release-gate.test.sh
 
+      # Everything measured inside an APK is measured through these two functions. When they
+      # drift, nothing fails — the probe simply reports a different screen than the one the
+      # user sees, confidently. That happened: the file name reached usePathname() and every
+      # route rendered its `pushed` chrome over `root` HTML (React #418).
+      - name: APK probe navigation self-check
+        run: bash scripts/lib/apk-cdp.test.sh
+
       # E0: a bare env(safe-area-inset-*) is 0 on any WebView older than 140, so the inset
       # vanishes on exactly the phones it exists for — while looking perfectly correct in
       # every desktop browser anyone would check it in. Eight places had drifted back to it.

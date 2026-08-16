@@ -5,6 +5,7 @@ import { CaretDown, Check, Crosshair, MapPin } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { currentPosition, GeoError } from '@/lib/geo';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
@@ -31,13 +32,13 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
 
   async function useMyLocation() {
     setGeoError(null);
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeoError(t('home.location.unsupported'));
-      return;
-    }
     setGeoBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+    try {
+      // `currentPosition` rather than a fourth copy of `getCurrentPosition`: it retries on
+      // the coarse provider before giving up, and it says WHICH failure happened, so this
+      // screen no longer tells someone to grant a permission they already granted.
+      const pos = await currentPosition();
+      {
         const { latitude: lat, longitude: lng } = pos.coords;
         // Resolve the nearest depot so we can label the pin and scope trending.
         let depotId: string | undefined;
@@ -54,15 +55,14 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
           /* nearby is best-effort; still set the raw coords */
         }
         setLocation({ label, lat, lng, depotId });
-        setGeoBusy(false);
         setOpen(false);
-      },
-      () => {
-        setGeoError(t('home.location.denied'));
-        setGeoBusy(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-    );
+      }
+    } catch (err) {
+      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      setGeoError(t(`home.location.${reason}`));
+    } finally {
+      setGeoBusy(false);
+    }
   }
 
   function pickDepot(d: DepotAdmin) {

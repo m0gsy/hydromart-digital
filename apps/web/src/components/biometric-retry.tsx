@@ -31,10 +31,17 @@ export function BiometricRetry() {
     setFailed(false);
     await retryUnlock();
     if (hasTokens()) {
-      // A reload rather than a router push: every provider above this screen decided the
-      // user was signed out on the way in, and re-deciding that from here would mean
+      // A document load rather than a router push: every provider above this screen decided
+      // the user was signed out on the way in, and re-deciding that from here would mean
       // teaching each of them a second entry point.
-      window.location.reload();
+      //
+      // Home, not `reload()`. This screen only ever renders on `/login`, and in an exported
+      // build a reload there asks the WebView for `/login/` — whose Capacitor SPA fallback
+      // answers with the HOME document while the URL keeps saying `/login/`. React then
+      // hydrates home markup against the login route, throws the tree away (#418) and
+      // rebuilds the whole root, which also wipes the plugin's safe-area insets off <html>.
+      // The user has just proved they have a session, so home is where they were going.
+      window.location.replace('/');
       return;
     }
     setBusy(false);
