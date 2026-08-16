@@ -36,6 +36,10 @@ products: {
   create: '/products/api/v1/products',
   update: (id: string) => `/products/api/v1/products/${id}`,
   remove: (id: string) => `/products/api/v1/products/${id}`,
+  // Many active products by id, one call. Public, like the single-product read. The home
+  // rails use it: recommendation-service mirrors only name/sku/unit, so a rail that wants
+  // to show the product's photo has to ask the catalogue for it.
+  batch: (ids: string[]) => `/products/api/v1/products/batch?ids=${ids.map(encodeURIComponent).join(',')}`,
   // Multipart product-image upload (admin); returns { url } to store as imageUrl.
   uploadImage: '/products/api/v1/products/images',
   // Public active-category list (no pagination) → Category[].
