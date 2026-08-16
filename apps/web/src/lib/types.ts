@@ -2112,12 +2112,16 @@ export interface ReportDepotCompare {
 }
 
 // Per-courier commission for a depot over a window (delivery-service commission, design 11c).
-// delivered + shortfallIdr are real; ratePerDeliveryIdr is a config default. courierId is the
+// Every figure is real: `delivered` + `shortfallIdr` from delivery-service's own records,
+// `grossIdr` + `paidDeliveries` from what payout-service actually credited the courier
+// (audit E-1 — this used to be `delivered × a flat rate configured in a service that pays
+// nobody`, so the manager's report and the courier's ledger never matched). courierId is the
 // driver id — the console resolves the display name from the active drivers roster.
 export interface CommissionCourier {
   courierId: string;
   delivered: number;
-  ratePerDeliveryIdr: number;
+  /** Deliveries the payer paid for. Below `delivered` = an earning push was lost. */
+  paidDeliveries: number;
   grossIdr: number;
   shortfallIdr: number;
   netIdr: number;
@@ -2126,9 +2130,10 @@ export interface CommissionRun {
   depotId: string;
   from: string;
   to: string;
-  ratePerDeliveryIdr: number;
   couriers: CommissionCourier[];
-  totalIdr: number;
+  /** Null when `source` is 'unavailable' — never a figure worked out without the payer. */
+  totalIdr: number | null;
+  source: 'payout' | 'unavailable';
 }
 
 // One depot's customer ratings aggregate (order-service reports depot-ratings, design 14b).

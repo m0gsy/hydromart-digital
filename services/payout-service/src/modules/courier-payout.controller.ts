@@ -19,6 +19,7 @@ import {
 import { ExpenseClaimService } from '../application/services/expense-claim.service';
 import {
   CourierEarningRuleRecord,
+  CourierEarningsRow,
   CourierLedgerEntryRecord,
 } from '../application/ports/courier-ledger.repository';
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
@@ -28,10 +29,11 @@ import {
   CashVarianceEventDto,
   CourierLedgerQueryDto,
   DeliveryCompletedEventDto,
+  DepotEarningsQueryDto,
 } from './dto/courier-payout.dto';
 import { ExpenseQueryDto, SubmitExpenseDto } from './dto/expense-claim.dto';
 import { RequestWithdrawalDto } from './dto/payout.dto';
-import { CourierEarningRuleResponseDto, CourierEarningsResponseDto, CourierWithdrawalResponseDto, ExpenseClaimResponseDto, PagedCourierLedgerEntryResponseDto, PagedExpenseClaimResponseDto, RecordEarning2ResponseDto } from './dto/responses.generated.dto';
+import { CourierEarningRuleResponseDto, CourierEarningsResponseDto, CourierWithdrawalResponseDto, ExpenseClaimResponseDto, PagedCourierLedgerEntryResponseDto, PagedExpenseClaimResponseDto, RecordEarning2ResponseDto, DepotEarningsResponseDto } from './dto/responses.generated.dto';
 
 // Courier-scoped: reads the calling courier's own earnings ledger (user.sub).
 @ApiTags('Courier Payout')
@@ -134,6 +136,36 @@ export class CourierPayoutController {
       onTime: dto.onTime,
     });
     return { recorded: entry !== null };
+  }
+
+  /*
+   * E-1: what each courier at a depot was actually PAID over a window, read by
+   * delivery-service's commission report.
+   *
+   * That report used to answer from its own flat `courierRatePerDeliveryIdr` — a rate
+   * configured in a service that pays nobody — so a manager's commission run and the
+   * courier's own ledger disagreed about the same work, permanently and invisibly. The
+   * money has one home; this is how the report reads it instead of guessing at it.
+   *
+   * Internal-key: the caller is a service, and the same figures are already readable by
+   * the courier through their own ledger routes.
+   */
+  @ApiOkResponse({ type: DepotEarningsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('ledger/internal/depot-earnings')
+  @ApiOperation({ summary: "Paid courier earnings for a depot's window (internal service auth)" })
+  async depotEarnings(
+    @Query() query: DepotEarningsQueryDto,
+  ): Promise<{ couriers: CourierEarningsRow[] }> {
+    return {
+      couriers: await this.payout.earningsByDepot(
+        query.depotId,
+        new Date(query.from),
+        new Date(query.to),
+      ),
+    };
   }
 
   // System-triggered: delivery-service posts a COD deposit shortfall charged at settlement

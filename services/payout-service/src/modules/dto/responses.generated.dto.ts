@@ -326,3 +326,18 @@ export class Schema3ResponseDto {
   @ApiProperty({ type: Object })
   effective!: unknown;
 }
+
+/** Mirrors `CourierEarningsRow` exactly (audit E-1). */
+export class CourierEarningsRowResponseDto {
+  @ApiProperty({ type: String })
+  courierId!: string;
+  @ApiProperty({ type: Number })
+  earnedIdr!: number;
+  @ApiProperty({ type: Number })
+  paidDeliveries!: number;
+}
+
+export class DepotEarningsResponseDto {
+  @ApiProperty({ type: [CourierEarningsRowResponseDto] })
+  couriers!: CourierEarningsRowResponseDto[];
+}

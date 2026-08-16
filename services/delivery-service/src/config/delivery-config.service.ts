@@ -127,17 +127,15 @@ export class DeliveryConfigService {
   courierWeeklyTarget(depotId: string | null = null): number {
     return this.tunable('courierWeeklyTarget', this.num('COURIER_WEEKLY_TARGET'), depotId);
   }
-  /**
-   * Flat per-delivery commission paid to a courier from depot cash (design 11c).
-   * A pay/display figure only; the default fills it so no compose change is needed.
+  /*
+   * `courierRatePerDeliveryIdr` was here, and it is deleted rather than left unread (E-1).
+   *
+   * Its ONLY reader was the commission report, which now reads what payout-service actually
+   * credited. A flat rate a depot can still edit, in the service that pays nobody, is the
+   * second number this change exists to remove — leaving the knob would have left the bug
+   * one config screen away from coming back. Rows already stored under this key in
+   * `service_settings` simply stop being read; no migration deletes them.
    */
-  courierRatePerDeliveryIdr(depotId: string | null = null): number {
-    return this.tunable(
-      'courierRatePerDeliveryIdr',
-      Number(this.config.get('COURIER_RATE_PER_DELIVERY_IDR', 12000)),
-      depotId,
-    );
-  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

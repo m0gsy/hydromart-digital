@@ -27,7 +27,9 @@ function makeService(): Mocked {
     audienceReach: jest.fn().mockResolvedValue('reach'),
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
     segmentCustomers: jest.fn().mockResolvedValue({ customerIds: ['c1'], truncated: false }),
-    exportRows: jest.fn().mockResolvedValue([{ label: 'Depot A', orders: 2, revenue: 5000 }]),
+    exportRows: jest
+      .fn()
+      .mockResolvedValue({ rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }], truncated: false }),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
@@ -218,10 +220,13 @@ describe('ReportController', () => {
     expect(service.segmentCustomers).toHaveBeenCalledWith(q);
   });
 
-  it('internalExportRows: wraps the rows and forwards the window', async () => {
+  // E-4: `truncated` rides along with the rows, so a report that hit the row cap can say so
+  // in the file instead of just stopping.
+  it('internalExportRows: passes the rows AND the truncation flag through', async () => {
     const q = { dataset: 'REVENUE_BY_DEPOT', from: '2026-08-01T00:00:00.000Z' } as never;
     await expect(controller.internalExportRows(q)).resolves.toEqual({
       rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }],
+      truncated: false,
     });
     expect(service.exportRows).toHaveBeenCalledWith('REVENUE_BY_DEPOT', {
       from: new Date('2026-08-01T00:00:00.000Z'),

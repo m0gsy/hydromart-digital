@@ -22,8 +22,27 @@ export interface CashVarianceChargedEvent {
   amount: number;
 }
 
+/** What payout-service actually paid one courier at one depot over a window (E-1). */
+export interface CourierPaidEarnings {
+  courierId: string;
+  earnedIdr: number;
+  /** EARNING entries behind `earnedIdr` — what the payer counted as a delivery. */
+  paidDeliveries: number;
+}
+
 export interface CourierPayoutPort {
   deliveryCompleted(event: DeliveryCompletedEvent): Promise<void>;
+  /**
+   * Reads what payout-service paid each courier at a depot over a window, for the depot's
+   * commission report.
+   *
+   * Fails to NULL, deliberately, and the caller must NOT substitute a rate of its own. The
+   * commission report used to compute `delivered × courierRatePerDeliveryIdr` from a flat
+   * rate configured here — in the service that does not pay — so the manager's report and
+   * the courier's ledger stated different amounts for the same deliveries. A fallback rate
+   * is precisely how the second number was born; an unavailable answer says so instead.
+   */
+  paidEarnings(depotId: string, from: Date, to: Date): Promise<CourierPaidEarnings[] | null>;
   /**
    * Charges a courier for a COD deposit shortfall. At-least-once + idempotent by
    * settlementId; fails OPEN — the settlement already records the charge, so a lost

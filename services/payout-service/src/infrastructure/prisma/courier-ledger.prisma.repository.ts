@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { CourierLedgerEntryType } from '../../domain/courier-earning';
 import {
   CourierEarningRuleRecord,
+  CourierEarningsRow,
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
   CreateCourierLedgerData,
@@ -103,6 +104,33 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
       _sum: { amount: true },
     });
     return Number(agg._sum.amount ?? 0);
+  }
+
+  async earningsByDepot(depotId: string, from: Date, to: Date): Promise<CourierEarningsRow[]> {
+    // Grouped by courier AND type: the sum wants both credit types, the delivery count
+    // wants only EARNING (an incentive rung is a bonus, not a delivery).
+    const grouped = await this.prisma.courierLedgerEntry.groupBy({
+      by: ['courierId', 'type'],
+      where: {
+        depotId,
+        type: { in: ['EARNING', 'INCENTIVE'] },
+        occurredAt: { gte: from, lte: to },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    const byCourier = new Map<string, CourierEarningsRow>();
+    for (const g of grouped) {
+      const row = byCourier.get(g.courierId) ?? {
+        courierId: g.courierId,
+        earnedIdr: 0,
+        paidDeliveries: 0,
+      };
+      row.earnedIdr += Number(g._sum.amount ?? 0);
+      if (g.type === 'EARNING') row.paidDeliveries += g._count._all;
+      byCourier.set(g.courierId, row);
+    }
+    return [...byCourier.values()];
   }
 
   async countByType(

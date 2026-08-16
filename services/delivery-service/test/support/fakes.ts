@@ -50,6 +50,7 @@ import { CashCollected, CashCollectionPort } from '../../src/application/ports/c
 import { RatingPort, RatingSummary } from '../../src/application/ports/rating.port';
 import {
   CashVarianceChargedEvent,
+  CourierPaidEarnings,
   CourierPayoutPort,
   DeliveryCompletedEvent,
 } from '../../src/application/ports/courier-payout.port';
@@ -669,6 +670,11 @@ export class InMemorySettlementRepository implements SettlementRepository {
 export class FakeCourierPayout implements CourierPayoutPort {
   events: DeliveryCompletedEvent[] = [];
   variances: CashVarianceChargedEvent[] = [];
+  /** What payout says it paid, keyed by depot. Null = payout-service could not be read. */
+  earnings = new Map<string, CourierPaidEarnings[] | null>();
+  async paidEarnings(depotId: string): Promise<CourierPaidEarnings[] | null> {
+    return this.earnings.has(depotId) ? this.earnings.get(depotId)! : [];
+  }
   async deliveryCompleted(event: DeliveryCompletedEvent): Promise<void> {
     this.events.push(event);
   }

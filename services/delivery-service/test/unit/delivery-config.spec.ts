@@ -64,7 +64,6 @@ describe('DeliveryConfigService with settings cache', () => {
     expect(cfg.slaMinutes()).toBe(120);
     expect(cfg.urbanSpeedKmph()).toBe(18);
     expect(cfg.courierWeeklyTarget()).toBe(45);
-    expect(cfg.courierRatePerDeliveryIdr()).toBe(12000);
   });
 });
 

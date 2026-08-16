@@ -250,6 +250,47 @@ describe('CourierPayoutHttpAdapter', () => {
     );
   });
 
+  /*
+   * E-1. The commission report reads this instead of `delivered × a flat rate configured
+   * here`. Unlike the pushes above it must NOT fail open: answering an outage with a local
+   * rate is exactly how a manager's report and a courier's ledger came to state two
+   * different amounts for the same deliveries.
+   */
+  describe('paidEarnings', () => {
+    const call = (over = {}) =>
+      new CourierPayoutHttpAdapter(makeConfig(over)).paidEarnings(
+        'd1',
+        new Date('2026-06-01T00:00:00.000Z'),
+        new Date('2026-07-01T00:00:00.000Z'),
+      );
+
+    it('reads the depot window and returns the payer rows', async () => {
+      const couriers = [{ courierId: 'c1', earnedIdr: 27500, paidDeliveries: 2 }];
+      fetchMock.mockResolvedValue(res({ ok: true, body: { couriers } }));
+
+      await expect(call()).resolves.toEqual(couriers);
+
+      const url = String(fetchMock.mock.calls[0][0]);
+      expect(url).toContain('/api/v1/courier/ledger/internal/depot-earnings');
+      expect(url).toContain('depotId=d1');
+      expect(url).toContain('from=2026-06-01T00%3A00%3A00.000Z');
+    });
+
+    it.each([
+      ['a non-2xx', () => fetchMock.mockResolvedValue(res({ ok: false, status: 503 }))],
+      ['an unreachable service', () => fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))],
+      ['a 200 with no rows in it', () => fetchMock.mockResolvedValue(res({ ok: true, body: {} }))],
+    ])('answers null on %s rather than a number of its own', async (_label, arrange) => {
+      arrange();
+      await expect(call()).resolves.toBeNull();
+    });
+
+    it('answers null, not an empty report, when payout is not configured', async () => {
+      await expect(call({ payoutServiceUrl: '' })).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   it('cashVarianceCharged: POSTs to the variance endpoint on happy path', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new CourierPayoutHttpAdapter(makeConfig()).cashVarianceCharged(variance);
