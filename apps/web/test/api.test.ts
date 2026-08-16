@@ -69,3 +69,26 @@ describe('api client', () => {
     expect(init).toMatchObject({ method: 'DELETE', body: JSON.stringify({ scope: 'GLOBAL', key: 'k' }) });
   });
 });
+
+// The four messages `api.ts` writes itself, i.e. when the server said nothing usable.
+// They were English literals in a module no translator ever read, so a courier who lost
+// signal was answered in English under `lang="id"`. Indonesian is the bundled default.
+describe('messages the client writes itself', () => {
+  it('a dropped connection is reported in Indonesian', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
+    await expect(api.get('/anything')).rejects.toMatchObject({
+      status: 0,
+      message: 'Tidak bisa menghubungi server. Periksa koneksimu lalu coba lagi.',
+    });
+  });
+
+  it('an unexplained status carries the number, interpolated', async () => {
+    vi.stubGlobal('fetch', mockFetch(503, {}));
+    await expect(api.get('/anything')).rejects.toMatchObject({
+      status: 503,
+      message: 'Permintaan gagal (503).',
+    });
+  });
+});

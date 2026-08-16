@@ -22,7 +22,12 @@ const ADB = process.env.ADB
     ? `${process.env.ANDROID_HOME.replace(/[\\/]+$/, '')}/platform-tools/adb`
     : 'adb';
 
-export const adb = (...args) => execFileSync(ADB, args, { encoding: 'utf8' }).trim();
+// 32 MB, not node's 1 MB default: `dumpsys window` on a real phone is several megabytes and
+// blowing the buffer throws ENOBUFS — which `adbTry` then turns into an empty string, so the
+// status-bar inset read as 0 and every tap went back to being 110px too high. A silent zero
+// from a truncated dump is the worst shape this failure could have taken.
+export const adb = (...args) =>
+  execFileSync(ADB, args, { encoding: 'utf8', maxBuffer: 32 << 20 }).trim();
 
 /** Same, but a non-zero exit is an answer rather than a throw (`pidof` on a dead app). */
 export const adbTry = (...args) => {
@@ -32,6 +37,39 @@ export const adbTry = (...args) => {
     return e.stdout?.toString().trim() ?? '';
   }
 };
+
+/**
+ * Screen y of the page's y=0 — the term `screen = cssY * devicePixelRatio` is missing.
+ *
+ * `window.screenY` reads **0** inside this WebView and it is wrong: the activity window does
+ * fill the screen (`(0,0)(fillxfill)`), but the view inside it is laid out under the status
+ * bar, so page y=0 sits 132px down on this device. Every `adb shell input tap` computed from
+ * a `getBoundingClientRect()` therefore landed 132px too high. On `/login` that is a hair
+ * inside a 52px-tall field, so it passed and hid the bug; on `/verify` it is two thirds of an
+ * OTP box, so the tap landed on the "kembali ke masuk" LINK above the boxes and navigated to
+ * `/login` — which is exactly the "tap does not focus the box" and the "bounce back to
+ * /login" that were about to be reported as app bugs.
+ *
+ * Measured, not assumed: taps at three heights all came back with `e.screenY - e.clientY`
+ * equal to 48 CSS px = 132 screen px, the status-bar inset the window manager reports.
+ */
+export function viewportTop() {
+  const dump = adbTry('shell', 'dumpsys', 'window');
+  // Android 12+. The id is hex (`2eb00000`), not decimal — `id=\d+` matches nothing.
+  const modern = dump
+    .split('\n')
+    .find((l) => /InsetsSource id=\S+ type=statusBars /.test(l) && /visible=true/.test(l));
+  const frame = modern && /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(modern);
+  if (frame) return Number(frame[4]);
+  // Android 11 says the same thing in TWO other dialects, and which one you get depends on
+  // the sub-command: `dumpsys window` prints
+  // `InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][1080,110] visible=true` while
+  // `dumpsys window windows` prints `{mType=ITYPE_STATUS_BAR, mFrame=…, mVisible=true}`.
+  // Case-insensitive and comma-optional covers both. Without this the OPPO answers 0 and
+  // every tap is 110px too high again.
+  const legacy = /ITYPE_STATUS_BAR,?\s+m?Frame=\[\d+,\d+\]\[\d+,(\d+)\],?\s+m?Visible=true/i.exec(dump);
+  return legacy ? Number(legacy[1]) : 0;
+}
 
 /**
  * Ask the bundle for the FILE, not the route — `/login/` becomes `/login/index.html`.
@@ -179,9 +217,21 @@ export const TYPE = (selector, value) => `(() => {
   return 'ok';
 })()`;
 
-export const evaluate = async (conn, expression) =>
-  (await conn.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }))
-    .result?.value;
+/**
+ * `opts.userGesture` matters for exactly one thing here, and it is not cosmetic: Chrome
+ * refuses to open a file chooser from `input.click()` without transient user activation.
+ * Three separate runs reported "nothing came to the foreground" for the PoD capture input
+ * and read like a broken bridge; the click was simply being dropped on the floor.
+ */
+export const evaluate = async (conn, expression, opts = {}) =>
+  (
+    await conn.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+      ...opts,
+    })
+  ).result?.value;
 
 /** Wait for a field to exist, then set it. */
 export async function fill(conn, selector, value, tries = 15) {

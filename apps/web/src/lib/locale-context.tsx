@@ -47,6 +47,21 @@ function loadDictionary(locale: Locale): Promise<Dictionary> {
   return enLoading;
 }
 
+/**
+ * The same `t`, for modules that are not components.
+ *
+ * `api.ts` builds the message a user reads when the server said nothing usable, and it is
+ * not a component, so it cannot hold a hook — which is why those four strings sat in it as
+ * English literals that no translator ever saw, and why `/verify` answered a dropped signal
+ * with "Cannot reach the server" under `lang="id"`. Defaults to Indonesian, the bundled
+ * dictionary, and follows the reader once the provider has mounted.
+ */
+let currentDict: Dictionary = id;
+
+export function translate(key: string, vars?: TVars): string {
+  return resolve(currentDict, key, vars);
+}
+
 function resolve(dict: Dictionary, key: string, vars?: TVars): string {
   // Every `t(MAP[value])` in the app is one unexpected enum member away from calling this
   // with `undefined`, and `undefined.split` is an uncaught TypeError — a white screen with
@@ -83,6 +98,15 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+
+  // Keep the non-component translator pointed at the dictionary that is actually loaded.
+  // In an effect, not in render: `translate()` is module state and writing it while
+  // rendering makes the same tree produce different output on a replay.
+  useEffect(() => {
+    currentDict = loaded[locale] ?? id;
+    // `revision` is the signal that `loaded` changed — it has no other reader here either.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale, revision]);
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
