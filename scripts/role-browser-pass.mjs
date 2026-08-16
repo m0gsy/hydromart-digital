@@ -611,11 +611,28 @@ for (const locale of LOCALES) {
       else if (idText[route] && idText[route] === text)
         note(route, 'en', 'NOT TRANSLATED', 'identical to id');
 
-      // --- geometry, one load, five widths ---------------------------------
+      /*
+       * --- geometry, one load, five widths ---------------------------------
+       *
+       * One load and five resizes is fast, and it LIES. Measured on 2026-08-17: this
+       * reported `/hq/inventory` as 54px wider than 320 with three depot cards named as the
+       * culprits — and a browser opened AT 320 gives `scrollWidth === 320`, no overflow at
+       * all. The page is fine; what is not fine is measuring a layout that was built for
+       * 1280 and then squeezed, which a real 320px phone never does.
+       *
+       * So: measure fast as before, and when a width produces a finding, RELOAD at that
+       * width and measure again — the reload is the answer that ships. Only the widths that
+       * flag pay for it, so the sweep stays a sweep.
+       */
       for (const { w, h } of WIDTHS) {
         await p.setViewportSize({ width: w, height: h });
         await p.waitForTimeout(250); // let the CSS settle before measuring it
-        const m = await p.evaluate(MEASURE, { tapMin: TAP_MIN });
+        let m = await p.evaluate(MEASURE, { tapMin: TAP_MIN });
+        if (m.docOver > 0 || m.clipped.length || m.tapSmall.length || m.tapCovered.length) {
+          await p.reload({ waitUntil: 'networkidle' }).catch(() => {});
+          await p.waitForTimeout(400);
+          m = await p.evaluate(MEASURE, { tapMin: TAP_MIN });
+        }
         geometry.push({ route, locale, width: w, ...m });
         if (m.docOver > 0)
           note(
