@@ -99,6 +99,21 @@ export class CashByOrderDto {
   orderIds!: string[];
 }
 
+/**
+ * Depot reconciliation: the payments behind one page of a depot's orders.
+ *
+ * Bounded at 100 — one screen's worth. The daily report above asks for a whole day and is
+ * bounded at 1.000; this is a console table, and letting it ask for the same volume would
+ * turn a page render into a report run.
+ */
+export class PaymentsForOrdersDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 100 })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true })
+  orderIds!: string[];
+}
+
 export class ListPaymentsQueryDto {
   @ApiPropertyOptional({
     description:

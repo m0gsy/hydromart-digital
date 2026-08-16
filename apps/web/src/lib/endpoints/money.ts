@@ -14,6 +14,10 @@ payments: {
   forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
   // Staff: an order's payments (for settlement) — not customer-scoped.
   forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,
+  // Depot reconciliation: POST { orderIds } → the payment recorded against each, for a
+  // page of the depot's own orders. A POST because the id set is the body, and per-order
+  // because a payment carries a depot only when it was rung up at the counter.
+  forOrders: '/payments/api/v1/payments/for-orders',
   // Staff: confirm a payment as received (cash/transfer/QRIS).
   confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
   // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).

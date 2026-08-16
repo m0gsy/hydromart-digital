@@ -106,7 +106,6 @@ export const dashA = {
     toActiveCouriers: 'To the depot’s active couriers',
     send: 'Send broadcast',
     emptySent: 'No broadcasts sent yet.',
-    readCount: 'Read by {read}/{audience} couriers',
     heading: 'Broadcast',
     viaCourierNotif: '{name} · via courier notifications',
     noDepotTitle: 'No depots yet',

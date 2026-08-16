@@ -93,6 +93,15 @@ export interface PaymentRepository {
   search(
     query: PaymentQuery,
   ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }>;
+  /**
+   * Every payment recorded against these orders, newest first.
+   *
+   * Depot reconciliation reads it. The depot cannot come from the payment row: `depotId` is
+   * set only for a counter sale (see the field note above), so filtering payments by depot
+   * would answer with the till and call it the depot. The caller passes the ids of orders it
+   * already read under its own depot scope instead, and this answers for exactly those.
+   */
+  findByOrderIds(orderIds: string[]): Promise<PaymentRecord[]>;
   /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
   listPendingRefunds(query: { page: number; limit: number }): Promise<{
     items: PaymentRecord[];

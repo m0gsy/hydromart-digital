@@ -160,6 +160,23 @@ describe('PaymentPrismaRepository', () => {
     expect(out.nextCursor).toBe(out.items[0].id);
   });
 
+  it('findByOrderIds reads the id set newest-first', async () => {
+    model.findMany.mockResolvedValue([fullRow()]);
+    const out = await repo.findByOrderIds(['order-1', 'order-2']);
+    expect(out).toHaveLength(1);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { orderId: { in: ['order-1', 'order-2'] } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+  });
+
+  // A depot with no orders yet is the common case on a fresh console, and it must not cost
+  // a query — same guard its two neighbours (`sumCashCollected`, `cashByOrder`) already have.
+  it('findByOrderIds answers an empty set without touching the table', async () => {
+    expect(await repo.findByOrderIds([])).toEqual([]);
+    expect(model.findMany).not.toHaveBeenCalled();
+  });
+
   it('listPendingRefunds filters on PENDING approval, newest updated first', async () => {
     model.findMany.mockResolvedValue([fullRow()]);
     model.count.mockResolvedValue(1);
