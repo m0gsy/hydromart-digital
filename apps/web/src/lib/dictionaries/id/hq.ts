@@ -715,6 +715,7 @@ export const hq = {
       next: 'Baru',
       apply: 'Terapkan skema baru',
       applied: 'Skema komisi baru diterapkan.',
+      noChanges: 'Tidak ada perubahan untuk diterapkan.',
       applyError: 'Gagal menerapkan skema komisi.',
       effective: 'Berlaku',
       effectiveLabel: 'Tanggal berlaku',

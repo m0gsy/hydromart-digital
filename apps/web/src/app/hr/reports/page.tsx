@@ -103,10 +103,7 @@ export default function ReportsPage() {
             <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
         </div>
-        <p className="text-xs text-muted">
-          Rentang tanggal dipakai absensi, keterlambatan, cuti, dan pengumuman. Periode dipakai
-          payroll dan kinerja. PDF memotong laporan panjang dan menyebutkannya di halaman.
-        </p>
+        <p className="text-xs text-muted">{t('hrFix.reports.rangeHint')}</p>
       </Card>
 
       <Card className="space-y-3 p-4">

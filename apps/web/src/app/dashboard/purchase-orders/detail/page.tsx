@@ -161,9 +161,7 @@ function Detail({ id }: { id: string }) {
 
       <Card className="flex items-start gap-2 bg-brand-50 p-3">
         <Info size={18} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
-        <p className="text-sm text-brand-700">
-          Terima barang mencatat <strong>RECEIPT +qty</strong> ke inventory depot untuk setiap baris.
-        </p>
+        <p className="text-sm text-brand-700">{t('hrFix.poDetail.receiveHintPre')}<strong>RECEIPT +qty</strong>{t('hrFix.poDetail.receiveHintPost')}</p>
       </Card>
 
       {error && (

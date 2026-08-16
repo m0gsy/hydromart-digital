@@ -6,6 +6,11 @@ export const opsFix = {
     whatsappFormat: "The depot WhatsApp number must be 8–15 digits, optionally +-prefixed.",
   },
   import: {
+    downloadFailedRows: 'Download failed rows',
+    downloadProblemRows: 'Download problem rows',
+    pickFile: 'Choose file',
+    downloadTemplate: 'Download Excel template',
+    upsertHint: 'A matching row (employee code, then national ID, then phone) is overwritten with the file’s contents — used for bulk raises or department moves. Without this, existing employees are skipped. Login roles are never changed.',
     notANumber: "\"{value}\" is not a number",
     nikScientific: "\"{value}\" was mangled into scientific notation by Excel — format the NIK column as Text",
     notAnInteger: "\"{value}\" is not a whole number",
@@ -408,6 +413,7 @@ export const opsFix = {
   },
   // dashboard/subscriptions — PR-8. Mirrors id/opsFix.subs key for key.
   subs: {
+    autoOrderHint: 'Subscription orders are created automatically on the morning they are due and go straight into the delivery queue. Customers can pause any time from the app.',
     title: 'Subscriptions',
     headline: '{active} active · {paused} paused',
     newSub: 'New subscription',

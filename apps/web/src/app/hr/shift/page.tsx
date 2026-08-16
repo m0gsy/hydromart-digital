@@ -282,10 +282,7 @@ function Assignments({
   return (
     <Card className="space-y-4 p-5">
       <h2 className="text-sm font-semibold">{t('hrFix.shift.assignments')}</h2>
-      <p className="text-xs text-muted">
-        Penugasan bersifat tambah — penugasan lama tetap tersimpan sebagai riwayat. Karyawan tanpa
-        penugasan tetap dinilai terhadap shift depot seperti sebelumnya.
-      </p>
+      <p className="text-xs text-muted">{t('hrFix.shift.assignmentHint')}</p>
 
       <Field label={t('hrFix.shift.employee')}>
         <select

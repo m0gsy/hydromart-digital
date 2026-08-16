@@ -18,7 +18,7 @@ import {
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatIDR } from '@/lib/format';
+import { formatIDR, shortWeekdays } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT, type TVars } from '@/lib/locale-context';
@@ -28,7 +28,6 @@ import { useAsync } from '@/lib/use-async';
 import type { Page, PricingRule, Product, ResolvedPrice } from '@/lib/types';
 
 // Indonesian day abbreviations — consistent with the mobile operator app.
-const DAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 type T = (key: string, vars?: TVars) => string;
 
@@ -59,8 +58,12 @@ function adjustmentLabel(r: PricingRule): string {
   return r.adjustType === 'PERCENT' ? `${r.value}%` : formatIDR(r.value);
 }
 
-function windowSummary(r: PricingRule, t: T): string {
-  const days = r.daysOfWeek.length === 0 ? t('dashboard.pricing.everyDay') : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
+function windowSummary(r: PricingRule, t: T, locale: string): string {
+  const DAY_LABELS = shortWeekdays(locale, false);
+  const days =
+    r.daysOfWeek.length === 0
+      ? t('dashboard.pricing.everyDay')
+      : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
   const time =
     r.startMinute == null && r.endMinute == null
       ? t('dashboard.pricing.allDay')
@@ -82,16 +85,20 @@ function RuleEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const DAY_LABELS = shortWeekdays(locale, false);
   const [form, setForm] = useState<RuleForm>(rule ? formFromRule(rule) : EMPTY_RULE_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof RuleForm) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function toggleDay(day: number) {
     setForm((f) => ({
       ...f,
-      daysOfWeek: f.daysOfWeek.includes(day) ? f.daysOfWeek.filter((d) => d !== day) : [...f.daysOfWeek, day],
+      daysOfWeek: f.daysOfWeek.includes(day)
+        ? f.daysOfWeek.filter((d) => d !== day)
+        : [...f.daysOfWeek, day],
     }));
   }
 
@@ -116,10 +123,21 @@ function RuleEditor({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">{rule ? t('dashboard.pricing.editTitle') : t('dashboard.pricing.newTitle')}</h2>
+      <h2 className="font-semibold">
+        {rule ? t('dashboard.pricing.editTitle') : t('dashboard.pricing.newTitle')}
+      </h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t('dashboard.pricing.productLabel')} htmlFor="r-product" hint={t('dashboard.pricing.productHint')}>
-          <Input id="r-product" value={form.productId} onChange={set('productId')} placeholder={t('dashboard.pricing.productPlaceholder')} />
+        <Field
+          label={t('dashboard.pricing.productLabel')}
+          htmlFor="r-product"
+          hint={t('dashboard.pricing.productHint')}
+        >
+          <Input
+            id="r-product"
+            value={form.productId}
+            onChange={set('productId')}
+            placeholder={t('dashboard.pricing.productPlaceholder')}
+          />
         </Field>
         <Field label={t('dashboard.pricing.adjustTypeLabel')} htmlFor="r-type">
           <select
@@ -135,23 +153,59 @@ function RuleEditor({
         <Field
           label={t('dashboard.pricing.valueLabel')}
           htmlFor="r-value"
-          hint={form.adjustType === 'PERCENT' ? t('dashboard.pricing.valueHintPercent') : t('dashboard.pricing.valueHintFixed')}
+          hint={
+            form.adjustType === 'PERCENT'
+              ? t('dashboard.pricing.valueHintPercent')
+              : t('dashboard.pricing.valueHintFixed')
+          }
         >
-          <Input id="r-value" inputMode="decimal" value={form.value} onChange={set('value')} placeholder="-10" />
+          <Input
+            id="r-value"
+            inputMode="decimal"
+            value={form.value}
+            onChange={set('value')}
+            placeholder="-10"
+          />
         </Field>
-        <Field label={t('dashboard.pricing.priorityLabel')} htmlFor="r-priority" hint={t('dashboard.pricing.priorityHint')}>
-          <Input id="r-priority" inputMode="numeric" value={form.priority} onChange={set('priority')} placeholder="0" />
+        <Field
+          label={t('dashboard.pricing.priorityLabel')}
+          htmlFor="r-priority"
+          hint={t('dashboard.pricing.priorityHint')}
+        >
+          <Input
+            id="r-priority"
+            inputMode="numeric"
+            value={form.priority}
+            onChange={set('priority')}
+            placeholder="0"
+          />
         </Field>
-        <Field label={t('dashboard.pricing.startTimeLabel')} htmlFor="r-start" hint={t('dashboard.pricing.startTimeHint')}>
+        <Field
+          label={t('dashboard.pricing.startTimeLabel')}
+          htmlFor="r-start"
+          hint={t('dashboard.pricing.startTimeHint')}
+        >
           <Input id="r-start" type="time" value={form.startTime} onChange={set('startTime')} />
         </Field>
-        <Field label={t('dashboard.pricing.endTimeLabel')} htmlFor="r-end" hint={t('dashboard.pricing.endTimeHint')}>
+        <Field
+          label={t('dashboard.pricing.endTimeLabel')}
+          htmlFor="r-end"
+          hint={t('dashboard.pricing.endTimeHint')}
+        >
           <Input id="r-end" type="time" value={form.endTime} onChange={set('endTime')} />
         </Field>
-        <Field label={t('dashboard.pricing.validFromLabel')} htmlFor="r-from" hint={t('dashboard.pricing.validFromHint')}>
+        <Field
+          label={t('dashboard.pricing.validFromLabel')}
+          htmlFor="r-from"
+          hint={t('dashboard.pricing.validFromHint')}
+        >
           <Input id="r-from" type="date" value={form.validFrom} onChange={set('validFrom')} />
         </Field>
-        <Field label={t('dashboard.pricing.validUntilLabel')} htmlFor="r-until" hint={t('dashboard.pricing.validUntilHint')}>
+        <Field
+          label={t('dashboard.pricing.validUntilLabel')}
+          htmlFor="r-until"
+          hint={t('dashboard.pricing.validUntilHint')}
+        >
           <Input id="r-until" type="date" value={form.validUntil} onChange={set('validUntil')} />
         </Field>
       </div>
@@ -161,7 +215,11 @@ function RuleEditor({
         <div className="flex flex-wrap gap-3">
           {DAY_LABELS.map((label, day) => (
             <label key={day} className="flex cursor-pointer items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={form.daysOfWeek.includes(day)} onChange={() => toggleDay(day)} />
+              <input
+                type="checkbox"
+                checked={form.daysOfWeek.includes(day)}
+                onChange={() => toggleDay(day)}
+              />
               {label}
             </label>
           ))}
@@ -206,7 +264,7 @@ function RuleCard({
   onEdit: () => void;
   onChanged: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -229,9 +287,11 @@ function RuleCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-semibold">{rule.productId ?? t('dashboard.pricing.allProducts')}</p>
-          <p className="text-xs text-muted">{windowSummary(rule, t)}</p>
+          <p className="text-xs text-muted">{windowSummary(rule, t, locale)}</p>
         </div>
-        <Badge tone={rule.active ? 'success' : 'neutral'}>{rule.active ? t('dashboard.pricing.active') : t('dashboard.pricing.inactive')}</Badge>
+        <Badge tone={rule.active ? 'success' : 'neutral'}>
+          {rule.active ? t('dashboard.pricing.active') : t('dashboard.pricing.inactive')}
+        </Badge>
       </div>
       <dl className="grid grid-cols-2 gap-2 text-center text-sm">
         <div>
@@ -263,7 +323,9 @@ function RuleCard({
 const adjustNote = (r: ResolvedPrice): string => {
   if (!r.adjustType) return '—';
   const v = r.value ?? 0;
-  return r.adjustType === 'PERCENT' ? `${v > 0 ? '+' : ''}${v}%` : `${v > 0 ? '+' : ''}${formatIDR(v)}`;
+  return r.adjustType === 'PERCENT'
+    ? `${v > 0 ? '+' : ''}${v}%`
+    : `${v > 0 ? '+' : ''}${formatIDR(v)}`;
 };
 
 /**
@@ -272,7 +334,10 @@ const adjustNote = (r: ResolvedPrice): string => {
  */
 function EffectivePreview({ depotId }: { depotId: string }) {
   const { t } = useT();
-  const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 })), [depotId]);
+  const catalog = useAsync<Page<Product>>(
+    () => api.get(endpoints.products.browse({ limit: 100 })),
+    [depotId],
+  );
   const ids = (catalog.data?.items ?? []).map((p) => p.id);
   const resolved = useAsync<ResolvedPrice[]>(
     () => (ids.length ? api.get(endpoints.inventory.prices(depotId, ids)) : Promise.resolve([])),
@@ -299,9 +364,13 @@ function EffectivePreview({ depotId }: { depotId: string }) {
           <tr className="border-b border-app text-left text-xs text-muted">
             <th className="px-4 py-2.5 font-medium">{t('dashboard.pricing.colProduct')}</th>
             <th className="px-4 py-2.5 text-right font-medium">{t('dashboard.pricing.colBase')}</th>
-            <th className="px-4 py-2.5 text-right font-medium">{t('dashboard.pricing.colOverride')}</th>
+            <th className="px-4 py-2.5 text-right font-medium">
+              {t('dashboard.pricing.colOverride')}
+            </th>
             <th className="px-4 py-2.5 text-right font-medium">{t('dashboard.pricing.colRule')}</th>
-            <th className="px-4 py-2.5 text-right font-medium">{t('dashboard.pricing.colEffective')}</th>
+            <th className="px-4 py-2.5 text-right font-medium">
+              {t('dashboard.pricing.colEffective')}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -322,7 +391,9 @@ function EffectivePreview({ depotId }: { depotId: string }) {
                   {eff.override != null ? <Money amount={eff.override} /> : '—'}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{r ? adjustNote(r) : '—'}</td>
-                <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${changed ? 'text-brand-700' : ''}`}>
+                <td
+                  className={`px-4 py-2.5 text-right font-semibold tabular-nums ${changed ? 'text-brand-700' : ''}`}
+                >
                   <Money amount={eff.effective} />
                 </td>
               </tr>
@@ -409,7 +480,10 @@ function PricingBody() {
           ) : rules.error ? (
             <ErrorState message={rules.error} onRetry={rules.reload} />
           ) : !rules.data || rules.data.length === 0 ? (
-            <CenterState title={t('dashboard.pricing.noRules')} icon={<Tag size={40} weight="fill" />}>
+            <CenterState
+              title={t('dashboard.pricing.noRules')}
+              icon={<Tag size={40} weight="fill" />}
+            >
               {t('dashboard.pricing.noRulesBody')}
             </CenterState>
           ) : (

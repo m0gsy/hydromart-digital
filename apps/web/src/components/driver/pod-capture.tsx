@@ -12,6 +12,7 @@ import { runOrQueue } from '@/lib/offline-queue';
 
 /** Signature pad: freehand pointer drawing on a canvas, exportable as a PNG blob. */
 function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElement | null> }) {
+  const { t } = useT();
   const drawing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
 
@@ -71,8 +72,7 @@ function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElem
         onClick={clear}
         className="inline-flex items-center gap-1 text-sm text-[color:var(--muted)] hover:text-brand-600"
       >
-        <Eraser size={16} /> Hapus tanda tangan
-      </button>
+        <Eraser size={16} />{t('hrFix.pod.clearSignature')}</button>
     </div>
   );
 }
@@ -204,9 +204,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           className="mt-0.5 size-4 shrink-0 accent-brand-600"
         />
         <span className="flex items-center gap-1.5 text-sm font-medium">
-          <SealCheck size={16} weight="fill" className="text-brand-700" />
-          Segel galon utuh & tidak bocor
-        </span>
+          <SealCheck size={16} weight="fill" className="text-brand-700" />{t('hrFix.pod.sealIntact')}</span>
       </label>
 
       <Field label={t('hrFix.pod.recipient')}>

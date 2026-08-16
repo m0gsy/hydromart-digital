@@ -6,6 +6,11 @@ export const opsFix = {
     whatsappFormat: "Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.",
   },
   import: {
+    downloadFailedRows: 'Unduh baris gagal',
+    downloadProblemRows: 'Unduh baris bermasalah',
+    pickFile: 'Pilih file',
+    downloadTemplate: 'Unduh template Excel',
+    upsertHint: 'Baris yang cocok (kode karyawan, lalu NIK, lalu no. HP) ditimpa dengan isi file — dipakai untuk kenaikan gaji atau pindah departemen massal. Tanpa centang ini, karyawan yang sudah ada dilewati. Role login tidak pernah ikut berubah.',
     notANumber: "\"{value}\" bukan angka",
     nikScientific: "\"{value}\" rusak jadi notasi ilmiah oleh Excel — format kolom NIK sebagai Teks",
     notAnInteger: "\"{value}\" bukan angka bulat",
@@ -409,6 +414,7 @@ export const opsFix = {
   },
   // dashboard/subscriptions — PR-8. Sebelumnya seluruhnya hardcoded.
   subs: {
+    autoOrderHint: 'Pesanan langganan dibuat otomatis pada pagi hari jadwal dan langsung masuk antrean pengiriman. Pelanggan bisa menjeda kapan saja lewat aplikasi.',
     title: 'Langganan',
     headline: '{active} aktif · {paused} dijeda',
     newSub: 'Langganan baru',

@@ -17,6 +17,7 @@ export const auth: typeof base = {
     registerCta: 'Register now',
   },
   register: {
+    referralLabel: 'Referral code (optional)',
     bonusPoints: "+50 points",
     heading: 'Create a new account',
     subtitle: 'We send a one-time code to verify your number.',

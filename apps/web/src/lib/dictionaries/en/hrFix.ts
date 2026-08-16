@@ -149,6 +149,7 @@ export const hrFix = {
     exitBeforeJoin: 'Exit date cannot be before the join date.',
   },
   assets: {
+    valueLabel: 'Value',
     movedFrom: " · from {name}",
     editDetail2: "Edit details",
     kind2: "Type",
@@ -191,6 +192,8 @@ export const hrFix = {
     registerFailed: "Could not register the asset",
   },
   shift: {
+    week: 'Week',
+    assignmentHint: 'Assignments are additive — earlier ones stay on file as history. Employees with no assignment are still judged against the depot shift, as before.',
     createRotation2: "Create rotation",
     title: "Shifts & rotations",
     subtitle: "Working hours per employee. Attendance judges lateness against the employee's shift, not the depot's.",
@@ -230,6 +233,7 @@ export const hrFix = {
     rotation: "Rotation",
   },
   employeeForm: {
+    resignedHint: 'A RESIGNED status does not stop pay — fill in the exit date, that is what payroll reads.',
     cancel2: "Cancel",
     pickDepot: "Select a depot…",
     daily: "Daily",
@@ -305,6 +309,7 @@ export const hrFix = {
     activate: "Activate",
   },
   adjustments: {
+    kindLabel: 'Type',
     importDeductions: "Import deductions",
     title: "Bonuses & deductions",
     subtitle: "Per employee, per period",
@@ -407,6 +412,7 @@ export const hrFix = {
     activate: "Activate",
   },
   reports: {
+    rangeHint: 'The date range applies to attendance, lateness, leave and announcements. The period applies to payroll and performance. Long reports are truncated in the PDF, which says so on the page.',
     from2: "From",
     period2: "Period",
     scoreHint: "Scores per period. A component that could not be measured shows blank, not zero.",
@@ -444,6 +450,7 @@ export const hrFix = {
     enrollFace: "Enrol or update your face",
   },
   attendance: {
+    pendingReason: 'Submitted long after the clock-in time, so the hour came from the device, or captured outside every depot they are responsible for. Not counted as present yet.',
     title: "Attendance",
     correctStatus: "Correct the status",
     reject: "Reject",
@@ -492,6 +499,7 @@ export const hrFix = {
     failed: "Could not process it",
   },
   performance: {
+    dashHint: '“—” means the component could not be measured this period (no scheduled working days, no attendance, or no sales target set) — not a zero. Component weights are set in Payroll Configuration.',
     savedFor: "Review for {name} saved",
     period3: "Period",
     loadHistory: "Load history",
@@ -594,6 +602,7 @@ export const hrFix = {
     uploadPhoto: "Upload an agent photo",
   },
   orderDetail: {
+    onlineRefundHint: 'An online-paid order must be refunded by finance or a manager. Refund status lives in payment-service (not wired into this queue yet).',
     printReceipt2: "Print receipt",
     assignCourier: "Assign a courier",
     loadingCouriers: "Loading couriers…",
@@ -691,6 +700,7 @@ export const hrFix = {
     difference: "Difference",
   },
   earnings: {
+    thisMonth: 'This month',
     cancel2: "Cancel",
     emptyBody2: "Delivery fees appear here once you complete a delivery.",
     title: "Earnings",
@@ -803,6 +813,8 @@ export const hrFix = {
     bankHolder: "Account holder",
   },
   pod: {
+    sealIntact: 'Gallon seal intact and not leaking',
+    clearSignature: 'Clear signature',
     heading: 'Proof of delivery · {order}',
     previewAlt: 'Photo preview',
     photo: "Delivery photo",
@@ -822,6 +834,8 @@ export const hrFix = {
     finish: "Complete delivery",
   },
   poDetail: {
+    receiveHintPost: 'into the depot inventory for every line.',
+    receiveHintPre: 'Receiving goods records',
     backToList: "Back to the list",
     sendToSupplier: "Send to supplier",
     receiveGoods: "Receive goods → RECEIPT",
@@ -1066,6 +1080,8 @@ export const hrFix = {
     allDepots: "All depots — pick one in the switcher to filter.",
   },
   meter: {
+    sameDayHint: 'This comparison suits depots that fill gallons as sales come in. If a depot fills stock first and sells it the next day, today’s meter will not match today’s sales.',
+    noVolumeHint: 'has no litre volume today, so it is left out of the comparison. Fill in the product volume in the catalog to make this variance accurate.',
     noClosedDays: "No day has had its meter closed yet.",
     twiceHint: "Enter the morning reading at opening and the evening one at closing. The same form is used twice.",
     varianceHistory: "Variance history",
@@ -1088,6 +1104,8 @@ export const hrFix = {
     save: "Save",
   },
   wastage: {
+    sourceHint: 'with a negative delta, so stock and loss value always agree with the inventory ledger. A rupiah value only appears for items that carry a selling price.',
+    empty: 'No wastage (negative ADJUSTMENT) in this period.',
     details: "Details",
     gateBody2: "Wastage tracking is for depot managers only.",
     title: "Wastage",
@@ -1200,6 +1218,8 @@ export const hrFix = {
     info: "Info",
   },
   deliveryDetail: {
+    podRetention: 'Proof of delivery (photo, signature, GPS) is kept for 12 months under the Indonesian data-protection law, then deleted automatically.',
+    takeCash: 'Take cash payment (COD)',
     startDelivery: "Start delivery",
     arrived: "Arrived · capture proof",
     returnEmpties: "Return empty gallons",
@@ -1302,6 +1322,8 @@ export const hrFix = {
     points: "Points",
   },
   depotMap: {
+    inactive: 'Inactive',
+    active: 'Active',
     empty: "No depot has coordinates yet.",
     caption: "Positions are relative to each depot's coordinates.",
   },

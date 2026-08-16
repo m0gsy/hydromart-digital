@@ -343,10 +343,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               </select>
             </Field>
             {form.status === 'RESIGNED' && !form.exitDate.trim() && (
-              <p className="text-xs text-amber-700">
-                Status RESIGNED tidak menghentikan gaji — isi tanggal keluar, itu yang dibaca
-                payroll.
-              </p>
+              <p className="text-xs text-amber-700">{t('hrFix.employeeForm.resignedHint')}</p>
             )}
           </>
         )}

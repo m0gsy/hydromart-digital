@@ -53,10 +53,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
     <Card className="divide-y divide-[color:var(--border)] border-amber-300">
       <div className="p-3 text-sm font-bold">
         Absen menunggu persetujuan ({data.total})
-        <p className="font-normal text-muted">
-          Terkirim jauh setelah waktu absen sehingga jamnya berasal dari perangkat, atau diambil di
-          luar area semua depot yang jadi tanggung jawabnya. Belum dihitung hadir.
-        </p>
+        <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
       </div>
       {data.rows.map((a) => (
         <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">

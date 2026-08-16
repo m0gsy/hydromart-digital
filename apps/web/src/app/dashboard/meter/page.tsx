@@ -282,10 +282,7 @@ function MeterBody() {
             <Card className="flex items-start gap-3 bg-brand-50 p-4">
               <Warning size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
               <p className="text-[12.5px] text-brand-800/80">
-                <strong>{data.unmeasuredLines} baris pesanan</strong> hari ini belum punya isi liter,
-                jadi tidak ikut dihitung. Isi kolom volume produknya di katalog supaya selisih ini
-                akurat.
-              </p>
+                <strong>{data.unmeasuredLines} baris pesanan</strong>{t('hrFix.meter.noVolumeHint')}</p>
             </Card>
           )}
 
@@ -317,11 +314,7 @@ function MeterBody() {
 
       <Card className="flex items-start gap-3 bg-brand-50 p-4">
         <Info size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
-        <p className="text-[12.5px] text-brand-800/80">
-          Perbandingan ini cocok untuk depot yang mengisi galon saat ada penjualan. Kalau depot
-          mengisi stok galon lebih dulu lalu menjualnya esok hari, meteran hari ini memang tidak akan
-          sama dengan penjualan hari ini.
-        </p>
+        <p className="text-[12.5px] text-brand-800/80">{t('hrFix.meter.sameDayHint')}</p>
       </Card>
     </div>
   );

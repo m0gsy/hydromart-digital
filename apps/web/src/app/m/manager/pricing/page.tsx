@@ -9,11 +9,9 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
-import { formatIDR } from '@/lib/format';
+import { formatIDR, shortWeekdays } from '@/lib/format';
 import { useAsync } from '@/lib/use-async';
 import type { PricingRule } from '@/lib/types';
-
-const DAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 function minutesToHHMM(m: number | null): string {
   if (m == null) return '';
@@ -22,8 +20,12 @@ function minutesToHHMM(m: number | null): string {
 
 // `t` is a parameter, not a hook call: this is a plain formatter, and rules-of-hooks is
 // right that a hook has no business here.
-function windowSummary(r: PricingRule, t: (key: string) => string): string {
-  const days = r.daysOfWeek.length === 0 ? t('hrFix.managerPricing.everyDay') : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
+function windowSummary(r: PricingRule, t: (key: string) => string, locale: string): string {
+  const DAY_LABELS = shortWeekdays(locale, false);
+  const days =
+    r.daysOfWeek.length === 0
+      ? t('hrFix.managerPricing.everyDay')
+      : r.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
   const time =
     r.startMinute == null && r.endMinute == null
       ? t('hrFix.managerPricing.allDay')
@@ -36,7 +38,7 @@ function adjustmentLabel(r: PricingRule): string {
 }
 
 function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [on, setOn] = useState(rule.active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,12 +61,16 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
     <Card className="flex items-center gap-3 p-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-extrabold">{rule.productId ?? t('hrFix.managerPricing.allProducts')}</p>
+          <p className="truncate text-sm font-extrabold">
+            {rule.productId ?? t('hrFix.managerPricing.allProducts')}
+          </p>
           <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand-700">
             {adjustmentLabel(rule)}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-muted)]">{windowSummary(rule, t)}</p>
+        <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-muted)]">
+          {windowSummary(rule, t, locale)}
+        </p>
         {error && <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>}
       </div>
       <Toggle on={on} onChange={toggle} disabled={busy} label={`Aktifkan aturan ${rule.id}`} />

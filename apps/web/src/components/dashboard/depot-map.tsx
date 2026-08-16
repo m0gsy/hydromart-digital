@@ -66,11 +66,9 @@ export function DepotMap({ depots, onSelect }: { depots: DepotAdmin[]; onSelect:
       </Card>
       <div className="flex items-center gap-4 text-xs text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-brand-600" /> Aktif
-        </span>
+          <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />{t('hrFix.depotMap.active')}</span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--text-muted)]" /> Nonaktif
-        </span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--text-muted)]" />{t('hrFix.depotMap.inactive')}</span>
         <span className="ml-auto">{t('hrFix.depotMap.caption')}</span>
       </div>
     </div>

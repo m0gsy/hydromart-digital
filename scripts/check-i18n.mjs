@@ -26,25 +26,158 @@ import { join, relative } from 'node:path';
 const ROOT = 'apps/web/src';
 
 const ID_WORDS = [
-  'yang', 'dan', 'atau', 'tidak', 'belum', 'sudah', 'akan', 'ini', 'itu', 'untuk', 'dari',
-  'dengan', 'pada', 'per', 'ada', 'bisa', 'harus', 'wajib', 'saja', 'juga',
-  'semua', 'setiap', 'lebih', 'kurang', 'baru', 'lama', 'hari', 'bulan', 'tahun', 'minggu',
-  'jam', 'menit', 'tanggal', 'nama', 'jumlah', 'nilai', 'harga', 'biaya', 'gaji',
-  'karyawan', 'pegawai', 'depot', 'pesanan', 'pelanggan', 'kurir', 'stok', 'galon', 'poin',
-  'simpan', 'batal', 'hapus', 'ubah', 'tambah', 'cari', 'pilih', 'kirim', 'muat', 'lihat',
-  'kembali', 'lanjut', 'selesai', 'gagal', 'berhasil', 'kosong', 'aktif', 'nonaktif',
-  'tersedia', 'terpakai', 'masuk', 'keluar', 'catatan', 'keterangan', 'jenis',
-  'periode', 'laporan', 'ringkasan', 'rincian', 'daftar', 'riwayat', 'pengaturan',
-  'dibuat', 'diubah', 'dihapus', 'disetujui', 'ditolak', 'menunggu', 'dibayar', 'terlambat',
-  'hadir', 'absen', 'cuti', 'izin', 'libur', 'jabatan', 'departemen', 'atasan',
-  'bawahan', 'cabang', 'pusat', 'kantor', 'opsional', 'anda', 'kamu',
-  'sedang', 'sedikit', 'banyak', 'antar', 'pengiriman', 'penjualan', 'pembelian',
-  'pembayaran', 'setoran', 'penarikan', 'kasir', 'gudang', 'jadwal', 'tugas', 'lembur',
-  'potongan', 'tunjangan', 'pinjaman', 'hadiah', 'langganan', 'keranjang', 'alamat',
-  'akun', 'sandi', 'masalah', 'bantuan', 'ulasan', 'penilaian', 'target', 'capaian',
+  'yang',
+  'dan',
+  'atau',
+  'tidak',
+  'belum',
+  'sudah',
+  'akan',
+  'ini',
+  'itu',
+  'untuk',
+  'dari',
+  'dengan',
+  'pada',
+  'per',
+  'ada',
+  'bisa',
+  'harus',
+  'wajib',
+  'saja',
+  'juga',
+  'semua',
+  'setiap',
+  'lebih',
+  'kurang',
+  'baru',
+  'lama',
+  'hari',
+  'bulan',
+  'tahun',
+  'minggu',
+  'jam',
+  'menit',
+  'tanggal',
+  'nama',
+  'jumlah',
+  'nilai',
+  'harga',
+  'biaya',
+  'gaji',
+  'karyawan',
+  'pegawai',
+  'depot',
+  'pesanan',
+  'pelanggan',
+  'kurir',
+  'stok',
+  'galon',
+  'poin',
+  'simpan',
+  'batal',
+  'hapus',
+  'ubah',
+  'tambah',
+  'cari',
+  'pilih',
+  'kirim',
+  'muat',
+  'lihat',
+  'kembali',
+  'lanjut',
+  'selesai',
+  'gagal',
+  'berhasil',
+  'kosong',
+  'aktif',
+  'nonaktif',
+  'tersedia',
+  'terpakai',
+  'masuk',
+  'keluar',
+  'catatan',
+  'keterangan',
+  'jenis',
+  'periode',
+  'laporan',
+  'ringkasan',
+  'rincian',
+  'daftar',
+  'riwayat',
+  'pengaturan',
+  'dibuat',
+  'diubah',
+  'dihapus',
+  'disetujui',
+  'ditolak',
+  'menunggu',
+  'dibayar',
+  'terlambat',
+  'hadir',
+  'absen',
+  'cuti',
+  'izin',
+  'libur',
+  'jabatan',
+  'departemen',
+  'atasan',
+  'bawahan',
+  'cabang',
+  'pusat',
+  'kantor',
+  'opsional',
+  'anda',
+  'kamu',
+  'sedang',
+  'sedikit',
+  'banyak',
+  'antar',
+  'pengiriman',
+  'penjualan',
+  'pembelian',
+  'pembayaran',
+  'setoran',
+  'penarikan',
+  'kasir',
+  'gudang',
+  'jadwal',
+  'tugas',
+  'lembur',
+  'potongan',
+  'tunjangan',
+  'pinjaman',
+  'hadiah',
+  'langganan',
+  'keranjang',
+  'alamat',
+  'akun',
+  'sandi',
+  'masalah',
+  'bantuan',
+  'ulasan',
+  'penilaian',
+  'target',
+  'capaian',
   // Imperatives. The list started without them and missed a bare `>Setujui</Button>`.
-  'setujui', 'tolak', 'kelola', 'buat', 'tutup', 'cetak', 'unduh', 'ekspor', 'impor',
-  'ganti', 'atur', 'mulai', 'ambil', 'terima', 'tunggu', 'ulangi', 'coba', 'periksa',
+  'setujui',
+  'tolak',
+  'kelola',
+  'buat',
+  'tutup',
+  'cetak',
+  'unduh',
+  'ekspor',
+  'impor',
+  'ganti',
+  'atur',
+  'mulai',
+  'ambil',
+  'terima',
+  'tunggu',
+  'ulangi',
+  'coba',
+  'periksa',
 ];
 const ID_RE = new RegExp(`(^|[^a-zA-Z])(${ID_WORDS.join('|')})([^a-zA-Z]|$)`, 'i');
 
@@ -57,7 +190,8 @@ function isCode(s) {
   // which is two Indonesian words with a slash between them. A mime type has no capital
   // letters and a known first token.
   if (/^https?:|^\/|^#/.test(s)) return true; // url / path / anchor
-  if (/^(?:image|video|audio|text|application|font|model|multipart)\/[a-z0-9.+-]+$/.test(s)) return true;
+  if (/^(?:image|video|audio|text|application|font|model|multipart)\/[a-z0-9.+-]+$/.test(s))
+    return true;
   if (/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_]+)+$/.test(s)) return true; // dictionary key
   return false;
 }
@@ -92,8 +226,17 @@ function walk(dir, out = []) {
 }
 
 const PATTERNS = [
-  // JSX text node on one line, no interpolation.
-  { kind: 'jsx', re: />([^<>{}\n]{3,})</g },
+  /*
+   * A JSX text node with no interpolation.
+   *
+   * This used to carry `\n` in the negated set, which meant the text had to sit on the
+   * SAME line as both tags. Prettier wraps any element whose line grows past the print
+   * width, so the longer a hardcoded string was, the less likely this gate was to see
+   * it — and several real ones were sitting behind exactly that. `<` `>` `{` `}` still
+   * bound the match, so it cannot run past the end of one text node; the whitespace a
+   * wrapped node carries is normalised away before the Indonesian-word test.
+   */
+  { kind: 'jsx', re: />([^<>{}]{3,})</g },
   // JSX props that render.
   {
     kind: 'prop',
@@ -121,12 +264,18 @@ const PATTERNS = [
   // `?? 'Depot kamu'` and `|| 'Manajer'` — a fallback the user reads when data is missing.
   { kind: 'fallback', re: /(?:\?\?|\|\|)\s*(?:'([^']{3,})'|"([^"]{3,})")/g },
   // A ternary whose branches are copy: `x ? 'Aktif' : 'Nonaktif'`.
-  { kind: 'ternary', re: /\?\s*(?:'([^']{3,})'|"([^"]{3,})")\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g },
+  {
+    kind: 'ternary',
+    re: /\?\s*(?:'([^']{3,})'|"([^"]{3,})")\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g,
+  },
   // A bare array of strings used as options/labels.
   { kind: 'array', re: /\[\s*(?:'([^']{3,})'|"([^"]{3,})")\s*,/g },
   // Any object key at all, not the thirteen names listed above — `emptyTitle:`, `cta:`,
   // `body:` and friends were all invisible.
-  { kind: 'anyKey', re: /(?:^|[{,[\s])[a-zA-Z][a-zA-Z0-9_]*\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/gm },
+  {
+    kind: 'anyKey',
+    re: /(?:^|[{,[\s])[a-zA-Z][a-zA-Z0-9_]*\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/gm,
+  },
 ];
 
 let results = [];
@@ -167,6 +316,25 @@ for (const file of walk(ROOT)) {
       // A template literal is judged on the prose between its holes, not on the
       // expressions inside them — `${formatDateTime(at)}` is code, "berikutnya" is copy.
       if (kind === 'template') s = s.replace(/\$\{[^{}]*\}/g, ' ').trim();
+      // A wrapped JSX text node carries the indentation Prettier gave it. Collapse it, or
+      // the same string reads differently depending on how deep in the tree it sits — and
+      // the baseline could never match it twice running.
+      if (kind === 'jsx') {
+        s = s.replace(/\s+/g, ' ').trim();
+        /*
+         * `<` and `>` are comparison operators as well as tag delimiters, so once the
+         * match may span lines it can start at a `>` in code and end at a `<` several
+         * statements later. A statement separator or an assignment is the tell — no UI
+         * string in this app contains one, and every false positive the widening produced
+         * contained both.
+         */
+        if (/[;=]/.test(s)) continue;
+        // Two more code shapes a widened match can straddle: a ternary or boolean chain
+        // between two JSX branches, and a method call. Neither occurs in UI copy, while
+        // parentheses and `&` on their own plainly do ("(opsional)", "utuh & tidak bocor").
+        if (/\|\||&&|=>|\)\s*:|\?\s*\(/.test(s)) continue;
+        if (/\w\.\w+\(/.test(s)) continue;
+      }
       if (!s || isCode(s) || !ID_RE.test(s)) continue;
       if (hits.has(s)) continue;
       hits.set(s, src.slice(0, m.index).split(/\r?\n/).length);
@@ -185,7 +353,8 @@ for (const file of walk(ROOT)) {
   }
   // A string that is only ever an argument to t() is already translated.
   for (const s of [...hits.keys()]) {
-    if (lines[hits.get(s) - 1]?.includes(`t('`) && !lines[hits.get(s) - 1].includes(s)) hits.delete(s);
+    if (lines[hits.get(s) - 1]?.includes(`t('`) && !lines[hits.get(s) - 1].includes(s))
+      hits.delete(s);
   }
 
   const file_ = relative(ROOT, file).replace(/\\/g, '/');
@@ -224,7 +393,8 @@ if (wrappedTotal > WRAPPED_BASELINE) {
       'A sentence long enough for prettier to wrap onto its own line is still copy.\n',
   );
   for (const r of wrappedResults) {
-    for (const [str, line] of r.hits) console.error(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
+    for (const [str, line] of r.hits)
+      console.error(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
   }
   process.exit(1);
 }
@@ -245,8 +415,11 @@ if (wrappedTotal > WRAPPED_BASELINE) {
 const BASELINE_FILE = 'scripts/i18n-baseline.json';
 const flat = results.flatMap((r) => r.hits.map(([str]) => `${r.file}	${str}`));
 if (process.argv.includes('--update-baseline')) {
-  writeFileSync(BASELINE_FILE, `${JSON.stringify([...new Set(flat)].sort(), null, 2)}
-`);
+  writeFileSync(
+    BASELINE_FILE,
+    `${JSON.stringify([...new Set(flat)].sort(), null, 2)}
+`,
+  );
   console.log(`Recorded ${new Set(flat).size} baselined string(s).`);
   process.exit(0);
 }
@@ -262,22 +435,28 @@ const total = results.reduce((n, r) => n + r.hits.length, 0);
 if (total === 0) {
   console.log(
     `i18n check OK — no hardcoded Indonesian copy in ${ROOT}.` +
-      (stillOwed.size ? ` (${stillOwed.size} baselined string(s) still owed — see ${BASELINE_FILE}.)` : '') +
+      (stillOwed.size
+        ? ` (${stillOwed.size} baselined string(s) still owed — see ${BASELINE_FILE}.)`
+        : '') +
       (wrappedTotal < WRAPPED_BASELINE
         ? ` (wrapped-JSX debt ${wrappedTotal}/${WRAPPED_BASELINE} — lower the baseline in this script.)`
         : ` (wrapped-JSX debt: ${wrappedTotal}, run with --wrapped to list it.)`),
   );
   if (process.argv.includes('--wrapped')) {
     for (const r of wrappedResults) {
-      for (const [str, line] of r.hits) console.log(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
+      for (const [str, line] of r.hits)
+        console.log(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(str)}`);
     }
   }
   process.exit(0);
 }
 
-console.error(`i18n check FAILED: ${total} hardcoded Indonesian string(s) in ${results.length} file(s).`);
+console.error(
+  `i18n check FAILED: ${total} hardcoded Indonesian string(s) in ${results.length} file(s).`,
+);
 console.error('Wrap them with useT()/t(), or add the key to the dictionaries.\n');
 for (const r of results) {
-  for (const [s, line] of r.hits) console.error(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(s)}`);
+  for (const [s, line] of r.hits)
+    console.error(`  ${ROOT}/${r.file}:${line}  ${JSON.stringify(s)}`);
 }
 process.exit(1);
