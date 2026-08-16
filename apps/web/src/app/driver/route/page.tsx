@@ -13,7 +13,11 @@ import { useT } from '@/lib/locale-context';
 import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
-const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+const IDR = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+});
 
 /** The depot every stop on this route belongs to — a courier works one at a time. */
 function depotIdOf(page: Page<Delivery> | null): string | null {
@@ -39,7 +43,10 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
 function RouteView() {
   const { t } = useT();
   const router = useRouter();
-  const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
+  const list = useAsync<Page<Delivery>>(
+    () => api.get(endpoints.deliveries.driver.list(), true),
+    [],
+  );
   /*
    * The ETA's two constants, from the depot's own settings rather than from this file.
    *
@@ -58,8 +65,18 @@ function RouteView() {
     [depotIdOf(list.data)],
   );
 
-  if (list.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
-  if (list.error) return <div className="p-5"><ErrorState message={list.error} onRetry={list.reload} /></div>;
+  if (list.loading)
+    return (
+      <div className="p-5">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  if (list.error)
+    return (
+      <div className="p-5">
+        <ErrorState message={list.error} onRetry={list.reload} />
+      </div>
+    );
 
   const stops = (list.data?.items ?? [])
     .filter((d) => ACTIVE.includes(d.status))
@@ -81,11 +98,18 @@ function RouteView() {
     const prev = stops[i - 1];
     if (!prev) return null;
     if (
-      prev.destinationLat == null || prev.destinationLng == null ||
-      d.destinationLat == null || d.destinationLng == null
+      prev.destinationLat == null ||
+      prev.destinationLng == null ||
+      d.destinationLat == null ||
+      d.destinationLng == null
     )
       return null;
-    return haversineKm(prev.destinationLat, prev.destinationLng, d.destinationLat, d.destinationLng);
+    return haversineKm(
+      prev.destinationLat,
+      prev.destinationLng,
+      d.destinationLat,
+      d.destinationLng,
+    );
   });
   const totalKm = legs.reduce<number>((sum, km) => sum + (km ?? 0), 0);
   // ponytail: straight-line distance at a flat average speed — no traffic, no road network.
@@ -145,7 +169,12 @@ function RouteView() {
                 >
                   {i + 1}
                 </span>
-                {i < stops.length - 1 && <span className="w-0.5 flex-1 bg-[color:var(--border)]" style={{ minHeight: 18 }} />}
+                {i < stops.length - 1 && (
+                  <span
+                    className="w-0.5 flex-1 bg-[color:var(--border)]"
+                    style={{ minHeight: 18 }}
+                  />
+                )}
               </div>
               <Link
                 href={`/driver/deliveries/detail?id=${d.id}`}
@@ -155,13 +184,20 @@ function RouteView() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[12.5px] font-extrabold tabular-nums">{d.orderNumber}</span>
-                  {isNext && <span className="text-[11px] font-extrabold text-brand-700">{t('courierFix.route.next')}</span>}
+                  {isNext && (
+                    <span className="text-[11px] font-extrabold text-brand-700">
+                      {t('courierFix.route.next')}
+                    </span>
+                  )}
                 </div>
                 <div className="mt-1 text-xs leading-snug text-[color:var(--muted)]">
                   {d.destinationAddress}
-                  {leg != null && ` · ${leg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`}
+                  {leg != null &&
+                    ` · ${leg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`}
                   {' · '}
-                  {cod ? t('courierFix.route.cod', { amount: IDR.format(d.codAmount as number) }) : t('courierFix.route.paid')}
+                  {cod
+                    ? t('courierFix.route.cod', { amount: IDR.format(d.codAmount as number) })
+                    : t('courierFix.route.paid')}
                 </div>
               </Link>
             </li>
