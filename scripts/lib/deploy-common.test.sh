@@ -100,6 +100,16 @@ is "missing key reported" "$(cd "$tmp" && missing_env_keys)" "ORDER_ALERT_PHONE 
 printf 'A=9\nORDER_ALERT_PHONE=62812\n' > "$tmp/.env"
 is "no gap reported"      "$(cd "$tmp" && missing_env_keys)" ""
 
+# Object storage on the container disk loses every upload at the next deploy, silently.
+printf 'STORAGE_DRIVER=s3\nHR_STORAGE_DRIVER=s3\n' > "$tmp/.env"
+is "s3 everywhere is quiet"      "$(cd "$tmp" && throwaway_storage_driver)" ""
+printf 'STORAGE_DRIVER=\n' > "$tmp/.env"
+is "empty means the s3 default"  "$(cd "$tmp" && throwaway_storage_driver)" ""
+printf 'STORAGE_DRIVER=local\n' > "$tmp/.env"
+is "local driver reported"       "$(cd "$tmp" && throwaway_storage_driver)" "STORAGE_DRIVER=local "
+printf 'STORAGE_DRIVER=s3\nHR_STORAGE_DRIVER=local\n' > "$tmp/.env"
+is "per-service one reported"    "$(cd "$tmp" && throwaway_storage_driver)" "HR_STORAGE_DRIVER=local "
+
 # --- B-12: the connection pool must be bounded on both sides -------------------------
 # Prisma defaults to (cpus*2+1) connections PER SERVICE. Unbounded, 16 services on an
 # 8-vCPU box ask for ~272 against postgres's default max_connections of 100 — and the

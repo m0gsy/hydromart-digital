@@ -296,6 +296,22 @@ missing_env_keys() {
     <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env | sort -u) | tr '\n' ' '
 }
 
+# `STORAGE_DRIVER=local` is a throwaway-box setting and .env.example already says so — but
+# nothing checked it, and the damage it does is silent. `LocalDiskStorageAdapter` writes into
+# the service container's own filesystem, and NO service in docker-compose.prod.yml mounts a
+# volume for it: every proof-of-delivery photo, avatar and product image stored that way is
+# destroyed by the next `up -d`, while the URL handed back (`<base>/uploads/<key>`) is served
+# by nothing at all. A depot would find out the first time a customer disputed a delivery.
+# Empty value counts as fine — compose reads it as `${STORAGE_DRIVER:-s3}`.
+# Prints the offending assignments (empty when there are none); like `missing_env_keys` it
+# only reports, because a deploy that refuses to run is its own outage.
+throwaway_storage_driver() {
+  [ -f .env ] || return 0
+  tr -d '\r' < .env |
+    sed -n 's/^\([A-Z_]*STORAGE_DRIVER=.*\)/\1/p' |
+    grep -vE '=(s3)?$' | tr '\n' ' '
+}
+
 # Fire-and-forget ops ping, same webhook the services use. No-op when unset.
 alert() {
   local url="${ALERT_WEBHOOK_URL:-}" text

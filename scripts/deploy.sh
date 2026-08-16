@@ -203,6 +203,14 @@ if health_ok; then
   if [ -n "$MISSING" ]; then
     log "!! .env.example declares keys the live .env does not set: $MISSING"
   fi
+  BAD_STORAGE="$(throwaway_storage_driver)"
+  if [ -n "$BAD_STORAGE" ]; then
+    log "!! object storage is running off the container disk: $BAD_STORAGE"
+    log "   Nothing mounts a volume for it, so every PoD photo, avatar and product image"
+    log "   written this way dies with the next deploy, and its URL serves nothing."
+    log "   Fix: set STORAGE_DRIVER=s3 in .env and recreate the affected services."
+    alert "STORAGE_DRIVER is not s3 ($BAD_STORAGE) — uploads are going to disposable container disk"
+  fi
   # Alertmanager reads its destination from a file the operator creates (it is a secret,
   # so it is not in the repo). Without it every alert is routed, rendered and dropped —
   # silently, because a monitoring stack that alerts nobody looks exactly like a quiet
