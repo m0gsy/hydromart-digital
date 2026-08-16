@@ -116,7 +116,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq', labelKey: 'overview', icon: ChartLineUp, ready: true },
       { href: '/hq/search', labelKey: 'search', icon: MagnifyingGlass, ready: true },
-      { href: '/hq/access', labelKey: 'access', icon: ShieldCheck, ready: true },
+      { href: '/hq/access', labelKey: 'access', icon: ShieldCheck, ready: true , cap: 'accessMatrixWrite' },
     ],
   },
   {
@@ -153,7 +153,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/refunds', labelKey: 'refunds', icon: Receipt, ready: true },
       { href: '/hq/reconciliation', labelKey: 'reconciliation', icon: Scales, ready: true },
       { href: '/hq/reports/export', labelKey: 'reportsExport', icon: Export, ready: true },
-      { href: '/hq/tax', labelKey: 'tax', icon: Invoice, ready: true },
+      { href: '/hq/tax', labelKey: 'tax', icon: Invoice, ready: true , cap: 'taxSettings' },
     ],
   },
   {
@@ -161,7 +161,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq/inventory', labelKey: 'inventory', icon: Package, ready: true },
       { href: '/hq/returns', labelKey: 'returns', icon: Recycle, ready: true },
-      { href: '/hq/roster', labelKey: 'roster', icon: Truck, ready: true },
+      { href: '/hq/roster', labelKey: 'roster', icon: Truck, ready: true , cap: 'tracking' },
       { href: '/hq/orders', labelKey: 'orders', icon: ClipboardText, ready: true },
       { href: '/hq/notifications', labelKey: 'notifications', icon: Bell, ready: true },
     ],
@@ -174,7 +174,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/compare', labelKey: 'compare', icon: ChartBar, ready: true },
       { href: '/hq/forecast', labelKey: 'forecast', icon: ChartLineUp, ready: true },
       { href: '/hq/churn', labelKey: 'churn', icon: UsersThree, ready: true },
-      { href: '/hq/campaigns', labelKey: 'campaigns', icon: Megaphone, ready: true },
+      { href: '/hq/campaigns', labelKey: 'campaigns', icon: Megaphone, ready: true , cap: 'audienceReach' },
       { href: '/hq/promotions', labelKey: 'promotions', icon: ImageIcon, ready: true },
       { href: '/hq/customers', labelKey: 'customers', icon: UserCircle, ready: true },
       // ponytail: depot managers reach /resellers by direct URL for now — no manager-rail
@@ -185,7 +185,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
   {
     headKey: 'catalog',
     items: [
-      { href: '/hq/catalog', labelKey: 'catalog', icon: Package, ready: true },
+      { href: '/hq/catalog', labelKey: 'catalog', icon: Package, ready: true , cap: 'catalogWrite' },
       { href: '/hq/loyalty', labelKey: 'loyalty', icon: Crown, ready: true },
       { href: '/hq/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, ready: true },
     ],
@@ -198,7 +198,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/forms/commission', labelKey: 'formCommission', icon: Percent, ready: true },
       { href: '/hq/forms/segment', labelKey: 'formSegment', icon: UsersThree, ready: true },
       { href: '/hq/staff/import', labelKey: 'staffImport', icon: UploadSimple, ready: true },
-      { href: '/hq/broadcast', labelKey: 'broadcast', icon: Broadcast, ready: true },
+      { href: '/hq/broadcast', labelKey: 'broadcast', icon: Broadcast, ready: true , cap: 'audienceReach' },
     ],
   },
   {
@@ -208,7 +208,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/tickets', labelKey: 'tickets', icon: ChatCircleDots, ready: true },
       { href: '/hq/fraud', labelKey: 'fraud', icon: ShieldWarning, ready: true },
       { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', icon: CalendarCheck, ready: true },
-      { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true },
+      { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true , cap: 'platformAdmin' },
     ],
   },
   {
@@ -220,9 +220,9 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/exports', labelKey: 'exports', icon: FileArrowDown, ready: true },
       { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true, cap: 'platformAdmin' },
       { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true, cap: 'platformAdmin' },
-      { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true },
+      { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true , cap: 'depotAdmin' },
       { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true, cap: 'platformAdmin' },
-      { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true },
+      { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true , cap: 'pdpRequests' },
       { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true, cap: 'platformAdmin' },
     ],
   },
@@ -231,7 +231,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq/profile', labelKey: 'profile', icon: IdentificationBadge, ready: true },
       { href: '/hq/wizard', labelKey: 'wizard', icon: Sparkle, ready: true, cap: 'platformAdmin' },
-      { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', icon: Article, ready: true },
+      { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', icon: Article, ready: true , cap: 'taxSettings' },
       { href: '/hq/content', labelKey: 'content', icon: Translate, ready: true },
       { href: '/hq/sitemap', labelKey: 'sitemap', icon: SquaresFour, ready: true },
     ],

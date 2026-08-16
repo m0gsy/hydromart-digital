@@ -387,7 +387,15 @@ export const CAPABILITIES = {
   // oversight role everywhere else in this matrix and reads without writing.
   catalogWrite: ['MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   // order-service — network-wide order reporting.
-  orderReports: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
+  /*
+   * DIREKTUR added 2026-08-17, measured not guessed: a per-role browser sweep found the
+   * director 403-ing on /hq/analytics, /hq/reconciliation and /hq/reports/export — three
+   * read-only aggregate screens a DEPOT MANAGER was already allowed to read. A director who
+   * cannot read the company's own numbers while a depot manager can is an oversight, not a
+   * policy. Read-only: nothing behind this capability writes, and none of it is per-person
+   * data.
+   */
+  orderReports: ['HEAD_OFFICE', 'MANAGER', 'DIREKTUR', 'SUPER_ADMIN'],
   // order-service — the same reports scoped to one depot, which a depot head may read.
   orderReportsDepot: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN', 'KEPALA_DEPOT'],
   // order-service — audience-size reads behind the broadcast composer.
