@@ -13,6 +13,11 @@
  *   4  is a build-time fact, already answered by the APK containing `assets/public`
  *   7  needs `google-services.json`, which lives only in CI (`GOOGLE_SERVICES_JSON_BASE64`)
  *   11 needs an enrolled fingerprint; driven by hand, not from here
+ *
+ * Two things the device asks of the caller and neither of which is optional: the phone must
+ * be awake (`adb shell svc power stayon usb`, or every tap lands on `NotificationShade` and
+ * the run reports a failure that never happened), and items 6/9/1b need business state —
+ * an ON_DELIVERY delivery held by the courier signing in, and an open cashier shift.
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -436,6 +441,16 @@ async function item1b(conn, route) {
   const evidence = [];
   const landed = await go(conn, route);
   evidence.push(`${route} → ${landed}`);
+  // The capture input does not exist until the courier says they have arrived — `/driver/`
+  // alone has none, which is what made the first two runs report "no capture input" and
+  // read like a missing feature. Pressing it is part of reaching the thing being measured.
+  if (route.includes('/driver/deliveries/detail')) {
+    evidence.push(`"Sampai tujuan": ${await press(conn, '/Sampai tujuan/i')}`);
+    for (let i = 0; i < 10; i++) {
+      if (await evaluate(conn, `!!document.querySelector('input[type="file"][capture]')`)) break;
+      await sleep(1000);
+    }
+  }
   const before = resumedActivity();
   const clicked = await evaluate(
     conn,
@@ -445,6 +460,8 @@ async function item1b(conn, route) {
       el.click();
       return 'clicked ' + el.getAttribute('accept') + ' capture=' + el.getAttribute('capture');
     })()`,
+    // Without this Chrome drops the click: a file chooser needs transient user activation.
+    { userGesture: true },
   );
   evidence.push(clicked);
   await sleep(3000);

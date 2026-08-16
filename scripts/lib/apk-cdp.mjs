@@ -217,9 +217,21 @@ export const TYPE = (selector, value) => `(() => {
   return 'ok';
 })()`;
 
-export const evaluate = async (conn, expression) =>
-  (await conn.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }))
-    .result?.value;
+/**
+ * `opts.userGesture` matters for exactly one thing here, and it is not cosmetic: Chrome
+ * refuses to open a file chooser from `input.click()` without transient user activation.
+ * Three separate runs reported "nothing came to the foreground" for the PoD capture input
+ * and read like a broken bridge; the click was simply being dropped on the floor.
+ */
+export const evaluate = async (conn, expression, opts = {}) =>
+  (
+    await conn.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+      ...opts,
+    })
+  ).result?.value;
 
 /** Wait for a field to exist, then set it. */
 export async function fill(conn, selector, value, tries = 15) {
