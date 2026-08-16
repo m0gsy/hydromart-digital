@@ -236,5 +236,52 @@ if grep -nE 'wget.*http://localhost:' "$COMPOSE_PROD"; then
   fail=1
 fi
 
+# --- a post-deploy REPORT must never end the deploy ----------------------------------
+# The bug: `grep -v` exits 1 when it selects nothing, which for throwaway_storage_driver
+# means every driver is correctly `s3`. Under `set -euo pipefail` that killed deploy.sh at
+# `BAD_STORAGE="$(throwaway_storage_driver)"` — straight after DEPLOY OK. The deploy went
+# red precisely when the configuration was RIGHT, and stayed green only while the fault it
+# hunts was present. Both checks below assert the SHAPE that made it invisible: these
+# functions report, and a report that cannot find anything to report is the good outcome.
+probe="$(mktemp -d)"
+lib="$PWD/scripts/lib/deploy-common.sh"
+
+# Each probe runs in its OWN bash process, and that is not fussiness. `set -e` is disabled
+# inside any command that is the left operand of `||`, so the obvious shape —
+# `( set -euo pipefail; …) || { fail=1; }` — switches off the exact mechanism under test
+# and passes against the broken code. A separate process keeps its own `set -e` live; the
+# `if` here only reads its exit status.
+probe_run() { # name, expectation, script-body
+  local name="$1" body="$2"
+  printf '%s\n' 'set -euo pipefail' ". \"$lib\"" "cd \"$probe\"" "$body" > "$probe/case.sh"
+  if bash "$probe/case.sh"; then :; else echo "FAIL $name"; fail=1; fi
+}
+
+probe_run "throwaway_storage_driver ends a deploy whose storage is CORRECT" '
+  printf "STORAGE_DRIVER=s3\nPRODUCT_STORAGE_DRIVER=s3\n" > .env
+  BAD="$(throwaway_storage_driver)"
+  [ -z "$BAD" ] || { echo "  healthy .env reported as throwaway: $BAD"; exit 1; }'
+
+probe_run "throwaway_storage_driver misses a real STORAGE_DRIVER=local" '
+  printf "STORAGE_DRIVER=local\n" > .env
+  BAD="$(throwaway_storage_driver)"
+  case "$BAD" in *STORAGE_DRIVER=local*) : ;; *) echo "  got: [$BAD]"; exit 1 ;; esac'
+
+# Same trap, one function over: with no compose file to read the filter must return EMPTY
+# and let the caller warn about everything, never abort — an aborted filter looks exactly
+# like "nothing to filter", which is how a narrowed warning silently went back to 75 keys.
+probe_run "compose_ignores_env aborts when no compose file is readable" '
+  rm -f docker-compose.yml docker-compose.prod.yml
+  printf "FOO=1\nBAR=2\n" > .env.example
+  IGNORED="$(compose_ignores_env)"
+  [ -z "$IGNORED" ] || { echo "  expected no filtering, got: $IGNORED"; exit 1; }'
+
+probe_run "compose_ignores_env does not name the keys compose never reads" '
+  printf "INTERPOLATED=1\nCOMPOSE_NEVER_READS_THIS=2\n" > .env.example
+  printf "services:\n  a:\n    environment:\n      X: \${INTERPOLATED}\n" > docker-compose.yml
+  IGNORED="$(compose_ignores_env)"
+  [ "$IGNORED" = "COMPOSE_NEVER_READS_THIS" ] || { echo "  got: [$IGNORED]"; exit 1; }'
+rm -rf "$probe"
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"
