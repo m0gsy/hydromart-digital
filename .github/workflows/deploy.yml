@@ -19,10 +19,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
-        options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix]
+        options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, storage-policy]
       sha:
         description: "rollback target SHA (blank = previous good)"
         required: false
@@ -57,6 +57,14 @@ jobs:
             # line the format wants, out of the lines already on the box. Backs up first,
             # refuses a key with no END line, and is a no-op on an already-correct file.
             env-fix)     echo "run=bash scripts/env-doctor.sh --fix" >> "$GITHUB_OUTPUT" ;;
+            # Measured 2026-08-17, unauthenticated, against production: `hydromart-pod` and
+            # `hydromart-products` answered 200 to `?list-type=2` — the index of every
+            # proof-of-delivery photo and every avatar, readable by a stranger with no
+            # credentials. `hydromart-facer` answered 403 and is the shape the other two
+            # should have. The fix needs the bucket's own keys, which live in the .env ON THE
+            # BOX and nowhere else — so it is a button here rather than a chore someone
+            # remembers. Runs per bucket, and FAILS if the bucket still lists afterwards.
+            storage-policy) echo "run=bash scripts/storage-policy.sh" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
