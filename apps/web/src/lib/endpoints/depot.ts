@@ -147,7 +147,7 @@ procurement: {
   suppliers: {
     list: (depotId: string) =>
       `/procurement/api/v1/suppliers?depotId=${encodeURIComponent(depotId)}`,
-    detail: (id: string) => `/procurement/api/v1/suppliers/${id}`,
+    // (detail removed, audit F: suppliers are listed and created, never opened by id.)
     create: '/procurement/api/v1/suppliers',
   },
   purchaseOrders: {
@@ -190,6 +190,8 @@ approvals: {
   decide: (id: string) => `/approvals/api/v1/approvals/${id}/decide`,
   counts: (depotId: string) =>
     `/approvals/api/v1/approvals/counts?depotId=${encodeURIComponent(depotId)}`,
-  create: '/approvals/api/v1/approvals',
+  // (create removed, audit F: approvals are RAISED by the services that need one — a
+  // price override, a refund — over their own internal routes. The console lists, opens and
+  // decides them; it has never created one.)
 },
 } as const;

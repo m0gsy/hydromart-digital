@@ -78,17 +78,14 @@ payout: {
 // Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
 courierPayout: {
   summary: '/payout/api/v1/courier/earnings/summary',
-  ledger: (q: { page?: number; limit?: number } = {}) => {
-    const p = new URLSearchParams();
-    if (q.page) p.set('page', String(q.page));
-    if (q.limit) p.set('limit', String(q.limit));
-    const qs = p.toString();
-    return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
-  },
+  // (ledger removed, audit F: `summary` above already carries `recentEntries`, and that is
+  // what /driver/earnings renders. A PAGED full history is a screen nobody has built — when
+  // one is built, add the entry back with it.)
   // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
   earningRule: '/payout/api/v1/courier/earning-rule',
   withdraw: '/payout/api/v1/courier/withdrawals',
-  withdrawals: '/payout/api/v1/courier/withdrawals',
+  // (withdrawals removed, audit F: the SAME path as `withdraw` above, differing only in the
+  // verb the caller happens to use — and the screen reads `recentWithdrawals` off `summary`.)
   expenses: '/payout/api/v1/courier/expenses',
 },
 
@@ -138,7 +135,8 @@ priceOverrides: {
   },
   approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
   reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
-  propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
+  // (propose removed, audit F: same read-and-decide shape as the voucher queue above.
+  // `import` is how overrides actually reach a depot.)
   import: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides/import`,
   // Per-product pending-override counts for the 7a base list.
   countByProduct: '/depots/api/v1/price-overrides/count-by-product',
@@ -165,8 +163,9 @@ cashierShifts: {
   open: '/depots/api/v1/cashier-shifts',
   current: (depotId: string) =>
     `/depots/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`,
-  list: (depotId: string) =>
-    `/depots/api/v1/cashier-shifts?depotId=${encodeURIComponent(depotId)}`,
+  // (list removed, audit F: the till screens open a shift, read `current` and close it.
+  // A shift HISTORY has no screen — `/dashboard/settlements` reconciles deliveries, not
+  // drawers.)
   close: (id: string) => `/depots/api/v1/cashier-shifts/${id}/close`,
 },
 

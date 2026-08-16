@@ -64,7 +64,8 @@ admin: {
       const qs = p.toString();
       return `/admin/api/v1/tickets${qs ? `?${qs}` : ''}`;
     },
-    get: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}`,
+    // (get removed, audit F: the ticket list carries the whole ticket, and reply/assign/
+    // resolve act on it by id. No screen opens one on its own.)
     reply: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/reply`,
     assign: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/assign`,
     resolve: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/resolve`,

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest';
 
 import { endpoints } from '@/lib/endpoints';
@@ -227,5 +228,69 @@ describe('endpoints', () => {
     expect(endpoints.reports.depotDailyExport('d1', '2026-08-04')).toBe(
       '/orders/api/v1/reports/depot-daily/export?depotId=d1&date=2026-08-04',
     );
+  });
+});
+
+/*
+ * Audit F: 24 entries in this table had no caller anywhere in the app. Some were features
+ * that never got built, some were routes a screen was supposed to reach and never did —
+ * and from the table alone the two are indistinguishable, which is how three years of
+ * "subscriptions.pause" sat there while customers could not pause a subscription.
+ *
+ * This walks the REAL object (not a regex over the source, which cannot see nested groups
+ * or tell an entry from a builder's `q` parameter) and fails on any entry nothing calls.
+ * Add an entry only together with the screen that uses it.
+ */
+describe('every endpoint entry has a caller', () => {
+  /** `group.key` for every leaf, however deeply the tables nest them. */
+  function leafPaths(node: unknown, trail: string[] = []): string[] {
+    if (typeof node !== 'object' || node === null) return [trail.join('.')];
+    return Object.entries(node).flatMap(([k, v]) =>
+      typeof v === 'object' && v !== null && !Array.isArray(v)
+        ? leafPaths(v, [...trail, k])
+        : [[...trail, k].join('.')],
+    );
+  }
+
+  /*
+   * Read through Vite rather than `node:fs`: a filesystem walk depends on the runner's cwd,
+   * and a wrong cwd reads nothing and reports EVERY entry as uncalled — loud, but for the
+   * wrong reason. `import.meta.glob` is resolved at transform time against this file.
+   */
+  const sources = import.meta.glob('../src/**/*.{ts,tsx}', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  it('is called from somewhere in apps/web', () => {
+    const blob = Object.entries(sources)
+      .filter(([path]) => !path.includes('/lib/endpoints/'))
+      .map(([, text]) => text)
+      .join('\n');
+    // Guard the guard: an empty blob would pass every entry as uncalled.
+    expect(blob.length).toBeGreaterThan(100_000);
+
+    /*
+     * A group reached by a COMPUTED key — `endpoints.subscriptions[action](id)` — puts every
+     * key of that group beyond the reach of a name search. The audit that prompted this test
+     * read `subscriptions.pause/resume/cancel` as dead for exactly that reason; they are
+     * called from `app/subscriptions/page.tsx:286,290,319` and always were. A check that
+     * cannot see a call site is a check that asks you to delete working code.
+     */
+    const computed = new Set(
+      [...blob.matchAll(/\b(?:endpoints\.)?(\w+)\s*\[/g)].map((m) => m[1]),
+    );
+
+    // The last two segments are enough: entries are reached as `endpoints.group.key`, and
+    // are often destructured to `group.key` first.
+    const uncalled = leafPaths(endpoints).filter((path) => {
+      const segments = path.split('.');
+      if (segments.some((s) => computed.has(s))) return false;
+      const tail = segments.slice(-2).join('\\.');
+      return !new RegExp(`\\b${tail}\\b`).test(blob);
+    });
+
+    expect(uncalled).toEqual([]);
   });
 });

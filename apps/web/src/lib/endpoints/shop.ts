@@ -175,7 +175,8 @@ voucherRequests: {
   },
   approve: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/approve`,
   reject: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/reject`,
-  propose: (depotId: string) => `/vouchers/api/v1/depots/${depotId}/voucher-requests`,
+  // (propose removed, audit F: the voucher approval queue was built read-and-decide —
+  // `list`/`decide` are called, nothing in the web app ever raises a request.)
 },
 
 loyalty: {
