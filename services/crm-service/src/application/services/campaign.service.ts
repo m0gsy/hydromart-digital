@@ -22,7 +22,7 @@ import {
   CustomerDirectoryPort,
   SegmentFilter,
 } from '../ports/customer-directory.port';
-import { WhatsappBroadcastPort } from '../ports/whatsapp-broadcast.port';
+import { BroadcastDeliveryPort } from '../ports/broadcast-delivery.port';
 import { CRM_TOKENS } from '../tokens';
 
 /**
@@ -54,7 +54,7 @@ export class CampaignService {
 
   constructor(
     @Inject(CRM_TOKENS.CampaignRepository) private readonly repo: CampaignRepository,
-    @Inject(CRM_TOKENS.WhatsappBroadcast) private readonly whatsapp: WhatsappBroadcastPort,
+    @Inject(CRM_TOKENS.BroadcastDelivery) private readonly delivery: BroadcastDeliveryPort,
     @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
     @Inject(CRM_TOKENS.ActivitySegment) private readonly activity: ActivitySegmentPort,
   ) {}
@@ -187,19 +187,19 @@ export class CampaignService {
    */
   async processSending(now = new Date()): Promise<CampaignSweepResult> {
     /*
-     * E-2: refuse the sweep outright when there is no WhatsApp endpoint to send through.
+     * The E-2 refusal that used to stand here — "skip the sweep, WHATSAPP_API_URL is
+     * unset" — is gone with the transport it guarded.
      *
-     * Without this the sweep claims a batch, fails every recipient and moves the cursor —
-     * spending a real audience on a missing environment variable. Left untouched they stay
-     * PENDING and go out the moment it is configured. Logged at error: a marketing campaign
-     * that is going nowhere is not a debug detail.
+     * Broadcasts now deliver the way transactional notifications always have: a row in the
+     * customer's in-app inbox, plus best-effort push. The inbox write is a database write
+     * in this same service, so there is no external endpoint that can be missing and no
+     * configuration state in which a sweep would burn an audience on nothing. Push is
+     * additive — an unconfigured VAPID or FCM half means fewer devices buzz, not a lost
+     * message, because the inbox row is the delivery.
+     *
+     * What CAN still fail is a recipient with no account to deliver to; that is handled
+     * per recipient below rather than by refusing the whole sweep.
      */
-    if (!this.whatsapp.configured()) {
-      this.logger.error(
-        'Sapuan kampanye dilewati: WHATSAPP_API_URL belum diset, jadi tidak ada pesan yang bisa dikirim.',
-      );
-      return { campaigns: 0, sent: 0, failed: 0, completed: 0 };
-    }
     const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
     const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
 
@@ -211,8 +211,24 @@ export class CampaignService {
           name: recipient.name ?? undefined,
           phone: recipient.phone,
         });
-        const outcome = await this.whatsapp.send(recipient.phone, message);
-        if (outcome.ok) {
+        /*
+         * A broadcast is delivered by writing it to the recipient's inbox, so a recipient
+         * with no account has nowhere to receive it. Recorded FAILED with the reason
+         * rather than SENT: a staff-supplied list can carry a bare phone number, and
+         * counting those as delivered would report a reach the campaign never had.
+         */
+        if (!recipient.customerId) {
+          result.failed += 1;
+          await this.repo.recordRecipientResult(
+            recipient.id,
+            RecipientStatus.FAILED,
+            'no Hydromart account for this number — nothing to deliver to',
+            null,
+          );
+          continue;
+        }
+        try {
+          await this.delivery.deliver(recipient.phone, message, recipient.customerId);
           result.sent += 1;
           await this.repo.recordRecipientResult(
             recipient.id,
@@ -220,12 +236,12 @@ export class CampaignService {
             null,
             new Date(),
           );
-        } else {
+        } catch (e) {
           result.failed += 1;
           await this.repo.recordRecipientResult(
             recipient.id,
             RecipientStatus.FAILED,
-            outcome.error ?? 'unknown error',
+            (e as Error).message || 'unknown error',
             null,
           );
         }

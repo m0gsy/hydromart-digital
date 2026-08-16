@@ -1,0 +1,10 @@
+-- Postgres cannot DROP a single enum value. To roll back IN_APP, recreate the type without
+-- it (only safe once no campaign row carries it):
+--   UPDATE "campaigns" SET "channel" = 'WHATSAPP' WHERE "channel" = 'IN_APP';
+--   ALTER TABLE "campaigns" ALTER COLUMN "channel" DROP DEFAULT;
+--   ALTER TYPE "CampaignChannel" RENAME TO "CampaignChannel_old";
+--   CREATE TYPE "CampaignChannel" AS ENUM ('WHATSAPP');
+--   ALTER TABLE "campaigns" ALTER COLUMN "channel" TYPE "CampaignChannel"
+--     USING "channel"::text::"CampaignChannel";
+--   ALTER TABLE "campaigns" ALTER COLUMN "channel" SET DEFAULT 'WHATSAPP';
+--   DROP TYPE "CampaignChannel_old";

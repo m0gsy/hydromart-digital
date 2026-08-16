@@ -17,7 +17,6 @@ const inputClass =
 
 type Audience = 'all' | 'depot' | 'loyalty' | 'staff';
 const AUDIENCES: Audience[] = ['all', 'depot', 'loyalty', 'staff'];
-const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 
 // Design 10d — notification broadcast.
 // REACH: order-service audience-reach gives a REAL activity-based count for "all" and
@@ -27,8 +26,9 @@ const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 // pelanggan" is an empty segment; "Per depot" now sends for real too, because crm resolves
 // the activity half of a segment from order-service. Loyalty/staff remain honestly badged:
 // their members live in loyalty/auth and are not a customer-directory audience.
-// Scheduling is real now (campaigns carry `scheduledFor`). Channels stay cosmetic — crm is
-// WhatsApp-only by design (see domain/channel.ts), so the checkboxes are not wired.
+// Scheduling is real now (campaigns carry `scheduledFor`). There is no channel picker any
+// more: a campaign is delivered as an in-app inbox row plus best-effort push, one route
+// with nothing to choose between (see domain/channel.ts).
 export default function HqBroadcastPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -38,7 +38,6 @@ export default function HqBroadcastPage() {
   const [depotId, setDepotId] = useState('');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [channels, setChannels] = useState<Set<string>>(new Set(['channelPush', 'channelInApp']));
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -151,29 +150,18 @@ export default function HqBroadcastPage() {
           />
         </Field>
 
-        {/* Channels */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">{t('hq.broadcast.channels')}</span>
-          <div className="flex flex-wrap gap-3">
-            {CHANNELS.map((c) => (
-              <label key={c} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={channels.has(c)}
-                  onChange={(e) =>
-                    setChannels((s) => {
-                      const next = new Set(s);
-                      if (e.target.checked) next.add(c);
-                      else next.delete(c);
-                      return next;
-                    })
-                  }
-                />
-                {t(`hq.broadcast.${c}`)}
-              </label>
-            ))}
-          </div>
-        </div>
+        {/*
+         * The channel checkboxes that used to sit here are gone.
+         *
+         * They were `useState` and nothing else: `channels` was never read by `submit()`,
+         * and the two boxes ticked by default — Push and In-app — named transports the
+         * send path did not have. An operator chose a channel, pressed Kirim, and got a
+         * success toast for a choice that reached no code at all.
+         *
+         * There is now exactly one transport and no choice to offer: a campaign lands in
+         * the customer's in-app inbox and buzzes their device if push is registered. A
+         * control with one option is not a control.
+         */}
       </Card>
 
       {/* Estimated reach — REAL for every audience (order/loyalty/auth counts). */}

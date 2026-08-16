@@ -12,28 +12,31 @@ import { CampaignService } from '../../src/application/services/campaign.service
 import {
   FakeActivitySegment,
   FakeCustomerDirectory,
-  FakeWhatsappBroadcast,
+  FakeBroadcastDelivery,
   InMemoryCampaignRepository,
 } from '../support/fakes';
 
 describe('CampaignService', () => {
   let repo: InMemoryCampaignRepository;
-  let whatsapp: FakeWhatsappBroadcast;
+  let delivery: FakeBroadcastDelivery;
   let directory: FakeCustomerDirectory;
   let activity: FakeActivitySegment;
   let service: CampaignService;
 
   beforeEach(() => {
     repo = new InMemoryCampaignRepository();
-    whatsapp = new FakeWhatsappBroadcast();
+    delivery = new FakeBroadcastDelivery();
     directory = new FakeCustomerDirectory();
     activity = new FakeActivitySegment();
-    service = new CampaignService(repo, whatsapp, directory, activity);
+    service = new CampaignService(repo, delivery, directory, activity);
   });
 
+  // Every recipient carries a customerId: delivery is an inbox write, so an account is
+  // what makes a recipient reachable. The no-account case has its own test in
+  // campaign-service-branches.spec.ts.
   const recipients = [
-    { phone: '+6281', name: 'Andi' },
-    { phone: '+6282', name: 'Budi' },
+    { customerId: 'cust-1', phone: '+6281', name: 'Andi' },
+    { customerId: 'cust-2', phone: '+6282', name: 'Budi' },
   ];
 
   describe('create', () => {
@@ -237,11 +240,11 @@ describe('CampaignService', () => {
 
       const early = await service.processSending(new Date('2026-08-19T23:59:00.000Z'));
       expect(early.campaigns).toBe(0);
-      expect(whatsapp.sent).toHaveLength(0);
+      expect(delivery.sent).toHaveLength(0);
 
       const onTime = await service.processSending(new Date('2026-08-20T02:00:00.000Z'));
       expect(onTime.campaigns).toBe(1);
-      expect(whatsapp.sent).toHaveLength(2);
+      expect(delivery.sent).toHaveLength(2);
     });
 
     it('treats an unscheduled campaign as due immediately, as it always was', async () => {
@@ -261,7 +264,7 @@ describe('CampaignService', () => {
 
       const queued = await service.send(created.id);
       expect(queued.status).toBe(CampaignStatus.SENDING);
-      expect(whatsapp.sent).toHaveLength(0);
+      expect(delivery.sent).toHaveLength(0);
       expect(queued.recipients.every((r) => r.status === RecipientStatus.PENDING)).toBe(true);
     });
 
@@ -296,7 +299,7 @@ describe('CampaignService', () => {
   describe('processSending (the broadcast sweep)', () => {
     it('delivers to every recipient and finalises with counts from the rows', async () => {
       const created = await service.create('staff-1', 'Blast', 'Hi {{name}}', recipients);
-      whatsapp.failOn('+6282');
+      delivery.failOn('+6282');
       await service.send(created.id);
 
       const result = await service.processSending();
@@ -307,12 +310,12 @@ describe('CampaignService', () => {
       expect(done.sentCount).toBe(1);
       expect(done.failedCount).toBe(1);
       expect(done.sentAt).not.toBeNull();
-      expect(whatsapp.sent).toHaveLength(2);
+      expect(delivery.sent).toHaveLength(2);
     });
 
     it('marks each recipient SENT or FAILED with the failure detail', async () => {
       const created = await service.create('staff-1', 'Blast', 'Hi {{name}}', recipients);
-      whatsapp.failOn('+6282');
+      delivery.failOn('+6282');
       await service.send(created.id);
       await service.processSending();
 
@@ -329,11 +332,11 @@ describe('CampaignService', () => {
 
     it('renders the template per recipient before sending', async () => {
       const created = await service.create('staff-1', 'Blast', 'Hi {{name}} ({{phone}})', [
-        { phone: '+6281', name: 'Andi' },
+        { customerId: 'cust-1', phone: '+6281', name: 'Andi' },
       ]);
       await service.send(created.id);
       await service.processSending();
-      expect(whatsapp.sent[0].message).toBe('Hi Andi (+6281)');
+      expect(delivery.sent[0].message).toBe('Hi Andi (+6281)');
     });
 
     it('does nothing for a DRAFT campaign nobody has queued', async () => {
@@ -344,7 +347,7 @@ describe('CampaignService', () => {
         failed: 0,
         completed: 0,
       });
-      expect(whatsapp.sent).toHaveLength(0);
+      expect(delivery.sent).toHaveLength(0);
     });
 
     /**
@@ -363,7 +366,7 @@ describe('CampaignService', () => {
         failed: 0,
         completed: 0,
       });
-      expect(whatsapp.sent).toHaveLength(2);
+      expect(delivery.sent).toHaveLength(2);
     });
 
     /**
@@ -376,8 +379,8 @@ describe('CampaignService', () => {
       await service.send(created.id);
 
       await Promise.all([service.processSending(), service.processSending()]);
-      expect(whatsapp.sent).toHaveLength(2);
-      expect(new Set(whatsapp.sent.map((s) => s.phone)).size).toBe(2);
+      expect(delivery.sent).toHaveLength(2);
+      expect(new Set(delivery.sent.map((s) => s.phone)).size).toBe(2);
     });
   });
 

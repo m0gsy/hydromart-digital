@@ -269,6 +269,24 @@ export class NearbyDepotView extends PublicDepotView {
 }
 
 /** Where to send money for ONE depot. Signed-in callers only. */
+/**
+ * One depot's own phone number, for the customer help screen.
+ *
+ * `contactPhone` is off `PublicDepotView` on purpose (see the anti-harvest note on
+ * `internal/contacts`): anonymous and in bulk, it is a scrapeable directory of every
+ * depot's line. One depot at a time, to a signed-in caller, is the same trade the bank
+ * details already make in `DepotPaymentInfoView` — so it gets the same guard, not a
+ * looser one. `name` rides along because the help card says "hubungi <nama depot>".
+ */
+export class DepotContactView {
+  @ApiProperty() name!: string;
+  @ApiProperty({ nullable: true }) contactPhone!: string | null;
+
+  static from(d: DepotRecord): DepotContactView {
+    return { name: d.name, contactPhone: d.contactPhone };
+  }
+}
+
 export class DepotPaymentInfoView {
   /** Public anyway, and the payment panel reads "transfer masuk ke <nama depot>" — carrying
    *  it here saves the page a second fetch just to render the sentence. */

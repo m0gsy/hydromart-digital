@@ -13,7 +13,7 @@ import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import {
   FakeCustomerDirectory,
-  FakeWhatsappBroadcast,
+  FakeBroadcastDelivery,
   InMemoryCampaignRepository,
   InMemoryNotificationRepository,
 } from '../support/fakes';
@@ -27,7 +27,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   let driverToken: string;
   const directory = new FakeCustomerDirectory();
   // B-17: the sweep is what messages people now, so the e2e needs to see the transport.
-  const whatsapp = new FakeWhatsappBroadcast();
+  const delivery = new FakeBroadcastDelivery();
   const internalKey = () => ({ 'x-internal-key': 'test-internal-key' });
 
   beforeAll(async () => {
@@ -64,8 +64,8 @@ describe('Campaign HTTP flows (e2e)', () => {
       .useValue(new InMemoryCampaignRepository())
       .overrideProvider(CRM_TOKENS.NotificationRepository)
       .useValue(new InMemoryNotificationRepository())
-      .overrideProvider(CRM_TOKENS.WhatsappBroadcast)
-      .useValue(whatsapp)
+      .overrideProvider(CRM_TOKENS.BroadcastDelivery)
+      .useValue(delivery)
       .overrideProvider(CRM_TOKENS.CustomerDirectory)
       .useValue(directory)
       .compile();
@@ -93,7 +93,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   const campaignBody = () => ({
     name: 'Launch Blast',
     messageTemplate: 'Hi {{name}}!',
-    recipients: [{ phone: '+6281234567890', name: 'Andi' }],
+    recipients: [{ customerId: randomUUID(), phone: '+6281234567890', name: 'Andi' }],
   });
 
   let campaignId: string;
@@ -129,7 +129,7 @@ describe('Campaign HTTP flows (e2e)', () => {
       .set(auth(marketingToken))
       .expect(202);
     expect(res.body).toMatchObject({ status: 'SENDING' });
-    expect(whatsapp.sent).toHaveLength(0);
+    expect(delivery.sent).toHaveLength(0);
   });
 
   it('rejects the sweep endpoint without the internal key, then delivers with it', async () => {

@@ -13,7 +13,7 @@ import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import {
   FakeCustomerDirectory,
-  FakeWhatsappBroadcast,
+  FakeBroadcastDelivery,
   InMemoryBroadcastRepository,
   InMemoryCampaignRepository,
   InMemoryNotificationRepository,
@@ -61,8 +61,8 @@ describe('Broadcast HTTP flows (e2e)', () => {
       .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CRM_TOKENS.BroadcastRepository)
       .useValue(new InMemoryBroadcastRepository())
-      .overrideProvider(CRM_TOKENS.WhatsappBroadcast)
-      .useValue(new FakeWhatsappBroadcast())
+      .overrideProvider(CRM_TOKENS.BroadcastDelivery)
+      .useValue(new FakeBroadcastDelivery())
       .overrideProvider(CRM_TOKENS.CustomerDirectory)
       .useValue(new FakeCustomerDirectory())
       .compile();

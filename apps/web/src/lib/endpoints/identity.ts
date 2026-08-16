@@ -63,6 +63,13 @@ auth: {
   drivers: '/auth/api/v1/auth/drivers',
 },
 
+// The signed-in customer's own profile: membership tier, point balance, and
+// `favoriteDepotId` — the depot their orders route to, which is how the help screen
+// knows whose phone number to show.
+profile: {
+  me: '/customers/api/v1/profile',
+},
+
 // Notification channel preferences (GET to read, PATCH to update).
 preferences: {
   notifications: '/customers/api/v1/profile/notifications',

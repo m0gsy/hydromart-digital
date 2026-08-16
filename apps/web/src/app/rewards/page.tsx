@@ -61,7 +61,16 @@ function Hero({
   const { t } = useT();
   const ladder = [...tiers].sort((a, b) => a.threshold - b.threshold);
   const progress = tierProgress(ladder, account.lifetimePoints);
-  const rupiahValue = Math.round(account.pointsBalance * 10); // 1 poin ≈ Rp 10 potongan
+  /*
+   * There is deliberately no "poin kamu senilai Rp X" line here any more.
+   *
+   * It used to read `Math.round(pointsBalance * 10)` — an invented rate. No backend
+   * defines a point-to-rupiah conversion at all: rewards are bought with `pointsCost`
+   * from the catalog below, and the only real rate in the system is loyalty's
+   * `earnRateRupiah` (Rp 1000 spent = 1 point earned), which is the inverse of this and
+   * a hundred times off. Every customer was shown a discount value they could not
+   * actually spend. The balance and the catalog are both real; that is enough.
+   */
 
   return (
     <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -128,9 +137,6 @@ function Hero({
         <div className="flex items-baseline gap-2">
           <span className="text-[44px] font-extrabold leading-none tracking-tight tabular-nums">{idr(account.pointsBalance)}</span>
           <span className="text-[15px] font-bold text-[#5ccbdd]">{t('profile.rewards.points.unit')}</span>
-        </div>
-        <div className="text-[12.5px]" style={{ color: 'rgba(255,255,255,.6)' }}>
-          {t('profile.rewards.points.worth', { amount: formatIDR(rupiahValue) })}
         </div>
         <button
           type="button"

@@ -17,7 +17,6 @@ export const profile: typeof base = {
     points: {
       label: 'Your points',
       unit: 'points',
-      worth: '≈ {amount} off your shopping',
       redeemCta: 'Redeem points',
     },
     wallet: {

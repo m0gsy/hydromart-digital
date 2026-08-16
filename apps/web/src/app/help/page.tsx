@@ -17,11 +17,38 @@ import { useT } from '@/lib/locale-context';
 import { help as helpID } from '@/lib/dictionaries/id/help';
 import { help as helpEN } from '@/lib/dictionaries/en/help';
 import { ExternalLink } from '@/components/external-link';
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
+import { useAsync } from '@/lib/use-async';
+import { useAuth } from '@/lib/auth-context';
 
-// ponytail: support number is a single placeholder constant — no per-depot CS
-// routing in scope. Swap for a real hotline / wire to config when one exists.
-const SUPPORT_PHONE = '+62 812-9000-0100';
-const WA_LINK = `https://wa.me/${SUPPORT_PHONE.replace(/[^0-9]/g, '')}`;
+/**
+ * The CS number belongs to the customer's own depot, read at runtime.
+ *
+ * It used to be `const SUPPORT_PHONE = '+62 812-9000-0100'` written into this file, behind
+ * both a `tel:` and a `wa.me` link — so every customer with a real problem called a number
+ * nobody at Hydromart owns. The courier help screen had the identical bug and was fixed
+ * first; this is the same fix, one step further: the courier settled for one configured
+ * fleet number because a courier cannot read their own depot's line, but a customer's
+ * depot IS known (`favoriteDepotId` on their profile), so it can be exact.
+ *
+ * No number, no buttons. Signed out, no routed depot yet, or a depot that never filled in
+ * its phone all land in the same place: the contact row does not render. A card that
+ * plainly offers nothing beats one that offers a call to nobody.
+ */
+function useDepotContact(): { name: string; contactPhone: string | null } | null {
+  const { customer } = useAuth();
+  const profile = useAsync<{ favoriteDepotId: string | null } | null>(
+    () => (customer ? api.get(endpoints.profile.me, true) : Promise.resolve(null)),
+    [customer?.id],
+  );
+  const depotId = profile.data?.favoriteDepotId ?? null;
+  const contact = useAsync<{ name: string; contactPhone: string | null } | null>(
+    () => (depotId ? api.get(endpoints.depots.contact(depotId), true) : Promise.resolve(null)),
+    [depotId],
+  );
+  return contact.data ?? null;
+}
 
 const TOPIC_ICONS: Record<string, Icon> = {
   delivery: Truck,
@@ -34,6 +61,7 @@ export default function HelpPage() {
   const { t, locale } = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<number | null>(null);
+  const phone = useDepotContact()?.contactPhone ?? null;
 
   // FAQ is structured (array), so `t()` can't fetch it — pick the fragment by locale.
   const faq = (locale === 'en' ? helpEN : helpID).faq as readonly { q: string; a: string }[];
@@ -128,23 +156,25 @@ export default function HelpPage() {
         </div>
       )}
 
-      {/* CS contact */}
-      <div className="mt-[18px] flex gap-2.5">
-        <ExternalLink
-          href={WA_LINK}
-          className="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-[13px] bg-brand-600 text-sm font-extrabold text-on-brand transition-colors hover:bg-brand-800"
-        >
-          <ChatCircleDots size={17} weight="fill" />
-          {t('help.chatCta')}
-        </ExternalLink>
-        <ExternalLink
-          href={`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`}
-          aria-label={t('help.callAria')}
-          className="flex h-[50px] w-14 items-center justify-center rounded-[13px] border border-app surface transition-colors hover:border-brand-600"
-        >
-          <Phone size={19} weight="fill" className="text-brand-600" />
-        </ExternalLink>
-      </div>
+      {/* CS contact — only when the customer's depot has a real number to call. */}
+      {phone && (
+        <div className="mt-[18px] flex gap-2.5">
+          <ExternalLink
+            href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
+            className="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-[13px] bg-brand-600 text-sm font-extrabold text-on-brand transition-colors hover:bg-brand-800"
+          >
+            <ChatCircleDots size={17} weight="fill" />
+            {t('help.chatCta')}
+          </ExternalLink>
+          <ExternalLink
+            href={`tel:${phone.replace(/\s/g, '')}`}
+            aria-label={t('help.callAria')}
+            className="flex h-[50px] w-14 items-center justify-center rounded-[13px] border border-app surface transition-colors hover:border-brand-600"
+          >
+            <Phone size={19} weight="fill" className="text-brand-600" />
+          </ExternalLink>
+        </div>
+      )}
     </div>
   );
 }

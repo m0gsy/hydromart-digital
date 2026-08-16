@@ -47,6 +47,11 @@ export enum NotificationEvent {
   LEAVE_APPROVED = 'LEAVE_APPROVED',
   LEAVE_REJECTED = 'LEAVE_REJECTED',
   HR_ANNOUNCEMENT = 'HR_ANNOUNCEMENT',
+  // Marketing broadcast (Module 12). The one event whose copy is NOT owned here: staff
+  // author the whole message in the HQ broadcast console, so the template is a bare
+  // passthrough. It still goes through the same path as every other notification — an
+  // inbox row plus best-effort push — which is exactly why it is an event at all.
+  BROADCAST = 'BROADCAST',
 }
 
 // WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
@@ -89,6 +94,7 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
   [NotificationEvent.LEAVE_REJECTED]:
     'Halo {{name}}, cuti {{type}} tanggal {{from}} s/d {{to}} DITOLAK. Alasan: {{reason}}. Silakan hubungi HR bila perlu.',
   [NotificationEvent.HR_ANNOUNCEMENT]: '📢 {{title}}\n{{body}}',
+  [NotificationEvent.BROADCAST]: '{{message}}',
 };
 
 // Operational (staff-facing) events surfaced in the ops notification center (PRD 10d),
