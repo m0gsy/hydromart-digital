@@ -175,6 +175,7 @@ export const hq = {
       pendingApproval: 'Menunggu persetujuan',
     },
     kpiHint: {
+    notForRole: 'Tidak tersedia untuk peran ini',
       orders: '{n} pesanan',
       sla: '{onTime}/{total} tepat waktu',
       depots: 'dari {total} depot',

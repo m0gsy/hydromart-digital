@@ -9,7 +9,9 @@ import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
 import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
   DepotAdmin,
@@ -52,6 +54,7 @@ function Stat({ label, value, hint, badge }: { label: string; value: string; hin
 
 export default function HqOverviewPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const router = useRouter();
   const range = useMemo(defaultRange, []);
   const [view, setView] = useState<View>('main');
@@ -63,8 +66,19 @@ export default function HqOverviewPage() {
   );
   // Two KPI tiles fed by their own endpoints (not on the exec dashboard):
   // new customer signups in-range, and the pending franchise-application queue.
-  const newCustomers = useAsync<{ count: number }>(() =>
-    api.get(endpoints.hq.newCustomers(range), true),
+  /*
+   * `staffAdmin` is HEAD_OFFICE + SUPER_ADMIN, so a DIREKTUR reaching /hq got a 403 here and
+   * the tile said "gagal dimuat" — nothing failed; they are simply not allowed the figure.
+   * Reporting a permission as a failure is the same lie in a smaller box, so the tile says
+   * "not available for this role" and the request is never made.
+   */
+  const mayReadSignups = can('staffAdmin', customer?.role);
+  const newCustomers = useAsync<{ count: number }>(
+    () =>
+      mayReadSignups
+        ? api.get<{ count: number }>(endpoints.hq.newCustomers(range), true)
+        : Promise.resolve({ count: -1 }),
+    [mayReadSignups, range],
   );
   const pendingApps = useAsync<Page<FranchiseApplication>>(() =>
     api.get(endpoints.franchiseApps.list({ limit: 100 }), true),
@@ -170,13 +184,19 @@ export default function HqOverviewPage() {
             read failed instead, or somebody waits for a number that is right there. */}
         <Stat
           label={t('hq.overview.kpi.newCustomers')}
-          value={newCustomers.data ? newCustomers.data.count.toLocaleString('id-ID') : t('hq.common.dash')}
+          value={
+            newCustomers.data && newCustomers.data.count >= 0
+              ? newCustomers.data.count.toLocaleString('id-ID')
+              : t('hq.common.dash')
+          }
           hint={
-            newCustomers.data
-              ? t('hq.overview.kpiHint.newCustomers')
-              : newCustomers.error
-                ? t('common.loadFailed')
-                : t('hq.overview.kpiHint.soon')
+            !mayReadSignups
+              ? t('hq.overview.kpiHint.notForRole')
+              : newCustomers.data
+                ? t('hq.overview.kpiHint.newCustomers')
+                : newCustomers.error
+                  ? t('common.loadFailed')
+                  : t('hq.overview.kpiHint.soon')
           }
         />
         <Stat

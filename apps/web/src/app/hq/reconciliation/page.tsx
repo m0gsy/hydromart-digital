@@ -9,6 +9,8 @@ import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/roles';
 import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import { useAsync } from '@/lib/use-async';
 import { downloadXlsx } from '@/lib/xlsx';
@@ -59,6 +61,7 @@ function defaultRange(): { from: string; to: string } {
 // from payout-service's settings slice. No number on this statement is invented any more.
 export default function HqReconciliationPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { toast } = useToast();
   const range = useMemo(defaultRange, []);
 
@@ -79,10 +82,19 @@ export default function HqReconciliationPage() {
   const selected = depotId || items[0]?.id || '';
   const depot = items.find((d) => d.id === selected) ?? null;
 
-  // Payout's settings slice, scoped to this depot: GLOBAL value unless the depot overrides.
+  /*
+   * Payout's settings slice, scoped to this depot: GLOBAL value unless the depot overrides.
+   *
+   * `depotAdmin` is MANAGER + SUPER_ADMIN — a WRITE capability over depot settings — so a
+   * DIREKTUR reaching this page 403'd here and lost the whole statement over a fee editor
+   * they were never meant to touch. The reports are theirs; the settings are not. Asking
+   * for what you may not have and calling the refusal a failure is the same lie this page
+   * was rewritten to stop telling.
+   */
+  const maySeeSettings = can('depotAdmin', customer?.role);
   const payoutSettings = useAsync<SettingsSchema>(
-    () => fetchSettingsSchema('/payout/api/v1', selected || null),
-    [selected],
+    () => (maySeeSettings ? fetchSettingsSchema('/payout/api/v1', selected || null) : Promise.resolve({} as SettingsSchema)),
+    [selected, maySeeSettings],
   );
 
   if (depots.loading || dash.loading) return <Skeleton className="h-96 w-full" />;

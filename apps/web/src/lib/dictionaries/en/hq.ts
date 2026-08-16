@@ -172,6 +172,7 @@ export const hq = {
       pendingApproval: 'Pending approval',
     },
     kpiHint: {
+    notForRole: 'Not available for this role',
       orders: '{n} orders',
       sla: '{onTime}/{total} on time',
       depots: 'of {total} depots',
