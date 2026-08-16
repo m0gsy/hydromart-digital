@@ -49,6 +49,12 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     const testEnv: Record<string, string> = {
       NODE_ENV: 'test',
       GATEWAY_PORT: '8080',
+      // This suite asserts the behaviour of a gateway BEHIND a proxy, so it has to say so
+      // now: trusting an X-Forwarded-For hop is conditional on one actually existing.
+      // Without a proxy the correct answer is to trust nothing, which is what a bare-IP
+      // box gets and what it should always have had.
+      WEB_DOMAIN: 'hydromart-digital.test',
+      PUBLIC_BIND: '127.0.0.1',
       AUTH_SERVICE_URL: 'http://localhost:3001',
       CUSTOMER_SERVICE_URL: 'http://localhost:3002',
       PRODUCT_SERVICE_URL: 'http://localhost:3003',
@@ -95,7 +101,9 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
   });
 
   const get = (forwardedFor: string) =>
-    request(app.getHttpServer()).get('/orders/api/v1/anything').set('x-forwarded-for', forwardedFor);
+    request(app.getHttpServer())
+      .get('/orders/api/v1/anything')
+      .set('x-forwarded-for', forwardedFor);
 
   it('trusts one proxy hop, so req.ip is the client and not the proxy', () => {
     const instance = app.getHttpAdapter().getInstance();
