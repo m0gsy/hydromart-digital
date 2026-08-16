@@ -6,6 +6,18 @@
 0 * * * * sh /scripts/sweep.sh subscriptions/process-due
 # "Time to refill" reorder reminders — daily at 08:00.
 0 8 * * * sh /scripts/sweep.sh orders/reminders/reorder
+# Order side effects still owed (H-10): the stock consume, the loyalty award, the referral
+# qualification, the franchise-owner credit. The happy path delivers these inline at
+# completion, so this is purely the RETRY path — and until now it had no schedule at all,
+# which meant a PENDING row with money owed against it sat there forever. Every 10 minutes:
+# the sweep is bounded and idempotent (it claims rows), and an effect a customer is waiting
+# on should not be a day late. `outbox/pending` reports the backlog if it ever stops draining.
+*/10 * * * * sh /scripts/sweep.sh orders/outbox/internal/process
+# Release the stock held by orders nobody ever confirmed. Also unscheduled until now, so a
+# reservation from an abandoned checkout was never given back — a slow leak into false
+# out-of-stock. Hourly is enough: the threshold is measured in minutes-to-hours, and the
+# sweep re-reads whatever is stale each time rather than tracking a cursor.
+5 * * * * sh /scripts/sweep.sh orders/internal/expire-abandoned
 # Retention enforcement (M23-21): runs the policy for every dataset that has an executor
 # — including proof-of-delivery, which used to sweep itself at 03:15 off a separate
 # per-depot window. One owner for the rule now. Datasets with no executor are logged as
@@ -42,5 +54,9 @@
 # Daily, not hourly — the window is 30 days, so an hourly sweep would re-read the same
 # month 24 times to find the same people. It raises REVIEW items only; nothing it does
 # blocks an account, and a case a human already has open is skipped rather than duplicated.
-# 04:10 UTC = 11:10 WIB, after the depots have opened and before HQ reviews the morning.
-10 4 * * * sh /scripts/sweep.sh fraud-flags/internal/scan admin:3017
+# 11:10 WIB, after the depots have opened and before HQ reviews the morning. The line used
+# to read `10 4` with a comment calling it "04:10 UTC = 11:10 WIB" — but this file's times
+# are the container's own clock, and the container is Asia/Jakarta (the deploy proves it
+# every run). So it fired at 04:10 WIB, seven hours before it was meant to, with the depots
+# still shut.
+10 11 * * * sh /scripts/sweep.sh fraud-flags/internal/scan admin:3017
