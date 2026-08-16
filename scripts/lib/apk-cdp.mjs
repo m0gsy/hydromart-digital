@@ -22,7 +22,12 @@ const ADB = process.env.ADB
     ? `${process.env.ANDROID_HOME.replace(/[\\/]+$/, '')}/platform-tools/adb`
     : 'adb';
 
-export const adb = (...args) => execFileSync(ADB, args, { encoding: 'utf8' }).trim();
+// 32 MB, not node's 1 MB default: `dumpsys window` on a real phone is several megabytes and
+// blowing the buffer throws ENOBUFS — which `adbTry` then turns into an empty string, so the
+// status-bar inset read as 0 and every tap went back to being 110px too high. A silent zero
+// from a truncated dump is the worst shape this failure could have taken.
+export const adb = (...args) =>
+  execFileSync(ADB, args, { encoding: 'utf8', maxBuffer: 32 << 20 }).trim();
 
 /** Same, but a non-zero exit is an answer rather than a throw (`pidof` on a dead app). */
 export const adbTry = (...args) => {
@@ -49,12 +54,21 @@ export const adbTry = (...args) => {
  * equal to 48 CSS px = 132 screen px, the status-bar inset the window manager reports.
  */
 export function viewportTop() {
-  // The id is hex (`2eb00000`), not decimal — `id=\d+` matches nothing.
-  const line = adbTry('shell', 'dumpsys', 'window')
+  const dump = adbTry('shell', 'dumpsys', 'window');
+  // Android 12+. The id is hex (`2eb00000`), not decimal — `id=\d+` matches nothing.
+  const modern = dump
     .split('\n')
     .find((l) => /InsetsSource id=\S+ type=statusBars /.test(l) && /visible=true/.test(l));
-  const frame = line && /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(line);
-  return frame ? Number(frame[4]) : 0;
+  const frame = modern && /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(modern);
+  if (frame) return Number(frame[4]);
+  // Android 11 says the same thing in TWO other dialects, and which one you get depends on
+  // the sub-command: `dumpsys window` prints
+  // `InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][1080,110] visible=true` while
+  // `dumpsys window windows` prints `{mType=ITYPE_STATUS_BAR, mFrame=…, mVisible=true}`.
+  // Case-insensitive and comma-optional covers both. Without this the OPPO answers 0 and
+  // every tap is 110px too high again.
+  const legacy = /ITYPE_STATUS_BAR,?\s+m?Frame=\[\d+,\d+\]\[\d+,(\d+)\],?\s+m?Visible=true/i.exec(dump);
+  return legacy ? Number(legacy[1]) : 0;
 }
 
 /**

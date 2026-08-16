@@ -78,11 +78,19 @@ function imeTop() {
   const line = dump
     .split('\n')
     .find((l) => /InsetsSource id=\d+ type=ime /.test(l) && /visible=true/.test(l));
-  if (!line) return null;
-  const frame = /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(line);
   // A zero-height inset is "no keyboard on screen", however loudly `mInputShown` says true —
   // an AVD with `hw.keyboard=yes` reports exactly that, and it made a screen look safe.
-  return frame && Number(frame[4]) > Number(frame[2]) ? Number(frame[2]) : null;
+  const frame = line && /frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(line);
+  if (frame) return Number(frame[4]) > Number(frame[2]) ? Number(frame[2]) : null;
+  // Android 11 calls it `ITYPE_IME` and drops the id — see `viewportTop()` for the same
+  // two-dialect problem. Without this the OPPO reports "keyboard never came up" every time.
+  // Matched per LINE, because `visibleFrame=[…]` sits between `frame=` and `visible=true`:
+  // one regex spanning both kept failing on a line that plainly said what was wanted.
+  const old = dump
+    .split('\n')
+    .find((l) => /ITYPE_IME/.test(l) && /m?Frame=\[/i.test(l) && /m?Visible=true/i.test(l));
+  const bounds = old && /m?Frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/i.exec(old);
+  return bounds && Number(bounds[4]) > Number(bounds[2]) ? Number(bounds[2]) : null;
 }
 
 /**
