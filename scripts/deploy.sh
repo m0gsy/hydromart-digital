@@ -13,6 +13,20 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+# ONE-RELEASE LAG, and it has been mistaken for "the fix did not work" twice.
+#
+# This sources the helpers HERE, and `git reset --hard "$NEW_SHA"` is ~40 lines below. Bash
+# has already parsed every function body by then, so a deploy runs the helpers belonging to
+# the PREVIOUS release. Any change to deploy-common.sh — or to this file past this point —
+# takes effect on the deploy AFTER the one that ships it.
+#
+# Proved on the box, same .env, two consecutive runs: the release that narrowed the env
+# warning still printed the old 75 keys, and the next one printed 7. The release that fixed
+# `throwaway_storage_driver` still exited 1 for the reason it had just fixed.
+#
+# So when judging a deploy-script change, read the run AFTER its merge. Not a bug to fix by
+# re-exec: a script that replaces itself mid-run is a far worse failure mode than waiting
+# one release.
 . scripts/lib/deploy-common.sh
 
 STATE_DIR=".deploy"; mkdir -p "$STATE_DIR"
