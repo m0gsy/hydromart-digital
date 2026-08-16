@@ -5,10 +5,10 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
 import { type Capability, type Role } from '@hydromart/access';
-import { HQ_GROUPS, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/components/hq/hq-rail';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
-import { isHq } from '@/lib/roles';
+
 import { useEffectiveCapabilities, type CapabilityHolders } from '@/lib/use-effective-capabilities';
 
 // Full rail size (every ready surface) — the denominator for the visible/total counter.
@@ -59,12 +59,12 @@ export default function HqLandingPage() {
   // edits a cell on /hq/access.
   const holdersByCap = useEffectiveCapabilities();
 
-  // Regroup the visible rail under its section headers (spec 9a railPreview), reading the
-  // same ready/isHq filter that drives the real rail. Non-HQ roles get no groups → noMenu.
-  const railGroups = HQ_GROUPS.map((g) => ({
-    headKey: g.headKey,
-    items: g.items.filter((i) => i.ready && isHq(role)),
-  })).filter((g) => g.items.length > 0);
+  // Regroup the visible rail under its section headers (spec 9a railPreview) through the
+  // SAME function the real rail uses. This screen exists to answer "what does this role
+  // see", so a private copy of the filter would let it answer wrongly the moment the two
+  // drift — which is exactly what happened when items gained per-capability gates.
+  // Non-HQ roles get no groups → noMenu.
+  const railGroups = hqGroupsForRole(role);
   const visibleCount = hqItemsForRole(role).length;
 
   return (

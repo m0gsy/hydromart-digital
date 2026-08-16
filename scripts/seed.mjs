@@ -121,6 +121,14 @@ const STAFF = [
   { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu', ...EMPLOYMENT },
   { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu', ...EMPLOYMENT },
   { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart', ...EMPLOYMENT },
+  // HEAD_OFFICE had never been seeded at all — and it is the role the HQ console was built
+  // for. `staffAdmin` and `taxSettings` name it explicitly, `catalogWrite` and `depotAdmin`
+  // do not, and nothing had ever signed in as one to find out which pages that breaks. The
+  // browser sweep ran as SUPER_ADMIN, which holds every capability and therefore proves
+  // nothing about anybody else.
+  // ...0010 belongs to the Gubeng franchise owner below, and the phone IS the login
+  // identity — reusing it would have handed one account to the other, silently.
+  { phone: '+6281100000011', role: 'HEAD_OFFICE', fullName: 'Kantor Pusat Hydromart', ...EMPLOYMENT },
   // Owners of the two WARALABA depots below. depot-service refuses to create a franchise
   // depot without one, so these are invited BEFORE the depots (see main()). They get no
   // employee record server-side — an owner is a counterpart, not headcount — but the DTO

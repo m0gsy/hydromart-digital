@@ -21,7 +21,12 @@ import { CommissionSchemeResponseDto } from './dto/responses.generated.dto';
 export class CommissionController {
   constructor(private readonly commission: CommissionService) {}
 
+  // Reading the agreed cut is not applying one. /hq/reconciliation and /hq/franchise show
+  // this percentage to head office — and on the reconciliation statement it IS the line a
+  // franchise owner reads as what they are owed — while `commissionRuns` below stays with
+  // the roles that may change it.
   @ApiOkResponse({ type: CommissionSchemeResponseDto, isArray: true })
+  @Can('commissionRead')
   @Get('schemes')
   @ApiOperation({ summary: 'Current commission percentage per depot (latest effective scheme)' })
   listSchemes(): Promise<CommissionSchemeRecord[]> {

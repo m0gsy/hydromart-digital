@@ -141,9 +141,16 @@ export class DepotController {
 
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
+  // `depotDirectory`, not `depotAdmin` — the same capability its read-one sibling
+  // `manage/:id` carries twenty lines below. Listing depots is a READ, and gating it behind
+  // the WRITE capability meant the network console could not enumerate its own network:
+  // sixteen /hq pages read this list, and for HEAD_OFFICE and DIREKTUR — the two roles the
+  // console admits — every one of them 403'd. On /hq/reconciliation that is a hard
+  // `ErrorState`, so the whole page died. Creating, editing and deactivating a depot below
+  // are still `depotAdmin`.
   @ApiOkResponse({ type: PagedDepotResponseDto })
   @ApiBearerAuth()
-  @Can('depotAdmin')
+  @Can('depotDirectory')
   @Get('manage')
   @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
   manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {

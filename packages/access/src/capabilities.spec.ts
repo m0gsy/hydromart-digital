@@ -57,4 +57,69 @@ describe('CAPABILITIES', () => {
     expect(STAFF_IMPORT_ROLES).not.toContain('CUSTOMER');
     expect(STAFF_IMPORT_ROLES).toContain('KEPALA_DEPOT');
   });
+
+  /*
+   * Measured, not assumed. A browser pass signed in as a REAL head-office account — the
+   * first time one existed — found 28 of the 63 HQ routes answering 403, and the single
+   * biggest cause was the depot LIST being gated by the depot WRITE capability. The console
+   * admits HEAD_OFFICE and DIREKTUR, neither holds `depotAdmin`, and sixteen pages read
+   * that list: a network console that could not enumerate its own network.
+   *
+   * The rule pinned here is narrow and checkable: reading the directory is
+   * `depotDirectory`, changing it is `depotAdmin`, and the read is at least as wide as the
+   * write.
+   */
+  it('lets every role that can open the HQ console read the depot directory', () => {
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']) {
+      expect(can('depotDirectory', role)).toBe(true);
+    }
+    // ...while changing a depot stays with the roles that run one.
+    expect(can('depotAdmin', 'HEAD_OFFICE')).toBe(false);
+    expect(can('depotAdmin', 'DIREKTUR')).toBe(false);
+    for (const w of CAPABILITIES.depotAdmin) {
+      expect(CAPABILITIES.depotDirectory).toContain(w);
+    }
+  });
+
+  /*
+   * Same shape one service over: head office WATCHES the franchise payout queue, finance
+   * RELEASES money out of it. `hqPayoutRead` exists for exactly that split, and the
+   * per-owner route already carried it — while the network-wide list beside it inherited
+   * the release capability and refused head office the same figures.
+   */
+  it('lets head office read the payout queue without being able to release it', () => {
+    expect(can('hqPayoutRead', 'HEAD_OFFICE')).toBe(true);
+    expect(can('hqPayoutRead', 'DIREKTUR')).toBe(true);
+    expect(can('hqPayout', 'HEAD_OFFICE')).toBe(false);
+    for (const w of CAPABILITIES.hqPayout) {
+      expect(CAPABILITIES.hqPayoutRead).toContain(w);
+    }
+  });
+
+  /*
+   * The same read/write split, applied to the last three money surfaces the HQ console
+   * showed to nobody: FINANCE holds these and FINANCE cannot open /hq at all, so the
+   * refund queue, the settlement aggregates and the agreed commission percentages were
+   * readable by SUPER_ADMIN alone. Reading is now open to the roles that run the network;
+   * approving a refund, applying a scheme and settling a payment are untouched.
+   */
+  it.each([
+    ['refundQueueRead', 'refundQueue'],
+    ['commissionRead', 'commissionRuns'],
+  ] as const)('%s is a superset of its write sibling %s', (read, write) => {
+    expect(can(read, 'HEAD_OFFICE')).toBe(true);
+    expect(can(read, 'DIREKTUR')).toBe(true);
+    expect(can(write, 'HEAD_OFFICE')).toBe(false);
+    for (const w of CAPABILITIES[write]) {
+      expect(CAPABILITIES[read]).toContain(w);
+    }
+  });
+
+  it('lets the network read settlement aggregates without settling anything', () => {
+    expect(can('settlementRead', 'HEAD_OFFICE')).toBe(true);
+    expect(can('settlementRead', 'DIREKTUR')).toBe(true);
+    // Settling an individual payment is a depot/finance action and stays that way.
+    expect(can('paymentSettle', 'HEAD_OFFICE')).toBe(false);
+    expect(can('paymentSettle', 'DIREKTUR')).toBe(false);
+  });
 });

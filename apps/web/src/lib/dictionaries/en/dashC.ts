@@ -202,6 +202,8 @@ export const dashC = {
       hqPayoutRead: 'Franchise payout queue (view)',
       earningRules: 'Courier earning rules',
       commissionRuns: 'Courier commission runs',
+      commissionRead: 'View commission percentages',
+      refundQueueRead: 'View the refund queue',
       catalogWrite: 'Edit the product catalogue',
       orderReports: 'Order reports (network)',
       orderReportsDepot: 'Order reports (per depot)',
