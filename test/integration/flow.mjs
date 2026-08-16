@@ -396,7 +396,22 @@ async function inviteDriver(staff, depotId) {
   const phone = nextPhone();
   const res = await api('POST', '/auth/api/v1/auth/staff/invite', {
     token: staff,
-    body: { phone, role: 'STAFF_DEPOT', fullName: 'Integration Kurir', depotId },
+    /*
+     * The console invite creates the ACCOUNT and the HR employee record together, so the
+     * HR half's required fields come with it — position, join date, employment status and
+     * salary type are not optional on this route. A courier fixture has to look like a
+     * real hire, because the endpoint makes one.
+     */
+    body: {
+      phone,
+      role: 'STAFF_DEPOT',
+      fullName: 'Integration Kurir',
+      depotId,
+      position: 'Kurir',
+      joinDate: new Date().toISOString().slice(0, 10),
+      employmentStatus: 'PERMANENT',
+      salaryType: 'MONTHLY',
+    },
   });
   ok(res, 'invite driver');
   assert(res.body.id, `no driver id: ${JSON.stringify(res.body)}`);
