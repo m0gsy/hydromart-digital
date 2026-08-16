@@ -130,7 +130,9 @@ pdp: {
   approve: (id: string) => `/auth/api/v1/account/data-requests/${id}/approve`,
   // UU PDP tahap 2 — the consent ledger.
   consents: '/auth/api/v1/account/consents',
-  consentHistory: '/auth/api/v1/account/consents/history',
+  // (consentHistory removed, audit F: the consent LEDGER is written and read by the purge
+  // engine, but no screen has ever shown a customer their own consent history. The route
+  // stays live in auth-service; this table lists what the app calls.)
   reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
 },
 } as const;

@@ -68,7 +68,8 @@ deliveries: {
   // the expected total is snapshotted server-side from payment-service.
   settlement: {
     history: '/deliveries/api/v1/driver/settlement',
-    get: (id: string) => `/deliveries/api/v1/driver/settlement/${id}`,
+    // (get removed, audit F: the courier reads their settlement HISTORY and submits a new
+    // one. Opening a past settlement by id has no screen behind it.)
     submit: '/deliveries/api/v1/driver/settlement',
   },
   // Courier empty-gallon return at handover (design 2e, depot-service). Deposit refund
@@ -138,13 +139,8 @@ returns: {
 // Empty-gallon ISSUES on deposit (galon keluar). Paired with returns to compute
 // outstanding-at-customer + deposit held (11c). Under the depots segment.
 gallonIssues: {
-  list: (depotId: string, q: { page?: number; limit?: number } = {}) => {
-    const p = new URLSearchParams();
-    if (q.page) p.set('page', String(q.page));
-    if (q.limit) p.set('limit', String(q.limit));
-    const qs = p.toString();
-    return `/depots/api/v1/depots/${depotId}/gallon-issues${qs ? `?${qs}` : ''}`;
-  },
+  // (list removed, audit F: the depot screen reads `summary` for the outstanding figure and
+  // posts `create` when a galon goes out. Nothing has ever paged the raw issues.)
   summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/summary`,
   create: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues`,
 },
@@ -161,7 +157,8 @@ roster: {
   week: (depotId: string, weekStart: string) =>
     `/shifts/api/v1/shifts?depotId=${encodeURIComponent(depotId)}&weekStart=${encodeURIComponent(weekStart)}`,
   setCell: () => '/shifts/api/v1/shifts',
-  bulk: () => '/shifts/api/v1/shifts/bulk',
+  // (bulk removed, audit F: the roster grid writes one cell at a time — there is no
+  // multi-cell save in the UI for a bulk route to serve.)
 },
 
 handover: {
@@ -172,7 +169,8 @@ handover: {
 },
 
 huddle: {
-  list: (depotId: string) => `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(depotId)}`,
+  // (list removed, audit F: it built the SAME path as `get` below minus the week filter,
+  // and `get` is the one every caller uses. Two entries, one route, one of them dead.)
   get: (q: { depotId: string; weekStart: string }) =>
     `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(q.depotId)}&weekStart=${encodeURIComponent(q.weekStart)}`,
   upsert: '/depots/api/v1/huddle-notes', // PUT
