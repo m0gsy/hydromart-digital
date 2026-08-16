@@ -1011,6 +1011,8 @@ export const hq = {
       sku: 'SKU',
       unit: 'Satuan',
       volumeMl: 'Isi (ml)',
+      image: 'Foto produk',
+      imageHint: 'JPG, PNG, atau WebP, maksimal 5 MB.',
       isGallon: 'Galon isi ulang',
       price: 'Harga dasar',
       category: 'Kategori',

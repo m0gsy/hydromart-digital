@@ -38,6 +38,19 @@ describe('CAPABILITIES', () => {
     expect(can('staffAdmin', 'HR')).toBe(false);
   });
 
+  it('lets every role that can open the HQ catalogue also save it', () => {
+    // The HQ console admits HEAD_OFFICE, DIREKTUR and SUPER_ADMIN; MANAGER is kept out of
+    // it on purpose. Before HEAD_OFFICE was added, the only role that could both open
+    // /hq/catalog and write the catalogue was SUPER_ADMIN, so the form 403'd for the very
+    // role it was built for. Pinned so a future trim cannot silently reopen that gap.
+    expect(can('catalogWrite', 'HEAD_OFFICE')).toBe(true);
+    expect(can('catalogWrite', 'MANAGER')).toBe(true);
+    // Oversight roles read the catalogue, they do not write it.
+    expect(can('catalogWrite', 'DIREKTUR')).toBe(false);
+    expect(can('catalogWrite', 'KEPALA_DEPOT')).toBe(false);
+    expect(can('catalogWrite', 'CUSTOMER')).toBe(false);
+  });
+
   it('never lets a bulk employee import provision an office/superuser account', () => {
     expect(STAFF_IMPORT_ROLES).not.toContain('HEAD_OFFICE');
     expect(STAFF_IMPORT_ROLES).not.toContain('SUPER_ADMIN');
