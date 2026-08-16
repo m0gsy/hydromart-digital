@@ -60,8 +60,10 @@ type Broadcast = {
   title: string;
   body: string;
   createdAt: string;
-  readCount?: number;
-  audienceCount?: number;
+  // No read/audience counts: BroadcastDto returns id, depotId, title, body, level,
+  // createdBy, createdAt, read, readAt — `audienceCount` exists in no backend file, so the
+  // "Terbaca 3/12 kurir" line below could only ever have been skipped. Counting an audience
+  // is a feature, not a repair; the line went rather than pretend it was one request away.
 };
 
 const LEVELS: { key: BroadcastLevel; icon: typeof Info; tone: string; activeBg: string }[] = [
@@ -235,11 +237,6 @@ function SentList({ items }: { items: Broadcast[] }) {
             <span className="ml-auto text-[10.5px] text-[color:var(--text-muted)]">{formatDateTime(b.createdAt)}</span>
           </div>
           <p className="mt-1.5 text-[12.5px] font-extrabold">{b.title}</p>
-          {b.readCount != null && b.audienceCount != null && (
-            <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
-              {t('dashA.broadcast.readCount', { read: b.readCount, audience: b.audienceCount })}
-            </p>
-          )}
         </Card>
       ))}
     </div>

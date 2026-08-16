@@ -45,6 +45,18 @@ describe('PaymentService', () => {
     expect(gateway.charges).toHaveLength(0);
   });
 
+  // Depot reconciliation: the console sends the ids of one page of its own orders, and a
+  // repeated id must not cost the query twice — the DTO's bound is on what was sent, so a
+  // caller repeating one order 100 times would otherwise read 100 orders' worth.
+  it('listForOrders reads each order once, however often it was asked for', async () => {
+    const orderId = randomUUID();
+    await initiate(PaymentMethod.CASH, 45000, orderId);
+    const spy = jest.spyOn(repo, 'findByOrderIds');
+    const rows = await service.listForOrders([orderId, orderId]);
+    expect(rows).toHaveLength(1);
+    expect(spy).toHaveBeenCalledWith([orderId]);
+  });
+
   it('initiates an online payment with a gateway charge and reference', async () => {
     const payment = await initiate(PaymentMethod.VA);
     expect(payment.status).toBe(PaymentStatus.PENDING);

@@ -36,6 +36,7 @@ import {
   VoidForOrderDto,
   InitiatePaymentDto,
   ListPaymentsQueryDto,
+  PaymentsForOrdersDto,
   PaymentWebhookDto,
   RefundPaymentDto,
   StaffInitiatePaymentDto,
@@ -153,6 +154,29 @@ export class PaymentController {
     @Body() dto: CashByOrderDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
     return this.payments.cashCollectedByOrder(dto.orderIds);
+  }
+
+  /*
+   * Depot payment reconciliation (`/dashboard/payment-recon`): the payments recorded
+   * against a page of the depot's own orders.
+   *
+   * The depot cannot come from the payment row — `depotId` is set only for a counter sale,
+   * deliberately, because a delivery order's money belongs to the order and not to a till.
+   * Filtering payments by depot would therefore have answered with the till and labelled it
+   * the depot. The caller sends the ids of orders it already read under its own depot scope,
+   * and this answers for exactly those.
+   *
+   * `depotFinance` because that is the capability that opens the screen this serves;
+   * `paymentSettle` would 403 the SUPERVISOR and DIREKTUR who may read it. POST with the id
+   * set in the body, like `internal/cash-collected` above. Declared before ':id'.
+   */
+  @ApiOkResponse({ type: PaymentResponseDto, isArray: true })
+  @Post('for-orders')
+  @HttpCode(HttpStatus.OK)
+  @Can('depotFinance')
+  @ApiOperation({ summary: 'Payments recorded against a set of orders (depot reconciliation)' })
+  listForOrders(@Body() dto: PaymentsForOrdersDto): Promise<PaymentRecord[]> {
+    return this.payments.listForOrders(dto.orderIds);
   }
 
   @ApiOkResponse({ type: PagedPaymentResponseDto })

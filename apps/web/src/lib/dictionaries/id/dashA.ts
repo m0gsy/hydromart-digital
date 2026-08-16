@@ -107,7 +107,6 @@ export const dashA = {
     toActiveCouriers: 'Ke kurir aktif depot',
     send: 'Kirim broadcast',
     emptySent: 'Belum ada broadcast terkirim.',
-    readCount: 'Terbaca {read}/{audience} kurir',
     heading: 'Broadcast',
     viaCourierNotif: '{name} · lewat notifikasi kurir',
     noDepotTitle: 'Belum ada depot',

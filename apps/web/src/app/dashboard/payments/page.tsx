@@ -225,10 +225,15 @@ function PaymentsBody() {
         <CenterState title={t('dashB.payments.noDepots')} icon={<Wallet size={40} weight="fill" />}>
           {t('dashB.payments.noDepotsBody')}
         </CenterState>
+      ) : /* The error branch runs BEFORE `!depot`, or it can never run at all: `depot` is
+            only ever filled from `detail.data`, so a failed read leaves loading false and
+            depot null — the skeleton branch stayed true forever and ErrorState below was
+            unreachable. `ready` guards the flash while the depot list is still settling,
+            when the read is rejected on purpose for having no depot to ask about. */
+      ready && detail.error && !detail.loading ? (
+        <ErrorState message={detail.error} onRetry={detail.reload} />
       ) : detail.loading || !depot ? (
         <Skeleton className="h-96 w-full" />
-      ) : detail.error ? (
-        <ErrorState message={detail.error} onRetry={detail.reload} />
       ) : (
         <>
           <Card className="p-5">

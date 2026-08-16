@@ -82,6 +82,12 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
+  async findByOrderIds(orderIds: string[]): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter((r) => orderIds.includes(r.orderId))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r }));
+  }
   async listPendingRefunds(query: {
     page: number;
     limit: number;

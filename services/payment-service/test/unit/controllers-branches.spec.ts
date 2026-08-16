@@ -20,6 +20,7 @@ describe('PaymentController', () => {
     initiate: jest.fn(),
     listForCustomer: jest.fn(),
     listAll: jest.fn(),
+    listForOrders: jest.fn(),
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
@@ -74,6 +75,11 @@ describe('PaymentController', () => {
   it('the internal twin runs the identical query as the staff route', async () => {
     expect(await controller.listForOrderInternal('order-9')).toBe('RESULT');
     expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
+  });
+
+  it('listForOrders forwards the id set from the body', async () => {
+    expect(await controller.listForOrders({ orderIds: ['o1', 'o2'] })).toBe('RESULT');
+    expect(svc.listForOrders).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
   it('unsettledByMethod maps a present from/to window to Dates', async () => {

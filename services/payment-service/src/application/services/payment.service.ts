@@ -180,6 +180,17 @@ export class PaymentService {
   }
 
   /**
+   * The payments recorded against a set of orders — the depot reconciliation read.
+   *
+   * Duplicate ids are collapsed so a caller cannot spend its bound twice on one order; the
+   * DTO caps the set, and this is the only place that decides what "the same order twice"
+   * means.
+   */
+  async listForOrders(orderIds: string[]): Promise<PaymentRecord[]> {
+    return this.payments.findByOrderIds([...new Set(orderIds)]);
+  }
+
+  /**
    * Manually mark a payment settled (e.g. cash received on delivery). For COD the
    * driver may pass the cash handed over (design 7a): the change owed back is
    * computed and recorded, and underpayment is rejected (a COD payment cannot

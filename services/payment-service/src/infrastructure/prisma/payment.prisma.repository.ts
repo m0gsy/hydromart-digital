@@ -137,6 +137,19 @@ export class PaymentPrismaRepository implements PaymentRepository {
     };
   }
 
+  async findByOrderIds(orderIds: string[]): Promise<PaymentRecord[]> {
+    if (orderIds.length === 0) {
+      return [];
+    }
+    const rows = await this.prisma.payment.findMany({
+      where: { orderId: { in: orderIds } },
+      // Newest first per order: a new attempt only exists because the previous one failed
+      // or was cancelled, so the first row an order hits is its current truth.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async listPendingRefunds(query: {
     page: number;
     limit: number;
