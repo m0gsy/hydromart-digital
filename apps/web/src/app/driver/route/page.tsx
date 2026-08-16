@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { NavigationArrow, Package, Sparkle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -105,24 +105,17 @@ function RouteView() {
       </header>
 
       {/*
-       * The route summary, and only the summary.
+       * There is no map here on purpose.
        *
-       * This used to sit on top of a 160px "map": a CSS linear-gradient grid with a map
-       * icon in the middle and not a single pin on it. Maps were dropped by decision
-       * (2026-07-24, no SDK, no tiles), so it was never going to become a map — it was a
-       * picture of one, on the screen a courier opens to find their way. The numbers below
-       * are real (haversine over the stops' own destinationLat/Lng); the drawing was not.
+       * A 160px "map" used to sit at the top of this screen: a CSS linear-gradient grid
+       * with a map icon in the middle and not a single pin on it. Maps were dropped by
+       * decision (2026-07-24, no SDK, no tiles), so it was never going to become one — it
+       * was a picture of a map, on the screen a courier opens to find their way.
+       *
+       * Removing it left the route summary printed twice, because the chip that sat on the
+       * map said the same thing as the row below. This is that row; the numbers are real
+       * (haversine over the stops' own destinationLat/Lng, at the depot's configured speed).
        */}
-      <Card className="px-3.5 py-3">
-        <span className="text-[11px] font-extrabold tabular-nums text-[color:var(--fg)]">
-          {t('courierFix.route.summary', {
-            stops: stops.length,
-            km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
-          })}
-          {estMin !== null && t('courierFix.route.summaryEta', { min: estMin })}
-        </span>
-      </Card>
-
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-[color:var(--muted)] tabular-nums">
           {t('courierFix.route.summary', {
