@@ -778,8 +778,10 @@ export interface NetworkDepotRow {
   name: string;
   active: boolean;
   ownershipType: string;
-  revenue: number;
-  orderCount: number;
+  /** Null when this depot fell outside the top-N revenue report — not a depot that sold
+   *  nothing. Render `—`, never Rp 0 (audit E-3). */
+  revenue: number | null;
+  orderCount: number | null;
   slaRate: number | null;
   avgMinutes: number | null;
   rating: number | null;
@@ -814,7 +816,8 @@ export interface NetworkDashboard {
   depots: NetworkDepotRow[];
   sources: {
     depot: 'ok' | 'unavailable';
-    order: 'ok' | 'unavailable';
+    /** 'partial': the revenue report answered, but some depots fell outside its top-N. */
+    order: 'ok' | 'partial' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
   };

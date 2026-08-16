@@ -144,7 +144,11 @@ export default function HqDepotDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={t('hq.depotDetail.kpi.revenue')}
-          value={perf ? `Rp ${perf.revenue.toLocaleString('id-ID')}` : t('hq.common.dash')}
+          value={
+            perf?.revenue != null
+              ? `Rp ${perf.revenue.toLocaleString('id-ID')}`
+              : t('hq.common.dash')
+          }
         />
         <Tile
           label={t('hq.depotDetail.kpi.orders')}

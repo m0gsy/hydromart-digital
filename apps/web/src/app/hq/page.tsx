@@ -104,7 +104,9 @@ export default function HqOverviewPage() {
     orderCount: d.orderCount,
     sla: d.slaRate, // number | null (null = no delivered orders in range)
   }));
-  const byRevenue = [...rows].sort((a, b) => b.revenue - a.revenue);
+  // A depot whose revenue was never reported sorts last rather than as a zero-earner
+  // (audit E-3): it is unknown, not bottom of the table.
+  const byRevenue = [...rows].sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1));
 
   // "Needs attention": depots with a real SLA below the healthy band + any down source.
   const lowSla = rows
@@ -227,7 +229,7 @@ export default function HqOverviewPage() {
                       >
                         <td className="py-2.5 font-medium">{r.name}</td>
                         <td className="py-2.5 text-right">
-                          <Money amount={r.revenue} />
+                          {r.revenue != null ? <Money amount={r.revenue} /> : t('hq.common.dash')}
                         </td>
                         <td className="py-2.5 text-right tabular-nums">
                           {r.sla != null ? `${Math.round(r.sla * 100)}%` : t('hq.common.dash')}

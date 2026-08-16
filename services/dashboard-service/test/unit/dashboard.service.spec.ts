@@ -239,6 +239,50 @@ describe('DashboardService', () => {
     expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok' });
   });
 
+  /*
+   * E-3. Revenue comes off a TOP-100 report. A depot absent from a report that came back
+   * FULL is a depot we did not measure, and it used to read a confident "Rp 0" while
+   * `sources.order` still said 'ok' — a number the network total then added up.
+   */
+  it('reports a depot outside a full top-N as unknown, not as zero revenue', async () => {
+    const listed = Array.from({ length: 101 }, (_, i) => ({
+      id: `dep-${i}`,
+      code: `D-${i}`,
+      name: `Depot ${i}`,
+      active: true,
+      ownershipType: 'PUSAT',
+    }));
+    // The report answers with its limit — the first 100 — so depot 100 is simply not in it.
+    const reported = listed.slice(0, 100).map((d, i) => ({
+      depotId: d.id,
+      orderCount: 1,
+      revenue: 1000 + i,
+    }));
+    const sources = {
+      allDepots: jest.fn().mockResolvedValue(listed),
+      topDepots: jest.fn().mockResolvedValue({ items: reported }),
+      slaByDepot: jest.fn().mockResolvedValue({ depots: [] }),
+      ratingByDepot: jest.fn().mockResolvedValue({ items: [] }),
+      lowStock: jest.fn().mockResolvedValue([]),
+    } as unknown as DashboardSourcesPort;
+
+    const out = await new DashboardService(sources, dashboardTestConfig(), noNames).network(
+      { from: null, to: null } as never,
+      'Bearer t',
+    );
+
+    expect(out.depots.find((d) => d.depotId === 'dep-0')).toMatchObject({
+      revenue: 1000,
+      orderCount: 1,
+    });
+    expect(out.depots.find((d) => d.depotId === 'dep-100')).toMatchObject({
+      revenue: null,
+      orderCount: null,
+    });
+    // The answer arrived and is incomplete — neither 'ok' nor 'unavailable' says that.
+    expect(out.sources.order).toBe('partial');
+  });
+
   it('marks order unavailable in the roll-up but still lists depots + SLA', async () => {
     const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig(), noNames);
     const result = await service.network({}, 'Bearer t');

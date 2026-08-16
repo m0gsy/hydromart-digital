@@ -1088,6 +1088,9 @@ export class ExportRowResponseDto {
 export class InternalExportRowsResponseDto {
   @ApiProperty({ type: [ExportRowResponseDto] })
   rows!: ExportRowResponseDto[];
+  /** True when the row cap was hit and the report is missing everything past it (E-4). */
+  @ApiProperty()
+  truncated!: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

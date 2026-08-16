@@ -471,23 +471,35 @@ export class ReportService {
   async exportRows(
     dataset: 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT',
     range: ReportRange,
-  ): Promise<{ label: string; orders: number; revenue: number }[]> {
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[]; truncated: boolean }> {
+    /*
+     * E-4: `truncated`, like `segmentCustomers` above already reports. EXPORT_ROWS is 100
+     * and nothing said so: a network past its 100th depot handed finance a spreadsheet that
+     * simply stopped, with no row, header or flag to say the rest existed. A short answer
+     * and a cut-off answer look identical in a spreadsheet, and only one of them is a fact.
+     */
     if (dataset === 'REVENUE_BY_PRODUCT') {
       const report = await this.revenueByProduct(range, ReportService.EXPORT_ROWS);
-      return report.items.map((i) => ({
-        label: i.productName,
-        orders: i.orderCount,
-        revenue: i.revenue,
-      }));
+      return {
+        rows: report.items.map((i) => ({
+          label: i.productName,
+          orders: i.orderCount,
+          revenue: i.revenue,
+        })),
+        truncated: report.items.length >= ReportService.EXPORT_ROWS,
+      };
     }
     const { items } = await this.topDepots(range, ReportService.EXPORT_ROWS);
     const contacts = (await this.depotDirectory?.listContacts()) ?? null;
     const names = new Map((contacts ?? []).map((d) => [d.id, d.name]));
-    return items.map((i) => ({
-      label: names.get(i.depotId) ?? i.depotId,
-      orders: i.orderCount,
-      revenue: i.revenue,
-    }));
+    return {
+      rows: items.map((i) => ({
+        label: names.get(i.depotId) ?? i.depotId,
+        orders: i.orderCount,
+        revenue: i.revenue,
+      })),
+      truncated: items.length >= ReportService.EXPORT_ROWS,
+    };
   }
 
   async customerSummary(customerId: string): Promise<CustomerSummary> {

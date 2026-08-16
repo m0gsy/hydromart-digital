@@ -244,8 +244,8 @@ export class ReportController {
   @ApiOperation({ summary: 'Revenue rows for a scheduled report (internal service auth)' })
   async internalExportRows(
     @Query() q: ExportRowsQueryDto,
-  ): Promise<{ rows: { label: string; orders: number; revenue: number }[] }> {
-    return { rows: await this.reports.exportRows(q.dataset, toRange(q)) };
+  ): Promise<{ rows: { label: string; orders: number; revenue: number }[]; truncated: boolean }> {
+    return this.reports.exportRows(q.dataset, toRange(q));
   }
 
   /**

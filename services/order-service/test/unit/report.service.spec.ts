@@ -233,14 +233,16 @@ describe('ReportService', () => {
       const withNames = new ReportService(repo, reportTestConfig(), {
         listContacts: async () => [{ id: DEPOT_A, name: 'Depot Cibubur', contactPhone: null }],
       } as never);
-      const rows = await withNames.exportRows('REVENUE_BY_DEPOT', {});
+      const { rows } = await withNames.exportRows('REVENUE_BY_DEPOT', {});
       expect(rows.find((r) => r.label === 'Depot Cibubur')).toBeDefined();
     });
 
     it('falls back to the depot id rather than dropping the report', async () => {
-      const rows = await reports.exportRows('REVENUE_BY_DEPOT', {});
+      const { rows, truncated } = await reports.exportRows('REVENUE_BY_DEPOT', {});
       expect(rows.every((r) => r.orders > 0)).toBe(true);
       expect(rows.some((r) => r.label === DEPOT_A)).toBe(true);
+      // Two depots, cap of 100 — a short report, and it says so rather than staying silent.
+      expect(truncated).toBe(false);
     });
 
     it('labels product rows with the product name', async () => {
@@ -262,8 +264,32 @@ describe('ReportService', () => {
           },
         ],
       });
-      const rows = await svc.exportRows('REVENUE_BY_PRODUCT', {});
-      expect(rows).toEqual([{ label: 'Galon 19L', orders: 1, revenue: 40000 }]);
+      const out = await svc.exportRows('REVENUE_BY_PRODUCT', {});
+      expect(out.rows).toEqual([{ label: 'Galon 19L', orders: 1, revenue: 40000 }]);
+      expect(out.truncated).toBe(false);
+    });
+
+    /*
+     * E-4. EXPORT_ROWS is 100 and the spreadsheet said nothing when it was reached: a
+     * network past its 100th depot handed finance a report that simply stopped, and a short
+     * month and a cut-off month look identical once they are rows in a file. Its neighbour
+     * `segmentCustomers` has reported this since it was written; this one did not.
+     */
+    it('reports a report that hit the row cap as truncated', async () => {
+      const repoAtCap = {
+        topDepots: async () =>
+          Array.from({ length: 100 }, (_, i) => ({
+            depotId: `depot-${i}`,
+            orderCount: 1,
+            revenue: 1000,
+          })),
+      } as never;
+      const svc = new ReportService(repoAtCap, reportTestConfig());
+
+      const out = await svc.exportRows('REVENUE_BY_DEPOT', {});
+
+      expect(out.rows).toHaveLength(100);
+      expect(out.truncated).toBe(true);
     });
   });
 
