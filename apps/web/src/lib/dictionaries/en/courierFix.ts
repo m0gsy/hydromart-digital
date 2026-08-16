@@ -25,7 +25,8 @@ export const courierFix = {
   route: {
     title: 'Multi-stop route',
     sorted: 'Sorted',
-    summary: '{stops} stops · {km} km · ± {min} min',
+    summary: '{stops} stops · {km} km',
+    summaryEta: ' · ± {min} min',
     next: 'Next',
     cod: 'COD {amount}',
     paid: 'Paid',

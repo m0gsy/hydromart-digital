@@ -65,7 +65,6 @@ describe('Settings HTTP flows (e2e)', () => {
               PAYOUT_SERVICE_PORT: 3016,
               PAYOUT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
-              PAYOUT_COMMISSION_RATE: 0.05,
               EXPENSE_AUTO_APPROVE_MAX_IDR: 50000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,

@@ -25,6 +25,11 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'maxActiveDeliveriesPerDriver', label: 'Maks pengiriman aktif / kurir', type: 'int', min: 1, max: 20, envDefault: 1 },
   { key: 'slaMinutes', label: 'SLA pengiriman', type: 'int', unit: 'menit', min: 15, max: 600, envDefault: 120 },
   { key: 'urbanSpeedKmph', label: 'Kecepatan rata-rata kota (ETA)', type: 'number', unit: 'km/jam', min: 5, max: 60, envDefault: 18 },
+  // The other half of the multi-stop ETA. The courier route screen used to add a flat
+  // 4 minutes per drop from a literal in the browser, next to a literal 3 min/km that
+  // ignored urbanSpeedKmph entirely — so the depot could tune the speed and the screen
+  // would not move. Both halves are settings now, and the screen reads them.
+  { key: 'routeStopMinutes', label: 'Waktu per perhentian (ETA rute)', type: 'number', unit: 'menit', min: 0, max: 60, envDefault: 4 },
   { key: 'courierWeeklyTarget', label: 'Target mingguan kurir', type: 'int', unit: 'order', min: 0, max: 1000, envDefault: 45 },
   { key: 'noShowMinContactAttempts', label: 'Min. percobaan kontak sebelum no-show', type: 'int', min: 1, max: 10, envDefault: 2 },
   { key: 'noShowMinWaitSeconds', label: 'Min. tunggu sebelum no-show', type: 'int', unit: 'detik', min: 0, max: 3600, envDefault: 300 },

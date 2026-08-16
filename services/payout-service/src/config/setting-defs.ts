@@ -44,6 +44,28 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 100,
     envDefault: 0,
   },
+  {
+    /*
+     * How the HQ depot scorecard weights revenue against on-time delivery, as a whole
+     * percent. The SLA half is whatever is left over, so the two can never drift apart or
+     * stop summing to 100 — one number, not two knobs that disagree.
+     *
+     * It lived in the browser as `revenue * 0.7 + sla * 0.3`, a pair of literals invented
+     * on a page that ranks franchisees against each other. A weighting that decides who
+     * sits at the bottom of a league table is a business policy, and head office has to be
+     * able to change it without a deploy.
+     *
+     * GLOBAL only: a per-depot override would let a depot pick the formula it is judged by.
+     */
+    key: 'scorecardRevenueWeightPct',
+    label: 'Bobot omzet pada skor depot (sisanya SLA)',
+    type: 'number',
+    unit: '%',
+    min: 0,
+    max: 100,
+    envDefault: 70,
+    global: true,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

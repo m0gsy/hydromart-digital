@@ -56,11 +56,6 @@ describe('PayoutConfigService', () => {
     expect(make({}).corsOrigins).toEqual(['http://localhost:3000']);
   });
 
-  it('parses the commission rate, defaulting to 5%', () => {
-    expect(make({}).commissionRate).toBe(0.05);
-    expect(make({ PAYOUT_COMMISSION_RATE: '0.12' }).commissionRate).toBe(0.12);
-  });
-
   // H-16: one business timezone for the platform. Unset must land on WIB — an unset
   // PRICING_TZ used to mean UTC, which is a seven-hour error in every day boundary.
   it('defaults the business timezone to WIB and honours an override', () => {

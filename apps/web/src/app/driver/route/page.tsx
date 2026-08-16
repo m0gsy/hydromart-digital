@@ -15,6 +15,11 @@ import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
 const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 
+/** The depot every stop on this route belongs to — a courier works one at a time. */
+function depotIdOf(page: Page<Delivery> | null): string | null {
+  return page?.items?.find((d) => ACTIVE.includes(d.status))?.depotId ?? null;
+}
+
 /** Straight-line distance (km) between two lat/lng points (haversine). */
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const R = 6371;
@@ -35,6 +40,23 @@ function RouteView() {
   const { t } = useT();
   const router = useRouter();
   const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
+  /*
+   * The ETA's two constants, from the depot's own settings rather than from this file.
+   *
+   * It used to read `totalKm * 3 + stops.length * 4` — 3 min/km and 4 min per drop,
+   * invented in the browser. `urbanSpeedKmph` already existed as a per-depot setting and
+   * delivery-service already used it for the single-delivery ETA, so a depot that tuned its
+   * speed moved every estimate in the product EXCEPT this one. `routeStopMinutes` is its
+   * new sibling for the standing half.
+   *
+   * Settings resolve per depot, and every stop on a route belongs to the same depot (a
+   * courier works one), so the first stop names it. Undefined while loading; the summary
+   * waits rather than showing a number from a default nobody chose.
+   */
+  const settings = useAsync<{ effective: Record<string, number | string> }>(
+    () => api.get(endpoints.deliverySettings.schema(depotIdOf(list.data)), true),
+    [depotIdOf(list.data)],
+  );
 
   if (list.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
   if (list.error) return <div className="p-5"><ErrorState message={list.error} onRetry={list.reload} /></div>;
@@ -66,8 +88,15 @@ function RouteView() {
     return haversineKm(prev.destinationLat, prev.destinationLng, d.destinationLat, d.destinationLng);
   });
   const totalKm = legs.reduce<number>((sum, km) => sum + (km ?? 0), 0);
-  // ponytail: ~3 min/km riding + 4 min per drop; replace with route-API duration.
-  const estMin = Math.round(totalKm * 3 + stops.length * 4);
+  // ponytail: straight-line distance at a flat average speed — no traffic, no road network.
+  // The same simplification delivery-service makes for a single delivery, and the same
+  // knobs, so calibrating one calibrates both.
+  const speedKmph = Number(settings.data?.effective?.urbanSpeedKmph);
+  const stopMinutes = Number(settings.data?.effective?.routeStopMinutes);
+  const estMin =
+    Number.isFinite(speedKmph) && speedKmph > 0 && Number.isFinite(stopMinutes)
+      ? Math.round((totalKm / speedKmph) * 60 + stops.length * stopMinutes)
+      : null;
 
   return (
     <div className="space-y-3 px-4 py-5">
@@ -91,8 +120,8 @@ function RouteView() {
           {t('courierFix.route.summary', {
             stops: stops.length,
             km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
-            min: estMin,
           })}
+          {estMin !== null && t('courierFix.route.summaryEta', { min: estMin })}
         </span>
       </Card>
 
@@ -101,8 +130,8 @@ function RouteView() {
           {t('courierFix.route.summary', {
             stops: stops.length,
             km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
-            min: estMin,
           })}
+          {estMin !== null && t('courierFix.route.summaryEta', { min: estMin })}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-extrabold text-brand-700">
           <Sparkle size={13} weight="fill" />
