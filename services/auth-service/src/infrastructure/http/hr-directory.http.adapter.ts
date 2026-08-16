@@ -39,6 +39,10 @@ export class HrDirectoryHttpAdapter implements HrDirectoryPort {
     await this.post('employees/internal/status', { authSubjectId, active });
   }
 
+  async setEmployeeDepot(authSubjectId: string, depotId: string | null): Promise<void> {
+    await this.post('employees/internal/depot', { authSubjectId, depotId });
+  }
+
   async anonymiseEmployee(authSubjectId: string): Promise<void> {
     await this.post('employees/internal/anonymise', { authSubjectId });
   }

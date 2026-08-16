@@ -42,6 +42,25 @@ export interface HrDirectoryPort {
   setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
 
   /**
+   * Carry a depot transfer made in the staff console through to the employee record.
+   *
+   * The console could move an account between depots and hr-service never heard about it,
+   * so the same person sat in one depot for login scoping and another for rostering,
+   * attendance geofencing and payroll — with nothing on either screen saying the two
+   * disagreed. `setStaffRole` and the invite paths already push their depot; this was the
+   * one console write that did not.
+   *
+   * Same notifying-half / writing-half split as `setEmployeeActive`: the route hr-service
+   * calls in the other direction writes without notifying, or the two services would keep
+   * telling each other about the same change forever.
+   *
+   * Fails HARD, like the rest of this port. A depot that disagrees between the two records
+   * is precisely the condition being closed, so a refused push must undo the transfer
+   * rather than leave half of it standing.
+   */
+  setEmployeeDepot(authSubjectId: string, depotId: string | null): Promise<void>;
+
+  /**
    * Strip identity from one employee record when HQ deletes their account.
    *
    * The per-person form of the departed-staff retention sweep, and it keeps that sweep's

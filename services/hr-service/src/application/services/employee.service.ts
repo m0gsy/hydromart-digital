@@ -876,6 +876,41 @@ export class EmployeeService {
   }
 
   /**
+   * The other direction for a depot transfer: auth-service reports that the staff console
+   * moved an account to another depot, and the employee record follows.
+   *
+   * Writes ONLY — no push back to auth-service, same split as `setActiveInternal` above.
+   *
+   * Silently does nothing for an unknown account: auth-service holds identities that were
+   * never employees (customers, franchise owners), and refusing those would make an
+   * ordinary transfer look broken.
+   *
+   * REFUSES a move that would strand the employee in another depot's department. `update()`
+   * checks this for every console-side edit, but that check cannot run here: an internal-key
+   * route has no `AuthenticatedUser`, so `assertDepotAccess` is not in the path at all. Left
+   * out, this route would be the one door into the exact inconsistency the department rule
+   * exists to prevent. The refusal travels back up: auth-service pushes hard, so the console
+   * transfer fails whole rather than moving the login and stranding the employee.
+   */
+  async setDepotInternal(authSubjectId: string, depotId: string | null): Promise<{ updated: boolean }> {
+    const employee = await this.repo.findByAuthSubjectId(authSubjectId);
+    if (!employee) {
+      return { updated: false };
+    }
+    if (employee.depotId === depotId) {
+      return { updated: false };
+    }
+    await this.assertDepartmentFits(employee.departmentId ?? undefined, depotId);
+    await this.repo.update(
+      employee.id,
+      { depotId },
+      // Actor is the staff console via auth-service, not a person this service can name.
+      this.diffHistory(employee, { depotId } as Prisma.EmployeeUpdateInput, null),
+    );
+    return { updated: true };
+  }
+
+  /**
    * An employee always has a depot; a department may be depot-owned or network-wide. So a
    * depot-owned department only accepts staff of that same depot — otherwise a JKT clerk could
    * land in "Gudang SBY" and every depot-scoped report would count them twice.

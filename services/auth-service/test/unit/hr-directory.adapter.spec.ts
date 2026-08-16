@@ -36,6 +36,7 @@ describe('HrDirectoryHttpAdapter', () => {
     const adapter = new HrDirectoryHttpAdapter(blank);
     await expect(adapter.provisionEmployee(INPUT)).rejects.toThrow('HR_SERVICE_URL');
     await expect(adapter.setEmployeeActive('cust-1', false)).rejects.toThrow('HR_SERVICE_URL');
+    await expect(adapter.setEmployeeDepot('cust-1', 'depot-2')).rejects.toThrow('HR_SERVICE_URL');
     await expect(adapter.anonymiseEmployee('cust-1')).rejects.toThrow('HR_SERVICE_URL');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -64,6 +65,26 @@ describe('HrDirectoryHttpAdapter', () => {
 
     await adapter.anonymiseEmployee('cust-1');
     expect(fetchMock.mock.calls[1][0]).toBe('http://hr:3018/api/v1/employees/internal/anonymise');
+  });
+
+  it('carries a depot transfer, including a null depot, to its own route', async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    const adapter = new HrDirectoryHttpAdapter(configured);
+
+    await adapter.setEmployeeDepot('cust-1', 'depot-2');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://hr:3018/api/v1/employees/internal/depot');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      authSubjectId: 'cust-1',
+      depotId: 'depot-2',
+    });
+
+    // A role above any single depot has none, and null must reach hr-service as null
+    // rather than being dropped out of the JSON body.
+    await adapter.setEmployeeDepot('cust-1', null);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      authSubjectId: 'cust-1',
+      depotId: null,
+    });
   });
 
   // K-4: the whole file in one call. The per-row verdicts are the reason this route exists
