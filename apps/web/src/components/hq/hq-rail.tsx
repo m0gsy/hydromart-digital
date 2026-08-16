@@ -67,7 +67,7 @@ import {
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { isHq } from '@/lib/roles';
+import { can, isHq, type Capability } from '@/lib/roles';
 import { useTheme } from '@/lib/theme-context';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
@@ -84,6 +84,16 @@ export interface HqRailItem {
   icon: Icon;
   // Milestone-A routes render now; others are declared for easy extension but hidden.
   ready: boolean;
+  /**
+   * Capability the screen genuinely needs, when the HQ gate alone is not enough.
+   *
+   * The comment below used to say items "don't carry finer gates in Milestone A", and a
+   * browser pass as a real HEAD_OFFICE proved that assumption wrong: six platform-admin
+   * screens are `platformAdmin` (SUPER_ADMIN only) server-side and answered 403 while
+   * sitting in the nav of every role the console admits. A menu entry that can only ever
+   * fail reads as a broken system, not as a permission boundary.
+   */
+  cap?: Capability;
 }
 export interface HqRailGroup {
   // i18n key under hq.groups.*
@@ -91,9 +101,11 @@ export interface HqRailGroup {
   items: HqRailItem[];
 }
 
-// Full HQ area-map (design 11a). The whole console is HEAD_OFFICE/SUPER_ADMIN-only via
-// the layout gate, so items don't carry finer gates in Milestone A. Only `ready` items
-// render; the rest sit here so wiring a later milestone is a one-line flag flip.
+// Full HQ area-map (design 11a). The layout gate admits HEAD_OFFICE, DIREKTUR and
+// SUPER_ADMIN; items that need MORE than that carry `cap` and are filtered per role by
+// `hqGroupsForRole`. (This comment used to say no item needed a finer gate — six of them
+// did, and only a browser pass as a real head-office account found out.) Only `ready`
+// items render; the rest sit here so wiring a later milestone is a one-line flag flip.
 //
 // The last three `ready: false` entries (/hq/flow, /hq/system, /hq/admin) are gone: no page
 // was ever written for any of them, so the flag could not be flipped — they were a to-do
@@ -203,22 +215,22 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'system',
     items: [
       { href: '/hq/audit', labelKey: 'audit', icon: ClockCounterClockwise, ready: true },
-      { href: '/hq/flags', labelKey: 'flags', icon: Flag, ready: true },
+      { href: '/hq/flags', labelKey: 'flags', icon: Flag, ready: true, cap: 'platformAdmin' },
       { href: '/hq/health', labelKey: 'health', icon: Heartbeat, ready: true },
       { href: '/hq/exports', labelKey: 'exports', icon: FileArrowDown, ready: true },
-      { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true },
-      { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true },
+      { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true, cap: 'platformAdmin' },
+      { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true, cap: 'platformAdmin' },
       { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true },
-      { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true },
+      { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true, cap: 'platformAdmin' },
       { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true },
-      { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true },
+      { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true, cap: 'platformAdmin' },
     ],
   },
   {
     headKey: 'admin',
     items: [
       { href: '/hq/profile', labelKey: 'profile', icon: IdentificationBadge, ready: true },
-      { href: '/hq/wizard', labelKey: 'wizard', icon: Sparkle, ready: true },
+      { href: '/hq/wizard', labelKey: 'wizard', icon: Sparkle, ready: true, cap: 'platformAdmin' },
       { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', icon: Article, ready: true },
       { href: '/hq/content', labelKey: 'content', icon: Translate, ready: true },
       { href: '/hq/sitemap', labelKey: 'sitemap', icon: SquaresFour, ready: true },
@@ -226,9 +238,25 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
 ];
 
-export function hqItemsForRole(role: Role): HqRailItem[] {
+/**
+ * The nav model as THIS role may see it — groups that end up empty drop out.
+ *
+ * One helper for every surface derived from `HQ_GROUPS` (the rail, the screen index, the
+ * command palette, the access landing). Four copies of the filter would drift, and a
+ * screen index still listing a door the rail has hidden is the same lie wearing a hat.
+ */
+export function hqGroupsForRole(role: Role): HqRailGroup[] {
   if (!isHq(role)) return [];
-  return HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready);
+  return HQ_GROUPS.map((g) => ({
+    ...g,
+    // `cap` filters on top of the console gate: an item whose capability this role lacks is
+    // not shown at all, rather than shown and then refused by the server.
+    items: g.items.filter((i) => i.ready && (!i.cap || can(i.cap, role))),
+  })).filter((g) => g.items.length > 0);
+}
+
+export function hqItemsForRole(role: Role): HqRailItem[] {
+  return hqGroupsForRole(role).flatMap((g) => g.items);
 }
 
 export function HqRail() {
@@ -257,9 +285,8 @@ export function HqRail() {
       </div>
 
       <nav className="mt-3.5 flex flex-col gap-px">
-        {HQ_GROUPS.map((group) => {
-          const items = group.items.filter((i) => i.ready && isHq(role));
-          if (items.length === 0) return null;
+        {hqGroupsForRole(role).map((group) => {
+          const items = group.items;
           return (
             <div key={group.headKey}>
               <p className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">

@@ -304,8 +304,12 @@ export const CAPABILITIES = {
   // payment-service — decide a refund parked above the auto-refund threshold. Kept
   // apart from refundIssue on purpose: whoever asks must not be whoever approves.
   refundQueue: ['FINANCE', 'SUPER_ADMIN'],
-  // payment-service — read the settlement/reconciliation ledger.
-  settlementRead: ['FINANCE', 'SUPER_ADMIN'],
+  // payment-service — read the settlement/reconciliation ledger. Head office and the
+  // director read these network aggregates (unsettled-by-method, revenue-by-method) on
+  // /hq/payments and /hq/reports/export; nothing here settles or refunds anything, and the
+  // capability that does (`paymentSettle`) is untouched. FINANCE cannot open /hq at all,
+  // so before this the two screens were readable by SUPER_ADMIN alone.
+  settlementRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // payout-service — release a franchise owner's balance to their bank.
   hqPayout: ['FINANCE', 'SUPER_ADMIN'],
   // payout-service — courier earning rules. Was gated in the web console only; the
@@ -357,6 +361,15 @@ export const CAPABILITIES = {
   hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // payout-service — run/close courier commission periods.
   commissionRuns: ['FINANCE', 'SUPER_ADMIN'],
+  // payout-service — READ the agreed per-depot commission percentages. Wider than
+  // `commissionRuns` for the same reason `hqPayoutRead` is wider than `hqPayout`: the
+  // reconciliation statement and the franchise screen SHOW the agreed cut to head office,
+  // while applying a new scheme moves money and stays with finance. Measured, not guessed:
+  // a browser pass as a real HEAD_OFFICE found both screens 403 on this read.
+  commissionRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  // payment-service — READ the HQ refund queue. Deciding a refund (approve/reject) moves
+  // money and stays `refundQueue`; head office watching the queue does not.
+  refundQueueRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // PR-7 — capabilities that were role tuples hardcoded in a controller. Each one is a
   // policy decision (who may write the catalogue, who may read money reports, who sets
   // tax), which means it belongs in the matrix a SUPER_ADMIN can retune at runtime rather

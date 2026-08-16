@@ -200,6 +200,8 @@ export const dashC = {
       hqPayoutRead: 'Antrean payout waralaba (lihat)',
       earningRules: 'Aturan penghasilan kurir',
       commissionRuns: 'Periode komisi kurir',
+      commissionRead: 'Lihat persentase komisi',
+      refundQueueRead: 'Lihat antrean refund',
       catalogWrite: 'Ubah katalog produk',
       orderReports: 'Laporan order (jaringan)',
       orderReportsDepot: 'Laporan order (per depot)',

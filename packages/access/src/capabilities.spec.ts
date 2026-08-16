@@ -82,4 +82,31 @@ describe('CAPABILITIES', () => {
       expect(CAPABILITIES.hqPayoutRead).toContain(w);
     }
   });
+
+  /*
+   * The same read/write split, applied to the last three money surfaces the HQ console
+   * showed to nobody: FINANCE holds these and FINANCE cannot open /hq at all, so the
+   * refund queue, the settlement aggregates and the agreed commission percentages were
+   * readable by SUPER_ADMIN alone. Reading is now open to the roles that run the network;
+   * approving a refund, applying a scheme and settling a payment are untouched.
+   */
+  it.each([
+    ['refundQueueRead', 'refundQueue'],
+    ['commissionRead', 'commissionRuns'],
+  ] as const)('%s is a superset of its write sibling %s', (read, write) => {
+    expect(can(read, 'HEAD_OFFICE')).toBe(true);
+    expect(can(read, 'DIREKTUR')).toBe(true);
+    expect(can(write, 'HEAD_OFFICE')).toBe(false);
+    for (const w of CAPABILITIES[write]) {
+      expect(CAPABILITIES[read]).toContain(w);
+    }
+  });
+
+  it('lets the network read settlement aggregates without settling anything', () => {
+    expect(can('settlementRead', 'HEAD_OFFICE')).toBe(true);
+    expect(can('settlementRead', 'DIREKTUR')).toBe(true);
+    // Settling an individual payment is a depot/finance action and stays that way.
+    expect(can('paymentSettle', 'HEAD_OFFICE')).toBe(false);
+    expect(can('paymentSettle', 'DIREKTUR')).toBe(false);
+  });
 });

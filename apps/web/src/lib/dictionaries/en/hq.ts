@@ -292,6 +292,8 @@ export const hq = {
       hqPayout: 'Release a franchise payout',
       hqPayoutRead: 'View the payout queue',
       commissionRuns: 'Courier commission periods',
+      commissionRead: 'View commission percentages',
+      refundQueueRead: 'View the refund queue',
       catalogWrite: 'Edit the product catalogue',
       orderReports: 'Order reports (network)',
       orderReportsDepot: 'Order reports (per depot)',

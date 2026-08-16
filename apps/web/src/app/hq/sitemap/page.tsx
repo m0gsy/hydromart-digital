@@ -4,17 +4,19 @@ import Link from 'next/link';
 import { SquaresFour } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { HQ_GROUPS } from '@/components/hq/hq-rail';
+import { hqGroupsForRole } from '@/components/hq/hq-rail';
 import { Card } from '@/components/ui';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 
 // Design 11a — HQ screen index. Real: generated from HQ_GROUPS (the single nav model), so it
 // always mirrors the actual routes. Only ready screens are listed; click to jump.
 export default function HqSitemapPage() {
   const { t } = useT();
-  const groups = HQ_GROUPS.map((g) => ({ headKey: g.headKey, items: g.items.filter((i) => i.ready) })).filter(
-    (g) => g.items.length > 0,
-  );
+  const { customer } = useAuth();
+  // Per role, not the whole map: a screen index that still lists a door the rail has
+  // hidden — and the server refuses — is the same lie in a different font.
+  const groups = hqGroupsForRole(customer?.role);
   const total = groups.reduce((n, g) => n + g.items.length, 0);
 
   return (

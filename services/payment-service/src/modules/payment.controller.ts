@@ -239,7 +239,8 @@ export class PaymentController {
   // threshold, newest first. Declared before ':id' so the static segment wins.
   @ApiOkResponse({ type: PagedRefundQueueResponseDto })
   @Get('refunds/queue')
-  @Can('refundQueue')
+  // Watching the queue is not deciding it: approve/reject below keep `refundQueue`.
+  @Can('refundQueueRead')
   @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
   listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<RefundQueueRow>> {
     return this.payments.listRefundQueue(query);

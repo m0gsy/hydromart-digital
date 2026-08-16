@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, MagnifyingGlass } from '@phosphor-icons/react';
 
-import { HQ_GROUPS } from '@/components/hq/hq-rail';
+import { hqItemsForRole } from '@/components/hq/hq-rail';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 
 // ⌘K / Ctrl+K command palette (design 23c), mounted once in the HQ layout so it's
@@ -32,6 +33,7 @@ const ACTION_DEFS: { id: string; labelKey: string; href: string }[] = [
 
 export function CommandPalette() {
   const { t } = useT();
+  const { customer } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -73,8 +75,9 @@ export function CommandPalette() {
   }, [open]);
 
   const commands = useMemo<Cmd[]>(() => {
-    const screens: Cmd[] = HQ_GROUPS.flatMap((g) => g.items)
-      .filter((i) => i.ready)
+    // Same per-role filter as the rail: the palette must not offer a screen the nav
+    // hides and the server refuses.
+    const screens: Cmd[] = hqItemsForRole(customer?.role)
       .map((i) => ({ id: `s-${i.href}`, label: t(`hq.nav.${i.labelKey}`), href: i.href, group: 'screens' }));
     const actions: Cmd[] = ACTION_DEFS.map((a) => ({
       id: a.id,
@@ -83,7 +86,7 @@ export function CommandPalette() {
       group: 'actions',
     }));
     return [...actions, ...screens];
-  }, [t]);
+  }, [t, customer?.role]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

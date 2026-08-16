@@ -295,6 +295,8 @@ export const hq = {
       hqPayout: 'Cairkan payout waralaba',
       hqPayoutRead: 'Lihat antrean payout',
       commissionRuns: 'Periode komisi kurir',
+      commissionRead: 'Lihat persentase komisi',
+      refundQueueRead: 'Lihat antrean refund',
       catalogWrite: 'Ubah katalog produk',
       orderReports: 'Laporan order (jaringan)',
       orderReportsDepot: 'Laporan order (per depot)',
