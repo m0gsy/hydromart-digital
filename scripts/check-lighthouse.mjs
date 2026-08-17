@@ -54,6 +54,37 @@ const TOLERANCE = {
 
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 
+/**
+ * What the composite performance score is MADE OF, and unlike the score itself these do not
+ * move between runs on the same build. A shared runner's CPU changes how fast the bytes are
+ * parsed; it does not change how many bytes there are.
+ *
+ * So the score stays printed and ungated, and the things that actually make it fall are
+ * gated: shipping 400 KB more JavaScript, adding thirty requests to a page load, doubling
+ * the DOM. That IS what people mean by "performance got worse", and it is measurable to the
+ * byte on any machine.
+ *
+ * Tolerances are proportional and deliberately loose enough to ignore a build-id string and
+ * tight enough to catch a library.
+ */
+const WEIGHTS = {
+  bytes: {
+    label: 'transferred',
+    tolerance: 0.05,
+    of: (lhr) => lhr.audits['total-byte-weight']?.numericValue,
+  },
+  requests: {
+    label: 'requests',
+    tolerance: 0.1,
+    of: (lhr) => lhr.audits['network-requests']?.details?.items?.length,
+  },
+  domNodes: {
+    label: 'DOM nodes',
+    tolerance: 0.05,
+    of: (lhr) => lhr.audits['dom-size']?.numericValue,
+  },
+};
+
 /** The pages a customer actually opens, plus the one a courier lives in. */
 const PAGES = ['/', '/products', '/login', '/driver'];
 
@@ -109,10 +140,16 @@ try {
       const raw = result.lhr.categories[category]?.score;
       scores[category] = raw === null || raw === undefined ? null : Math.round(raw * 100);
     }
+    for (const [key, spec] of Object.entries(WEIGHTS)) {
+      const value = spec.of(result.lhr);
+      if (typeof value === 'number') scores[key] = Math.round(value);
+    }
     measured[page] = scores;
     console.log(
       `${page.padEnd(12)} ` +
-        CATEGORIES.map((c) => `${c}=${scores[c] ?? '—'}`.padEnd(20)).join(' '),
+        [...CATEGORIES, ...Object.keys(WEIGHTS)]
+          .map((c) => `${c}=${scores[c] ?? '—'}`.padEnd(18))
+          .join(' '),
     );
   }
 } finally {
@@ -148,6 +185,18 @@ for (const [page, scores] of Object.entries(measured)) {
     if (slack === null) continue; // measured and printed above, deliberately not gated
     if (now < then - (slack ?? 1)) {
       failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${slack ?? 1})`);
+    }
+  }
+  // The weights go the other way: a CEILING, and higher is worse.
+  for (const [key, spec] of Object.entries(WEIGHTS)) {
+    const now = scores[key];
+    const then = floor[key];
+    if (typeof now !== 'number' || typeof then !== 'number') continue;
+    const ceiling = Math.round(then * (1 + spec.tolerance));
+    if (now > ceiling) {
+      failures.push(
+        `${page} ${spec.label}: ${now} > ${ceiling} (recorded ${then}, +${spec.tolerance * 100}%)`,
+      );
     }
   }
 }

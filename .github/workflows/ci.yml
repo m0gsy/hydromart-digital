@@ -543,9 +543,14 @@ jobs:
 
       # H3. A Lighthouse score nobody gates on is a score nobody reads. The numbers this
       # repo scores today are the floor for accessibility, best-practices and SEO — a PR
-      # may not go below them. PERFORMANCE is printed and deliberately not gated: two runs
-      # of the same commit scored 86 and 68 on /products, and a floor on an 18-point swing
-      # is a gate that fails at random.
+      # may not go below them. The composite PERFORMANCE SCORE is printed and not gated:
+      # two runs of the same commit scored 86 and 68 on /products, and a floor on an
+      # 18-point swing is a gate that fails at random.
+      #
+      # What IS gated is what the score is made of — bytes transferred, request count, DOM
+      # size. A shared runner's CPU changes how fast bytes are parsed; it does not change
+      # how many there are. Shipping 400 KB more JavaScript is what "performance got worse"
+      # actually means, and it is measurable to the byte on any machine.
       # The web app is already built and served above, and Chromium is already installed
       # for Playwright — so this costs one browser run, not another build.
       - name: Lighthouse ratchet
