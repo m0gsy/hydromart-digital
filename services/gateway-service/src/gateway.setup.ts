@@ -35,6 +35,9 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * Harmless (refresh is itself limited, and reuse detection revokes a family that spams
  * it); key on the JWT `sub` claim instead if that ever proves too generous.
  */
+/** The burst window. Exported so a test asserts against the number the app actually uses. */
+export const BURST_WINDOW_MS = 10_000;
+
 export function rateLimitKey(req: Request): string {
   const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
   if (credential) {
@@ -125,6 +128,37 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   // gateway instance; swap in a shared store (rate-limit-redis, and the Redis container
   // Q-9 removed) once the gateway scales horizontally, so counters are shared across
   // instances instead of each replica granting the full quota on its own.
+  /*
+   * The OTP tier, and it is a BILLING control before it is an availability one.
+   *
+   * Every call that issues a code sends a real SMS through Zenziva, and Zenziva invoices
+   * per message. auth-service caps RESENDS per customer — but nothing capped a caller who
+   * walks a different phone number on each request, which is the shape that costs money:
+   * one IP, one script, six hundred numbers a minute under the general ceiling, every one
+   * of them a paid message to a stranger's handset.
+   *
+   * Keyed by IP because these callers have no credential yet, and deliberately strict: a
+   * human registering needs three calls (register, maybe one resend, verify), so twenty a
+   * minute is roughly seven honest attempts and nothing like a pump.
+   *
+   * Independent of the general limit and of the HQ request storm that inflated it — this
+   * tier can be tightened on its own merits without waiting for that measurement.
+   */
+  const OTP_ISSUING = /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/;
+  app.use(
+    rateLimit({
+      windowMs: config.rateLimit.ttlSeconds * 1000,
+      limit: config.rateLimit.otpLimit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      // `req.ip` is always set behind the trust-proxy setting above; the prefix is what
+      // keeps this bucket separate from the general one for the same address.
+      keyGenerator: (req) => `otp:${req.ip}`,
+      skip: (req) => !OTP_ISSUING.test(req.path),
+      message: { statusCode: 429, message: 'Too many verification requests' },
+    }),
+  );
+
   app.use(
     rateLimit({
       windowMs: config.rateLimit.ttlSeconds * 1000,
@@ -135,6 +169,35 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
       // `/mobile-config` joins `/health` as exempt for the same reason: it is read once
       // per app launch, before the user has done anything, by every installed device. A
       // 429 there would fail the one check whose whole job is to be answerable.
+      skip: (req) => req.path === '/health' || req.path === '/mobile-config',
+      message: { statusCode: 429, message: 'Too many requests' },
+    }),
+  );
+
+  /*
+   * The burst window, and the reason it exists is arithmetic rather than taste.
+   *
+   * A FIXED window resets on a wall-clock boundary, so a caller who spends its whole quota
+   * in the last second of one window and the whole of the next in the first second has sent
+   * TWICE the limit inside two seconds — entirely within the rules, and exactly the shape
+   * that hurts: the ceiling is a per-minute promise and the damage is per-second.
+   *
+   * A token bucket would fix it properly, and it is what to move to alongside the shared
+   * store (the trigger is written down in DEPLOY.md). Until then a second, SHORTER window at
+   * the same average rate is the same defence with no new dependency: it cannot stop a
+   * legitimate minute, and it flattens the boundary spike from 2x to about 1.2x.
+   *
+   * Its own setting rather than a number derived from the sustained limit: derivation looked
+   * tidier and produced a ceiling of ONE request per ten seconds under the deliberately tiny
+   * limit the tests use — a limiter that refuses the very thing it protects.
+   */
+  app.use(
+    rateLimit({
+      windowMs: BURST_WINDOW_MS,
+      limit: config.rateLimit.burstLimit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      keyGenerator: (req) => `burst:${rateLimitKey(req)}`,
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
       message: { statusCode: 429, message: 'Too many requests' },
     }),

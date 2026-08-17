@@ -26,6 +26,9 @@ import { configureGateway } from '../../src/gateway.setup';
 // reachable directly, a client could spoof this header and mint itself a fresh bucket.
 
 const LIMIT = 3;
+// Deliberately BELOW the general limit: the OTP tier has to bite first, or it is not a
+// tier at all — it is a second copy of the number it sits underneath.
+const OTP_LIMIT = 2;
 
 function startEcho(): Promise<{ server: Server; url: string }> {
   return new Promise((resolve) => {
@@ -75,6 +78,11 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
       CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
       RATE_LIMIT_TTL_SECONDS: '60',
       RATE_LIMIT_MAX: String(LIMIT),
+      RATE_LIMIT_OTP_MAX: String(OTP_LIMIT),
+      // Out of the way on purpose: this file is about the per-minute window and the OTP
+      // tier. The ten-second burst window has its own spec, with its own numbers, because a
+      // second ceiling quietly capping these cases would make them assert the wrong thing.
+      RATE_LIMIT_BURST_MAX: '1000',
     };
     Object.assign(process.env, testEnv);
     const moduleRef = await Test.createTestingModule({
@@ -166,4 +174,50 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     }
     await get('192.0.2.77').expect(429);
   });
+
+  /*
+   * The OTP tier is a BILLING control. auth-service caps resends per customer, but nothing
+   * capped a caller walking a DIFFERENT phone number on every request — one IP, one script,
+   * and every request past it is a paid SMS to a stranger's handset.
+   */
+  const postOtp = (forwardedFor: string, path: string) =>
+    request(app.getHttpServer()).post(path).set('x-forwarded-for', forwardedFor).send({});
+
+  it.each(['/auth/api/v1/auth/register', '/auth/api/v1/auth/login', '/auth/api/v1/auth/otp/resend'])(
+    'stops an SMS pump at %s well before the general limit',
+    async (path) => {
+      const ip = `198.51.100.${path.length}`;
+      for (let i = 0; i < OTP_LIMIT; i += 1) {
+        const res = await postOtp(ip, path);
+        expect(res.status).not.toBe(429);
+      }
+      await postOtp(ip, path).expect(429);
+    },
+  );
+
+  it('charges the OTP bucket by ADDRESS, so one script cannot walk numbers from one host', async () => {
+    const attacker = '198.51.100.200';
+    for (let i = 0; i < OTP_LIMIT; i += 1) {
+      // A different phone every time is exactly the shape that costs money, and it must
+      // not buy a fresh bucket.
+      await request(app.getHttpServer())
+        .post('/auth/api/v1/auth/register')
+        .set('x-forwarded-for', attacker)
+        .send({ phone: `+62811000000${i}` });
+    }
+    await postOtp(attacker, '/auth/api/v1/auth/register').expect(429);
+    // A different client is untouched: this is a per-caller control, not an outage switch.
+    await postOtp('198.51.100.201', '/auth/api/v1/auth/register').expect((res) =>
+      expect(res.status).not.toBe(429),
+    );
+  });
+
+  it('leaves verify alone — it sends no SMS, and auth-service already caps its guesses', async () => {
+    const ip = '198.51.100.250';
+    for (let i = 0; i < OTP_LIMIT + 1; i += 1) {
+      const res = await postOtp(ip, '/auth/api/v1/auth/otp/verify');
+      expect(res.status).not.toBe(429);
+    }
+  });
+
 });

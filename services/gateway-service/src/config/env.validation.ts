@@ -33,6 +33,34 @@ export const envValidationSchema = Joi.object({
   // This number is sized around a frontend defect, not around what the API should need.
   // When F-1 lands and the fan-out drops, bring it back down — it is a ceiling, not a target.
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(600),
+  // The OTP tier. Separate from RATE_LIMIT_MAX because it is sized by a different
+  // question: not "what should the API serve" but "how many paid SMS is one IP allowed to
+  // cause". A human registering needs three calls; twenty a minute is seven honest
+  // attempts. RATE_LIMIT_MAX cannot substitute for it — at 600 an attacker walks 600
+  // distinct phone numbers a minute and every one of them is invoiced.
+  RATE_LIMIT_OTP_MAX: Joi.number().integer().positive().default(20),
+  // The BURST ceiling, over a ten-second window, alongside the per-minute one above.
+  //
+  // A fixed window resets on a wall-clock boundary: spend the whole minute quota in its last
+  // second and the next minute's in its first, and TWICE the limit has gone out in two
+  // seconds — inside the rules, and exactly the shape that hurts, because the ceiling is a
+  // per-minute promise while the damage is per-second.
+  //
+  // 300/10s, and the number moved once for a measured reason.
+  //
+  // It started at 100/10s — the same 600/minute average as the sustained limit — and the e2e
+  // suite went red: the products page rendered with no prices, because several Playwright
+  // workers browse ANONYMOUSLY from one address and share one bucket. A CI runner is not a
+  // real user, but an office behind one NAT is the same shape, and ten people opening the
+  // catalogue at once is not abuse.
+  //
+  // So this window is sized to flatten the BOUNDARY, not to be the ceiling: the sustained
+  // limit above is the ceiling. At 300 a window-edge doubling is cut from 1200-in-two-seconds
+  // to 300, a 4x improvement, while a burst three times the average rate still passes.
+  //
+  // A token bucket removes the trade-off entirely and is what to move to alongside the shared
+  // store (the trigger is written down in DEPLOY.md).
+  RATE_LIMIT_BURST_MAX: Joi.number().integer().positive().default(300),
   // Not knobs this service acts on — they describe the shape of the edge in front of it,
   // and together they decide whether trusting one X-Forwarded-For hop is safe at all
   // (trustProxyHops in gateway.setup.ts). Compose owns both; the gateway only reads them,
