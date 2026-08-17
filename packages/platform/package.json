@@ -53,6 +53,7 @@
   },
   "dependencies": {
     "@hydromart/access": "*",
+    "@sentry/node": "^10.70.0",
     "joi": "^17.13.3",
     "prom-client": "^15.1.3"
   },

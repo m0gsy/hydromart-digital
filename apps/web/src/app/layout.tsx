@@ -5,6 +5,7 @@ import './globals.css';
 import { AppShell } from '@/components/app-shell';
 import { NativeBridge } from '@/components/native-bridge';
 import { PushForeground } from '@/components/push-foreground';
+import { SentryInit } from '@/components/sentry-init';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
@@ -86,6 +87,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <ToastProvider>
                 {/* Needs the toast, so it cannot live in NativeBridge above. */}
                 <PushForeground />
+                {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank
+                    — the SDK is not even downloaded in that case. */}
+                <SentryInit />
                 {/* Shop chrome vs. bare console — the cart/location providers ride the
                     shop branch, so consoles never fetch a cart. */}
                 <AppShell>{children}</AppShell>
