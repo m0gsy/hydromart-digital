@@ -143,6 +143,12 @@ jobs:
       - name: Deploy-script helpers self-check
         run: bash scripts/lib/deploy-common.test.sh
 
+      # env-set.sh edits the live production .env. Every refusal it claims has to be a
+      # refusal it performs — a "validated" writer that validates nothing is worse than no
+      # writer, because everybody stops reading the file it edits.
+      - name: Production env writer self-check
+        run: bash scripts/env-set.test.sh
+
       # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
       # is stubbed — so it is gated here like any other logic.
       - name: Scheduler sweep self-check

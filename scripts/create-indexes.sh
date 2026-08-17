@@ -80,6 +80,26 @@ echo "$INDEXES" | while IFS='|' read -r db idx stmt; do
     continue
   fi
 
+  # A brand-new TABLE cannot have its index pre-built, and does not need one.
+  #
+  # This script runs BEFORE the migration so the migration finds the index already there
+  # and does not build it under a write lock. That reasoning only applies to a table that
+  # already holds rows somebody is writing. When the same migration creates the table AND
+  # its indexes, there is nothing here yet to lock — and the pre-build cannot even be
+  # attempted: `relation "service_settings" does not exist`.
+  #
+  # That is not a reason to fail the deploy, which is what happened on 2026-08-17: three
+  # such indexes aborted the whole release before a single container was touched. Skipped,
+  # named, and left to the migration that owns the table.
+  table="$(printf '%s' "$stmt" | sed -n 's/.* ON "\([^"]*\)".*/\1/p')"
+  if [ -n "$table" ]; then
+    exists="$(psql_do "$db" "SELECT 1 FROM information_schema.tables WHERE table_name='$table';" | tr -d '[:space:]')"
+    if [ "$exists" != "1" ]; then
+      ok "$db.$idx skipped — table \"$table\" does not exist yet; the migration that creates it owns this index"
+      continue
+    fi
+  fi
+
   if [ "$CHECK_ONLY" = "1" ]; then
     no "$db.$idx MISSING (run without --check to build it)"
     FAIL=1

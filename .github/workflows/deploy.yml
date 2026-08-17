@@ -19,12 +19,20 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), storage-policy (close anonymous bucket listing + prove it)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
         options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, storage-policy]
       sha:
         description: "rollback target SHA (blank = previous good)"
+      services:
+        description: "env-set only: services to recreate afterwards (space separated, e.g. 'crm web')"
+        required: false
+        default: ''
+      demo_phone:
+        description: "seed-demo only: the phone the Play reviewer will sign in with"
+        required: false
+        default: '+6281199900001'
         required: false
         default: ""
 
@@ -65,6 +73,30 @@ jobs:
             # BOX and nowhere else — so it is a button here rather than a chore someone
             # remembers. Runs per bucket, and FAILS if the bucket still lists afterwards.
             storage-policy) echo "run=bash scripts/storage-policy.sh" >> "$GITHUB_OUTPUT" ;;
+            # Writes: applies the KEY=VALUE lines held in the ENV_SET_BLOCK repo secret to
+            # the live .env and recreates the services named in `services`.
+            #
+            # It exists so that setting a production value is a reviewed script and a button
+            # rather than somebody editing .env over SSH at midnight — which is how a PEM
+            # got pasted with real newlines, killed a deploy and blinded the watchdog for a
+            # week (2026-08-11). The values live in the GitHub secret; nothing in this repo
+            # and nothing in this log ever carries one. env-set.sh prints key names only,
+            # backs the file up first, refuses a multi-line value outright, and is a no-op
+            # on a value that is already correct.
+            env-set)     echo "run=bash scripts/env-set.sh ${{ github.event.inputs.services }}" >> "$GITHUB_OUTPUT" ;;
+            # G5. The Play reviewer signs in with REVIEWER_PHONE, and on production that is
+            # a REAL employee on a REAL depot — so a reviewer reads live customers' names,
+            # addresses and phone numbers, and a depot that happens to be out of stock that
+            # day shows them an empty app, which is a rejection.
+            #
+            # This builds the account they should get instead: a demo depot, a demo
+            # KEPALA_DEPOT, stock on its shelves. Idempotent and additive — it looks before
+            # it creates and never edits or deletes a row it did not make.
+            #
+            # The secret it signs with comes from the box's own .env through load-env.sh
+            # (which PARSES rather than executes), so it is never in this repo, this
+            # workflow, or this log.
+            seed-demo)   echo "run=. ./scripts/load-env.sh && DEMO_PHONE='${{ github.event.inputs.demo_phone }}' GATEWAY_URL=http://127.0.0.1:8080 node scripts/seed-demo-depot.mjs" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -87,7 +119,27 @@ jobs:
           # last-good-sha, while the workflow had already reported failure — the one
           # signal anybody reads was wrong in the dangerous direction.
           command_timeout: 120m
+          # Passed as an ENVIRONMENT variable, never interpolated into the script body: a
+          # value with a quote, a backtick or a newline in it would otherwise be executed
+          # rather than stored, which is the whole class of failure this button exists to
+          # end. GitHub masks the secret in the log; env-set.sh never prints it either way.
+          envs: ENV_SET_BLOCK
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
+            # `env-set` is the one mode that can be pressed BEFORE the release carrying its
+            # script has been deployed — it exists to fix configuration, which is often why
+            # a deploy has not happened yet. The registry probe hit exactly this and failed
+            # with "No such file or directory". Every other mode runs a script the box has
+            # had for releases, and `deploy` must NOT do this: it resets the tree itself.
+            if [ "${{ github.event.inputs.mode }}" = "env-set" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/env-set.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "seed-demo" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/seed-demo-depot.mjs
+            fi
             ${{ steps.cmd.outputs.run }}
+        env:
+          ENV_SET_BLOCK: ${{ secrets.ENV_SET_BLOCK }}
