@@ -1,5 +1,7 @@
 import { hostname } from 'os';
 
+import { captureServerError } from './sentry';
+
 /**
  * Fire-and-forget alerting for unhandled 5xx errors. Zero external deps — POSTs a
  * plain-text payload to an incoming webhook (Slack `text` / Discord `content` are
@@ -8,8 +10,8 @@ import { hostname } from 'os';
  *
  * This is the lightweight tier: it tells you *that* something broke, with the
  * route + stack, so you find out before a customer calls. It is NOT aggregation.
- * ponytail: upgrade path is Sentry (`@sentry/node` in this same 5xx branch) if you
- * need grouping, release tracking, or trends — this covers the "3am silence" gap.
+ * The aggregation tier IS here now (`./sentry`, called from the same 5xx branch below) and
+ * is DSN-gated: with SENTRY_DSN blank this module behaves exactly as it always did.
  */
 
 // ponytail: per-process in-memory dedupe. Resets on restart and is not shared
@@ -34,8 +36,16 @@ export interface ServerErrorAlert {
 }
 
 export function alertServerError({ method, path, status, exception }: ServerErrorAlert): void {
+  /*
+   * Sentry first, and deliberately BEFORE the dedupe below: the webhook is throttled to one
+   * message a minute per route so a chat channel stays readable, and applying that same
+   * throttle to the aggregator would hide exactly the thing an aggregator is for — that
+   * this 500 has now happened four hundred times. No-op unless SENTRY_DSN is set.
+   */
+  captureServerError(exception, { method, path, status });
+
   const url = process.env.ALERT_WEBHOOK_URL;
-  if (!url) return; // disabled
+  if (!url) return; // the chat tier is disabled
 
   const svc = serviceName();
   const errName = exception instanceof Error ? exception.name : 'UnknownError';
