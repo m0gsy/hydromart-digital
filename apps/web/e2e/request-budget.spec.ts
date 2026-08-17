@@ -80,10 +80,18 @@ test.describe('request budget per screen', () => {
   // The seeded account is a SUPER_ADMIN, so /hq is the console it lands in — and /hq is the
   // page the audit measured at ~201 requests.
   for (const { path, budget, atScale } of [
-    // 80 for twelve depots. The audit measured ~201 on this page at that size, so anything
-    // near the old number is the fan-out returning; anything far below it is PR-7 holding.
-    { path: '/hq', budget: 80, atScale: true },
-    { path: '/products', budget: 25, atScale: false },
+    /*
+     * Measured, not guessed. The audit found ~201 requests on this page at twelve depots;
+     * PR-7 took it to SIX, and the budget stayed at 80 — thirteen times the real number.
+     * A ceiling that far above the floor cannot catch anything: the fan-out could come
+     * two-thirds of the way back and still pass.
+     *
+     * 15 is the measurement plus room for a legitimate screen gaining a call or two. When
+     * a real change needs more, raise it in the same commit and say why — that is the
+     * conversation a ratchet exists to force.
+     */
+    { path: '/hq', budget: 15, atScale: true },
+    { path: '/products', budget: 15, atScale: false },
   ]) {
     test(`${path} stays inside its request budget`, async ({ page }) => {
       const depots = atScale ? await ensureDepots(page) : 0;
