@@ -8,7 +8,7 @@ vi.mock('@sentry/nextjs', () => ({ init }));
 import { SentryInit } from '@/components/sentry-init';
 
 /** The beforeSend the component handed to Sentry.init. */
-const beforeSend = () => init.mock.calls[0][0].beforeSend as (e: Record<string, unknown>) => unknown;
+const beforeSend = () => init.mock.calls[0]![0].beforeSend as (e: Record<string, unknown>) => unknown;
 
 describe('SentryInit', () => {
   afterEach(() => {
@@ -26,7 +26,7 @@ describe('SentryInit', () => {
     process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://key@sentry.example/2';
     render(<SentryInit />);
     await waitFor(() => expect(init).toHaveBeenCalledTimes(1));
-    expect(init.mock.calls[0][0]).toMatchObject({ tracesSampleRate: 0 });
+    expect(init.mock.calls[0]![0]).toMatchObject({ tracesSampleRate: 0 });
   });
 
   describe('beforeSend', () => {
