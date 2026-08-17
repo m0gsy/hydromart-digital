@@ -19,6 +19,16 @@ let resolve: Resolve | null = null;
 let ttlMs = DEFAULT_TTL_MS;
 let staleOnErrorMs = DEFAULT_STALE_ON_ERROR_MS;
 let warnedUnconfigured = false;
+/*
+ * The clock, injectable — because a TTL asserted against the real one is a coin flip.
+ *
+ * The cache test configured a 20 ms TTL and made two calls back to back, expecting one
+ * resolve. On a loaded runner under coverage instrumentation those two calls were more than
+ * 20 ms apart, the entry had expired, and it resolved twice. Nothing was wrong with the
+ * code; the test was measuring the runner. It went red on main, which is the expensive way
+ * to find out.
+ */
+let clock: () => number = Date.now;
 // ponytail: unbounded Map — one entry per active supervisor/owner (dozens, not millions).
 // Swap for an LRU if these roles ever pass ~10k accounts.
 const cache = new Map<string, Entry>();
@@ -30,11 +40,12 @@ const cache = new Map<string, Entry>();
  */
 export function configureDepotScope(
   fn: Resolve,
-  opts: { ttlMs?: number; staleOnErrorMs?: number } = {},
+  opts: { ttlMs?: number; staleOnErrorMs?: number; now?: () => number } = {},
 ): void {
   resolve = fn;
   ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
   staleOnErrorMs = opts.staleOnErrorMs ?? DEFAULT_STALE_ON_ERROR_MS;
+  clock = opts.now ?? Date.now;
   cache.clear();
 }
 
@@ -42,6 +53,7 @@ export function configureDepotScope(
 export function resetDepotScope(): void {
   resolve = null;
   warnedUnconfigured = false;
+  clock = Date.now;
   cache.clear();
 }
 
@@ -86,7 +98,7 @@ export async function resolveDepotScope(staffId: string, role: Role): Promise<st
     }
     return null;
   }
-  const now = Date.now();
+  const now = clock();
   const cached = cache.get(staffId);
   if (cached && cached.expires > now) {
     return cached.ids;
