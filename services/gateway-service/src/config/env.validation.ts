@@ -39,27 +39,21 @@ export const envValidationSchema = Joi.object({
   // attempts. RATE_LIMIT_MAX cannot substitute for it — at 600 an attacker walks 600
   // distinct phone numbers a minute and every one of them is invoiced.
   RATE_LIMIT_OTP_MAX: Joi.number().integer().positive().default(20),
-  // The BURST ceiling, over a ten-second window, alongside the per-minute one above.
+  // The BURST allowance: the token bucket's CAPACITY, i.e. the most one caller may spend at
+  // once. RATE_LIMIT_MAX above is the sustained rate, i.e. how fast the bucket refills.
   //
-  // A fixed window resets on a wall-clock boundary: spend the whole minute quota in its last
-  // second and the next minute's in its first, and TWICE the limit has gone out in two
-  // seconds — inside the rules, and exactly the shape that hurts, because the ceiling is a
-  // per-minute promise while the damage is per-second.
+  // Those are the two numbers a fixed window could not express at the same time. A window
+  // reset on a wall-clock boundary, so spending the whole quota at the end of one and the
+  // whole of the next at its start sent TWICE the limit in two seconds — inside the rules.
+  // Layering a second, shorter window flattened that and bought it with a ceiling that
+  // refused legitimate traffic: at 100/10s the e2e suite went red, because several browsers
+  // browsing anonymously from one address share one bucket.
   //
-  // 300/10s, and the number moved once for a measured reason.
+  // A bucket has no boundary to exploit and needs no second ceiling. 300 with a 600/minute
+  // refill means a caller may burst 300 and then proceeds at ten a second, forever.
   //
-  // It started at 100/10s — the same 600/minute average as the sustained limit — and the e2e
-  // suite went red: the products page rendered with no prices, because several Playwright
-  // workers browse ANONYMOUSLY from one address and share one bucket. A CI runner is not a
-  // real user, but an office behind one NAT is the same shape, and ten people opening the
-  // catalogue at once is not abuse.
-  //
-  // So this window is sized to flatten the BOUNDARY, not to be the ceiling: the sustained
-  // limit above is the ceiling. At 300 a window-edge doubling is cut from 1200-in-two-seconds
-  // to 300, a 4x improvement, while a burst three times the average rate still passes.
-  //
-  // A token bucket removes the trade-off entirely and is what to move to alongside the shared
-  // store (the trigger is written down in DEPLOY.md).
+  // Still in-memory, and still correct for exactly one gateway process — the trigger for a
+  // shared store is written down in DEPLOY.md rather than left to be discovered.
   RATE_LIMIT_BURST_MAX: Joi.number().integer().positive().default(300),
   // Not knobs this service acts on — they describe the shape of the edge in front of it,
   // and together they decide whether trusting one X-Forwarded-For hop is safe at all

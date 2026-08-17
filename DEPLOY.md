@@ -353,8 +353,14 @@ you, not whoever is monitoring you. Nothing in the stack will report it: both pr
 enforcing their limit correctly, and the limit is simply no longer the limit.
 
 **The trigger, stated so it is a decision rather than a surprise:** before scaling the
-gateway past one replica, move the throttler to a shared store (Redis or Postgres) — or
-accept, in writing, that the effective ceiling multiplies by the replica count.
+gateway past one replica, move the bucket to a shared store (Redis or Postgres) — or accept,
+in writing, that the effective ceiling multiplies by the replica count.
+
+The limiter is a **token bucket** now, not a fixed window: `RATE_LIMIT_MAX` per
+`RATE_LIMIT_TTL_SECONDS` is the refill rate and `RATE_LIMIT_BURST_MAX` is the capacity. That
+removed the window-boundary doubling entirely — a window let a caller spend a full quota at
+the end of one and another at the start of the next, twice the limit in two seconds, inside
+the rules. What it does NOT remove is this: two processes hold two buckets.
 
 The same applies to the per-process alert dedupe in `packages/platform/src/nest/
 error-alerter.ts`: with two processes, a 5xx storm sends two messages a minute instead of
