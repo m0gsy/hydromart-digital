@@ -110,6 +110,15 @@ jobs:
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
+            # `env-set` is the one mode that can be pressed BEFORE the release carrying its
+            # script has been deployed — it exists to fix configuration, which is often why
+            # a deploy has not happened yet. The registry probe hit exactly this and failed
+            # with "No such file or directory". Every other mode runs a script the box has
+            # had for releases, and `deploy` must NOT do this: it resets the tree itself.
+            if [ "${{ github.event.inputs.mode }}" = "env-set" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/env-set.sh
+            fi
             ${{ steps.cmd.outputs.run }}
         env:
           ENV_SET_BLOCK: ${{ secrets.ENV_SET_BLOCK }}
