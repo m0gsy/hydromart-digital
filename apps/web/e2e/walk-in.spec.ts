@@ -72,6 +72,21 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   // No shift, no sale — the server refuses the counter outright. Opening one is part of the
   // flow now, so the test walks it rather than seeding around it.
   const openShift = page.getByRole('button', { name: /Buka shift/i });
+  const shiftOpen = page.getByText(/Shift terbuka/i);
+  /*
+   * Decide only once the counter has SETTLED into one of its two states.
+   *
+   * `isVisible()` is a snapshot. Taken while the shift query is still in flight it answers
+   * false, the open-shift block is skipped, and the sale then goes out with no shift behind
+   * it — which is the 422 this test failed on:
+   *
+   *   ORDER_NO_OPEN_SHIFT — "Buka shift kasir dulu sebelum mencatat penjualan di konter."
+   *
+   * Waiting for either state first removes the coin flip. It does not prove this was the
+   * only race here, which is why the sale failure below now names the depot on both legs.
+   */
+  await expect(openShift.or(shiftOpen).first()).toBeVisible({ timeout: 30_000 });
+  let shiftDepot = '(shift was already open; this run did not open it)';
   if (await openShift.isVisible().catch(() => false)) {
     await page.getByLabel(/Uang kembalian awal/i).fill('200000');
     const opened = page.waitForResponse(
@@ -82,6 +97,15 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     );
     await openShift.click();
     const shiftRes = await opened;
+    // The depot the shift was actually opened FOR, read off the request this run made —
+    // not guessed from client storage, which carries no depot at all.
+    try {
+      shiftDepot =
+        (JSON.parse(shiftRes.request().postData() ?? '{}') as { depotId?: string }).depotId ??
+        '(no depotId in the open-shift body)';
+    } catch {
+      shiftDepot = '(unparseable open-shift body)';
+    }
     expect(shiftRes.ok(), `opening a shift answered ${shiftRes.status()}: ${await shiftRes.text()}`).toBe(
       true,
     );
@@ -137,7 +161,24 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   // Anything other than 2xx here is a defect, not an environment gap: the depot, its stock
   // and the price were all read from this same running stack moments ago.
   const posted = await salePost;
-  expect(posted.ok(), `walk-in POST answered ${posted.status()}: ${await posted.text()}`).toBe(true);
+  // Name BOTH depots on failure. A shift opened for one depot and a sale posted against
+  // another looks exactly like "no shift is open", and the 422 alone cannot tell the two
+  // apart — so the next occurrence of this says which it was instead of needing a guess.
+  const saleDepot = (() => {
+    try {
+      return (JSON.parse(posted.request().postData() ?? '{}') as { depotId?: string }).depotId ?? '(none)';
+    } catch {
+      return '(unparseable body)';
+    }
+  })();
+  expect(
+    posted.ok(),
+    `walk-in POST answered ${posted.status()}: ${await posted.text()}
+` +
+      `  shift was opened with depot=${shiftDepot}
+` +
+      `  sale was posted with depot=${saleDepot}`,
+  ).toBe(true);
   const order = await posted.json();
   expect(order.isWalkIn).toBe(true);
   expect(order.status).toBe('COMPLETED');
