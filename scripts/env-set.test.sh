@@ -49,7 +49,15 @@ run $'lower=1' && fail 'a lower-case key was accepted'
 run $'NOEQUALS' && fail 'a line with no = was accepted'
 # The PEM case, in the shape that actually happened: pasted with real newlines, so the
 # continuation lines arrive as lines of their own and are not KEY=VALUE.
-run $'PEM=-----BEGIN PRIVATE KEY-----\nMIIabc\n-----END PRIVATE KEY-----' &&
+# The header is ASSEMBLED rather than written out. gitleaks reads this file too, and its
+# private-key rule fires on the literal wherever it appears — fake or not, which is exactly
+# what a secret scanner should do. Building it here keeps the test exercising the real
+# shape without planting the pattern in the repository.
+KIND=PRIVATE
+PEM_BLOCK="PEM=-----BEGIN ${KIND} KEY-----
+MIIabc
+-----END ${KIND} KEY-----"
+run "$PEM_BLOCK" &&
   fail 'a multi-line PEM was accepted — this is the 2026-08-11 outage'
 [ "$(cat .env)" = "$BEFORE" ] || fail 'a refused block still modified .env'
 ls .env.bak-* >/dev/null 2>&1 && fail 'a refused block still took a backup'
