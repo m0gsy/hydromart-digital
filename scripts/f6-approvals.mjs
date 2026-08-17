@@ -55,6 +55,9 @@ async function probe(method, path, role) {
 
 let failed = 0;
 let passed = 0;
+let skipped = 0;
+/** Services the gateway could not reach at all — every row against them proves nothing. */
+const unreachable = new Set();
 function check(label, ok, detail = '') {
   if (ok) {
     passed += 1;
@@ -63,6 +66,24 @@ function check(label, ok, detail = '') {
     console.log(`FAIL ${label}${detail ? ` — ${detail}` : ''}`);
   }
 }
+
+/**
+ * A row whose service is not running is not a pass and not a failure — it is a question
+ * nobody asked. It was reported as FAIL, which turned "admin-service is not in the test
+ * stack" into eleven role-guard failures and buried the one row that WAS a real finding.
+ *
+ * Counted, named and printed. Never silent: a gate that quietly drops rows is how a
+ * coverage hole reads as a green tick.
+ */
+function skip(label, why) {
+  skipped += 1;
+  unreachable.add(why);
+  console.log(`SKIP ${label} — ${why}`);
+}
+
+/** The gateway answers 502/503/504 for an upstream it cannot reach. */
+const isUpstreamDown = (status) => status === 502 || status === 503 || status === 504 || status === 500;
+const serviceOf = (path) => (path.match(/^\/([a-z-]+)\//) ?? [, 'gateway'])[1];
 
 const ALL_ROLES = [
   'CUSTOMER', 'STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR',
@@ -87,7 +108,11 @@ const DECISIONS = [
   { label: 'voucher request reject', cap: 'voucherRequestDecide', method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/reject` },
   { label: 'franchise application approve', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/approve` },
   { label: 'franchise application reject', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/reject` },
-  { label: 'refund queue (decide)', cap: 'refundQueue', method: 'GET', path: '/payments/api/v1/payments/refunds/queue' },
+  // Reading the queue is NOT deciding it: the split is deliberate (`refundQueueRead` in
+  // @hydromart/access — head office watches the queue, finance moves the money). This row
+  // named `refundQueue` against the READ route, so it demanded a 403 from the two roles
+  // the design deliberately gives the read to, and reported the design as a bug twice.
+  { label: 'refund queue (read)', cap: 'refundQueueRead', method: 'GET', path: '/payments/api/v1/payments/refunds/queue' },
   { label: 'leave stage 1 (manager)', cap: 'leaveApprove', method: 'PATCH', path: `/hr/api/v1/leave/${NIL}/manager-decision` },
   { label: 'leave stage 2 (HR)', cap: 'hrAdmin', method: 'PATCH', path: `/hr/api/v1/leave/${NIL}/hr-decision` },
   { label: 'courier expense approve', cap: 'expenseApprove', method: 'POST', path: `/payout/api/v1/expenses/${NIL}/approve` },
@@ -126,6 +151,13 @@ async function decisions() {
       continue;
     }
     const deny = ALL_ROLES.filter((r) => !allow.includes(r));
+    // One probe first: an upstream that is not in this stack answers every role the same
+    // way, and asking it thirteen times only multiplies the noise.
+    const reachable = await probe(d.method, d.path, allow[0]);
+    if (isUpstreamDown(reachable)) {
+      skip(`${d.label} (all roles)`, `${serviceOf(d.path)} answered ${reachable} — not reachable from this stack`);
+      continue;
+    }
     for (const role of allow) {
       const status = await probe(d.method, d.path, role);
       check(`${d.label}: ${role} may decide`, status !== 403 && status !== 401, `got ${status}`);
@@ -154,7 +186,8 @@ async function separationOfDuties() {
 async function main() {
   await decisions();
   await separationOfDuties();
-  console.log(`\n${passed} passed, ${failed} failed`);
+  console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped`);
+  for (const why of unreachable) console.log(`  not asked: ${why}`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
