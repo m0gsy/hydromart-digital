@@ -240,8 +240,9 @@ Anything less is Work In Progress.
 `/driver`, in mobile emulation, and **gates accessibility, best-practices and SEO** at the
 numbers this repo measured (95, 96, 100, 100 — recorded in `scripts/lighthouse-baseline.json`).
 
-**Performance is measured and printed, and gated by nothing.** Two runs of the same commit,
-forty minutes apart on GitHub's shared runners, scored:
+**Performance is gated on the MEDIAN of three passes per page**, with an eight-point
+tolerance. One pass could not gate it. Two runs of the same commit, forty minutes apart on
+GitHub's shared runners, scored:
 
 | page | run 1 | run 2 |
 |---|---|---|
@@ -250,10 +251,20 @@ forty minutes apart on GitHub's shared runners, scored:
 | `/login` | 93 | 92 |
 | `/driver` | 77 | 83 |
 
-Eighteen points of spread with no code change. A `> 95` floor on that number is a gate that
-fails at random, which teaches people to re-run until green — and the habit spreads to the
-three categories that ARE deterministic.
+Eighteen points of spread with no code change. A floor on a single pass is a gate that fails
+at random, which teaches people to re-run until green — and that habit spreads to the three
+categories that ARE deterministic.
 
-So the threshold above stands as the target, and this is the honest statement of what is
-enforced today. Closing the gap needs a stable measurement environment — a dedicated runner
-or a lab profile — not a stricter number in a document.
+A median needs **two** slow passes to move at all, which is what makes the number gateable.
+The per-run spread is printed on every run, so the day this stops holding is visible rather
+than assumed — a median that quietly starts hiding a 30-point swing would be worse than no
+gate, because it would look like stability.
+
+**What the score is MADE OF is gated too, and separately**: bytes transferred (±5%), request
+count (±10%), DOM size (±5%). Those do not drift at all — a runner's CPU changes how fast
+bytes are parsed, not how many there are. "We shipped 400 KB more JavaScript" is what
+"performance got worse" actually means, and it is measurable to the byte on any machine.
+
+The `> 95` target above stands as a target: today's medians are 72–92, and the gate holds
+them there rather than pretending they are 95. Closing that gap means raising the floor one
+page at a time, with the number moved deliberately **after** the work — never before it.
