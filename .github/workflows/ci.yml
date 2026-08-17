@@ -522,6 +522,15 @@ jobs:
       - name: Run E2E
         run: npm run test:e2e --workspace @hydromart/web
 
+      # H3. A Lighthouse score nobody gates on is a score nobody reads. The numbers this
+      # repo scores today are the floor; a PR may not go below them (minus one point of
+      # run-to-run noise). Where a page is already poor the floor is poor too — that is
+      # honest, and it still stops it getting worse.
+      # The web app is already built and served above, and Chromium is already installed
+      # for Playwright — so this costs one browser run, not another build.
+      - name: Lighthouse ratchet
+        run: node scripts/check-lighthouse.mjs
+
       - name: Upload report on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
