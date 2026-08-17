@@ -234,6 +234,46 @@ if health_ok; then
     log "   Fix: printf '%s' \"\$ALERT_WEBHOOK_URL\" > ops/alertmanager.webhook-url && \\"
     log "        $COMPOSE restart alertmanager"
   fi
+  # G1 — a bucket policy can be reset from the provider console, and nothing would say so.
+  # Measured 2026-08-17: hydromart-pod and hydromart-products answered 200 to an anonymous
+  # `?list-type=2`, handing a stranger the index of every proof-of-delivery photo. Serving
+  # an object to whoever holds its URL is the intent; serving the index is not. Asked the
+  # way an outsider asks — no credentials — because that is the only answer that matters.
+  #
+  # Bucket names come from the .env keys themselves (`AUTH_`/`DELIVERY_`/`PRODUCT_`/`HR_`
+  # prefixed on this box), not from a list in here, so a new bucket is covered the day it
+  # is configured rather than the day somebody remembers this check.
+  OPEN_BUCKETS=""
+  S3_ENDPOINT="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^STORAGE_S3_ENDPOINT=//p' | head -1 || true)"
+  if [ -n "$S3_ENDPOINT" ]; then
+    for bucket in $(storage_buckets); do
+      LIST_CODE="$(curl -s -o /dev/null -m 15 -w '%{http_code}' "${S3_ENDPOINT%/}/$bucket?list-type=2&max-keys=1" || true)"
+      [ "$LIST_CODE" = "200" ] && OPEN_BUCKETS="$OPEN_BUCKETS $bucket"
+    done
+  fi
+  if [ -n "$OPEN_BUCKETS" ]; then
+    log "!! anonymous LIST is OPEN on:$OPEN_BUCKETS"
+    log "   Anyone can enumerate every object key in those buckets — for hydromart-pod that"
+    log "   is recipient signatures, faces and house fronts (UU 27/2022 personal data)."
+    log "   Fix: bash scripts/storage-policy.sh"
+    alert "anonymous bucket listing is open on:$OPEN_BUCKETS"
+  fi
+  # G2 — the watchdog spent ~7 days logging `./.env: line 115: PRIVATE: not found` 2130
+  # times because the host crontab sourced .env by EXECUTING it, so every variable after
+  # the unquoted PEM was never exported. The repo fix existed the whole time and had simply
+  # never been installed. A silent watchdog looks exactly like a quiet week, so the deploy
+  # asks the host crontab directly rather than trusting that somebody ran the installer.
+  HOST_CRON="$(crontab -l 2>/dev/null || true)"
+  if printf '%s' "$HOST_CRON" | grep -q 'set -a'; then
+    log "!! the host crontab still sources .env by EXECUTING it (\`set -a; . ./.env\`)."
+    log "   An unquoted value with spaces aborts the shell, and everything declared after"
+    log "   it never reaches the job. Fix: bash scripts/install-host-cron.sh"
+    alert "host crontab still executes .env — watchdog/backup run on a truncated environment"
+  elif ! printf '%s' "$HOST_CRON" | grep -q 'scripts/watchdog.sh'; then
+    log "!! the host crontab has no watchdog line — nothing converges a container that"
+    log "   stops between deploys. Fix: bash scripts/install-host-cron.sh"
+    alert "host crontab has no watchdog line"
+  fi
 else
   log "!! health check FAILED after deploy — auto-rolling back to $PREV_SHA"
   bash scripts/rollback.sh "$PREV_SHA"

@@ -14,8 +14,15 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 # A .env with just enough for the guards, and an obviously fake key.
+#
+# The PEM line is not padding. The live .env holds `FCM_PRIVATE_KEY=-----BEGIN PRIVATE
+# KEY-----…` with no quotes, and the first real run of this job died on it (`./.env: line
+# 115: PRIVATE: command not found`, exit 127) before it reached a single bucket. A file that
+# is READ rather than RUN does not care; one that is sourced does. So the fixture carries
+# the shape that broke it.
 cat > "$tmp/.env" <<'EOF'
 STORAGE_S3_ENDPOINT=https://storage.invalid
+FCM_PRIVATE_KEY=---- BEGIN NOT A KEY ---- body with spaces ---- END ----
 STORAGE_S3_ACCESS_KEY_ID=test
 STORAGE_S3_SECRET_ACCESS_KEY=test
 EOF
@@ -31,7 +38,7 @@ EOF
 chmod +x "$tmp/bin/node"
 
 mkdir -p "$tmp/repo/scripts"
-cp scripts/storage-policy.sh "$tmp/repo/scripts/"
+cp scripts/storage-policy.sh scripts/load-env.sh "$tmp/repo/scripts/"
 cp "$tmp/.env" "$tmp/repo/.env"
 
 out="$(cd "$tmp/repo" && PATH="$tmp/bin:$PATH" \
@@ -44,6 +51,7 @@ check() { # name, condition-already-evaluated
   if [ "$2" = "0" ]; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi
 }
 
+echo "$out" | grep -q "stub verify for hydromart-pod"; check "an unquoted PEM in .env no longer kills the run" "$?"
 echo "$out" | grep -q "stub verify for hydromart-products"; check "kept going past the failing bucket" "$?"
 echo "$out" | grep -q "stub verify for hydromart-facer"; check "reached the last bucket too" "$?"
 echo "$out" | grep -q "hydromart-pod STILL OPEN"; check "named the bucket that failed" "$?"
