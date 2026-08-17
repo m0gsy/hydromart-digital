@@ -242,6 +242,14 @@ jobs:
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
 
+      # The browser is not the only client. The same check now resolves the 104 calls the
+      # services make to EACH OTHER — hand-written adapters whose URLs nothing validated
+      # until a courier's assign came back 422. Reading them needs three facts from three
+      # places (target in the template, verb on whichever method fetches, path at the call
+      # site for a helper), so the reader has a self-check of its own.
+      - name: Service contract gate self-check
+        run: bash scripts/check-endpoint-contracts.test.sh
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.
