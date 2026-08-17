@@ -321,6 +321,30 @@ if health_ok; then
     log "!! cannot reach the Postgres container ($PG) — the outbox was NOT probed."
   fi
 
+  # 1b. The PR-J fit trigger, because a threshold written in a comment tells nobody.
+  #
+  # The forecast machinery is built and the heuristic runs; a FITTED model waits on data, and
+  # the plan named the number: 90 days of completed orders AND at least 200 of them, per
+  # depot. Nothing watched it. "It will happen by itself" was true of the heuristic and false
+  # of the trigger — a comment does not notice a depot crossing a line.
+  #
+  # Read off depot_daily_revenue, which order-service feeds on COMPLETED: one row per depot
+  # per day carrying that day's order count, so both halves of the trigger are one query.
+  if docker exec "$PG" true >/dev/null 2>&1; then
+    READY="$(docker exec "$PG" psql -U hydromart -d hydromart_forecast -tAc       "SELECT coalesce(string_agg(depot_id::text || ' (' || days || 'd/' || orders || ')', ', '), 'none')
+         FROM (SELECT depot_id, count(*) AS days, sum(order_count) AS orders
+                 FROM depot_daily_revenue WHERE depot_id IS NOT NULL GROUP BY 1) t
+        WHERE days >= ${FIT_TRIGGER_DAYS:-90} AND orders >= ${FIT_TRIGGER_ORDERS:-200}" 2>/dev/null || echo 'unreadable')"
+    if [ "$READY" = "none" ] || [ "$READY" = "unreadable" ]; then
+      log "forecast fit trigger — no depot has ${FIT_TRIGGER_DAYS:-90}d + ${FIT_TRIGGER_ORDERS:-200} orders yet; the heuristic keeps running"
+    else
+      log "forecast fit trigger REACHED — $READY"
+      log "   A fitted model is now worth ATTEMPTING for those depots, not switching on:"
+      log "   run scripts/forecast-eval.mjs and let it beat the baseline on held-out data first."
+      alert "forecast fit trigger reached: $READY — a candidate model can finally be measured"
+    fi
+  fi
+
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
   if $COMPOSE exec -T crm sh -c '[ -n "${VAPID_PUBLIC_KEY:-}" ]' >/dev/null 2>&1; then
