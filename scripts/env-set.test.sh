@@ -62,8 +62,12 @@ echo 'ok: an empty block is a mistake, not a no-op'
 
 # ---------------------------------------------------------------- values with shell metacharacters
 printf 'A=1\n' > .env
-run 'URL=postgres://u:p@h/db?x=1&y=2' || fail 'a value with & and ? was refused'
-grep -qx 'URL=postgres://u:p@h/db?x=1&y=2' .env || fail 'a value with & and ? was mangled'
+# Deliberately NOT a `user:pass@host` connection string, however tempting a realistic
+# fixture is: gitleaks reads this file too, and a fake credential fails the secrets gate
+# exactly as loudly as a real one. What is under test is `&` and `?`, not the scheme.
+run 'CALLBACK=https://example.invalid/hook?x=1&y=2' || fail 'a value with & and ? was refused'
+grep -qx 'CALLBACK=https://example.invalid/hook?x=1&y=2' .env ||
+  fail 'a value with & and ? was mangled'
 run 'K=a/b\c$d' || fail 'a value with slashes and $ was refused'
 grep -qxF 'K=a/b\c$d' .env || fail 'a value with slashes and $ was mangled (sed would do this)'
 echo 'ok: values are data, not patterns'
