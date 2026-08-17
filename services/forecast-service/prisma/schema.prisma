@@ -73,3 +73,24 @@ model IngestedOrder {
 
   @@map("ingested_order")
 }
+
+/// PR-J: which demand and churn model this depot's forecasts run through. Same shape as
+/// the settings slice seven other services already own, so the console edits it the way it
+/// edits every other business tunable — and switching a model back is a click, not a deploy.
+model ServiceSetting {
+  id        String   @id @default(uuid())
+  scope     String
+  depotId   String?  @map("depot_id")
+  key       String
+  value     String
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Two PARTIAL unique indexes live in the migration and are invisible to Prisma (it
+  // cannot express a WHERE on an index): one key per depot, one key globally. A plain
+  // @@unique here would not constrain the GLOBAL rows, because depot_id is null on those
+  // and Postgres treats every NULL as distinct. The repository upserts against them by
+  // catching the violation.
+  @@index([scope, depotId])
+  @@map("service_settings")
+}

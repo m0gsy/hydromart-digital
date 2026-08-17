@@ -73,6 +73,7 @@ export const hq = {
     apiKeys: 'Kunci API',
     webhooks: 'Webhooks',
     slaPolicy: 'Kebijakan SLA',
+    forecastModels: 'Model prakiraan',
     retention: 'Retensi & backup',
     pdp: 'Permintaan data (UU PDP)',
     security: 'Keamanan & 2FA',
@@ -175,7 +176,7 @@ export const hq = {
       pendingApproval: 'Menunggu persetujuan',
     },
     kpiHint: {
-    notForRole: 'Tidak tersedia untuk peran ini',
+      notForRole: 'Tidak tersedia untuk peran ini',
       orders: '{n} pesanan',
       sla: '{onTime}/{total} tepat waktu',
       depots: 'dari {total} depot',
@@ -474,7 +475,8 @@ export const hq = {
     linkGrants: 'Tautan ini juga memberi akses depot (rantai Asisten SPV → SPV → Manager).',
     linkReportsOnly: 'Tautan ini hanya garis pelaporan — tidak menambah depot yang bisa dilihat.',
     linkNone: 'Belum punya atasan. Semua staf boleh punya atasan, termasuk kurir.',
-    linkUnknown: 'Data orang ini gagal dibaca — belum ketahuan apakah tautan ini menambah akses depot.',
+    linkUnknown:
+      'Data orang ini gagal dibaca — belum ketahuan apakah tautan ini menambah akses depot.',
   },
   staff: {
     title: 'Direktori staf',
@@ -896,7 +898,8 @@ export const hq = {
     reengaged: 'Pesan reaktivasi dikirim',
     reengageError: 'Gagal mengirim pesan reaktivasi.',
     campaignName: 'Reaktivasi — {name}',
-    campaignMessage: 'Hai {{name}}, sudah lama tidak pesan air. Ada promo untuk pesanan berikutnya!',
+    campaignMessage:
+      'Hai {{name}}, sudah lama tidak pesan air. Ada promo untuk pesanan berikutnya!',
     daysSince: '{n} hari lalu',
     orders: '{n} pesanan',
     empty: 'Tidak ada pelanggan pada cohort ini.',
@@ -1271,6 +1274,23 @@ export const hq = {
     saveError: 'Gagal menyimpan perubahan.',
     empty: 'Belum ada kunci API.',
   },
+  forecastModels: {
+    title: 'Model prakiraan',
+    subtitle: 'Model mana yang dipakai permintaan dan risiko churn — global, atau per depot.',
+    scope: 'Cakupan',
+    depotId: 'ID depot',
+    effective: 'efektif',
+    save: 'Simpan',
+    reset: 'Kembalikan',
+    saved: 'Model tersimpan.',
+    reverted: 'Override dihapus; kembali ke cakupan induk.',
+    saveFailed: 'Gagal menyimpan.',
+    noChange: 'Belum ada yang diubah.',
+    needDepot: 'Pilih depot dulu.',
+    globalOnly: 'Hanya SUPER_ADMIN yang boleh menulis cakupan GLOBAL.',
+    measureFirst:
+      'Ukur dulu dengan scripts/forecast-eval.mjs. Menang di satu depot bukan alasan mengganti semuanya.',
+  },
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
@@ -1308,7 +1328,8 @@ export const hq = {
     loadError: 'Gagal memuat kebijakan SLA.',
     saveError: 'Gagal menyimpan kebijakan SLA.',
     globalForbidden: 'Hanya Super Admin yang boleh mengubah ambang SLA global.',
-    thresholdNote: 'Ini ambang yang dipakai delivery-service menilai tepat waktu — dan yang menentukan komisi kurir. Depot boleh menimpanya sendiri di setelan depot.',
+    thresholdNote:
+      'Ini ambang yang dipakai delivery-service menilai tepat waktu — dan yang menentukan komisi kurir. Depot boleh menimpanya sendiri di setelan depot.',
   },
   pdp: {
     title: 'Permintaan data pribadi',

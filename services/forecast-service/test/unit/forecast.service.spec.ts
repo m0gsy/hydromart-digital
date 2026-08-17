@@ -1,7 +1,16 @@
+import { SettingsCache } from '@hydromart/platform';
 import { ForecastService } from '../../src/application/services/forecast.service';
 import { FakeForecastRepository } from '../support/fakes';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
 import { ForecastConfigService } from '../../src/config/forecast-config.service';
+
+/**
+ * PR-J: the model choice is read from the settings slice now. An empty cache answers with
+ * the env default for every key, which is exactly today's behaviour — so this stub keeps
+ * every existing expectation true while the seam stays exercised.
+ */
+const settingsStub = () => new SettingsCache({ loadAll: async () => [] });
+
 
 /** Churn ranking is what these tests are about; names are a decoration on it. */
 const noNames = async () => new Map<string, string>();
@@ -30,7 +39,7 @@ describe('ForecastService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    service = new ForecastService(repo, configStub, noNames);
+    service = new ForecastService(repo, configStub, noNames, settingsStub());
   });
 
   it('ingest sums QUANTITY (not order count) into daily demand', async () => {
@@ -178,7 +187,7 @@ describe('ForecastService', () => {
 
   it('churnList folds Monetary in: a high-spend customer bands lower than a low-spend one at the same recency', async () => {
     const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
-    const monService = new ForecastService(repo, monConfig, noNames);
+    const monService = new ForecastService(repo, monConfig, noNames, settingsStub());
     const lapsed = new Date('2026-06-11T12:00:00Z'); // 30 days before NOW → recency 1
     await monService.ingest(makeIngest({ orderId: 'lo', customerId: 'low', at: lapsed, total: 10_000 }));
     await monService.ingest(makeIngest({ orderId: 'hi', customerId: 'high', at: lapsed, total: 500_000 }));
@@ -232,10 +241,15 @@ describe('ForecastService', () => {
   // §G-3: a re-engage list nobody can put a name to is a list nobody calls.
   it('churnList carries the account name, and only asks about the rows it kept', async () => {
     const asked: string[][] = [];
-    const named = new ForecastService(repo, configStub, async (ids: string[]) => {
-      asked.push(ids);
-      return new Map([['stale', 'Budi']]);
-    });
+    const named = new ForecastService(
+      repo,
+      configStub,
+      async (ids: string[]) => {
+        asked.push(ids);
+        return new Map([['stale', 'Budi']]);
+      },
+      settingsStub(),
+    );
     await named.ingest(makeIngest({ orderId: 'o1', customerId: 'stale', at: new Date('2026-05-01T00:00:00Z') }));
     await named.ingest(makeIngest({ orderId: 'o2', customerId: 'recent', at: new Date('2026-07-10T00:00:00Z') }));
 

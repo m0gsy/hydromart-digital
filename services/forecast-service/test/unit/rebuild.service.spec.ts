@@ -1,9 +1,18 @@
+import { SettingsCache } from '@hydromart/platform';
 import { ForecastService } from '../../src/application/services/forecast.service';
 import { RebuildService } from '../../src/application/services/rebuild.service';
 import { OrderFeedPort } from '../../src/application/ports/order-feed.port';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
 import { ForecastConfigService } from '../../src/config/forecast-config.service';
 import { FakeForecastRepository } from '../support/fakes';
+
+/**
+ * PR-J: the model choice is read from the settings slice now. An empty cache answers with
+ * the env default for every key, which is exactly today's behaviour — so this stub keeps
+ * every existing expectation true while the seam stays exercised.
+ */
+const settingsStub = () => new SettingsCache({ loadAll: async () => [] });
+
 
 /** Churn ranking is what these tests are about; names are a decoration on it. */
 const noNames = async () => new Map<string, string>();
@@ -50,7 +59,7 @@ describe('RebuildService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    forecasts = new ForecastService(repo, configStub, noNames);
+    forecasts = new ForecastService(repo, configStub, noNames, settingsStub());
     feed = new FakeOrderFeed(orders);
     rebuild = new RebuildService(feed, forecasts);
   });
