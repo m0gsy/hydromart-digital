@@ -15,8 +15,7 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): ForecastConfig
     orderServiceUrl: 'http://order:3005',
     depotServiceUrl: 'http://depot:3007',
     internalServiceKey: KEY,
-    ...over,
-  } as unknown as ForecastConfigService;
+    ...over, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 }
 
 function res(init: { ok?: boolean; status?: number; body?: unknown; throwJson?: boolean }): Response {

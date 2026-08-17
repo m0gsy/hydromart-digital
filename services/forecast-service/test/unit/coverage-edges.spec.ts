@@ -30,7 +30,7 @@ describe('churnRisk with no spend recorded', () => {
 });
 
 describe('ForecastService.depotRollup', () => {
-  const config = {} as unknown as ForecastConfigService;
+  const config = { forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
   const rows = (productId: string, quantity: number) => ({
     productId,
     rows: [{ day: 20_300, quantity }],
@@ -112,8 +112,7 @@ describe('OrderFeedHttpAdapter timestamps', () => {
 
     const config = {
       orderServiceUrl: 'http://order',
-      internalServiceKey: 'k',
-    } as unknown as ForecastConfigService;
+      internalServiceKey: 'k', forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 
     const page = await new OrderFeedHttpAdapter(config).fetchCompleted(null, 50);
 

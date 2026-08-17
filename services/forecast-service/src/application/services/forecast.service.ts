@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AccountNameResolver } from '@hydromart/platform';
 
 import { denseDailySeries, toBusinessDay } from '../../domain/series';
-import { forecastDemand } from '../../domain/forecast';
+import { DemandModel, resolveModel } from '../../domain/models';
 import { ChurnBand, churnRisk } from '../../domain/churn';
 import {
   ForecastRepository,
@@ -121,8 +121,11 @@ export class ForecastService {
       { fromDay, toDay },
     );
 
-    // ponytail: ML re-forecaster seam — a future fitted model swaps in here (series -> forecast).
-    const f = forecastDemand(series, { horizonDays, maWindow });
+    // PR-J: the model is a NAME now, and the name comes from a per-depot setting. The
+    // comment that used to sit here promised this seam; a comment is not a seam, because
+    // nothing could be run in the heuristic's place and therefore nothing could be
+    // measured against it. Default is, and stays, the heuristic.
+    const f = this.modelFor(params.depotId).predict(series, { horizonDays, maWindow });
     const ref = (await this.repo.findRefs([params.productId]))[0];
 
     return {
@@ -157,14 +160,14 @@ export class ForecastService {
     const toDay = today;
 
     const groups = await this.repo.listDepotProducts({ depotId: params.depotId, fromDay, toDay });
+    const model = this.modelFor(params.depotId);
 
     const forecasts = groups.map((g) => {
       const series = denseDailySeries(
         g.rows.map((r) => ({ day: r.day, quantity: r.quantity })),
         { fromDay, toDay },
       );
-      // ponytail: same ML re-forecaster seam as demand().
-      const f = forecastDemand(series, { horizonDays, maWindow });
+      const f = model.predict(series, { horizonDays, maWindow });
       return { productId: g.productId, f };
     });
 
@@ -211,8 +214,8 @@ export class ForecastService {
       { fromDay, toDay },
     );
 
-    // ponytail: same ML re-forecaster seam as demand() — revenue reuses the demand engine.
-    const f = forecastDemand(series, { horizonDays, maWindow });
+    // Revenue reuses the demand engine, and therefore the depot's chosen model with it.
+    const f = this.modelFor(params.depotId).predict(series, { horizonDays, maWindow });
     return {
       depotId: params.depotId ?? null,
       avgDaily: f.avgDaily,
@@ -301,4 +304,14 @@ export class ForecastService {
 
     return { customers };
   }
+
+  /**
+   * The depot's demand model. Unknown names resolve to the heuristic rather than throwing:
+   * this reads configuration on a request path, and a typo in a per-depot setting must
+   * degrade to the forecast everybody else gets, not take that depot's stock screen down.
+   */
+  private modelFor(depotId: string | null | undefined): DemandModel {
+    return resolveModel(this.config.forecastModelForDepot(depotId));
+  }
+
 }
