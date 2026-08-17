@@ -71,6 +71,7 @@ export const hq = {
     apiKeys: 'API keys',
     webhooks: 'Webhooks',
     slaPolicy: 'SLA policy',
+    forecastModels: 'Forecast models',
     retention: 'Retention & backup',
     pdp: 'Data requests (UU PDP)',
     security: 'Security & 2FA',
@@ -172,7 +173,7 @@ export const hq = {
       pendingApproval: 'Pending approval',
     },
     kpiHint: {
-    notForRole: 'Not available for this role',
+      notForRole: 'Not available for this role',
       orders: '{n} orders',
       sla: '{onTime}/{total} on time',
       depots: 'of {total} depots',
@@ -892,7 +893,8 @@ export const hq = {
     reengage: 'Re-engage',
     reengageError: 'Could not send the re-engagement message.',
     campaignName: 'Re-engagement — {name}',
-    campaignMessage: 'Hi {{name}}, it has been a while since your last order. There is a promo waiting!',
+    campaignMessage:
+      'Hi {{name}}, it has been a while since your last order. There is a promo waiting!',
     reengaged: 'Re-engagement message sent',
     daysSince: '{n} days ago',
     orders: '{n} orders',
@@ -1268,6 +1270,23 @@ export const hq = {
     saveError: 'Failed to save changes.',
     empty: 'No API keys yet.',
   },
+  forecastModels: {
+    title: 'Forecast models',
+    subtitle: 'Which model demand and churn risk run through — globally, or per depot.',
+    scope: 'Scope',
+    depotId: 'Depot id',
+    effective: 'effective',
+    save: 'Save',
+    reset: 'Revert',
+    saved: 'Model saved.',
+    reverted: 'Override removed; back to the parent scope.',
+    saveFailed: 'Could not save.',
+    noChange: 'Nothing was changed.',
+    needDepot: 'Pick a depot first.',
+    globalOnly: 'Only a SUPER_ADMIN may write the GLOBAL scope.',
+    measureFirst:
+      'Measure with scripts/forecast-eval.mjs first. A win on one depot is not a reason to switch everyone.',
+  },
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
@@ -1305,7 +1324,8 @@ export const hq = {
     loadError: 'Could not load the SLA policy.',
     saveError: 'Could not save the SLA policy.',
     globalForbidden: 'Only a Super Admin may change the global SLA threshold.',
-    thresholdNote: 'This is the threshold delivery-service grades on-time against — and what courier commission turns on. A depot may still override it in depot settings.',
+    thresholdNote:
+      'This is the threshold delivery-service grades on-time against — and what courier commission turns on. A depot may still override it in depot settings.',
   },
   pdp: {
     title: 'Personal-data requests',
@@ -1511,7 +1531,8 @@ export const hq = {
       REVENUE_BY_PRODUCT: 'Revenue by product',
       REVENUE_BY_METHOD: 'Revenue by payment method',
     },
-    deliveryNote: 'The file is produced automatically and downloaded from HQ › Exports. It is not emailed yet.',
+    deliveryNote:
+      'The file is produced automatically and downloaded from HQ › Exports. It is not emailed yet.',
     on: 'On',
     off: 'Off',
     delete: 'Delete',

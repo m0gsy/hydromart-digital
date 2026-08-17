@@ -146,7 +146,7 @@ Cyclomatic Complexity
 
 Lighthouse
 
-> 95
+> 95 (target; see "Lighthouse: what is actually enforced" at the end)
 
 Accessibility
 
@@ -231,3 +231,29 @@ A feature is DONE only if
 ✓ Production deployment ready
 
 Anything less is Work In Progress.
+
+---
+
+## Lighthouse: what is actually enforced, and why it is not the number above
+
+`scripts/check-lighthouse.mjs` runs on every PR over `/`, `/products`, `/login` and
+`/driver`, in mobile emulation, and **gates accessibility, best-practices and SEO** at the
+numbers this repo measured (95, 96, 100, 100 — recorded in `scripts/lighthouse-baseline.json`).
+
+**Performance is measured and printed, and gated by nothing.** Two runs of the same commit,
+forty minutes apart on GitHub's shared runners, scored:
+
+| page | run 1 | run 2 |
+|---|---|---|
+| `/` | 84 | 72 |
+| `/products` | 86 | 68 |
+| `/login` | 93 | 92 |
+| `/driver` | 77 | 83 |
+
+Eighteen points of spread with no code change. A `> 95` floor on that number is a gate that
+fails at random, which teaches people to re-run until green — and the habit spreads to the
+three categories that ARE deterministic.
+
+So the threshold above stands as the target, and this is the honest statement of what is
+enforced today. Closing the gap needs a stable measurement environment — a dedicated runner
+or a lab profile — not a stricter number in a document.
