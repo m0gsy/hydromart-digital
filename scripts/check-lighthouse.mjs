@@ -45,8 +45,13 @@ const BASE_URL = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/
  * meta tags, HTTPS, console errors. They do not drift, and they are where a regression a
  * person can cause actually shows up.
  */
+const RUNS = Number(process.env.LIGHTHOUSE_RUNS ?? 3);
+
 const TOLERANCE = {
-  performance: null,
+  // Gated now, on the MEDIAN of RUNS passes. Eight points is sized off the residual spread
+  // a median leaves behind, not off ambition: a floor tighter than the noise is a gate that
+  // fails at random, and one looser than a real regression is decoration.
+  performance: 8,
   accessibility: 1,
   'best-practices': 1,
   seo: 1,
@@ -125,32 +130,70 @@ async function launchChrome(executable) {
 
 const lighthouse = (await import('lighthouse')).default;
 
+/** Middle value, not mean: one pathological run should not drag the number with it. */
+function median(values) {
+  const present = values.filter((v) => typeof v === 'number').sort((a, b) => a - b);
+  if (present.length === 0) return null;
+  const mid = Math.floor(present.length / 2);
+  return present.length % 2 ? present[mid] : Math.round((present[mid - 1] + present[mid]) / 2);
+}
+
 const executable = await chromePath();
 const chrome = await launchChrome(executable);
 const measured = {};
+const spreads = {};
 try {
   for (const page of PAGES) {
-    const result = await lighthouse(
-      `${BASE_URL}${page}`,
-      { port: chrome.port, output: 'json', logLevel: 'error' },
-      undefined,
-    );
-    const scores = {};
-    for (const category of CATEGORIES) {
-      const raw = result.lhr.categories[category]?.score;
-      scores[category] = raw === null || raw === undefined ? null : Math.round(raw * 100);
+    // RUNS passes per page, and the median of each metric.
+    //
+    // One pass cannot gate the performance score: two runs of the same commit scored 86 and
+    // 68 on /products, because a shared runner's CPU is whatever the neighbours are doing.
+    // The median of three collapses that — a single slow pass has to be joined by a second
+    // one to move the answer at all — which is what makes the score gateable instead of a
+    // number that is printed and ignored.
+    const passes = [];
+    for (let i = 0; i < RUNS; i += 1) {
+      const result = await lighthouse(
+        `${BASE_URL}${page}`,
+        { port: chrome.port, output: 'json', logLevel: 'error' },
+        undefined,
+      );
+      const one = {};
+      for (const category of CATEGORIES) {
+        const raw = result.lhr.categories[category]?.score;
+        one[category] = raw === null || raw === undefined ? null : Math.round(raw * 100);
+      }
+      for (const [key, spec] of Object.entries(WEIGHTS)) {
+        const value = spec.of(result.lhr);
+        if (typeof value === 'number') one[key] = Math.round(value);
+      }
+      passes.push(one);
     }
-    for (const [key, spec] of Object.entries(WEIGHTS)) {
-      const value = spec.of(result.lhr);
-      if (typeof value === 'number') scores[key] = Math.round(value);
+
+    const scores = {};
+    const spread = {};
+    for (const key of [...CATEGORIES, ...Object.keys(WEIGHTS)]) {
+      const values = passes.map((p) => p[key]).filter((v) => typeof v === 'number');
+      scores[key] = median(values);
+      // The spread is printed on every run: the day it stops being small is the day this
+      // whole approach needs revisiting, and nobody will notice that from a median alone.
+      if (values.length > 1) spread[key] = Math.max(...values) - Math.min(...values);
     }
     measured[page] = scores;
+    spreads[page] = spread;
     console.log(
       `${page.padEnd(12)} ` +
         [...CATEGORIES, ...Object.keys(WEIGHTS)]
           .map((c) => `${c}=${scores[c] ?? '—'}`.padEnd(18))
           .join(' '),
     );
+    const noisy = Object.entries(spread).filter(([, v]) => v > 0);
+    if (noisy.length) {
+      console.log(
+        `${''.padEnd(12)} spread over ${RUNS} run(s): ` +
+          noisy.map(([k, v]) => `${k}±${v}`).join(' '),
+      );
+    }
   }
 } finally {
   chrome.kill();
