@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), storage-policy (close anonymous bucket listing + prove it)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
         options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, storage-policy]
@@ -29,6 +29,10 @@ on:
         description: "env-set only: services to recreate afterwards (space separated, e.g. 'crm web')"
         required: false
         default: ''
+      demo_phone:
+        description: "seed-demo only: the phone the Play reviewer will sign in with"
+        required: false
+        default: '+6281199900001'
         required: false
         default: ""
 
@@ -80,6 +84,19 @@ jobs:
             # backs the file up first, refuses a multi-line value outright, and is a no-op
             # on a value that is already correct.
             env-set)     echo "run=bash scripts/env-set.sh ${{ github.event.inputs.services }}" >> "$GITHUB_OUTPUT" ;;
+            # G5. The Play reviewer signs in with REVIEWER_PHONE, and on production that is
+            # a REAL employee on a REAL depot — so a reviewer reads live customers' names,
+            # addresses and phone numbers, and a depot that happens to be out of stock that
+            # day shows them an empty app, which is a rejection.
+            #
+            # This builds the account they should get instead: a demo depot, a demo
+            # KEPALA_DEPOT, stock on its shelves. Idempotent and additive — it looks before
+            # it creates and never edits or deletes a row it did not make.
+            #
+            # The secret it signs with comes from the box's own .env through load-env.sh
+            # (which PARSES rather than executes), so it is never in this repo, this
+            # workflow, or this log.
+            seed-demo)   echo "run=. ./scripts/load-env.sh && DEMO_PHONE='${{ github.event.inputs.demo_phone }}' GATEWAY_URL=http://127.0.0.1:8080 node scripts/seed-demo-depot.mjs" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -118,6 +135,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "env-set" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/env-set.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "seed-demo" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/seed-demo-depot.mjs
             fi
             ${{ steps.cmd.outputs.run }}
         env:
