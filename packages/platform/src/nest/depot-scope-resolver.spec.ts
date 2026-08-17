@@ -26,16 +26,27 @@ describe('resolveDepotScope', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  /*
+   * Time is a PARAMETER in these three, not something to sleep through.
+   *
+   * This test used a 20 ms TTL and two back-to-back calls, expecting one resolve. On a
+   * loaded runner under coverage the two calls landed more than 20 ms apart, the entry had
+   * expired, and it resolved twice — red on main, with nothing wrong in the code. A test
+   * that measures the runner instead of the behaviour teaches people to re-run until
+   * green, which is how a suite stops meaning anything.
+   */
   it('caches a resolved set for the TTL, then resolves again', async () => {
+    let clock = 0;
     const resolve = jest.fn().mockResolvedValue(['d1', 'd2']);
-    configureDepotScope(resolve, { ttlMs: 20 });
+    configureDepotScope(resolve, { ttlMs: 20, now: () => clock });
 
     expect(await resolveDepotScope('spv', Role.SUPERVISOR)).toEqual(['d1', 'd2']);
+    clock = 19; // still inside the TTL, however slow the machine was getting here
     await resolveDepotScope('spv', Role.SUPERVISOR);
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(depotScopeStatus()).toEqual({ configured: true, cached: 1 });
 
-    await new Promise((r) => setTimeout(r, 30));
+    clock = 21; // one millisecond past it
     await resolveDepotScope('spv', Role.SUPERVISOR);
     expect(resolve).toHaveBeenCalledTimes(2);
   });
@@ -47,31 +58,33 @@ describe('resolveDepotScope', () => {
    * outage still expires it.
    */
   it('re-serves the last confirmed set while refreshing fails', async () => {
+    let clock = 0;
     let fail = false;
     configureDepotScope(
       async () => {
         if (fail) throw new Error('depot-service down');
         return ['d1'];
       },
-      { ttlMs: 1, staleOnErrorMs: 10_000 },
+      { ttlMs: 1, staleOnErrorMs: 10_000, now: () => clock },
     );
     expect(await resolveDepotScope('spv', Role.SUPERVISOR)).toEqual(['d1']);
-    await new Promise((r) => setTimeout(r, 5));
+    clock = 5; // past the TTL, far inside the stale window
     fail = true;
     expect(await resolveDepotScope('spv', Role.SUPERVISOR)).toEqual(['d1']);
   });
 
   it('fails CLOSED once the stale window has passed', async () => {
+    let clock = 0;
     let fail = false;
     configureDepotScope(
       async () => {
         if (fail) throw new Error('down');
         return ['d1'];
       },
-      { ttlMs: 1, staleOnErrorMs: 1 },
+      { ttlMs: 1, staleOnErrorMs: 1, now: () => clock },
     );
     await resolveDepotScope('spv', Role.SUPERVISOR);
-    await new Promise((r) => setTimeout(r, 10));
+    clock = 10; // past the stale window too
     fail = true;
     await expect(resolveDepotScope('spv', Role.SUPERVISOR)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
