@@ -35,6 +35,43 @@ async function countApiCalls(page: import('@playwright/test').Page, path: string
   return seen;
 }
 
+/**
+ * The audit's ~201 requests were measured on a network of TWELVE depots, and the fan-out it
+ * measured was per depot. A seeded stack has three, so a small number here proves the storm
+ * is gone for three depots and nothing at all about twelve — which is the size that mattered.
+ *
+ * So the depots are created first, through the API, with the console's own session. Twelve is
+ * not a guess: it is the number the audit measured, so the before and after are comparable.
+ */
+const DEPOT_TARGET = 12;
+
+async function ensureDepots(page: import('@playwright/test').Page): Promise<number> {
+  const list = await page.request.get('/depots/api/v1/depots/manage?limit=100');
+  const existing = list.ok() ? ((await list.json()).items ?? []) : [];
+  const stamp = Date.now().toString().slice(-6);
+  for (let i = existing.length; i < DEPOT_TARGET; i += 1) {
+    // Spread far apart so none of them can compete for routing with a real seeded depot —
+    // this spec measures request counts, and must not change what checkout would answer.
+    await page.request.post('/depots/api/v1/depots', {
+      data: {
+        code: `BUDGET-${stamp}-${i}`,
+        name: `Budget Depot ${i}`,
+        ownershipType: 'HKP',
+        address: 'Jl. Budget 1',
+        city: 'Test',
+        province: 'Test',
+        lat: -2 - i * 0.5,
+        lng: 118 + i * 0.5,
+        serviceRadiusKm: 1,
+        deliveryFee: 5000,
+        minOrderAmount: 0,
+      },
+    });
+  }
+  const after = await page.request.get('/depots/api/v1/depots/manage?limit=100');
+  return after.ok() ? ((await after.json()).items ?? []).length : existing.length;
+}
+
 test.describe('request budget per screen', () => {
   test.beforeEach(async ({ page }) => {
     await loginWithOtp(page);
@@ -42,11 +79,15 @@ test.describe('request budget per screen', () => {
 
   // The seeded account is a SUPER_ADMIN, so /hq is the console it lands in — and /hq is the
   // page the audit measured at ~201 requests.
-  for (const { path, budget } of [
-    { path: '/hq', budget: 60 },
-    { path: '/products', budget: 25 },
+  for (const { path, budget, atScale } of [
+    // 80 for twelve depots. The audit measured ~201 on this page at that size, so anything
+    // near the old number is the fan-out returning; anything far below it is PR-7 holding.
+    { path: '/hq', budget: 80, atScale: true },
+    { path: '/products', budget: 25, atScale: false },
   ]) {
     test(`${path} stays inside its request budget`, async ({ page }) => {
+      const depots = atScale ? await ensureDepots(page) : 0;
+      if (atScale) console.log(`${path}: measuring across ${depots} depot(s)`);
       const calls = await countApiCalls(page, path);
       // Printed on every run, pass or fail: the number is the point, and a budget nobody
       // can see the current value of is a budget nobody will ever tighten.
