@@ -386,6 +386,10 @@ services:
       # environment gap. Now that the provider surfaces the error, a 429 fails the run
       # outright — correctly. Test stack only; prod keeps its edge limit.
       RATE_LIMIT_MAX: 10000
+      # Out of the way: the e2e job drives several Playwright workers from one address, and
+      # their anonymous page loads share one bucket. What is under test there is the app, not
+      # the limiter — the limiter has its own spec, with its own numbers.
+      RATE_LIMIT_BURST_MAX: 10000
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
       PRODUCT_SERVICE_URL: http://product:3003
