@@ -1,6 +1,7 @@
 // Integration-test orchestrator: boot the whole prod artifact, run the flow, tear down.
 //   npm run test:integration            (full: up -> migrate -> build/boot -> flow -> down)
 //   npm run test:integration -- --keep  (leave the stack up afterwards for debugging)
+//   node test/integration/run.mjs --keep --boot-only  (stack only; the Load workflow's boot)
 // Requires Docker running. On Windows the docker binary may not be on PATH; this adds it.
 import { spawnSync } from 'node:child_process';
 
@@ -95,6 +96,12 @@ async function main() {
   }
   if (compose([...COMPOSE, 'up', '-d', '--build'])) throw new Error('service boot failed');
   await waitHealthy();
+  // The load workflow boots this same stack and then drives it with k6 — booting it a
+  // second way is how two "identical" stacks drift apart.
+  if (process.argv.includes('--boot-only')) {
+    console.log('\nSTACK UP (--boot-only)');
+    return;
+  }
   if (run('node', ['test/integration/flow.mjs'])) throw new Error('flow assertions failed');
   /*
    * Three harnesses that existed and were run BY HAND, against whatever stack happened to

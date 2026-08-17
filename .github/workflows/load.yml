@@ -1,0 +1,103 @@
+name: Load
+
+# The two k6 scripts have existed since PR-7 and have never been run by anything but a
+# person deciding to. They measure the two fan-outs the audit named (checkout's per-product
+# catalog reads, the owner and HR dashboards), and the whole point of those rewrites was
+# that p95 stays FLAT as cart lines / depots / roster grow. Nothing was watching whether it
+# still does.
+#
+# Weekly, against a stack this workflow boots itself. NOT against production: the box has
+# 16 GB and is serving customers, and the checkout script writes real orders — a load test
+# that pollutes the day's book is worse than no load test.
+on:
+  schedule:
+    - cron: '0 19 * * 0' # Sunday 02:00 WIB, the quietest hour of the quietest day
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: 'Virtual users'
+        default: '10'
+      duration:
+        description: 'Duration per scenario'
+        default: '60s'
+
+env:
+  AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
+  CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
+  PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_product?schema=public
+  ORDER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_order?schema=public
+  PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payment?schema=public
+  DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_delivery?schema=public
+  DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_depot?schema=public
+  LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_loyalty?schema=public
+  PROMO_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_promo?schema=public
+  REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_referral?schema=public
+  CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
+  RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
+  FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+  PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payout?schema=public
+  ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
+  HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GATEWAY_URL: http://localhost:8080
+      BASE_URL: http://localhost:8080
+      VUS: ${{ github.event.inputs.vus || '10' }}
+      DURATION: ${{ github.event.inputs.duration || '60s' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Same orchestrator the integration job uses, with --keep so the stack survives the
+      # run: booting it a second way is how the two drift apart.
+      - name: Boot the stack
+        env:
+          COMPOSE_BAKE: 'true'
+        run: node test/integration/run.mjs --keep --boot-only
+
+      - name: Seed catalog + staff
+        run: node scripts/seed.mjs
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo 'deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main' \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      # One token per VU: checkout consumes a server-side cart, so sharing tokens measures
+      # cart contention instead of the catalog fan-out under test.
+      - name: Mint tokens
+        run: |
+          echo "TOKENS=$(node scripts/load/mint-tokens.mjs "$VUS")" >> "$GITHUB_ENV"
+          echo "TOKEN=$(node scripts/load/mint-tokens.mjs --staff)" >> "$GITHUB_ENV"
+
+      # The thresholds live in the scripts (p95 + success rate). k6 exits non-zero when one
+      # breaks, so a regression fails this job rather than sitting in a log nobody opens.
+      - name: Checkout hot path
+        run: k6 run scripts/load/checkout.k6.js
+
+      - name: Owner and HR dashboards
+        run: k6 run scripts/load/dashboards.k6.js
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
