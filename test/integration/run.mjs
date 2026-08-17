@@ -18,9 +18,16 @@ const EXTRA = (process.env.COMPOSE_EXTRA_FILES ?? '')
   .filter(Boolean)
   .flatMap((f) => ['-f', f]);
 const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml', ...EXTRA];
-const APP = ['auth', 'customer', 'product', 'order', 'payment', 'delivery', 'depot', 'dashboard',
-  'loyalty', 'promo', 'referral', 'crm', 'recommendation', 'forecast', 'gateway'];
-const ALL = [...APP, 'gateway-stub', 'postgres'];
+/*
+ * The health gate used to be a hand-written list, and it was already two services short of
+ * what this stack boots — payout and hr were never waited for, so a harness could start
+ * against a service still opening its database. Adding admin would have made it three.
+ *
+ * Read from compose instead: every service that DECLARES a healthcheck is one this run
+ * waits for. A list that has to be edited by hand is a list that goes stale silently, and
+ * this one already had.
+ */
+let ALL = [];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function run(cmd, args, opts = {}) {
@@ -83,11 +90,19 @@ async function main() {
   //
   // Batched, the first batch populates the cache and the rest hit it warm. Same reasoning
   // as scripts/rebuild-stale.sh, which already batches on the VPS so a build never OOMs it.
-  // Read the list from compose rather than from APP above: APP is the health-gate list and
-  // was already two services short of what the test stack builds, so hard-coding it here
-  // would have quietly left those two building in parallel with everything else.
+  // Read the list from compose, same as the health gate above — a hard-coded list here
+  // would have quietly left the services missing from it building in parallel with
+  // everything else, which is the burst this batching exists to avoid.
   const BATCH = Number(process.env.BUILD_BATCH || 3);
-  const buildable = Object.entries(composeConfig().services || {})
+  const services = composeConfig().services || {};
+  ALL = Object.entries(services)
+    .filter(([, v]) => v.healthcheck || v.extends || v['x-healthcheck'])
+    .map(([k]) => k);
+  // `<<: *svc` merges the healthcheck anchor in, so compose config always resolves one for
+  // an app service; anything without one is infrastructure this run does not gate on.
+  if (ALL.length === 0) throw new Error('no service in the test stack declares a healthcheck');
+  console.log(`health gate covers ${ALL.length} service(s): ${ALL.join(' ')}`);
+  const buildable = Object.entries(services)
     .filter(([, v]) => v.build).map(([k]) => k);
   for (let i = 0; i < buildable.length; i += BATCH) {
     const batch = buildable.slice(i, i + BATCH);
