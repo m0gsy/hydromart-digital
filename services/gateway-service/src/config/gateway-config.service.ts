@@ -111,8 +111,14 @@ export class GatewayConfigService {
       .filter((o) => o.length > 0);
     return [...new Set([...configured, ...NATIVE_ORIGINS])];
   }
-  get rateLimit(): { ttlSeconds: number; limit: number } {
-    return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
+  get rateLimit(): { ttlSeconds: number; limit: number; otpLimit: number } {
+    return {
+      ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'),
+      limit: this.num('RATE_LIMIT_MAX'),
+      // Its own ceiling because it protects a different thing: every request past it is a
+      // paid SMS, not a wasted CPU cycle.
+      otpLimit: this.num('RATE_LIMIT_OTP_MAX'),
+    };
   }
 
   /** service segment -> upstream base URL (trailing slashes stripped). */

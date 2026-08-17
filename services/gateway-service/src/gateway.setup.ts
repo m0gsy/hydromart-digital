@@ -125,6 +125,37 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   // gateway instance; swap in a shared store (rate-limit-redis, and the Redis container
   // Q-9 removed) once the gateway scales horizontally, so counters are shared across
   // instances instead of each replica granting the full quota on its own.
+  /*
+   * The OTP tier, and it is a BILLING control before it is an availability one.
+   *
+   * Every call that issues a code sends a real SMS through Zenziva, and Zenziva invoices
+   * per message. auth-service caps RESENDS per customer — but nothing capped a caller who
+   * walks a different phone number on each request, which is the shape that costs money:
+   * one IP, one script, six hundred numbers a minute under the general ceiling, every one
+   * of them a paid message to a stranger's handset.
+   *
+   * Keyed by IP because these callers have no credential yet, and deliberately strict: a
+   * human registering needs three calls (register, maybe one resend, verify), so twenty a
+   * minute is roughly seven honest attempts and nothing like a pump.
+   *
+   * Independent of the general limit and of the HQ request storm that inflated it — this
+   * tier can be tightened on its own merits without waiting for that measurement.
+   */
+  const OTP_ISSUING = /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/;
+  app.use(
+    rateLimit({
+      windowMs: config.rateLimit.ttlSeconds * 1000,
+      limit: config.rateLimit.otpLimit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      // `req.ip` is always set behind the trust-proxy setting above; the prefix is what
+      // keeps this bucket separate from the general one for the same address.
+      keyGenerator: (req) => `otp:${req.ip}`,
+      skip: (req) => !OTP_ISSUING.test(req.path),
+      message: { statusCode: 429, message: 'Too many verification requests' },
+    }),
+  );
+
   app.use(
     rateLimit({
       windowMs: config.rateLimit.ttlSeconds * 1000,

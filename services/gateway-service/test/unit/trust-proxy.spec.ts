@@ -21,6 +21,11 @@ describe('trustProxyHops', () => {
   it('trusts nothing when no proxy is configured, whatever the bind', () => {
     expect(trustProxyHops('production', '0.0.0.0', '')).toBe(0);
     expect(trustProxyHops('production', '0.0.0.0', undefined)).toBe(0);
+    // PUBLIC_BIND unset at all is compose's own default, which is loopback — the same
+    // answer as '127.0.0.1', and the branch that reads the variable as absent rather than
+    // as empty.
+    expect(trustProxyHops('production', undefined, 'hydromart-digital.com')).toBe(1);
+    expect(trustProxyHops('production', undefined, undefined)).toBe(0);
     expect(trustProxyHops('production', '127.0.0.1', '')).toBe(0);
   });
 
