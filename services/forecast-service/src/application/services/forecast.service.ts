@@ -4,13 +4,19 @@ import { AccountNameResolver } from '@hydromart/platform';
 
 import { denseDailySeries, toBusinessDay } from '../../domain/series';
 import { DemandModel, resolveModel } from '../../domain/models';
-import { ChurnBand, churnRisk } from '../../domain/churn';
+import { ChurnBand } from '../../domain/churn';
+import { resolveChurnModel } from '../../domain/churn-models';
 import {
   ForecastRepository,
   IngestCommand,
   ProductRefRecord,
 } from '../ports/forecast.repository';
+import { SettingsCache } from '@hydromart/platform';
+
 import { ForecastConfigService } from '../../config/forecast-config.service';
+import { DEFAULT_CHURN_MODEL } from '../../domain/churn-models';
+import { DEFAULT_MODEL } from '../../domain/models';
+
 import { FORECAST_TOKENS } from '../tokens';
 
 /** Single-product demand forecast + its history window (the `/demand` response). */
@@ -86,6 +92,9 @@ export class ForecastService {
     @Inject(FORECAST_TOKENS.Repository) private readonly repo: ForecastRepository,
     private readonly config: ForecastConfigService,
     @Inject(FORECAST_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
+    // PR-J: which model a depot's forecast runs through is a SETTING, not an env var —
+    // so turning a candidate on for one depot and off again is a click, not a deploy.
+    private readonly settings: SettingsCache,
   ) {}
 
   async ingest(cmd: IngestCommand): Promise<void> {
@@ -125,7 +134,7 @@ export class ForecastService {
     // comment that used to sit here promised this seam; a comment is not a seam, because
     // nothing could be run in the heuristic's place and therefore nothing could be
     // measured against it. Default is, and stays, the heuristic.
-    const f = this.modelFor(params.depotId).predict(series, { horizonDays, maWindow });
+    const f = (await this.modelFor(params.depotId)).predict(series, { horizonDays, maWindow });
     const ref = (await this.repo.findRefs([params.productId]))[0];
 
     return {
@@ -160,7 +169,7 @@ export class ForecastService {
     const toDay = today;
 
     const groups = await this.repo.listDepotProducts({ depotId: params.depotId, fromDay, toDay });
-    const model = this.modelFor(params.depotId);
+    const model = await this.modelFor(params.depotId);
 
     const forecasts = groups.map((g) => {
       const series = denseDailySeries(
@@ -215,7 +224,7 @@ export class ForecastService {
     );
 
     // Revenue reuses the demand engine, and therefore the depot's chosen model with it.
-    const f = this.modelFor(params.depotId).predict(series, { horizonDays, maWindow });
+    const f = (await this.modelFor(params.depotId)).predict(series, { horizonDays, maWindow });
     return {
       depotId: params.depotId ?? null,
       avgDaily: f.avgDaily,
@@ -243,7 +252,7 @@ export class ForecastService {
   ): Promise<{ riskBand: ChurnBand; riskScore: number; daysSince: number } | null> {
     const row = await this.repo.findCustomerActivity(customerId);
     if (!row) return null;
-    const risk = churnRisk(
+    const risk = (await this.churnModelFor(row.depotId ?? null)).score(
       { lastOrderAt: row.lastOrderAt, orderCount: row.orderCount, totalSpent: row.totalSpent },
       now ?? new Date(),
       {
@@ -270,10 +279,11 @@ export class ForecastService {
 
     // Repo returns the oldest `limit` (index-ordered by lastOrderAt asc) — already the most at-risk.
     const rows = await this.repo.listCustomerActivity({ depotId: params.depotId, limit });
+    const churnModel = await this.churnModelFor(params.depotId ?? null);
 
     const customers = rows
       .map((r) => {
-        const risk = churnRisk(
+        const risk = churnModel.score(
           { lastOrderAt: r.lastOrderAt, orderCount: r.orderCount, totalSpent: r.totalSpent },
           now,
           { windowDays, monetaryRef: this.config.churnMonetaryRef },
@@ -310,8 +320,22 @@ export class ForecastService {
    * this reads configuration on a request path, and a typo in a per-depot setting must
    * degrade to the forecast everybody else gets, not take that depot's stock screen down.
    */
-  private modelFor(depotId: string | null | undefined): DemandModel {
-    return resolveModel(this.config.forecastModelForDepot(depotId));
+  private async modelFor(depotId: string | null | undefined): Promise<DemandModel> {
+    await this.settings.ensureFresh();
+    return resolveModel(
+      this.settings.effective('forecast.demandModel', 'string', DEFAULT_MODEL, depotId ?? null) as string,
+    );
+  }
+
+  /**
+   * The churn half of the same seam. Read per depot, resolved the same forgiving way, and
+   * defaulting to the RFM-lite heuristic that has always run.
+   */
+  private async churnModelFor(depotId: string | null | undefined) {
+    await this.settings.ensureFresh();
+    return resolveChurnModel(
+      this.settings.effective('forecast.churnModel', 'string', DEFAULT_CHURN_MODEL, depotId ?? null) as string,
+    );
   }
 
 }

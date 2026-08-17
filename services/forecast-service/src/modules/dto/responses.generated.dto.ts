@@ -143,3 +143,32 @@ export class Ingest3ResponseDto {
   @ApiProperty({ enum: [true] })
   ingested!: true;
 }
+
+/** PR-J settings slice: the same shape order-service already answers with (audit D-6). */
+export class SettingDefResponseDto {
+  @ApiProperty({ type: String })
+  key!: string;
+  @ApiProperty({ type: String })
+  label!: string;
+  @ApiProperty({ type: Object })
+  type!: unknown;
+  @ApiProperty({ required: false, type: String })
+  unit?: string;
+  @ApiProperty({ required: false, type: Number })
+  min?: number;
+  @ApiProperty({ required: false, type: Number })
+  max?: number;
+  @ApiProperty({ type: Object })
+  envDefault!: unknown;
+  @ApiProperty({ required: false, type: String })
+  pattern?: string;
+  @ApiProperty({ required: false, type: Boolean })
+  global?: boolean;
+}
+
+export class SettingsSchemaResponseDto {
+  @ApiProperty({ type: [SettingDefResponseDto] })
+  defs!: SettingDefResponseDto[];
+  @ApiProperty({ type: Object })
+  effective!: unknown;
+}
