@@ -149,6 +149,15 @@ jobs:
       - name: Production env writer self-check
         run: bash scripts/env-set.test.sh
 
+      # An unparseable workflow fails in the quietest way GitHub has: the run appears, is
+      # marked failed, has ZERO jobs, and Actions lists the workflow by its PATH instead of
+      # its name. Nothing says "invalid YAML" anywhere a person looks first — three red
+      # deploy runs on main said nothing more specific than "failure".
+      # It also checks the subtler half: a `mode` implemented in the script body but missing
+      # from the `choice` options is a button nobody can press.
+      - name: Workflows parse, and every mode they implement is selectable
+        run: node scripts/check-workflows.mjs
+
       # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
       # is stubbed — so it is gated here like any other logic.
       - name: Scheduler sweep self-check

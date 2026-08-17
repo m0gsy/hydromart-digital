@@ -22,19 +22,20 @@ on:
         description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
-        options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, storage-policy]
+        options:
+          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, storage-policy]
       sha:
         description: "rollback target SHA (blank = previous good)"
+        required: false
+        default: ""
       services:
         description: "env-set only: services to recreate afterwards (space separated, e.g. 'crm web')"
         required: false
-        default: ''
+        default: ""
       demo_phone:
         description: "seed-demo only: the phone the Play reviewer will sign in with"
         required: false
-        default: '+6281199900001'
-        required: false
-        default: ""
+        default: "+6281199900001"
 
 concurrency:
   group: deploy-prod
