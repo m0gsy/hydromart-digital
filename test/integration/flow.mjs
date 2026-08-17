@@ -176,15 +176,21 @@ async function registerCustomer() {
   return { phone, token };
 }
 
-// Walk an order from wherever it is to COMPLETED (BR-012 forward sequence). Read the
+const STATUS_SEQ = ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+
+// Walk an order from wherever it is to `target` (BR-012 forward sequence). Read the
 // current status first: the payment->order auto-confirm is fail-open, so the order
 // may still be CREATED or already CONFIRMED — advance from whatever it is.
-async function advanceToCompleted(staff, orderId) {
-  const SEQ = ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+async function advanceTo(staff, orderId, target) {
+  const stop = STATUS_SEQ.indexOf(target);
   const cur = (await getOrder(staff, orderId)).status;
-  for (let i = SEQ.indexOf(cur) + 1; i < SEQ.length; i++) {
-    ok(await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, { token: staff, body: { status: SEQ[i] } }), `advance ${SEQ[i]}`);
+  for (let i = STATUS_SEQ.indexOf(cur) + 1; i <= stop; i++) {
+    ok(await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, { token: staff, body: { status: STATUS_SEQ[i] } }), `advance ${STATUS_SEQ[i]}`);
   }
+}
+
+async function advanceToCompleted(staff, orderId) {
+  await advanceTo(staff, orderId, 'COMPLETED');
 }
 
 // 1. Core transaction loop: order COMPLETED + loyalty awarded across a real service boundary.
@@ -564,6 +570,15 @@ async function deliveryLeg(staff) {
   ok(shift, 'dl: check-in at the depot');
   const shiftId = shift.body.id;
   assert(shiftId, `dl: no shift id: ${JSON.stringify(shift.body)}`);
+
+  /*
+   * The depot accepts the order and fills the gallons before anyone is dispatched. This is
+   * not test scaffolding: BR-012 only allows DRIVER_ASSIGNED out of PREPARING, and the
+   * dispatch queue the depot console assigns from is the PREPARING list. A COD order is
+   * still CREATED at this point — nothing has been paid yet — so without these two steps
+   * delivery-service's order sync is refused and the assign returns 422.
+   */
+  await advanceTo(staff, order.id, 'PREPARING');
 
   const assigned = await api('POST', '/deliveries/api/v1/deliveries', {
     token: staff,
