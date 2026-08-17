@@ -111,13 +111,20 @@ export class GatewayConfigService {
       .filter((o) => o.length > 0);
     return [...new Set([...configured, ...NATIVE_ORIGINS])];
   }
-  get rateLimit(): { ttlSeconds: number; limit: number; otpLimit: number } {
+  get rateLimit(): {
+    ttlSeconds: number;
+    limit: number;
+    otpLimit: number;
+    burstLimit: number;
+  } {
     return {
       ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'),
       limit: this.num('RATE_LIMIT_MAX'),
       // Its own ceiling because it protects a different thing: every request past it is a
       // paid SMS, not a wasted CPU cycle.
       otpLimit: this.num('RATE_LIMIT_OTP_MAX'),
+      // Ten-second ceiling; see env.validation.ts for why a second window exists at all.
+      burstLimit: this.num('RATE_LIMIT_BURST_MAX'),
     };
   }
 

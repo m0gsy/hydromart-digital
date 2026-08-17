@@ -39,6 +39,18 @@ export const envValidationSchema = Joi.object({
   // attempts. RATE_LIMIT_MAX cannot substitute for it — at 600 an attacker walks 600
   // distinct phone numbers a minute and every one of them is invoiced.
   RATE_LIMIT_OTP_MAX: Joi.number().integer().positive().default(20),
+  // The BURST ceiling, over a ten-second window, alongside the per-minute one above.
+  //
+  // A fixed window resets on a wall-clock boundary: spend the whole minute quota in its last
+  // second and the next minute's in its first, and TWICE the limit has gone out in two
+  // seconds — inside the rules, and exactly the shape that hurts, because the ceiling is a
+  // per-minute promise while the damage is per-second.
+  //
+  // 100/10s is the same 600/minute average as the default sustained limit, so it cannot
+  // refuse a legitimate minute; it only flattens the boundary spike from 2x to about 1.2x.
+  // A token bucket is the proper fix and is what to move to with the shared store (the
+  // trigger is written down in DEPLOY.md).
+  RATE_LIMIT_BURST_MAX: Joi.number().integer().positive().default(100),
   // Not knobs this service acts on — they describe the shape of the edge in front of it,
   // and together they decide whether trusting one X-Forwarded-For hop is safe at all
   // (trustProxyHops in gateway.setup.ts). Compose owns both; the gateway only reads them,

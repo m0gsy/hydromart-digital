@@ -39,6 +39,7 @@ const BASE = {
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',
   RATE_LIMIT_OTP_MAX: '20',
+  RATE_LIMIT_BURST_MAX: '100',
 };
 
 describe('GatewayConfigService', () => {
@@ -93,6 +94,7 @@ describe('GatewayConfigService', () => {
       limit: 100,
       // Its own ceiling: past this one every request is a paid SMS, not a CPU cycle.
       otpLimit: 20,
+      burstLimit: 100,
     });
   });
 

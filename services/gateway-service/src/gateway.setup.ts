@@ -35,6 +35,9 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * Harmless (refresh is itself limited, and reuse detection revokes a family that spams
  * it); key on the JWT `sub` claim instead if that ever proves too generous.
  */
+/** The burst window. Exported so a test asserts against the number the app actually uses. */
+export const BURST_WINDOW_MS = 10_000;
+
 export function rateLimitKey(req: Request): string {
   const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
   if (credential) {
@@ -166,6 +169,35 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
       // `/mobile-config` joins `/health` as exempt for the same reason: it is read once
       // per app launch, before the user has done anything, by every installed device. A
       // 429 there would fail the one check whose whole job is to be answerable.
+      skip: (req) => req.path === '/health' || req.path === '/mobile-config',
+      message: { statusCode: 429, message: 'Too many requests' },
+    }),
+  );
+
+  /*
+   * The burst window, and the reason it exists is arithmetic rather than taste.
+   *
+   * A FIXED window resets on a wall-clock boundary, so a caller who spends its whole quota
+   * in the last second of one window and the whole of the next in the first second has sent
+   * TWICE the limit inside two seconds — entirely within the rules, and exactly the shape
+   * that hurts: the ceiling is a per-minute promise and the damage is per-second.
+   *
+   * A token bucket would fix it properly, and it is what to move to alongside the shared
+   * store (the trigger is written down in DEPLOY.md). Until then a second, SHORTER window at
+   * the same average rate is the same defence with no new dependency: it cannot stop a
+   * legitimate minute, and it flattens the boundary spike from 2x to about 1.2x.
+   *
+   * Its own setting rather than a number derived from the sustained limit: derivation looked
+   * tidier and produced a ceiling of ONE request per ten seconds under the deliberately tiny
+   * limit the tests use — a limiter that refuses the very thing it protects.
+   */
+  app.use(
+    rateLimit({
+      windowMs: BURST_WINDOW_MS,
+      limit: config.rateLimit.burstLimit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      keyGenerator: (req) => `burst:${rateLimitKey(req)}`,
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
       message: { statusCode: 429, message: 'Too many requests' },
     }),
