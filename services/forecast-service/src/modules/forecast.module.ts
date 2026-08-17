@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import {
   JwtAuthGuard,
+  SettingsCache,
   RolesGuard,
   DepotScopeGuard,
   httpAccountNameResolver,
@@ -20,8 +21,20 @@ import { DepotOwnershipHttpAdapter } from '../infrastructure/http/depot-ownershi
 import { IngestController } from './ingest.controller';
 import { ForecastController } from './forecast.controller';
 
+import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
+import { SettingsService } from '../application/services/settings.service';
+import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
+import { SettingsController } from './settings.controller';
+
 const providers: Provider[] = [
   PrismaService,
+  { provide: SETTINGS_REPOSITORY, useClass: SettingsPrismaRepository },
+  {
+    provide: SettingsCache,
+    useFactory: (repo: SettingsRepository) => new SettingsCache(repo),
+    inject: [SETTINGS_REPOSITORY],
+  },
+  SettingsService,
   ForecastConfigService,
   ForecastService,
   RebuildService,
@@ -44,7 +57,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [IngestController, ForecastController],
+  controllers: [IngestController, ForecastController, SettingsController],
   providers,
   exports: [PrismaService, ForecastConfigService],
 })

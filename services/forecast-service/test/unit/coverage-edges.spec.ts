@@ -1,9 +1,18 @@
+import { SettingsCache } from '@hydromart/platform';
 import { churnRisk } from '../../src/domain/churn';
 import { ForecastService } from '../../src/application/services/forecast.service';
 import { ForecastPrismaRepository } from '../../src/infrastructure/prisma/forecast.prisma.repository';
 import { OrderFeedHttpAdapter } from '../../src/infrastructure/http/order-feed.http.adapter';
 import type { ForecastConfigService } from '../../src/config/forecast-config.service';
 import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
+
+/**
+ * PR-J: the model choice is read from the settings slice now. An empty cache answers with
+ * the env default for every key, which is exactly today's behaviour — so this stub keeps
+ * every existing expectation true while the seam stays exercised.
+ */
+const settingsStub = () => new SettingsCache({ loadAll: async () => [] });
+
 
 /** Churn ranking is what these tests are about; names are a decoration on it. */
 const noNames = async () => new Map<string, string>();
@@ -42,7 +51,7 @@ describe('ForecastService.depotRollup', () => {
       findRefs: jest.fn().mockResolvedValue([]),
     } as never;
 
-    const [item] = await new ForecastService(repo, config, noNames).depotRollup({
+    const [item] = await new ForecastService(repo, config, noNames, settingsStub()).depotRollup({
       depotId: 'dep-1',
       now: new Date('2026-08-01T00:00:00.000Z'),
     });
@@ -62,7 +71,7 @@ describe('ForecastService.depotRollup', () => {
       ]),
     } as never;
 
-    const items = await new ForecastService(repo, config, noNames).depotRollup({
+    const items = await new ForecastService(repo, config, noNames, settingsStub()).depotRollup({
       depotId: 'dep-1',
       now: new Date('2026-08-01T00:00:00.000Z'),
     });

@@ -53,7 +53,14 @@ describe('Forecast HTTP flows (e2e)', () => {
     repo = new FakeForecastRepository();
     feed = new FakeOrderFeed();
 
-    const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
+    // PR-J: the settings slice reads its own table on the first request. An empty result
+    // means "no override anywhere", which resolves every key to its env default — today's
+    // behaviour, and what every assertion below still expects.
+    const prismaStub = {
+      onModuleInit: jest.fn(),
+      onModuleDestroy: jest.fn(),
+      serviceSetting: { findMany: jest.fn().mockResolvedValue([]) },
+    };
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({

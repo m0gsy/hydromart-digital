@@ -1,0 +1,53 @@
+name: Registry pull check
+
+# G6. `IMAGE_PREFIX` flips production from "build every image on the box" to "pull the
+# images CI already built". That flip is one line in `.env`, and today the first thing that
+# would find out whether the box can actually pull is a deploy — at which point half the
+# services are on new images and the rest cannot start.
+#
+# So ask separately, on the box, changing nothing. Manual only: this is a question you ask
+# before a decision, not a thing that needs to run on a timer.
+on:
+  workflow_dispatch:
+    inputs:
+      image_prefix:
+        description: 'Registry prefix to test (blank = whatever .env already has)'
+        required: false
+      image_tag:
+        description: 'Image tag to pull (blank = whatever .env already has)'
+        required: false
+      service:
+        description: 'Which service image to probe'
+        default: 'auth'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the box
+        # Pinned by commit, not by the mutable tag — this step is handed the production
+        # SSH key, same reasoning as the deploy workflow next door.
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 10m
+          envs: IMAGE_PREFIX,IMAGE_TAG,PROBE_SERVICE
+          script: |
+            set -e
+            cd "${{ secrets.VPS_REPO_PATH }}"
+            # The box only moves commit when a DEPLOY moves it, so its checkout is whatever
+            # the last release carried — and this probe exists to be run BEFORE a change,
+            # which is exactly when the box is behind. The first run of it failed with
+            # `scripts/check-registry-pull.sh: No such file or directory` for that reason.
+            #
+            # So fetch just this script from main. Nothing else in the tree is touched, and
+            # deploy.sh's `git reset --hard` puts it back in step on the next release.
+            git fetch --quiet origin main
+            git checkout origin/main -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh
+            bash scripts/check-registry-pull.sh
+        env:
+          IMAGE_PREFIX: ${{ github.event.inputs.image_prefix }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          PROBE_SERVICE: ${{ github.event.inputs.service }}

@@ -1,0 +1,101 @@
+name: UAT
+
+# H4. The v2.1 UAT harness in `.uat/` drives 439 scripted cases over real HTTP against a
+# real stack. It has only ever run on somebody's laptop, against whatever containers
+# happened to be up — and the last run's notes open with the gotcha that cost that session
+# a morning: a stale stack from a previous session was still serving :8080, so the first
+# results came from months-old images.
+#
+# Booting the stack from the repo's own orchestrator removes that whole class of doubt.
+#
+# Deliberately REPORT-ONLY. Five cases in the script contradict deliberate design
+# decisions (see the open-decisions note), so a red X on this workflow would mean "the
+# script disagrees with us", not "the product is broken" — and a gate that cries wolf
+# monthly is a gate everybody learns to ignore. The results are an artifact you read.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 20 1 * *' # 03:00 WIB on the 1st of the month
+
+env:
+  AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
+  CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
+  PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_product?schema=public
+  ORDER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_order?schema=public
+  PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payment?schema=public
+  DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_delivery?schema=public
+  DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_depot?schema=public
+  LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_loyalty?schema=public
+  PROMO_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_promo?schema=public
+  REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_referral?schema=public
+  CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
+  RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
+  FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+  PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payout?schema=public
+  ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
+  HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
+
+jobs:
+  uat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GATEWAY_URL: http://localhost:8080
+      # The stack the orchestrator boots is docker-compose.test.yml; the harness defaults
+      # to the dev secret, so it has to be told which one it is talking to.
+      JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Boot the stack
+        env:
+          COMPOSE_BAKE: 'true'
+        run: node test/integration/run.mjs --keep --boot-only
+
+      - name: Seed catalog + staff
+        run: node scripts/seed.mjs
+
+      - name: Run the UAT harness
+        run: node .uat/run.mjs
+
+      - name: Summarise
+        if: always()
+        run: |
+          if [ -f .uat/results.json ]; then
+            node -e "
+              const r = JSON.parse(require('fs').readFileSync('.uat/results.json','utf8'));
+              const rows = Array.isArray(r) ? r : Object.values(r).flat();
+              const by = {};
+              for (const row of rows) by[row.status ?? 'UNKNOWN'] = (by[row.status ?? 'UNKNOWN'] ?? 0) + 1;
+              console.log('cases:', rows.length);
+              for (const [k, v] of Object.entries(by).sort()) console.log(' ', k, v);
+            "
+          else
+            echo 'No results.json — the harness did not get far enough to write one.'
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: uat-results
+          path: |
+            .uat/results.json
+            .uat/ctx.json
+          retention-days: 30
+
+      - name: Service logs when the harness could not run
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v

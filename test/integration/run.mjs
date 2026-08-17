@@ -1,6 +1,7 @@
 // Integration-test orchestrator: boot the whole prod artifact, run the flow, tear down.
 //   npm run test:integration            (full: up -> migrate -> build/boot -> flow -> down)
 //   npm run test:integration -- --keep  (leave the stack up afterwards for debugging)
+//   node test/integration/run.mjs --keep --boot-only  (stack only; the Load workflow's boot)
 // Requires Docker running. On Windows the docker binary may not be on PATH; this adds it.
 import { spawnSync } from 'node:child_process';
 
@@ -17,9 +18,16 @@ const EXTRA = (process.env.COMPOSE_EXTRA_FILES ?? '')
   .filter(Boolean)
   .flatMap((f) => ['-f', f]);
 const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml', ...EXTRA];
-const APP = ['auth', 'customer', 'product', 'order', 'payment', 'delivery', 'depot', 'dashboard',
-  'loyalty', 'promo', 'referral', 'crm', 'recommendation', 'forecast', 'gateway'];
-const ALL = [...APP, 'gateway-stub', 'postgres'];
+/*
+ * The health gate used to be a hand-written list, and it was already two services short of
+ * what this stack boots — payout and hr were never waited for, so a harness could start
+ * against a service still opening its database. Adding admin would have made it three.
+ *
+ * Read from compose instead: every service that DECLARES a healthcheck is one this run
+ * waits for. A list that has to be edited by hand is a list that goes stale silently, and
+ * this one already had.
+ */
+let ALL = [];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function run(cmd, args, opts = {}) {
@@ -82,11 +90,19 @@ async function main() {
   //
   // Batched, the first batch populates the cache and the rest hit it warm. Same reasoning
   // as scripts/rebuild-stale.sh, which already batches on the VPS so a build never OOMs it.
-  // Read the list from compose rather than from APP above: APP is the health-gate list and
-  // was already two services short of what the test stack builds, so hard-coding it here
-  // would have quietly left those two building in parallel with everything else.
+  // Read the list from compose, same as the health gate above — a hard-coded list here
+  // would have quietly left the services missing from it building in parallel with
+  // everything else, which is the burst this batching exists to avoid.
   const BATCH = Number(process.env.BUILD_BATCH || 3);
-  const buildable = Object.entries(composeConfig().services || {})
+  const services = composeConfig().services || {};
+  ALL = Object.entries(services)
+    .filter(([, v]) => v.healthcheck || v.extends || v['x-healthcheck'])
+    .map(([k]) => k);
+  // `<<: *svc` merges the healthcheck anchor in, so compose config always resolves one for
+  // an app service; anything without one is infrastructure this run does not gate on.
+  if (ALL.length === 0) throw new Error('no service in the test stack declares a healthcheck');
+  console.log(`health gate covers ${ALL.length} service(s): ${ALL.join(' ')}`);
+  const buildable = Object.entries(services)
     .filter(([, v]) => v.build).map(([k]) => k);
   for (let i = 0; i < buildable.length; i += BATCH) {
     const batch = buildable.slice(i, i + BATCH);
@@ -95,7 +111,43 @@ async function main() {
   }
   if (compose([...COMPOSE, 'up', '-d', '--build'])) throw new Error('service boot failed');
   await waitHealthy();
+  // The load workflow boots this same stack and then drives it with k6 — booting it a
+  // second way is how two "identical" stacks drift apart.
+  if (process.argv.includes('--boot-only')) {
+    console.log('\nSTACK UP (--boot-only)');
+    return;
+  }
   if (run('node', ['test/integration/flow.mjs'])) throw new Error('flow assertions failed');
+  /*
+   * Three harnesses that existed and were run BY HAND, against whatever stack happened to
+   * be up. Each one proves a chain no unit test can (guard + service + repository + a real
+   * database), and each one was written because a bug lived in exactly that seam — so
+   * "somebody ran it in July" was the only thing holding them. They run here, on the stack
+   * that is already booted and healthy, and their exit code is this job's exit code.
+   */
+  // They refuse to run without JWT_ACCESS_SECRET rather than sign a token the stack will
+  // reject — correct for a human at a terminal, and the stack this one boots is the one
+  // whose secret flow.mjs already defaults to.
+  const harnessEnv = {
+    ...process.env,
+    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
+  };
+  /*
+   * flow.mjs builds every fixture it needs, so this job never seeded anything. The payroll
+   * checks are the opposite: they prove a depot cannot read another depot's payroll, which
+   * takes TWO depots that already exist — and they refuse to run rather than pretend, which
+   * is how "need at least 2 depots seeded; found 0" ended a green-looking run.
+   */
+  console.log('\n--- scripts/seed.mjs (the harnesses below need a populated depot)');
+  if (run('node', ['scripts/seed.mjs'], { env: harnessEnv })) throw new Error('seed failed');
+  for (const harness of [
+    'scripts/f6-hris-flows.mjs',
+    'scripts/f6-approvals.mjs',
+    'scripts/payroll-manual-checks.mjs',
+  ]) {
+    console.log(`\n--- ${harness}`);
+    if (run('node', [harness], { env: harnessEnv })) throw new Error(`${harness} assertions failed`);
+  }
   console.log('\nINTEGRATION TEST PASSED');
 }
 

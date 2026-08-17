@@ -14,34 +14,6 @@ export class ForecastConfigService {
     return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
   }
 
-  /**
-   * PR-J. Which demand model a depot's forecast is produced by, defaulting to the
-   * heuristic that has always run. Per depot, because that is the only safe way to try a
-   * candidate: turn it on for one depot, measure it against the depot next door, turn it
-   * off again — all without a deploy.
-   *
-   * A per-depot settings STORE would be the eventual home; this reads a JSON map from the
-   * environment instead, because forecast-service has no settings client and adding an
-   * inter-service call on the forecast request path to answer "which model" would cost
-   * more than the feature. `{"<depotId>":"moving-average"}`; a malformed value is ignored
-   * rather than thrown — a typo here must not take a depot's stock screen down.
-   */
-  get forecastModel(): string {
-    return this.config.get<string>('FORECAST_MODEL', 'heuristic');
-  }
-
-  forecastModelForDepot(depotId: string | null | undefined): string {
-    if (!depotId) return this.forecastModel;
-    const raw = this.config.get<string>('FORECAST_MODEL_BY_DEPOT', '');
-    if (!raw) return this.forecastModel;
-    try {
-      const map = JSON.parse(raw) as Record<string, string>;
-      return map[depotId] ?? this.forecastModel;
-    } catch {
-      return this.forecastModel;
-    }
-  }
-
   get nodeEnv(): string {
     return this.config.get<string>('NODE_ENV', 'development');
   }
