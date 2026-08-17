@@ -292,6 +292,14 @@ jobs:
       - name: Lighthouse ratchet self-check
         run: bash scripts/check-lighthouse.test.sh
 
+      # A deploy probe that queries a table which does not exist fails silently, prints one
+      # word nobody parses, and skips its own alert. The outbox drain probe did exactly that
+      # for its whole life (`order_outbox`; the table is `outbox_messages`). Nothing else in
+      # this repo can see a typo inside a shell string: shellcheck sees a string, and the SQL
+      # only ever runs on production.
+      - name: Deploy probes query tables that exist
+        run: node scripts/check-deploy-probes.mjs
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.

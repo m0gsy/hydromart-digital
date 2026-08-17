@@ -310,12 +310,23 @@ if health_ok; then
   PG="${PG_CONTAINER:-hydromart-postgres}"
   if docker exec "$PG" true >/dev/null 2>&1; then
     OUTBOX="$(docker exec "$PG" psql -U hydromart -d hydromart_order -tAc \
-      "SELECT coalesce(string_agg(status || '=' || n, ' '), 'empty') FROM (SELECT status, count(*) AS n FROM order_outbox GROUP BY 1) t" 2>/dev/null || echo 'unreadable')"
-    log "order_outbox probe — $OUTBOX"
+      "SELECT coalesce(string_agg(status || '=' || n, ' '), 'empty') FROM (SELECT status, count(*) AS n FROM outbox_messages GROUP BY 1) t" 2>/dev/null || echo 'unreadable')"
+    log "outbox_messages probe — $OUTBOX"
+    if [ "$OUTBOX" = "unreadable" ]; then
+      # This probe asked `order_outbox` for its whole life. No such table has ever existed;
+      # it is `outbox_messages`. So every deploy printed "unreadable" and then skipped the
+      # alert below, because PENDING is parsed out of the answer and there was no answer. The
+      # check whose entire point is that a queue which only grows looks exactly like a quiet
+      # week proved nothing at all, quietly, from the day it was written.
+      #
+      # An unreadable answer is now a FINDING. A probe that cannot read is not a probe.
+      log "!! the outbox could not be read; this check is proving NOTHING until that is fixed."
+      alert "outbox probe cannot read outbox_messages - the drain check is blind"
+    fi
     PENDING="$(printf '%s' "$OUTBOX" | sed -n 's/.*PENDING=\([0-9]*\).*/\1/p')"
     if [ -n "$PENDING" ] && [ "$PENDING" -gt "${OUTBOX_PENDING_ALERT:-100}" ]; then
-      log "!! $PENDING event(s) PENDING in order_outbox — the dispatcher is not draining it."
-      alert "order_outbox has $PENDING pending events — downstream effects are not happening"
+      log "!! $PENDING event(s) PENDING in outbox_messages — the dispatcher is not draining it."
+      alert "outbox_messages has $PENDING pending events — downstream effects are not happening"
     fi
   else
     log "!! cannot reach the Postgres container ($PG) — the outbox was NOT probed."
@@ -359,9 +370,21 @@ if health_ok; then
   # holding a fixed OTP the account of a KEPALA_DEPOT at a depot with real customers on it —
   # their names, addresses and phone numbers. `scripts/seed-demo-depot.mjs` builds the
   # account they should get; this is the check that somebody pointed the variable at it.
+  # REVIEWER_PHONE is a comma-separated LIST — that is how the demo customer gets a fixed
+  # OTP alongside the demo staff account. Compare the first entry, which is what every
+  # consumer of this variable treats as the primary reviewer sign-in.
   REVIEWER="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^REVIEWER_PHONE=//p' | head -1 || true)"
+  REVIEWER="${REVIEWER%%,*}"
   DEMO="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^DEMO_PHONE=//p' | head -1 || true)"
-  if [ -z "$REVIEWER" ]; then
+  if [ -z "$DEMO" ] && [ -n "$REVIEWER" ]; then
+    # DEMO_PHONE absent means this probe CANNOT TELL the two cases apart: a reviewer pointed
+    # at a real employee, and a demo account nobody wrote down. It reported the first one,
+    # so it accused on a box where REVIEWER_PHONE had just been set correctly, and it would
+    # have gone on accusing on every deploy forever. A probe that cries wolf every release
+    # is a probe people stop reading, which costs more than the check is worth.
+    log "reviewer probe: REVIEWER_PHONE is set but DEMO_PHONE is not, so this cannot be checked."
+    log "   Record DEMO_PHONE in .env (the number seed-demo built) and this becomes a real check."
+  elif [ -z "$REVIEWER" ]; then
     log "reviewer probe — REVIEWER_PHONE is unset (no fixed-OTP account exists)"
   elif [ -n "$DEMO" ] && [ "$REVIEWER" = "$DEMO" ]; then
     log "reviewer probe — REVIEWER_PHONE is the demo account"
