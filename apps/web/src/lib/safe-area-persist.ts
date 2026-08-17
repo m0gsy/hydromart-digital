@@ -23,9 +23,16 @@ const SIDES = ['top', 'right', 'bottom', 'left'] as const;
 const read = (root: HTMLElement, side: string) =>
   getComputedStyle(root).getPropertyValue(`--safe-area-inset-${side}`).trim();
 
-/** Runs once per document. Safe to call outside a browser; it simply does nothing. */
-export function persistSafeAreaInsets(): void {
-  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return;
+/**
+ * Runs once per document. Safe to call outside a browser; it simply does nothing.
+ *
+ * Returns a disposer for the deferred re-check below. The timer used to be uncancellable,
+ * which is a leak in the app and an outright crash in a test: it fired 400ms later, after
+ * the jsdom document had been torn down, and took the whole suite's exit code with it
+ * (`getComputedStyle is not defined`) while every one of the 656 tests passed.
+ */
+export function persistSafeAreaInsets(): () => void {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return () => {};
   const root = document.documentElement;
 
   const apply = () => {
@@ -58,5 +65,6 @@ export function persistSafeAreaInsets(): void {
   apply();
   // The plugin writes its values a tick or two after the document exists, so the first pass
   // can legitimately see nothing. One re-check beats a guess about the ordering.
-  window.setTimeout(apply, 400);
+  const timer = window.setTimeout(apply, 400);
+  return () => window.clearTimeout(timer);
 }

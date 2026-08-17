@@ -49,9 +49,24 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
       }`,
     );
   }
+  /*
+   * This used to `test.skip`, and a skip reports GREEN.
+   *
+   * The counter sale is the only end-to-end ops flow CI runs at all, and it was allowed to
+   * quietly not run whenever the depot list came back empty — which is the single most
+   * likely way for the seed to regress. A suite that goes green by not testing anything is
+   * worse than one that goes red: it answers the question "is the till covered?" with yes.
+   *
+   * `scripts/seed.mjs` creates depots before this suite, so an empty list is a broken
+   * environment and CI should say so, naming what the depot call actually answered.
+   */
   if (await noDepot.isVisible()) {
-    console.log(`[walk-in] depot list responses:\n  ${depotCalls.join('\n  ') || '(none)'}`);
-    test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);
+    throw new Error(
+      `the depot list came back empty, so the counter never rendered and this flow did not run. ` +
+        `Seed a depot (scripts/seed.mjs) before the suite. Responses:\n  ${
+          depotCalls.join('\n  ') || '(no depot call was made)'
+        }`,
+    );
   }
 
   // No shift, no sale — the server refuses the counter outright. Opening one is part of the
@@ -78,12 +93,15 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   // trips through the gateway. Under the full serial suite that outran 10s and the test skipped
   // itself on a runner that did have products — a skip that reads as "environment gap" and hides
   // a flow nobody ran.
+  // Also a failure rather than a skip now, and for the same reason as the depot check
+  // above — with the added evidence that this one had ALREADY fired falsely once, on a
+  // runner that did have products (see the timeout note). A skip that can be produced by a
+  // slow round trip is not reporting an environment gap, it is hiding a flake.
   const increase = page.getByRole('button', { name: /Increase quantity/i }).first();
-  try {
-    await expect(increase).toBeEnabled({ timeout: 30_000 });
-  } catch {
-    test.skip(true, 'no depot products available on this runner');
-  }
+  await expect(
+    increase,
+    'no sellable product at this depot, so the counter sale never ran — seed depot inventory before the suite',
+  ).toBeEnabled({ timeout: 30_000 });
   await increase.click();
 
   // The page shows the running total; pay it with a round note so there is change to print.
