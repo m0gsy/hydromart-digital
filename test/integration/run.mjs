@@ -96,6 +96,28 @@ async function main() {
   if (compose([...COMPOSE, 'up', '-d', '--build'])) throw new Error('service boot failed');
   await waitHealthy();
   if (run('node', ['test/integration/flow.mjs'])) throw new Error('flow assertions failed');
+  /*
+   * Three harnesses that existed and were run BY HAND, against whatever stack happened to
+   * be up. Each one proves a chain no unit test can (guard + service + repository + a real
+   * database), and each one was written because a bug lived in exactly that seam — so
+   * "somebody ran it in July" was the only thing holding them. They run here, on the stack
+   * that is already booted and healthy, and their exit code is this job's exit code.
+   */
+  // They refuse to run without JWT_ACCESS_SECRET rather than sign a token the stack will
+  // reject — correct for a human at a terminal, and the stack this one boots is the one
+  // whose secret flow.mjs already defaults to.
+  const harnessEnv = {
+    ...process.env,
+    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
+  };
+  for (const harness of [
+    'scripts/f6-hris-flows.mjs',
+    'scripts/f6-approvals.mjs',
+    'scripts/payroll-manual-checks.mjs',
+  ]) {
+    console.log(`\n--- ${harness}`);
+    if (run('node', [harness], { env: harnessEnv })) throw new Error(`${harness} assertions failed`);
+  }
   console.log('\nINTEGRATION TEST PASSED');
 }
 
