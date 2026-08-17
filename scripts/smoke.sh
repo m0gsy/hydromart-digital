@@ -25,11 +25,23 @@ cd "$(dirname "$0")/.."
 . ./scripts/load-env.sh
 GW="${GW:-http://localhost:8080}"
 DC="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
-ok(){ echo "  ✅ $1"; }; no(){ echo "  ❌ $1"; }
+# A failed step has to be FATAL. Until now `no` only printed: the deploy workflow reported
+# `success` with two red crosses on the screen, which is the same shape as a green run to
+# anything reading the exit code, and to anybody skimming. A smoke test that cannot fail is
+# not a test — it is a log line.
+FAILED=0
+ok(){ echo "  ✅ $1"; }
+no(){ echo "  ❌ $1"; FAILED=$((FAILED + 1)); }
 # The reviewer number is a real, already-registered demo account: its code is fixed and
 # deliberately never sent, which is exactly what a smoke test needs and what a throwaway
 # 0812xxxxxxxx signup can no longer get.
-PHONE="${REVIEWER_PHONE:-}"; PHONE="${PHONE%%,*}"
+# The reviewer number belongs to a KEPALA_DEPOT, and a KEPALA_DEPOT is not a customer:
+# `rewards/redeem` and `vouchers/me` answer 403 to it, correctly. Those two steps had been
+# failing on every run for exactly that reason and nobody could tell, because nothing here
+# failed. So the customer half of this script signs in as the DEMO CUSTOMER when there is
+# one, and only falls back to the reviewer when there is not.
+PHONE="${DEMO_CUSTOMER_PHONE:-}"
+if [ -z "$PHONE" ]; then PHONE="${REVIEWER_PHONE:-}"; PHONE="${PHONE%%,*}"; fi
 OTP="${REVIEWER_OTP_CODE:-}"
 if [ -z "$PHONE" ] || [ -z "$OTP" ]; then
   no "REVIEWER_PHONE / REVIEWER_OTP_CODE are not set — nothing here can learn an OTP"
@@ -147,4 +159,8 @@ DEFAULTS=$(curl -s $GW/customers/api/v1/payment-methods -b "$JAR" | j 'd.filter(
 
 PR=$(curl -s -XPATCH $GW/auth/api/v1/auth/me -b "$JAR" -H 'content-type: application/json' -d '{"fullName":"Smoke Edited"}')
 echo "$PR"|j 'd.fullName === "Smoke Edited"' >/dev/null 2>&1 && ok "profile edit" || no "profile: $PR"
-echo "== selesai =="
+if [ "$FAILED" -gt 0 ]; then
+  echo "== selesai: $FAILED langkah GAGAL =="
+  exit 1
+fi
+echo "== selesai: semua langkah lulus =="

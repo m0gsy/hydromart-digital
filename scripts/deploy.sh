@@ -370,7 +370,11 @@ if health_ok; then
   # holding a fixed OTP the account of a KEPALA_DEPOT at a depot with real customers on it —
   # their names, addresses and phone numbers. `scripts/seed-demo-depot.mjs` builds the
   # account they should get; this is the check that somebody pointed the variable at it.
+  # REVIEWER_PHONE is a comma-separated LIST — that is how the demo customer gets a fixed
+  # OTP alongside the demo staff account. Compare the first entry, which is what every
+  # consumer of this variable treats as the primary reviewer sign-in.
   REVIEWER="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^REVIEWER_PHONE=//p' | head -1 || true)"
+  REVIEWER="${REVIEWER%%,*}"
   DEMO="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^DEMO_PHONE=//p' | head -1 || true)"
   if [ -z "$DEMO" ] && [ -n "$REVIEWER" ]; then
     # DEMO_PHONE absent means this probe CANNOT TELL the two cases apart: a reviewer pointed
