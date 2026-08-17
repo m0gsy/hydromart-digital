@@ -19,12 +19,16 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), storage-policy (close anonymous bucket listing + prove it)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
         options: [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, storage-policy]
       sha:
         description: "rollback target SHA (blank = previous good)"
+      services:
+        description: "env-set only: services to recreate afterwards (space separated, e.g. 'crm web')"
+        required: false
+        default: ''
         required: false
         default: ""
 
@@ -65,6 +69,17 @@ jobs:
             # BOX and nowhere else — so it is a button here rather than a chore someone
             # remembers. Runs per bucket, and FAILS if the bucket still lists afterwards.
             storage-policy) echo "run=bash scripts/storage-policy.sh" >> "$GITHUB_OUTPUT" ;;
+            # Writes: applies the KEY=VALUE lines held in the ENV_SET_BLOCK repo secret to
+            # the live .env and recreates the services named in `services`.
+            #
+            # It exists so that setting a production value is a reviewed script and a button
+            # rather than somebody editing .env over SSH at midnight — which is how a PEM
+            # got pasted with real newlines, killed a deploy and blinded the watchdog for a
+            # week (2026-08-11). The values live in the GitHub secret; nothing in this repo
+            # and nothing in this log ever carries one. env-set.sh prints key names only,
+            # backs the file up first, refuses a multi-line value outright, and is a no-op
+            # on a value that is already correct.
+            env-set)     echo "run=bash scripts/env-set.sh ${{ github.event.inputs.services }}" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -87,7 +102,14 @@ jobs:
           # last-good-sha, while the workflow had already reported failure — the one
           # signal anybody reads was wrong in the dangerous direction.
           command_timeout: 120m
+          # Passed as an ENVIRONMENT variable, never interpolated into the script body: a
+          # value with a quote, a backtick or a newline in it would otherwise be executed
+          # rather than stored, which is the whole class of failure this button exists to
+          # end. GitHub masks the secret in the log; env-set.sh never prints it either way.
+          envs: ENV_SET_BLOCK
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
             ${{ steps.cmd.outputs.run }}
+        env:
+          ENV_SET_BLOCK: ${{ secrets.ENV_SET_BLOCK }}
