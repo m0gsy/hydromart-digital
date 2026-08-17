@@ -655,6 +655,17 @@ async function deliveryLeg(staff) {
   );
   assert(closed.status === 'COMPLETED', `dl: order ${closed.status} != COMPLETED after PoD`);
 
+  // The shift ends before its cash is counted — a settlement against a still-open shift is
+  // refused (SHIFT_NOT_ENDED), because the total would be a number the courier could still
+  // add to after depositing it.
+  ok(
+    await api('POST', `/deliveries/api/v1/driver/shifts/${shiftId}/check-out`, {
+      token: driver.token,
+      body: { lat: geo.lat, lng: geo.lng },
+    }),
+    'dl: check out of the shift',
+  );
+
   // The courier deposits the shift's cash; the depot accepts it. The expected total is
   // snapshotted server-side, so a courier cannot name their own number.
   const deposit = await api('POST', '/deliveries/api/v1/driver/settlement', {
