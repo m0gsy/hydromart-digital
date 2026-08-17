@@ -293,6 +293,61 @@ if health_ok; then
   else
     log "host crontab probe — $(printf '%s\n' "$HOST_CRON" | grep -c 'scripts/') repo job(s) scheduled, watchdog present, .env sourced (not executed)"
   fi
+
+  # ---------------------------------------------------------------- three standing proofs
+  #
+  # Each of these was a line in a verification checklist: something a person was supposed to
+  # ssh in and confirm, once, after a release. A checklist item that needs a human is an item
+  # that is true on the day somebody checks it and unknown every other day — and all three of
+  # these describe states that can come BACK.
+  #
+  # So they are asked on every deploy, and each one says what it ASKED, not only what it
+  # found. Silence proves nothing; that lesson cost seven blind watchdog days.
+
+  # 1. The outbox must DRAIN. A queue that only grows is a set of events nobody downstream
+  # ever received — loyalty points not awarded, notifications never sent — and from outside
+  # it looks exactly like a quiet week.
+  PG="${PG_CONTAINER:-hydromart-postgres}"
+  if docker exec "$PG" true >/dev/null 2>&1; then
+    OUTBOX="$(docker exec "$PG" psql -U hydromart -d hydromart_order -tAc \
+      "SELECT coalesce(string_agg(status || '=' || n, ' '), 'empty') FROM (SELECT status, count(*) AS n FROM order_outbox GROUP BY 1) t" 2>/dev/null || echo 'unreadable')"
+    log "order_outbox probe — $OUTBOX"
+    PENDING="$(printf '%s' "$OUTBOX" | sed -n 's/.*PENDING=\([0-9]*\).*/\1/p')"
+    if [ -n "$PENDING" ] && [ "$PENDING" -gt "${OUTBOX_PENDING_ALERT:-100}" ]; then
+      log "!! $PENDING event(s) PENDING in order_outbox — the dispatcher is not draining it."
+      alert "order_outbox has $PENDING pending events — downstream effects are not happening"
+    fi
+  else
+    log "!! cannot reach the Postgres container ($PG) — the outbox was NOT probed."
+  fi
+
+  # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
+  # Presence only, never the value.
+  if $COMPOSE exec -T crm sh -c '[ -n "${VAPID_PUBLIC_KEY:-}" ]' >/dev/null 2>&1; then
+    log "web push probe — VAPID_PUBLIC_KEY is set inside crm"
+  else
+    log "!! VAPID_PUBLIC_KEY is EMPTY inside the crm container — web push cannot work at all."
+    log "   Android FCM is unaffected. Fix: set it in .env and recreate crm (deploy mode env-set)."
+    alert "VAPID_PUBLIC_KEY missing in crm — web push is dead"
+  fi
+
+  # 3. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger
+  # holding a fixed OTP the account of a KEPALA_DEPOT at a depot with real customers on it —
+  # their names, addresses and phone numbers. `scripts/seed-demo-depot.mjs` builds the
+  # account they should get; this is the check that somebody pointed the variable at it.
+  REVIEWER="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^REVIEWER_PHONE=//p' | head -1 || true)"
+  DEMO="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^DEMO_PHONE=//p' | head -1 || true)"
+  if [ -z "$REVIEWER" ]; then
+    log "reviewer probe — REVIEWER_PHONE is unset (no fixed-OTP account exists)"
+  elif [ -n "$DEMO" ] && [ "$REVIEWER" = "$DEMO" ]; then
+    log "reviewer probe — REVIEWER_PHONE is the demo account"
+  else
+    log "!! REVIEWER_PHONE is set to something other than the demo account. A Play reviewer"
+    log "   signing in with a fixed OTP reads whatever that account can see — and if it is a"
+    log "   real employee, that is live customer names, addresses and phone numbers."
+    log "   Fix: run the seed-demo deploy mode, then point REVIEWER_PHONE at that number."
+    alert "REVIEWER_PHONE is not the demo account — a Play reviewer may be reading real customer data"
+  fi
 else
   log "!! health check FAILED after deploy — auto-rolling back to $PREV_SHA"
   bash scripts/rollback.sh "$PREV_SHA"
