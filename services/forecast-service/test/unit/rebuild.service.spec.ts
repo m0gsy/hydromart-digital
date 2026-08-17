@@ -9,7 +9,7 @@ import { FakeForecastRepository } from '../support/fakes';
 const noNames = async () => new Map<string, string>();
 
 
-const configStub = { churnWindowDays: 45 } as unknown as ForecastConfigService;
+const configStub = { churnWindowDays: 45, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 
 /** In-memory OrderFeedPort: paginates a fixed order list by index cursor (same shape as the HTTP adapter). */
 class FakeOrderFeed implements OrderFeedPort {

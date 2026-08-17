@@ -51,6 +51,54 @@ export function rateLimitKey(req: Request): string {
  * Call BEFORE app.init()/listen() so these handlers sit ahead of Nest's own
  * router + fallback 404 (which init() registers) in the middleware stack.
  */
+/**
+ * `trust proxy = 1` and a publicly bound gateway port are safe apart and a rate-limit
+ * bypass together.
+ *
+ * The gateway's port is published to loopback only (`${PUBLIC_BIND:-127.0.0.1}:8080`), so
+ * Caddy is the sole path in and the one X-Forwarded-For hop it appends is trustworthy.
+ * Set `PUBLIC_BIND=0.0.0.0` — which .env.production.example offers as an ordinary option
+ * for a bare-IP box — and anyone can reach 8080 directly and prepend their own
+ * X-Forwarded-For. Express believes the LAST hop it does not own, so every request can
+ * carry a fresh fake client IP and the per-IP limiter counts each one separately: the
+ * limit stops existing, and nothing looks wrong.
+ *
+ * Two comments have documented this since the line was written. A comment does not refuse
+ * to boot. Production does, and says which of the two to change.
+ */
+export function trustProxyHops(
+  nodeEnv: string,
+  publicBind: string | undefined,
+  webDomain: string | undefined,
+): number {
+  const bind = (publicBind ?? '').trim();
+  const domain = (webDomain ?? '').trim();
+  // Empty = compose's own default, which is loopback. `::1` is the IPv6 spelling of it.
+  const loopbackOnly =
+    bind === '' || bind === '127.0.0.1' || bind === 'localhost' || bind === '::1';
+
+  // No Caddy in front (the documented bare-IP deploy). Trusting a hop that does not exist
+  // lets EVERY client name its own IP, so the per-IP limiter counts a different fake
+  // address each request. This has been the standing state of any bare-IP box: the bind
+  // was the deliberate choice, the trust was the leftover.
+  if (domain === '') return 0;
+
+  // Caddy IS in front and the port is public too, so both paths are open at once: one
+  // through the proxy, one straight past it carrying whatever X-Forwarded-For it likes.
+  // Two comments have documented this since the line was written; a comment does not
+  // refuse to boot.
+  if (!loopbackOnly && nodeEnv === 'production') {
+    throw new Error(
+      `PUBLIC_BIND=${bind} publishes the gateway port beyond loopback while WEB_DOMAIN=${domain} ` +
+        'puts Caddy in front, so the trusted X-Forwarded-For hop can be forged by anyone who ' +
+        'skips the proxy and the per-IP rate limit stops existing. Either set ' +
+        'PUBLIC_BIND=127.0.0.1 so Caddy is the only way in, or drop WEB_DOMAIN and run ' +
+        'genuinely bare — refusing to start rather than serving an unlimited edge.',
+    );
+  }
+  return 1;
+}
+
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
 
@@ -63,7 +111,10 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   // X-Forwarded-For entry and be believed. This is only safe because the gateway's port is
   // bound to loopback in docker-compose.prod.yml (H-19) — Caddy is the sole path in. If
   // that port is ever published again, this line becomes a rate-limit bypass.
-  expressApp.set('trust proxy', 1);
+  expressApp.set(
+    'trust proxy',
+    trustProxyHops(config.nodeEnv, process.env.PUBLIC_BIND, process.env.WEB_DOMAIN),
+  );
 
   app.use(helmet());
   app.enableCors({ origin: config.corsOrigins, credentials: true });

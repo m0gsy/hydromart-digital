@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 import { MulterError } from 'multer';
 
 import { Customer, CustomerProps } from '../../src/domain/customer/customer.entity';
@@ -27,7 +28,7 @@ import { HealthController } from '../../src/modules/health/health.controller';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { MulterExceptionFilter } from '../../src/modules/auth/multer-exception.filter';
 import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from '../../src/modules/auth/dto/audit.dto';
-import { ListStaffQueryDto } from '../../src/modules/auth/dto/staff.dto';
+import { InviteStaffDto, ListStaffQueryDto } from '../../src/modules/auth/dto/staff.dto';
 import { SessionInfoDto } from '../../src/modules/auth/dto/responses.dto';
 import { buildTestConfig } from '../support/fakes';
 
@@ -140,6 +141,46 @@ describe('query DTOs coerce numeric params', () => {
     expect(plainToInstance(AuditQueryDto, { page: '3', limit: '5' }).page).toBe(3);
     expect(plainToInstance(DepotAuditQueryDto, { depotId: 'd', page: '4', limit: '9' }).limit).toBe(9);
     expect(plainToInstance(IngestAuditDto, { action: 'x', success: true }).action).toBe('x');
+  });
+});
+
+/*
+ * The salary pair used to be enforced only in hr-service, one HTTP hop away, so a console
+ * invite that forgot the rate came back as `503 — hr-service menolak permintaan (400)` with
+ * the account already minted. These four cases are the whole rule.
+ */
+describe('InviteStaffDto salary pairing', () => {
+  const base = {
+    phone: '+628123456789',
+    role: Role.STAFF_DEPOT,
+    position: 'Kurir',
+    joinDate: '2026-08-17',
+    employmentStatus: 'PERMANENT',
+  };
+  const errorsFor = (extra: Record<string, unknown>) =>
+    validateSync(plainToInstance(InviteStaffDto, { ...base, ...extra }))
+      .flatMap((e) => Object.values(e.constraints ?? {}))
+      .join(' ');
+
+  it('refuses MONTHLY with no monthlyRate, naming the field', () => {
+    expect(errorsFor({ salaryType: 'MONTHLY' })).toContain('monthlyRate wajib diisi');
+  });
+
+  it('refuses DAILY with no dailyRate, naming the field', () => {
+    expect(errorsFor({ salaryType: 'DAILY' })).toContain('dailyRate wajib diisi');
+  });
+
+  it('accepts each type with its own rate, and does not demand the other one', () => {
+    expect(errorsFor({ salaryType: 'MONTHLY', monthlyRate: 4_500_000 })).toBe('');
+    expect(errorsFor({ salaryType: 'DAILY', dailyRate: 150_000 })).toBe('');
+  });
+
+  /* FRANCHISE_OWNER skips the employee record entirely and the console sends 0 for it. */
+  it('accepts a zero rate, and still type-checks a supplied off-type rate', () => {
+    expect(errorsFor({ salaryType: 'MONTHLY', monthlyRate: 0 })).toBe('');
+    expect(errorsFor({ salaryType: 'MONTHLY', monthlyRate: 1, dailyRate: -1 })).toContain(
+      'dailyRate',
+    );
   });
 });
 

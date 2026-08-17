@@ -5,6 +5,10 @@
 //   2. depot-routed    — per-depot delivery fee + stock reserve at checkout + deduct on complete
 //   3. online webhook  — EWALLET charge (stubbed gateway) -> signed PAID webhook -> order CONFIRMED
 //   4. failure paths   — below-minimum / out-of-service-area / insufficient-stock all rejected 422
+//   5. QRIS            — the depot's headline rail: PENDING until staff confirm, no gateway
+//   6. delivery leg    — shift check-in (geofence) -> assign -> pickup -> start -> COD cash
+//                        confirm -> PoD -> order COMPLETED -> settlement submit/verify ->
+//                        courier earning credited
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
@@ -172,15 +176,21 @@ async function registerCustomer() {
   return { phone, token };
 }
 
-// Walk an order from wherever it is to COMPLETED (BR-012 forward sequence). Read the
+const STATUS_SEQ = ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+
+// Walk an order from wherever it is to `target` (BR-012 forward sequence). Read the
 // current status first: the payment->order auto-confirm is fail-open, so the order
 // may still be CREATED or already CONFIRMED — advance from whatever it is.
-async function advanceToCompleted(staff, orderId) {
-  const SEQ = ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+async function advanceTo(staff, orderId, target) {
+  const stop = STATUS_SEQ.indexOf(target);
   const cur = (await getOrder(staff, orderId)).status;
-  for (let i = SEQ.indexOf(cur) + 1; i < SEQ.length; i++) {
-    ok(await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, { token: staff, body: { status: SEQ[i] } }), `advance ${SEQ[i]}`);
+  for (let i = STATUS_SEQ.indexOf(cur) + 1; i <= stop; i++) {
+    ok(await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, { token: staff, body: { status: STATUS_SEQ[i] } }), `advance ${STATUS_SEQ[i]}`);
   }
+}
+
+async function advanceToCompleted(staff, orderId) {
+  await advanceTo(staff, orderId, 'COMPLETED');
 }
 
 // 1. Core transaction loop: order COMPLETED + loyalty awarded across a real service boundary.
@@ -354,6 +364,336 @@ async function failurePaths(staff) {
   console.log('PASSED failure-paths: below-min 422, out-of-area 422, insufficient-stock 422, unrouted 422');
 }
 
+
+/**
+ * Poll until `done` is happy, or give up with a message that names the step.
+ *
+ * Completion effects cross a service boundary fire-and-forget, so asserting the instant
+ * after a call is asserting into a race — and a race that usually passes is worse than one
+ * that never does.
+ */
+async function eventually(read, done, message, tries = 20) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    last = await read();
+    if (done(last)) return last;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`${message} — last saw ${JSON.stringify(last)}`);
+}
+
+/**
+ * A token for an account that really exists — see inviteDriver for why that matters.
+ *
+ * `depotId` is not optional decoration. A real access token carries
+ * `depotId: customer.assignedDepotId` (session.service.ts), and DepotScopeGuard starts
+ * from exactly that claim: `const own = user.depotId ? [user.depotId] : []`. Minted
+ * without it, a courier who genuinely belongs to the depot is refused with
+ * "hanya boleh mengakses depot yang menjadi tanggung jawabnya" — a fixture that tests
+ * the guard's fallback path instead of the delivery flow.
+ */
+function roleToken(sub, role, phone, depotId) {
+  const now = Math.floor(Date.now() / 1000);
+  const head = { alg: 'HS256', typ: 'JWT' };
+  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 900 };
+  const data = `${b64(head)}.${b64(body)}`;
+  return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
+}
+
+/*
+ * A courier is not a token you can mint. A depot-resolved role resolves its depot set BY
+ * `sub`, so a JWT with a random subject belongs to an account that does not exist, resolves
+ * to no depots, and the scope guard refuses it — for a reason that has nothing to do with
+ * what is being tested. So the driver is invited for real, and the token is minted over the
+ * id that invite hands back.
+ */
+async function inviteDriver(staff, depotId) {
+  const phone = nextPhone();
+  const res = await api('POST', '/auth/api/v1/auth/staff/invite', {
+    token: staff,
+    /*
+     * The console invite creates the ACCOUNT and the HR employee record together, so the
+     * HR half's required fields come with it — position, join date, employment status and
+     * salary type are not optional on this route. A courier fixture has to look like a
+     * real hire, because the endpoint makes one.
+     */
+    body: {
+      phone,
+      role: 'STAFF_DEPOT',
+      fullName: 'Integration Kurir',
+      depotId,
+      position: 'Kurir',
+      joinDate: new Date().toISOString().slice(0, 10),
+      employmentStatus: 'PERMANENT',
+      salaryType: 'MONTHLY',
+      /*
+       * Not decoration. hr-service refuses a MONTHLY employee with no monthly rate
+       * (`employee.service.ts` salaryRates), and auth-service reports that refusal as
+       * `503 — hr-service menolak permintaan (400)`, which names neither the field nor
+       * the service that wanted it. The invite DTO now rejects the pair itself; this is
+       * the value that satisfies it.
+       */
+      monthlyRate: 4_500_000,
+    },
+  });
+  ok(res, 'invite driver');
+  assert(res.body.id, `no driver id: ${JSON.stringify(res.body)}`);
+  return { id: res.body.id, phone, token: roleToken(res.body.id, 'STAFF_DEPOT', phone, depotId) };
+}
+
+
+
+/*
+ * 5. Static QRIS — the payment rail this business actually runs on, and the one no test
+ *    anywhere had ever selected.
+ *
+ * The decision is that QRIS is NOT an online method: every depot has its own static QR,
+ * the money lands in the depot's account, and staff confirm it by hand — exactly like a
+ * bank transfer. `ONLINE_METHODS` therefore holds only EWALLET and VA. That makes two
+ * things worth pinning down, because a well-meaning change to either would be invisible:
+ * QRIS must NOT reach for the payment gateway (which is unconfigured, so it would fail
+ * closed and take the checkout down with it), and it must NOT self-confirm.
+ */
+async function qrisLoop(staff) {
+  const { productId } = await createProduct(staff);
+  const geo = remote(-0.02, 109.34); // Pontianak, jittered
+  const depot = await createDepot(staff, { ...geo, deliveryFee: 4000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  await createStock(staff, depot.id, productId, 100);
+  const { phone, token } = await registerCustomer();
+
+  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }), 'qr: add to cart');
+  const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
+    token,
+    body: {
+      deliveryAddress: {
+        recipientName: 'QR User', phone, addressLine: 'Jl. QRIS 1',
+        city: 'Pontianak', province: 'Kalbar', latitude: geo.lat, longitude: geo.lng,
+      },
+    },
+  });
+  ok(checkout, 'qr: checkout');
+  const order = checkout.body;
+
+  const pay = await api('POST', '/payments/api/v1/payments', {
+    token,
+    body: { orderId: order.id, method: 'QRIS', amount: order.total },
+  });
+  ok(pay, 'qr: initiate QRIS payment');
+  /*
+   * PENDING, and no provider reference. A reference here would mean QRIS had been routed
+   * through the gateway adapter — the one thing this rail must never do, because the
+   * gateway is deliberately unconfigured in production and the charge would fail closed.
+   */
+  assert(pay.body.status === 'PENDING', `qr: QRIS status ${pay.body.status} != PENDING`);
+  assert(
+    !pay.body.providerReference,
+    `qr: QRIS must not hold a gateway reference, got ${JSON.stringify(pay.body.providerReference)}`,
+  );
+
+  // The customer is shown where to scan: the routed depot's own payment destination.
+  const dest = await api('GET', `/depots/api/v1/depots/${order.depotId}/payment-info`, { token });
+  ok(dest, 'qr: read the depot payment destination');
+  assert(dest.body.name, `qr: payment destination has no depot name: ${JSON.stringify(dest.body)}`);
+
+  // Nothing has moved yet: the order must not advance off the back of an unconfirmed QRIS.
+  const beforeConfirm = await getOrder(staff, order.id);
+  assert(
+    beforeConfirm.status === 'CREATED',
+    `qr: order ${beforeConfirm.status} — an unconfirmed QRIS must not advance it`,
+  );
+
+  // Staff watched their own QRIS notification and pressed confirm. Same manual settle as
+  // a transfer; that is the whole design.
+  const confirmed = await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff });
+  ok(confirmed, 'qr: staff confirm');
+  assert(confirmed.body.status === 'PAID', `qr: after confirm ${confirmed.body.status} != PAID`);
+
+  console.log(`PASSED qris: payment ${pay.body.id} PENDING with no gateway reference, then staff-confirmed PAID`);
+}
+
+/*
+ * 6. The delivery leg — the half of the money path nothing in CI has ever executed.
+ *
+ * Scenarios 1 and 2 walk an order to COMPLETED with a staff `PATCH /status` loop, which is
+ * precisely the path a real courier never takes. Everything between "a driver is assigned"
+ * and "the depot has the cash and the courier has been credited" was therefore covered only
+ * by unit tests with in-memory fakes and by a manual UAT run from 2026-07-27 — a run whose
+ * settlement, courier-balance and driver-assignment cases were all BLOCKED for want of
+ * exactly the fixture state this scenario builds.
+ *
+ * The order is paid in CASH on delivery, so the money genuinely moves through the courier:
+ * confirm the cash, prove the drop, deposit at the depot, have the depot accept it.
+ */
+async function deliveryLeg(staff) {
+  const { productId } = await createProduct(staff);
+  const geo = remote(-7.25, 112.75); // Surabaya, jittered
+  const depot = await createDepot(staff, { ...geo, deliveryFee: 5000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  await createStock(staff, depot.id, productId, 100);
+  const driver = await inviteDriver(staff, depot.id);
+  const { phone, token } = await registerCustomer();
+
+  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }), 'dl: add to cart');
+  const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
+    token,
+    body: {
+      deliveryAddress: {
+        recipientName: 'DL User', phone, addressLine: 'Jl. Delivery 1',
+        city: 'Surabaya', province: 'Jatim', latitude: geo.lat, longitude: geo.lng,
+      },
+    },
+  });
+  ok(checkout, 'dl: checkout');
+  const order = checkout.body;
+  assert(order.depotId === depot.id, `dl: routed to ${order.depotId}, expected ${depot.id}`);
+
+  // COD: the payment exists and stays PENDING until the courier confirms the cash.
+  const pay = await api('POST', '/payments/api/v1/payments', {
+    token,
+    body: { orderId: order.id, method: 'CASH', amount: order.total },
+  });
+  ok(pay, 'dl: initiate COD payment');
+
+  /*
+   * Geofence, both sides of it. Checking in 800 km away must be refused — if it is not, the
+   * radius is not being enforced and every later assertion here would still pass.
+   */
+  const farAway = await api('POST', '/deliveries/api/v1/driver/shifts/check-in', {
+    token: driver.token,
+    body: { depotId: depot.id, lat: geo.lat + 7, lng: geo.lng },
+  });
+  assert(farAway.status >= 400, `dl: check-in 800km away should be refused, got ${farAway.status}`);
+
+  const shift = await api('POST', '/deliveries/api/v1/driver/shifts/check-in', {
+    token: driver.token,
+    body: { depotId: depot.id, lat: geo.lat, lng: geo.lng },
+  });
+  ok(shift, 'dl: check-in at the depot');
+  const shiftId = shift.body.id;
+  assert(shiftId, `dl: no shift id: ${JSON.stringify(shift.body)}`);
+
+  /*
+   * The depot accepts the order and fills the gallons before anyone is dispatched. This is
+   * not test scaffolding: BR-012 only allows DRIVER_ASSIGNED out of PREPARING, and the
+   * dispatch queue the depot console assigns from is the PREPARING list. A COD order is
+   * still CREATED at this point — nothing has been paid yet — so without these two steps
+   * delivery-service's order sync is refused and the assign returns 422.
+   */
+  await advanceTo(staff, order.id, 'PREPARING');
+
+  const assigned = await api('POST', '/deliveries/api/v1/deliveries', {
+    token: staff,
+    body: {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      driverId: driver.id,
+      driverName: 'Integration Kurir',
+      depotId: depot.id,
+      destinationAddress: 'Jl. Delivery 1, Surabaya',
+      destinationLat: geo.lat,
+      destinationLng: geo.lng,
+      recipientPhone: phone,
+    },
+  });
+  ok(assigned, 'dl: assign driver');
+  const deliveryId = assigned.body.id;
+  /*
+   * The COD amount is read from payment-service, never taken from the caller. An assign
+   * body cannot talk the courier into collecting a different number than the customer owes.
+   */
+  assert(
+    assigned.body.codAmount === order.total,
+    `dl: codAmount ${assigned.body.codAmount} != order total ${order.total}`,
+  );
+  assert(
+    (await getOrder(staff, order.id)).status === 'DRIVER_ASSIGNED',
+    'dl: assigning a driver must advance the order to DRIVER_ASSIGNED',
+  );
+
+  ok(
+    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/pickup`, { token: driver.token }),
+    'dl: pickup',
+  );
+  ok(
+    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/start`, { token: driver.token }),
+    'dl: start',
+  );
+
+  // Cash in hand: overpaid by 20k, so the change is computed rather than assumed.
+  const cashGiven = order.total + 20000;
+  const cash = await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, {
+    token: driver.token,
+    body: { cashReceived: cashGiven },
+  });
+  ok(cash, 'dl: confirm COD cash');
+  assert(cash.body.status === 'PAID', `dl: payment ${cash.body.status} != PAID`);
+  assert(
+    cash.body.changeGiven === 20000,
+    `dl: change ${cash.body.changeGiven} != 20000 (received ${cashGiven}, owed ${order.total})`,
+  );
+
+  const pod = await api('POST', `/deliveries/api/v1/driver/deliveries/${deliveryId}/complete`, {
+    token: driver.token,
+    body: {
+      photoUrl: 'https://example.invalid/pod.jpg',
+      recipientName: 'DL User',
+      latitude: geo.lat,
+      longitude: geo.lng,
+    },
+  });
+  ok(pod, 'dl: proof of delivery');
+  assert(pod.body.status === 'DELIVERED', `dl: delivery ${pod.body.status} != DELIVERED`);
+
+  /*
+   * PoD is what closes the order — the bug behind four blocked UAT cases was that it did
+   * not. Completion is fire-and-forget across the service boundary, so give it a moment
+   * rather than asserting into a race.
+   */
+  const closed = await eventually(
+    () => getOrder(staff, order.id),
+    (o) => o.status === 'COMPLETED',
+    'dl: order never reached COMPLETED after the PoD',
+  );
+  assert(closed.status === 'COMPLETED', `dl: order ${closed.status} != COMPLETED after PoD`);
+
+  // The shift ends before its cash is counted — a settlement against a still-open shift is
+  // refused (SHIFT_NOT_ENDED), because the total would be a number the courier could still
+  // add to after depositing it.
+  ok(
+    await api('POST', `/deliveries/api/v1/driver/shifts/${shiftId}/check-out`, {
+      token: driver.token,
+      body: { lat: geo.lat, lng: geo.lng },
+    }),
+    'dl: check out of the shift',
+  );
+
+  // The courier deposits the shift's cash; the depot accepts it. The expected total is
+  // snapshotted server-side, so a courier cannot name their own number.
+  const deposit = await api('POST', '/deliveries/api/v1/driver/settlement', {
+    token: driver.token,
+    body: { shiftId, depositedAmount: order.total },
+  });
+  ok(deposit, 'dl: submit settlement');
+  assert(
+    deposit.body.expectedAmount === order.total,
+    `dl: expected ${deposit.body.expectedAmount} != collected ${order.total}`,
+  );
+
+  const verified = await api('POST', `/deliveries/api/v1/settlements/${deposit.body.id}/verify`, { token: staff });
+  ok(verified, 'dl: verify settlement');
+  assert(verified.body.status === 'VERIFIED', `dl: settlement ${verified.body.status} != VERIFIED`);
+
+  // And the courier is actually paid for it — the last hop, and the one UAT could never reach.
+  const earnings = await eventually(
+    async () => (await api('GET', '/payout/api/v1/courier/earnings/summary', { token: driver.token })).body,
+    (e) => Number(e?.availableBalance ?? 0) > 0,
+    'dl: courier balance never moved off zero',
+  );
+  console.log(
+    `PASSED delivery-leg: order ${order.id} COD ${order.total} (change 20000) -> PoD -> COMPLETED, ` +
+      `settlement VERIFIED, courier balance ${earnings.availableBalance}`,
+  );
+}
+
 async function main() {
   const staff = staffToken();
   try {
@@ -361,6 +701,8 @@ async function main() {
     await depotRoutedLoop(staff);
     await onlineWebhookLoop(staff);
     await failurePaths(staff);
+    await qrisLoop(staff);
+    await deliveryLeg(staff);
     console.log('\nALL INTEGRATION SCENARIOS PASSED');
   } finally {
     // Runs on failure too: a half-finished run leaves the worst litter.

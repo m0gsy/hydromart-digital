@@ -20,8 +20,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "no .env here — run this on the deploy box"; exit 2; }
 
+# Read the .env, do not RUN it. `set -a; . ./.env; set +a` executes the file, and the live
+# .env carries `FCM_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----…` unquoted, so the shell splits
+# it on spaces and tries to run `PRIVATE`. That is not theory: this job's first real run
+# died on it — `./.env: line 115: PRIVATE: command not found`, exit 127 — so the script
+# written to close a live photo exposure could not reach the first bucket. load-env.sh
+# exists for exactly this and is already what the host crontab uses.
 # shellcheck disable=SC1091
-set -a; . ./.env; set +a
+. ./scripts/load-env.sh
 
 : "${STORAGE_S3_ENDPOINT:?STORAGE_S3_ENDPOINT missing from .env}"
 : "${STORAGE_S3_ACCESS_KEY_ID:?STORAGE_S3_ACCESS_KEY_ID missing from .env}"
