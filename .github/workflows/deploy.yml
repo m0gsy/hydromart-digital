@@ -19,11 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), storage-policy (close anonymous bucket listing + prove it)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
         options:
-          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, storage-policy]
+          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy]
       sha:
         description: "rollback target SHA (blank = previous good)"
         required: false
@@ -98,6 +98,12 @@ jobs:
             # (which PARSES rather than executes), so it is never in this repo, this
             # workflow, or this log.
             seed-demo)   echo "run=. ./scripts/load-env.sh && DEMO_PHONE='${{ github.event.inputs.demo_phone }}' GATEWAY_URL=http://127.0.0.1:8080 node scripts/seed-demo-depot.mjs" >> "$GITHUB_OUTPUT" ;;
+            # Verification step 3 of the go-live plan, which was a line telling somebody to
+            # ssh in after a release and drive the rewards flow by hand. It needs the box's
+            # own .env to learn an OTP (REVIEWER_PHONE/REVIEWER_OTP_CODE), which is exactly
+            # why it never got run: the one machine that can do it is the one nobody is
+            # logged into. Read-only against the customer flow it exercises.
+            smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 

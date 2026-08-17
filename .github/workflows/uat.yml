@@ -66,6 +66,33 @@ jobs:
       - name: Run the UAT harness
         run: node .uat/run.mjs
 
+      # Verification step 4 of the go-live plan. It is the only check in this repo that asks
+      # what a screen actually SHOWS the person who owns it, at the widths that person holds
+      # — and it needs a browser, which is why it has never run anywhere but a laptop.
+      #
+      # Here rather than in `CI`: it drives dozens of routes at several widths per role, and
+      # a per-PR gate that slow gets disabled within the week. Report-only, same as the UAT
+      # run above; what it produces is screenshots and a per-route verdict to read.
+      - name: Build + serve the web app
+        run: |
+          npm run build --workspace @hydromart/web
+          nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3000 >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+      - name: Install Playwright browser
+        run: npm run test:e2e:install --workspace @hydromart/web
+
+      - name: Per-role browser pass
+        continue-on-error: true
+        run: |
+          for role in hq operator manager courier customer; do
+            echo "=== $role"
+            node scripts/role-browser-pass.mjs "$role" id || true
+          done
+
       - name: Summarise
         if: always()
         run: |
@@ -90,6 +117,7 @@ jobs:
           path: |
             .uat/results.json
             .uat/ctx.json
+            role-pass-*.json
           retention-days: 30
 
       - name: Service logs when the harness could not run
