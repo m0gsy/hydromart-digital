@@ -342,6 +342,24 @@ when you need the backup for real.
   running and producing non-tiny `.sql.gz` files in `BACKUP_DIR`, and re-run the
   drill against a known-good dump to confirm the restore path itself works.
 
+### Before you run a SECOND gateway — the rate limiter is in-memory
+
+The gateway's throttler counts requests in the memory of **one process**. That is correct
+today, because there is one gateway; it stops being correct the moment there are two.
+
+Two replicas each hold their own counter, so a limit of 600/min becomes 1200/min for anyone
+whose requests land alternately — and the person who notices first is whoever is scraping
+you, not whoever is monitoring you. Nothing in the stack will report it: both processes are
+enforcing their limit correctly, and the limit is simply no longer the limit.
+
+**The trigger, stated so it is a decision rather than a surprise:** before scaling the
+gateway past one replica, move the throttler to a shared store (Redis or Postgres) — or
+accept, in writing, that the effective ceiling multiplies by the replica count.
+
+The same applies to the per-process alert dedupe in `packages/platform/src/nest/
+error-alerter.ts`: with two processes, a 5xx storm sends two messages a minute instead of
+one. That one is noise; the rate limit is exposure.
+
 ### Checkout load test (k6 — DB-7 hot path)
 
 [`scripts/load/checkout.k6.js`](scripts/load/checkout.k6.js) load-tests the
