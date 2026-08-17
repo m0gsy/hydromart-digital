@@ -285,6 +285,13 @@ jobs:
       - name: Money literal gate self-check
         run: bash scripts/check-money-literals.test.sh
 
+      # The Lighthouse ratchet itself runs in the e2e job (it needs a served build). This is
+      # the part that needs no browser: that its baseline still carries every metric it
+      # compares. It did not, for the whole life of the byte/request/DOM ceilings, and the
+      # gate printed OK the entire time.
+      - name: Lighthouse ratchet self-check
+        run: bash scripts/check-lighthouse.test.sh
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.

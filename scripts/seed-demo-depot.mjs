@@ -98,8 +98,12 @@ const EMPLOYMENT = {
   monthlyRate: 5_000_000,
 };
 
+// The list endpoint caps `limit` at 100 and answers 400 above it — which is what the first
+// real run of this hit, on its very first read. The endpoint-contract gate could not catch
+// it: it checks that a path exists and that a query parameter is READ by the server, never
+// that a VALUE is inside the range the server accepts.
 async function findDepot() {
-  const list = rows(ok(await api('GET', '/depots/api/v1/depots/manage?limit=200'), 'list depots'));
+  const list = rows(ok(await api('GET', '/depots/api/v1/depots/manage?limit=100'), 'list depots'));
   return list.find((d) => d.code === DEPOT.code) ?? null;
 }
 

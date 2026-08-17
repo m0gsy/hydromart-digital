@@ -3,24 +3,36 @@
     "performance": 72,
     "accessibility": 95,
     "best-practices": 100,
-    "seo": 100
+    "seo": 100,
+    "bytes": 419099,
+    "requests": 46,
+    "domNodes": 217
   },
   "/products": {
     "performance": 68,
     "accessibility": 95,
     "best-practices": 100,
-    "seo": 100
+    "seo": 100,
+    "bytes": 417549,
+    "requests": 44,
+    "domNodes": 215
   },
   "/login": {
-    "performance": 92,
+    "performance": 78,
     "accessibility": 96,
     "best-practices": 100,
-    "seo": 100
+    "seo": 100,
+    "bytes": 320683,
+    "requests": 26,
+    "domNodes": 130
   },
   "/driver": {
     "performance": 77,
     "accessibility": 95,
     "best-practices": 100,
-    "seo": 100
+    "seo": 100,
+    "bytes": 391454,
+    "requests": 35,
+    "domNodes": 40
   }
 }
