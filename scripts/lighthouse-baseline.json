@@ -1,6 +1,26 @@
 {
-  "/": { "performance": 84, "accessibility": 95, "best-practices": 100, "seo": 100 },
-  "/products": { "performance": 86, "accessibility": 95, "best-practices": 100, "seo": 100 },
-  "/login": { "performance": 93, "accessibility": 96, "best-practices": 100, "seo": 100 },
-  "/driver": { "performance": 77, "accessibility": 95, "best-practices": 100, "seo": 100 }
+  "/": {
+    "performance": 72,
+    "accessibility": 95,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "/products": {
+    "performance": 68,
+    "accessibility": 95,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "/login": {
+    "performance": 92,
+    "accessibility": 96,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "/driver": {
+    "performance": 77,
+    "accessibility": 95,
+    "best-practices": 100,
+    "seo": 100
+  }
 }

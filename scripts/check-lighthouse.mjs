@@ -26,18 +26,32 @@ const require = createRequire(import.meta.url);
 const BASELINE = 'scripts/lighthouse-baseline.json';
 const BASE_URL = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 /**
- * Run-to-run noise, per category. Performance is measured on a shared runner whose CPU is
- * whatever the neighbours are doing, and it moves several points between identical runs —
- * a one-point floor there would be a gate that fails at random, which teaches people to
- * re-run until green and is worse than no gate. The other three are deterministic checks
- * on the rendered page and do not drift at all.
+ * Run-to-run noise, per category — and `null` means NOT GATED.
+ *
+ * Performance is measured on a shared runner whose CPU is whatever the neighbours are
+ * doing. Two runs of the SAME COMMIT, forty minutes apart, scored:
+ *
+ *   /          84 then 72
+ *   /products  86 then 68
+ *   /login     93 then 92
+ *   /driver    77 then 83
+ *
+ * Eighteen points of spread with no code change. A floor on that is a gate that fails at
+ * random, which teaches people to re-run until green — worse than no gate, because it
+ * also devalues the three categories that ARE deterministic. So performance is measured
+ * and printed on every run, and gated by nothing until it is measured somewhere stable.
+ *
+ * The other three are structural checks on the rendered page: label associations, contrast,
+ * meta tags, HTTPS, console errors. They do not drift, and they are where a regression a
+ * person can cause actually shows up.
  */
 const TOLERANCE = {
-  performance: Number(process.env.LIGHTHOUSE_PERF_TOLERANCE ?? 6),
+  performance: null,
   accessibility: 1,
   'best-practices': 1,
   seo: 1,
 };
+
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 
 /** The pages a customer actually opens, plus the one a courier lives in. */
@@ -130,9 +144,10 @@ for (const [page, scores] of Object.entries(measured)) {
     const now = scores[category];
     const then = floor[category];
     if (then === null || then === undefined || now === null) continue;
-    const slack = TOLERANCE[category] ?? 1;
-    if (now < then - slack) {
-      failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${slack})`);
+    const slack = TOLERANCE[category];
+    if (slack === null) continue; // measured and printed above, deliberately not gated
+    if (now < then - (slack ?? 1)) {
+      failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${slack ?? 1})`);
     }
   }
 }
