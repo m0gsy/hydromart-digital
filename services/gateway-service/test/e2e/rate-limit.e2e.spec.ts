@@ -79,10 +79,11 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
       RATE_LIMIT_TTL_SECONDS: '60',
       RATE_LIMIT_MAX: String(LIMIT),
       RATE_LIMIT_OTP_MAX: String(OTP_LIMIT),
-      // Out of the way on purpose: this file is about the per-minute window and the OTP
-      // tier. The ten-second burst window has its own spec, with its own numbers, because a
-      // second ceiling quietly capping these cases would make them assert the wrong thing.
-      RATE_LIMIT_BURST_MAX: '1000',
+      // With a token bucket the thing that refuses a BURST is the capacity, and
+      // RATE_LIMIT_MAX only sets how fast it refills. Both are LIMIT here so the refill over
+      // the few milliseconds these requests take is negligible, and the assertions below
+      // stay about IDENTITY — which is what this file is for.
+      RATE_LIMIT_BURST_MAX: String(LIMIT),
     };
     Object.assign(process.env, testEnv);
     const moduleRef = await Test.createTestingModule({

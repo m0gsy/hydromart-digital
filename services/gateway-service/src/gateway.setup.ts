@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 
 import { INestApplication } from '@nestjs/common';
 import type { Express, Request, RequestHandler } from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { GatewayConfigService } from './config/gateway-config.service';
 import { resolveRoute } from './routing/route-table';
 import { AT_COOKIE, createSessionRouter, readCookie } from './routing/session-bff';
+import { tokenBucket } from './rate-limit/token-bucket';
 
 // Kept in sync with @hydromart/platform's INTERNAL_KEY_HEADER. Inlined so the
 // gateway (a pure proxy) doesn't import the platform barrel, which transitively
@@ -35,9 +35,6 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * Harmless (refresh is itself limited, and reuse detection revokes a family that spams
  * it); key on the JWT `sub` claim instead if that ever proves too generous.
  */
-/** The burst window. Exported so a test asserts against the number the app actually uses. */
-export const BURST_WINDOW_MS = 10_000;
-
 export function rateLimitKey(req: Request): string {
   const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
   if (credential) {
@@ -105,7 +102,7 @@ export function trustProxyHops(
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
 
-  // B-2: express-rate-limit keys on `req.ip`. Behind Caddy every request arrives from
+  // B-2: the limiter keys on `req.ip`. Behind Caddy every request arrives from
   // Caddy's address, so without this the socket peer IS the proxy and all traffic from
   // all users shares ONE counter — the configured limit stops being per-user and becomes
   // per-deployment. One staff member opening one HQ page could 429 the whole platform.
@@ -131,75 +128,44 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   /*
    * The OTP tier, and it is a BILLING control before it is an availability one.
    *
-   * Every call that issues a code sends a real SMS through Zenziva, and Zenziva invoices
-   * per message. auth-service caps RESENDS per customer — but nothing capped a caller who
-   * walks a different phone number on each request, which is the shape that costs money:
-   * one IP, one script, six hundred numbers a minute under the general ceiling, every one
-   * of them a paid message to a stranger's handset.
+   * Every call that issues a code sends a real SMS through Zenziva, and Zenziva invoices per
+   * message. auth-service caps RESENDS per customer — but nothing capped a caller who walks
+   * a different phone number on each request, which is the shape that costs money: one IP,
+   * one script, and every request past the ceiling is a paid message to a stranger's handset.
    *
-   * Keyed by IP because these callers have no credential yet, and deliberately strict: a
-   * human registering needs three calls (register, maybe one resend, verify), so twenty a
-   * minute is roughly seven honest attempts and nothing like a pump.
-   *
-   * Independent of the general limit and of the HQ request storm that inflated it — this
-   * tier can be tightened on its own merits without waiting for that measurement.
+   * Keyed by address because these callers hold no credential yet, and deliberately strict:
+   * a human registering needs three calls, so twenty is roughly seven honest attempts.
    */
   const OTP_ISSUING = /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/;
   app.use(
-    rateLimit({
-      windowMs: config.rateLimit.ttlSeconds * 1000,
-      limit: config.rateLimit.otpLimit,
-      standardHeaders: true,
-      legacyHeaders: false,
-      // `req.ip` is always set behind the trust-proxy setting above; the prefix is what
-      // keeps this bucket separate from the general one for the same address.
+    tokenBucket({
+      capacity: config.rateLimit.otpLimit,
+      refillPerSecond: config.rateLimit.otpLimit / config.rateLimit.ttlSeconds,
       keyGenerator: (req) => `otp:${req.ip}`,
       skip: (req) => !OTP_ISSUING.test(req.path),
-      message: { statusCode: 429, message: 'Too many verification requests' },
-    }),
-  );
-
-  app.use(
-    rateLimit({
-      windowMs: config.rateLimit.ttlSeconds * 1000,
-      limit: config.rateLimit.limit,
-      standardHeaders: true,
-      legacyHeaders: false,
-      keyGenerator: rateLimitKey,
-      // `/mobile-config` joins `/health` as exempt for the same reason: it is read once
-      // per app launch, before the user has done anything, by every installed device. A
-      // 429 there would fail the one check whose whole job is to be answerable.
-      skip: (req) => req.path === '/health' || req.path === '/mobile-config',
-      message: { statusCode: 429, message: 'Too many requests' },
+      message: 'Too many verification requests',
     }),
   );
 
   /*
-   * The burst window, and the reason it exists is arithmetic rather than taste.
+   * The general limiter. One bucket, not two windows.
    *
-   * A FIXED window resets on a wall-clock boundary, so a caller who spends its whole quota
-   * in the last second of one window and the whole of the next in the first second has sent
-   * TWICE the limit inside two seconds — entirely within the rules, and exactly the shape
-   * that hurts: the ceiling is a per-minute promise and the damage is per-second.
+   * `RATE_LIMIT_MAX` per `RATE_LIMIT_TTL_SECONDS` is the SUSTAINED rate, so it becomes the
+   * refill; `RATE_LIMIT_BURST_MAX` is how much may be spent at once, so it becomes the
+   * capacity. Those are exactly the two things the fixed window and the burst window were
+   * each trying to express alone — and the bucket has no wall-clock boundary to double up
+   * across, which is the leak that made the second window necessary in the first place.
    *
-   * A token bucket would fix it properly, and it is what to move to alongside the shared
-   * store (the trigger is written down in DEPLOY.md). Until then a second, SHORTER window at
-   * the same average rate is the same defence with no new dependency: it cannot stop a
-   * legitimate minute, and it flattens the boundary spike from 2x to about 1.2x.
-   *
-   * Its own setting rather than a number derived from the sustained limit: derivation looked
-   * tidier and produced a ceiling of ONE request per ten seconds under the deliberately tiny
-   * limit the tests use — a limiter that refuses the very thing it protects.
+   * `/health` and `/mobile-config` stay exempt: the first is how anything knows the gateway
+   * is alive, and the second is read once per app launch by every installed device before
+   * the user has done anything. A 429 on either fails the one check whose job is to answer.
    */
   app.use(
-    rateLimit({
-      windowMs: BURST_WINDOW_MS,
-      limit: config.rateLimit.burstLimit,
-      standardHeaders: true,
-      legacyHeaders: false,
-      keyGenerator: (req) => `burst:${rateLimitKey(req)}`,
+    tokenBucket({
+      capacity: config.rateLimit.burstLimit,
+      refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
+      keyGenerator: rateLimitKey,
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
-      message: { statusCode: 429, message: 'Too many requests' },
     }),
   );
 
