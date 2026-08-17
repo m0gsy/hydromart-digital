@@ -349,6 +349,30 @@ services:
       timeout: 5s
       retries: 12
 
+  # F6 item 5 probes `/admin/api/v1/fraud-flags/...` for all thirteen roles, and the gateway
+  # has always mapped the `admin` segment — but the service was not here, so every one of
+  # those requests waited five seconds for an upstream that does not exist and came back
+  # 500. Eleven RBAC assertions have therefore never once been evaluated; they only looked
+  # evaluated. One more image is the price of eleven guards being real.
+  admin:
+    <<: *svc
+    build: { context: ., dockerfile: services/admin-service/Dockerfile }
+    environment:
+      <<: *shared
+      ADMIN_SERVICE_PORT: 3017
+      ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_admin?schema=public
+      # Peer URLs are optional by design (the health roll-up omits what it cannot reach),
+      # and the two the scheduled-report sweep actually reads are named so a failed run is
+      # recorded as FAILED rather than as an empty file that reads like a quiet month.
+      AUTH_SERVICE_URL: http://auth:3001
+      ORDER_SERVICE_URL: http://order:3004
+      PAYMENT_SERVICE_URL: http://payment:3005
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3017/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     restart: "no"
