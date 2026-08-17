@@ -117,6 +117,14 @@ async function main() {
     ...process.env,
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
   };
+  /*
+   * flow.mjs builds every fixture it needs, so this job never seeded anything. The payroll
+   * checks are the opposite: they prove a depot cannot read another depot's payroll, which
+   * takes TWO depots that already exist — and they refuse to run rather than pretend, which
+   * is how "need at least 2 depots seeded; found 0" ended a green-looking run.
+   */
+  console.log('\n--- scripts/seed.mjs (the harnesses below need a populated depot)');
+  if (run('node', ['scripts/seed.mjs'], { env: harnessEnv })) throw new Error('seed failed');
   for (const harness of [
     'scripts/f6-hris-flows.mjs',
     'scripts/f6-approvals.mjs',
