@@ -557,6 +557,19 @@ jobs:
       - name: Seed catalog + staff
         run: node scripts/seed.mjs
 
+      # The Play-reviewer demo seeder, run against the test stack for one reason: three
+      # separate runs of it against PRODUCTION died on three different shape mismatches
+      # (`limit` above the cap, a `phone` the depot DTO does not accept, an invite missing
+      # the four employment fields the console always sends). Every one was a request the
+      # repo had never made before, so nothing here could have caught it.
+      # Now a mismatch costs a red check instead of a production round trip — and running
+      # it twice is a live proof that it stays idempotent, which is the property the whole
+      # script is designed around.
+      - name: Demo-depot seeder works (and is idempotent)
+        run: |
+          node scripts/seed-demo-depot.mjs
+          node scripts/seed-demo-depot.mjs
+
       - name: Build + serve web
         run: |
           npm run build --workspace @hydromart/web
@@ -573,19 +586,14 @@ jobs:
         run: npm run test:e2e --workspace @hydromart/web
 
       # H3. A Lighthouse score nobody gates on is a score nobody reads. The numbers this
-      # repo scores today are the floor for accessibility, best-practices and SEO — a PR
-      # may not go below them — including PERFORMANCE, which is gated on the MEDIAN of three
-      # passes per page. One pass could not gate it: two runs of the same commit scored 86
-      # and 68 on /products, because a shared runner's CPU is whatever the neighbours are
-      # doing. A median needs two slow passes to move at all, and the per-run spread is
-      # printed every time so the day this stops holding is visible.
+      # repo scores today are the floor, and a PR may not go below them — performance
+      # included, reduced to the BEST of five passes per page rather than a median.
       #
-      # What the score is MADE OF is gated too, and separately — bytes transferred, request
-      # count, DOM size. Those do not drift at all: a runner's CPU changes how fast bytes
-      # are parsed, not how many there are. Shipping 400 KB more JavaScript is what
-      # "performance got worse" actually means.
-      # The web app is already built and served above, and Chromium is already installed
-      # for Playwright — so this costs one browser run, not another build.
+      # A median of three still left twenty-six points of spread on /products against a
+      # tolerance of eight, and failed a PR that touched two shell scripts and no frontend
+      # code at all. The noise is one-tailed: a busy runner makes a page slower, nothing
+      # makes it render faster than the machine can. So the fastest pass is the estimate
+      # and the slow ones are interference.
       - name: Lighthouse ratchet
         run: node scripts/check-lighthouse.mjs
 

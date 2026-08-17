@@ -83,7 +83,7 @@ const DEPOT = {
   address: 'Kawasan demo — akun peninjau Google Play',
   city: 'Malang',
   province: 'Jawa Timur',
-  phone: '+6281199900000',
+  contactPhone: '+6281199900000',
   lat: -8.4383,
   lng: 112.6861,
   serviceRadiusKm: 3,
@@ -92,11 +92,29 @@ const DEPOT = {
   ownershipType: 'HKP',
 };
 
+/*
+ * The four employment fields are REQUIRED on a staff invite for every role — the console
+ * always sends them, so nothing in the repo ever exercised an invite without them. Leaving
+ * them out is a 400, which is how the second real run of this died.
+ */
 const EMPLOYMENT = {
+  position: 'Kepala Depot',
+  joinDate: '2026-01-01',
   employmentStatus: 'PERMANENT',
   salaryType: 'MONTHLY',
   monthlyRate: 5_000_000,
 };
+
+/*
+ * Three runs of this against production died on three different shape mismatches — `limit`
+ * above the cap, a `phone` the depot DTO does not accept, and an invite missing the four
+ * employment fields the console always happens to send. None of them were reachable from
+ * anything the repo already ran: the contract gate proves a path exists and that a query
+ * parameter is READ, never that a value is in range or that a body matches a DTO.
+ *
+ * So this script now also runs against the integration stack in CI (see ci.yml), where a
+ * mismatch costs a red check instead of a production round trip.
+ */
 
 // The list endpoint caps `limit` at 100 and answers 400 above it — which is what the first
 // real run of this hit, on its very first read. The endpoint-contract gate could not catch
