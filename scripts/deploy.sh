@@ -243,13 +243,26 @@ if health_ok; then
   # Bucket names come from the .env keys themselves (`AUTH_`/`DELIVERY_`/`PRODUCT_`/`HR_`
   # prefixed on this box), not from a list in here, so a new bucket is covered the day it
   # is configured rather than the day somebody remembers this check.
+  #
+  # It reports what it ASKED, not only what it found. A probe that prints nothing when it
+  # passes is indistinguishable from a probe that never ran — which is exactly how the
+  # watchdog below stayed blind for seven days while every deploy said OK.
   OPEN_BUCKETS=""
+  CHECKED_BUCKETS=""
   S3_ENDPOINT="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^STORAGE_S3_ENDPOINT=//p' | head -1 || true)"
   if [ -n "$S3_ENDPOINT" ]; then
     for bucket in $(storage_buckets); do
       LIST_CODE="$(curl -s -o /dev/null -m 15 -w '%{http_code}' "${S3_ENDPOINT%/}/$bucket?list-type=2&max-keys=1" || true)"
+      CHECKED_BUCKETS="$CHECKED_BUCKETS $bucket:$LIST_CODE"
       [ "$LIST_CODE" = "200" ] && OPEN_BUCKETS="$OPEN_BUCKETS $bucket"
     done
+    if [ -n "$CHECKED_BUCKETS" ]; then
+      log "anonymous bucket LIST probe (bucket:http) —$CHECKED_BUCKETS"
+    else
+      log "!! STORAGE_S3_ENDPOINT is set but storage_buckets() named no bucket: nothing was probed."
+    fi
+  else
+    log "!! no STORAGE_S3_ENDPOINT in .env — the anonymous-listing probe did not run at all."
   fi
   if [ -n "$OPEN_BUCKETS" ]; then
     log "!! anonymous LIST is OPEN on:$OPEN_BUCKETS"
@@ -273,6 +286,12 @@ if health_ok; then
     log "!! the host crontab has no watchdog line — nothing converges a container that"
     log "   stops between deploys. Fix: bash scripts/install-host-cron.sh"
     alert "host crontab has no watchdog line"
+  elif [ -z "$HOST_CRON" ]; then
+    # An empty read is not a clean crontab. Saying so beats reporting silence as health.
+    log "!! 'crontab -l' returned nothing, so this probe asked nothing. Check the deploy"
+    log "   user's crontab access before reading the absence of findings as good news."
+  else
+    log "host crontab probe — $(printf '%s\n' "$HOST_CRON" | grep -c 'scripts/') repo job(s) scheduled, watchdog present, .env sourced (not executed)"
   fi
 else
   log "!! health check FAILED after deploy — auto-rolling back to $PREV_SHA"
