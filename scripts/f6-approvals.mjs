@@ -42,11 +42,23 @@ const LOCKED = new Set(['STAFF_DEPOT', 'KEPALA_DEPOT']);
 const NIL = '00000000-0000-4000-8000-000000000001';
 
 async function probe(method, path, role) {
+  /*
+   * A route that names a depot in its path is depot-scoped, and DepotScopeGuard runs BEFORE
+   * the capability guard. A token with no depot claim is therefore refused by scope on such
+   * a route — which reads as "the capability guard refused this role" and is not the same
+   * thing at all. MANAGER holds `voucherWrite` and was reported as unable to raise a
+   * voucher request for exactly this reason.
+   *
+   * So every role carries the depot the path names. What is under test here is the
+   * CAPABILITY guard; the scope guard has its own check (scripts/check-depot-scope-guards.mjs).
+   */
+  const scoped = /\/depots\/([0-9a-f-]{36})\//.exec(path);
+  const depotId = scoped ? scoped[1] : LOCKED.has(role) ? NIL : null;
   const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
-      authorization: `Bearer ${tokenFor(role, LOCKED.has(role) ? NIL : null)}`,
+      authorization: `Bearer ${tokenFor(role, depotId)}`,
     },
     body: method === 'GET' ? undefined : '{}',
   });
