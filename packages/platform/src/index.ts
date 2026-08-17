@@ -87,6 +87,7 @@ export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.gua
 export { LOG_REDACT_PATHS, redactPaths } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
+export { initSentry, captureServerError } from './nest/sentry';
 export { GlobalValidationPipe } from './nest/validation.pipe';
 export { IsNotBefore } from './nest/date-range.validator';
 export { IsWithinDays, MAX_RANGE_DAYS } from './nest/date-range-span.validator';
