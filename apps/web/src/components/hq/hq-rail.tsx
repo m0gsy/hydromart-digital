@@ -221,6 +221,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true, cap: 'platformAdmin' },
       { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true, cap: 'platformAdmin' },
       { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true , cap: 'depotAdmin' },
+      { href: '/hq/forecast-models', labelKey: 'forecastModels', icon: ChartLineUp, ready: true },
       { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true, cap: 'platformAdmin' },
       { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true , cap: 'pdpRequests' },
       { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true, cap: 'platformAdmin' },

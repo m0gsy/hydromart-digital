@@ -8,8 +8,8 @@
  *   node scripts/forecast-eval.mjs --file series.json      # [{ "label": "...", "series": [..] }]
  *
  * Read-only. It fetches history and computes; it never writes a forecast, a setting or a
- * row. Turning a winner on is a separate, deliberate act: FORECAST_MODEL_BY_DEPOT, one
- * depot at a time.
+ * row. Turning a winner on is a separate, deliberate act: the per-depot setting, in the
+ * console, one depot at a time.
  *
  * Why this exists before any fitted model does: the day someone proposes one, the question
  * will be "is it better than what we have", and the honest answer needs a harness that was
@@ -36,9 +36,14 @@ const require = createRequire(import.meta.url);
 let baselineModel;
 let MODELS;
 let compare;
+let churn;
 try {
   ({ baselineModel, MODELS } = require('../services/forecast-service/dist/src/domain/models.js'));
   ({ compare } = require('../services/forecast-service/dist/src/domain/evaluate.js'));
+  churn = {
+    ...require('../services/forecast-service/dist/src/domain/churn-models.js'),
+    ...require('../services/forecast-service/dist/src/domain/churn-evaluate.js'),
+  };
 } catch {
   console.error('Build the service first: npm run build --workspace @hydromart/forecast-service');
   process.exit(1);
@@ -122,4 +127,68 @@ console.log(
   '\nA win here is a reason to try a depot, not a reason to switch everyone: set\n' +
     '  FORECAST_MODEL_BY_DEPOT={"<depotId>":"<model>"}\n' +
     'and measure that depot against the one next door.',
+);
+
+/*
+ * The churn half. Its metric is AUC, not error: a churn score is only ever used to SORT an
+ * outreach list, so what matters is whether the customers who actually lapsed are ranked
+ * above the ones who did not. 0.5 is a coin toss — a model there sorts the list at random.
+ *
+ * Needs order history per customer, which the stack does not expose in one call, so it runs
+ * only from --file: [{ "label": "...", "customers": [{ "orders": [{ "at": "...", "total": 0 }] }] }]
+ */
+const churnSets = datasets.filter((d) => Array.isArray(d.customers));
+if (churnSets.length > 0) {
+  const cut = new Date(process.env.CHURN_CUT ?? datasets[0].cut);
+  const horizon = Number(process.env.CHURN_HORIZON_DAYS ?? 30);
+  const opts = {
+    windowDays: Number(process.env.CHURN_WINDOW_DAYS ?? 60),
+    monetaryRef: Number(process.env.CHURN_MONETARY_REF ?? 0),
+  };
+  const candidates = churn.CHURN_MODELS.filter((m) => m.name !== churn.recencyOnlyChurnModel.name);
+  for (const set of churnSets) {
+    const samples = churn.buildChurnSamples(
+      set.customers.map((c) => ({
+        orders: c.orders.map((o) => ({ at: new Date(o.at), total: o.total })),
+      })),
+      cut,
+      horizon,
+    );
+    const result = churn.compareChurn(
+      samples,
+      churn.recencyOnlyChurnModel,
+      candidates,
+      new Date(cut),
+      opts,
+    );
+    console.log(
+      `\n${set.label} — ${result.baseline.n} customer(s), ${result.baseline.churned} lapsed within ${horizon}d`,
+    );
+    console.log(`  ${'model'.padEnd(16)} ${'AUC'.padStart(7)}   vs baseline`);
+    console.log(
+      `  ${result.baseline.model.padEnd(16)} ${String(result.baseline.auc ?? '—').padStart(7)}   baseline`,
+    );
+    for (const c of result.candidates) {
+      const better = (c.aucDelta ?? 0) > 0;
+      console.log(
+        `  ${c.model.padEnd(16)} ${String(c.auc ?? '—').padStart(7)}   ` +
+          (c.aucDelta === null
+            ? 'not comparable'
+            : `${better ? 'BETTER' : 'worse '} ${c.aucDelta > 0 ? '+' : ''}${c.aucDelta}`),
+      );
+    }
+  }
+}
+
+/*
+ * PR-J item 3, named rather than left as "later": a fitted model is worth attempting when a
+ * depot has NINETY DAYS of completed orders and at least 200 of them. Below that the
+ * backtest above is scoring noise — the restore drill still reports `hydromart_forecast: no
+ * rows live`, and a model fitted on that would be confidently worse than the average it
+ * replaced. When a depot crosses it, run this harness on that depot and let the numbers,
+ * not the calendar, decide.
+ */
+console.log(
+  '\nFit trigger: 90 days of completed orders AND at least 200 of them, per depot. Until a\n' +
+    'depot crosses both, the heuristic keeps running and this harness is measuring noise.',
 );
