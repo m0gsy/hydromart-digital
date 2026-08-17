@@ -57,6 +57,20 @@ forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT
 forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_depot_key_key" ON "service_settings"("depot_id", "key") WHERE "scope" = 'DEPOT'
 '
 
+# One rule, one place. It lived in two places for exactly one deploy, and in that deploy the
+# loop skipped three indexes correctly while the end-state re-check called the same three
+# MISSING and failed the release. Two copies of a rule is how you fix half a bug.
+#
+# "The table does not exist yet" means the migration that creates the table creates this
+# index with it: nothing to pre-build, nothing to lock, nothing missing.
+table_absent() {
+  _ta_db="$1"
+  _ta_table="$(printf '%s' "$2" | sed -n 's/.* ON "\([^"]*\)".*//p')"
+  [ -n "$_ta_table" ] || return 1
+  _ta_found="$(psql_do "$_ta_db" "SELECT 1 FROM information_schema.tables WHERE table_name='$_ta_table';" | tr -d '[:space:]')"
+  [ "$_ta_found" != "1" ]
+}
+
 if ! docker exec "$CONTAINER" true >/dev/null 2>&1; then
   echo "ERROR: cannot exec into Postgres container '$CONTAINER'. Is the stack up? (override with PG_CONTAINER=...)" >&2
   exit 2
@@ -91,13 +105,9 @@ echo "$INDEXES" | while IFS='|' read -r db idx stmt; do
   # That is not a reason to fail the deploy, which is what happened on 2026-08-17: three
   # such indexes aborted the whole release before a single container was touched. Skipped,
   # named, and left to the migration that owns the table.
-  table="$(printf '%s' "$stmt" | sed -n 's/.* ON "\([^"]*\)".*/\1/p')"
-  if [ -n "$table" ]; then
-    exists="$(psql_do "$db" "SELECT 1 FROM information_schema.tables WHERE table_name='$table';" | tr -d '[:space:]')"
-    if [ "$exists" != "1" ]; then
-      ok "$db.$idx skipped — table \"$table\" does not exist yet; the migration that creates it owns this index"
-      continue
-    fi
+  if table_absent "$db" "$stmt"; then
+    ok "$db.$idx skipped — its table does not exist yet; the migration that creates it owns this index"
+    continue
   fi
 
   if [ "$CHECK_ONLY" = "1" ]; then
@@ -118,10 +128,17 @@ done
 
 # The loop above runs in a subshell (pipe), so FAIL cannot come back out of it. Re-check
 # the end state instead of trusting a variable that the shell threw away.
-MISSING="$(echo "$INDEXES" | while IFS='|' read -r db idx _stmt; do
+#
+# It applies the SAME new-table rule as the loop, and the deploy that shipped the loop's
+# version of it proved why: the three service_settings indexes were correctly skipped —
+# three ✅ lines in the log — and then this re-check called them MISSING and failed the
+# release anyway. Half a fix reads exactly like no fix from the outside.
+MISSING="$(echo "$INDEXES" | while IFS='|' read -r db idx stmt; do
   [ -z "${db:-}" ] && continue
   got="$(psql_do "$db" "SELECT 1 FROM pg_indexes WHERE indexname='$idx';" | tr -d '[:space:]')"
-  [ "$got" = "1" ] || echo "$db.$idx"
+  [ "$got" = "1" ] && continue
+  table_absent "$db" "$stmt" && continue
+  echo "$db.$idx"
 done)"
 
 echo "=============================="

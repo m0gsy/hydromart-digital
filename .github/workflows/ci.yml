@@ -158,6 +158,15 @@ jobs:
       - name: Workflows parse, and every mode they implement is selectable
         run: node scripts/check-workflows.mjs
 
+      # The two lines of sed that pull an index and a table name out of each statement have
+      # been wrong twice in one day — once substituting the match away instead of capturing
+      # it (so every table name came back empty and the new-table skip silently did
+      # nothing), once duplicated so a fix landed in one copy only. Both failures aborted a
+      # production release before a container was touched, and neither needed a database to
+      # catch.
+      - name: Index pre-build table parses (no database needed)
+        run: bash scripts/create-indexes.test.sh
+
       # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
       # is stubbed — so it is gated here like any other logic.
       - name: Scheduler sweep self-check
