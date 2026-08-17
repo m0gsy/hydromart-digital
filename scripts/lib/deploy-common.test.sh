@@ -281,6 +281,16 @@ probe_run "compose_ignores_env does not name the keys compose never reads" '
   printf "services:\n  a:\n    environment:\n      X: \${INTERPOLATED}\n" > docker-compose.yml
   IGNORED="$(compose_ignores_env)"
   [ "$IGNORED" = "COMPOSE_NEVER_READS_THIS" ] || { echo "  got: [$IGNORED]"; exit 1; }'
+probe_run "storage_buckets reads every prefix and deduplicates" '
+  printf "STORAGE_S3_ENDPOINT=https://nos.invalid\nDELIVERY_STORAGE_S3_BUCKET=hydromart-pod\nPRODUCT_STORAGE_S3_BUCKET=hydromart-products\nAUTH_STORAGE_S3_BUCKET=hydromart-products\nHR_STORAGE_S3_BUCKET=\"hydromart-facer\"\n" > .env
+  GOT="$(storage_buckets | tr "\n" " ")"
+  [ "$GOT" = "hydromart-facer hydromart-pod hydromart-products " ] || { echo "  got: [$GOT]"; exit 1; }'
+
+probe_run "storage_buckets ignores an empty bucket value and a missing .env" '
+  printf "DELIVERY_STORAGE_S3_BUCKET=\nSTORAGE_S3_ENDPOINT=https://nos.invalid\n" > .env
+  [ -z "$(storage_buckets)" ] || { echo "  empty value should name no bucket"; exit 1; }
+  rm -f .env
+  [ -z "$(storage_buckets)" ] || { echo "  no .env should name no bucket"; exit 1; }'
 rm -rf "$probe"
 
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"

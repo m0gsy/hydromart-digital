@@ -4,6 +4,11 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   FORECAST_SERVICE_PORT: Joi.number().port().default(3014),
+  // PR-J: which demand model runs, globally and per depot. Unknown names fall back to the
+  // heuristic in resolveModel(), so this validates shape and not membership — a candidate
+  // model may exist in a branch before it exists in this list.
+  FORECAST_MODEL: Joi.string().allow('').default('heuristic'),
+  FORECAST_MODEL_BY_DEPOT: Joi.string().allow('').default(''),
   FORECAST_DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),

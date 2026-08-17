@@ -242,6 +242,25 @@ jobs:
       - name: Frontend endpoint contracts
         run: node scripts/check-endpoint-contracts.mjs
 
+      # The browser is not the only client. The same check now resolves the 104 calls the
+      # services make to EACH OTHER — hand-written adapters whose URLs nothing validated
+      # until a courier's assign came back 422. Reading them needs three facts from three
+      # places (target in the template, verb on whichever method fetches, path at the call
+      # site for a helper), so the reader has a self-check of its own.
+      - name: Service contract gate self-check
+        run: bash scripts/check-endpoint-contracts.test.sh
+
+      # PR #60 found a subscription discount the web priced at one rate while promo-service
+      # used another, and a points message promising a rate loyalty-service had stopped
+      # granting. A literal in a .tsx reads like a constant and outlives whatever set it.
+      # Only numbers DOING MONEY are flagged — a poll interval and a Tailwind width are not
+      # business rules — and the allowlist carries a written reason per entry.
+      - name: No business numbers in the web client
+        run: node scripts/check-money-literals.mjs
+
+      - name: Money literal gate self-check
+        run: bash scripts/check-money-literals.test.sh
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.

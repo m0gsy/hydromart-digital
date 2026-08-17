@@ -25,8 +25,19 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const BASELINE = 'scripts/lighthouse-baseline.json';
 const BASE_URL = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-/** One point of run-to-run noise is normal; two is a regression. */
-const TOLERANCE = Number(process.env.LIGHTHOUSE_TOLERANCE ?? 1);
+/**
+ * Run-to-run noise, per category. Performance is measured on a shared runner whose CPU is
+ * whatever the neighbours are doing, and it moves several points between identical runs —
+ * a one-point floor there would be a gate that fails at random, which teaches people to
+ * re-run until green and is worse than no gate. The other three are deterministic checks
+ * on the rendered page and do not drift at all.
+ */
+const TOLERANCE = {
+  performance: Number(process.env.LIGHTHOUSE_PERF_TOLERANCE ?? 6),
+  accessibility: 1,
+  'best-practices': 1,
+  seo: 1,
+};
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 
 /** The pages a customer actually opens, plus the one a courier lives in. */
@@ -101,7 +112,9 @@ if (process.argv.includes('--update')) {
 }
 
 if (!existsSync(BASELINE)) {
-  console.error(`\nNo ${BASELINE}. Run with --update and commit it — a gate with no floor is not a gate.`);
+  console.error(
+    `\nNo ${BASELINE}. Run with --update and commit it — a gate with no floor is not a gate.`,
+  );
   process.exit(1);
 }
 
@@ -117,8 +130,9 @@ for (const [page, scores] of Object.entries(measured)) {
     const now = scores[category];
     const then = floor[category];
     if (then === null || then === undefined || now === null) continue;
-    if (now < then - TOLERANCE) {
-      failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${TOLERANCE})`);
+    const slack = TOLERANCE[category] ?? 1;
+    if (now < then - slack) {
+      failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${slack})`);
     }
   }
 }

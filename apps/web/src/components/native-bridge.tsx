@@ -68,9 +68,7 @@ export function NativeBridge() {
 
   // The native safe-area values do not survive a navigation in an exported build — see
   // `safe-area-persist.ts`. Re-applied before anything renders that depends on them.
-  useEffect(() => {
-    persistSafeAreaInsets();
-  }, []);
+  useEffect(() => persistSafeAreaInsets(), []);
 
   useEffect(() => {
     if (!isNativeShell()) return;
