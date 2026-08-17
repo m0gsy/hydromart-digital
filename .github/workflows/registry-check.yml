@@ -37,6 +37,15 @@ jobs:
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
+            # The box only moves commit when a DEPLOY moves it, so its checkout is whatever
+            # the last release carried — and this probe exists to be run BEFORE a change,
+            # which is exactly when the box is behind. The first run of it failed with
+            # `scripts/check-registry-pull.sh: No such file or directory` for that reason.
+            #
+            # So fetch just this script from main. Nothing else in the tree is touched, and
+            # deploy.sh's `git reset --hard` puts it back in step on the next release.
+            git fetch --quiet origin main
+            git checkout origin/main -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh
             bash scripts/check-registry-pull.sh
         env:
           IMAGE_PREFIX: ${{ github.event.inputs.image_prefix }}
