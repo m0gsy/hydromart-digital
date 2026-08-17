@@ -33,6 +33,13 @@ export const envValidationSchema = Joi.object({
   // This number is sized around a frontend defect, not around what the API should need.
   // When F-1 lands and the fan-out drops, bring it back down — it is a ceiling, not a target.
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(600),
+  // Not knobs this service acts on — they describe the shape of the edge in front of it,
+  // and together they decide whether trusting one X-Forwarded-For hop is safe at all
+  // (trustProxyHops in gateway.setup.ts). Compose owns both; the gateway only reads them,
+  // and until now could not read them at all. Blank = compose's own defaults: loopback
+  // bind, no proxy.
+  PUBLIC_BIND: Joi.string().allow('').default(''),
+  WEB_DOMAIN: Joi.string().allow('').default(''),
   // F5: the lowest Android versionCode allowed to keep running. 0 = the gate is off,
   // which is the correct default and the state it will normally be in — it exists so
   // that a build with a broken checkout or a leaked token can be shut off in minutes

@@ -10,7 +10,7 @@ const noNames = async () => new Map<string, string>();
 const NOW = new Date('2026-07-11T12:00:00Z');
 const AT = new Date('2026-07-11T08:00:00Z'); // same UTC day as NOW → lands on the last history day
 
-const configStub = { churnWindowDays: 45 } as unknown as ForecastConfigService;
+const configStub = { churnWindowDays: 45, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 
 function makeIngest(overrides: Partial<IngestCommand> = {}): IngestCommand {
   return {
@@ -177,7 +177,7 @@ describe('ForecastService', () => {
   });
 
   it('churnList folds Monetary in: a high-spend customer bands lower than a low-spend one at the same recency', async () => {
-    const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000 } as unknown as ForecastConfigService;
+    const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
     const monService = new ForecastService(repo, monConfig, noNames);
     const lapsed = new Date('2026-06-11T12:00:00Z'); // 30 days before NOW → recency 1
     await monService.ingest(makeIngest({ orderId: 'lo', customerId: 'low', at: lapsed, total: 10_000 }));

@@ -25,8 +25,7 @@ function config(): ForecastConfigService {
   return {
     orderServiceUrl: 'http://order:3005',
     depotServiceUrl: 'http://depot:3007',
-    internalServiceKey: 'k',
-  } as unknown as ForecastConfigService;
+    internalServiceKey: 'k', forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 }
 
 function hangingFetchThatRejectsOnAbort(): jest.Mock {

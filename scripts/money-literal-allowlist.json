@@ -1,0 +1,4 @@
+{
+  "apps/web/src/app/dashboard/suppliers/page.tsx:134 onTimeRate >= 0.9": "Badge colour band, green above 90% on-time and amber below. No money moves on it and no server disagrees with it — the rate itself comes from the API and is printed beside the badge.",
+  "apps/web/src/app/hq/webhooks/page.tsx:86 deliveryRatePct >= 99": "Badge colour band for webhook delivery health. Presentation of a number the API sends; nothing is priced, paid or charged from it."
+}
