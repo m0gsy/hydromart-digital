@@ -51,6 +51,20 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   }
 
   /*
+   * Every job declares a time limit.
+   *
+   * GitHub's default is SIX HOURS. A CI run hung for over two of them on
+   * `Install Playwright browser` — a download that normally takes under two minutes — with
+   * all 45 preceding steps already green. Nothing failed and nothing alerted; the deploy
+   * queue simply stopped. A hung job and a slow job look identical until a limit says which.
+   */
+  for (const [name, job] of Object.entries(doc.jobs ?? {})) {
+    if (job && typeof job === 'object' && !('timeout-minutes' in job) && !job.uses) {
+      problems.push(`${path}: job \`${name}\` has no \`timeout-minutes\` — it can hang for six hours`);
+    }
+  }
+
+  /*
    * A `choice` input whose options do not match the branches the script implements. Read
    * from the shell `case` labels in the same file: the workflow that dispatches on a mode
    * writes `mode)` for each one it handles, so the two lists are checkable against each

@@ -23,6 +23,9 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
+    # stalled two of them on a two-minute download and nothing said so.
+    timeout-minutes: 15
     steps:
       - name: Ask the box
         # Pinned by commit, not by the mutable tag — this step is handed the production
