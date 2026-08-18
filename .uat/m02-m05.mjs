@@ -19,7 +19,19 @@ const addr = (o = {}) => ({
 const ship = (o = {}) => { const { label, isPrimary, ...rest } = addr(o); return rest; };
 
 export async function run(ctx) {
-  const A = ctx.customerA.accessToken;
+  /*
+   * Optional chaining, deliberately.
+   *
+   * This dereferenced ctx.customerA directly, on the first line of run(), OUTSIDE any
+   * check(). When m01 could not register a customer — which happened for weeks, because the
+   * harness was reading the wrong docker stack — this threw before a single case had been
+   * recorded, and every case in this module vanished from results.json rather than failing
+   * in it. The tally then counted a smaller universe and still read "366 of 366".
+   *
+   * Undefined here is fine: each check() below sends the missing token, gets a 401, and
+   * records THAT — one honest failure per case instead of thirty-two absences.
+   */
+  const A = ctx.customerA?.accessToken;
   const B = ctx.customerB?.accessToken;
 
   // ---------------------------------------------------------------- M2

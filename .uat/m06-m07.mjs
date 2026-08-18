@@ -32,7 +32,19 @@ async function readyForCourier(ctx, order) {
 
 /** Fresh CREATED order for customer A. */
 async function newOrder(ctx, qty = 1) {
-  const A = ctx.customerA.accessToken;
+  /*
+   * Optional chaining, deliberately.
+   *
+   * This dereferenced ctx.customerA directly, on the first line of run(), OUTSIDE any
+   * check(). When m01 could not register a customer — which happened for weeks, because the
+   * harness was reading the wrong docker stack — this threw before a single case had been
+   * recorded, and every case in this module vanished from results.json rather than failing
+   * in it. The tally then counted a smaller universe and still read "366 of 366".
+   *
+   * Undefined here is fine: each check() below sends the missing token, gets a 401, and
+   * records THAT — one honest failure per case instead of thirty-two absences.
+   */
+  const A = ctx.customerA?.accessToken;
   await api('DELETE', CART, { token: A });
   await api('POST', `${CART}/items`, { token: A, body: { productId: ctx.product.id, quantity: qty } });
   const r = await api('POST', `${ORD}/checkout`, { token: A, body: { deliveryAddress: addr() } });
