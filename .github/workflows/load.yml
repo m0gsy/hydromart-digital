@@ -134,7 +134,7 @@ jobs:
           mkdir -p load-logs
           docker compose -f docker-compose.yml -f docker-compose.test.yml \
             logs --no-color --tail 4000 > load-logs/all-services.log 2>&1 || true
-          for s in order product; do
+          for s in gateway order product; do
             docker compose -f docker-compose.yml -f docker-compose.test.yml \
               logs --no-color --tail 4000 "$s" > "load-logs/$s.log" 2>&1 || true
           done

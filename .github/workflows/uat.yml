@@ -160,7 +160,7 @@ jobs:
             logs --no-color --tail 4000 > uat-logs/all-services.log 2>&1 || true
           # The two services whose 500s are open, on their own, so a reader does not have to
           # find them inside the pile.
-          for s in payout delivery; do
+          for s in gateway payout delivery; do
             docker compose -f docker-compose.yml -f docker-compose.test.yml \
               logs --no-color --tail 4000 "$s" > "uat-logs/$s.log" 2>&1 || true
           done
