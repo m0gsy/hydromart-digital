@@ -44,6 +44,14 @@ jobs:
   # main with a green tick. An undecidable diff answers "true".
   changes:
     runs-on: ubuntu-latest
+    # Measured, with headroom. GitHub's default job timeout is SIX HOURS, and a run of this
+    # workflow hung for over two of them on `Install Playwright browser` — a download that
+    # normally takes under two minutes — while every one of the 45 steps before it had
+    # already passed. Nothing failed, nothing alerted, and the deploy queue simply stopped:
+    # a hung job and a slow job are indistinguishable without a limit that says which.
+    #
+    # Over the last five runs: changes <1m, verify 16-18m, integration 17-18m, e2e 25-30m.
+    timeout-minutes: 10
     outputs:
       docker: ${{ steps.filter.outputs.docker }}
     steps:
@@ -60,6 +68,7 @@ jobs:
 
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # These are only for the unit/e2e gate. The e2e specs call
     # ConfigModule.forRoot({ validationSchema }), which validates process.env
     # (their `load` block feeds the app, but Joi still checks env). Dummy-but-
@@ -382,6 +391,7 @@ jobs:
   # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # CI-14: the two Docker jobs no longer start until `verify` is green. They are still
     # independent of each other and run in parallel — the chain exists so a lockfile,
     # typecheck or unit-test failure stops burning two more runners (each of which pays
@@ -455,6 +465,7 @@ jobs:
   # containerising it — same gateway, no extra image to build.
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: [verify, changes]
     if: needs.changes.outputs.docker == 'true'
     env:

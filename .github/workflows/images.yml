@@ -38,6 +38,9 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
+    # stalled two of them on a two-minute download and nothing said so.
+    timeout-minutes: 90
     strategy:
       # One job per image: 20 runners in parallel instead of 20 serial builds on one box,
       # and a single failing image does not cost the other nineteen their work.
