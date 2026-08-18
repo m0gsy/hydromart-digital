@@ -44,6 +44,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      # Must match docker-compose.test.yml, exactly as ci.yml does it: `scripts/seed.mjs`
+      # mints an admin token the booted stack has to trust. Without it the seed step exits
+      # with "JWT_ACCESS_SECRET is required (must match the running stack)" - which is how
+      # this workflow failed on its FIRST EVER run, and how it would have failed every
+      # Sunday at 02:00 from then on, load-testing nothing.
+      JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
       GATEWAY_URL: http://localhost:8080
       BASE_URL: http://localhost:8080
       VUS: ${{ github.event.inputs.vus || '10' }}
