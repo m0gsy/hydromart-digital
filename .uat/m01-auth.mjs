@@ -152,7 +152,7 @@ export async function run(ctx) {
   await check('UAT-M1-11', async () => {
     const sp = phone();
     const r = await api('POST', `${A}/staff/invite`, {
-      token: ctx.admin, body: { phone: sp, role: 'DEPOT_OPERATOR', fullName: 'Operator UAT' },
+      token: ctx.admin, body: { phone: sp, role: 'STAFF_DEPOT', fullName: 'Operator UAT' },
     });
     if (r.status >= 400) return fail(`HTTP ${r.status} ${JSON.stringify(r.body)}`);
     const staff = await api('GET', `${A}/staff`, { token: ctx.admin });
