@@ -39,7 +39,37 @@ export default defineConfig({
        * Raise these when coverage lands. Lowering them is a visible decision — this comment
        * is the one that says why it was ever lowered.
        */
-      thresholds: { statements: 82.5, branches: 62, functions: 28, lines: 82.5 },
+      /*
+       * WHAT is measured, before how much of it. This was measuring 727 files of BUILD
+       * OUTPUT — `mobile-out/`, `mobile-out-ops/`, `mobile-out-customer/`, the static
+       * exports, every one of them at zero — which is why `functions` sat at 29% and had
+       * to be floored at 28. They are gitignored, so they exist on a laptop that ran the
+       * export and not on one that did not: the coverage number changed with the machine.
+       *
+       * The dictionaries go too, and for the opposite reason. 56 translation files carry
+       * 13,561 statements — FIFTY-NINE PERCENT of everything under src — and they are data,
+       * so they are 100% covered by definition. They cannot regress and they cannot be
+       * tested wrong; all they did was dominate the average and hold the headline number up
+       * while the code underneath it moved.
+       */
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/lib/dictionaries/**'],
+      /*
+       * Measured on the files that are left, with the same half-point of headroom the note
+       * above argues for: statements 74.9, branches 84.4, functions 56.2.
+       *
+       * And a higher floor for `src/lib/**`, which is where the money, the API client, the
+       * offline queue and the role map live. A page rendering wrong is visible; `lib`
+       * getting a discount wrong is not. One flat number cannot say that, which is the
+       * whole argument for a second one.
+       */
+      thresholds: {
+        statements: 74,
+        branches: 83,
+        functions: 55,
+        lines: 74,
+        'src/lib/**': { statements: 80, branches: 88, functions: 47, lines: 80 },
+      },
     },
   },
   // React 19 automatic JSX — esbuild transforms TSX, so no @vitejs/plugin-react needed.
