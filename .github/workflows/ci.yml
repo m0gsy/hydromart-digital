@@ -315,6 +315,12 @@ jobs:
       - name: UAT harness mints roles that exist
         run: node scripts/check-uat-roles.mjs
 
+      # `cwd: 'g:/VsCode/Hydromart'` in the harness made every docker call ENOENT on the
+      # runner, silently — and nineteen cases then reported "Missing bearer token", which
+      # reads as an authorisation defect in the product rather than a path on a laptop.
+      - name: No machine-specific paths in CI code
+        run: node scripts/check-hardcoded-paths.mjs
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.

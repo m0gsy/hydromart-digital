@@ -10,7 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = 'g:/VsCode/Hydromart';
+// See lib.mjs: a hardcoded laptop path here made every docker call ENOENT on the runner.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LOGS = path.join(HERE, 'logs');
 fs.mkdirSync(LOGS, { recursive: true });
