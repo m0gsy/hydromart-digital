@@ -85,13 +85,29 @@ jobs:
       - name: Install Playwright browser
         run: npm run test:e2e:install --workspace @hydromart/web
 
+      # `continue-on-error` keeps a browser problem from failing the whole UAT job, which is
+      # right — but `|| true` INSIDE the loop went further and made a crash look like a pass.
+      # Every role crashed at `waitForURL` for want of an OTP it could type, and the step
+      # reported success five times over.
+      #
+      # Now each role's status is kept and the step ends non-zero if any of them failed:
+      # visible in the checks list, still not fatal to the job.
       - name: Per-role browser pass
         continue-on-error: true
         run: |
+          failed=""
           for role in hq operator manager courier customer; do
             echo "=== $role"
-            node scripts/role-browser-pass.mjs "$role" id || true
+            if ! node scripts/role-browser-pass.mjs "$role" id; then
+              failed="$failed $role"
+            fi
           done
+          if [ -n "$failed" ]; then
+            echo "role browser pass FAILED for:$failed" >&2
+            exit 1
+          fi
+          echo "role browser pass OK for every role"
+
 
       - name: Summarise
         if: always()
@@ -118,11 +134,45 @@ jobs:
             .uat/results.json
             .uat/ctx.json
             role-pass-*.json
+          # `.uat` starts with a dot, and upload-artifact treats a dot-directory as hidden
+          # and skips it unless told otherwise. So this step said "No artifacts will be
+          # uploaded" on every run while the Summarise step immediately above it read the
+          # very same file and printed 366 cases from it.
+          #
+          # The cost of that was not the missing file. It was that the only way left to see
+          # WHICH cases failed was to re-run the whole job and read a truncated console -
+          # which is what turned one question into several forty-minute round trips.
+          include-hidden-files: true
           retention-days: 30
+      # ALWAYS, not on failure. This job SUCCEEDS while cases inside it fail — the harness
+      # reports its tally and exits zero — so `if: failure()` meant the one step that could
+      # explain a 500 never ran, precisely when it was needed. Two INTERNAL_ERRORs (courier
+      # expense claim, driver incident) were found with no way to see why.
+      #
+      # Written to files and uploaded rather than tailed into the console: 200 lines of a
+      # seventeen-service stack is not enough to hold the moment a request threw, and the
+      # console truncates what little there is.
+      - name: Service logs
+        if: always()
+        run: |
+          mkdir -p uat-logs
+          docker compose -f docker-compose.yml -f docker-compose.test.yml \
+            logs --no-color --tail 4000 > uat-logs/all-services.log 2>&1 || true
+          # The two services whose 500s are open, on their own, so a reader does not have to
+          # find them inside the pile.
+          for s in payout delivery; do
+            docker compose -f docker-compose.yml -f docker-compose.test.yml \
+              logs --no-color --tail 4000 "$s" > "uat-logs/$s.log" 2>&1 || true
+          done
+          echo "captured: $(wc -l < uat-logs/all-services.log) lines"
 
-      - name: Service logs when the harness could not run
-        if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --tail 200
+      - name: Upload service logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: uat-service-logs
+          path: uat-logs/
+          retention-days: 14
 
       - name: Tear down
         if: always()

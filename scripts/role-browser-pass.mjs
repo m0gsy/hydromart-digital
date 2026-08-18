@@ -8,7 +8,8 @@
 // Needs an up local stack, the web app served on :3000 (`next start -p 3000` from
 // apps/web — another port and the gateway's CORS allowlist rejects it; and after any
 // `npx next build` that server MUST be restarted or every page serves a dead chunk),
-// and the seeded staff phones in REVIEWER_PHONE (comma-separated) with REVIEWER_OTP_CODE.
+// The OTP is read out of the auth container log and typed, so nothing has to be nominated
+// in REVIEWER_PHONE for this to work - see readLoginOtp below for why that matters.
 //
 // Traps this script exists to not repeat:
 //
@@ -30,9 +31,45 @@
 //    sweep most needed to read. The list is now read off the dictionary directory.
 import { chromium } from 'playwright';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
-const CODE = process.env.CODE ?? '424242';
+/*
+ * Read the OTP out of the auth log and type it, instead of typing a fixed one.
+ *
+ * The fixed code only works for a phone nominated in REVIEWER_PHONE, and nothing set that on
+ * the test stack — so every role died at `waitForURL`, five times, silently. Putting the
+ * seeded phones in REVIEWER_PHONE looked like the fix and was the opposite: a reviewer
+ * number deliberately never has its code DELIVERED, so auth stopped writing it to the log,
+ * and the e2e suite — which reads that same log — lost its own login on ten specs.
+ *
+ * The browser cannot read a container log. This script can: it runs in Node, on the runner,
+ * with docker on the PATH. So it reads the code the way flow.mjs and mint-tokens.mjs do, and
+ * types what it read. Nothing about the stack has to change to accommodate the harness.
+ */
+const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
+const e164 = (phone) => (phone.startsWith('0') ? `+62${phone.slice(1)}` : phone);
+
+function readLoginOtp(phone) {
+  const marker = `LOGIN code for ${e164(phone)}:`;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const r = spawnSync('docker', ['compose', ...COMPOSE_FILES, 'logs', '--no-log-prefix', 'auth'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const logs = (r.stdout || '') + (r.stderr || '');
+    const at = logs.lastIndexOf(marker);
+    if (at >= 0) {
+      const code = logs.slice(at + marker.length).match(/\d{4,8}/);
+      if (code) return code[0];
+    }
+    // Busy-wait rather than await: this runs inside a synchronous helper by design, and the
+    // login page is already waiting for us.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
+  throw new Error(`no LOGIN OTP in the auth log for ${phone} — is the console channel on?`);
+}
 
 const R = (list) => list.trim().split(/\s+/);
 
@@ -487,7 +524,7 @@ await page.fill('input#phone', local);
 await page.locator('form button[type=submit]').first().click();
 await page.waitForURL(/\/verify/, { timeout: 15_000 });
 await page.locator('input').first().click();
-await page.keyboard.type(CODE, { delay: 60 });
+await page.keyboard.type(readLoginOtp(role.phone), { delay: 60 });
 await page
   .locator('form button[type=submit]')
   .first()

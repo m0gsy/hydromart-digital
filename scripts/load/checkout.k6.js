@@ -115,6 +115,13 @@ export function setup() {
   return { productIds: ids };
 }
 
+/*
+ * Module scope is PER VU in k6, and that is the point: declared inside the iteration
+ * function this resets every iteration, so "one report" would have been nine thousand of
+ * them. Out here it latches once per VU for the whole run.
+ */
+let reportedFailure = false;
+
 export default function (data) {
   const token = TOKENS[(__VU - 1) % TOKENS.length];
   const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
@@ -130,17 +137,17 @@ export default function (data) {
       JSON.stringify({ productId, quantity: 1 }),
       { headers },
     );
-    // Say WHAT came back, once. Two runs were spent inferring this from a percentage: the
-    // payload matches AddCartItemDto exactly and the route matches the controller, so the
-    // refusal is a precondition nobody can see from a failure rate. One printed body ends
-    // that guessing, and printing it once per VU keeps the log readable at 28,000 failures.
-    if (r.status < 200 || r.status >= 300) {
-      if (__ITER === 0 && i === 0) {
-        console.error(`add to cart failed: HTTP ${r.status} ${String(r.body).slice(0, 300)}`);
-      }
+    // Latch on the FIRST FAILURE, not the first request — the first request is the one that
+    // works. Exactly three lines per VU succeed (the opening iteration) and everything after
+    // is refused, so a diagnostic keyed to `__ITER === 0` printed nothing at all and cost a
+    // whole run. One report per VU, on whichever request first fails.
+    if ((r.status < 200 || r.status >= 300) && !reportedFailure) {
+      reportedFailure = true;
+      console.error(
+        `add to cart failed (VU ${__VU}, iter ${__ITER}): HTTP ${r.status} ${String(r.body).slice(0, 300)}`,
+      );
     }
-    check(r, { 'add to cart 2xx': (x) => x.status >= 200 && x.status < 300 });
-  }
+    check(r, { 'add to cart 2xx': (x) => x.status >= 200 && x.status < 300 });  }
 
   const res = http.post(
     `${BASE}/orders/api/v1/orders/checkout`,
