@@ -300,9 +300,48 @@ missing_env_keys() {
   [ -f .env.example ] && [ -f .env ] || return 0
   comm -23 \
     <(comm -23 \
-      <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env.example | sort -u) \
-      <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env | sort -u)) \
-    <(compose_ignores_env) | tr '\n' ' '
+      <(comm -23 \
+        <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env.example | sort -u) \
+        <(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' .env | sort -u)) \
+      <(compose_ignores_env)) \
+    <(unselected_provider_keys) | tr '\n' ' '
+}
+
+# Keys .env.example declares for a provider this box did not choose.
+#
+# The deploy warned about SMS_API_BASE_URL, SMS_API_TOKEN and SMS_SENDER_ID on a box running
+# OTP_DELIVERY_CHANNEL=zenziva. They are not missing — they belong to the OTHER channel, and
+# auth-service's own schema requires them only when `sms` is the one selected. Reporting them
+# is worse than useless: it is a `!!` on every single deploy, and a warning that always fires
+# is a warning nobody reads — which is exactly how the three findings that mattered got lost
+# inside the eighty-four percent of that line which was noise.
+#
+# The condition is not restated here. `.env.example` already writes it, in the comment above
+# each block: `# SMS provider (used when OTP_DELIVERY_CHANNEL=sms)`. This reads that comment
+# and honours it, so a new provider needs no change to this function — only the same comment
+# every other provider block already carries.
+unselected_provider_keys() {
+  [ -f .env.example ] && [ -f .env ] || return 0
+  awk '
+    # A blank line ends the block its comment introduced.
+    /^[[:space:]]*$/ { key=""; val=""; next }
+    /^#/ {
+      if (match($0, /used when [A-Z_][A-Z0-9_]*=[A-Za-z0-9_-]+/)) {
+        cond = substr($0, RSTART + 10, RLENGTH - 10)
+        split(cond, parts, "=")
+        key = parts[1]; val = parts[2]
+      }
+      next
+    }
+    /^[A-Z_][A-Z0-9_]*=/ {
+      if (key != "") { split($0, kv, "="); print kv[1], key, val }
+    }
+  ' .env.example | while read -r declared cond_key cond_val; do
+    live="$(tr -d '\r' < .env | sed -n "s/^${cond_key}=//p" | head -1)"
+    # Only silence it when the condition is DEFINITELY not met. An unset or unreadable
+    # condition means "cannot tell", and this check must never turn that into "all clear".
+    [ -n "$live" ] && [ "$live" != "$cond_val" ] && printf '%s\n' "$declared"
+  done | sort -u
 }
 
 # The .env.example keys no compose file interpolates — i.e. the ones .env has no say over.

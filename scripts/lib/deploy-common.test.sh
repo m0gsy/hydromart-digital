@@ -291,6 +291,35 @@ probe_run "storage_buckets ignores an empty bucket value and a missing .env" '
   [ -z "$(storage_buckets)" ] || { echo "  empty value should name no bucket"; exit 1; }
   rm -f .env
   [ -z "$(storage_buckets)" ] || { echo "  no .env should name no bucket"; exit 1; }'
+probe_run "unselected_provider_keys silences a provider this box did not choose" '
+  printf "# SMS provider (used when OTP_DELIVERY_CHANNEL=sms)
+SMS_API_TOKEN=
+SMS_API_BASE_URL=
+" > .env.example
+  printf "OTP_DELIVERY_CHANNEL=zenziva
+" > .env
+  GOT="$(unselected_provider_keys | tr "
+" " ")"
+  [ "$GOT" = "SMS_API_BASE_URL SMS_API_TOKEN " ] || { echo "  got: [$GOT]"; exit 1; }'
+
+probe_run "unselected_provider_keys stays quiet when the provider IS the chosen one" '
+  printf "# SMS provider (used when OTP_DELIVERY_CHANNEL=sms)
+SMS_API_TOKEN=
+" > .env.example
+  printf "OTP_DELIVERY_CHANNEL=sms
+" > .env
+  [ -z "$(unselected_provider_keys)" ] || { echo "  silenced a key the box actually needs"; exit 1; }'
+
+# The one that matters most. An unset condition means CANNOT TELL, and a check that turns
+# "cannot tell" into "all clear" is how a missing credential ships.
+probe_run "unselected_provider_keys silences nothing when the condition is unreadable" '
+  printf "# SMS provider (used when OTP_DELIVERY_CHANNEL=sms)
+SMS_API_TOKEN=
+" > .env.example
+  printf "SOMETHING_ELSE=1
+" > .env
+  [ -z "$(unselected_provider_keys)" ] || { echo "  turned cannot-tell into all-clear"; exit 1; }'
+
 rm -rf "$probe"
 
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
