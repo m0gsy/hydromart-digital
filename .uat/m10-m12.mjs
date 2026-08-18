@@ -396,7 +396,16 @@ export async function run(ctx) {
   await check('UAT-M12-11', async () => {
     const r = await api('GET', '/auth/api/v1/docs', { raw: true });
     const direct = await api('GET', '/docs', { raw: true });
-    return pass(`gateway /auth/api/v1/docs => HTTP ${r.status}; gateway /docs => HTTP ${direct.status}. Kebijakan paparan Swagger perlu dikonfirmasi tim keamanan`);
+    /*
+     * Asserted, not printed. This returned pass() unconditionally, so HTTP 200 — the whole
+     * route map and every role gate readable without credentials — gave the same verdict as
+     * 404. The service already fails closed in production (docs-guard), which makes this the
+     * only gate on that behaviour, and it could not go red.
+     */
+    const shut = (code) => [401, 403, 404].includes(code);
+    return shut(r.status) && shut(direct.status)
+      ? pass(`/auth/api/v1/docs => ${r.status}; /docs => ${direct.status} (Swagger tertutup tanpa kredensial)`)
+      : fail(`Swagger terbuka tanpa kredensial: /auth/api/v1/docs => ${r.status}; /docs => ${direct.status}`);
   });
 
   await check('UAT-M12-12', async () => {

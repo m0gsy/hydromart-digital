@@ -414,7 +414,14 @@ export async function run(ctx) {
     const cur = await api('GET', `${ADM}/system-settings`, { token: ctx.admin });
     const uiTz = cur.body?.defaultTimezone;
     const rules = await api('GET', `${D}/depots/${depot.id}/pricing/rules`, { token: ctx.manager });
-    return pass(`UI defaultTimezone=${uiTz}; pricing windows are evaluated against the PRICING_TZ environment variable of order/depot-service (pricing rules HTTP ${rules.status}). Dua sumber kebenaran — ubah nilai di UI tidak menggeser jendela harga. Perlu keputusan pemilik proses`);
+    /*
+     * This described a defect and coloured it green. "Dua sumber kebenaran — ubah nilai di
+     * UI tidak menggeser jendela harga" is a finding, not a pass, and `rules.status` was
+     * never even looked at. Blocked is the honest verdict: the check cannot conclude until
+     * the process owner decides which source wins.
+     */
+    if (rules.status >= 400) return fail(`pricing rules HTTP ${rules.status} ${JSON.stringify(rules.body)}`);
+    return blocked(`UI defaultTimezone=${uiTz}; jendela harga dievaluasi terhadap PRICING_TZ milik order/depot-service (rules HTTP ${rules.status}). DUA SUMBER KEBENARAN: mengubah nilai di UI tidak menggeser jendela harga. Menunggu keputusan pemilik proses`);
   });
 
   await check('UAT-M29-03', async () => {

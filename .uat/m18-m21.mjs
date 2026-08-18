@@ -392,9 +392,13 @@ export async function run(ctx) {
 
   await check('UAT-M20-15', async () => {
     const r = await api('POST', `${PAYOUT}/courier/expenses`, { token: ctx.driverA, body: { category: 'FUEL', amount: 25000, description: 'tanpa bukti' } });
-    return r.status < 400
-      ? pass(`claim without a receipt accepted (HTTP ${r.status}) — kebijakan wajib-bukti perlu dikonfirmasi ke pemilik proses`)
-      : pass(`claim without a receipt rejected HTTP ${r.status} ${JSON.stringify(r.body?.message ?? r.body)}`);
+    /*
+     * pass() sat on BOTH branches: accepted was a pass and rejected was a pass, so this
+     * check had no outcome that was not green. Whether a receipt is mandatory is genuinely
+     * undecided, so the honest verdict is blocked — and blocked is visible in the tally,
+     * which a pass is not.
+     */
+    return blocked(`klaim tanpa bukti => HTTP ${r.status} ${JSON.stringify(r.body?.message ?? r.body)}. Kebijakan wajib-bukti belum diputuskan pemilik proses`);
   });
 
   await check('UAT-M20-04', async () => {

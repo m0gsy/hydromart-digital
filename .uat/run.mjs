@@ -4,7 +4,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import { api, mintToken, results, save, loginPhone } from './lib.mjs';
+import { api, mintToken, record, results, save, loginPhone } from './lib.mjs';
 import { seedQueues, seedPoints } from './seed-queues.mjs';
 
 /*
@@ -204,7 +204,25 @@ async function restock() {
 for (const f of files) {
   console.log(`\n===== ${f} =====`);
   const mod = await import(`./${f}`);
-  try { await mod.run(ctx); } catch (e) { console.log(`MODULE ${f} aborted: ${e.stack?.split('\n').slice(0, 3).join(' | ')}`); }
+  try {
+    await mod.run(ctx);
+  } catch (e) {
+    /*
+     * A module that throws used to DELETE its cases from the report.
+     *
+     * `run()` records each case as it goes, so an exception thrown in the module's opening
+     * lines — `const A = ctx.customerA.accessToken;` sits outside any check() — meant not
+     * one of its cases ever reached `results`. The tally then counted a smaller universe:
+     * 366 of 366 accounted for, with thirty-two silently absent. The console printed
+     * "MODULE ... aborted" and nothing downstream read the console.
+     *
+     * Now the abort is a recorded row. It cannot be mistaken for a pass, and it cannot be
+     * mistaken for absence either.
+     */
+    const reason = e.stack?.split('\n').slice(0, 3).join(' | ') ?? String(e);
+    console.log(`MODULE ${f} aborted: ${reason}`);
+    record(`UAT-MODULE-${f.replace(/\.mjs$/, '')}`, 'Blocked', `modul berhenti sebelum selesai: ${reason}`);
+  }
   await refreshCustomerIds();
   // Customer A only exists once m01 has run the real OTP registration.
   if (f === 'm01-auth.mjs') await seedPoints(ctx);
