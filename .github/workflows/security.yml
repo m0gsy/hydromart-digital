@@ -120,16 +120,25 @@ jobs:
 
       - name: trivy (runtime base image)
         run: |
-          BASE="$(grep -hoP '^FROM \K\S+' services/*/Dockerfile apps/*/Dockerfile | sort -u | head -1)"
-          echo "scanning $BASE"
-          # .trivyignore carries the residuals we consume but cannot patch, each with a
-          # written reason and the condition that deletes it — same rule as the npm audit
-          # allowlist. Anything not listed there still fails this job.
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/.trivyignore:/.trivyignore:ro" \
-            aquasec/trivy:0.58.1 image \
-            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
-            --pkg-types os --ignorefile /.trivyignore "$BASE"
+          # EVERY distinct base, not the first one sorted.
+          #
+          # `sort -u | head -1` collapsed all 38 FROM lines to a single string. That is
+          # lossless only while every Dockerfile shares one base, and nothing enforces it:
+          # move one service to node:22-alpine and it sorts AFTER node:20-alpine, so head -1
+          # keeps returning the old base, the new one is never scanned, and the job prints
+          # "scanning node:20-alpine" and passes. Add a base sorting BEFORE it and the base
+          # eighteen services actually run on stops being scanned instead.
+          for BASE in $(grep -hoP '^FROM \K\S+' services/*/Dockerfile apps/*/Dockerfile | sort -u); do
+            echo "scanning $BASE"
+            # .trivyignore carries the residuals we consume but cannot patch, each with a
+            # written reason and the condition that deletes it — same rule as the npm audit
+            # allowlist. Anything not listed there still fails this job.
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD/.trivyignore:/.trivyignore:ro" \
+              aquasec/trivy:0.58.1 image \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+              --pkg-types os --ignorefile /.trivyignore "$BASE"
+          done
 
       - name: trivy (Dockerfile + compose misconfiguration)
         run: |

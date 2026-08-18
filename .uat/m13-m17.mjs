@@ -70,17 +70,26 @@ export async function run(ctx) {
   await check('UAT-M13-07', async () => {
     const pages = ['/', '/products', '/orders'];
     const out = [];
+    const bad = [];
     for (const p of pages) {
-      const t0 = Date.now();
       const r = await api('GET', p, { base: WEB, raw: true });
-      out.push(`${p}=${Date.now() - t0}ms(${r.status})`);
+      // r.ms is the fetch itself. Date.now() around api() measured the pacer instead, so
+      // every number here used to be PACE_MS no matter how the server behaved.
+      out.push(`${p}=${r.ms}ms(${r.status})`);
+      if (r.status === 0 || r.status >= 400) bad.push(`${p}=${r.status}`);
     }
-    return pass(`${out.join(' ')} — target angka belum disepakati pemilik proses`);
+    // The TARGET is still unagreed, but a page that does not load is not a pending decision.
+    // This returned pass() unconditionally, so three HTTP 500s read as a pass.
+    return bad.length === 0
+      ? pass(`${out.join(' ')} — target angka belum disepakati pemilik proses`)
+      : fail(`halaman tidak termuat: ${bad.join(' ')} | semua: ${out.join(' ')}`);
   });
   await check('UAT-M13-08', async () => {
     const N = 20;
     const t0 = Date.now();
-    const rs = await Promise.all(Array.from({ length: N }, () => api('GET', '/products/api/v1/products?limit=20')));
+    // noPace: the pacer would send these 620 ms apart and the "concurrency" test would
+    // measure nothing but its own scheduling.
+    const rs = await Promise.all(Array.from({ length: N }, () => api('GET', '/products/api/v1/products?limit=20', { noPace: true })));
     const ms = Date.now() - t0;
     const errors = rs.filter((r) => r.status >= 400).length;
     return errors === 0

@@ -66,7 +66,13 @@ async function pace() {
 }
 
 export async function api(method, path, opts = {}) {
-  if (!opts.noRetry) await pace();
+  /*
+   * `noPace` exists because the pacer serialises everything, including a burst that is
+   * supposed to be a burst. `Promise.all` of twenty reads went out 620 ms apart and the
+   * suite recorded "20 concurrent catalog reads in 12402 ms" — which is 20 x 620, and means
+   * the only concurrency case in the whole suite had never sent two requests at once.
+   */
+  if (!opts.noRetry && !opts.noPace) await pace();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const r = await rawApi(method, path, opts);
     if (r.status !== 429 || opts.noRetry) return r;
@@ -80,6 +86,17 @@ async function rawApi(method, path, { body, token, headers = {}, base = GATEWAY,
   if (body !== undefined && !(body instanceof FormData)) h['content-type'] = 'application/json';
   if (token) h.authorization = `Bearer ${token}`;
   if (cookies) h.cookie = Object.entries(cookies).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join('; ');
+  /*
+   * Timed HERE, around the fetch only — after the pacer has already waited.
+   *
+   * Callers measured with Date.now() around api(), which includes pace(). Since the pacer
+   * waits `PACE_MS - elapsed`, the measurement collapses algebraically to PACE_MS: the real
+   * duration cancels out. The repo's own logs show it — the same endpoints read 41-66 ms
+   * before the pacer existed and 597-648 ms after. Every latency number the workbook
+   * published was the harness timing its own setTimeout, and a tenfold regression would
+   * still have printed ~620 ms and still have passed.
+   */
+  const startedAt = Date.now();
   let res, text;
   try {
     res = await fetch(`${base}${path}`, {
@@ -89,12 +106,12 @@ async function rawApi(method, path, { body, token, headers = {}, base = GATEWAY,
     });
     text = await res.text();
   } catch (e) {
-    return { status: 0, body: { error: String(e.message ?? e) }, text: '' };
+    return { status: 0, body: { error: String(e.message ?? e) }, text: '', ms: Date.now() - startedAt };
   }
-  if (raw) return { status: res.status, text, headers: res.headers, cookies: parseCookies(res) };
+  if (raw) return { status: res.status, text, headers: res.headers, cookies: parseCookies(res), ms: Date.now() - startedAt };
   let json;
   try { json = text ? JSON.parse(text) : undefined; } catch { json = text; }
-  return { status: res.status, body: json, text, headers: res.headers, cookies: parseCookies(res) };
+  return { status: res.status, body: json, text, headers: res.headers, cookies: parseCookies(res), ms: Date.now() - startedAt };
 }
 
 /** Auth issues tokens as httpOnly cookies (hm_at / hm_rt), not in the JSON body. */

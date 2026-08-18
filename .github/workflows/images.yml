@@ -36,7 +36,8 @@ jobs:
     # Only ever off a green CI. An image in the registry is a thing someone will deploy.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
     # stalled two of them on a two-minute download and nothing said so.

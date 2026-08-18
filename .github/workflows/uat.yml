@@ -81,6 +81,12 @@ jobs:
             curl -fsS http://localhost:3000 >/dev/null 2>&1 && break
             sleep 2
           done
+          # The loop's last command is `sleep 2`, which succeeds — so after sixty seconds of
+          # the app never answering, the step still exits 0 and nothing checks whether the
+          # break was ever taken. In uat.yml the only consumer is the browser pass, which is
+          # continue-on-error, so a dead server and five genuinely broken roles look
+          # identical and /tmp/web.log is never read by anyone.
+          curl -fsS http://localhost:3000 >/dev/null || { echo "web never came up:"; cat /tmp/web.log; exit 1; }
 
       - name: Install Playwright browser
         run: npm run test:e2e:install --workspace @hydromart/web
