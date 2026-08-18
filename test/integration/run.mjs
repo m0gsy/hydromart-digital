@@ -77,8 +77,29 @@ async function waitHealthy(timeoutMs = 180000) {
 
 async function main() {
   if (compose(['up', '-d', 'postgres'])) throw new Error('infra up failed');
-  await sleep(8000);
-  if (run('npm', ['run', 'db:migrate'])) throw new Error('db:migrate failed');
+  /*
+   * Retry, not a fixed sleep.
+   *
+   * This waited eight seconds and then migrated, which is a guess written as code. `initdb`
+   * creates sixteen databases on a cold runner and does not always finish inside it, so the
+   * migrate hit `P1001: Can't reach database server at localhost:5432` and took the whole
+   * load run down at its first step.
+   *
+   * ci.yml already solved this and wrote down why: pg_isready answers over the in-container
+   * unix socket, which can respond on the temporary init server BEFORE Postgres restarts to
+   * expose TCP — so even a readiness probe is not enough on its own. `migrate deploy` is
+   * idempotent, so retrying it is free and is the part that actually holds.
+   */
+  let migrated = false;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    if (!run('npm', ['run', 'db:migrate'])) {
+      migrated = true;
+      break;
+    }
+    console.log(`db:migrate attempt ${attempt} failed (Postgres likely still initialising), retrying in 5s...`);
+    await sleep(5000);
+  }
+  if (!migrated) throw new Error('db:migrate failed after 5 attempts');
   // Build in small batches instead of letting compose start all 15 at once.
   //
   // Every image runs a FULL-monorepo `npm ci`, and all of them share one BuildKit cache
