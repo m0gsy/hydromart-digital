@@ -117,9 +117,36 @@ jobs:
       - name: Owner and HR dashboards
         run: k6 run scripts/load/dashboards.k6.js
 
-      - name: Service logs on failure
-        if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --tail 200
+      # ALWAYS, 4000 lines, per service, uploaded — not 200 lines of the whole stack tailed
+      # into a console. The k6 run finally printed the refusal body:
+      #
+      #   add to cart failed (VU 4, iter 1): HTTP 500 INTERNAL_ERROR /api/v1/cart/items
+      #
+      # and the log step right after it captured nothing useful, because by the time it ran
+      # the last 200 lines were long past the moment anything threw. The answer to WHY was
+      # sitting in the container and got discarded.
+      #
+      # order and product on their own: `cart.view()` resolves every line through
+      # product-service, so a failure is in one of those two.
+      - name: Service logs
+        if: always()
+        run: |
+          mkdir -p load-logs
+          docker compose -f docker-compose.yml -f docker-compose.test.yml \
+            logs --no-color --tail 4000 > load-logs/all-services.log 2>&1 || true
+          for s in order product; do
+            docker compose -f docker-compose.yml -f docker-compose.test.yml \
+              logs --no-color --tail 4000 "$s" > "load-logs/$s.log" 2>&1 || true
+          done
+          echo "captured: $(wc -l < load-logs/all-services.log) lines"
+
+      - name: Upload service logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: load-service-logs
+          path: load-logs/
+          retention-days: 14
 
       - name: Tear down
         if: always()
