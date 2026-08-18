@@ -397,8 +397,34 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8080
         run: npm run build:mobile --workspace @hydromart/web -- ops
 
+      # Cached, capped, and retried — because this one step has now eaten a whole day twice.
+      #
+      # It hung for over TWO HOURS on one run (all 45 preceding steps green, nothing said
+      # so), and on the next it hung until the job's 45-minute cap killed it — which GitHub
+      # records as `cancelled`, so the whole CI run concluded cancelled, and Deploy and
+      # Images skipped without anyone marking anything red. A browser download stalling on a
+      # CDN is not a reason to lose a release.
+      #
+      # The cache is keyed on the Playwright version, because that is what decides which
+      # browser build is fetched.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browser
-        run: npm run test:e2e:install --workspace @hydromart/web
+        timeout-minutes: 8
+        run: |
+          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
+          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
+          for attempt in 1 2 3; do
+            if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
+            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
+            sleep 10
+          done
+          echo "playwright install failed three times" >&2
+          exit 1
 
       # Serves each export the way Capacitor serves the assets bundled into the APK, so a
       # pass here is a statement about the binary and not about a dev server.
@@ -624,8 +650,34 @@ jobs:
           # log, which is a much slower way to learn the same thing.
           curl -fsS http://localhost:3000 >/dev/null || { echo "web never came up:"; cat /tmp/web.log; exit 1; }
 
+      # Cached, capped, and retried — because this one step has now eaten a whole day twice.
+      #
+      # It hung for over TWO HOURS on one run (all 45 preceding steps green, nothing said
+      # so), and on the next it hung until the job's 45-minute cap killed it — which GitHub
+      # records as `cancelled`, so the whole CI run concluded cancelled, and Deploy and
+      # Images skipped without anyone marking anything red. A browser download stalling on a
+      # CDN is not a reason to lose a release.
+      #
+      # The cache is keyed on the Playwright version, because that is what decides which
+      # browser build is fetched.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browser
-        run: npm run test:e2e:install --workspace @hydromart/web
+        timeout-minutes: 8
+        run: |
+          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
+          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
+          for attempt in 1 2 3; do
+            if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
+            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
+            sleep 10
+          done
+          echo "playwright install failed three times" >&2
+          exit 1
 
       - name: Run E2E
         run: npm run test:e2e --workspace @hydromart/web
