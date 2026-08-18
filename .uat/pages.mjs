@@ -11,7 +11,7 @@ const rows = sheets['Cakupan Halaman'].slice(2).filter((r) => r[1]);
 
 const ROLE_TOKEN = {
   CUSTOMER: null, // filled with a real customer session below
-  DRIVER: mintToken('DRIVER'),
+  DRIVER: mintToken('STAFF_DEPOT'),
   DEPOT_OPERATOR: null,
   DEPOT_MANAGER: null,
   FRANCHISE_OWNER: null,
@@ -26,8 +26,8 @@ const admin = ROLE_TOKEN.SUPER_ADMIN;
 const d = await api('GET', '/depots/api/v1/depots/manage?limit=5', { token: admin });
 const depots = Array.isArray(d.body) ? d.body : d.body?.items ?? [];
 const depotId = (depots.find((x) => x.code === 'JKT-01') ?? depots[0])?.id;
-ROLE_TOKEN.DEPOT_OPERATOR = mintToken('DEPOT_OPERATOR', { depotId });
-ROLE_TOKEN.DEPOT_MANAGER = mintToken('DEPOT_MANAGER', { depotId });
+ROLE_TOKEN.DEPOT_OPERATOR = mintToken('STAFF_DEPOT', { depotId });
+ROLE_TOKEN.DEPOT_MANAGER = mintToken('KEPALA_DEPOT', { depotId });
 ROLE_TOKEN.FRANCHISE_OWNER = mintToken('FRANCHISE_OWNER', { depotId });
 
 const cust = await loginPhone(`+62819${Date.now().toString().slice(-8)}`, 'Sweep Customer');

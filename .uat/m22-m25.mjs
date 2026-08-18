@@ -42,7 +42,7 @@ export async function run(ctx) {
   await check('UAT-M22-07', async () => {
     const fresh = ctx.newDepot?.id;
     if (!fresh) return blocked('no freshly created depot from M8-01');
-    const r = await api('GET', `${F}/depot/${fresh}`, { token: mintToken('DEPOT_MANAGER', { depotId: fresh }) });
+    const r = await api('GET', `${F}/depot/${fresh}`, { token: mintToken('KEPALA_DEPOT', { depotId: fresh }) });
     const s = JSON.stringify(r.body ?? {});
     const emptyState = /"items":\s*\[\]|"points":\s*\[\]|insufficient|no data|empty/i.test(s) || ['{}', 'null', '[]'].includes(s);
     return r.status === 200
@@ -326,7 +326,7 @@ export async function run(ctx) {
       });
       if (link.status >= 400) return fail(`could not link employee to an account: HTTP ${link.status} ${JSON.stringify(link.body)}`);
     }
-    const mine = await api('GET', `${HR}/payroll/me`, { token: mintToken('DRIVER', { sub: subject }) });
+    const mine = await api('GET', `${HR}/payroll/me`, { token: mintToken('STAFF_DEPOT', { sub: subject }) });
     return mine.status < 400 ? pass(`HTTP ${mine.status} ${JSON.stringify(mine.body).slice(0, 220)}`) : fail(`HTTP ${mine.status} ${JSON.stringify(mine.body)}`);
   });
 

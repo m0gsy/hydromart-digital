@@ -130,6 +130,15 @@ export default function (data) {
       JSON.stringify({ productId, quantity: 1 }),
       { headers },
     );
+    // Say WHAT came back, once. Two runs were spent inferring this from a percentage: the
+    // payload matches AddCartItemDto exactly and the route matches the controller, so the
+    // refusal is a precondition nobody can see from a failure rate. One printed body ends
+    // that guessing, and printing it once per VU keeps the log readable at 28,000 failures.
+    if (r.status < 200 || r.status >= 300) {
+      if (__ITER === 0 && i === 0) {
+        console.error(`add to cart failed: HTTP ${r.status} ${String(r.body).slice(0, 300)}`);
+      }
+    }
     check(r, { 'add to cart 2xx': (x) => x.status >= 200 && x.status < 300 });
   }
 
