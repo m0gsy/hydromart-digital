@@ -8,9 +8,10 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = 'g:/VsCode/Hydromart';
-const HERE = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname.replace(/^\//, '')));
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LOGS = path.join(HERE, 'logs');
 fs.mkdirSync(LOGS, { recursive: true });
 

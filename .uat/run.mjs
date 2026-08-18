@@ -2,11 +2,24 @@
 //   node run.mjs            -> all modules
 //   node run.mjs m01 m02    -> only those module files
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { api, mintToken, results, save, loginPhone } from './lib.mjs';
 import { seedQueues, seedPoints } from './seed-queues.mjs';
 
-const HERE = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname.replace(/^\//, '')));
+/*
+ * `fileURLToPath`, not a hand-rolled strip of the leading slash.
+ *
+ * The old line was `new URL(import.meta.url).pathname.replace(/^\//, '')`, which is correct
+ * on Windows — `/G:/repo/.uat` becomes `G:/repo/.uat` — and destroys the path on Linux,
+ * where `/home/runner/...` becomes `home/runner/...`, relative to wherever the process
+ * happens to be. The whole 439-case harness ran to completion in CI and then died on its
+ * very last line writing results.json to a directory that does not exist.
+ *
+ * It could not have failed on the laptop it was written on. That is exactly the shape of
+ * bug that only a second machine ever finds.
+ */
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // 500 ran out before the M29 cases (ORDER_INSUFFICIENT_STOCK on the last checkout of the
 // sweep), which blocked them for no product reason.

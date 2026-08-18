@@ -94,12 +94,23 @@ export function setup() {
   }
   if (res.status !== 200) fail(`catalog fetch failed: ${res.status} ${res.body}`);
   const body = res.json();
-  const rows = Array.isArray(body) ? body : body.rows || body.data || [];
+  // `items` FIRST, because that is the envelope this API actually uses — every paginated
+  // response in the repo is `{ items, total, page, limit, totalPages }`. This read `rows`
+  // and `data` and never `items`, so it took a full catalogue and saw an empty one, then
+  // blamed the seed in its own error message and sent the reader off to re-run a script
+  // that had already worked. A wrong key is bad; a wrong key that accuses something else
+  // is what turns ten minutes into an evening.
+  const rows = Array.isArray(body) ? body : body.items || body.rows || body.data || [];
   const ids = rows
     .filter((p) => p && (p.active === undefined || p.active) && p.id)
     .map((p) => p.id);
   if (ids.length < CART_LINES) {
-    fail(`need >= ${CART_LINES} products, catalog has ${ids.length}. Run scripts/seed.mjs.`);
+    // Name what was actually received. "Run the seed" is a guess, and it was the wrong one.
+    fail(
+      `need >= ${CART_LINES} products, catalog has ${ids.length}. ` +
+        `Response keys: [${Object.keys(body || {}).join(', ')}] — if the list is there under a ` +
+        `key this does not read, that is the bug, not the seed.`,
+    );
   }
   return { productIds: ids };
 }

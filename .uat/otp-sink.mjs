@@ -5,8 +5,9 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const HERE = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname.replace(/^\//, '')));
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, 'otp.log');
 
 http.createServer((req, res) => {
