@@ -32,15 +32,39 @@ async function api(method, path, body) {
   return { status: res.status, body: text ? JSON.parse(text) : {}, cookies: res.headers.getSetCookie?.() ?? [] };
 }
 
+/*
+ * Find the line by plain string search, and look for the NORMALISED number.
+ *
+ * Two independent breakages, both fatal, both invisible until a load run finally got far
+ * enough to reach them:
+ *
+ *   1. auth normalises on the way in. `08123456789` becomes `+628123456789` (PhoneNumber,
+ *      E.164), and it is the normalised form that reaches the log line. This searched for
+ *      the `08…` form it had sent, which is never what gets written.
+ *
+ *   2. the pattern was built by pasting the phone into a regex with a backslash in front,
+ *      copied from flow.mjs where every phone starts with `+` and the backslash is exactly
+ *      right. In front of an `08` number that same backslash is the NUL character escape,
+ *      so the pattern could not match anything at all.
+ *
+ * A phone number is a literal, so it is searched for as one. Nothing is pasted into a
+ * pattern, and there is no escaping left to get wrong.
+ */
+const e164 = (phone) => (phone.startsWith('0') ? `+62${phone.slice(1)}` : phone);
+
 async function readOtp(phone) {
-  const re = new RegExp(`REGISTRATION code for \\${phone}:\\s*(\\d{4,8})`, 'g');
+  const marker = `REGISTRATION code for ${e164(phone)}:`;
   for (let i = 0; i < 15; i++) {
     const r = spawnSync('docker', ['compose', ...COMPOSE, 'logs', '--no-log-prefix', 'auth'], {
       encoding: 'utf8',
       shell: win,
     });
-    const hits = [...((r.stdout || '') + (r.stderr || '')).matchAll(re)];
-    if (hits.length) return hits[hits.length - 1][1];
+    const logs = (r.stdout || '') + (r.stderr || '');
+    const at = logs.lastIndexOf(marker);
+    if (at >= 0) {
+      const code = logs.slice(at + marker.length).match(/\d{4,8}/);
+      if (code) return code[0];
+    }
     await sleep(1000);
   }
   throw new Error(`OTP for ${phone} not found in auth logs`);

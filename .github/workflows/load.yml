@@ -87,10 +87,27 @@ jobs:
 
       # One token per VU: checkout consumes a server-side cart, so sharing tokens measures
       # cart contention instead of the catalog fan-out under test.
+      #
+      # Assigned to a variable FIRST, and that is the whole point. Written as
+      # `echo "TOKENS=$(node ...)" >> $GITHUB_ENV` the step reports SUCCESS when the mint
+      # throws: `echo` succeeded, so the exit code is zero, and the failure inside `$(...)`
+      # is swallowed. It wrote an empty TOKENS, k6 fell back to the staff TOKEN, and ten
+      # VUs drove customer checkout with a SUPER_ADMIN token — 59,847 failures that
+      # surfaced forty minutes later as "thresholds crossed" and named nothing.
+      #
+      # An assignment carries the substitution's exit status, so `set -e` stops here now.
       - name: Mint tokens
         run: |
-          echo "TOKENS=$(node scripts/load/mint-tokens.mjs "$VUS")" >> "$GITHUB_ENV"
-          echo "TOKEN=$(node scripts/load/mint-tokens.mjs --staff)" >> "$GITHUB_ENV"
+          tokens="$(node scripts/load/mint-tokens.mjs "$VUS")"
+          staff="$(node scripts/load/mint-tokens.mjs --staff)"
+          [ -n "$tokens" ] || { echo "mint produced no customer tokens" >&2; exit 1; }
+          [ -n "$staff" ] || { echo "mint produced no staff token" >&2; exit 1; }
+          # One per VU, or the run measures contention. Count them and say so.
+          n="$(printf '%s' "$tokens" | tr ',' '\n' | grep -c .)"
+          echo "minted $n customer token(s) for $VUS VU(s)"
+          [ "$n" -ge "$VUS" ] || { echo "need >= $VUS tokens, got $n" >&2; exit 1; }
+          echo "TOKENS=$tokens" >> "$GITHUB_ENV"
+          echo "TOKEN=$staff" >> "$GITHUB_ENV"
 
       # The thresholds live in the scripts (p95 + success rate). k6 exits non-zero when one
       # breaks, so a regression fails this job rather than sitting in a log nobody opens.
