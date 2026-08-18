@@ -10,6 +10,19 @@ x-shared: &shared
   AUTH_SERVICE_URL: http://auth:3001
   # Multi-depot scope resolution (supervision chain + franchise owners).
   DEPOT_SERVICE_URL: http://depot:3007
+  # EVERY service throttles independently, and only auth and the gateway were ever raised
+  # here. Everything else fell back to the shipped default of 100/minute — so a load run
+  # that drove ~600 requests/second at order-service got 3,999 HTTP 429s out of the 4,000
+  # responses captured, and one 200.
+  #
+  # It was measuring the limiter, which is exactly what the k6 script's own header warns
+  # about. I read that warning, checked the GATEWAY limit, saw 10000, and moved on — the
+  # per-service throttler behind it never occurred to me until its 429s were counted.
+  #
+  # Test stack only. Production keeps its edge limit, and the limiter has its own spec with
+  # its own numbers.
+  RATE_LIMIT_MAX: 10000
+  RATE_LIMIT_BURST_MAX: 10000
 
 x-svc: &svc
   restart: "no"
