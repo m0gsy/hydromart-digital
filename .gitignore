@@ -67,7 +67,20 @@ ops/alertmanager.webhook-url
 .deploy/
 
 # Local UAT harness (throwaway run artefacts, not part of the product)
-.uat/
+# The UAT harness CODE ships; its OUTPUT does not.
+#
+# `.uat/` was ignored whole, so `uat.yml` — scheduled monthly — ran `node .uat/run.mjs`
+# against a directory that does not exist in a fresh checkout. It failed on its very first
+# run with MODULE_NOT_FOUND, and left alone it would have failed at 03:00 on the first of
+# every month forever, testing nothing. A harness that lives on one laptop is not a gate.
+#
+# What ships: run.mjs, lib.mjs, seed-queues.mjs, the m01-m29 modules, the compose file.
+# What does not: run logs, results/ctx dumps, the python patch scripts, the old harness.
+.uat/*.log
+.uat/*.json
+.uat/*.py
+.uat/logs/
+.uat/_prev-harness-*/
 uat.json
 # Signed bundles and listing assets pulled down from a Mobile release run, for uploading
 # by hand. Never committed: they are build output, and the .aab is signed.

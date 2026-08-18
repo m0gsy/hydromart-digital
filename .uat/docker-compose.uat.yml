@@ -1,0 +1,22 @@
+# UAT-only overlay: lift the per-IP throttle so a scripted sweep of 450+ cases
+# does not spend its time backing off 429s. The limiter itself is exercised
+# separately (UAT-M12-06) — this file only changes the threshold, not the code.
+services:
+  auth: { environment: { RATE_LIMIT_MAX: 100000 } }
+  customer: { environment: { RATE_LIMIT_MAX: 100000 } }
+  product: { environment: { RATE_LIMIT_MAX: 100000 } }
+  order: { environment: { RATE_LIMIT_MAX: 100000 } }
+  payment: { environment: { RATE_LIMIT_MAX: 100000 } }
+  delivery: { environment: { RATE_LIMIT_MAX: 100000 } }
+  depot: { environment: { RATE_LIMIT_MAX: 100000 } }
+  dashboard: { environment: { RATE_LIMIT_MAX: 100000 } }
+  loyalty: { environment: { RATE_LIMIT_MAX: 100000 } }
+  promo: { environment: { RATE_LIMIT_MAX: 100000 } }
+  referral: { environment: { RATE_LIMIT_MAX: 100000 } }
+  crm: { environment: { RATE_LIMIT_MAX: 100000 } }
+  recommendation: { environment: { RATE_LIMIT_MAX: 100000 } }
+  forecast: { environment: { RATE_LIMIT_MAX: 100000 } }
+  payout: { environment: { RATE_LIMIT_MAX: 100000 } }
+  admin: { environment: { RATE_LIMIT_MAX: 100000 } }
+  hr: { environment: { RATE_LIMIT_MAX: 100000 } }
+  gateway: { environment: { RATE_LIMIT_MAX: 100000 } }

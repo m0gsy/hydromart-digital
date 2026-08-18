@@ -39,7 +39,53 @@ export default defineConfig({
        * Raise these when coverage lands. Lowering them is a visible decision — this comment
        * is the one that says why it was ever lowered.
        */
-      thresholds: { statements: 82.5, branches: 62, functions: 28, lines: 82.5 },
+      /*
+       * WHAT is measured, before how much of it. This was measuring 727 files of BUILD
+       * OUTPUT — `mobile-out/`, `mobile-out-ops/`, `mobile-out-customer/`, the static
+       * exports, every one of them at zero — which is why `functions` sat at 29% and had
+       * to be floored at 28. They are gitignored, so they exist on a laptop that ran the
+       * export and not on one that did not: the coverage number changed with the machine.
+       *
+       * The dictionaries go too, and for the opposite reason. 56 translation files carry
+       * 13,561 statements — FIFTY-NINE PERCENT of everything under src — and they are data,
+       * so they are 100% covered by definition. They cannot regress and they cannot be
+       * tested wrong; all they did was dominate the average and hold the headline number up
+       * while the code underneath it moved.
+       */
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/lib/dictionaries/**'],
+      /*
+       * Calibrated on CI, not on a laptop — and that distinction is not pedantry.
+       *
+       * The same source, the same config, measured on both:
+       *
+       *              laptop (Node 25)   CI (Node 20)
+       *   statements   74.9% of 9478     75.5% of 8453
+       *   functions    56.2% of  801     51.3% of  850
+       *
+       * The TOTALS differ. v8 coverage is derived from the engine's own range output, so a
+       * different V8 attributes statements and functions differently for identical code.
+       * Floors set from a laptop are floors set against a machine nobody gates on: these
+       * were, and CI refused them on four counts within the hour.
+       *
+       * CI reads 75.46 / 82.08 / 51.29 / 75.31, and these sit a point or so under, which is
+       * the same ratchet-not-tripwire headroom the note above argues for.
+       */
+      thresholds: {
+        statements: 74,
+        branches: 81,
+        functions: 50,
+        lines: 74,
+        /*
+         * A second, higher floor for `src/lib/**` — the money, the API client, the offline
+         * queue, the role map. A page rendering wrong is visible to anyone who opens it;
+         * `lib` computing a discount wrong is not visible to anybody. One flat number
+         * cannot say that, which is the whole argument for a second one.
+         *
+         * CI reads 76.77 / 85.6 / 42.03 / 76.65 here.
+         */
+        'src/lib/**': { statements: 76, branches: 84, functions: 41, lines: 76 },
+      },
     },
   },
   // React 19 automatic JSX — esbuild transforms TSX, so no @vitejs/plugin-react needed.
