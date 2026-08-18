@@ -2,9 +2,10 @@
 // role and again with an unentitled one, recording load status and RBAC behaviour.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { api, mintToken, loginPhone, WEB } from './lib.mjs';
 
-const HERE = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname.replace(/^\//, '')));
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sheets = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'uat.json'), 'utf8'));
 const rows = sheets['Cakupan Halaman'].slice(2).filter((r) => r[1]);
 
