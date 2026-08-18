@@ -42,17 +42,6 @@ services:
       OTP_DELIVERY_CHANNEL: console
       OTP_CONSOLE_ACK: yes-this-prints-login-codes-to-the-log
       OTP_PEPPER: itest-otp-pepper-0123456789
-      # The seeded staff phones, with a fixed code. `scripts/role-browser-pass.mjs` signs in
-      # as each role through the real login screen, and it needs an OTP it can type — the
-      # console channel writes codes to a log a BROWSER cannot read.
-      #
-      # Without these the browser pass could not sign in at all: it timed out at
-      # `waitForURL`, crashed, and `|| true` plus `continue-on-error` hid it completely. It
-      # produced no role-pass-*.json either, which is half of why the UAT artifact was empty.
-      #
-      # Test stack only. Production nominates exactly one demo account this way.
-      REVIEWER_PHONE: '+6281100000001,+6281100000002,+6281100000003,+6281100000005,+6281100000008,+6281100000011,+6281298765432'
-      REVIEWER_OTP_CODE: '424242'
       CRM_SERVICE_URL: http://crm:3012
       # Inviting staff also opens their HR record, and that call fails CLOSED — without it
       # the seed cannot invite anybody, which is exactly how CI caught the gap.
