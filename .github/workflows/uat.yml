@@ -119,10 +119,35 @@ jobs:
             .uat/ctx.json
             role-pass-*.json
           retention-days: 30
+      # ALWAYS, not on failure. This job SUCCEEDS while cases inside it fail — the harness
+      # reports its tally and exits zero — so `if: failure()` meant the one step that could
+      # explain a 500 never ran, precisely when it was needed. Two INTERNAL_ERRORs (courier
+      # expense claim, driver incident) were found with no way to see why.
+      #
+      # Written to files and uploaded rather than tailed into the console: 200 lines of a
+      # seventeen-service stack is not enough to hold the moment a request threw, and the
+      # console truncates what little there is.
+      - name: Service logs
+        if: always()
+        run: |
+          mkdir -p uat-logs
+          docker compose -f docker-compose.yml -f docker-compose.test.yml \
+            logs --no-color --tail 4000 > uat-logs/all-services.log 2>&1 || true
+          # The two services whose 500s are open, on their own, so a reader does not have to
+          # find them inside the pile.
+          for s in payout delivery; do
+            docker compose -f docker-compose.yml -f docker-compose.test.yml \
+              logs --no-color --tail 4000 "$s" > "uat-logs/$s.log" 2>&1 || true
+          done
+          echo "captured: $(wc -l < uat-logs/all-services.log) lines"
 
-      - name: Service logs when the harness could not run
-        if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --tail 200
+      - name: Upload service logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: uat-service-logs
+          path: uat-logs/
+          retention-days: 14
 
       - name: Tear down
         if: always()
