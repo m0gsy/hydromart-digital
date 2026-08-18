@@ -58,7 +58,7 @@ async function provision() {
   for (let i = 0; i < 2; i += 1) {
     const p = `+62821${String(Date.now() + i).slice(-8)}`;
     const inv = await api('POST', '/auth/api/v1/auth/staff/invite', {
-      token: ctx.admin, body: { phone: p, role: 'DRIVER', fullName: `Kurir UAT ${i + 1}`, depotId: ctx.depotA.id },
+      token: ctx.admin, body: { phone: p, role: 'STAFF_DEPOT', fullName: `Kurir UAT ${i + 1}`, depotId: ctx.depotA.id },
     });
     if (inv.status < 400) drivers.push(inv.body);
   }

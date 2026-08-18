@@ -13,7 +13,21 @@ const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 /** Mint an HS256 token exactly like auth-service signs it. */
 export function mintToken(role, claims = {}, ttl = 3600) {
   const now = Math.floor(Date.now() / 1000);
-  const body = { sub: claims.sub ?? crypto.randomUUID(), role, phone: claims.phone ?? '+620000000000', iat: now, exp: now + ttl, ...claims };
+  /*
+   * Drop undefined claims BEFORE spreading them.
+   *
+   * `...claims` came last, so a caller passing `{ sub: someUndefinedId }` overwrote the
+   * generated uuid with undefined and minted a token with NO SUBJECT. The guard then set
+   * `user.sub = undefined`, the controller passed it straight on, and Prisma answered three
+   * layers away with "Argument `courierId` is missing" — a 500 naming a database column,
+   * with nothing pointing back at the staff invite that had quietly failed.
+   *
+   * That invite failed because it asked for `role: 'DRIVER'`, a role that stopped existing
+   * in the thirteen-role rebuild. One dead name, three services, two 500s, and not one
+   * message that said so.
+   */
+  const given = Object.fromEntries(Object.entries(claims).filter(([, v]) => v !== undefined));
+  const body = { sub: given.sub ?? crypto.randomUUID(), role, phone: given.phone ?? '+620000000000', iat: now, exp: now + ttl, ...given };
   const data = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;
