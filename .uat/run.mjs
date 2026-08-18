@@ -44,10 +44,10 @@ async function provision() {
   if (!ctx.depotA) throw new Error(`no depots seeded: HTTP ${d.status} ${JSON.stringify(d.body).slice(0, 200)}`);
 
   // staff tokens scoped to depot A (role + depotId claims, as the guards expect)
-  ctx.operator = mintToken('DEPOT_OPERATOR', { depotId: ctx.depotA.id });
-  ctx.manager = mintToken('DEPOT_MANAGER', { depotId: ctx.depotA.id });
-  ctx.operatorB = mintToken('DEPOT_OPERATOR', { depotId: ctx.depotB?.id });
-  ctx.managerB = mintToken('DEPOT_MANAGER', { depotId: ctx.depotB?.id });
+  ctx.operator = mintToken('STAFF_DEPOT', { depotId: ctx.depotA.id });
+  ctx.manager = mintToken('KEPALA_DEPOT', { depotId: ctx.depotA.id });
+  ctx.operatorB = mintToken('STAFF_DEPOT', { depotId: ctx.depotB?.id });
+  ctx.managerB = mintToken('KEPALA_DEPOT', { depotId: ctx.depotB?.id });
   ctx.franchiseA = mintToken('FRANCHISE_OWNER', { depotId: ctx.depotA.id });
   ctx.franchiseB = mintToken('FRANCHISE_OWNER', { depotId: ctx.depotB?.id });
   // Drivers must be real accounts — delivery assignment stores the driverId and the
@@ -64,8 +64,8 @@ async function provision() {
   }
   ctx.driverAId = drivers[0]?.id;
   ctx.driverBId = drivers[1]?.id;
-  ctx.driverA = mintToken('DRIVER', { sub: ctx.driverAId, depotId: ctx.depotA.id });
-  ctx.driverB = mintToken('DRIVER', { sub: ctx.driverBId, depotId: ctx.depotA.id });
+  ctx.driverA = mintToken('STAFF_DEPOT', { sub: ctx.driverAId, depotId: ctx.depotA.id });
+  ctx.driverB = mintToken('STAFF_DEPOT', { sub: ctx.driverBId, depotId: ctx.depotA.id });
 
   // Catalog product used across cart/checkout/inventory checks.
   const pl = await api('GET', '/products/api/v1/products?limit=100');

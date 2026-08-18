@@ -309,6 +309,12 @@ jobs:
       - name: Deploy probes query tables that exist
         run: node scripts/check-deploy-probes.mjs
 
+      # A UAT token minted with a role that no longer exists is refused by every guard, and
+      # the harness reports it as the product refusing. Three such roles survived the
+      # thirteen-role rebuild and produced 99 FORBIDDEN in one run.
+      - name: UAT harness mints roles that exist
+        run: node scripts/check-uat-roles.mjs
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.
