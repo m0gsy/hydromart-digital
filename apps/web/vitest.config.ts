@@ -55,20 +55,36 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/lib/dictionaries/**'],
       /*
-       * Measured on the files that are left, with the same half-point of headroom the note
-       * above argues for: statements 74.9, branches 84.4, functions 56.2.
+       * Calibrated on CI, not on a laptop — and that distinction is not pedantry.
        *
-       * And a higher floor for `src/lib/**`, which is where the money, the API client, the
-       * offline queue and the role map live. A page rendering wrong is visible; `lib`
-       * getting a discount wrong is not. One flat number cannot say that, which is the
-       * whole argument for a second one.
+       * The same source, the same config, measured on both:
+       *
+       *              laptop (Node 25)   CI (Node 20)
+       *   statements   74.9% of 9478     75.5% of 8453
+       *   functions    56.2% of  801     51.3% of  850
+       *
+       * The TOTALS differ. v8 coverage is derived from the engine's own range output, so a
+       * different V8 attributes statements and functions differently for identical code.
+       * Floors set from a laptop are floors set against a machine nobody gates on: these
+       * were, and CI refused them on four counts within the hour.
+       *
+       * CI reads 75.46 / 82.08 / 51.29 / 75.31, and these sit a point or so under, which is
+       * the same ratchet-not-tripwire headroom the note above argues for.
        */
       thresholds: {
         statements: 74,
-        branches: 83,
-        functions: 55,
+        branches: 81,
+        functions: 50,
         lines: 74,
-        'src/lib/**': { statements: 80, branches: 88, functions: 47, lines: 80 },
+        /*
+         * A second, higher floor for `src/lib/**` — the money, the API client, the offline
+         * queue, the role map. A page rendering wrong is visible to anyone who opens it;
+         * `lib` computing a discount wrong is not visible to anybody. One flat number
+         * cannot say that, which is the whole argument for a second one.
+         *
+         * CI reads 76.77 / 85.6 / 42.03 / 76.65 here.
+         */
+        'src/lib/**': { statements: 76, branches: 84, functions: 41, lines: 76 },
       },
     },
   },
