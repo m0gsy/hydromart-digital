@@ -107,8 +107,32 @@ function parseCookies(res) {
   }));
 }
 
-const DC = ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.prod.yml'];
-process.env.PATH = `${process.env.PATH};C:\\Program Files\\Docker\\Docker\\resources\\bin`;
+/*
+ * WHICH stack to read, and a PATH that survives Linux.
+ *
+ * `DC` named `docker-compose.prod.yml` — but CI boots the TEST overlay, so every
+ * `docker compose ... logs auth` here addressed a stack that is not running. readOtp found
+ * nothing, UAT-M1-01 failed with "no OTP logged", and every case that needed a customer
+ * cascaded from there. The OTP was in the log the whole time: this run's own artifact shows
+ * `[DEV OTP] REGISTRATION code for +6281259626131: 842336` for the very phone that failed.
+ *
+ * And the PATH line below appended a Windows directory with a SEMICOLON. On Linux the
+ * separator is a colon, so `/usr/bin` silently became `/usr/bin;C:Program Files...` — a
+ * directory that does not exist — and whatever lived in that last entry stopped resolving.
+ *
+ * Both are the same shape as the hardcoded `cwd` two commits ago: correct on the laptop
+ * this was written on, quietly wrong everywhere else, and blamed on the product either way.
+ */
+const COMPOSE_OVERLAY = process.env.UAT_COMPOSE_OVERLAY ?? 'docker-compose.test.yml';
+const DC = ['compose', '-f', 'docker-compose.yml', '-f', COMPOSE_OVERLAY];
+if (process.platform === 'win32') {
+  // Built with path.join so the source carries no backslashes at all. Written as a literal
+  // it has to survive every editor, shell and patch tool between here and the file — and it
+  // did not: one round-trip turned `\r` into a carriage return and `\b` into a backspace,
+  // and the resulting path was `C:Program FilesDockerDockeresourcesin`.
+  const dockerBin = path.join('C:', 'Program Files', 'Docker', 'Docker', 'resources', 'bin');
+  process.env.PATH = `${process.env.PATH}${path.delimiter}${dockerBin}`;
+}
 
 const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
