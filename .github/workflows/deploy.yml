@@ -46,11 +46,19 @@ jobs:
     runs-on: ubuntu-latest
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
     # stalled two of them on a two-minute download and nothing said so.
-    timeout-minutes: 60
+    # Must stay ABOVE `command_timeout` (120m) further down, or this cap silently overrides
+    # it. It did: the raise from 40m to 120m was written after a full nineteen-image rebuild
+    # blew the old ceiling, and a later commit added this 60 by copying the e2e job's number.
+    # That reproduces the exact failure the 120m exists to prevent — the timeout kills the
+    # SSH SESSION, not the remote deploy.sh, which keeps building, converges the stack and
+    # writes last-good-sha while Actions reports failure. A red Deploy that means the deploy
+    # SUCCEEDED is worse than no check at all.
+    timeout-minutes: 130
     # Auto-runs only on a green CI; manual dispatch always allowed.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     steps:
       - name: Resolve command
         id: cmd

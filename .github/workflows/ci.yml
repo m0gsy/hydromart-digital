@@ -63,8 +63,17 @@ jobs:
       - id: filter
         run: |
           BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
-          echo "docker=$(bash scripts/ci-affected.sh "$BASE")" >> "$GITHUB_OUTPUT"
-          echo "base=$BASE affected=$(bash scripts/ci-affected.sh "$BASE")"
+          # Assigned, then checked. Written as `echo "docker=$(script)"` the echo always
+          # succeeds, so a failing ci-affected.sh produced an EMPTY output — and an empty
+          # `docker` output makes `needs.changes.outputs.docker == 'true'` false, which
+          # SKIPS both `integration` and `e2e`. GitHub reports a skipped job as successful
+          # (this file says so at the `integration` job), so the run concludes green and
+          # deploy.yml + images.yml fire on it: production deployed and nineteen images
+          # published from a run that tested nothing.
+          affected="$(bash scripts/ci-affected.sh "$BASE")"
+          [ -n "$affected" ] || { echo "ci-affected.sh produced no answer for BASE=$BASE" >&2; exit 1; }
+          echo "docker=$affected" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE affected=$affected"
 
   verify:
     runs-on: ubuntu-latest
@@ -609,6 +618,11 @@ jobs:
             if curl -fsS http://localhost:3000 >/dev/null 2>&1; then break; fi
             sleep 2
           done
+          # Same non-failing shape as uat.yml had: the loop's last command succeeds, so a
+          # server that never came up still exits 0. Here `Run E2E` fails hard afterwards,
+          # so the outage IS caught — but it is caught as ten broken specs with no server
+          # log, which is a much slower way to learn the same thing.
+          curl -fsS http://localhost:3000 >/dev/null || { echo "web never came up:"; cat /tmp/web.log; exit 1; }
 
       - name: Install Playwright browser
         run: npm run test:e2e:install --workspace @hydromart/web
