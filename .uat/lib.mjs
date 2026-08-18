@@ -3,6 +3,22 @@
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/*
+ * The repo root, derived from where this file actually is.
+ *
+ * It used to be the literal string 'g:/VsCode/Hydromart' — the path on the laptop this
+ * harness was written on. On a Linux runner that directory does not exist, so every
+ * `spawnSync(..., { cwd })` returned ENOENT with an empty stdout and no thrown error.
+ *
+ * `readOtp` therefore answered null on every attempt, the very first case failed with
+ * "no OTP logged", `ctx.customerA` was never created, and nineteen later cases reported
+ * "Missing bearer token" — which reads exactly like an authorisation bug in the product.
+ * One hardcoded path, and the harness blamed the system it was testing.
+ */
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 export const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
@@ -100,7 +116,7 @@ const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),
 export function readOtp(phone) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const r = spawnSync('docker', [...DC, 'logs', '--tail', '300', 'auth'], {
-      cwd: 'g:/VsCode/Hydromart', encoding: 'utf8', shell: true, maxBuffer: 20e6,
+      cwd: ROOT, encoding: 'utf8', shell: true, maxBuffer: 20e6,
     });
     const text = `${r.stdout || ''}${r.stderr || ''}`;
     const line = text.split('\n').filter((l) => l.includes('[DEV OTP]') && l.includes(phone)).at(-1);
@@ -111,7 +127,7 @@ export function readOtp(phone) {
 }
 
 export function dc(...args) {
-  const r = spawnSync('docker', [...DC, ...args], { cwd: 'g:/VsCode/Hydromart', encoding: 'utf8', shell: true, maxBuffer: 20e6 });
+  const r = spawnSync('docker', [...DC, ...args], { cwd: ROOT, encoding: 'utf8', shell: true, maxBuffer: 20e6 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 
