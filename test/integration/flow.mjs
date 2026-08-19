@@ -24,9 +24,20 @@ const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
 // Auth mints { sub, role, phone } HS256; the platform guard reads user.role (singular).
 function staffToken() {
+  /*
+   * Two hours, not fifteen minutes.
+   *
+   * The flow outgrew its own token: minted once at the start and reused throughout, it
+   * expired mid-run once the suite passed the fifteen-minute mark. The failure reads as an
+   * auth defect — `create product: HTTP 401 Invalid or expired access token` — sixteen
+   * minutes and twenty-two seconds after the token was signed.
+   *
+   * This is a local test stack, so the TTL protects nothing here; it only has to outlive
+   * the flow, with room for the flow to keep growing.
+   */
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
-  const body = { sub: crypto.randomUUID(), role: 'SUPER_ADMIN', phone: '+620000000000', iat: now, exp: now + 900 };
+  const body = { sub: crypto.randomUUID(), role: 'SUPER_ADMIN', phone: '+620000000000', iat: now, exp: now + 7200 };
   const data = `${b64(head)}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -395,7 +406,7 @@ async function eventually(read, done, message, tries = 20) {
 function roleToken(sub, role, phone, depotId) {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
-  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 900 };
+  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 7200 };
   const data = `${b64(head)}.${b64(body)}`;
   return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
 }

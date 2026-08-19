@@ -27,7 +27,20 @@ const JWT_SECRET = process.env.JWT_ACCESS_SECRET ?? 'hydromart-shared-dev-access
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
 /** Mint an HS256 token exactly like auth-service signs it. */
-export function mintToken(role, claims = {}, ttl = 3600) {
+/*
+ * Empat jam, bukan satu.
+ *
+ * Ini keluarga yang sama dengan yang baru saja meledak di flow integrasi: token dicetak
+ * sekali di awal dan dipakai sepanjang jalan, lalu kedaluwarsa di tengah — dan kegagalannya
+ * terbaca sebagai cacat otorisasi ("Invalid or expired access token"), bukan sebagai umur
+ * token yang kependekan.
+ *
+ * Jalan UAT terakhir memakan 45 menit terhadap TTL satu jam, dan harness-nya baru tumbuh
+ * dari 366 ke 439 kasus. Sisa lima belas menit itu bukan margin, itu hitungan mundur.
+ * Stack uji lokal, jadi TTL di sini tidak menjaga apa pun — ia hanya perlu hidup lebih lama
+ * dari sweep-nya, dengan ruang untuk sweep itu terus bertambah.
+ */
+export function mintToken(role, claims = {}, ttl = 14400) {
   const now = Math.floor(Date.now() / 1000);
   /*
    * Drop undefined claims BEFORE spreading them.
