@@ -149,15 +149,6 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return [...map.entries()].map(([method, v]) => ({ method, ...v }));
   }
 
-  async sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
-    const set = new Set(orderIds);
-    const matched = this.rows.filter(
-      (r) =>
-        set.has(r.orderId) && r.method === PaymentMethod.CASH && r.status === PaymentStatus.PAID,
-    );
-    return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
-  }
-
   async cashByOrder(orderIds: string[]): Promise<{ orderId: string; amountIdr: number }[]> {
     const set = new Set(orderIds);
     const by = new Map<string, number>();

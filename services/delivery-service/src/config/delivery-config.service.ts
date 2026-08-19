@@ -104,6 +104,16 @@ export class DeliveryConfigService {
   noShowMinWaitSeconds(depotId: string | null = null): number {
     return this.tunable('noShowMinWaitSeconds', this.num('NO_SHOW_MIN_WAIT_SECONDS'), depotId);
   }
+  /**
+   * C1: does a shift's expected deposit include COD the courier never confirmed?
+   *
+   * On by default. Off falls back to the old behaviour — sum the PAID cash and nothing
+   * else — which is the switch to reach for if `codAmount` proves stale on historical
+   * rows and starts reporting shortfalls that are not real.
+   */
+  settlementExpectFromCod(depotId: string | null = null): boolean {
+    return this.tunable('settlementExpectFromCod', 1, depotId) === 1;
+  }
   slaMinutes(depotId: string | null = null): number {
     return this.tunable('slaMinutes', this.num('DELIVERY_SLA_MINUTES'), depotId);
   }

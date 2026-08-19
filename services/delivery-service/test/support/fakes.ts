@@ -9,6 +9,7 @@ import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery
 import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import {
   CreateDeliveryData,
+  DeliveredCod,
   DeliveredRow,
   DeliveryQuery,
   DeliveryPingState,
@@ -186,7 +187,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
-  async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
+  async deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]> {
     return this.rows
       .filter(
         (r) =>
@@ -196,7 +197,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
           r.deliveredAt.getTime() >= from.getTime() &&
           r.deliveredAt.getTime() <= to.getTime(),
       )
-      .map((r) => r.orderId);
+      .map((r) => ({ orderId: r.orderId, codAmount: r.codAmount }));
   }
   async driverDeliveredInWindow(
     driverId: string,
@@ -717,7 +718,7 @@ export class InMemorySettingsRepository implements SettingsRepository {
 
 export class FakeCashCollection implements CashCollectionPort {
   throwOnRead = false;
-  result: CashCollected = { total: 0, count: 0 };
+  result: CashCollected = { total: 0, count: 0, byOrder: [] };
   calls: { orderIds: string[]; authorization: string }[] = [];
 
   async sumCollected(orderIds: string[], authorization: string): Promise<CashCollected> {

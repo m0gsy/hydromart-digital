@@ -121,14 +121,14 @@ export interface PaymentRepository {
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /** Network-wide collected (PAID) revenue grouped by method over a date range. */
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
-  /** Sum of PAID cash payments over the given orders — the courier's COD deposit due. */
-  sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary>;
   /**
-   * The same PAID cash as `sumCashCollected`, kept per order instead of summed.
+   * PAID cash over the given orders — the courier's COD deposit due — kept per order.
    *
-   * The caller (order-service's daily report) needs the split by courier, and the courier
-   * is on the ORDER, not on the payment — so the grouping cannot happen here. Orders with
-   * no PAID cash payment are simply absent rather than returned as zero rows.
+   * Per order and not summed because both callers need the split: order-service's daily
+   * report groups it by courier (and the courier is on the ORDER, not on the payment, so
+   * the grouping cannot happen here), and delivery-service compares each order's PAID
+   * cash against the COD on its delivery row (C1). Orders with no PAID cash payment are
+   * simply absent rather than returned as zero rows.
    */
   cashByOrder(orderIds: string[]): Promise<OrderCashRow[]>;
   /**

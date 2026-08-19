@@ -171,7 +171,7 @@ describe('PaymentPrismaRepository', () => {
   });
 
   // A depot with no orders yet is the common case on a fresh console, and it must not cost
-  // a query — same guard its two neighbours (`sumCashCollected`, `cashByOrder`) already have.
+  // a query — same guard its neighbour `cashByOrder` already has.
   it('findByOrderIds answers an empty set without touching the table', async () => {
     expect(await repo.findByOrderIds([])).toEqual([]);
     expect(model.findMany).not.toHaveBeenCalled();
@@ -263,32 +263,6 @@ describe('PaymentPrismaRepository', () => {
       _count: { _all: true },
     });
     expect(out).toEqual([{ method: PaymentMethod.CASH, amount: 90000, count: 5 }]);
-  });
-
-  it('sumCashCollected short-circuits on an empty order set', async () => {
-    const summary = await repo.sumCashCollected([]);
-    expect(summary).toEqual({ total: 0, count: 0 });
-    expect(model.aggregate).not.toHaveBeenCalled();
-  });
-
-  it('sumCashCollected aggregates PAID cash over the given orders', async () => {
-    model.aggregate.mockResolvedValue({ _sum: { amount: 54000 }, _count: { _all: 3 } });
-    const summary = await repo.sumCashCollected(['order-1', 'order-2']);
-    expect(summary).toEqual({ total: 54000, count: 3 });
-    expect(model.aggregate).toHaveBeenCalledWith({
-      where: {
-        orderId: { in: ['order-1', 'order-2'] },
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
-  });
-
-  it('sumCashCollected coerces a null sum to zero', async () => {
-    model.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
-    expect(await repo.sumCashCollected(['order-1'])).toEqual({ total: 0, count: 0 });
   });
 
   // S2. The daily report needs the split by courier, and the courier is on the ORDER —

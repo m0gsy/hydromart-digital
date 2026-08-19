@@ -33,6 +33,15 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'courierWeeklyTarget', label: 'Target mingguan kurir', type: 'int', unit: 'order', min: 0, max: 1000, envDefault: 45 },
   { key: 'noShowMinContactAttempts', label: 'Min. percobaan kontak sebelum no-show', type: 'int', min: 1, max: 10, envDefault: 2 },
   { key: 'noShowMinWaitSeconds', label: 'Min. tunggu sebelum no-show', type: 'int', unit: 'detik', min: 0, max: 3600, envDefault: 300 },
+  /*
+   * C1 kill switch. On (1), the expected deposit for a shift is decided per order as
+   * `max(codAmount, cash PAID)`; off (0), it goes back to summing PAID cash alone.
+   * `SettingType` has no boolean, so 0/1 int — the documented shape for a switch here.
+   *
+   * The escape hatch it exists for: if `codAmount` turns out to be stale on old rows,
+   * this stops it manufacturing shortfalls across a whole depot without a deploy.
+   */
+  { key: 'settlementExpectFromCod', label: 'Ekspektasi setoran dari COD', type: 'int', min: 0, max: 1, envDefault: 1 },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

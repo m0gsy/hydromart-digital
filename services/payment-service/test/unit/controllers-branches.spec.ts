@@ -25,7 +25,6 @@ describe('PaymentController', () => {
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
-    cashCollectedByOrder: jest.fn(),
     depotCashCollected: jest.fn(),
     voidForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
@@ -169,12 +168,14 @@ describe('PaymentController', () => {
 
   it('cashCollectedByOrder forwards the order ids from the body', async () => {
     await controller.cashCollectedByOrder({ orderIds: ['o1', 'o2'] } as never);
-    expect(svc.cashCollectedByOrder).toHaveBeenCalledWith(['o1', 'o2']);
+    expect(svc.cashCollected).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
-  it('cashCollected forwards the order ids', async () => {
-    await controller.cashCollected({ orderIds: ['o1', 'o2'] } as never);
-    expect(svc.cashCollected).toHaveBeenCalledWith(['o1', 'o2']);
+  // Both routes now answer off the one per-order read: the GET is what delivery-service
+  // settles against (C1), and it needs the split, not just the total.
+  it('cashCollected forwards the order ids from the query', async () => {
+    await controller.cashCollected({ orderIds: ['o3', 'o4'] } as never);
+    expect(svc.cashCollected).toHaveBeenCalledWith(['o3', 'o4']);
   });
 
   it('listRefundQueue forwards the query', async () => {

@@ -194,6 +194,21 @@ export class SettlementNotSubmittedError extends DomainError {
   }
 }
 
+/**
+ * A surplus above the threshold was verified with no note (C1).
+ *
+ * Deliberately NOT auto-DISPUTED: DISPUTED has no writer that can move it back out (see
+ * C10), so parking the money there would hang it permanently. This asks for one sentence
+ * and lets the cashier through.
+ */
+export class SettlementSurplusNoteRequiredError extends DomainError {
+  readonly code = 'SETTLEMENT_SURPLUS_NOTE_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Explain the surplus in the note before verifying this deposit.');
+  }
+}
+
 /** The PAID-cash total could not be read from payment-service — fail closed (money). */
 export class SettlementSyncError extends DomainError {
   readonly code = 'SETTLEMENT_SYNC_FAILED';

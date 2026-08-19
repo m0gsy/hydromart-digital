@@ -6,6 +6,7 @@ import { DeliveryStatus } from '../../domain/delivery-status';
 import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
+  DeliveredCod,
   DeliveredRow,
   DeliveryItem,
   DeliveryPingState,
@@ -232,16 +233,16 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     };
   }
 
-  async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
+  async deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]> {
     const rows = await this.prisma.delivery.findMany({
       where: {
         driverId,
         status: DeliveryStatus.DELIVERED,
         deliveredAt: { gte: from, lte: to },
       },
-      select: { orderId: true },
+      select: { orderId: true, codAmount: true },
     });
-    return rows.map((r) => r.orderId);
+    return rows.map((r) => ({ orderId: r.orderId, codAmount: r.codAmount }));
   }
 
   async driverDeliveredInWindow(

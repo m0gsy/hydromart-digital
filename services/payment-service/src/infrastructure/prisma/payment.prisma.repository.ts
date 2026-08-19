@@ -226,29 +226,13 @@ export class PaymentPrismaRepository implements PaymentRepository {
     }));
   }
 
-  async sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
-    if (orderIds.length === 0) {
-      return { total: 0, count: 0 };
-    }
-    const agg = await this.prisma.payment.aggregate({
-      where: {
-        orderId: { in: orderIds },
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
-    return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
-  }
-
   async cashByOrder(orderIds: string[]): Promise<OrderCashRow[]> {
     if (orderIds.length === 0) {
       return [];
     }
     // groupBy, not findMany: an order can legitimately carry more than one PAID cash row
-    // (a partial settlement, a re-take after a void), and the caller wants one number
-    // per order the same way `sumCashCollected` gives one number per set.
+    // (a partial settlement, a re-take after a void), and every caller wants one number
+    // per order rather than a row per payment.
     const rows = await this.prisma.payment.groupBy({
       by: ['orderId'],
       where: {
