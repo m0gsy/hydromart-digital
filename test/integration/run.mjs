@@ -172,7 +172,31 @@ async function main() {
   console.log('\nINTEGRATION TEST PASSED');
 }
 
+/*
+ * Dump the service logs BEFORE tearing the stack down.
+ *
+ * A flow assertion that fails leaves the only explanation inside the containers, and this
+ * path went straight to `compose down` — so the answer was destroyed at the moment it was
+ * needed. `create product: HTTP 401 Invalid or expired access token` was diagnosed three
+ * times from the message alone, twice wrongly, because nothing here ever printed what
+ * product-service itself said about the token it refused.
+ *
+ * uat.yml and load.yml already capture logs on every run; this is the same fix for the path
+ * that runs on EVERY pull request.
+ */
+function dumpLogs(reason) {
+  console.error(`\n===== service logs (${reason}) =====`);
+  for (const svc of ['gateway', 'auth', 'product', 'order']) {
+    console.error(`\n----- ${svc} -----`);
+    compose([...COMPOSE, 'logs', svc, '--tail', '120', '--no-color']);
+  }
+}
+
 main()
   .then(() => { process.exitCode = 0; })
-  .catch((e) => { console.error('\nINTEGRATION TEST FAILED:', e.message); process.exitCode = 1; })
+  .catch((e) => {
+    console.error('\nINTEGRATION TEST FAILED:', e.message);
+    try { dumpLogs(e.message); } catch { /* the dump must never mask the real failure */ }
+    process.exitCode = 1;
+  })
   .finally(() => { if (!KEEP) compose([...COMPOSE, 'down']); });
