@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
+import { resellerApplies } from '../../src/domain/pricing';
 import {
   FakeCashierShift,
   FakeCustomerDirectory,
@@ -201,10 +202,63 @@ describe('cart pricing agrees with checkout (A1/A2/A4)', () => {
     expect(view.reseller?.discount).toBe(0);
   });
 
+  it('offers no agen number at all when the prices are catalog prices', async () => {
+    await seedGallon(20000, 5);
+    pricing.unavailable = true;
+    resellerDiscount.result = {
+      active: true,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: homeDepot.id,
+    };
+
+    const view = await cartService.view(customer, homeDepot.id, 'Bearer agen');
+
+    // null, not 0: the agen IS one, but a discount computed off catalog prices is the
+    // very defect A4 exists to stop, so the screen falls back to "dihitung saat pesan".
+    expect(view.reseller?.applies).toBe(true);
+    expect(view.reseller?.discount).toBeNull();
+  });
+
   /*
    * The kill switch. A switch nobody has watched revert is not a switch, so this is the
    * proof that turning it off restores exactly the old behaviour and nothing else.
    */
+  /*
+   * A9's rule, stated directly. It decides money for three callers now (checkout, the
+   * till, and this cart), and the cases below are the ones that used to be answered
+   * differently by whichever copy happened to be asked.
+   */
+  describe('resellerApplies', () => {
+    const agen = {
+      active: true,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'depot-home',
+    };
+
+    it('declines an agen with no price to give', () => {
+      expect(resellerApplies({ ...agen, discountPct: 0, flatGallonPriceIdr: 0 }, 'depot-home')).toBe(
+        false,
+      );
+    });
+
+    it('declines a non-agen and an inactive one', () => {
+      expect(resellerApplies(null, 'depot-home')).toBe(false);
+      expect(resellerApplies({ ...agen, active: false }, 'depot-home')).toBe(false);
+    });
+
+    it('allows a sale with no depot at all — there is nothing to be wrong about yet', () => {
+      expect(resellerApplies(agen, null)).toBe(true);
+    });
+
+    it('declines when the depot cannot be proven rather than guessing', () => {
+      expect(resellerApplies({ ...agen, homeDepotId: null }, 'depot-home')).toBe(false);
+      expect(resellerApplies(agen, 'depot-elsewhere')).toBe(false);
+      expect(resellerApplies(agen, 'depot-home')).toBe(true);
+    });
+  });
+
   it('falls back to catalog prices when cartDepotPricing is off', async () => {
     build({ ORDER_CART_DEPOT_PRICING: '0' });
     const productId = await seedGallon(20000, 2);

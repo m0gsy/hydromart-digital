@@ -103,10 +103,11 @@ export function priceLines(
   let tierPricedTotal = 0;
   const tieredProductIds = new Set<string>();
   for (const line of lines) {
-    const product = productById.get(line.productId);
-    // The caller is responsible for resolving every line first: checkout rejects an
-    // unresolvable product outright, the cart drops the delisted line before it gets here.
-    if (!product) continue;
+    // Every line is resolved before it gets here, and the assertion says so rather than
+    // hiding a miss: checkout rejects an unresolvable product outright (`pricedAll`), and
+    // the cart drops the delisted line before pricing. A silent `continue` would have
+    // dropped a line the customer put in their basket and still charged them a subtotal.
+    const product = productById.get(line.productId)!;
     const priceRow = prices.get(product.id);
     const base = priceRow?.sellPrice ?? product.basePrice;
     const adj = priceRow?.adjustType

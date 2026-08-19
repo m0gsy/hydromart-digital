@@ -91,4 +91,17 @@ describe('OrderConfigService', () => {
     expect(cfg.meterVarianceToleranceLiters()).toBe(200);
     expect(cfg.meterVarianceToleranceLiters('depot-1')).toBe(200);
   });
+
+  // A1's kill switch. `SettingType` has no boolean, so it is an int pinned to 0/1 and the
+  // getter is what turns it back into one — including the "off" reading, which is the only
+  // reading anyone will reach for in an incident.
+  it('reads the cart depot-pricing switch on and off, per depot and network-wide', () => {
+    const on = buildTestConfig({ ORDER_CART_DEPOT_PRICING: '1' });
+    expect(on.cartDepotPricing()).toBe(true);
+    expect(on.cartDepotPricing('depot-1')).toBe(true);
+
+    const off = buildTestConfig({ ORDER_CART_DEPOT_PRICING: '0' });
+    expect(off.cartDepotPricing()).toBe(false);
+    expect(off.cartDepotPricing('depot-1')).toBe(false);
+  });
 });
