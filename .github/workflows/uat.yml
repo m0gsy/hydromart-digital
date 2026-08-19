@@ -107,8 +107,20 @@ jobs:
       - name: Install Playwright browser
         timeout-minutes: 8
         run: |
-          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
-          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
+          # Browser saja — TANPA `--with-deps`, dan itu inti perbaikannya.
+          #
+          # `--with-deps` menjalankan `sudo apt-get install` pustaka sistem, dan DI SITULAH
+          # ia menggantung: "Switching to root user to install dependencies", lalu diam
+          # sampai plafon membunuhnya. Tiga putaran CI habis untuk itu, dengan tiga cara
+          # gagal berbeda, tanpa satu pun menyentuh sebabnya.
+          #
+          # Runner ubuntu-latest sudah membawa Chrome beserta pustakanya, jadi chromium
+          # bawaan Playwright tidak butuh apt sama sekali. Yang tersisa hanyalah mengunduh
+          # browsernya — dan itu yang di-cache di langkah atas, jadi pada jalan berikutnya
+          # bahkan unduhannya pun tidak terjadi.
+          #
+          # Kalau ternyata ada pustaka yang benar-benar kurang, Playwright gagal dengan
+          # menyebut nama pustakanya — kegagalan yang keras dan spesifik, bukan gantungan.
           for attempt in 1 2 3; do
             if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
             echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
