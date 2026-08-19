@@ -418,39 +418,59 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
-        # Plafon hanya di LANGKAH, tidak per percobaan — dan itu koreksi atas percobaan
-        # sebelumnya, yang justru menyebabkan kegagalannya sendiri:
-        #
-        #   E: Could not get lock /var/lib/apt/lists/lock. It is held by process 10182
-        #
-        # `--with-deps` menjalankan apt-get, dan `timeout 300` membunuhnya di tengah jalan.
-        # Proses apt yang mati meninggalkan lock, jadi dua percobaan berikutnya gagal
-        # seketika karena lock itu — kegagalan yang dibuat oleh perbaikannya sendiri.
-        # Membunuh pemegang lock sistem lalu langsung mencoba lagi tidak akan pernah benar.
-        #
-        # 18 menit di langkah tetap menjadikannya MERAH kalau benar-benar menggantung, dan
-        # itulah yang penting: bukan run `cancelled` yang menjatuhkan Deploy tanpa warna.
-        timeout-minutes: 18
+        timeout-minutes: 8
         run: |
+          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
+          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
           for attempt in 1 2 3; do
             if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
-            echo "playwright install attempt $attempt failed, waiting for apt to settle..." >&2
-            # Tunggu lock apt benar-benar bebas sebelum mencoba lagi. Runner menjalankan
-            # unattended-upgrades sendiri, jadi lock yang dipegang orang lain itu wajar dan
-            # sementara — yang tidak wajar adalah mencoba menimpanya.
-            for _ in $(seq 1 30); do
-              sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || break
-              sleep 5
-            done
+            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
             sleep 10
           done
           echo "playwright install failed three times" >&2
           exit 1
 
+      # Serves each export the way Capacitor serves the assets bundled into the APK, so a
+      # pass here is a statement about the binary and not about a dev server.
       - name: Exported binaries resolve their own paths
         run: |
           npm run test:export:customer --workspace @hydromart/web
           npm run test:export:ops --workspace @hydromart/web
+
+  # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
+  # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
+  # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # CI-14: the two Docker jobs no longer start until `verify` is green. They are still
+    # independent of each other and run in parallel — the chain exists so a lockfile,
+    # typecheck or unit-test failure stops burning two more runners (each of which pays
+    # its own `npm ci` + 16 `prisma generate`) on code that already cannot ship.
+    needs: [verify, changes]
+    # Audit CI-2: skipped entirely for a diff that cannot reach an image. GitHub reports a
+    # skipped job as successful, so this does not strand a required check.
+    if: needs.changes.outputs.docker == 'true'
+    # Host-side `db:migrate` (run.mjs) applies migrations to the compose Postgres over the
+    # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from the
+    # workflow-level env above.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      # Audit CI-1: the images were built COLD here and again in `e2e`, with no layer cache
+      # at all — ~18 images, twice per run, from scratch, every time. docker-compose.cache.yml
+      # points every build at a GitHub Actions cache; COMPOSE_BAKE routes the build through
+      # buildx, which is what honours those keys. Layers are shared with `e2e` and with
+      # earlier runs, so only what actually changed rebuilds.
+      - uses: docker/setup-buildx-action@v3
+
+      # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
+      # so the runner, the Dockerfiles and a developer's shell all agree on one
+      # version pair. `20` alone floated across every 20.x release.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Pin npm to the version in package.json
         run: |
@@ -667,30 +687,13 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
-        # Plafon hanya di LANGKAH, tidak per percobaan — dan itu koreksi atas percobaan
-        # sebelumnya, yang justru menyebabkan kegagalannya sendiri:
-        #
-        #   E: Could not get lock /var/lib/apt/lists/lock. It is held by process 10182
-        #
-        # `--with-deps` menjalankan apt-get, dan `timeout 300` membunuhnya di tengah jalan.
-        # Proses apt yang mati meninggalkan lock, jadi dua percobaan berikutnya gagal
-        # seketika karena lock itu — kegagalan yang dibuat oleh perbaikannya sendiri.
-        # Membunuh pemegang lock sistem lalu langsung mencoba lagi tidak akan pernah benar.
-        #
-        # 18 menit di langkah tetap menjadikannya MERAH kalau benar-benar menggantung, dan
-        # itulah yang penting: bukan run `cancelled` yang menjatuhkan Deploy tanpa warna.
-        timeout-minutes: 18
+        timeout-minutes: 8
         run: |
+          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
+          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
           for attempt in 1 2 3; do
             if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
-            echo "playwright install attempt $attempt failed, waiting for apt to settle..." >&2
-            # Tunggu lock apt benar-benar bebas sebelum mencoba lagi. Runner menjalankan
-            # unattended-upgrades sendiri, jadi lock yang dipegang orang lain itu wajar dan
-            # sementara — yang tidak wajar adalah mencoba menimpanya.
-            for _ in $(seq 1 30); do
-              sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || break
-              sleep 5
-            done
+            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
             sleep 10
           done
           echo "playwright install failed three times" >&2

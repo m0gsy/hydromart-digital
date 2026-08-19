@@ -113,35 +113,25 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
-        # Plafon hanya di LANGKAH, tidak per percobaan — dan itu koreksi atas percobaan
-        # sebelumnya, yang justru menyebabkan kegagalannya sendiri:
-        #
-        #   E: Could not get lock /var/lib/apt/lists/lock. It is held by process 10182
-        #
-        # `--with-deps` menjalankan apt-get, dan `timeout 300` membunuhnya di tengah jalan.
-        # Proses apt yang mati meninggalkan lock, jadi dua percobaan berikutnya gagal
-        # seketika karena lock itu — kegagalan yang dibuat oleh perbaikannya sendiri.
-        # Membunuh pemegang lock sistem lalu langsung mencoba lagi tidak akan pernah benar.
-        #
-        # 18 menit di langkah tetap menjadikannya MERAH kalau benar-benar menggantung, dan
-        # itulah yang penting: bukan run `cancelled` yang menjatuhkan Deploy tanpa warna.
-        timeout-minutes: 18
+        timeout-minutes: 8
         run: |
+          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
+          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
           for attempt in 1 2 3; do
             if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
-            echo "playwright install attempt $attempt failed, waiting for apt to settle..." >&2
-            # Tunggu lock apt benar-benar bebas sebelum mencoba lagi. Runner menjalankan
-            # unattended-upgrades sendiri, jadi lock yang dipegang orang lain itu wajar dan
-            # sementara — yang tidak wajar adalah mencoba menimpanya.
-            for _ in $(seq 1 30); do
-              sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || break
-              sleep 5
-            done
+            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
             sleep 10
           done
           echo "playwright install failed three times" >&2
           exit 1
 
+      # `continue-on-error` keeps a browser problem from failing the whole UAT job, which is
+      # right — but `|| true` INSIDE the loop went further and made a crash look like a pass.
+      # Every role crashed at `waitForURL` for want of an OTP it could type, and the step
+      # reported success five times over.
+      #
+      # Now each role's status is kept and the step ends non-zero if any of them failed:
+      # visible in the checks list, still not fatal to the job.
       - name: Per-role browser pass
         continue-on-error: true
         run: |
@@ -157,6 +147,7 @@ jobs:
             exit 1
           fi
           echo "role browser pass OK for every role"
+
 
       - name: Summarise
         if: always()
