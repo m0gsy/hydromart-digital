@@ -1033,13 +1033,16 @@ export class FakeMembership implements MembershipPort {
 
 export class FakeResellerDiscount implements ResellerDiscountPort {
   result: ResellerDiscount | null = null;
+  /** A6: the counter read fails CLOSED, so a test has to be able to make it throw. */
+  throwOnCounterRead = false;
   /** Counter sales resolve by buyer id; recorded so a test can prove WHOSE status was read. */
   readonly byCustomerCalls: string[] = [];
   async get(_authorization: string): Promise<ResellerDiscount | null> {
     return this.result;
   }
-  async getFor(customerId: string, _authorization: string): Promise<ResellerDiscount | null> {
+  async getFor(customerId: string): Promise<ResellerDiscount | null> {
     this.byCustomerCalls.push(customerId);
+    if (this.throwOnCounterRead) throw new Error('customer-service responded 500');
     return this.result;
   }
 }

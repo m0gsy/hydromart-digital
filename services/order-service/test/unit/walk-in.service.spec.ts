@@ -436,7 +436,7 @@ describe('OrderService.walkInSale', () => {
      */
     it('charges an agen the flat SOP galon price, not the list price', async () => {
       membership.rate = 0.05; // must be ignored — reseller pricing replaces it
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: DEPOT };
       const customerId = randomUUID();
       const order = await sell(10, { customerId, customerPhone: '0812' });
 
@@ -449,13 +449,57 @@ describe('OrderService.walkInSale', () => {
     });
 
     it('applies the agen percentage when there is no flat price', async () => {
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: DEPOT };
       const order = await sell(2, { customerId: randomUUID(), customerPhone: '0812' });
       expect(order.discount).toBe(4000); // 10% of 40.000
     });
 
+    /*
+     * A9. The rule was "is this an agen", never "whose agen". An agen enrolled at another
+     * depot drew their agen price here — a franchise funding a discount it never granted.
+     */
+    it('refuses to price an agen registered at a different depot', async () => {
+      membership.rate = 0;
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: '22222222-2222-4222-8222-222222222222',
+      };
+      const order = await sell(10, { customerId: randomUUID(), customerPhone: '0812' });
+      expect(order.discount).toBe(0);
+      expect(order.total).toBe(200_000);
+    });
+
+    // Cannot prove which depot is not "any depot": decline rather than guess.
+    it('refuses to price an agen whose home depot is unknown', async () => {
+      membership.rate = 0;
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: null,
+      };
+      const order = await sell(10, { customerId: randomUUID(), customerPhone: '0812' });
+      expect(order.discount).toBe(0);
+    });
+
+    /*
+     * A6. The counter read used to go out on the CASHIER's bearer, and `resellerView` lists
+     * neither KEPALA_DEPOT nor STAFF_DEPOT — measured: both 403. The adapter swallowed it
+     * as "not a reseller" and the till charged retail behind one logger.warn. It fails
+     * CLOSED now: a person is standing there and can be asked to retry.
+     */
+    it('refuses the sale when the agen read fails, rather than charging retail', async () => {
+      resellerDiscount.throwOnCounterRead = true;
+      await expect(sell(10, { customerId: randomUUID(), customerPhone: '0812' })).rejects.toThrow(
+        /customer-service responded 500/,
+      );
+      expect(orders.rows).toHaveLength(0);
+    });
+
     it('refuses a voucher from an agen at the counter, exactly as checkout does', async () => {
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: DEPOT };
       await expect(
         sell(1, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'HEMAT10' }),
       ).rejects.toBeInstanceOf(ResellerVoucherNotAllowedError);

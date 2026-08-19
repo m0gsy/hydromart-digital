@@ -134,6 +134,32 @@ describe('ResellerService', () => {
     );
   });
 
+  /*
+   * A6/A9. `get` refuses a depot the console caller has no business seeing, and that is
+   * right for a console. It was wrong for PRICING: order-service asked it on behalf of a
+   * cashier, `resellerView` lists neither KEPALA_DEPOT nor STAFF_DEPOT, so the read 403'd
+   * and every agen at a counter was charged retail. `pricingFor` answers the same row with
+   * no depot check — the depot question moves to order-service, which knows who is selling.
+   */
+  describe('pricingFor (A6): the same row without the console depot check', () => {
+    it('answers for a reseller whose depot the caller could never read', async () => {
+      const repo = makeRepo();
+      const other = row({ homeDepotId: 'depot-not-mine' });
+      repo.findById.mockResolvedValue(other);
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
+
+      await expect(svc.pricingFor('c1')).resolves.toBe(other);
+    });
+
+    // "Not a reseller" must stay a distinct answer: the adapter keys fail-closed on it.
+    it('still throws not-found for a customer who is not a reseller', async () => {
+      const repo = makeRepo();
+      repo.findById.mockResolvedValue(null);
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
+      await expect(svc.pricingFor('nope')).rejects.toBeInstanceOf(ResellerNotFoundError);
+    });
+  });
+
   // §G-3. The roster used to render a 36-character UUID as the whole Customer column,
   // because the name is on the account and this table only has the id.
   describe('the roster carries the account name', () => {

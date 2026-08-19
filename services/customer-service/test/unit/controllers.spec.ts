@@ -162,7 +162,33 @@ describe('InternalController', () => {
   const svc = { listCustomerIdsByDepot: jest.fn(), getCrmDashboard: jest.fn() };
   const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
   const imports = { resolveByPhone: jest.fn() };
-  const c = new InternalController(svc as never, imports as never, pdp as never);
+  const resellers = { pricingFor: jest.fn() };
+  const c = new InternalController(svc as never, imports as never, resellers as never, pdp as never);
+
+  /*
+   * A6/A9. The counter read used to go through `/resellers/:id` on the CASHIER's bearer,
+   * and `resellerView` lists neither KEPALA_DEPOT nor STAFF_DEPOT — so it answered 403 and
+   * every agen at a till was charged retail. This route carries no depot check at all; the
+   * depot question rides out as `homeDepotId` for order-service to answer.
+   */
+  it('resellerPricing answers pricing plus the home depot, with no depot check', async () => {
+    resellers.pricingFor.mockResolvedValue({
+      customerId: 'c1',
+      homeDepotId: 'd-home',
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 5000,
+      note: 'ignored',
+    });
+
+    await expect(c.resellerPricing('c1')).resolves.toEqual({
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 5000,
+      homeDepotId: 'd-home',
+    });
+    expect(resellers.pricingFor).toHaveBeenCalledWith('c1');
+  });
 
   // §I: order-service resolving the counter buyer. The name defaults to the phone so a
   // cashier who typed only a number still creates a usable account rather than a blank one.

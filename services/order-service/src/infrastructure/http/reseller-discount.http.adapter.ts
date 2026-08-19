@@ -7,12 +7,18 @@ import {
 } from '../../application/ports/reseller-discount.port';
 
 /**
- * Reads the checking-out customer's reseller pricing from customer-service
- * (`GET /api/v1/resellers/me`) so checkout can apply agen pricing. Fails
- * OPEN: any error (customer-service down, non-2xx, missing token, malformed
- * body, 404 = not a reseller) returns null, so reseller pricing is never a
- * hard checkout dependency. The customer's own token is forwarded, so
- * `/resellers/me` resolves to their account.
+ * Reads a customer's reseller pricing from customer-service.
+ *
+ * Two reads, two failure directions on purpose (A5/A6):
+ *
+ * - `get` (checkout) forwards the customer's own bearer to `/resellers/me` and fails OPEN —
+ *   ordering water must not depend on customer-service being up. It now reports WHY it
+ *   answered nothing, so the caller can mark the order (A5): "charged full price" and
+ *   "charged full price because a read failed" used to be indistinguishable.
+ * - `getFor` (counter) reads the internal route on the shared key and fails CLOSED. It used
+ *   to forward the CASHIER's bearer to `/resellers/:id`, and `resellerView` lists neither
+ *   KEPALA_DEPOT nor STAFF_DEPOT — measured: both 403 — so the catch-all below turned every
+ *   agen at a till into "not a reseller" and charged them retail, behind one logger.warn.
  */
 @Injectable()
 export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
@@ -21,29 +27,43 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  get(authorization: string): Promise<ResellerDiscount | null> {
-    return this.read('/api/v1/resellers/me', authorization);
+  async get(authorization: string): Promise<ResellerDiscount | null> {
+    if (!authorization) return null;
+    try {
+      return await this.read('/api/v1/resellers/me', { authorization });
+    } catch (error) {
+      // A5: fail open, but never silently. The caller marks the order so a full-price
+      // charge that came from an outage is distinguishable from one that was correct.
+      this.logger.error(`Reseller pricing unavailable at checkout: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   /**
-   * Counter sale: the buyer is named, and the token belongs to the cashier. `/resellers/:id`
-   * is the by-id read — same shape, same fail-open contract.
+   * Counter sale, by named buyer, over the internal key — NOT the cashier's bearer.
+   *
+   * Throws on a read failure. Null means one thing only: customer-service answered 404,
+   * "this customer is not an agen".
    */
-  getFor(customerId: string, authorization: string): Promise<ResellerDiscount | null> {
-    return this.read(`/api/v1/resellers/${customerId}`, authorization);
+  async getFor(customerId: string): Promise<ResellerDiscount | null> {
+    const key = this.config.internalServiceKey;
+    if (!key) {
+      // A6's silent-release trap: with no key every call 401s, the counter goes back to
+      // charging every agen retail, and nothing anywhere goes red. Loud, and fail-closed.
+      throw new Error('INTERNAL_SERVICE_KEY is not set — counter agen pricing cannot be read');
+    }
+    return this.read(`/api/v1/customers/internal/reseller/${customerId}`, { 'x-internal-key': key });
   }
 
-  private async read(path: string, authorization: string): Promise<ResellerDiscount | null> {
-    if (!authorization) return null;
+  private async read(
+    path: string,
+    headers: Record<string, string>,
+  ): Promise<ResellerDiscount | null> {
     const url = `${this.config.customerServiceUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ResellerDiscountHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: { authorization },
-        signal: controller.signal,
-      });
+      const res = await fetch(url, { method: 'GET', headers, signal: controller.signal });
       if (res.status === 404) return null; // not a reseller
       if (!res.ok) {
         throw new Error(`customer-service responded ${res.status}`);
@@ -52,6 +72,7 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
         active?: boolean;
         discountPct?: number;
         flatGallonPriceIdr?: number;
+        homeDepotId?: string;
       };
       const discountPct = Number(body.discountPct);
       if (!Number.isFinite(discountPct)) return null;
@@ -62,10 +83,10 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
         active: body.active === true,
         discountPct,
         flatGallonPriceIdr: Number.isFinite(flat) && flat > 0 ? flat : 0,
+        // A9. Absent from `/resellers/me` on a peer that predates the field; the caller
+        // treats null as "cannot prove which depot" and declines to price cross-depot.
+        homeDepotId: typeof body.homeDepotId === 'string' ? body.homeDepotId : null,
       };
-    } catch (error) {
-      this.logger.warn(`Reseller pricing unavailable: ${(error as Error).message}`);
-      return null; // fail open
     } finally {
       clearTimeout(timer);
     }

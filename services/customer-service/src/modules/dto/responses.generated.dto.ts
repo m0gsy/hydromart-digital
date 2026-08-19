@@ -193,6 +193,18 @@ export class List2ResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+/** Mirrors `resellerPricing` exactly — generated for audit D-6, no field added or removed. */
+export class InternalResellerPricingResponseDto {
+  @ApiProperty({ type: Boolean })
+  active!: boolean;
+  @ApiProperty({ type: Number })
+  discountPct!: number;
+  @ApiProperty({ type: Number })
+  flatGallonPriceIdr!: number;
+  @ApiProperty({ type: String })
+  homeDepotId!: string;
+}
+
 export class CustomerIdsByDepot2ResponseDto {
   @ApiProperty({ type: [String] })
   customerIds!: string[];
