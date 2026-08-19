@@ -4,6 +4,7 @@ import { Customer } from '../../domain/customer/customer.entity';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import {
   OtpDeliveryUnavailableError,
+  OtpExpiredError,
   OtpInvalidError,
   OtpMaxAttemptsError,
   OtpResendCooldownError,
@@ -87,6 +88,7 @@ export class OtpService {
     return {
       phoneMasked: OtpService.maskPhone(customer.phone),
       expiresInSeconds: policy.ttlSeconds,
+      resendCooldownSeconds: policy.resendCooldownSeconds,
     };
   }
 
@@ -103,7 +105,7 @@ export class OtpService {
       throw new OtpInvalidError();
     }
     if (record.expiresAt.getTime() <= now.getTime()) {
-      throw new OtpInvalidError('The verification code has expired.');
+      throw new OtpExpiredError();
     }
     // Claim the guess BEFORE comparing, in one conditional write. Read-check-then-increment
     // around a ~100ms bcrypt compare let N parallel requests all read attempts=0, all pass

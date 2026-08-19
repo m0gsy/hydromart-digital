@@ -14,8 +14,18 @@ export class OtpChallengeResponseDto {
   @ApiProperty({ example: 300, description: 'Seconds until the code expires.' })
   expiresInSeconds!: number;
 
+  @ApiProperty({
+    example: 60,
+    description: 'Seconds before another code may be requested. E4: the client shows this rather than its own copy.',
+  })
+  resendCooldownSeconds!: number;
+
   static from(result: OtpChallengeResult): OtpChallengeResponseDto {
-    return { phoneMasked: result.phoneMasked, expiresInSeconds: result.expiresInSeconds };
+    return {
+      phoneMasked: result.phoneMasked,
+      expiresInSeconds: result.expiresInSeconds,
+      resendCooldownSeconds: result.resendCooldownSeconds,
+    };
   }
 }
 

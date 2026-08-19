@@ -34,14 +34,53 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /**
+     * E6: the machine-readable code the services put beside the sentence
+     * (`AllExceptionsFilter`). Carried so a screen can branch on WHICH refusal it got —
+     * `/verify` closes its code box on `AUTH_OTP_MAX_ATTEMPTS`, `/login` walks an
+     * unregistered number over to `/register` — without pattern-matching English prose.
+     */
+    public readonly code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
+/** The machine code a service sent, if it sent one. */
+function codeFrom(body: unknown): string | undefined {
+  if (body && typeof body === 'object' && 'code' in body) {
+    const c = (body as { code: unknown }).code;
+    if (typeof c === 'string' && c) return c;
+  }
+  return undefined;
+}
+
+/**
+ * E6: replace a named server error with its Indonesian wording.
+ *
+ * Six classes of auth failure reached the customer as the English sentence the service
+ * threw — "No account is registered with this phone number.", `"abc" is not a valid
+ * Indonesian mobile number.` — on a page rendered `lang="id"`. Translating by CODE
+ * rather than by screen means every caller is fixed at once and none of them has to
+ * know a code exists.
+ *
+ * Deliberately a whitelist: an unlisted code keeps the server's own message, because
+ * several services already answer in Indonesian and blanket-overriding those would
+ * replace a specific sentence with a vaguer one.
+ */
+function translatedByCode(body: unknown): string | undefined {
+  const code = codeFrom(body);
+  if (!code) return undefined;
+  const key = `errors.byCode.${code}`;
+  const translated = translate(key);
+  return translated === key ? undefined : translated;
+}
+
 /** Flatten NestJS error bodies ({ message: string | string[] }) into one line. */
 function messageFrom(status: number, body: unknown): string {
+  const named = translatedByCode(body);
+  if (named) return named;
   if (body && typeof body === 'object' && 'message' in body) {
     const m = (body as { message: unknown }).message;
     if (Array.isArray(m)) return m.join(', ');
@@ -164,7 +203,28 @@ function retryAfterMs(res: Response): number {
   return Math.min(ms, MAX_RETRY_AFTER_MS);
 }
 
+/**
+ * E3: a path with an empty segment is a client bug, not a request.
+ *
+ * `useQueryParam('id')` answers `''` when the parameter is absent, and twenty-one detail
+ * screens feed that straight into an endpoint builder — `endpoints.orders.get('')`
+ * becomes `/orders/api/v1/orders/`. That reaches the server, which answers 404, and the
+ * screen shows "not found" for a record nobody ever named. Refusing here, in the one
+ * place all of them pass through, turns a misleading 404 into an honest instruction and
+ * costs a round-trip that could never have succeeded.
+ *
+ * Only the PATH is inspected. `?depotId=` with no value is a filter meaning "any depot"
+ * and several screens send it deliberately.
+ */
+function missingPathSegment(path: string): boolean {
+  const pathname = path.split('?')[0] ?? '';
+  return pathname.includes('//') || (pathname.length > 1 && pathname.endsWith('/'));
+}
+
 async function rawRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (missingPathSegment(path)) {
+    throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
+  }
   const { method = 'GET', body } = options;
   const headers: Record<string, string> = { ...authHeader(), ...options.headers };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -195,7 +255,7 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
 
   const data = parseBody(await res.text());
 
-  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data), codeFrom(data));
   // F2: the one door tokens enter this client through. On native the gateway returns the
   // session's tokens in the body (login-verify and refresh both), and they are taken out
   // here rather than at each call site, so a future token-bearing endpoint cannot be
@@ -304,6 +364,10 @@ export async function uploadFile<T = { url: string }>(
   // first signal after a cold start, which can be before the Keystore has been read.
   await unlockTokens();
 
+  if (missingPathSegment(path)) {
+    throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
+  }
+
   const form = new FormData();
   form.append('file', file);
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
@@ -329,7 +393,7 @@ export async function uploadFile<T = { url: string }>(
   }
 
   const data = parseBody(await res.text());
-  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data), codeFrom(data));
   invalidate();
   return data as T;
 }
@@ -341,6 +405,9 @@ export async function uploadFile<T = { url: string }>(
  * and — once the native shell sends a bearer instead of a cookie — no auth at all.
  */
 export async function getBlob(path: string, _retry = false): Promise<Blob> {
+  if (missingPathSegment(path)) {
+    throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
+  }
   const res = await fetchWithTimeout(
     `${BASE_URL}${path}`,
     { method: 'GET', credentials: 'include', headers: authHeader() },
@@ -351,7 +418,10 @@ export async function getBlob(path: string, _retry = false): Promise<Blob> {
     return getBlob(path, true);
   }
 
-  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, parseBody(await res.text())));
+  if (!res.ok) {
+    const data = parseBody(await res.text());
+    throw new ApiError(res.status, messageFrom(res.status, data), codeFrom(data));
+  }
   return res.blob();
 }
 

@@ -84,6 +84,20 @@ export class OtpInvalidError extends DomainError {
   }
 }
 
+/**
+ * E6: expiry is a different thing from a wrong guess, and only the customer can tell
+ * them apart by what they do next — one asks for a new code, the other retypes. They
+ * shared `AUTH_OTP_INVALID`, so the only thing distinguishing them on screen was the
+ * English sentence, which is what the customer could not read.
+ */
+export class OtpExpiredError extends DomainError {
+  readonly code = 'AUTH_OTP_EXPIRED';
+  readonly status = HTTP.UNAUTHORIZED;
+  constructor() {
+    super('The verification code has expired.');
+  }
+}
+
 /** BR-002 boundary: too many wrong attempts for one OTP challenge. */
 export class OtpMaxAttemptsError extends DomainError {
   readonly code = 'AUTH_OTP_MAX_ATTEMPTS';

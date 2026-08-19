@@ -4,6 +4,7 @@ import { Role } from '../../src/domain/customer/role.enum';
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import {
   OtpDeliveryUnavailableError,
+  OtpExpiredError,
   OtpInvalidError,
   OtpMaxAttemptsError,
   OtpResendCooldownError,
@@ -155,7 +156,8 @@ describe('OtpService', () => {
       );
       // The right one works once...
       await reviewer.verify(customer, OtpPurpose.LOGIN, '424242');
-      // ...and not twice: the challenge is consumed like any other.
+      // ...and not twice: the challenge is consumed like any other. Consumed is NOT
+      // expired (E6 split those) — there is no live challenge left to have a deadline.
       await expect(reviewer.verify(customer, OtpPurpose.LOGIN, '424242')).rejects.toBeInstanceOf(
         OtpInvalidError,
       );
@@ -169,7 +171,7 @@ describe('OtpService', () => {
       clock.advance(301);
 
       await expect(reviewer.verify(customer, OtpPurpose.LOGIN, '424242')).rejects.toBeInstanceOf(
-        OtpInvalidError,
+        OtpExpiredError,
       );
     });
   });
@@ -256,12 +258,14 @@ describe('OtpService', () => {
     expect(results.every((r) => r.status === 'rejected')).toBe(true);
   });
 
+  // E6: expiry used to answer with OtpInvalidError, so "wrong code" and "too late"
+  // arrived under one code and the screen could not tell the customer which.
   it('rejects an expired code', async () => {
     const customer = activeCustomer();
     await service.issue(customer, OtpPurpose.LOGIN);
     clock.advance(301);
     await expect(service.verify(customer, OtpPurpose.LOGIN, '123456')).rejects.toBeInstanceOf(
-      OtpInvalidError,
+      OtpExpiredError,
     );
   });
 
@@ -291,6 +295,68 @@ describe('OtpService', () => {
         OtpDeliveryUnavailableError,
       );
       expect(otpRepo.rows).toHaveLength(1);
+    });
+  });
+});
+
+/**
+ * Fase E — what the client could not know.
+ *
+ * E4 the resend cooldown was a number the client held a second copy of, and the two
+ *    copies disagreed (30 against 60), so the first honest resend was always refused.
+ *    A challenge now states the rule it was issued under.
+ * E6 "invalid" and "expired" shared one code, so the screen could not tell a customer
+ *    which of the two happened without reading English prose.
+ */
+describe('OtpService · Fase E', () => {
+  let otpRepo: InMemoryOtpTokenRepository;
+  let delivery: FakeOtpDelivery;
+  let crypto: FakeCrypto;
+  let clock: FakeClock;
+  let service: OtpService;
+
+  beforeEach(() => {
+    delivery = new FakeOtpDelivery();
+    crypto = new FakeCrypto();
+    clock = new FakeClock();
+    otpRepo = new InMemoryOtpTokenRepository(() => clock.now());
+    service = new OtpService(otpRepo, delivery, crypto, clock, buildTestConfig());
+  });
+
+  it('E4 · states the cooldown it will enforce on the challenge it issues', async () => {
+    const result = await service.issue(activeCustomer(), OtpPurpose.LOGIN);
+    expect(result.resendCooldownSeconds).toBe(buildTestConfig().otpPolicy.resendCooldownSeconds);
+  });
+
+  it('E4 · the number it states is the number it actually refuses on', async () => {
+    const customer = activeCustomer();
+    const { resendCooldownSeconds } = await service.issue(customer, OtpPurpose.LOGIN);
+
+    clock.advance(resendCooldownSeconds - 1);
+    await expect(service.issue(customer, OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+      OtpResendCooldownError,
+    );
+
+    clock.advance(1);
+    await expect(service.issue(customer, OtpPurpose.LOGIN)).resolves.toBeDefined();
+  });
+
+  it('E6 · an expired code is a different code from a wrong one', async () => {
+    const customer = activeCustomer();
+    await service.issue(customer, OtpPurpose.LOGIN);
+    clock.advance(buildTestConfig().otpPolicy.ttlSeconds + 1);
+
+    await expect(
+      service.verify(customer, OtpPurpose.LOGIN, delivery.lastCode ?? '000000'),
+    ).rejects.toMatchObject({ code: 'AUTH_OTP_EXPIRED' });
+  });
+
+  it('E6 · a wrong code is still AUTH_OTP_INVALID', async () => {
+    const customer = activeCustomer();
+    await service.issue(customer, OtpPurpose.LOGIN);
+
+    await expect(service.verify(customer, OtpPurpose.LOGIN, '999999')).rejects.toMatchObject({
+      code: 'AUTH_OTP_INVALID',
     });
   });
 });

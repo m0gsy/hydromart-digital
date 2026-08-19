@@ -54,4 +54,11 @@ export interface OtpChallengeResult {
   /** Masked phone the code was sent to, e.g. "+62812****789". */
   phoneMasked: string;
   expiresInSeconds: number;
+  /**
+   * E4: how long this service will refuse another code for this challenge. Stated rather
+   * than assumed, because the client used to hold its own copy of the number and the two
+   * disagreed — the screen counted 30 seconds, the server enforced 60, and the first
+   * honest "resend" was answered with a 429 nobody had done anything to earn.
+   */
+  resendCooldownSeconds: number;
 }

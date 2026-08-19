@@ -14,8 +14,11 @@ import type { OtpChallenge } from '@/lib/types';
 function RegisterForm() {
   const { t } = useT();
   const router = useRouter();
-  const next = useSearchParams().get('next') ?? '/products';
-  const [form, setForm] = useState({ phone: '', fullName: '', email: '' });
+  const params = useSearchParams();
+  const next = params.get('next') ?? '/products';
+  // E8: /login hands the number over when it has no account, so the visitor does not
+  // retype what they just typed.
+  const [form, setForm] = useState({ phone: params.get('phone') ?? '', fullName: '', email: '' });
   // The register endpoint takes phone/name/email only; referral redemption is a
   // separate authenticated call, so the code rides the OTP flow and is redeemed
   // on /verify once the new account is signed in.
@@ -40,7 +43,7 @@ function RegisterForm() {
     setLoading(true);
     setError(null);
     try {
-      await api.post<OtpChallenge>(endpoints.auth.register, {
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.register, {
         phone: form.phone,
         fullName: form.fullName || undefined,
         email: form.email || undefined,
@@ -48,10 +51,18 @@ function RegisterForm() {
         // false would record a refusal the customer never actually expressed.
         marketingConsent: marketing || undefined,
       });
-      const params = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
-      if (referral.trim()) params.set('ref', referral.trim());
-      router.push(`/verify?${params.toString()}`);
+      const onward = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
+      if (referral.trim()) onward.set('ref', referral.trim());
+      // E4: the server's cooldown, carried so /verify counts the same seconds it does.
+      if (challenge.resendCooldownSeconds) onward.set('cd', String(challenge.resendCooldownSeconds));
+      router.push(`/verify?${onward.toString()}`);
     } catch (err) {
+      // E8: the other half of one door — a number that already has an account belongs on
+      // the sign-in screen, with the number already filled in.
+      if (err instanceof ApiError && err.code === 'AUTH_PHONE_TAKEN') {
+        router.push(`/login?${new URLSearchParams({ phone: form.phone, next }).toString()}`);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : t('auth.register.error'));
       setLoading(false);
     }

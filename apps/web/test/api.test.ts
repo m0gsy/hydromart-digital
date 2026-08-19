@@ -92,3 +92,72 @@ describe('messages the client writes itself', () => {
     });
   });
 });
+
+// E6: the server answers in English with a machine code beside it. Every screen that
+// shows `err.message` was showing that English. The mapping lives here, once, so a
+// screen does not have to know a code exists.
+describe('E6 · named server errors are answered in Indonesian', () => {
+  const cases: Array<[string, number, string, string]> = [
+    ['AUTH_CUSTOMER_NOT_FOUND', 404, 'No account is registered with this phone number.', 'Nomor ini belum terdaftar.'],
+    ['AUTH_INVALID_PHONE', 422, '"abc" is not a valid Indonesian mobile number.', 'Nomor HP Indonesia tidak valid. Contoh: 081234567890.'],
+    ['AUTH_PHONE_TAKEN', 409, 'This phone number is already registered.', 'Nomor ini sudah terdaftar. Silakan masuk.'],
+    ['AUTH_EMAIL_TAKEN', 409, 'This email address is already registered.', 'Email ini sudah dipakai akun lain.'],
+    ['AUTH_OTP_INVALID', 401, 'The verification code is invalid or has expired.', 'Kode verifikasi salah.'],
+    ['AUTH_OTP_EXPIRED', 401, 'The verification code has expired.', 'Kode verifikasi sudah kedaluwarsa. Minta kode baru.'],
+    ['AUTH_OTP_MAX_ATTEMPTS', 429, 'Too many incorrect attempts. Please request a new code.', 'Terlalu banyak percobaan. Minta kode baru.'],
+    ['AUTH_ACCOUNT_NOT_ACTIVE', 403, 'This account is not active.', 'Akun ini tidak aktif. Hubungi dukungan Hydromart.'],
+  ];
+
+  it.each(cases)('%s is translated', async (code, status, english, indonesian) => {
+    vi.stubGlobal('fetch', mockFetch(status, { statusCode: status, code, message: english }));
+    await expect(api.get('/x')).rejects.toMatchObject({ status, code, message: indonesian });
+  });
+
+  it('keeps the code on the error so a screen can branch on it', async () => {
+    vi.stubGlobal('fetch', mockFetch(429, { statusCode: 429, code: 'AUTH_OTP_COOLDOWN', message: 'Please wait 60s.' }));
+    await expect(api.get('/x')).rejects.toHaveProperty('code', 'AUTH_OTP_COOLDOWN');
+  });
+
+  it('leaves an unmapped code showing whatever the server said', async () => {
+    vi.stubGlobal('fetch', mockFetch(422, { statusCode: 422, code: 'ORDER_SOMETHING_ELSE', message: 'Pesanan ditolak.' }));
+    await expect(api.get('/x')).rejects.toMatchObject({ message: 'Pesanan ditolak.' });
+  });
+});
+
+// E3: `useQueryParam('id')` answers '' when the parameter is missing, and every detail
+// screen in the app feeds that straight into an endpoint builder. The result is a URL
+// with a hole in it — `/orders/api/v1/orders/` — which the server answers with a 404
+// that reads as "this order does not exist" rather than "no order was named". Twenty-one
+// screens build ids this way; the refusal belongs here, where all of them pass.
+describe('E3 · a request with a missing path segment never leaves the client', () => {
+  it('refuses a trailing empty segment', async () => {
+    const fetchMock = mockFetch(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.get('/orders/api/v1/orders/')).rejects.toMatchObject({
+      status: 0,
+      message: 'Halaman ini dibuka tanpa data yang diperlukan. Kembali lalu pilih ulang.',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty segment in the middle', async () => {
+    const fetchMock = mockFetch(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.get('/hr/api/v1/employees//history')).rejects.toHaveProperty('status', 0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty segment sitting in front of a query string', async () => {
+    const fetchMock = mockFetch(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.get('/orders/api/v1/orders/?placed=1')).rejects.toHaveProperty('status', 0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves an empty QUERY value alone — that is a filter, not a hole', async () => {
+    const fetchMock = mockFetch(200, { items: [] });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.get('/auth/api/v1/staff?depotId=')).resolves.toEqual({ items: [] });
+    expect(fetchMock).toHaveBeenCalled();
+  });
+});

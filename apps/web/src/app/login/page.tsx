@@ -71,7 +71,10 @@ function LoginForm() {
   // tell "no destination asked for" from "the shop was asked for" once it has been filled
   // in, and only the first of those should fall through to `consoleHome()`.
   const next = useSearchParams().get('next');
-  const [phone, setPhone] = useState('');
+  // E8: /register hands the number over when it turns out to already have an account,
+  // so the visitor does not retype what they just typed.
+  const handedOver = useSearchParams().get('phone') ?? '';
+  const [phone, setPhone] = useState(handedOver);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,11 +83,26 @@ function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      await api.post<OtpChallenge>(endpoints.auth.login, { phone });
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone });
       const params = new URLSearchParams({ phone, purpose: 'LOGIN' });
       if (next) params.set('next', next);
+      // E4: carry the server's own cooldown forward so /verify counts the same seconds
+      // the server is enforcing, instead of its own guess.
+      if (challenge.resendCooldownSeconds) params.set('cd', String(challenge.resendCooldownSeconds));
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
+      // E8: one door. An unknown number used to stop here on a 404 — which since E6 at
+      // least reads "Nomor ini belum terdaftar", but still leaves the visitor to find
+      // the register link themselves and type the number a second time. Walk them over
+      // with it. (This does not widen anything: the 404 already tells anyone asking
+      // whether a number has an account. Closing that oracle is an auth-service change,
+      // recorded and deliberately not made here.)
+      if (err instanceof ApiError && err.code === 'AUTH_CUSTOMER_NOT_FOUND') {
+        const onward = new URLSearchParams({ phone });
+        if (next) onward.set('next', next);
+        router.push(`/register?${onward.toString()}`);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : t('auth.login.error'));
       setLoading(false);
     }
