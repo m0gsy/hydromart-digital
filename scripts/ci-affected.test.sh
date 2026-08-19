@@ -43,6 +43,21 @@ check "the integration harness"    true  "test/integration/run.mjs"
 check "a script"                   true  "scripts/seed.mjs"
 check "the workflow itself"        true  ".github/workflows/ci.yml"
 
+# M23. Mounted into the stack rather than built into an image — and a skipped job reads
+# as a success, so these used to ship with no integration run and nothing went red.
+check "the DB bootstrap SQL"       true  "infra/postgres/init-databases.sql"
+check "an ops config the stack mounts" true "ops/prometheus.yml"
+check "the edge config"            true  "Caddyfile"
+
+# The other side of M23, deliberately still false: neither is an input to any image, and
+# answering true would boot the whole stack for a change that cannot reach it — the exact
+# waste this gate was built to remove.
+#   mobile/*      the Capacitor Android shell; no Dockerfile references it
+#   .env.example  read by check-env-contract.mjs (which runs in `verify`, always) and by
+#                 deploy.sh; every Dockerfile COPYs explicit paths, never the repo root
+check "the Android shell"          false "mobile/android/app/build.gradle"
+check "the env contract"           false ".env.example"
+
 # The dangerous shape: a mixed diff must follow the ONE file that matters, not the many
 # that do not.
 check "docs plus one service file" true  "$(printf 'README.md\ndocs/x.md\nservices/hr-service/src/app.module.ts\n')"
