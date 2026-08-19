@@ -311,7 +311,13 @@ describe('Order HTTP flows (e2e)', () => {
       expect.objectContaining({ productId, sku: 'AIR-19L', unit: 'Galon 19L' }),
     ]);
     expect('nextCursor' in page.body).toBe(true);
-  });
+  // Twelve sequential round-trips through a whole Nest app — a cart write, a checkout, a
+  // seven-step status walk, then three feed reads. Jest's default 5s is the budget for a
+  // unit test, and this one exceeded it on a loaded runner: `thrown: "Exceeded timeout of
+  // 5000 ms"`, on a PR whose diff was two CI shell scripts. A gate that goes red at random
+  // is the same defect M23 closes from the other side — a check that does not mean what it
+  // says. The number is the work, not a nudge: nothing here waits on a clock.
+  }, 30_000);
 
   it('batch-reads existing order values with internal auth and validates 1-500 unique UUIDs', async () => {
     await request(server())
