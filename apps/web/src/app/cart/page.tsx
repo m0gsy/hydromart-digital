@@ -25,6 +25,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
 import { useLocation } from '@/lib/location-context';
+import { memberDiscount } from '@/lib/pricing';
 import { useAsync } from '@/lib/use-async';
 import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types';
 
@@ -70,7 +71,9 @@ function CartInner() {
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
   const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
   const rate = account?.discountRate ?? 0;
-  const discount = Math.floor(subtotal * rate);
+  // A7: floored here and rounded everywhere else, so this screen quoted Rp1 less than
+  // the bill on ordinary baskets. One formula now, shared with checkout and the server.
+  const discount = memberDiscount(subtotal, rate);
   const total = subtotal - discount;
 
   async function setQuantity(productId: string, quantity: number) {

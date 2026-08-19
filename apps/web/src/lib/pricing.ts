@@ -20,12 +20,38 @@ export function galonQuantity(items: CartLine[]): number {
 }
 
 /**
+ * A7 — the ONE rounding rule this app is allowed to use for money.
+ *
+ * Mirrors `money()` in packages/platform/src/domain/money.ts, which is what the server
+ * bills through. Pinned to it by "rounds a price exactly like platform money()" in
+ * test/pricing.test.ts, which imports the real function rather than restating the rule.
+ *
+ * It exists because there were three rules for one number: the cart page floored the
+ * member discount, the checkout page rounded it, and the server rounded it. Measured on
+ * ordinary baskets — Rp20.999 at 5% reads Rp1.049 on the cart page and Rp1.050 everywhere
+ * else; Rp33.333 at 3% reads Rp999 against Rp1.000. One rupiah, on the one screen whose
+ * whole job is to agree with the bill.
+ */
+export function money(value: number): number {
+  return Math.round(value);
+}
+
+/**
+ * What the membership tier takes off a subtotal. Both the cart page and the checkout
+ * summary quote this, so they cannot answer differently — which they did, by flooring in
+ * one place and rounding in the other.
+ */
+export function memberDiscount(subtotal: number, rate: number): number {
+  return money(subtotal * rate);
+}
+
+/**
  * Ongkir for a cart at one depot: per-galon fee × galons, in whole rupiah. Whole because the
  * voucher quote sends it to promo-service, whose DTO takes an `@IsInt()` — a fractional fee
  * would come back 400 and read on screen as "voucher ditolak".
  */
 export function shippingFeeFor(perGalonFee: number, items: CartLine[]): number {
-  return Math.round(perGalonFee * galonQuantity(items));
+  return money(perGalonFee * galonQuantity(items));
 }
 
 export interface RuleForm {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  memberDiscount,
   EMPTY_RULE_FORM,
   computeEffective,
   galonQuantity,
@@ -163,6 +164,25 @@ describe('rounding parity with the server', () => {
     // What checkout/page.tsx computes for the preview, against what order.service.ts stores.
     const subtotal = 99_999;
     const rate = 0.05;
-    expect(Math.round(subtotal * rate)).toBe(money(subtotal * rate));
+    expect(memberDiscount(subtotal, rate)).toBe(money(subtotal * rate));
+  });
+
+  /*
+   * A7 — one rule, not three. The cart page floored the member discount, the checkout page
+   * rounded it, and the server rounded it, so the first screen a shopper opens quoted a
+   * different saving from the one they were charged. These are the measured cases: they
+   * pass trivially now BECAUSE both screens call the same function, and they go red the
+   * moment either one grows its own arithmetic again.
+   */
+  it.each([
+    [20_999, 0.05],
+    [33_333, 0.03],
+    [10_101, 0.05],
+  ])('quotes the same member discount as the server for %i at %f', (subtotal, rate) => {
+    expect(memberDiscount(subtotal, rate)).toBe(money(subtotal * rate));
+    // And explicitly NOT the floor, which is what the cart page used to answer.
+    if (Math.floor(subtotal * rate) !== Math.round(subtotal * rate)) {
+      expect(memberDiscount(subtotal, rate)).not.toBe(Math.floor(subtotal * rate));
+    }
   });
 });
