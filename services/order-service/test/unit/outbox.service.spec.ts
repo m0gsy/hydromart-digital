@@ -70,6 +70,6 @@ describe('OutboxService edges', () => {
     await service.processDue(new Date());
 
     expect(repo.rows[0].lastError).toBe('loyalty-service unreachable');
-    await expect(service.pending()).resolves.toEqual({ PENDING: 1, DONE: 0, DEAD: 0 });
+    await expect(service.pending()).resolves.toEqual({ PENDING: 1, DONE: 0, DEAD: 0, CANCELLED: 0 });
   });
 });

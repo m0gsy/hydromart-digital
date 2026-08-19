@@ -72,6 +72,6 @@ describe('OutboxPrismaRepository', () => {
 
   it('counts every status, including the ones with no rows', async () => {
     model.groupBy.mockResolvedValue([{ status: 'PENDING', _count: { _all: 3 } }]);
-    await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0 });
+    await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0, CANCELLED: 0 });
   });
 });
