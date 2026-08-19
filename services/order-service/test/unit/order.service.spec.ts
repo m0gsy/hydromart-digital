@@ -1081,9 +1081,26 @@ describe('OrderService', () => {
     expect(order.discount).toBe(0);
   });
 
+  /*
+   * A9 at checkout. Same rule as the counter, same reason: an agen enrolled at depot A used
+   * to draw their agen price ordering from depot B, franchises included.
+   */
+  it('refuses reseller pricing when the agen belongs to a different depot', async () => {
+    await addToCart(20000, 1);
+    resellerDiscount.result = {
+      active: true,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'depot-somewhere-else',
+    };
+    membership.rate = 0;
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(0);
+  });
+
   it('applies reseller percent discount and skips membership + voucher', async () => {
     await addToCart(20000, 1); // subtotal 20000
-    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
     membership.rate = 0.05; // must be ignored
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(2000); // 10% of 20000, membership 5% ignored
@@ -1132,7 +1149,7 @@ describe('OrderService', () => {
       depots.depots = [nearDepot];
       const productId = await addToCart(22000, 10);
       pricing.setTier('depot-near', productId, 10, 5500);
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
       const order = await service.checkout(customer, { deliveryAddress: routed }, 'Bearer tok');
       expect(order.subtotal).toBe(55000);
       expect(order.discount).toBe(0);
@@ -1143,7 +1160,7 @@ describe('OrderService', () => {
   describe('flat reseller galon price', () => {
     it('discounts each galon line down to the flat price', async () => {
       await addToCart(8000, 3); // 3 × Rp8.000 = 24.000 listed
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       membership.rate = 0.05; // must be ignored — reseller pricing replaces it
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.subtotal).toBe(24000);
@@ -1154,7 +1171,7 @@ describe('OrderService', () => {
     // the membership+voucher path and is never charged the agen price at all.
     it('is a reseller even with no discount percent at all', async () => {
       await addToCart(8000, 1);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       membership.rate = 0.05;
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(3000); // flat price, not 5% membership (400)
@@ -1163,14 +1180,14 @@ describe('OrderService', () => {
 
     it('wins over the percentage when both are set', async () => {
       await addToCart(8000, 1);
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(3000); // not 800
     });
 
     it('never marks a line up that already sits below the flat price', async () => {
       await addToCart(4000, 2);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(0);
     });
@@ -1178,7 +1195,7 @@ describe('OrderService', () => {
     it('leaves non-galon lines at list price', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: false });
       await cartService.setItem(customer, p.id, 2, false);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(0);
     });
@@ -1196,7 +1213,7 @@ describe('OrderService', () => {
       ];
       const productId = await addToCart(8000, 10);
       pricing.setTier('depot-near', productId, 10, 5500);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000 };
+      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
       const order = await service.checkout(
         customer,
         { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
@@ -1209,7 +1226,7 @@ describe('OrderService', () => {
 
   it('rejects a voucher for an active reseller', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0 };
+    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
     await expect(
       service.checkout(
         customer,
@@ -1229,7 +1246,7 @@ describe('OrderService', () => {
 
   it('ignores a deactivated reseller and falls back to normal pricing', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: false, discountPct: 10, flatGallonPriceIdr: 0 };
+    resellerDiscount.result = { active: false, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
     membership.rate = 0.05;
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(1000); // reseller gated off; membership applies instead

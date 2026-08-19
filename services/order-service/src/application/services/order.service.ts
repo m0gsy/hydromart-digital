@@ -351,8 +351,7 @@ export class OrderService {
     // (null → normal pricing). The flat price must be in this test too: without it a
     // reseller with no percentage would fall through to the membership+voucher path and
     // never be charged the agen price at all.
-    const isReseller =
-      reseller?.active === true && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0);
+    const isReseller = this.resellerPriceable(reseller, depot?.id ?? null);
 
     // voucherCode is null for resellers so the later redeem block is skipped too.
     const voucherCode = isReseller ? null : input.voucherCode?.trim().toUpperCase() || null;
@@ -744,7 +743,6 @@ export class OrderService {
       items,
       tieredProductIds,
       tierPricedTotal,
-      authorization,
     );
 
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
@@ -907,6 +905,28 @@ export class OrderService {
    * reads. Wholesale-band lines are excluded either way: they are already at the depot's bulk
    * price and must not be discounted twice.
    */
+  /**
+   * A9: may this agen be priced at the depot doing the selling?
+   *
+   * The old rule was `active && (pct > 0 || flat > 0)`, written out twice here and a third
+   * time in the checkout page, and none of the three asked which depot. An agen registered
+   * at depot A drew their agen price shopping at depot B — a franchise the depot never
+   * agreed to fund, discounting someone else's margin.
+   *
+   * `homeDepotId` null means "cannot prove which depot", which is not the same as "any
+   * depot": it declines rather than guesses. A sale with no depot at all (an order not yet
+   * routed) keeps the old behaviour, because there is no depot to be wrong about yet.
+   */
+  private resellerPriceable(
+    reseller: ResellerDiscount | null,
+    sellingDepotId: string | null,
+  ): boolean {
+    if (reseller?.active !== true) return false;
+    if (reseller.discountPct <= 0 && reseller.flatGallonPriceIdr <= 0) return false;
+    if (sellingDepotId === null) return true;
+    return reseller.homeDepotId === sellingDepotId;
+  }
+
   private resellerDiscountFor(
     reseller: ResellerDiscount,
     items: CreateOrderItemData[],
@@ -939,7 +959,6 @@ export class OrderService {
     items: CreateOrderItemData[],
     tieredProductIds: Set<string>,
     tierPricedTotal: number,
-    authorization: string,
   ): Promise<number> {
     if (customerId === ANONYMOUS_CUSTOMER_ID) {
       if (voucherCode) throw new AnonymousVoucherNotAllowedError();
@@ -947,12 +966,15 @@ export class OrderService {
     }
     // An agen is an agen at the till too. This branch used not to exist, so the same buyer
     // paid the flat SOP price online and the list price minus their membership tier in
-    // person — Rp190.000 against Rp50.000 for ten galon. Read by customer id, because the
-    // token here is the cashier's.
-    const reseller = await this.resellerDiscount.getFor(customerId, authorization);
-    if (reseller?.active === true && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0)) {
+    // person. It then existed and still never ran: the read went out on the CASHIER's
+    // bearer, and `resellerView` lists neither KEPALA_DEPOT nor STAFF_DEPOT, so it 403'd
+    // and the adapter reported "not a reseller" (A6). It reads the internal route now, and
+    // throws rather than quietly charging retail — a person is standing at the till and can
+    // be asked to retry.
+    const reseller = await this.resellerDiscount.getFor(customerId);
+    if (this.resellerPriceable(reseller, depotId)) {
       if (voucherCode) throw new ResellerVoucherNotAllowedError();
-      return this.resellerDiscountFor(reseller, items, subtotal, tieredProductIds, tierPricedTotal);
+      return this.resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
     }
     const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
     let voucherDiscount = 0;

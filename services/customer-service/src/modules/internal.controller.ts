@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Param,
   ParseUUIDPipe,
   Post,
   Query,
@@ -17,12 +18,14 @@ import { PdpRepository } from '../application/ports/pdp.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
+import { ResellerService } from '../application/services/reseller.service';
 import { CrmDashboardDto, CrmDepotDashboardDto } from './dto/depot-crm.dto';
 import { ClaimFavoriteDepotDto, PdpCustomerDto, ResolveByPhoneDto } from './dto/pdp.dto';
 import {
   ClaimFavoriteDepotResponseDto,
   CrmDashboardResponseDto,
   CustomerIdsByDepot2ResponseDto,
+  InternalResellerPricingResponseDto,
   ResolveByPhoneResponseDto,
 } from './dto/responses.generated.dto';
 
@@ -39,6 +42,7 @@ export class InternalController {
   constructor(
     private readonly crm: DepotCrmService,
     private readonly customers: CustomerImportService,
+    private readonly resellers: ResellerService,
     @Inject(CUSTOMER_TOKENS.PdpRepository) private readonly pdp: PdpRepository,
   ) {}
 
@@ -96,6 +100,38 @@ export class InternalController {
   @ApiOperation({ summary: 'Record a first-checkout depot as the favourite, if none is set' })
   async claimFavoriteDepot(@Body() dto: ClaimFavoriteDepotDto): Promise<{ claimed: boolean }> {
     return { claimed: await this.crm.claimFavoriteDepot(dto.customerId, dto.depotId) };
+  }
+
+  /**
+   * A6/A9: agen pricing for a NAMED buyer, read service-to-service.
+   *
+   * order-service used to ask `/resellers/:id` with the CASHIER's bearer. `resellerView`
+   * lists MANAGER and above but neither KEPALA_DEPOT nor STAFF_DEPOT — the only roles that
+   * ever staff a till — so that read answered 403, the adapter's catch-all turned it into
+   * "not a reseller", and the counter charged every agen retail. Measured: both roles 403,
+   * MANAGER 404. Internal key instead, so the answer no longer depends on who is standing
+   * at the counter.
+   *
+   * `homeDepotId` is part of the answer, not decoration: the caller decides whether this
+   * agen may be priced at the depot doing the selling (A9). Without it nothing could ask,
+   * and an agen registered at one depot drew their discount from someone else's franchise.
+   *
+   * 404 stays 404 — "not a reseller" is a real answer and must stay distinguishable from
+   * "the read failed", which is what the adapter now keys its fail-closed decision on.
+   */
+  @ApiOkResponse({ type: InternalResellerPricingResponseDto })
+  @Get('internal/reseller/:customerId')
+  @ApiOperation({ summary: 'Agen pricing + home depot for one buyer (internal service auth)' })
+  async resellerPricing(
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<{ active: boolean; discountPct: number; flatGallonPriceIdr: number; homeDepotId: string }> {
+    const r = await this.resellers.pricingFor(customerId);
+    return {
+      active: r.active,
+      discountPct: r.discountPct,
+      flatGallonPriceIdr: r.flatGallonPriceIdr,
+      homeDepotId: r.homeDepotId,
+    };
   }
 
   @ApiOkResponse({ type: CustomerIdsByDepot2ResponseDto })

@@ -57,6 +57,29 @@ export class ResellerService {
     return rows.map((r) => ({ ...r, customerName: names.get(r.customerId)?.fullName ?? null }));
   }
 
+  /**
+   * A6/A9: the same row, read service-to-service, WITHOUT the depot check.
+   *
+   * `get` below is the console read and rightly refuses a depot the caller has no business
+   * seeing. Pricing is not that question. order-service asks it on behalf of a cashier, and
+   * `resellerView` does not list KEPALA_DEPOT or STAFF_DEPOT — the only two roles that ever
+   * stand at a till — so forwarding the cashier's token answered 403, the adapter swallowed
+   * it as "not a reseller", and every agen buying at a counter was charged retail. Nothing
+   * went red: the whole path was one `logger.warn`.
+   *
+   * The depot question does not disappear, it MOVES: `homeDepotId` rides along and
+   * order-service refuses to price a reseller from another depot (A9). That is the right
+   * place for it — order-service is the one that knows which depot is selling.
+   *
+   * Deliberately NOT fixed by adding KEPALA_DEPOT to `resellerView`: that widens RBAC to
+   * solve a data-access problem and would also open the agen ROSTER to every depot.
+   */
+  async pricingFor(customerId: string): Promise<Reseller> {
+    const found = await this.resellers.findById(customerId);
+    if (!found) throw new ResellerNotFoundError();
+    return found;
+  }
+
   async get(user: AuthenticatedUser, customerId: string): Promise<Reseller> {
     const found = await this.resellers.findById(customerId);
     if (!found) throw new ResellerNotFoundError();

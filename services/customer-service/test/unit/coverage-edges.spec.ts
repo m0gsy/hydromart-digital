@@ -419,7 +419,7 @@ describe('DepotCrmService directory search and name fallbacks', () => {
 describe('InternalController.claimFavoriteDepot', () => {
   it('reports whether the depot was recorded', async () => {
     const crm = { claimFavoriteDepot: jest.fn().mockResolvedValue(true) };
-    const controller = new InternalController(crm as never, {} as never, {} as never);
+    const controller = new InternalController(crm as never, {} as never, {} as never, {} as never);
     await expect(
       controller.claimFavoriteDepot({ customerId: 'c1', depotId: 'd1' }),
     ).resolves.toEqual({ claimed: true });
