@@ -12,7 +12,13 @@ export type OutboxTopic =
   | 'REFERRAL_QUALIFY'
   | 'FRANCHISE_REVENUE';
 
-export type OutboxStatus = 'PENDING' | 'DONE' | 'DEAD';
+/**
+ * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a
+ * failure and must never be retried, which is why it is its own state rather than DEAD.
+ *
+ * The column is a plain `String` with a `PENDING` default, so this costs no migration.
+ */
+export type OutboxStatus = 'PENDING' | 'DONE' | 'DEAD' | 'CANCELLED';
 
 export interface OutboxMessageRecord {
   id: string;
@@ -48,6 +54,14 @@ export interface OutboxRepository {
    * forever pretending it is still coming.
    */
   markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void>;
+  /**
+   * C3: the order stopped owing these. Cancels every row still PENDING for it and answers
+   * how many, so the caller can say so rather than guess.
+   *
+   * Only PENDING rows: a DONE row already landed and is the void's problem to reverse (it
+   * does, explicitly), and a DEAD one nobody will retry anyway.
+   */
+  cancelForOrder(orderId: string, reason: string): Promise<number>;
   /** Everything still owed, for the ops view of a sweep that is not keeping up. */
   countByStatus(): Promise<Record<OutboxStatus, number>>;
 }

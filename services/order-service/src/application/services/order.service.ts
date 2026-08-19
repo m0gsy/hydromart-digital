@@ -796,6 +796,25 @@ export class OrderService {
 
     const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now);
 
+    /*
+     * C3: stop owing what the sale no longer owes, BEFORE anything is handed back.
+     *
+     * The completion effects are written into the outbox in the same transaction as the
+     * status that earns them (H-10). A void reverses them explicitly below — and used to
+     * leave those rows PENDING, so the sweep re-applied them minutes later: the stock this
+     * call is about to restock was consumed again, the points it is about to reverse were
+     * awarded again, and the owner was credited again for money going back over the
+     * counter. Cancelled first so the window cannot open at all.
+     *
+     * Fail-open like everything after the status write: the sale IS reversed by now, and a
+     * sweep that runs anyway is refused by the handler's own guard (see `deliver`).
+     */
+    await this.outboxService
+      .cancelForOrder(orderId, `Penjualan ${order.orderNumber} dibatalkan: ${reason}`)
+      .catch((err: Error) =>
+        this.logger.error(`Outbox ${orderId} tidak bisa dibatalkan: ${err.message}`),
+      );
+
     // From here on nothing may fail the call. The money is back and the order is reversed;
     // reporting "gagal membatalkan" now would be a lie the cashier acts on, so a hiccup in
     // any of these is logged and reconciled (opname for stock, the ledger for the rest).
@@ -986,7 +1005,33 @@ export class OrderService {
 
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
-    return this.search(input);
+    const page = await this.search(input);
+    return { ...page, items: page.items.map((o) => this.withStaffActions(o)) };
+  }
+
+  /**
+   * B1: whether staff may close this order by hand, decided here rather than on the screen.
+   *
+   * `DELIVERED -> COMPLETED` had no human trigger. The only path was delivery-service's
+   * fail-open loop, which breaks on the first failure and writes a log line — so an order
+   * whose DELIVERED landed and whose COMPLETED did not sat there forever: no stock consume,
+   * no points, no franchise revenue. Measured on the stack: the server has always accepted
+   * the staff transition (200); nothing offered it.
+   *
+   * The completion effects were already made durable and idempotent by H-10 — they are
+   * written into the outbox in the same transaction as the status — so this is the trigger
+   * and nothing else. Retrying it cannot double anything.
+   *
+   * Kill switch `staffCompleteDelivered` (per-depot, default on): off takes the button away
+   * and leaves delivery-service's own path exactly as it is.
+   */
+  private withStaffActions(order: OrderRecord): OrderRecord {
+    return {
+      ...order,
+      staffCanComplete:
+        order.status === OrderStatus.DELIVERED &&
+        this.config.staffCompleteDelivered(order.depotId),
+    };
   }
 
   /**

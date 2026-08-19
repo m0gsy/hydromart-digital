@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { OrderStatus } from '../../domain/order-status';
 import { OrderRepository } from '../ports/order.repository';
 import {
   OutboxMessageRecord,
@@ -66,6 +67,18 @@ export class OutboxService {
    * The happy path stays as immediate as it was before the outbox existed; the difference
    * is that a failure here leaves a PENDING row for the sweep instead of a log line.
    */
+  /**
+   * C3: the order stopped owing what it owed. Answers how many rows were still due, so the
+   * caller can log a number rather than a hope.
+   */
+  async cancelForOrder(orderId: string, reason: string): Promise<number> {
+    const cancelled = await this.outbox.cancelForOrder(orderId, reason);
+    if (cancelled > 0) {
+      this.logger.log(`Outbox: ${cancelled} baris dibatalkan untuk order ${orderId} — ${reason}`);
+    }
+    return cancelled;
+  }
+
   async processForOrder(orderId: string, authorization: string): Promise<OutboxSweepResult> {
     const now = new Date();
     const due = (await this.outbox.claimDue(now, OutboxService.BATCH)).filter(
@@ -125,6 +138,21 @@ export class OutboxService {
     // than retrying it to death.
     const order = await this.orders.findById(message.orderId);
     if (!order) return;
+    /*
+     * C3: nor does an order that stopped being a sale.
+     *
+     * This block asked whether the order still EXISTS and never what state it was in, so a
+     * voided counter sale kept its PENDING rows and the sweep ran them minutes later: the
+     * stock the void had just handed back was consumed again, the points it had just
+     * reversed were awarded again, and the franchise owner was credited again for money
+     * returned over the counter. Measured in `void-cancels-outbox.spec.ts` before this
+     * line existed.
+     *
+     * The void also cancels the rows outright, which is the cheaper half. This is the
+     * other half: a row a sweep was already holding when the void landed cannot be called
+     * back, so the handler has to refuse it here.
+     */
+    if (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED) return;
     await handler(message.orderId, authorization);
   }
 

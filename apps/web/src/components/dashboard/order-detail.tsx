@@ -219,7 +219,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = nextStatus(order.status);
-  const canAdvance = staffCanAdvance(order.status) && next;
+  const canAdvance = staffCanAdvance(order.status, order.staffCanComplete) && next;
   const canAssign = order.status === 'PREPARING';
 
   async function advance() {

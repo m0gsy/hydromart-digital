@@ -114,6 +114,21 @@ export class OrderConfigService {
     return this.tunable('cartDepotPricing', this.num('ORDER_CART_DEPOT_PRICING'), depotId) === 1;
   }
   /**
+   * B1 kill switch: may depot staff close a DELIVERED order by hand?
+   *
+   * Off removes the action from the screen and changes nothing else — delivery-service's
+   * own advance keeps running, which is the behaviour this switch reverts to.
+   */
+  staffCompleteDelivered(depotId: string | null = null): boolean {
+    return (
+      this.tunable(
+        'staffCompleteDelivered',
+        this.num('ORDER_STAFF_COMPLETE_DELIVERED'),
+        depotId,
+      ) === 1
+    );
+  }
+  /**
    * Express delivery, as the fulfilling depot has it configured. `fee` is charged, not
    * previewed: it used to be a constant in the checkout screen that the customer saw and
    * the order never included.

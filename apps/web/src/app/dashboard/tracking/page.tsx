@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT, type TVars } from '@/lib/locale-context';
@@ -64,8 +64,44 @@ function Stepper({ status }: { status: DeliveryStatus }) {
   );
 }
 
-function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | null }) {
+function DeliveryCard({
+  d,
+  courierName,
+  onChanged,
+}: {
+  d: Delivery;
+  courierName: string | null;
+  onChanged: () => void;
+}) {
   const { t } = useT();
+  const [busy, setBusy] = useState<'release' | 'cancel' | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  /*
+   * B2. Until this existed, a courier who went dark took the order with them: every way
+   * out of an in-flight delivery was keyed to the courier holding it, and dispatch could
+   * not route around it because assignment refuses while a live delivery row exists. The
+   * order froze mid-flight and the stock reserved at checkout stayed held behind it.
+   *
+   * The reason is typed rather than picked from a list: this is the dispatcher explaining
+   * to whoever reads the delivery later why they took it, and a fixed list would have to
+   * guess what goes wrong in the field.
+   */
+  async function act(kind: 'release' | 'cancel') {
+    const reason = window.prompt(t(`opsFix.tracking.${kind}Prompt`))?.trim();
+    if (!reason) return;
+    setBusy(kind);
+    setActionError(null);
+    try {
+      const url = kind === 'release' ? endpoints.deliveries.release(d.id) : endpoints.deliveries.cancel(d.id);
+      await api.post(url, { reason }, true);
+      onChanged();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t('opsFix.tracking.actionFailed'));
+    } finally {
+      setBusy(null);
+    }
+  }
   const hasPos = d.lastLat != null && d.lastLng != null;
   const eta = d.estimatedArrivalAt ? new Date(d.estimatedArrivalAt) : null;
   const hasEta = eta !== null && !Number.isNaN(eta.getTime());
@@ -110,6 +146,31 @@ function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | n
         </span>
         <span className="text-xs text-muted">{relative(d.lastLocationAt, t)}</span>
       </div>
+
+      {/* B2: only while the delivery is still in flight — a finished one has nothing to take. */}
+      {(d.status === 'ASSIGNED' || d.status === 'PICKED_UP' || d.status === 'ON_DELIVERY') && (
+        <div className="flex flex-col gap-2 border-t border-app pt-3">
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={busy !== null}
+              onClick={() => act('release')}
+            >
+              {t('opsFix.tracking.release')}
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={busy !== null}
+              onClick={() => act('cancel')}
+            >
+              {t('opsFix.tracking.cancel')}
+            </Button>
+          </div>
+          {actionError && <p className="text-xs text-[color:var(--danger)]">{actionError}</p>}
+        </div>
+      )}
     </Card>
   );
 }
@@ -155,7 +216,12 @@ function TrackingBody() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {list.data.items.map((d) => (
-            <DeliveryCard key={d.id} d={d} courierName={nameById.get(d.driverId) ?? null} />
+            <DeliveryCard
+              key={d.id}
+              d={d}
+              courierName={nameById.get(d.driverId) ?? null}
+              onChanged={list.reload}
+            />
           ))}
         </div>
       )}
