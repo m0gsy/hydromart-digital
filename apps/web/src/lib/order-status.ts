@@ -52,11 +52,23 @@ export function nextStatus(status: OrderStatus): OrderStatus | null {
 }
 
 /**
- * Whether depot staff may advance this order manually. Only the depot prep steps
- * (accept → prepare) are staff-driven here; driver assignment and everything after
- * is owned by delivery-service, so the queue stops offering advance at PREPARING.
+ * Whether depot staff may advance this order manually.
+ *
+ * The depot prep steps (accept → prepare) are staff-driven here; driver assignment and
+ * everything up to the handover is owned by delivery-service, so the queue offers nothing
+ * in between.
+ *
+ * B1 adds the far end. `DELIVERED → COMPLETED` had no human trigger at all: the only path
+ * was delivery-service's fail-open loop, which breaks on the first failure and writes a log
+ * line, so an order whose DELIVERED landed and whose COMPLETED did not sat there forever —
+ * no stock consume, no points, no franchise revenue, and no button anywhere.
+ *
+ * That case is gated on the SERVER's answer (`order.staffCanComplete`), not on the status,
+ * because it depends on a per-depot setting an operator can change without a deploy. The
+ * screen reflects the rule; it does not keep a second copy of it.
  */
-export function staffCanAdvance(status: OrderStatus): boolean {
+export function staffCanAdvance(status: OrderStatus, staffCanComplete = false): boolean {
+  if (status === 'DELIVERED') return staffCanComplete;
   return status === 'CREATED' || status === 'CONFIRMED';
 }
 

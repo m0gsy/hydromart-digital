@@ -66,12 +66,25 @@ export class OutboxPrismaRepository implements OutboxRepository {
     });
   }
 
+  /**
+   * C3. Scoped to PENDING on purpose: a DONE row already landed, and the void reverses
+   * those effects explicitly (restock, points, owner ledger). Re-marking them would erase
+   * the record that they ever ran.
+   */
+  async cancelForOrder(orderId: string, reason: string): Promise<number> {
+    const { count } = await this.prisma.outboxMessage.updateMany({
+      where: { orderId, status: 'PENDING' },
+      data: { status: 'CANCELLED', lastError: reason.slice(0, 500) },
+    });
+    return count;
+  }
+
   async countByStatus(): Promise<Record<OutboxStatus, number>> {
     const grouped = await this.prisma.outboxMessage.groupBy({
       by: ['status'],
       _count: { _all: true },
     });
-    const counts: Record<OutboxStatus, number> = { PENDING: 0, DONE: 0, DEAD: 0 };
+    const counts: Record<OutboxStatus, number> = { PENDING: 0, DONE: 0, DEAD: 0, CANCELLED: 0 };
     for (const row of grouped) counts[row.status as OutboxStatus] = row._count._all;
     return counts;
   }

@@ -145,6 +145,17 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1,
     envDefault: 1,
   },
+  // B1's kill switch. Off takes the "Selesaikan" button off the depot queue and leaves
+  // delivery-service's own DELIVERED->COMPLETED path exactly as it is. Int 0/1 because
+  // `SettingType` has no boolean, same shape as `expressEnabled`.
+  {
+    key: 'staffCompleteDelivered',
+    label: 'Staf boleh menyelesaikan pesanan terkirim (1 = ya, 0 = tidak)',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 1,
+  },
   {
     key: 'stalledHours',
     label: 'Batas pesanan mandek di depot',

@@ -37,6 +37,17 @@ export interface DeliveryAddressSnapshot {
 }
 
 export interface OrderRecord extends DeliveryAddressSnapshot {
+  /**
+   * B1: may depot staff close this order by hand right now?
+   *
+   * Computed on read by the service, never stored — it depends on the depot's
+   * `staffCompleteDelivered` setting, which an operator can change without a deploy.
+   * Present only on the staff queue; absent everywhere else, which reads as "no".
+   *
+   * The screen shows the button iff this says so, rather than re-deriving the rule from
+   * the status. Three copies of one rule is what A9 was about.
+   */
+  staffCanComplete?: boolean;
   id: string;
   orderNumber: string;
   customerId: string;

@@ -967,12 +967,15 @@ export class FakeInventory implements InventoryPort {
     [];
   /** When set, reserve() throws it (simulates a stock shortfall reject). */
   reserveError: Error | null = null;
+  /** When set, consume() throws it — depot-service down while completion effects run. */
+  consumeError: Error | null = null;
   async consume(
     depotId: string,
     orderId: string,
     items: SoldLine[],
     authorization: string,
   ): Promise<void> {
+    if (this.consumeError) throw this.consumeError;
     this.calls.push({ depotId, orderId, items, authorization });
   }
   async reserve(
@@ -1203,6 +1206,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
+    ORDER_STAFF_COMPLETE_DELIVERED: '1',
     ORDER_CART_DEPOT_PRICING: '1',
     ORDER_EXPRESS_ENABLED: '1',
     ORDER_EXPRESS_FEE: '5000',
@@ -1272,8 +1276,16 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     row.lastError = error;
     if (nextAttemptAt) row.nextAttemptAt = nextAttemptAt;
   }
+  async cancelForOrder(orderId: string, reason: string): Promise<number> {
+    const owed = this.rows.filter((r) => r.orderId === orderId && r.status === 'PENDING');
+    for (const row of owed) {
+      row.status = 'CANCELLED';
+      row.lastError = reason;
+    }
+    return owed.length;
+  }
   async countByStatus(): Promise<Record<OutboxStatus, number>> {
-    const counts: Record<OutboxStatus, number> = { PENDING: 0, DONE: 0, DEAD: 0 };
+    const counts: Record<OutboxStatus, number> = { PENDING: 0, DONE: 0, DEAD: 0, CANCELLED: 0 };
     for (const r of this.rows) counts[r.status] += 1;
     return counts;
   }

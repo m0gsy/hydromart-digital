@@ -1,7 +1,7 @@
 // GENERATED (audit D-6) — mirrors of the shapes these routes already return.
 // Regenerate rather than hand-edit: the point is that the documented schema cannot
 // drift from the response. No field is added, removed or renamed here.
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Mirrors `SalesBucket` exactly — generated for audit D-6, no field added or removed. */
 export class SalesBucketResponseDto {
@@ -530,6 +530,11 @@ export class OrderStatusHistoryResponseDto {
 
 /** Mirrors `OrderRecord` exactly — generated for audit D-6, no field added or removed. */
 export class OrderResponseDto {
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Staff queue only: may staff close this DELIVERED order by hand (B1).',
+  })
+  staffCanComplete?: boolean;
   @ApiProperty({ type: String })
   recipientName!: string;
   @ApiProperty({ type: String })

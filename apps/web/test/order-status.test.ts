@@ -53,12 +53,31 @@ describe('order-status', () => {
     });
   });
 
-  describe('staffCanAdvance (only depot prep steps are staff-driven)', () => {
-    it('is true only for CREATED/CONFIRMED', () => {
+  describe('staffCanAdvance (depot prep steps, plus B1s way out of DELIVERED)', () => {
+    it('is true for CREATED/CONFIRMED and for nothing in between', () => {
       expect(staffCanAdvance('CREATED')).toBe(true);
       expect(staffCanAdvance('CONFIRMED')).toBe(true);
       expect(staffCanAdvance('PREPARING')).toBe(false);
       expect(staffCanAdvance('DRIVER_ASSIGNED')).toBe(false);
+    });
+
+    /*
+     * B1. An order whose DELIVERED landed and whose COMPLETED did not had no human trigger
+     * at all — delivery-service's loop breaks on the first failure and writes a log line.
+     * The server has always accepted the transition (measured: 200); nothing offered it.
+     */
+    it('offers DELIVERED only when the server says the depot allows it', () => {
+      expect(staffCanAdvance('DELIVERED', true)).toBe(true);
+      // The kill switch is off for this depot, so the server answers false.
+      expect(staffCanAdvance('DELIVERED', false)).toBe(false);
+      // Absent (any screen that does not read the staff queue) reads as no.
+      expect(staffCanAdvance('DELIVERED')).toBe(false);
+    });
+
+    it('never invents the answer for the statuses the server does not decide', () => {
+      // The server's flag is about DELIVERED alone; it must not leak into other statuses.
+      expect(staffCanAdvance('PREPARING', true)).toBe(false);
+      expect(staffCanAdvance('COMPLETED', true)).toBe(false);
     });
   });
 

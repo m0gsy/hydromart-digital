@@ -287,6 +287,12 @@ export interface Order extends DeliveryAddress {
   reviewed: boolean;
   /** Cash sale recorded at the depot counter — no courier, no delivery fee. */
   isWalkIn: boolean;
+  /**
+   * B1: staff queue only. Whether the server will let depot staff close this DELIVERED
+   * order by hand right now — it depends on a per-depot setting, so the server answers it
+   * and this screen reflects the answer instead of re-deriving one. Absent reads as no.
+   */
+  staffCanComplete?: boolean;
   driverName: string | null;
   /** Assigned courier's phone (null until DRIVER_ASSIGNED) — lets the customer call the driver. */
   driverPhone: string | null;
