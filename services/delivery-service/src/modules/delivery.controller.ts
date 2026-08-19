@@ -6,7 +6,7 @@ import { Can, AuthenticatedUser, CurrentUser, assertDepotAccess, depotScopeIds }
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
-import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
+import { AssignDeliveryDto, FailDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
 import { DeliveryResponseDto, PagedDeliveryResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Deliveries (staff)')
@@ -43,6 +43,42 @@ export class DeliveryController {
       },
       authorization,
     );
+  }
+
+  /*
+   * B2: the two ways a dispatcher takes a delivery back off a courier who cannot finish it.
+   *
+   * Everything the domain allows here — ASSIGNED / PICKED_UP / ON_DELIVERY to RESCHEDULED
+   * or FAILED — existed already, and every route to it was keyed to the courier holding
+   * the delivery. A dead phone froze the order and held its stock, and dispatch could not
+   * route around it: `assign` refuses while a live row exists.
+   *
+   * Release keeps the customer's order alive and hands it back to the queue; cancel ends
+   * it, which is what returns the checkout hold. Depot-scoped, like every other staff route
+   * on this controller.
+   */
+  @ApiOkResponse({ type: DeliveryResponseDto })
+  @Post(':id/release')
+  @ApiOperation({ summary: 'Staff: take a stuck delivery off its courier, back to dispatch' })
+  release(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: FailDeliveryDto,
+    @Headers('authorization') authorization: string,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.releaseByStaff(user, id, dto.reason, authorization);
+  }
+
+  @ApiOkResponse({ type: DeliveryResponseDto })
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Staff: end a stuck delivery and cancel its order' })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: FailDeliveryDto,
+    @Headers('authorization') authorization: string,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.cancelByStaff(user, id, dto.reason, authorization);
   }
 
   @ApiOkResponse({ type: PagedDeliveryResponseDto })

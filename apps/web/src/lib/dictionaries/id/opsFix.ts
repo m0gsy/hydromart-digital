@@ -208,6 +208,11 @@ export const opsFix = {
     sourceUnavailable: 'Nilai order tidak tersedia karena sumber order sedang tidak lengkap atau tidak dapat diakses.',
   },
   tracking: {
+    release: "Tarik ke antrean",
+    cancel: "Batalkan pengiriman",
+    releasePrompt: "Alasan menarik pengiriman ini dari kurir?",
+    cancelPrompt: "Alasan membatalkan pengiriman ini?",
+    actionFailed: "Gagal memproses. Coba lagi.",
     courierUnknown: 'Kurir belum tetap',
   },
   notif: {

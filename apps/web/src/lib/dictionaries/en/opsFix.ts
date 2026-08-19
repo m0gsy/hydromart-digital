@@ -208,6 +208,11 @@ export const opsFix = {
     sourceUnavailable: 'Order value is unavailable because the order source is incomplete or unreachable.',
   },
   tracking: {
+    release: "Return to queue",
+    cancel: "Cancel delivery",
+    releasePrompt: "Why are you taking this delivery off the courier?",
+    cancelPrompt: "Why are you cancelling this delivery?",
+    actionFailed: "Could not do that. Try again.",
     courierUnknown: 'Courier not assigned',
   },
   notif: {

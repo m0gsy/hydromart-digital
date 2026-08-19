@@ -20,6 +20,11 @@ deliveries: {
   },
   // Assign a courier to an order (dispatch); advances the order to DRIVER_ASSIGNED.
   assign: '/deliveries/api/v1/deliveries',
+// B2: the dispatcher's two ways to take a delivery back off a courier who cannot
+// finish it. Release hands the ORDER back to the queue for someone else; cancel ends
+// it, which is what returns the stock the checkout is still holding.
+release: (id: string) => `/deliveries/api/v1/deliveries/${id}/release`,
+cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
   // Driver-facing: a driver only ever sees and acts on their own deliveries.
   driver: {
     list: (status?: string) => {

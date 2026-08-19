@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+
 import {
   DeliveryAlreadyExistsError,
   DeliveryNotActiveError,
@@ -671,6 +673,80 @@ export class DeliveryService {
     const metersPerMinute = (this.config.urbanSpeedKmph(delivery.depotId) * 1000) / 60;
     const minutes = meters / metersPerMinute;
     return new Date(Date.now() + minutes * 60_000);
+  }
+
+  /**
+   * B2: staff take a delivery back off a courier who cannot finish it.
+   *
+   * Every escape hatch the domain already allows — ASSIGNED / PICKED_UP / ON_DELIVERY to
+   * FAILED or RESCHEDULED — was keyed to `ownedByDriver`, so ONLY the courier holding the
+   * delivery could take it. A courier whose phone dies takes the order with them: it
+   * freezes mid-flight, and the stock reserved at checkout stays held behind it. Dispatch
+   * could not route around it either, because `assign` refuses while a live delivery row
+   * exists and only the courier could move it to RESCHEDULED.
+   *
+   * Two actions, because the two situations are different money:
+   *
+   * - `releaseByStaff` frees the courier and hands the ORDER back to the dispatch queue.
+   *   The customer is still getting their water; somebody else takes it. Same move the
+   *   courier's own reschedule makes, and `assign` re-opens the RESCHEDULED row.
+   * - `cancelByStaff` ends it. The order is cancelled, which is what gives the checkout
+   *   hold back — a frozen order holds stock nobody can sell.
+   *
+   * Authorised by depot rather than by ownership: this is the depot's dispatcher acting on
+   * their own depot's work, which is exactly the thing the courier cannot do.
+   */
+  async releaseByStaff(
+    user: AuthenticatedUser,
+    id: string,
+    reason: string,
+    authorization = '',
+  ): Promise<DeliveryRecord> {
+    const delivery = await this.staffOwned(user, id);
+    this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
+    this.logger.warn(`Delivery ${id} released by staff ${user.sub}: ${reason}`);
+    const updated = await this.deliveries.applyStatus(
+      id,
+      delivery.status,
+      DeliveryStatus.RESCHEDULED,
+      { rescheduleNote: reason },
+      user.sub,
+      reason,
+    );
+    // Back to the dispatch queue. Leaving the order on the abandoned attempt's status
+    // (PICKED_UP, ON_DELIVERY) pins it there: the re-assignment cannot advance it and the
+    // order can never be delivered — the same trap the courier's reschedule fixed.
+    await this.advanceOrder(delivery.orderId, 'PREPARING', authorization);
+    return updated;
+  }
+
+  async cancelByStaff(
+    user: AuthenticatedUser,
+    id: string,
+    reason: string,
+    authorization = '',
+  ): Promise<DeliveryRecord> {
+    const delivery = await this.staffOwned(user, id);
+    this.assertTransition(delivery.status, DeliveryStatus.FAILED);
+    this.logger.warn(`Delivery ${id} cancelled by staff ${user.sub}: ${reason}`);
+    // Fail-open on order-service exactly like the courier's own failure report: the record
+    // that this delivery is over must not be lost because another service blinked.
+    await this.cancelOrderFor(delivery.orderId, authorization);
+    return this.deliveries.applyStatus(
+      id,
+      delivery.status,
+      DeliveryStatus.FAILED,
+      { failedAt: new Date(), failureReason: reason },
+      user.sub,
+      reason,
+    );
+  }
+
+  /** A delivery this staff member's depot owns. The staff counterpart of `ownedByDriver`. */
+  private async staffOwned(user: AuthenticatedUser, id: string): Promise<DeliveryRecord> {
+    const delivery = await this.getAny(id);
+    assertDepotAccess(user, delivery.depotId);
+    return delivery;
   }
 
   private async ownedByDriver(driverId: string, id: string): Promise<DeliveryRecord> {
