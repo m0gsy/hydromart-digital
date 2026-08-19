@@ -38,6 +38,14 @@ affects_images() {
       *.md|docs/*|.claude/*|LICENSE|.gitignore|.editorconfig) continue ;;
       docker-compose*.yml|Dockerfile|*/Dockerfile|.dockerignore) echo "true"; return ;;
       test/integration/*|scripts/*|.github/workflows/*) echo "true"; return ;;
+      # M23. These are not image SOURCE, they are what the stack MOUNTS, and a skipped
+      # job is reported by GitHub as a success — so a change here used to ship with no
+      # integration run at all and nothing anywhere went red.
+      #   infra/postgres/init-databases.sql -> docker-compose.yml:28, every DB in the stack
+      #   ops/*                             -> prometheus, alert-rules, alertmanager, grafana
+      #   Caddyfile                         -> the edge in front of all of it
+      # Same class as docker-compose*.yml above, which already answers true.
+      infra/*|ops/*|Caddyfile) echo "true"; return ;;
     esac
     if [ -n "$(svc_of "$file")" ]; then
       echo "true"
