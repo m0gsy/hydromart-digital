@@ -52,7 +52,21 @@ test('an authenticated customer can add a seeded product to the cart', async ({ 
   // Seeded products carry valid v4 ids, so add-to-cart passes @IsUUID() (the DATA-1
   // failure was stale non-v4 live rows, never the seed). Add the first card's product.
   const addButton = page.getByRole('button', { name: /tambah|keranjang|add/i }).first();
+
+  // Wait for the write itself, not for the click to return.
+  //
+  // The click fires an async POST and returns immediately; navigating on the next line
+  // raced it, and when the POST lost, `/cart` was legitimately empty and the assertion
+  // below failed with "element(s) not found" — a red run naming the cart page for a
+  // defect in this test. Awaiting the response also turns the write into an assertion:
+  // a 4xx/5xx now says so here rather than surfacing as a missing line item one
+  // navigation later.
+  const written = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /\/orders\/api\/v1\/cart\/items/.test(r.url()),
+    { timeout: 15_000 },
+  );
   await addButton.click();
+  expect((await written).ok()).toBe(true);
 
   await page.goto('/cart');
   // A real line item rendered — the authenticated cart write + read both worked.
