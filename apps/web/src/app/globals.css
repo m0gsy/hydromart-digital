@@ -186,48 +186,64 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Semantic utility shortcuts used across the app. */
-.surface {
-  background: var(--surface);
-}
-.surface-elevated {
-  background: var(--surface-elevated);
-}
-.surface-soft {
-  background: var(--surface-soft);
-}
-.text-muted {
-  color: var(--text-muted);
-}
-.border-app {
-  border-color: var(--border);
-}
-.shadow-card {
-  box-shadow: var(--shadow-card);
-}
-.shadow-lift {
-  box-shadow: var(--shadow-lift);
-}
-/* Deep-teal panel (footer, promo cards) — a fixed dark surface for white text.
-   Constant across themes: the brand-* ramp inverts under dark, so bg-brand-800
-   would flip to a pale teal and hide the white text. */
-.bg-deep-teal {
-  background: #0b4d57;
-}
-/* Deep-teal text, constant across themes — for dark text on an always-light
-   surface (e.g. the frosted bg-white/75 hero pills), where text-brand-800 would
-   flip pale under dark and vanish. */
-.text-deep-teal {
-  color: #0b4d57;
-}
-/* A horizontally scrolling row of chips (catalog categories, cart add-ons) reads as a row,
-   not as a scroll container — a desktop scrollbar under it is noise. Touch platforms
-   already overlay theirs, so this only changes the narrow-desktop case. */
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/*
+ * Semantic utility shortcuts used across the app.
+ *
+ * O11 — these MUST stay inside `@layer components`. Unlayered CSS beats every layered
+ * rule regardless of specificity, and Tailwind v4 puts all of its utilities in
+ * `@layer utilities`. While this block sat outside a layer, `.surface` won against any
+ * `bg-*` passed to <Card>, so `<Card className="bg-brand-600">` kept the light surface
+ * while the `text-on-brand` beside it still applied: white text on a white card. The
+ * trophy emoji on the courier's weekly-performance card stayed visible — emoji carry
+ * their own colour and ignore `color` — which is what made it look like a rendering
+ * quirk rather than a stylesheet-ordering bug.
+ *
+ * Inside `components`, a utility passed by the caller wins, which is what every call
+ * site already assumed.
+ */
+@layer components {
+  .surface {
+    background: var(--surface);
+  }
+  .surface-elevated {
+    background: var(--surface-elevated);
+  }
+  .surface-soft {
+    background: var(--surface-soft);
+  }
+  .text-muted {
+    color: var(--text-muted);
+  }
+  .border-app {
+    border-color: var(--border);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-lift {
+    box-shadow: var(--shadow-lift);
+  }
+  /* Deep-teal panel (footer, promo cards) — a fixed dark surface for white text.
+     Constant across themes: the brand-* ramp inverts under dark, so bg-brand-800
+     would flip to a pale teal and hide the white text. */
+  .bg-deep-teal {
+    background: #0b4d57;
+  }
+  /* Deep-teal text, constant across themes — for dark text on an always-light
+     surface (e.g. the frosted bg-white/75 hero pills), where text-brand-800 would
+     flip pale under dark and vanish. */
+  .text-deep-teal {
+    color: #0b4d57;
+  }
+  /* A horizontally scrolling row of chips (catalog categories, cart add-ons) reads as a row,
+     not as a scroll container — a desktop scrollbar under it is noise. Touch platforms
+     already overlay theirs, so this only changes the narrow-desktop case. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes fadeUp {
