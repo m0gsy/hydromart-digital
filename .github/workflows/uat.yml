@@ -113,25 +113,23 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
-        timeout-minutes: 8
+        # 18m di langkah, 5m per percobaan. Tiga percobaan di dalam satu plafon 8m ternyata
+        # saling memakan: percobaan pertama menghabiskan tujuh menit lalu gagal, dan yang
+        # kedua hanya kebagian satu. `--with-deps` menjalankan apt-get dari mirror Ubuntu,
+        # dan cache browser tidak menutupi itu — jadi bagian yang lambat tetap ada meski
+        # browsernya sudah tersimpan.
+        timeout-minutes: 18
         run: |
-          # Three short attempts beat one unbounded wait: a stalled CDN connection is almost
-          # always fixed by reconnecting, and if it is not, 8 minutes says so instead of 45.
           for attempt in 1 2 3; do
-            if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
+            # `timeout` per percobaan, supaya satu sambungan macet tidak memakan jatah
+            # percobaan berikutnya. Keluar 124 = ia yang kena batas, bukan yang lain.
+            if timeout 300 npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
             echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
             sleep 10
           done
           echo "playwright install failed three times" >&2
           exit 1
 
-      # `continue-on-error` keeps a browser problem from failing the whole UAT job, which is
-      # right — but `|| true` INSIDE the loop went further and made a crash look like a pass.
-      # Every role crashed at `waitForURL` for want of an OTP it could type, and the step
-      # reported success five times over.
-      #
-      # Now each role's status is kept and the step ends non-zero if any of them failed:
-      # visible in the checks list, still not fatal to the job.
       - name: Per-role browser pass
         continue-on-error: true
         run: |
@@ -147,7 +145,6 @@ jobs:
             exit 1
           fi
           echo "role browser pass OK for every role"
-
 
       - name: Summarise
         if: always()
