@@ -48,7 +48,7 @@ import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
-import { shippingFeeFor } from '@/lib/pricing';
+import { memberDiscount, shippingFeeFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -437,11 +437,11 @@ function CheckoutInner() {
   // agen price. Previewing a membership discount the server will not apply put a number on
   // screen that the bill then contradicted, which is the defect the express fee already
   // taught us once.
-  // `Math.round`, not `Math.floor`: order-service prices this through `money()`, which rounds
-  // to whole rupiah. Flooring here showed Rp4.999 for a discount the order stored as Rp5.000 —
+  // A7: through the app's one money rule, shared with the cart page and mirroring the
+  // server's `money()`. Flooring showed Rp4.999 for a discount the order stored as Rp5.000 —
   // a preview that contradicts the bill, which is the defect the express fee taught us once.
   // Pinned by "membership discount rounds exactly like the server" in test/pricing.test.ts.
-  const membershipDiscount = isReseller ? 0 : Math.round(cart.subtotal * membershipRate);
+  const membershipDiscount = isReseller ? 0 : memberDiscount(cart.subtotal, membershipRate);
   /*
    * A4. The agen discount, computed server-side off the same priced lines the order bills
    * — the flat SOP price applies per galon line and excludes wholesale-band lines, and

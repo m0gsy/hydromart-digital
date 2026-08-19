@@ -90,8 +90,23 @@ export class CreateProductDto {
   @IsBoolean()
   isGallon?: boolean;
 
-  @ApiProperty({ example: 20000, description: 'Base price in IDR.' })
+  /*
+   * A8: whole rupiah, enforced here rather than mopped up downstream.
+   *
+   * The column is `Decimal(12,2)` and this DTO only asked for positive, so `19999.5` was
+   * accepted and stored — measured, 201 with `basePrice: 19999.5` in the response. Nothing
+   * in the business can pay half a rupiah: no coin circulates, no receipt prints one, no
+   * cashier hands one back. It used to leave the cart with a fractional subtotal, which the
+   * voucher quote rejects (`@IsInt()` on `QuoteVoucherDto.subtotal`) as a 400 the screen
+   * renders as "voucher tidak valid" — a price defect wearing a promo error's clothes.
+   *
+   * A1 since made the cart round every line through `money()`, so that chain is closed
+   * downstream too. This is the source: a price nobody can pay should not be storable, and
+   * silently rounding one on read is not the same as refusing to accept it.
+   */
+  @ApiProperty({ example: 20000, description: 'Base price in IDR, whole rupiah.' })
   @Type(() => Number)
+  @IsInt()
   @IsPositive()
   basePrice!: number;
 
