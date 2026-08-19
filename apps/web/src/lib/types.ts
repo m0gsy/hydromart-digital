@@ -189,9 +189,29 @@ export interface CartLine {
   isGallon: boolean;
 }
 
+/**
+ * A4: what the agen is let off on THIS basket, decided by the server with the same
+ * function that bills it. The screen used to derive `isReseller` itself and then admit it
+ * could not compute the number ("dihitung saat pesan"), because the flat SOP price applies
+ * per galon line and excludes wholesale-band lines — neither of which the cart carried.
+ */
+export interface CartReseller {
+  /** False when the agen is registered at a different depot than the one selling (A9). */
+  applies: boolean;
+  discountPct: number;
+  flatGallonPriceIdr: number;
+  /** Rupiah off this basket; null when these are catalog prices, so no honest number exists. */
+  discount: number | null;
+}
+
 export interface Cart {
   items: CartLine[];
   subtotal: number;
+  /** The depot this cart was priced for, or null when none was sent. */
+  depotId: string | null;
+  /** `CATALOG` = these are catalog base prices, NOT the depot's own. Never assume DEPOT. */
+  pricingBasis: 'DEPOT' | 'CATALOG';
+  reseller: CartReseller | null;
 }
 
 export interface DeliveryAddress {

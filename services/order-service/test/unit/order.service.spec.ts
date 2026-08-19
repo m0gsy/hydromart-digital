@@ -47,6 +47,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  buildCartService,
   buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
@@ -121,7 +122,7 @@ describe('OrderService', () => {
     notification = new FakeNotification();
     promo = new FakePromo();
     inventory = new FakeInventory();
-    cartService = new CartService(cart, catalog);
+    cartService = buildCartService(cart, catalog, pricing, resellerDiscount, config);
     outbox = buildOutbox(orders);
     config = buildTestConfig();
     service = new OrderService(
@@ -2287,7 +2288,7 @@ describe('OrderService franchise revenue on completion', () => {
     depots.depots = [depot];
     if (withOwner) depots.owners.set(depot.id, 'owner-9');
     if (ownershipType) depots.ownershipTypes.set(depot.id, ownershipType);
-    const cartService = new CartService(cart, catalog);
+    const cartService = buildCartService(cart, catalog);
     const service = new OrderService(
       orders,
       cart,

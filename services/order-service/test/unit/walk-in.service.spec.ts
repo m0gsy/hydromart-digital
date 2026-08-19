@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
@@ -40,6 +39,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  buildCartService,
   buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
@@ -107,7 +107,7 @@ describe('OrderService.walkInSale', () => {
       notification,
       promo,
       inventory,
-      new CartService(cart, catalog),
+      buildCartService(cart, catalog),
       buildTestConfig(),
       recommendation,
       forecast,

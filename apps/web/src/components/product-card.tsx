@@ -10,6 +10,7 @@ import { MemberPrice, Money } from '@/components/ui';
 import { haptic } from '@/lib/platform';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { cartDepotId } from '@/lib/location-store';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -50,7 +51,7 @@ export function ProductCard({
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items, { productId: product.id, quantity: 1 }, true));
+      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: product.id, quantity: 1 }, true));
       setAdded(true);
     } catch {
       bump(-1); // roll the badge back on failure

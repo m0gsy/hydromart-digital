@@ -221,14 +221,25 @@ describe('ResellerSelfController', () => {
   const controller = new ResellerSelfController(svc as never);
   const selfUser = { sub: 'cust-1', role: Role.CUSTOMER, phone: null };
 
-  it('returns active + both pricing shapes for a reseller', async () => {
+  it('returns active + both pricing shapes + the home depot for a reseller', async () => {
     // Checkout needs the flat galon price here too — it is the SOP's agen price, and
     // without it order-service would fall back to membership pricing for a flat-price agen.
-    svc.findMy.mockResolvedValue({ active: true, discountPct: 12, flatGallonPriceIdr: 5000 });
+    //
+    // A9: and it needs `homeDepotId`, which this route did not send. order-service checks
+    // `homeDepotId === sellingDepotId` before it will price an agen, and absent reads as
+    // "cannot prove which depot" — which declines. Leaving it out withdrew the agen price
+    // from EVERY online order, the agen's own depot included, silently.
+    svc.findMy.mockResolvedValue({
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 5000,
+      homeDepotId: 'depot-home',
+    });
     expect(await controller.me(selfUser as never)).toEqual({
       active: true,
       discountPct: 12,
       flatGallonPriceIdr: 5000,
+      homeDepotId: 'depot-home',
     });
     expect(svc.findMy).toHaveBeenCalledWith('cust-1');
   });

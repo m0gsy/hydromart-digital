@@ -218,6 +218,8 @@ export class Me2ResponseDto {
   discountPct!: number;
   @ApiProperty({ type: Number })
   flatGallonPriceIdr!: number;
+  @ApiProperty({ type: String })
+  homeDepotId!: string;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

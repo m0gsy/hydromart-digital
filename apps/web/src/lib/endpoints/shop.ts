@@ -25,6 +25,11 @@ function productQuery(q: ProductQuery): string {
   return qs ? `?${qs}` : '';
 }
 
+/** `?depotId=` when there is one to send, and nothing at all when there is not. */
+function withDepot(path: string, depotId?: string | null): string {
+  return depotId ? `${path}?depotId=${encodeURIComponent(depotId)}` : path;
+}
+
 export const shop = {
 products: {
   browse: (q: ProductQuery) => `/products/api/v1/products${productQuery(q)}`,
@@ -51,10 +56,16 @@ products: {
   category: (id: string) => `/products/api/v1/categories/${id}`,
 },
 
+// A2: the cart is priced BY a depot, so every route that answers with a priced cart
+// takes one. Omitting it stays valid and answers with catalog base prices, flagged
+// `pricingBasis: 'CATALOG'`. The mutation routes take it too, because they answer with
+// the whole cart — a client that only sent it on GET would watch prices flip on every
+// quantity tap.
 cart: {
-  view: '/orders/api/v1/cart',
-  items: '/orders/api/v1/cart/items',
-  item: (productId: string) => `/orders/api/v1/cart/items/${productId}`,
+  view: (depotId?: string | null) => withDepot('/orders/api/v1/cart', depotId),
+  items: (depotId?: string | null) => withDepot('/orders/api/v1/cart/items', depotId),
+  item: (productId: string, depotId?: string | null) =>
+    withDepot(`/orders/api/v1/cart/items/${productId}`, depotId),
   clear: '/orders/api/v1/cart',
 },
 
@@ -239,7 +250,8 @@ resellers: {
   detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
   /** SOP §7 — multipart upload of the agen's registration photo; returns the updated row. */
   uploadPhoto: (customerId: string) => `/customers/api/v1/resellers/${customerId}/photo`,
-  // Caller's own reseller pricing status (customer-facing, checkout). 404 = not a reseller.
-  me: '/customers/api/v1/resellers/me',
+  // A4 removed the web's caller for `/resellers/me`: the checkout screen used it to
+  // re-derive the agen rule for itself, which is precisely the third copy A9 named. The
+  // route is alive and order-service still reads it — the browser no longer needs to.
 },
 } as const;

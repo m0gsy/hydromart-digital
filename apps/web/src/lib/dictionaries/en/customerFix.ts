@@ -14,6 +14,7 @@ export const customerFix = {
   },
   checkout: {
     agentPrice: "Agent price Rp{amount}/gallon",
+    catalogPricing: "Estimated prices — the depot's own prices apply when the order is placed",
     resellerDiscount: "Reseller price −{pct}%",
     defaultAddressLabel: "Address",
   },

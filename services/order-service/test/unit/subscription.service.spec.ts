@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
 import { ProductUnavailableError, SubscriptionNotFoundError } from '../../src/domain/errors';
@@ -26,6 +25,7 @@ import {
   InMemoryCartRepository,
   InMemoryOrderRepository,
   InMemorySubscriptionRepository,
+  buildCartService,
   buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
@@ -69,7 +69,7 @@ describe('SubscriptionService', () => {
     depots = new FakeDepotDirectory();
     depots.depots = [homeDepot];
     const cart = new InMemoryCartRepository();
-    const cartService = new CartService(cart, catalog);
+    const cartService = buildCartService(cart, catalog);
     orderService = new OrderService(
       orders,
       cart,

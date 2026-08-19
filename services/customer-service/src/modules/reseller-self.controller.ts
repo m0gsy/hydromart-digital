@@ -19,13 +19,27 @@ export class ResellerSelfController {
   @ApiOperation({ summary: 'My reseller pricing (active + discount percent or flat galon price)' })
   async me(
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<{ active: boolean; discountPct: number; flatGallonPriceIdr: number }> {
+  ): Promise<{
+    active: boolean;
+    discountPct: number;
+    flatGallonPriceIdr: number;
+    homeDepotId: string;
+  }> {
     const found = await this.resellers.findMy(user.sub);
     if (!found) throw new NotFoundException('Not a reseller');
     return {
       active: found.active,
       discountPct: found.discountPct,
       flatGallonPriceIdr: found.flatGallonPriceIdr,
+      /*
+       * A9. The counter route already answered with this; `/resellers/me` did not, and
+       * order-service reads `homeDepotId === sellingDepotId` before it will price an agen.
+       * Absent reads as "cannot prove which depot", which declines — so leaving it out
+       * here does not merely block the cross-depot case A9 exists to block: it withdraws
+       * the agen price from EVERY online order, at the agen's own depot included, with
+       * nothing anywhere going red. Measured on a freshly built image before this line.
+       */
+      homeDepotId: found.homeDepotId,
     };
   }
 }

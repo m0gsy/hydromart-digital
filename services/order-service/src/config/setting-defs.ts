@@ -133,6 +133,18 @@ export const SETTING_DEFS: SettingDef[] = [
     envDefault: '09.00-11.00,11.00-13.00,13.00-15.00,15.00-17.00,17.00-19.00',
     pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}(,\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2})*$',
   },
+  // A1's kill switch. `SettingType` has no boolean, so it is an int pinned to 0/1 like
+  // `expressEnabled`. 1 = the cart quotes the depot's own price (what checkout bills);
+  // 0 = the cart goes back to catalog base prices and says so via `pricingBasis`.
+  // Per-depot, because the blast radius of a bad depot price row is one depot.
+  {
+    key: 'cartDepotPricing',
+    label: 'Keranjang pakai harga depot (1 = ya, 0 = harga katalog)',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 1,
+  },
   {
     key: 'stalledHours',
     label: 'Batas pesanan mandek di depot',
