@@ -10,12 +10,12 @@ import { RemoteImage } from '@/components/remote-image';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { LiveNav } from '@/components/driver/live-nav';
 import { PodCapture } from '@/components/driver/pod-capture';
-import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
+import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE, codOutstanding } from '@/components/driver/status';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { Delivery, DeliveryStatus } from '@/lib/types';
+import type { Delivery, DeliveryStatus, Payment } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -34,7 +34,26 @@ function Detail() {
   const { t } = useT();
   const router = useRouter();
   const id = useQueryParam('id');
-  const d = useAsync<Delivery>(() => api.get(endpoints.deliveries.driver.get(id), true), [id]);
+  /*
+   * C1(c): the delivery, plus whether it still owes cash at the door.
+   *
+   * Two reads in one loader so the screen cannot show a Selesai button and a payment
+   * state that were true at two different moments.
+   *
+   * The COD read FAILS OPEN on purpose. This is a nudge, not a lock: the server never
+   * blocks proof of delivery either, deliberately (H-8 — a lost proof is unrecoverable,
+   * a lagging order is not). If payment-service cannot answer, a courier standing at the
+   * door with the goods already handed over must still be able to record it.
+   */
+  const d = useAsync<{ delivery: Delivery; codDue: boolean }>(async () => {
+    const delivery = await api.get<Delivery>(endpoints.deliveries.driver.get(id), true);
+    if (!delivery.codAmount) return { delivery, codDue: false };
+    const codDue = await api
+      .get<{ items: Payment[] }>(endpoints.payments.forOrderStaff(delivery.orderId), true)
+      .then((r) => codOutstanding(delivery.codAmount, r.items))
+      .catch(() => false);
+    return { delivery, codDue };
+  }, [id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -42,7 +61,7 @@ function Detail() {
   if (d.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
   if (d.error || !d.data) return <div className="p-5"><ErrorState message={d.error ?? t('hrFix.deliveryDetail.notFound')} onRetry={d.reload} /></div>;
 
-  const delivery = d.data;
+  const { delivery, codDue } = d.data;
   const reached = ORDER.indexOf(delivery.status);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -174,7 +193,17 @@ function Detail() {
           <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={() => router.replace(`/driver/deliveries/detail/success?id=${id}`)} />
         ) : (
           <div className="space-y-2">
-            {delivery.destinationLat != null && delivery.destinationLng != null ? (
+            {/*
+              * C1(c): while this delivery still owes cash, closing it is not the next step
+              * — taking the money is. Selesai used to be reachable with the payment still
+              * PENDING, and the end-of-shift deposit then expected nothing at all.
+              */}
+            {codDue ? (
+              <Button disabled className="flex w-full items-center justify-center gap-2">
+                <SealCheck size={19} weight="fill" />
+                {t('hrFix.deliveryDetail.arrived')}
+              </Button>
+            ) : delivery.destinationLat != null && delivery.destinationLng != null ? (
               <LiveNav
                 deliveryId={id}
                 destinationLat={delivery.destinationLat}
@@ -187,12 +216,32 @@ function Detail() {
                 {t('hrFix.deliveryDetail.arrived')}
               </Button>
             )}
-            <button
-              type="button"
-              onClick={() => router.push(`/driver/deliveries/detail/pay?id=${id}`)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold"
-            >
-              <Coins size={18} weight="fill" className="text-brand-700" />{t('hrFix.deliveryDetail.takeCash')}</button>
+            {/*
+              * Shown only when there IS cash to take — it used to render on every
+              * delivery, prepaid ones included — and promoted to the primary action for
+              * as long as the money is still outstanding.
+              */}
+            {delivery.codAmount ? (
+              codDue ? (
+                <>
+                  <Button
+                    className="flex w-full items-center justify-center gap-2"
+                    onClick={() => router.push(`/driver/deliveries/detail/pay?id=${id}`)}
+                  >
+                    <Coins size={18} weight="fill" />
+                    {t('hrFix.deliveryDetail.takeCashDue', { amount: IDR.format(delivery.codAmount) })}
+                  </Button>
+                  <p className="text-center text-[12px] font-semibold text-[color:var(--muted)]">
+                    {t('hrFix.deliveryDetail.codBlocksFinish')}
+                  </p>
+                </>
+              ) : (
+                <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold text-green-700">
+                  <Coins size={18} weight="fill" />
+                  {t('hrFix.deliveryDetail.cashTaken')}
+                </div>
+              )
+            ) : null}
             <button
               type="button"
               onClick={() => router.push(`/driver/deliveries/detail/returns?id=${id}`)}

@@ -1231,7 +1231,9 @@ export const hrFix = {
   },
   deliveryDetail: {
     podRetention: 'Bukti antar (foto, tanda tangan, GPS) disimpan selama 12 bulan sesuai UU PDP, lalu dihapus otomatis.',
-    takeCash: 'Terima pembayaran tunai (COD)',
+    takeCashDue: 'Terima uang {amount}',
+    codBlocksFinish: 'Terima uangnya dulu — Selesai aktif setelah pembayaran tercatat.',
+    cashTaken: 'Uang sudah diterima',
     startDelivery: "Mulai antar",
     arrived: "Sampai tujuan · ambil bukti",
     returnEmpties: "Retur galon kosong",
