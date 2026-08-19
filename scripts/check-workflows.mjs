@@ -65,6 +65,29 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   }
 
   /*
+   * Every step that reaches OUTSIDE this repo declares its own time limit.
+   *
+   * A job-level cap is not enough, and today proved it twice. When a job hits its cap
+   * GitHub records the run as `cancelled`, not failed: nothing turns red, and Deploy and
+   * Images simply skip. A Playwright download stalled for over two hours that way, and a
+   * GPG keyserver call for ten minutes more, with the whole release quietly not happening.
+   *
+   * A STEP cap fails the step instead, which fails the job, which is red and names itself.
+   */
+  const EXTERNAL = /curl |wget |apt-get |docker pull|npm ci|gpg |--recv-keys|keyserver/;
+  for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+    for (const step of job?.steps ?? []) {
+      if (typeof step?.run !== 'string' || !EXTERNAL.test(step.run)) continue;
+      if (!('timeout-minutes' in step)) {
+        problems.push(
+          `${path}: step \`${step.name ?? '(unnamed)'}\` in job \`${jobName}\` fetches from ` +
+            'outside the repo with no `timeout-minutes` — a stall there cancels the run instead of failing it',
+        );
+      }
+    }
+  }
+
+  /*
    * A `choice` input whose options do not match the branches the script implements. Read
    * from the shell `case` labels in the same file: the workflow that dispatches on a mode
    * writes `mode)` for each one it handles, so the two lists are checkable against each

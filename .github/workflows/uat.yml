@@ -53,6 +53,10 @@ jobs:
           cache: npm
 
       - name: Install
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: npm ci
 
       - name: Boot the stack
@@ -74,6 +78,10 @@ jobs:
       # a per-PR gate that slow gets disabled within the week. Report-only, same as the UAT
       # run above; what it produces is screenshots and a per-route verdict to read.
       - name: Build + serve the web app
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: |
           npm run build --workspace @hydromart/web
           nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &

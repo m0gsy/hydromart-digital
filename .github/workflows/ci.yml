@@ -138,6 +138,10 @@ jobs:
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: npm ci
 
       # Fails on any high/critical vuln in production deps that isn't in the
@@ -486,6 +490,10 @@ jobs:
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: npm ci
 
       # Pre-start infra and wait until Postgres accepts connections (initdb creates all 13
@@ -555,6 +563,10 @@ jobs:
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: npm ci
 
       - uses: docker/setup-buildx-action@v3
@@ -586,6 +598,10 @@ jobs:
           exit 1
 
       - name: Migrate + boot services
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 30
         run: |
           # pg_isready (via `docker compose exec`) checks Postgres over its in-container
           # unix socket, which can answer on the temporary init server before Postgres
@@ -637,6 +653,10 @@ jobs:
           node scripts/seed-demo-depot.mjs
 
       - name: Build + serve web
+        # Plafon di LANGKAH, bukan cuma di job: plafon job mengubah gantungan jadi run
+        # `cancelled` (tanpa warna merah, Deploy/Images ikut skipped diam-diam),
+        # sementara plafon langkah membuat langkahnya GAGAL dan menyebut namanya.
+        timeout-minutes: 15
         run: |
           npm run build --workspace @hydromart/web
           nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &
