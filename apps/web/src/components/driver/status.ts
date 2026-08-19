@@ -1,4 +1,21 @@
-import type { DeliveryStatus } from '@/lib/types';
+import type { DeliveryStatus, Payment } from '@/lib/types';
+
+/**
+ * C1(c): does this delivery still owe cash at the door?
+ *
+ * `codAmount` alone does not answer it — it is written at assignment and never cleared,
+ * so a confirmed COD still carries it. The payment book is the other half.
+ *
+ * Only CASH+PENDING counts. A refunded or cancelled row is not money the courier is
+ * about to be handed, and a PAID one is money already recorded.
+ */
+export function codOutstanding(
+  codAmount: number | null | undefined,
+  payments: Payment[],
+): boolean {
+  if (!codAmount) return false;
+  return payments.some((p) => p.method === 'CASH' && p.status === 'PENDING');
+}
 
 /**
  * Dictionary KEYS for the courier-facing delivery lifecycle (shared by list + detail).

@@ -1219,7 +1219,9 @@ export const hrFix = {
   },
   deliveryDetail: {
     podRetention: 'Proof of delivery (photo, signature, GPS) is kept for 12 months under the Indonesian data-protection law, then deleted automatically.',
-    takeCash: 'Take cash payment (COD)',
+    takeCashDue: 'Take {amount}',
+    codBlocksFinish: 'Take the cash first — Selesai unlocks once the payment is recorded.',
+    cashTaken: 'Cash received',
     startDelivery: "Start delivery",
     arrived: "Arrived · capture proof",
     returnEmpties: "Return empty gallons",
