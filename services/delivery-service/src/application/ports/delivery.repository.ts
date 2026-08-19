@@ -162,6 +162,12 @@ export interface DeliveryPingState {
   lastLng: number | null;
 }
 
+/** One delivered order in a settlement window: its id and the COD written at assignment. */
+export interface DeliveredCod {
+  orderId: string;
+  codAmount: number | null;
+}
+
 export interface DeliveryRepository {
   create(data: CreateDeliveryData): Promise<DeliveryRecord>;
   findById(id: string): Promise<DeliveryRecord | null>;
@@ -180,11 +186,15 @@ export interface DeliveryRepository {
     query: DeliveryQuery,
   ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }>;
   /**
-   * Order ids the driver DELIVERED with `deliveredAt` in [from, to] — the orders a
-   * shift's COD settlement is computed over. payment-service then filters these to
-   * PAID cash, so this returns every delivered order, cash or not.
+   * Orders the driver DELIVERED with `deliveredAt` in [from, to] — the orders a shift's
+   * COD settlement is computed over. Every delivered order, cash or not.
+   *
+   * C1: carries `codAmount` as well as the id. Proof of delivery never marks the payment
+   * PAID, so payment-service alone answers zero for a courier who collected the cash and
+   * skipped "Terima uang" — and the settlement then expected nothing. The COD written on
+   * the delivery row at assignment is the half of the answer that survives that.
    */
-  deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]>;
+  deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]>;
   /**
    * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
    * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.

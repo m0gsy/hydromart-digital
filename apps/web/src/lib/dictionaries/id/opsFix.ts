@@ -582,7 +582,7 @@ export const opsFix = {
     over: 'lebih {amount}',
     exact: 'pas',
     chargeCourier: 'Bebankan selisih {amount} ke saldo kurir',
-    note: 'Catatan (opsional untuk verifikasi, wajib untuk sengketa)',
+    note: 'Catatan (wajib untuk sengketa, dan untuk setoran lebih di atas Rp5.000)',
     notePlaceholder: 'mis. dihitung bersama kasir',
     verify: 'Verifikasi',
     dispute: 'Sengketakan',

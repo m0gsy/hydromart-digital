@@ -245,14 +245,22 @@ describe('DeliveryPrismaRepository', () => {
     );
   });
 
-  it('deliveredOrderIdsInWindow maps to order ids', async () => {
+  // C1: the COD is selected alongside the id — it is the half of the expected deposit
+  // that survives a courier never confirming the payment.
+  it('deliveredCodInWindow maps to order ids with their COD', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-01-31');
-    delivery.findMany.mockResolvedValue([{ orderId: 'ord-1' }, { orderId: 'ord-2' }]);
-    expect(await repo.deliveredOrderIdsInWindow('drv-1', from, to)).toEqual(['ord-1', 'ord-2']);
+    delivery.findMany.mockResolvedValue([
+      { orderId: 'ord-1', codAmount: 150000 },
+      { orderId: 'ord-2', codAmount: null },
+    ]);
+    expect(await repo.deliveredCodInWindow('drv-1', from, to)).toEqual([
+      { orderId: 'ord-1', codAmount: 150000 },
+      { orderId: 'ord-2', codAmount: null },
+    ]);
     expect(delivery.findMany).toHaveBeenCalledWith({
       where: { driverId: 'drv-1', status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lte: to } },
-      select: { orderId: true },
+      select: { orderId: true, codAmount: true },
     });
   });
 

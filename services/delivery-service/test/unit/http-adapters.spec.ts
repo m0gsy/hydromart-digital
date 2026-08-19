@@ -188,17 +188,36 @@ describe('CashCollectionHttpAdapter', () => {
 
   it('returns zero for no order ids (without calling fetch)', async () => {
     const out = await new CashCollectionHttpAdapter(makeConfig()).sumCollected([], 'Bearer x');
-    expect(out).toEqual({ total: 0, count: 0 });
+    expect(out).toEqual({ total: 0, count: 0, byOrder: [] });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sums PAID cash on happy path', async () => {
-    fetchMock.mockResolvedValue(res({ body: { total: 150000, count: 3 } }));
+  it('sums PAID cash on happy path, and carries the per-order split', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          total: 150000,
+          count: 3,
+          byOrder: [
+            { orderId: 'o1', amountIdr: 50000 },
+            { orderId: 'o2', amountIdr: 100000 },
+          ],
+        },
+      }),
+    );
     const out = await new CashCollectionHttpAdapter(makeConfig()).sumCollected(
       ['o1', 'o2', 'o3'],
       'Bearer x',
     );
-    expect(out).toEqual({ total: 150000, count: 3 });
+    // C1: the split is what the expected deposit is computed from, one order at a time.
+    expect(out).toEqual({
+      total: 150000,
+      count: 3,
+      byOrder: [
+        { orderId: 'o1', amountIdr: 50000 },
+        { orderId: 'o2', amountIdr: 100000 },
+      ],
+    });
     expect(fetchMock.mock.calls[0][0]).toBe(
       'http://payment:3004/api/v1/payments/cash-collected?orderIds=o1%2Co2%2Co3',
     );
@@ -452,9 +471,13 @@ describe('the 5s timeout actually aborts', () => {
 describe('missing fields in an owner response', () => {
   it('cash collection reads absent totals as zero', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }) as never;
+    // C1: an absent `byOrder` reads as "no PAID cash on any order", which is the
+    // fail-closed direction — the expectation then falls back to the COD on the
+    // delivery row instead of quietly forgiving the courier the whole shift.
     expect(await new CashCollectionHttpAdapter(makeConfig()).sumCollected(['o1'], 'Bearer t')).toEqual({
       total: 0,
       count: 0,
+      byOrder: [],
     });
   });
 

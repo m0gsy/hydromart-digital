@@ -65,7 +65,9 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       destinationLng: null,
       recipientPhone: null,
       items: null,
-      codAmount: null,
+      // C1: the COD written at assignment. Proof of delivery never confirms the payment,
+      // so this — not the PAID-cash read — is what the courier owes at end of shift.
+      codAmount: 75000,
       notes: null,
     });
     await deliveries.applyStatus(
@@ -76,7 +78,8 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       driverId,
       null,
     );
-    cash.result = { total: 75000, count: 1 };
+    // payment-service still says nothing was PAID: the courier skipped "Terima uang".
+    cash.result = { total: 0, count: 0, byOrder: [] };
 
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({

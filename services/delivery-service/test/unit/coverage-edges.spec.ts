@@ -105,6 +105,7 @@ describe('SettlementService reads', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
   it('lists a courier’s own settlement history', async () => {

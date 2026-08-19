@@ -6,11 +6,18 @@ import {
   SettlementAlreadyExistsError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
+  SettlementSurplusNoteRequiredError,
   SettlementSyncError,
   ShiftNotEndedError,
   ShiftNotFoundError,
 } from '../../domain/errors';
-import { SettlementStatus, canResolve, computeVariance, isShortfall } from '../../domain/settlement';
+import {
+  SettlementStatus,
+  canResolve,
+  computeVariance,
+  isShortfall,
+  surplusNeedsNote,
+} from '../../domain/settlement';
 import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
@@ -18,6 +25,7 @@ import { DeliveryRepository } from '../ports/delivery.repository';
 import { DepositedCod, SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
+import { DeliveryConfigService } from '../../config/delivery-config.service';
 
 export interface ResolveInput {
   chargedToDriver?: boolean;
@@ -36,13 +44,22 @@ export class SettlementService {
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Inject(DELIVERY_TOKENS.CashCollection) private readonly cash: CashCollectionPort,
     @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
+    private readonly config: DeliveryConfigService,
   ) {}
 
   /**
-   * Courier deposits their shift's cash (design 2d). The expected total is the PAID
-   * cash over every order delivered in the shift window, read live from
-   * payment-service and snapshotted here — so a later refund can't move the debt.
-   * Fails closed if payment-service is unreachable (never understate the expected).
+   * Courier deposits their shift's cash (design 2d). The expected total is snapshotted
+   * here, so a later refund can't move the debt, and fails closed if payment-service is
+   * unreachable (never understate the expected).
+   *
+   * C1: "expected" is what the courier SHOULD be holding, not what the payment book was
+   * told. Proof of delivery writes the proof and advances the order but never confirms
+   * the payment — deliberately, so a payment-service outage can never burn a handover
+   * that already happened (H-8). The consequence was that a courier who collected the
+   * cash and skipped "Terima uang" settled against an expected of zero: no shortfall, no
+   * dispute, no trace. So each order is worth `max(codAmount, cash PAID)` — per order,
+   * because a shift can hold both an unconfirmed COD and an unrelated cash payment, and
+   * one aggregate max would report only the larger of the two.
    */
   async submit(
     driverId: string,
@@ -61,16 +78,21 @@ export class SettlementService {
       throw new SettlementAlreadyExistsError();
     }
 
-    const orderIds = await this.deliveries.deliveredOrderIdsInWindow(
+    const delivered = await this.deliveries.deliveredCodInWindow(
       driverId,
       shift.checkInAt,
       shift.checkOutAt,
     );
+    const orderIds = delivered.map((d) => d.orderId);
 
     let expectedAmount: number;
     try {
       const collected = await this.cash.sumCollected(orderIds, authorization);
-      expectedAmount = Math.round(collected.total);
+      const paid = new Map(collected.byOrder.map((r) => [r.orderId, r.amountIdr]));
+      expectedAmount = this.config.settlementExpectFromCod(shift.depotId)
+        ? delivered.reduce((sum, d) => sum + Math.max(d.codAmount ?? 0, paid.get(d.orderId) ?? 0), 0)
+        : Math.round(collected.total);
+      expectedAmount = Math.round(expectedAmount);
     } catch (error) {
       this.logger.error(`cash-collected read failed for shift ${shiftId}: ${(error as Error).message}`);
       throw new SettlementSyncError();
@@ -92,17 +114,30 @@ export class SettlementService {
     return settlement;
   }
 
-  /** Cashier accepts the deposit (design 6a). A shortfall may be charged to the courier. */
+  /**
+   * Cashier accepts the deposit (design 6a). A shortfall may be charged to the courier.
+   *
+   * C1: a surplus over the threshold needs a note first. `note` already existed on the
+   * input and `verify` already wrote it — all that changes is that it becomes
+   * conditionally required. No new column, no migration, and no new status: DISPUTED has
+   * no way back out (C10), so sending surplus there would hang the money for good.
+   */
   async verify(user: AuthenticatedUser, id: string, input: ResolveInput): Promise<SettlementRecord> {
     const actorId = user.sub;
     const settlement = await this.resolvable(id, user);
-    // Only a genuine shortfall can be charged; an exact or over deposit never is.
+    const note = input.note?.trim() ? input.note.trim() : null;
+    if (surplusNeedsNote(settlement.variance) && note === null) {
+      throw new SettlementSurplusNoteRequiredError();
+    }
+    // Only a genuine shortfall can be charged; an exact or over deposit never is. The
+    // surplus rule above is about leaving a trace, NOT about billing: it must never make
+    // a surplus chargeable.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
     this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=${charged})`);
     const resolved = await this.settlements.resolve(id, {
       status: SettlementStatus.VERIFIED,
       chargedToDriver: charged,
-      note: input.note ?? null,
+      note,
       verifiedBy: actorId,
       verifiedAt: new Date(),
     });

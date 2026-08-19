@@ -155,7 +155,7 @@ export class PaymentController {
   cashCollectedByOrder(
     @Body() dto: CashByOrderDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
-    return this.payments.cashCollectedByOrder(dto.orderIds);
+    return this.payments.cashCollected(dto.orderIds);
   }
 
   /*
@@ -274,15 +274,27 @@ export class PaymentController {
     });
   }
 
-  // Courier COD deposit (design 2d/slice 9): sum of PAID cash over the courier's
-  // delivered orders — the "how much" for an end-of-shift settlement. Bearer is
-  // forwarded from delivery-service; settlement roles (incl. STAFF_DEPOT) may read.
-  // Declared before ':id' so the static segment wins.
-  @ApiOkResponse({ type: CashCollectedResponseDto })
+  /*
+   * Courier COD deposit (design 2d/slice 9): PAID cash over the courier's delivered
+   * orders — the "how much" for an end-of-shift settlement. Bearer is forwarded from
+   * delivery-service; settlement roles (incl. STAFF_DEPOT) may read. Declared before
+   * ':id' so the static segment wins.
+   *
+   * C1: answers with the PER-ORDER split as well as the total, because the expected
+   * deposit is now `max(codAmount, cash PAID)` decided ONE ORDER AT A TIME. Two sums
+   * cannot answer that: a courier who skipped "Terima uang" on one order and collected
+   * an extra prepaid one in the same shift is owed the sum of both, and the aggregate
+   * max would report only the larger. `total` is byte-identical to the old aggregate;
+   * `count` is now orders-with-PAID-cash rather than payment rows, which no caller
+   * reads — delivery-service takes `total` and `byOrder` only.
+   */
+  @ApiOkResponse({ type: CashByOrderResponseDto })
   @Get('cash-collected')
   @Can('paymentSettle')
-  @ApiOperation({ summary: 'Sum PAID cash over a set of orders (courier COD deposit)' })
-  cashCollected(@Query() query: CashCollectedQueryDto): Promise<CashCollectedSummary> {
+  @ApiOperation({ summary: 'PAID cash over a set of orders, total + per order (courier COD deposit)' })
+  cashCollected(
+    @Query() query: CashCollectedQueryDto,
+  ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
     return this.payments.cashCollected(query.orderIds);
   }
 

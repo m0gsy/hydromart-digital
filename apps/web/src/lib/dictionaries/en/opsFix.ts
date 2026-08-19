@@ -581,7 +581,7 @@ export const opsFix = {
     over: '{amount} over',
     exact: 'exact',
     chargeCourier: 'Charge the {amount} difference to the courier balance',
-    note: 'Note (optional to verify, required to dispute)',
+    note: 'Note (required to dispute, and for a surplus over Rp5,000)',
     notePlaceholder: 'e.g. counted with the cashier',
     verify: 'Verify',
     dispute: 'Dispute',

@@ -530,7 +530,9 @@ describe('PaymentService', () => {
       // Excluded: a different order not requested.
       await settleCash(99000);
 
-      expect(await service.cashCollected([a, b])).toEqual({ total: 75000, count: 2 });
+      const out = await service.cashCollected([a, b]);
+      expect(out.total).toBe(75000);
+      expect(out.count).toBe(2);
     });
 
     // S2. The daily report shows a per-courier line, and the courier is on the order — so
@@ -542,7 +544,7 @@ describe('PaymentService', () => {
       const unpaid = randomUUID();
       await initiate(PaymentMethod.CASH, 99000, unpaid); // stays PENDING
 
-      const out = await service.cashCollectedByOrder([a, b, unpaid]);
+      const out = await service.cashCollected([a, b, unpaid]);
       expect(out.total).toBe(75000);
       expect(out.count).toBe(2);
       expect(out.byOrder).toEqual(
@@ -557,7 +559,7 @@ describe('PaymentService', () => {
     });
 
     it('returns an empty split for an empty order set', async () => {
-      expect(await service.cashCollectedByOrder([])).toEqual({ total: 0, count: 0, byOrder: [] });
+      expect(await service.cashCollected([])).toEqual({ total: 0, count: 0, byOrder: [] });
     });
 
     it('ignores unpaid cash and non-cash methods', async () => {
@@ -569,11 +571,8 @@ describe('PaymentService', () => {
       expect(await service.cashCollected([pendingCash, va.orderId])).toEqual({
         total: 0,
         count: 0,
+        byOrder: [],
       });
-    });
-
-    it('returns zero for an empty order set', async () => {
-      expect(await service.cashCollected([])).toEqual({ total: 0, count: 0 });
     });
   });
 

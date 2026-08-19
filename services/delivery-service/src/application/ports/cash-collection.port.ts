@@ -1,7 +1,19 @@
+/** PAID cash a courier collected on ONE order — read from payment-service. */
+export interface OrderCash {
+  orderId: string;
+  amountIdr: number;
+}
+
 /** PAID cash a courier collected over a set of orders — read from payment-service. */
 export interface CashCollected {
   total: number;
   count: number;
+  /**
+   * The same PAID cash kept per order. C1 needs it: the expected deposit is decided one
+   * order at a time (`max(codAmount, cash PAID)`), and a single total cannot answer that.
+   * Orders with no PAID cash are absent rather than returned as zero rows.
+   */
+  byOrder: OrderCash[];
 }
 
 /**

@@ -285,23 +285,21 @@ export class PaymentService {
   }
 
   /**
-   * COD deposit total (design 2d/slice 9): sum of PAID cash payments over the
-   * courier's delivered orders. This is payment-service's word on "how much" —
-   * the settlement snapshots it so a later refund can't silently move the debt.
-   */
-  async cashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
-    return this.payments.sumCashCollected(orderIds);
-  }
-
-  /**
-   * The same answer as `cashCollected`, plus the per-order split.
+   * COD deposit (design 2d/slice 9): PAID cash over a set of orders, as a total AND per
+   * order. This is payment-service's word on "how much" — the settlement snapshots it so
+   * a later refund can't silently move the debt.
    *
-   * order-service's daily report needs both: the total is the depot's courier COD for the
-   * day, and the split is what lets it say which courier brought which part back. Returning
-   * one shape for both means the two figures on that screen cannot come from two reads that
-   * saw the book at different moments.
+   * Two callers, one shape: order-service's daily report needs the split to say which
+   * courier brought which part back, and delivery-service needs it because a shift's
+   * expected deposit is `max(codAmount, cash PAID)` decided one order at a time (C1).
+   * One answer for both means the figures on a screen cannot come from two reads that saw
+   * the book at different moments.
+   *
+   * There used to be a second method here returning the total alone, off a second
+   * aggregate query. C1 left it with no caller — the split answers both questions — so
+   * it and its repository half are gone rather than kept warm.
    */
-  async cashCollectedByOrder(
+  async cashCollected(
     orderIds: string[],
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
     const byOrder = await this.payments.cashByOrder(orderIds);
