@@ -113,18 +113,30 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
-        # 18m di langkah, 5m per percobaan. Tiga percobaan di dalam satu plafon 8m ternyata
-        # saling memakan: percobaan pertama menghabiskan tujuh menit lalu gagal, dan yang
-        # kedua hanya kebagian satu. `--with-deps` menjalankan apt-get dari mirror Ubuntu,
-        # dan cache browser tidak menutupi itu — jadi bagian yang lambat tetap ada meski
-        # browsernya sudah tersimpan.
+        # Plafon hanya di LANGKAH, tidak per percobaan — dan itu koreksi atas percobaan
+        # sebelumnya, yang justru menyebabkan kegagalannya sendiri:
+        #
+        #   E: Could not get lock /var/lib/apt/lists/lock. It is held by process 10182
+        #
+        # `--with-deps` menjalankan apt-get, dan `timeout 300` membunuhnya di tengah jalan.
+        # Proses apt yang mati meninggalkan lock, jadi dua percobaan berikutnya gagal
+        # seketika karena lock itu — kegagalan yang dibuat oleh perbaikannya sendiri.
+        # Membunuh pemegang lock sistem lalu langsung mencoba lagi tidak akan pernah benar.
+        #
+        # 18 menit di langkah tetap menjadikannya MERAH kalau benar-benar menggantung, dan
+        # itulah yang penting: bukan run `cancelled` yang menjatuhkan Deploy tanpa warna.
         timeout-minutes: 18
         run: |
           for attempt in 1 2 3; do
-            # `timeout` per percobaan, supaya satu sambungan macet tidak memakan jatah
-            # percobaan berikutnya. Keluar 124 = ia yang kena batas, bukan yang lain.
-            if timeout 300 npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
-            echo "playwright install attempt $attempt failed or stalled, retrying..." >&2
+            if npm run test:e2e:install --workspace @hydromart/web; then exit 0; fi
+            echo "playwright install attempt $attempt failed, waiting for apt to settle..." >&2
+            # Tunggu lock apt benar-benar bebas sebelum mencoba lagi. Runner menjalankan
+            # unattended-upgrades sendiri, jadi lock yang dipegang orang lain itu wajar dan
+            # sementara — yang tidak wajar adalah mencoba menimpanya.
+            for _ in $(seq 1 30); do
+              sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || break
+              sleep 5
+            done
             sleep 10
           done
           echo "playwright install failed three times" >&2
