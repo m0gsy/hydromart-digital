@@ -75,6 +75,7 @@ import {
   OutboxWrite,
 } from '../../src/application/ports/outbox.repository';
 import { OutboxService } from '../../src/application/services/outbox.service';
+import { CartService } from '../../src/application/services/cart.service';
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
@@ -1171,6 +1172,21 @@ export class FakeProductCatalog implements ProductCatalogPort {
   }
 }
 
+/**
+ * A CartService wired the way the app wires it. The cart now shares checkout's pricing
+ * function, so it needs checkout's readers: pass the SAME fakes both services use, or the
+ * test proves two carts rather than one price.
+ */
+export function buildCartService(
+  cart: CartRepository,
+  catalog: ProductCatalogPort,
+  pricing: DepotPricingPort = new FakeDepotPricing(),
+  reseller: ResellerDiscountPort = new FakeResellerDiscount(),
+  config: OrderConfigService = buildTestConfig(),
+): CartService {
+  return new CartService(cart, catalog, pricing, reseller, config);
+}
+
 export function buildTestConfig(overrides: Record<string, string> = {}): OrderConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
@@ -1187,6 +1203,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
+    ORDER_CART_DEPOT_PRICING: '1',
     ORDER_EXPRESS_ENABLED: '1',
     ORDER_EXPRESS_FEE: '5000',
     ORDER_EXPRESS_ETA_MIN_MINUTES: '30',

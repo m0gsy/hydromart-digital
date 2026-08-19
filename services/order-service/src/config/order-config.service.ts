@@ -105,6 +105,15 @@ export class OrderConfigService {
     );
   }
   /**
+   * A1 kill switch: does the cart quote the depot's own price, or catalog base prices?
+   *
+   * Off is a genuine revert — checkout is untouched either way, because checkout has
+   * always re-resolved prices itself and never asked the cart for one.
+   */
+  cartDepotPricing(depotId: string | null = null): boolean {
+    return this.tunable('cartDepotPricing', this.num('ORDER_CART_DEPOT_PRICING'), depotId) === 1;
+  }
+  /**
    * Express delivery, as the fulfilling depot has it configured. `fee` is charged, not
    * previewed: it used to be a constant in the checkout screen that the customer saw and
    * the order never included.

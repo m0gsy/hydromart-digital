@@ -23,6 +23,7 @@ import { useCart } from '@/lib/cart-context';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
+import { cartDepotId } from '@/lib/location-store';
 import { useT } from '@/lib/locale-context';
 import { memberPrice, useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
@@ -103,7 +104,7 @@ export default function ProductDetailPage() {
     setAddError(null);
     try {
       // Audit F-7: the POST already returns the priced cart; no follow-up GET.
-      apply(await api.post<Cart>(endpoints.cart.items, { productId: id, quantity: qty }, true));
+      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: id, quantity: qty }, true));
       setAdded(true);
     } catch (e) {
       setAddError(e instanceof ApiError ? e.message : t('shop.pdp.addError'));
@@ -346,7 +347,7 @@ function FbtCard({ item }: { item: Recommendation }) {
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true));
+      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: item.productId, quantity: 1 }, true));
       setAdded(true);
     } catch {
       bump(-1); // roll the badge back on failure

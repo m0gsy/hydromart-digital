@@ -16,6 +16,10 @@ export const customerFix = {
   },
   checkout: {
     agentPrice: "Harga agen Rp{amount}/galon",
+    // A1: shown only when the cart came back `pricingBasis: 'CATALOG'` — nobody could tell
+    // us the depot's own price, so these are catalog prices and the customer is told so
+    // rather than left to find out at the receipt.
+    catalogPricing: "Harga perkiraan — harga depot dipakai saat pesanan dibuat",
     resellerDiscount: "Harga reseller −{pct}%",
     defaultAddressLabel: "Alamat",
   },

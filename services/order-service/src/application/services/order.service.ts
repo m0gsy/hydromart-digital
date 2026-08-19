@@ -44,7 +44,12 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { applyAdjustment, galonQuantity, percentDiscount } from '../../domain/pricing';
+import {
+  galonQuantity,
+  priceLines,
+  resellerApplies,
+  resellerDiscountFor,
+} from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
@@ -71,7 +76,7 @@ import { CashierShiftPort } from '../ports/cashier-shift.port';
 import { PaymentReversalPort } from '../ports/payment-reversal.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
-import { ResellerDiscount, ResellerDiscountPort } from '../ports/reseller-discount.port';
+import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { InventoryPort } from '../ports/inventory.port';
@@ -351,7 +356,7 @@ export class OrderService {
     // (null → normal pricing). The flat price must be in this test too: without it a
     // reseller with no percentage would fall through to the membership+voucher path and
     // never be charged the agen price at all.
-    const isReseller = this.resellerPriceable(reseller, depot?.id ?? null);
+    const isReseller = resellerApplies(reseller, depot?.id ?? null);
 
     // voucherCode is null for resellers so the later redeem block is skipped too.
     const voucherCode = isReseller ? null : input.voucherCode?.trim().toUpperCase() || null;
@@ -363,7 +368,7 @@ export class OrderService {
     let membershipUnavailable = false;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      discount = this.resellerDiscountFor(
+      discount = resellerDiscountFor(
         reseller!,
         items,
         subtotal,
@@ -530,46 +535,8 @@ export class OrderService {
         : Promise.resolve({ prices: new Map<string, DepotPrice>(), unavailable: false }),
       this.pricedAll(lines.map((l) => l.productId)),
     ]);
-    const prices = lookup.prices;
     const catalogFallback = !depotId ? 'NO_DEPOT' : lookup.unavailable ? 'DEPOT_UNREACHABLE' : null;
-    const items: CreateOrderItemData[] = [];
-    let tierPricedTotal = 0;
-    const tieredProductIds = new Set<string>();
-    for (const line of lines) {
-      const product = productById.get(line.productId)!;
-      const priceRow = prices.get(product.id);
-      const base = priceRow?.sellPrice ?? product.basePrice;
-      const adj = priceRow?.adjustType
-        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
-        : null;
-      const tiered = typeof priceRow?.tierPrice === 'number';
-      const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
-      const lineTotal = money(unitPrice * line.quantity);
-      if (tiered) {
-        tierPricedTotal += lineTotal;
-        tieredProductIds.add(product.id);
-      }
-      items.push({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        unit: product.unit,
-        // Frozen for the same reason unitPrice is: a later catalog restatement
-        // (19L -> 19.2L) must not silently rewrite what past orders reconcile to.
-        volumeMl: product.volumeMl,
-        isGallon: product.isGallon,
-        unitPrice,
-        quantity: line.quantity,
-        lineTotal,
-      });
-    }
-    return {
-      items,
-      subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
-      tierPricedTotal,
-      tieredProductIds,
-      catalogFallback,
-    };
+    return { ...priceLines(lines, productById, lookup.prices), catalogFallback };
   }
 
   /**
@@ -895,61 +862,12 @@ export class OrderService {
    * (0 rate), the voucher fails CLOSED — a voucher the buyer handed over must be honoured or
    * the sale must stop, never silently dropped at full price with the buyer watching.
    */
-  /**
-   * What an agen is let off, for ONE basket. Shared by checkout and the counter sale so the
-   * same buyer cannot be quoted two different prices depending on which door they walked
-   * through — they were, until the till learned this rule.
-   *
-   * Expressed as a discount rather than by rewriting `unitPrice`, so the order still records
-   * what the goods list at and what the agen was let off; that pair is what reconciliation
-   * reads. Wholesale-band lines are excluded either way: they are already at the depot's bulk
-   * price and must not be discounted twice.
+  /*
+   * A1/A9: "may this agen be priced here" and "what are they let off" both moved into
+   * domain/pricing.ts, where the cart can reach them too. They were private methods here,
+   * so the checkout screen re-derived "is this an agen" from `/resellers/me` and got a
+   * different answer — see `resellerApplies` / `resellerDiscountFor`.
    */
-  /**
-   * A9: may this agen be priced at the depot doing the selling?
-   *
-   * The old rule was `active && (pct > 0 || flat > 0)`, written out twice here and a third
-   * time in the checkout page, and none of the three asked which depot. An agen registered
-   * at depot A drew their agen price shopping at depot B — a franchise the depot never
-   * agreed to fund, discounting someone else's margin.
-   *
-   * `homeDepotId` null means "cannot prove which depot", which is not the same as "any
-   * depot": it declines rather than guesses. A sale with no depot at all (an order not yet
-   * routed) keeps the old behaviour, because there is no depot to be wrong about yet.
-   */
-  private resellerPriceable(
-    reseller: ResellerDiscount | null,
-    sellingDepotId: string | null,
-  ): boolean {
-    if (reseller?.active !== true) return false;
-    if (reseller.discountPct <= 0 && reseller.flatGallonPriceIdr <= 0) return false;
-    if (sellingDepotId === null) return true;
-    return reseller.homeDepotId === sellingDepotId;
-  }
-
-  private resellerDiscountFor(
-    reseller: ResellerDiscount,
-    items: CreateOrderItemData[],
-    subtotal: number,
-    tieredProductIds: Set<string>,
-    tierPricedTotal: number,
-  ): number {
-    if (reseller.flatGallonPriceIdr > 0) {
-      // Depot SOP: every galon costs the agen a flat Rp5.000 whatever it lists at, so the
-      // discount is the per-line gap down to that price. A line already BELOW the flat price
-      // is left alone (max 0), never marked up.
-      return money(
-        items
-          .filter((i) => i.isGallon && !tieredProductIds.has(i.productId))
-          .reduce(
-            (sum, i) => sum + Math.max(0, i.unitPrice - reseller.flatGallonPriceIdr) * i.quantity,
-            0,
-          ),
-      );
-    }
-    const discountable = money(Math.max(0, subtotal - tierPricedTotal));
-    return money(Math.min(subtotal, percentDiscount(discountable, reseller.discountPct)));
-  }
 
   private async counterDiscount(
     customerId: string,
@@ -972,9 +890,9 @@ export class OrderService {
     // throws rather than quietly charging retail — a person is standing at the till and can
     // be asked to retry.
     const reseller = await this.resellerDiscount.getFor(customerId);
-    if (this.resellerPriceable(reseller, depotId)) {
+    if (resellerApplies(reseller, depotId)) {
       if (voucherCode) throw new ResellerVoucherNotAllowedError();
-      return this.resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
+      return resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
     }
     const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
     let voucherDiscount = 0;

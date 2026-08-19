@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { CartService } from '../../src/application/services/cart.service';
 import { ProductUnavailableError } from '../../src/domain/errors';
-import { FakeProductCatalog, InMemoryCartRepository } from '../support/fakes';
+import { buildCartService, FakeProductCatalog, InMemoryCartRepository } from '../support/fakes';
 
 describe('CartService', () => {
   let cart: InMemoryCartRepository;
@@ -13,7 +13,7 @@ describe('CartService', () => {
   beforeEach(() => {
     cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
-    service = new CartService(cart, catalog);
+    service = buildCartService(cart, catalog);
   });
 
   it('adds an item and prices the cart from the live catalog', async () => {

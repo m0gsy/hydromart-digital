@@ -34,7 +34,14 @@ function CartInner() {
   const { apply, bump } = useCart();
   const { location } = useLocation();
 
-  const { data, error, loading, reload } = useAsync<Cart>(() => api.get(endpoints.cart.view, true));
+  // A2: priced at the shopper's chosen depot, so the number on this screen is the number
+  // checkout bills. Without it this list showed catalog base prices and the receipt showed
+  // the depot's — measured Rp20.000 here against Rp22.000 billed, on a live +10% rule.
+  const depotId = location?.depotId ?? null;
+  const { data, error, loading, reload } = useAsync<Cart>(
+    () => api.get(endpoints.cart.view(depotId), true),
+    [depotId],
+  );
   // Fail-soft: no membership / signed-out loyalty → rate stays 0, no error surfaced.
   // Quoted against the shopper's chosen location, since the rate is a per-depot setting
   // and this line is real money ("hemat Rp X"), not a badge.
@@ -81,7 +88,7 @@ function CartInner() {
     try {
       // Audit F-7: PUT answers with the whole priced cart. The old code discarded it
       // and re-GET the same thing, so one quantity tap cost two round-trips.
-      const next = await api.put<Cart>(endpoints.cart.item(productId), { quantity }, true);
+      const next = await api.put<Cart>(endpoints.cart.item(productId, depotId), { quantity }, true);
       setLines(next.items);
       apply(next);
     } catch {
@@ -101,7 +108,7 @@ function CartInner() {
     setBusy(productId);
     bump(-line.quantity);
     try {
-      const next = await api.del<Cart>(endpoints.cart.item(productId), true);
+      const next = await api.del<Cart>(endpoints.cart.item(productId, depotId), true);
       setLines(next.items);
       apply(next);
     } catch {
@@ -120,7 +127,7 @@ function CartInner() {
     try {
       // DELETE /cart is the one cart write that answers 204 — nothing to adopt.
       await api.del(endpoints.cart.clear, true);
-      apply({ items: [], subtotal: 0 });
+      apply({ items: [], subtotal: 0, depotId, pricingBasis: 'CATALOG', reseller: null });
     } catch {
       setLines(prev);
       bump(totalQty);
@@ -134,7 +141,7 @@ function CartInner() {
   async function addOn(productId: string) {
     bump(1);
     try {
-      const next = await api.post<Cart>(endpoints.cart.items, { productId, quantity: 1 }, true);
+      const next = await api.post<Cart>(endpoints.cart.items(depotId), { productId, quantity: 1 }, true);
       setLines(next.items);
       apply(next);
       toast(t('order.toast.added'));

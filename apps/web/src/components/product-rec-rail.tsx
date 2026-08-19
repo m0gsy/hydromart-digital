@@ -8,6 +8,7 @@ import { ArrowRight, Check, Drop, Plus } from '@phosphor-icons/react';
 import { RemoteImage } from '@/components/remote-image';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { cartDepotId } from '@/lib/location-store';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useAsync } from '@/lib/use-async';
@@ -40,7 +41,7 @@ function RailCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string 
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true));
+      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: item.productId, quantity: 1 }, true));
       setAdded(true);
     } catch {
       bump(-1); // roll the badge back on failure

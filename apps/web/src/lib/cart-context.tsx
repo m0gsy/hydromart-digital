@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { api } from './api';
 import { endpoints } from './endpoints';
+import { cartDepotId } from './location-store';
 import { useAuth } from './auth-context';
 import type { Cart } from './types';
 
@@ -43,7 +44,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const next = await api.get<Cart>(endpoints.cart.view, true);
+      const next = await api.get<Cart>(endpoints.cart.view(cartDepotId()), true);
       setCart(next);
       setOptimistic(0);
     } catch {

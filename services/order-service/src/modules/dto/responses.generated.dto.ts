@@ -388,12 +388,30 @@ export class CartLineResponseDto {
   isGallon!: boolean;
 }
 
+/** Mirrors `CartResellerView` exactly — generated for audit D-6, no field added or removed. */
+export class CartResellerResponseDto {
+  @ApiProperty({ type: Boolean })
+  applies!: boolean;
+  @ApiProperty({ type: Number })
+  discountPct!: number;
+  @ApiProperty({ type: Number })
+  flatGallonPriceIdr!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  discount!: number | null;
+}
+
 /** Mirrors `CartView` exactly — generated for audit D-6, no field added or removed. */
 export class CartResponseDto {
   @ApiProperty({ type: [CartLineResponseDto] })
   items!: CartLineResponseDto[];
   @ApiProperty({ type: Number })
   subtotal!: number;
+  @ApiProperty({ type: String, nullable: true })
+  depotId!: string | null;
+  @ApiProperty({ enum: ['DEPOT', 'CATALOG'] })
+  pricingBasis!: 'DEPOT' | 'CATALOG';
+  @ApiProperty({ type: CartResellerResponseDto, nullable: true })
+  reseller!: CartResellerResponseDto | null;
 }
 
 /** Mirrors `MeterReading` exactly — generated for audit D-6, no field added or removed. */

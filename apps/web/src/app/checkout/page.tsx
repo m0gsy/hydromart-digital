@@ -121,9 +121,8 @@ function CheckoutInner() {
   const { t } = useT();
   const router = useRouter();
   const { customer } = useAuth();
-  const { data: cart, error, loading, reload } = useAsync<Cart>(() =>
-    api.get(endpoints.cart.view, true),
-  );
+  // The cart is fetched further down, once the fulfilling depot is known: it is priced BY
+  // that depot (A2), so asking for it before the depot is resolved asks the wrong question.
   // Saved address book. Fail-soft: if this can't load, the customer just types a fresh
   // address (as before) — never blocks checkout, so the load error is intentionally ignored.
   const { data: savedAddresses } = useAsync<Address[]>(() =>
@@ -132,17 +131,13 @@ function CheckoutInner() {
   // Voucher wallet — powers the min-spend progress bar (gap 13n) and the "usable now"
   // suggestions. Fail-soft: absence just hides those hints, never blocks checkout.
   const { data: myVouchers } = useAsync<MyVoucher[]>(() => api.get(endpoints.vouchers.me, true));
-  // Reseller ("agen") pricing status. Fail-soft: 404 (not a reseller) or any error just
-  // leaves data null — useAsync already swallows the rejection into its ignored `error`.
-  const { data: reseller } = useAsync<{
-    active: boolean;
-    discountPct: number;
-    flatGallonPriceIdr: number;
-  }>(() => api.get(endpoints.resellers.me, true));
-  // A flat per-galon agen price counts as reseller pricing too — without it the badge and
-  // the voucher lock disagree with what the server actually charges.
-  const isReseller =
-    !!reseller?.active && (reseller.discountPct > 0 || reseller.flatGallonPriceIdr > 0);
+  /*
+   * A4/A9. This screen used to read `/resellers/me` itself and re-derive the agen rule as
+   * `active && (pct > 0 || flat > 0)` — the third copy of a rule order-service kept twice
+   * more, and the only copy that never asked WHICH DEPOT. The server declines to price an
+   * agen outside their own depot; this screen went on promising it. The rule is asked once
+   * now, of the priced cart, so the badge and the bill cannot disagree.
+   */
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -228,6 +223,21 @@ function CheckoutInner() {
   // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
   // here rather than per line.
   const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
+
+  /*
+   * A1/A2. The cart, priced by the depot that will actually fulfil the order — the depot's
+   * own row, its active pricing rule, and any matching wholesale band, all resolved by the
+   * same function checkout bills with. It used to be fetched with no depot at all and came
+   * back at catalog base prices: measured Rp20.000 a galon on screen against Rp22.000
+   * billed at a depot with a live +10% rule, and Rp105.000 against Rp30.000 for an agen
+   * buying five. Re-read when the depot changes, because the price does.
+   */
+  const { data: cart, error, loading, reload } = useAsync<Cart>(
+    () => api.get(endpoints.cart.view(depot?.id ?? null), true),
+    [depot?.id],
+  );
+  // A4: the agen rule, answered once by the server (see the note where it used to live).
+  const isReseller = cart?.reseller?.applies === true;
 
   // Delivery windows and express pricing belong to the depot, not to this screen. Read for
   // the depot that will actually fulfil the order, so the surcharge shown is the one
@@ -426,14 +436,21 @@ function CheckoutInner() {
   // A reseller gets NEITHER membership nor voucher — order-service replaces both with the
   // agen price. Previewing a membership discount the server will not apply put a number on
   // screen that the bill then contradicted, which is the defect the express fee already
-  // taught us once. The agen discount itself cannot be previewed honestly here: the flat
-  // price applies per galon line and excludes wholesale-band lines, and the cart carries
-  // neither flag. So the summary shows list price and says the agen price lands at checkout.
+  // taught us once.
   // `Math.round`, not `Math.floor`: order-service prices this through `money()`, which rounds
   // to whole rupiah. Flooring here showed Rp4.999 for a discount the order stored as Rp5.000 —
   // a preview that contradicts the bill, which is the defect the express fee taught us once.
   // Pinned by "membership discount rounds exactly like the server" in test/pricing.test.ts.
   const membershipDiscount = isReseller ? 0 : Math.round(cart.subtotal * membershipRate);
+  /*
+   * A4. The agen discount, computed server-side off the same priced lines the order bills
+   * — the flat SOP price applies per galon line and excludes wholesale-band lines, and
+   * this screen could see neither, so it used to show list price and a line reading
+   * "dihitung saat pesan" over a total the bill then contradicted by Rp75.000 on a
+   * five-galon basket. `null` when the cart came back at catalog prices: there is no
+   * honest number to show then, and that wording is what the screen falls back to.
+   */
+  const resellerDiscount = isReseller ? cart.reseller?.discount ?? null : 0;
 
   // Advisory only: display-only ongkir estimate, never part of the API payload.
   // order-service computes the authoritative delivery fee + order total from the
@@ -457,7 +474,10 @@ function CheckoutInner() {
   const voucherEffect = voucherValueDiscount + shippingDiscount;
   // Capped at the goods, exactly as order.service.ts caps it: a discount on what was bought may
   // never eat into the delivery fee. The shipping waiver is applied separately below.
-  const goodsDiscount = Math.min(cart.subtotal, membershipDiscount + voucherValueDiscount);
+  const goodsDiscount = Math.min(
+    cart.subtotal,
+    membershipDiscount + voucherValueDiscount + (resellerDiscount ?? 0),
+  );
   const estimatedTotal = cart.subtotal - goodsDiscount;
   const displayedTotal = estimatedTotal + deliveryFee + expressFee - shippingDiscount;
 
@@ -801,9 +821,9 @@ function CheckoutInner() {
     {isReseller ? (
       <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
         <Badge tone="success">
-          {reseller!.flatGallonPriceIdr > 0
-            ? t('customerFix.checkout.agentPrice', { amount: reseller!.flatGallonPriceIdr.toLocaleString('id-ID') })
-            : t('customerFix.checkout.resellerDiscount', { pct: reseller!.discountPct })}
+          {cart.reseller!.flatGallonPriceIdr > 0
+            ? t('customerFix.checkout.agentPrice', { amount: cart.reseller!.flatGallonPriceIdr.toLocaleString('id-ID') })
+            : t('customerFix.checkout.resellerDiscount', { pct: cart.reseller!.discountPct })}
         </Badge>
         <p className="text-sm text-muted">
           {t('order.checkout.resellerNoVoucher')}
@@ -942,6 +962,10 @@ function CheckoutInner() {
           <span className="text-muted">{t('order.checkout.subtotal')}</span>
           <Money amount={cart.subtotal} className="font-bold" />
         </div>
+        {/* A1: catalog prices are labelled, never passed off as the depot's. */}
+        {cart.pricingBasis === 'CATALOG' && (
+          <p className="text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
+        )}
         {membershipDiscount > 0 && (
           <div className="flex justify-between text-[color:var(--success)]">
             <span>{t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}</span>
@@ -953,7 +977,13 @@ function CheckoutInner() {
         {isReseller && (
           <div className="flex justify-between text-[color:var(--success)]">
             <span>{t('hrFix.checkoutFix.agentPrice')}</span>
-            <span className="text-xs font-semibold">{t('hrFix.checkoutFix.computedAtOrder')}</span>
+            {resellerDiscount === null ? (
+              <span className="text-xs font-semibold">{t('hrFix.checkoutFix.computedAtOrder')}</span>
+            ) : (
+              <span className="font-bold">
+                −<Money amount={resellerDiscount} />
+              </span>
+            )}
           </div>
         )}
         {voucherEffect > 0 && (

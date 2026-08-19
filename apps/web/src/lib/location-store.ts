@@ -50,6 +50,18 @@ export function setLocation(location: UserLocation | null): void {
   listeners.forEach((fn) => fn(location));
 }
 
+/**
+ * The depot the cart should be priced at when a screen has no better answer (A2).
+ *
+ * Read from the store rather than a hook so the non-React callers — the add-to-cart
+ * buttons scattered across product cards and rails — can send it too. They all adopt the
+ * CartView their own mutation returns, so one of them omitting the depot would put
+ * catalog prices into the shared cart the checkout screen then reads.
+ */
+export function cartDepotId(): string | null {
+  return getLocation()?.depotId ?? null;
+}
+
 export function subscribe(fn: Listener): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);

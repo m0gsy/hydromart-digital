@@ -1,16 +1,8 @@
-import { PriceAdjustType } from '../../domain/pricing';
+import { DepotPrice } from '../../domain/pricing';
 
-/** A depot's resolved pricing for one product: optional override + optional active rule. */
-export interface DepotPrice {
-  sellPrice?: number;
-  adjustType?: PriceAdjustType;
-  value?: number;
-  /**
-   * Wholesale band price for the quantity being ordered (design 16b). An absolute unit
-   * price: when present it replaces `sellPrice` AND the rule adjustment for that line.
-   */
-  tierPrice?: number;
-}
+// The shape moved into the domain when the cart and checkout started sharing one
+// pricing function (A1); re-exported here so the port's own callers are unchanged.
+export type { DepotPrice };
 
 /**
  * Reads per-depot resolved prices (static override + the winning active pricing

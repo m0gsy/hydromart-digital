@@ -25,24 +25,43 @@ describe('CartController', () => {
 
   it('view: returns the caller cart', async () => {
     await expect(controller.view(user)).resolves.toEqual({ items: [] });
-    expect(service.view).toHaveBeenCalledWith('cust-1');
+    expect(service.view).toHaveBeenCalledWith('cust-1', null, '');
   });
 
   it('add: sets the item additively (absolute=false)', async () => {
     await expect(controller.add(user, { productId: 'p1', quantity: 2 } as never)).resolves.toEqual({
       items: ['x'],
     });
-    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 2, false);
+    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 2, false, null, '');
   });
 
   it('set: sets the absolute quantity (absolute=true)', async () => {
     await controller.set(user, 'p1', { quantity: 5 } as never);
-    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 5, true);
+    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 5, true, null, '');
   });
 
   it('remove: removes a product line', async () => {
     await controller.remove(user, 'p1');
-    expect(service.removeItem).toHaveBeenCalledWith('cust-1', 'p1');
+    expect(service.removeItem).toHaveBeenCalledWith('cust-1', 'p1', null, '');
+  });
+
+  /*
+   * A2. The mutation routes carry the depot too, not just GET: they answer with the whole
+   * priced cart, so a client that only sent it on GET would watch the prices flip on every
+   * quantity tap. The bearer rides along because the agen preview is read on it.
+   */
+  it('passes the depot and the bearer through on every priced route', async () => {
+    await controller.view(user, 'depot-1', 'Bearer t');
+    expect(service.view).toHaveBeenCalledWith('cust-1', 'depot-1', 'Bearer t');
+
+    await controller.add(user, { productId: 'p1', quantity: 2 } as never, 'depot-1', 'Bearer t');
+    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 2, false, 'depot-1', 'Bearer t');
+
+    await controller.set(user, 'p1', { quantity: 5 } as never, 'depot-1', 'Bearer t');
+    expect(service.setItem).toHaveBeenCalledWith('cust-1', 'p1', 5, true, 'depot-1', 'Bearer t');
+
+    await controller.remove(user, 'p1', 'depot-1', 'Bearer t');
+    expect(service.removeItem).toHaveBeenCalledWith('cust-1', 'p1', 'depot-1', 'Bearer t');
   });
 
   it('clear: empties the cart and resolves void', async () => {

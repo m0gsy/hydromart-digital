@@ -40,6 +40,9 @@ export const envValidationSchema = Joi.object({
   // Express ("antar sekarang") delivery. Boot-time fallbacks only; every one of these is
   // overridable per depot through settings, which is where they belong — the surcharge is
   // charged, not decorative.
+  // A1 kill switch: 0 sends the cart back to catalog base prices. Overridable per depot
+  // through settings, like the express toggle above.
+  ORDER_CART_DEPOT_PRICING: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_ENABLED: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_FEE: Joi.number().min(0).default(5000),
   ORDER_EXPRESS_ETA_MIN_MINUTES: Joi.number().integer().positive().default(30),
