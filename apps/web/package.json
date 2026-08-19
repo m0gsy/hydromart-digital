@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install --with-deps chromium",
+    "test:e2e:install": "playwright install chromium",
     "test:export": "playwright test -c playwright.static.config.ts",
     "test:export:customer": "node scripts/run-export-tests.mjs customer",
     "test:export:ops": "node scripts/run-export-tests.mjs ops"
