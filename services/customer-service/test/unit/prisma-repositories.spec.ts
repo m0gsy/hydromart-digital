@@ -397,6 +397,25 @@ describe('ProfilePrismaRepository', () => {
     expect(await repo.findSegment({})).toEqual([]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * F1b: the broadcast audience is where the marketing opt-out has to bite. Doing it here
+   * costs no network hop and has no failure mode — the preference lives two tables away in
+   * this same database — and it keeps the campaign's own recipient count honest instead of
+   * reporting people it never intended to reach.
+   *
+   * Absence means INCLUDED, deliberately: no row and no key both mean "never asked", and
+   * this repo already decided that never asked is not a refusal.
+   */
+  it('excludes customers who switched marketing off, and only those', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.findSegment({});
+    const sql = ($queryRaw.mock.calls[0]![0] as unknown as { join: (s: string) => string }).join(' ');
+    expect(sql).toContain('notification_preferences');
+    expect(sql).toContain("'marketing'");
+    // NOT EXISTS, so a customer with no preferences row at all stays in the audience.
+    expect(sql).toContain('NOT EXISTS');
+  });
 });
 
 describe('DepotCrmPrismaRepository', () => {

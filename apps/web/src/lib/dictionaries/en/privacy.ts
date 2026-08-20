@@ -3,10 +3,14 @@ import { privacy as base } from '../id/privacy';
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
   title: 'Privacy Policy',
-  effective: 'Effective 16 July 2026',
+  effective: 'Effective 20 August 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
   sections: [
+    {
+      heading: 'Promos and offers',
+      body: 'If you have ordered from one of our depots, we occasionally send news about promotions from that depot — as a row in your in-app notification inbox, and as a device notification if you allowed one. The lawful basis is our legitimate interest in telling our own customers about a service they already use, not a separate marketing consent. You can stop it at any time under Account › Preferences › Promos & offers; it takes effect immediately and does not affect your order-status notifications. We do not sell or rent your data to third parties for their marketing.',
+    },
     {
       heading: 'Data we collect',
       body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over.',

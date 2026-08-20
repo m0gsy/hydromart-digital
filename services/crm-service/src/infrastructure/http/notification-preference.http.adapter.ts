@@ -24,11 +24,23 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
   constructor(private readonly config: CrmConfigService) {}
 
   async pushAllowed(customerId: string): Promise<boolean> {
+    // Only an explicit `false` mutes. A malformed body is an outage, not a decision.
+    return (await this.read(customerId, 'push')).push !== false;
+  }
+
+  async marketingAllowed(customerId: string): Promise<boolean> {
+    const body = await this.read(customerId, 'marketing');
+    const categories = (body.categories ?? {}) as Record<string, unknown>;
+    // Absent key = never asked = still sendable. See the port for why that is the position.
+    return categories.marketing !== false;
+  }
+
+  private async read(customerId: string, what: string): Promise<{ push?: unknown; categories?: unknown }> {
     const base = this.config.customerServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) {
-      this.logger.warn('push preference not checked: customer-service URL or internal key missing');
-      return true;
+      this.logger.warn(`${what} preference not checked: customer-service URL or internal key missing`);
+      return {};
     }
 
     const url = `${base}/api/v1/profile/internal/notifications?customerId=${encodeURIComponent(customerId)}`;
@@ -38,15 +50,13 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
         signal: AbortSignal.timeout(NotificationPreferenceHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) {
-        this.logger.warn(`push preference lookup responded ${res.status}; assuming allowed`);
-        return true;
+        this.logger.warn(`${what} preference lookup responded ${res.status}; assuming allowed`);
+        return {};
       }
-      const body = (await res.json()) as { push?: unknown };
-      // Only an explicit `false` mutes. A malformed body is an outage, not a decision.
-      return body.push !== false;
+      return (await res.json()) as { push?: unknown; categories?: unknown };
     } catch (error) {
-      this.logger.warn(`push preference lookup failed: ${(error as Error).message}; assuming allowed`);
-      return true;
+      this.logger.warn(`${what} preference lookup failed: ${(error as Error).message}; assuming allowed`);
+      return {};
     }
   }
 }

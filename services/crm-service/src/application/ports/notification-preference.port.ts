@@ -18,4 +18,20 @@
  */
 export interface NotificationPreferencePort {
   pushAllowed(customerId: string): Promise<boolean>;
+  /**
+   * F1b: whether this customer still accepts promotional messages.
+   *
+   * An OPT-OUT, not an opt-in, and that is a recorded decision rather than an oversight.
+   * The consent ledger writes no MARKETING row for anybody who was never offered the
+   * checkbox — "never asked is not a refusal" — so almost every existing customer has no
+   * row at all. Filtering to consent-granted-only would empty the audience rather than
+   * narrow it. The position taken instead: an existing customer of a depot may be told
+   * about that depot, through a row in their own in-app feed, and may switch it off at any
+   * time in one tap. This is that switch.
+   *
+   * Also fails open. The durable gate is the audience query in customer-service, which has
+   * no failure mode at all; this one is the backstop for a pasted recipient list, and an
+   * outage must not silently abandon a campaign.
+   */
+  marketingAllowed(customerId: string): Promise<boolean>;
 }

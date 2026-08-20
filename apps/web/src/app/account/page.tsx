@@ -13,6 +13,7 @@ import {
   DeviceMobile,
   FileText,
   Gift,
+  Megaphone,
   Hash,
   Headset,
   Heart,
@@ -423,6 +424,32 @@ function PrefsBody() {
     }
   }
 
+  /**
+   * F1b: the marketing opt-out.
+   *
+   * Promotional broadcasts go to existing customers who were never offered the checkbox at
+   * signup, because the consent ledger writes no row for somebody never asked and filtering
+   * to consent-granted-only would empty the audience rather than narrow it. That position
+   * only holds up if leaving is one tap, and this is the tap.
+   *
+   * Stored under `categories` — the jsonb map already on the record — so there is no
+   * migration. Absent means ON, which is the same "never asked is not a refusal" rule the
+   * rest of the system runs on.
+   */
+  const marketingOn = prefs?.categories?.marketing !== false;
+
+  async function toggleMarketing(value: boolean) {
+    if (!prefs) return;
+    const next = { ...prefs, categories: { ...prefs.categories, marketing: value } };
+    setLocal(next); // optimistic
+    try {
+      await api.patch(endpoints.preferences.notifications, { categories: { marketing: value } }, true);
+    } catch {
+      setLocal(prefs); // revert
+      toast(t('account.prefs.saveError'), 'error');
+    }
+  }
+
   // F1: `email` and `whatsapp` were switches for two channels that exist nowhere in this
   // repo — crm sends the in-app inbox row and Web Push, and nothing else. Turning one off
   // stopped nothing because nothing was being sent; turning it on promised a channel that
@@ -447,6 +474,19 @@ function PrefsBody() {
           }
         />
       ))}
+
+      <ListRow
+        icon={<Megaphone size={18} weight="fill" className={ROW_ICON} />}
+        title={t('account.prefs.marketing.title')}
+        subtitle={t('account.prefs.marketing.body')}
+        trailing={
+          <Toggle
+            on={marketingOn}
+            onChange={toggleMarketing}
+            label={t('account.prefs.marketing.title')}
+          />
+        }
+      />
 
       <ListRow
         icon={<Translate size={18} weight="fill" className={ROW_ICON} />}

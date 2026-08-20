@@ -228,3 +228,44 @@ describe('NotificationPreferenceHttpAdapter', () => {
     await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
   });
 });
+
+/**
+ * F1b: the same endpoint answers the marketing question. `categories.marketing` is an
+ * OPT-OUT — absent means never asked, and this repo treats never asked as sendable. Only
+ * an explicit `false` refuses.
+ */
+describe('NotificationPreferenceHttpAdapter · marketingAllowed', () => {
+  const adapter = () => new NotificationPreferenceHttpAdapter(makeConfig({ internalServiceKey: 'k' }));
+
+  it('refuses only on an explicit false', async () => {
+    fetchMock.mockResolvedValue(res({ body: { categories: { marketing: false } } }));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(false);
+  });
+
+  it('allows when the customer switched it on', async () => {
+    fetchMock.mockResolvedValue(res({ body: { categories: { marketing: true } } }));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows when the customer was never asked — no key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { categories: {} } }));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows when the customer was never asked — no preferences at all', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows when the read fails', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('does not confuse the push switch with the marketing one', async () => {
+    fetchMock.mockResolvedValue(res({ body: { push: false, categories: { marketing: true } } }));
+    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+    fetchMock.mockResolvedValue(res({ body: { push: true, categories: { marketing: false } } }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+});
