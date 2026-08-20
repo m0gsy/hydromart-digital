@@ -50,6 +50,7 @@ order|orders_subscriptionId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXIST
 payment|payments_cashierShiftId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "payments_cashierShiftId_idx" ON "payments"("cashierShiftId")
 depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_itemId_createdAt_idx" ON "stock_movements"("itemId", "createdAt")
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")
+depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_issues_orderId_key" ON "gallon_issues"("orderId")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 crm|notifications_event_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_event_createdAt_idx" ON "notifications"("event", "createdAt")
 crm|campaigns_scheduledFor_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_scheduledFor_idx" ON "campaigns"("scheduledFor") WHERE "scheduledFor" IS NOT NULL

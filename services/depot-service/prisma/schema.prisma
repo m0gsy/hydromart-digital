@@ -161,6 +161,12 @@ model GallonIssue {
   depot       Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
   /// Customer who took the empties (optional — walk-ins may be anonymous).
   customerId  String?  @db.Uuid
+  /// I1: the order this issue was booked from, when fulfilment wrote it. Null for a
+  /// staff-entered issue, which is why the unique index below is partial. It exists to
+  /// make the fulfilment write idempotent: a completion fan-out is at-least-once, and a
+  /// second booking would inflate the deposit the depot appears to hold — and therefore
+  /// what it later refunds.
+  orderId     String?  @db.Uuid
   /// Number of empty gallons issued.
   quantity    Int
   /// Deposit held from the customer in whole IDR (0 = no deposit).
@@ -170,6 +176,10 @@ model GallonIssue {
   actorId     String
   createdAt   DateTime @default(now())
 
+  /// Total unique, and Prisma can see it — unlike the partial indexes on ServiceSetting.
+  /// Postgres treats every NULL as distinct, so this refuses a second booking of the same
+  /// order while leaving staff-entered rows (orderId null) unconstrained.
+  @@unique([orderId], map: "gallon_issues_orderId_key")
   @@index([depotId, createdAt])
   @@map("gallon_issues")
 }
