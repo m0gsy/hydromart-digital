@@ -82,6 +82,16 @@ export class DepotCashQueryDto {
   @IsNotBefore('from')
   @IsWithinDays('from')
   to?: string;
+
+  /**
+   * C2: the shift asking. Present = "this drawer's cash" (its own payments plus any that
+   * predate the column and fall in the window). Absent = the whole depot over the window,
+   * which is what the daily report wants.
+   */
+  @ApiPropertyOptional({ format: 'uuid', description: 'The cashier shift asking, if it is a shift close.' })
+  @IsOptional()
+  @IsUUID()
+  cashierShiftId?: string;
 }
 
 /**

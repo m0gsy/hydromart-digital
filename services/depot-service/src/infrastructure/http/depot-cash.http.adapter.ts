@@ -20,7 +20,7 @@ export class DepotCashHttpAdapter implements DepotCashPort {
 
   constructor(private readonly config: DepotConfigService) {}
 
-  async totalPaidCash(depotId: string, from: Date, to: Date): Promise<number> {
+  async totalPaidCash(depotId: string, from: Date, to: Date, cashierShiftId?: string): Promise<number> {
     const { paymentServiceUrl, internalServiceKey } = this.config;
     if (!paymentServiceUrl || !internalServiceKey) {
       throw new CashTotalUnavailableError();
@@ -30,6 +30,8 @@ export class DepotCashHttpAdapter implements DepotCashPort {
       from: from.toISOString(),
       to: to.toISOString(),
     });
+    // C2: naming the shift asks for THIS till, not every till at the depot.
+    if (cashierShiftId) query.set('cashierShiftId', cashierShiftId);
     const url = `${paymentServiceUrl}/api/v1/payments/internal/depot-cash?${query.toString()}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotCashHttpAdapter.TIMEOUT_MS);

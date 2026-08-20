@@ -293,6 +293,59 @@ describe('PaymentPrismaRepository', () => {
     expect(await repo.cashByOrder(['order-1'])).toEqual([{ orderId: 'order-1', amountIdr: 0 }]);
   });
 
+  /**
+   * C2 · the drawer, not the depot.
+   *
+   * Concurrent shifts at one depot are supported, and this sum was scoped to a depot and a
+   * time window with no cashier dimension at all. Two cashiers open at once each claimed
+   * the WHOLE window: the same rupiah counted against both tills, one short by the other's
+   * takings, and the counter cash posted to the cash book twice.
+   *
+   * A shift now asks for its own payments. Payments with no shift id — every one taken
+   * before this column existed — stay attributable by the old window rule, because
+   * dropping them would turn historical takings into a shortfall against a real person.
+   */
+  it('C2 · a shift asks for its own drawer, and inherits only the unattributed', async () => {
+    const from = new Date('2026-08-03T01:00:00.000Z');
+    const to = new Date('2026-08-03T09:00:00.000Z');
+    model.aggregate.mockResolvedValue({ _sum: { amount: 400_000 }, _count: { _all: 3 } });
+
+    await repo.sumDepotCash('depot-1', { from, to }, 'shift-1');
+
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: {
+        depotId: 'depot-1',
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+        OR: [
+          { cashierShiftId: 'shift-1' },
+          { cashierShiftId: null, paidAt: { gte: from, lte: to } },
+        ],
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+  });
+
+  it('C2 · with no shift named, it is the old window rule exactly', async () => {
+    const from = new Date('2026-08-03T01:00:00.000Z');
+    const to = new Date('2026-08-03T09:00:00.000Z');
+    model.aggregate.mockResolvedValue({ _sum: { amount: 1_000 }, _count: { _all: 1 } });
+
+    await repo.sumDepotCash('depot-1', { from, to });
+
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: {
+        depotId: 'depot-1',
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+        paidAt: { gte: from, lte: to },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+  });
+
   // Bounded by paidAt, not createdAt: a sale rung up before the shift but settled during it
   // is cash this cashier is holding, and their count has to include it.
   it('sumDepotCash aggregates one depot PAID cash by settlement time', async () => {

@@ -159,3 +159,67 @@ describe('PaymentService (branch coverage)', () => {
     expect(queued.refundReason).toBe('galon pecah');
   });
 });
+
+/**
+ * C2 · the counter payment names its drawer.
+ *
+ * The shift is resolved SERVER-side from the cashier's own bearer, never taken from the
+ * body: a body that could name the shift could name somebody else's till, and this column
+ * exists precisely so the cash is answerable to a named person.
+ */
+describe('PaymentService · C2 cashier shift', () => {
+  const shiftPort = { openShiftId: jest.fn() };
+  let repo: InMemoryPaymentRepository;
+  let service: PaymentService;
+
+  beforeEach(() => {
+    shiftPort.openShiftId.mockReset().mockResolvedValue('shift-7');
+    repo = new InMemoryPaymentRepository();
+    service = new PaymentService(
+      repo,
+      new FakeGateway(),
+      new FakeOrderCoordination(),
+      buildTestConfig(),
+      shiftPort as never,
+    );
+  });
+
+  const counter = (over: Record<string, unknown> = {}) =>
+    service.initiate('buyer-1', {
+      orderId: randomUUID(),
+      method: PaymentMethod.CASH,
+      amount: 45000,
+      atCounter: true,
+      depotId: 'depot-1',
+      authorization: 'Bearer cashier',
+      ...over,
+    });
+
+  it('stamps the drawer the cashier has open', async () => {
+    const payment = await counter();
+    expect(shiftPort.openShiftId).toHaveBeenCalledWith('depot-1', 'Bearer cashier');
+    expect(repo.rows.find((r) => r.id === payment.id)?.cashierShiftId).toBe('shift-7');
+  });
+
+  it('never asks for a delivery payment — there is no till', async () => {
+    await service.initiate('buyer-1', {
+      orderId: randomUUID(),
+      method: PaymentMethod.CASH,
+      amount: 45000,
+      authorization: 'Bearer someone',
+    });
+    expect(shiftPort.openShiftId).not.toHaveBeenCalled();
+  });
+
+  it('leaves it unattributed when no shift is open, and still takes the payment', async () => {
+    shiftPort.openShiftId.mockResolvedValue(null);
+    const payment = await counter();
+    expect(repo.rows.find((r) => r.id === payment.id)?.cashierShiftId ?? null).toBeNull();
+    expect(payment.status).toBe(PaymentStatus.PENDING);
+  });
+
+  it('leaves it unattributed when there is no token to ask with', async () => {
+    await counter({ authorization: undefined });
+    expect(shiftPort.openShiftId).not.toHaveBeenCalled();
+  });
+});
