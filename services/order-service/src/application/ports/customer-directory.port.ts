@@ -31,5 +31,10 @@ export interface CustomerDirectoryPort {
    * `CounterBuyerUnresolvedError` for why booking the sale anonymously instead would let a
    * retry sell the same goods twice.
    */
-  resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null>;
+  /**
+   * C9: `fullName` is nullable because a cashier who typed only a phone number has NOT
+   * named anybody. It used to fall back to the phone, so the account was created with a
+   * phone number standing in as a person's name.
+   */
+  resolveByPhone(phone: string, fullName: string | null, depotId: string): Promise<string | null>;
 }

@@ -368,12 +368,29 @@ describe('OrderService.walkInSale', () => {
     });
 
     // A cashier who typed only a number still gets a usable account rather than a blank one.
-    it('names the new account after the phone when no name was typed', async () => {
+    /**
+     * C9: this used to assert the OPPOSITE, and the opposite was the bug. A cashier who
+     * typed only a phone number has not named anybody, but the account was created with
+     * `fullName` set to "08123" — a phone number standing in as a person's name on every
+     * screen that lists customers, for somebody who never verified and never consented.
+     *
+     * Measured on production before changing it: 0 of 21 customers carry a phone-shaped
+     * name, so this closes the path before it produced its first row.
+     */
+    it('creates the account UNNAMED when no name was typed', async () => {
       directory.byPhone.set('08123', BUYER);
 
       await sell(1, { customerPhone: '08123' });
 
-      expect(directory.resolveCalls[0].fullName).toBe('08123');
+      expect(directory.resolveCalls[0].fullName).toBeNull();
+    });
+
+    it('still passes the name when the cashier typed one', async () => {
+      directory.byPhone.set('08123', BUYER);
+
+      await sell(1, { customerPhone: '08123', customerName: '  Budi  ' });
+
+      expect(directory.resolveCalls[0].fullName).toBe('Budi');
     });
 
     it('leaves an id the caller already resolved alone', async () => {
