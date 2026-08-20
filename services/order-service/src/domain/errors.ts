@@ -15,6 +15,23 @@ export class OrderNotFoundError extends DomainError {
  * the repository off the unique index, never surfaced to the caller: the service turns it
  * back into the order the first attempt placed, which is what the retry was asking for.
  */
+/**
+ * C8: the same till attempt key arrived with a different basket.
+ *
+ * An idempotency key promises "the same key returns the same result". The counter used to
+ * honour the key alone, so a cashier who edited the basket after a failed submit got the
+ * FIRST order back and a receipt for goods that were never on the counter. A key reused
+ * with different content is a caller bug, not a retry, and saying so beats replaying a sale
+ * nobody made.
+ */
+export class CounterBasketChangedError extends DomainError {
+  readonly code = 'ORDER_COUNTER_BASKET_CHANGED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Keranjang berubah sejak percobaan sebelumnya. Ulangi penjualan ini.');
+  }
+}
+
 export class DuplicateCheckoutError extends DomainError {
   readonly code = 'ORDER_DUPLICATE_CHECKOUT';
   readonly status = HTTP_STATUS.CONFLICT;

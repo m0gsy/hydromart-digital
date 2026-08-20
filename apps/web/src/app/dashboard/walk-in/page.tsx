@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUUpLeft, Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
 
 import { RemoteImage } from '@/components/remote-image';
@@ -48,6 +48,15 @@ type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
  * Phone is optional. Given one, the buyer is resolved (or pre-registered) first so points
  * land on a real account; left blank the sale is anonymous, which earns nothing.
  */
+/**
+ * C14: how often the till re-reads what the depot can actually hand over.
+ *
+ * Coarse deliberately. The screen already refetches prices on every stepper tap, and this
+ * repo has a 429-cascade in its history — a tighter loop buys accuracy nobody can act on
+ * faster than they can scan a barcode.
+ */
+const STOCK_REFRESH_MS = 20000;
+
 function WalkIn({ depotId }: { depotId: string }) {
   const { t, locale } = useT();
   const { toast } = useToast();
@@ -70,6 +79,17 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
   /** Idempotency key for the sale being rung up; cleared once it is recorded. */
+  /**
+   * B-13: one key per till attempt, deliberately NOT cleared when a submit fails — that is
+   * what makes a retry after a timeout return the sale already recorded instead of selling
+   * the goods twice.
+   *
+   * C8: but it must not survive a change of BASKET. The cashier who fixed a quantity or
+   * dropped a line after a failure was sending new goods under the old key, and the server
+   * handed back the first order — a receipt for goods that were never on the counter. The
+   * effect below retires the key whenever the basket changes, so the same key never
+   * describes two different sales.
+   */
   const attemptKey = useRef('');
   // Mirrors the server's own rule: no open shift, no counter sale. Undefined until the bar
   // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
@@ -96,6 +116,31 @@ function WalkIn({ depotId }: { depotId: string }) {
     () => api.get(endpoints.inventory.lines(depotId), true),
     [depotId],
   );
+  /**
+   * C14: the number on this screen was stale from the FIRST sale, and so was the stepper's
+   * ceiling.
+   *
+   * `stock` only ever reloaded on a depot switch, a void, a retry after an error, or
+   * `useAsync`'s own resume-after-60-seconds-backgrounded. A successful `submit()` never
+   * reloaded it — and the server computes `available = quantity - reserved`, with every
+   * walk-in reserving. So one sale by ONE cashier was enough: sell 10 of a stock of 12 and
+   * the stepper still offered 12, the cashier kept selling goods that were gone, and the
+   * reservation refused them AFTER the buyer had agreed a price.
+   *
+   * Two triggers, because they answer different failures: the interval covers the OTHER
+   * cashier (the shift index is unique per (depot, cashier), so two tills at one depot is
+   * normal), and the post-sale reload covers this one.
+   *
+   * Coarse on purpose. This screen is already chatty — `resolved` refetches on every
+   * stepper tap — and this repo has a 429-cascade in its history. `reloadRef` because
+   * `useAsync.reload` is not memoised, exactly as `dashboard/tracking` does it.
+   */
+  const stockReloadRef = useRef(stock.reload);
+  stockReloadRef.current = stock.reload;
+  useEffect(() => {
+    const t = setInterval(() => stockReloadRef.current(), STOCK_REFRESH_MS);
+    return () => clearInterval(t);
+  }, []);
   const availableById = useMemo(() => {
     const map = new Map<string, number>();
     for (const line of stock.data ?? []) {
@@ -134,6 +179,14 @@ function WalkIn({ depotId }: { depotId: string }) {
       lineTotal: (priceById.get(l.product.id) ?? l.product.basePrice) * l.quantity,
     }));
   /** Shelf prices at this depot — now a SUBTOTAL line, not the number the till charges. */
+  // C8: a different basket is a different sale, so it gets a different key. Keyed on the
+  // basket itself rather than on any one control, because every way of editing it — the
+  // stepper, clearing a line, switching depot — has the same consequence.
+  const basketKey = lines.map((l) => `${l.product.id}:${l.quantity}`).join('|');
+  useEffect(() => {
+    attemptKey.current = '';
+  }, [basketKey]);
+
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
 
   /**
@@ -260,6 +313,21 @@ function WalkIn({ depotId }: { depotId: string }) {
       attemptKey.current = '';
     } catch (e) {
       setBusy(false);
+      /**
+       * C14: a stock refusal used to arrive as an English sentence full of catalogue UUIDs
+       * — "Insufficient stock at the fulfilling depot: <uuid> (need 5, have 2)" — printed
+       * straight onto the till. It DOES name every short line, but with ids nobody at a
+       * counter can read, and the basket survived alongside the stale ceiling, so trying
+       * again failed identically. The only way to get fresh numbers was reloading the page,
+       * which threw away the basket and the buyer's phone number.
+       *
+       * The refusal is now said in the cashier's language, and the stock is reloaded so the
+       * steppers drop to what is really there — the retry can now succeed.
+       */
+      if (e instanceof ApiError && e.code === 'ORDER_INSUFFICIENT_STOCK') {
+        stockReloadRef.current();
+        return toast(t('opsFix.walkIn.stockShort'), 'error');
+      }
       return toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.saveError'), 'error');
     }
 
@@ -294,6 +362,10 @@ function WalkIn({ depotId }: { depotId: string }) {
     const receipt =
       method === 'CASH' ? { cashReceived, change: cashReceived - order.total } : undefined;
     setLastSale({ order, cash: receipt, method });
+    // C14: the sale just reserved stock, so the number on screen and the stepper's ceiling
+    // are both wrong until this lands. One cashier is enough to make them wrong — this is
+    // not about a second till.
+    stockReloadRef.current();
     if (!printReceipt(order, { t, locale }, receipt, method)) {
       toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
@@ -328,7 +400,16 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
   }
 
-  if (catalog.loading || stock.loading) return <Skeleton className="h-64" />;
+  // C14, and this line had to change FIRST or the fix below would be worse than the bug.
+  //
+  // `reload()` turns `loading` back on, so gating the whole till on it meant any refresh —
+  // after a sale, or on the interval — blanked the screen mid-transaction: the last-sale
+  // card, its Cetak ulang and its Batalkan all vanished for the length of a round trip.
+  // `voidSale()` already had that blink. `loading && !data` is the form the repo already
+  // uses on `dashboard/tracking`: a first load shows the skeleton, a refresh does not.
+  if ((catalog.loading && !catalog.data) || (stock.loading && !stock.data)) {
+    return <Skeleton className="h-64" />;
+  }
   // Stock is not decoration here — it decides what may be sold, so a stock list that failed
   // to load must not render as "this depot sells nothing".
   if (catalog.error) return <ErrorState message={catalog.error} onRetry={catalog.reload} />;

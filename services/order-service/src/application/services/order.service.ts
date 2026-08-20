@@ -15,6 +15,7 @@ import {
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
+  CounterBasketChangedError,
   DuplicateCheckoutError,
   EmptyCartError,
   InvalidStatusTransitionError,
@@ -717,6 +718,24 @@ export class OrderService {
     const idempotencyKey = OrderService.idempotencyKeyOf(input);
     const replay = await this.findReplay(customerId, idempotencyKey);
     if (replay) {
+      /**
+       * C8: a replay is only a replay if it is the SAME sale.
+       *
+       * The till holds one attempt key until a submit succeeds, so a cashier who edited the
+       * basket after a failure — removed a line the buyer changed their mind about, fixed a
+       * quantity — sent the new basket under the old key. The guard matched on the key
+       * alone, handed back the FIRST order, and the screen printed a receipt for goods that
+       * were never the ones on the counter.
+       *
+       * Refusing is the honest answer, and it is what an idempotency key means everywhere
+       * else: the same key must return the same result, so a key reused with different
+       * content is a caller bug, not a retry. The till regenerates its key on a basket edit
+       * so a cashier never reaches this — but the guard belongs here, where every client
+       * passes.
+       */
+      if (!OrderService.sameBasket(replay, input.lines)) {
+        throw new CounterBasketChangedError();
+      }
       return replay;
     }
     // Before anything is priced or held: cash is about to change hands, and it has to land
@@ -1473,6 +1492,24 @@ export class OrderService {
       catalogFallback,
       agen,
     };
+  }
+
+  /**
+   * C8: does this basket match the sale that key already produced?
+   *
+   * Compared as a multiset of (product, quantity): line ORDER is not part of what the
+   * cashier sold, so reordering the same goods is still the same sale.
+   */
+  private static sameBasket(
+    order: OrderRecord,
+    lines: { productId: string; quantity: number }[],
+  ): boolean {
+    const key = (rows: { productId: string; quantity: number }[]) =>
+      rows
+        .map((r) => `${r.productId}:${r.quantity}`)
+        .sort()
+        .join('|');
+    return key(order.items) === key(lines);
   }
 
   private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
