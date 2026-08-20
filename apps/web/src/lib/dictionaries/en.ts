@@ -128,8 +128,7 @@ export const en: Dictionary = {
     prefs: {
       title: 'Preferences',
       push: { title: 'Order notifications', body: 'Delivery & courier status updates.' },
-      email: { title: 'Promo emails', body: 'Latest offers and discounts.' },
-      whatsapp: { title: 'WhatsApp', body: 'Reminders and confirmations via WhatsApp.' },
+      marketing: { title: 'Promos & offers', body: 'Deals from your depot. Turn off any time.' },
       saveError: 'Could not save preferences.',
     },
     languageBody: 'App language',

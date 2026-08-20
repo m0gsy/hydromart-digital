@@ -3,10 +3,14 @@
 // Perbarui `effective` setiap kali isi kebijakan berubah secara material.
 export const privacy = {
   title: 'Kebijakan Privasi',
-  effective: 'Berlaku sejak 16 Juli 2026',
+  effective: 'Berlaku sejak 20 Agustus 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
+    {
+      heading: 'Info promo dan penawaran',
+      body: 'Kalau kamu pernah memesan dari salah satu depot kami, sesekali kami mengirim kabar promo dari depot itu — sebagai baris di kotak notifikasi aplikasimu, dan sebagai notifikasi perangkat kalau kamu mengizinkannya. Dasar pemrosesannya adalah kepentingan sah kami untuk memberi tahu pelanggan sendiri tentang layanan yang sudah kamu pakai, bukan persetujuan pemasaran terpisah. Kamu bisa berhenti kapan saja lewat Akun › Preferensi › Info promo & penawaran, dan itu berlaku seketika tanpa memengaruhi pemberitahuan status pesananmu. Kami tidak menjual atau menyewakan datamu ke pihak ketiga untuk pemasaran mereka.',
+    },
     {
       heading: 'Data yang kami kumpulkan',
       body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan.',

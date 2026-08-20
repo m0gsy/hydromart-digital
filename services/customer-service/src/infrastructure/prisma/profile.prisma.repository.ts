@@ -127,6 +127,21 @@ export class ProfilePrismaRepository implements ProfileRepository {
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
       WHERE (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
         AND (${city}::text IS NULL OR LOWER(a."city") = LOWER(${city}))
+        -- F1b: the marketing opt-out bites HERE, not at delivery. This is the only place
+        -- that can do it without a network hop and without a failure mode — the preference
+        -- is two tables away in the same database — and filtering the audience keeps the
+        -- campaign's own recipient count honest instead of reporting people it never meant
+        -- to reach.
+        --
+        -- NOT EXISTS, so absence means INCLUDED: no preferences row and no marketing key
+        -- both mean "never asked", and this system already decided that never asked is not
+        -- a refusal (consent.service.ts writes no row rather than writing false).
+        -- Only an explicit switch-off removes somebody.
+        AND NOT EXISTS (
+          SELECT 1 FROM "notification_preferences" np
+          WHERE np."customerId" = p."customerId"
+            AND np."categories"->>'marketing' = 'false'
+        )
       ORDER BY p."customerId"
     `;
   }

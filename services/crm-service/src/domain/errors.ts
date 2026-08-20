@@ -39,3 +39,22 @@ export class SegmentUnavailableError extends DomainError {
     super(`Could not resolve the audience segment${detail ? `: ${detail}` : ''}.`);
   }
 }
+
+/**
+ * F1b: this recipient switched promotional messages off.
+ *
+ * Thrown rather than returned quietly so the sweep records the recipient FAILED with this
+ * sentence beside their number — which is what staff who pasted a list need to see.
+ * Follows the pattern already in the sweep for a number with no Hydromart account.
+ *
+ * Only reachable from an EXPLICIT recipient list: a segment-resolved audience never
+ * contains an opted-out customer, because customer-service filters them out of the
+ * directory query before the campaign is even created.
+ */
+export class RecipientOptedOutError extends DomainError {
+  readonly code = 'CRM_RECIPIENT_OPTED_OUT';
+  readonly status = 422;
+  constructor() {
+    super('pelanggan ini berhenti menerima info promo — tidak ada yang dikirim');
+  }
+}

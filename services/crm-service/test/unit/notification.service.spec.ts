@@ -180,6 +180,10 @@ describe('NotificationService · F1 push preference', () => {
       if (this.fail) throw new Error('customer-service unreachable');
       return this.allowed;
     }
+    // F1b lives on the same port; `notify` never consults it (the broadcast gate does).
+    async marketingAllowed(): Promise<boolean> {
+      return true;
+    }
   }
 
   let repo: InMemoryNotificationRepository;

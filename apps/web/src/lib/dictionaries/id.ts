@@ -129,8 +129,12 @@ export const id = {
     prefs: {
       title: 'Preferensi',
       push: { title: 'Notifikasi pesanan', body: 'Update status antar & kurir.' },
-      email: { title: 'Email promo', body: 'Penawaran dan diskon terbaru.' },
-      whatsapp: { title: 'WhatsApp', body: 'Pengingat dan konfirmasi via WhatsApp.' },
+      // F1b: berhenti dari info promo TANPA ikut mematikan update pesanan. Dua hal berbeda,
+      // dan menggabungkannya berarti pelanggan yang cuma tidak mau dipromosikan harus ikut
+      // membutakan dirinya dari status antar.
+      marketing: { title: 'Info promo & penawaran', body: 'Kabar diskon dari depotmu. Matikan kapan saja.' },
+      // F1: kunci email/whatsapp DIHAPUS bersama toggle-nya — dua kanal yang tidak ada di
+      // sistem ini. Jangan dihidupkan lagi tanpa transport yang benar-benar mengirim.
       saveError: 'Gagal menyimpan preferensi.',
     },
     languageBody: 'Bahasa aplikasi',
