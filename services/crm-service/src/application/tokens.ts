@@ -8,4 +8,5 @@ export const CRM_TOKENS = {
   PushSubscriptionRepository: Symbol('PushSubscriptionRepository'),
   PushSender: Symbol('PushSender'),
   BroadcastDelivery: Symbol('BroadcastDelivery'),
+  NotificationPreference: Symbol('NotificationPreference'),
 } as const;

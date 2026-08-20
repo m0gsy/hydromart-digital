@@ -14,7 +14,8 @@ import type { OpsNotification } from './types';
  * "mark unread": an alert someone has seen is seen).
  */
 
-export type OpsNotifFilter = 'all' | 'unread' | 'stock' | 'courier';
+export type OpsNotifGroup = 'stock' | 'courier' | 'sales' | 'hr';
+export type OpsNotifFilter = 'all' | 'unread' | OpsNotifGroup;
 
 /** Chip row, shared so desktop and mobile offer the same filters (styling stays local). */
 export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
@@ -22,12 +23,31 @@ export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
   { key: 'unread', labelKey: 'opsFix.notif.filterUnread' },
   { key: 'stock', labelKey: 'opsFix.notif.filterStock' },
   { key: 'courier', labelKey: 'opsFix.notif.filterCourier' },
+  { key: 'sales', labelKey: 'opsFix.notif.filterSales' },
+  { key: 'hr', labelKey: 'opsFix.notif.filterHr' },
 ];
 
-/** The two events crm-service actually emits (OPS_EVENTS). Anything else is ungrouped. */
-export const OPS_EVENT_GROUP: Record<string, 'stock' | 'courier'> = {
+/**
+ * Every event crm-service files into the ops feed, and the chip it answers to.
+ *
+ * F4: this named two of the nine. The other seven — an untracked sale, a meter variance,
+ * the daily sales figure and all four HR events — were filed, listed under "Semua", and
+ * reachable by no chip, so nobody hunting for one could narrow to it. `OPS_EVENTS` in
+ * `types.ts` mirrors the service's own list and a test asserts this map covers all of it,
+ * so a tenth event fails here rather than arriving invisible.
+ */
+export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   STOCK_LOW: 'stock',
+  // A sale the depot has no stock line for, and a meter reading that disagrees with the
+  // litres sold, are both "the stock ledger is wrong" — the same person chases them.
+  STOCK_UNTRACKED: 'stock',
+  METER_VARIANCE: 'stock',
   COURIER_INCIDENT: 'courier',
+  DEPOT_SALES_UPDATE: 'sales',
+  LEAVE_SUBMITTED: 'hr',
+  LEAVE_APPROVED: 'hr',
+  LEAVE_REJECTED: 'hr',
+  HR_ANNOUNCEMENT: 'hr',
 };
 
 /** Pure: apply the chip filter. `read` decides unread-ness (server receipt + local overlay). */

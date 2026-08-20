@@ -411,7 +411,7 @@ function PrefsBody() {
   const [local, setLocal] = useState<NotificationPreferences | null>(null);
   const prefs = local ?? data;
 
-  async function togglePref(key: 'push' | 'email' | 'whatsapp', value: boolean) {
+  async function togglePref(key: 'push', value: boolean) {
     if (!prefs) return;
     const next = { ...prefs, [key]: value };
     setLocal(next); // optimistic
@@ -423,11 +423,12 @@ function PrefsBody() {
     }
   }
 
-  const rows = [
-    { key: 'push' as const, icon: Bell },
-    { key: 'email' as const, icon: Gift },
-    { key: 'whatsapp' as const, icon: DeviceMobile },
-  ];
+  // F1: `email` and `whatsapp` were switches for two channels that exist nowhere in this
+  // repo — crm sends the in-app inbox row and Web Push, and nothing else. Turning one off
+  // stopped nothing because nothing was being sent; turning it on promised a channel that
+  // could never arrive. The stored fields are left alone: removing a column is a migration
+  // for no gain, and a control nobody can see cannot mislead anybody.
+  const rows = [{ key: 'push' as const, icon: Bell }];
 
   if (loading) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;

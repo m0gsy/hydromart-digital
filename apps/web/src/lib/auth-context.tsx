@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api } from './api';
 import { endpoints } from './endpoints';
+import { unsubscribeFromPush } from './push';
 import { getSession, setSession, subscribe } from './session-store';
 import { clearTokens, getRefreshToken, hasTokens, unlockTokens } from './token-store';
 import type { Customer, Session } from './types';
@@ -75,6 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         api
           .post(endpoints.auth.logout, refreshToken ? { refreshToken } : undefined, true)
           .catch(() => {});
+        // F5: release the FCM registration too, and issue it here — before `clearTokens()`
+        // — for the same reason the logout call is issued here: the DELETE needs the bearer
+        // that is about to be dropped. Without it the device kept receiving the previous
+        // account's pushes, and the NEXT account was never registered either: the endpoint
+        // is the same `fcm:<token>` string, so the sync deduped against a registration that
+        // now belonged to somebody else. Fire-and-forget — a failed release must never stop
+        // somebody signing out, and the server-side row is replaced on the next subscribe.
+        void unsubscribeFromPush().catch(() => {});
         // Safe on this line: the request above has already been issued with its bearer
         // attached — `api` builds headers before it awaits anything.
         clearTokens();

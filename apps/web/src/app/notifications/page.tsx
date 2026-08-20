@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Coin,
   Gift,
+  Megaphone,
   Package,
   Receipt,
   Ticket,
@@ -15,8 +16,12 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
+import { useRouter } from 'next/navigation';
+
 import { RequireAuth } from '@/components/require-auth';
-import { CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { CenterState, ErrorState, Skeleton, Spinner } from '@/components/ui';
+import { useAuth } from '@/lib/auth-context';
+import { notificationHome } from '@/lib/roles';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -28,7 +33,15 @@ const LAST_SEEN_KEY = 'hydromart.notifications.lastSeen';
 
 // Event → icon + tint (spec 5h colour language: success for fulfilment, danger
 // for cancel, brand for the rest).
-const EVENT_STYLE: Record<NotificationEvent, { icon: Icon; fg: string; bg: string }> = {
+//
+// F3: PARTIAL on purpose. The union now names every event crm can file, including the
+// nine that go to the staff ops feed and never reach a customer inbox — giving those an
+// icon here would be drawing chrome for a row this screen cannot receive. `BROADCAST`
+// does reach it, so it is listed. The `??` at the call site covers the rest.
+/** Anything the map does not name — a new event shipped before this screen learns it. */
+const FALLBACK_STYLE = { icon: Bell, fg: 'text-brand-600', bg: 'bg-brand-50' };
+
+const EVENT_STYLE: Partial<Record<NotificationEvent, { icon: Icon; fg: string; bg: string }>> = {
   ORDER_RECEIVED: { icon: Receipt, fg: 'text-brand-600', bg: 'bg-brand-50' },
   ORDER_CONFIRMED: { icon: Receipt, fg: 'text-brand-600', bg: 'bg-brand-50' },
   ORDER_ON_DELIVERY: { icon: Truck, fg: 'text-[color:var(--success)]', bg: 'bg-[color:var(--success-bg)]' },
@@ -40,6 +53,7 @@ const EVENT_STYLE: Record<NotificationEvent, { icon: Icon; fg: string; bg: strin
   POINTS_EARNED: { icon: Coin, fg: 'text-[#b97d10]', bg: 'bg-[#faf1de]' },
   VOUCHER_GRANTED: { icon: Ticket, fg: 'text-brand-600', bg: 'bg-brand-50' },
   REORDER_REMINDER: { icon: ArrowsClockwise, fg: 'text-brand-600', bg: 'bg-brand-50' },
+  BROADCAST: { icon: Megaphone, fg: 'text-brand-600', bg: 'bg-brand-50' },
 };
 
 function Feed() {
@@ -98,7 +112,7 @@ function Feed() {
         ) : (
           <div className="flex flex-col gap-2.5">
             {data.map((n) => {
-              const style = EVENT_STYLE[n.event] ?? EVENT_STYLE.ORDER_RECEIVED;
+              const style = EVENT_STYLE[n.event] ?? FALLBACK_STYLE;
               const Ic = style.icon;
               const unread = n.createdAt > lastSeen;
               return (
@@ -127,10 +141,43 @@ function Feed() {
   );
 }
 
+/**
+ * F2: this inbox is customers only — `GET /notifications/me` is `@Roles(CUSTOMER)`, so a
+ * staff member reaching it gets a 403 and an error screen.
+ *
+ * They reach it constantly: hr-service pushes LEAVE_SUBMITTED / LEAVE_APPROVED /
+ * LEAVE_REJECTED / HR_ANNOUNCEMENT with the recipient's own account id, so those DO get
+ * delivered to a device, and crm's `destinationFor()` has no case for them and falls
+ * through to `/notifications`. A supervisor tapping "Pengajuan cuti masuk" landed on a
+ * refusal.
+ *
+ * The redirect lives on the page rather than in the tap handler because the tap is only
+ * one of the ways in: a deep link, a bookmark and the app's own nav all arrive here too,
+ * and they should all end up at the feed the person can actually read.
+ */
+function InboxDoor() {
+  const { customer, ready } = useAuth();
+  const router = useRouter();
+  const staffFeed = customer && customer.role !== 'CUSTOMER' ? notificationHome(customer.role) : null;
+
+  useEffect(() => {
+    if (ready && staffFeed) router.replace(staffFeed);
+  }, [ready, staffFeed, router]);
+
+  if (staffFeed) {
+    return (
+      <div className="flex justify-center py-24 text-brand-500">
+        <Spinner size={28} />
+      </div>
+    );
+  }
+  return <Feed />;
+}
+
 export default function NotificationsPage() {
   return (
     <RequireAuth>
-      <Feed />
+      <InboxDoor />
     </RequireAuth>
   );
 }

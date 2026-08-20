@@ -17,5 +17,17 @@ export const notifications = {
     POINTS_EARNED: 'Poin bertambah',
     VOUCHER_GRANTED: 'Voucher baru',
     REORDER_REMINDER: 'Saatnya isi ulang?',
+    // F3: kampanye adalah satu-satunya event yang pasti dilihat pelanggan, dan selama ini
+    // tampil sebagai string mentah `notifications.events.BROADCAST`.
+    BROADCAST: 'Kabar dari Hydromart',
+    // Event operasional — tampil di umpan staf, bukan kotak masuk pelanggan.
+    STOCK_UNTRACKED: 'Penjualan tanpa kartu stok',
+    METER_VARIANCE: 'Selisih meteran air',
+    COURIER_INCIDENT: 'Insiden kurir',
+    DEPOT_SALES_UPDATE: 'Penjualan depot hari ini',
+    LEAVE_SUBMITTED: 'Pengajuan cuti masuk',
+    LEAVE_APPROVED: 'Cuti disetujui',
+    LEAVE_REJECTED: 'Cuti ditolak',
+    HR_ANNOUNCEMENT: 'Pengumuman HR',
   },
 };

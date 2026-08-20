@@ -222,6 +222,8 @@ export const opsFix = {
     filterUnread: 'Belum dibaca',
     filterStock: 'Stok',
     filterCourier: 'Kurir',
+    filterSales: 'Penjualan',
+    filterHr: 'HR',
     today: 'Hari ini',
     yesterday: 'Kemarin',
     earlier: 'Lebih lama',

@@ -9,10 +9,18 @@ import { NotificationEvent } from './notification-event';
  * being granted and a reorder nudge all dropped the user on the same inbox and made them
  * find the thing themselves. This gives each event the screen it is actually about.
  *
- * The inbox stays as the default rather than a fallback nobody reaches: the operational
- * and HR events are staff-facing, `notify()` only pushes when a `customerId` is present,
- * and staff notifications carry none — so they never reach a device at all. Mapping them
- * to a depot console screen would be writing routes for a message that is not sent.
+ * F2 — the paragraph that used to sit here was wrong, and it was wrong in the direction
+ * that hid a bug. It said the operational and HR events "carry no `customerId`, so they
+ * never reach a device at all", and used that to justify leaving them on the inbox. HR
+ * events do carry one: `leave.service.ts` passes `supervisor.authSubjectId` and
+ * `employee.authSubjectId`, and `announcement.service.ts` does the same — so they are
+ * pushed, they are tapped, and `/notifications` is `@Roles(CUSTOMER)`. Every one of those
+ * taps ended on a 403.
+ *
+ * The destination stays the inbox anyway, and that is now a decision rather than an
+ * oversight: which staff feed a person can open depends on their role, and this service
+ * does not know it. `notificationHome()` in the web app does, and the inbox page redirects
+ * there — one place, covering the tap, the deep link and the bookmark alike.
  *
  * Order events need the order's id, which is not otherwise in `vars` — the templates
  * quote the human-readable `orderNumber`. Passing the id alongside is deliberate and

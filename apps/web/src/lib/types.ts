@@ -546,6 +546,14 @@ export interface NotificationPreferences {
   categories: Record<string, boolean>;
 }
 
+/**
+ * Every event crm-service can file, mirroring `NotificationEvent` there.
+ *
+ * F3: this union was missing five of them — `BROADCAST` most visibly, because a campaign
+ * is the one event a customer is guaranteed to see, and it rendered as the literal string
+ * `notifications.events.BROADCAST`. The dictionary test asserts both dictionaries name
+ * every member, so adding one here fails until it has a title in Bahasa and English.
+ */
 export type NotificationEvent =
   | 'ORDER_RECEIVED'
   | 'ORDER_CONFIRMED'
@@ -555,9 +563,38 @@ export type NotificationEvent =
   | 'ORDER_CANCELLED'
   | 'CUSTOMER_REGISTERED'
   | 'STOCK_LOW'
+  | 'STOCK_UNTRACKED'
+  | 'METER_VARIANCE'
+  | 'COURIER_INCIDENT'
+  | 'DEPOT_SALES_UPDATE'
   | 'POINTS_EARNED'
   | 'VOUCHER_GRANTED'
-  | 'REORDER_REMINDER';
+  | 'REORDER_REMINDER'
+  | 'LEAVE_SUBMITTED'
+  | 'LEAVE_APPROVED'
+  | 'LEAVE_REJECTED'
+  | 'HR_ANNOUNCEMENT'
+  | 'BROADCAST';
+
+/**
+ * The events crm-service files into the STAFF ops feed rather than a customer inbox —
+ * mirrors `OPS_EVENTS` in `crm-service/src/domain/notification-event.ts`.
+ *
+ * F4: the filter chips grouped two of these nine, so seven kinds of alert — an untracked
+ * sale, a water-meter variance, the daily sales figure and all four HR events — were
+ * reachable by no chip at all. Declared here so a test can assert the map covers it.
+ */
+export const OPS_EVENTS = [
+  'STOCK_LOW',
+  'STOCK_UNTRACKED',
+  'METER_VARIANCE',
+  'COURIER_INCIDENT',
+  'DEPOT_SALES_UPDATE',
+  'LEAVE_SUBMITTED',
+  'LEAVE_APPROVED',
+  'LEAVE_REJECTED',
+  'HR_ANNOUNCEMENT',
+] as const satisfies readonly NotificationEvent[];
 
 // A row from the customer's notification feed (crm-service audit trail).
 export interface Notification {
