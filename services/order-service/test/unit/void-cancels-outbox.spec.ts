@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { OrderService } from '../../src/application/services/order.service';
+import { VoidWindowClosedError } from '../../src/domain/errors';
+import { OrderStatus } from '../../src/domain/order-status';
 import { OutboxService } from '../../src/application/services/outbox.service';
 import {
   FakeCashierShift,
@@ -54,6 +56,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
   let franchiseRevenue: FakeFranchiseRevenue;
   let catalog: FakeProductCatalog;
   let service: OrderService;
+  let shift: FakeCashierShift;
 
   const operator: AuthenticatedUser = {
     sub: 'op-1',
@@ -74,6 +77,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
     inventory = new FakeInventory();
     loyalty = new FakeLoyaltyCoordination();
     franchiseRevenue = new FakeFranchiseRevenue();
+    shift = new FakeCashierShift();
     service = new OrderService(
       orders,
       cart,
@@ -93,7 +97,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
       new FakeRecommendationCoordination(),
       new FakeForecastCoordination(),
       franchiseRevenue,
-      new FakeCashierShift(),
+      shift,
       new FakePaymentReversal(),
       outbox,
     );
@@ -177,4 +181,48 @@ describe('a voided counter sale owes nothing (C3)', () => {
     expect(inventory.calls).toHaveLength(0);
     expect(franchiseRevenue.posted).toHaveLength(postedBefore);
   });
+
+  /**
+   * C5 · the void window is the SHIFT, not the calendar day.
+   *
+   * The old rule's own comment claimed it prevented "voiding backwards into a shift somebody
+   * already counted and signed off". It did not: two shifts happen in one day all the time.
+   * The morning cashier counts, signs off and goes home, and until midnight their sales are
+   * still voidable — the reversal lands in the AFTERNOON drawer while the morning's cash was
+   * already booked, so the depot is overstated by the voided amount and nothing corrects it.
+   *
+   * The decisive test is the second one: same calendar day, different shift. It passes under
+   * the old rule and must fail under it, which is the only way this cannot quietly regress.
+   */
+    describe('C5 · voiding into a drawer that is still open', () => {
+    it('allows a sale rung up during the shift that is still open', async () => {
+      const { order } = await sellWithFailingEffects();
+      shift.openedAt = new Date(order.createdAt.getTime() - 60 * 60 * 1000);
+
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Salah ukuran', new Date(order.createdAt.getTime() + 60_000), 'Bearer t'),
+      ).resolves.toMatchObject({ status: OrderStatus.VOIDED });
+    });
+
+    it('refuses a sale from an EARLIER shift on the SAME calendar day', async () => {
+      const { order } = await sellWithFailingEffects();
+      // The morning shift closed; this drawer opened after the sale was rung up.
+      shift.openedAt = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+      const now = new Date(order.createdAt.getTime() + 2 * 60 * 60 * 1000);
+
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t'),
+      ).rejects.toBeInstanceOf(VoidWindowClosedError);
+    });
+
+    it('refuses when no drawer is open at all — there is nothing to reverse into', async () => {
+      const { order, now } = await sellWithFailingEffects();
+      shift.open = false;
+
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t'),
+      ).rejects.toBeInstanceOf(VoidWindowClosedError);
+    });
+  });
+
 });

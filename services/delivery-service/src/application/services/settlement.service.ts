@@ -17,6 +17,7 @@ import {
   computeVariance,
   isShortfall,
   surplusNeedsNote,
+  appendNote,
 } from '../../domain/settlement';
 import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
@@ -129,6 +130,13 @@ export class SettlementService {
     if (surplusNeedsNote(settlement.variance) && note === null) {
       throw new SettlementSurplusNoteRequiredError();
     }
+    // C10: ending a dispute always needs a written reason, whatever the variance was. The
+    // deposit was parked BECAUSE somebody could not sign it off; closing that silently
+    // leaves no account of what changed between the two decisions.
+    const wasDisputed = settlement.status === SettlementStatus.DISPUTED;
+    if (wasDisputed && note === null) {
+      throw new SettlementSurplusNoteRequiredError();
+    }
     // Only a genuine shortfall can be charged; an exact or over deposit never is. The
     // surplus rule above is about leaving a trace, NOT about billing: it must never make
     // a surplus chargeable.
@@ -137,7 +145,8 @@ export class SettlementService {
     const resolved = await this.settlements.resolve(id, {
       status: SettlementStatus.VERIFIED,
       chargedToDriver: charged,
-      note,
+      // C10: keep WHY it was disputed next to HOW it ended — one column, both facts.
+      note: wasDisputed && note ? appendNote(settlement.note, note) : note,
       verifiedBy: actorId,
       verifiedAt: new Date(),
     });

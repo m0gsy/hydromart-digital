@@ -1,6 +1,7 @@
-import { SettingsCache, SettingRow } from '@hydromart/platform';
+import { SettingsCache, SettingRow, SettingsSliceService } from '@hydromart/platform';
 import { SettingsService } from '../../src/application/services/settings.service';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
+import { SETTING_DEFS } from '../../src/config/setting-defs';
 
 function repoWith(rows: SettingRow[]): SettingsRepository {
   const store = [...rows] as (SettingRow & { updatedBy: string })[];
@@ -23,10 +24,14 @@ function repoWith(rows: SettingRow[]): SettingsRepository {
 
 describe('SettingsService', () => {
   it('schema returns effective values with env-default fallback', async () => {
-    const repo = repoWith([{ scope: 'GLOBAL', depotId: null, key: 'deliveryFee', value: '2500' }]);
+    // Two keys on purpose: one overridden, one untouched — the point is that the schema
+    // mixes stored values with env defaults rather than answering from one source.
+    const repo = repoWith([
+      { scope: 'GLOBAL', depotId: null, key: 'subscriptionDiscountPct', value: '9' },
+    ]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     const out = await svc.schema(null);
-    expect(out.effective.deliveryFee).toBe(2500); // global override
+    expect(out.effective.subscriptionDiscountPct).toBe(9); // global override
     expect(out.effective.abandonMinutes).toBe(60); // env default
   });
 
@@ -36,11 +41,11 @@ describe('SettingsService', () => {
     await svc.put({
       scope: 'GLOBAL',
       depotId: null,
-      key: 'deliveryFee',
-      value: '3000',
+      key: 'abandonMinutes',
+      value: '90',
       updatedBy: 'u1',
     });
-    expect(svc.cache.effective('deliveryFee', 'money', 1000)).toBe(3000);
+    expect(svc.cache.effective('abandonMinutes', 'int', 60)).toBe(90);
   });
 
   it('put rejects an unknown key', async () => {
@@ -58,25 +63,47 @@ describe('SettingsService', () => {
       svc.put({
         scope: 'GLOBAL',
         depotId: null,
-        key: 'deliveryFee',
+        key: 'abandonMinutes',
         value: '999999',
         updatedBy: 'u1',
       }),
     ).rejects.toThrow();
   });
 
-  it('put rejects a DEPOT override on a global-only key (deliveryFee)', async () => {
+  /**
+   * C13 removed `deliveryFee`, which was this registry's ONLY `global: true` key — so the
+   * global-only guard no longer has a subject in order-service's own defs.
+   *
+   * The guard still exists and still matters (other slices declare global-only keys), so it
+   * is tested against a synthetic registry rather than deleted. Deleting it would have left
+   * a rule enforced by nothing, which is exactly how a guard stops being one.
+   */
+  it('put rejects a DEPOT override on a global-only key', async () => {
     const repo = repoWith([]);
-    const svc = new SettingsService(repo, new SettingsCache(repo));
+    const defs = [
+      { key: 'onlyGlobal', label: 'x', type: 'int' as const, min: 0, max: 10, envDefault: 1, global: true },
+    ];
+    // The base constructor is protected — a slice is meant to declare its own defs, which
+    // is exactly what this stand-in does.
+    class OnlyGlobalSlice extends SettingsSliceService {
+      constructor() {
+        super(repo, new SettingsCache(repo), defs, { onlyGlobal: defs[0] });
+      }
+    }
+    const svc = new OnlyGlobalSlice();
     await expect(
       svc.put({
         scope: 'DEPOT',
         depotId: '11111111-1111-1111-1111-111111111111',
-        key: 'deliveryFee',
-        value: '2000',
+        key: 'onlyGlobal',
+        value: '2',
         updatedBy: 'u1',
       }),
     ).rejects.toThrow();
+  });
+
+  it('order-service now declares no global-only key at all — C13 took the last one', () => {
+    expect(SETTING_DEFS.filter((d) => d.global)).toEqual([]);
   });
 
   it('put rejects a prototype-inherited key like "constructor"', async () => {
@@ -87,29 +114,27 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
-  it('put rejects a DEPOT scope without depotId, and a per-depot override of a global-only key', async () => {
+  // The global-only half of this moved to its own test above, against a synthetic registry:
+  // C13 removed the last global-only key order-service had.
+  it('put rejects a DEPOT scope without depotId', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'DEPOT', depotId: null, key: 'deliveryFee', value: '1', updatedBy: 'u1' }),
+      svc.put({ scope: 'DEPOT', depotId: null, key: 'abandonMinutes', value: '1', updatedBy: 'u1' }),
     ).rejects.toThrow(/depotId required/);
-    // deliveryFee is global-only here: the real per-galon fee is depot-service's.
-    await expect(
-      svc.put({ scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '1', updatedBy: 'u1' }),
-    ).rejects.toThrow(/global-only/);
   });
 
   it('reset rejects a DEPOT scope without depotId', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
-    await expect(svc.reset('DEPOT', null, 'deliveryFee')).rejects.toThrow();
+    await expect(svc.reset('DEPOT', null, 'abandonMinutes')).rejects.toThrow();
   });
 
   it('reset removes an override so it falls back', async () => {
-    const repo = repoWith([{ scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '3000' }]);
+    const repo = repoWith([{ scope: 'DEPOT', depotId: 'd1', key: 'abandonMinutes', value: '90' }]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
-    await svc.reset('DEPOT', 'd1', 'deliveryFee');
+    await svc.reset('DEPOT', 'd1', 'abandonMinutes');
     const out = await svc.schema('d1');
-    expect(out.effective.deliveryFee).toBe(1000); // back to env default
+    expect(out.effective.abandonMinutes).toBe(60); // back to env default
   });
 });

@@ -38,7 +38,8 @@ import {
   OrderStatus,
   canTransition,
   isCancellable,
-  isVoidableOn,
+
+  isVoidableInShift,
   notificationEventFor,
 } from '../../domain/order-status';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
@@ -800,7 +801,16 @@ export class OrderService {
     if (!order.isWalkIn) throw new NotACounterSaleError();
     assertDepotAccess(user, order.depotId);
     if (order.status === OrderStatus.VOIDED) throw new OrderAlreadyVoidedError();
-    if (!isVoidableOn(order.createdAt, now, this.config.businessTimeZone)) {
+    // C5: the window is the SHIFT, not the calendar day. A morning cashier who counted,
+    // signed off and went home must not have their sales reversed out of the afternoon
+    // drawer — the money would leave a till that never took it, and the morning's booked
+    // total would never be corrected.
+    // C5: the window is the SHIFT, not the calendar day. A morning cashier who counted,
+    // signed off and went home must not have their sales reversed out of the afternoon
+    // drawer — the money would leave a till that never took it, and the morning's booked
+    // total would never be corrected.
+    const shift = await this.cashierShift.openShift(order.depotId ?? '', authorization);
+    if (!isVoidableInShift(order.createdAt, shift?.openedAt ?? null)) {
       throw new VoidWindowClosedError();
     }
 
@@ -1300,7 +1310,6 @@ export class OrderService {
     }
     return topics;
   }
-
 
   /**
    * Reserves the depot's stock, then writes the order — the one order-creating step every

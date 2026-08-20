@@ -47,7 +47,31 @@ export function surplusNeedsNote(variance: number): boolean {
   return variance > SURPLUS_NOTE_THRESHOLD_IDR;
 }
 
-/** The cashier can only rule on a settlement the courier has just submitted. */
+/**
+ * C10 · a settlement a cashier may still rule on.
+ *
+ * DISPUTED used to be a one-way door. `dispute()` writes it, `canResolve` accepted only
+ * SUBMITTED, and nothing anywhere writes any other status — so a deposit parked "for
+ * offline resolution" could never be resolved. The money hung there permanently, and the
+ * courier's account never settled either way. That is also why C1's surplus rule refuses to
+ * auto-dispute: throwing money in here was throwing it away.
+ *
+ * A dispute IS resolvable — that is the entire point of parking it. What ends it is a
+ * person deciding, and this is the door they walk back through.
+ */
 export function canResolve(status: SettlementStatus): boolean {
-  return status === SettlementStatus.SUBMITTED;
+  return status === SettlementStatus.SUBMITTED || status === SettlementStatus.DISPUTED;
+}
+
+/**
+ * C10: how a dispute ends has to stay readable next to why it started.
+ *
+ * `resolve` writes ONE note column, so a resolution would otherwise overwrite the reason the
+ * deposit was disputed in the first place — losing the only account of what happened between
+ * the two. Appending keeps both without a migration.
+ */
+export function appendNote(previous: string | null, addition: string): string {
+  const before = previous?.trim();
+  return before ? `${before}
+— ${addition.trim()}` : addition.trim();
 }

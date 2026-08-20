@@ -124,45 +124,46 @@ describe('Settings HTTP flows (e2e)', () => {
       .get('/api/v1/settings/schema')
       .set(auth(managerToken))
       .expect(200);
-    expect(res.body.effective.deliveryFee).toBe(1000);
+    // C13 removed `deliveryFee` (a lever with zero callers); this exercises the settings
+    // machinery, so it uses any real key.
+    expect(res.body.effective.abandonMinutes).toBe(60);
   });
 
   it('lets SUPER_ADMIN set a GLOBAL override, then reset it back to the default', async () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(superToken))
-      .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '2500' })
+      .send({ scope: 'GLOBAL', key: 'abandonMinutes', value: '90' })
       .expect(204);
 
     const res = await request(server())
       .get('/api/v1/settings/schema')
       .set(auth(superToken))
       .expect(200);
-    expect(res.body.effective.deliveryFee).toBe(2500);
+    expect(res.body.effective.abandonMinutes).toBe(90);
 
     await request(server())
       .delete('/api/v1/settings')
       .set(auth(superToken))
-      .send({ scope: 'GLOBAL', key: 'deliveryFee' })
+      .send({ scope: 'GLOBAL', key: 'abandonMinutes' })
       .expect(204);
 
     const afterReset = await request(server())
       .get('/api/v1/settings/schema')
       .set(auth(superToken))
       .expect(200);
-    expect(afterReset.body.effective.deliveryFee).toBe(1000);
+    expect(afterReset.body.effective.abandonMinutes).toBe(60);
   });
 
   it('forbids a depot manager from writing a GLOBAL override (403)', async () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
-      .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '2500' })
+      .send({ scope: 'GLOBAL', key: 'abandonMinutes', value: '90' })
       .expect(403);
   });
 
   it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
-    // deliveryFee is global-only (see setting-defs.ts); abandonMinutes takes a DEPOT override.
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
@@ -180,15 +181,17 @@ describe('Settings HTTP flows (e2e)', () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(driverToken))
-      .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '3000' })
+      .send({ scope: 'GLOBAL', key: 'abandonMinutes', value: '90' })
       .expect(403);
   });
 
+  // C13 note: this asserts the RANGE check, so the key has to be one that still exists —
+  // a removed key would 400 as "unknown" and the test would pass for the wrong reason.
   it('rejects an out-of-range value (400)', async () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(superToken))
-      .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '999999' })
+      .send({ scope: 'GLOBAL', key: 'abandonMinutes', value: '999999' })
       .expect(400);
   });
 });

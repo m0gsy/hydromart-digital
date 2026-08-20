@@ -18,9 +18,15 @@ describe('settlement domain', () => {
     expect(isShortfall(5000)).toBe(false);
   });
 
-  it('only a just-submitted settlement can be resolved', () => {
+  /**
+   * C10: DISPUTED used to be here as `false`, and that WAS the bug this test enforced.
+   * `dispute()` writes the status, nothing else writes any other, so a deposit parked for
+   * offline resolution could never be resolved and the money hung permanently. A dispute is
+   * resolvable — that is the whole point of parking it. VERIFIED stays closed: it is done.
+   */
+  it('a submitted or disputed settlement can be resolved; a verified one is done', () => {
     expect(canResolve(SettlementStatus.SUBMITTED)).toBe(true);
     expect(canResolve(SettlementStatus.VERIFIED)).toBe(false);
-    expect(canResolve(SettlementStatus.DISPUTED)).toBe(false);
+    expect(canResolve(SettlementStatus.DISPUTED)).toBe(true);
   });
 });

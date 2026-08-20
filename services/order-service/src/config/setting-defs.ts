@@ -18,19 +18,11 @@ export interface SettingDef {
 // documented defaults so the UI can show "ikut default (N)" before any override.
 // envDefault must mirror this service's env.validation.ts defaults
 export const SETTING_DEFS: SettingDef[] = [
-  // Global-only fallback: real per-galon delivery fee is owned by depot-service
-  // (Depot.deliveryFee, editable at dashboard/depots) and drives actual order pricing.
-  // This key only feeds order.service when no depot routes the order.
-  {
-    key: 'deliveryFee',
-    label: 'Ongkir per galon (fallback)',
-    type: 'money',
-    unit: 'Rp',
-    min: 0,
-    max: 100000,
-    envDefault: 1000,
-    global: true,
-  },
+  // C13: `deliveryFee` used to live here. It was declared, it had a reader, and it had
+  // ZERO callers — the fee that actually bills is `depot.deliveryFee`, read through
+  // DepotDirectoryPort. A settings screen that offers a lever moving nothing is worse than
+  // one that offers nothing: somebody sets it, watches orders price the same, and stops
+  // trusting the screen. Removed rather than wired up, because the depot already owns it.
   {
     key: 'abandonMinutes',
     // M4-18: the old label said "keranjang terbengkalai", but this threshold is measured

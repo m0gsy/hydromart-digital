@@ -53,7 +53,7 @@ import {
   OrderRevenueEvent,
 } from '../../src/application/ports/franchise-revenue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
-import { CashierShiftPort } from '../../src/application/ports/cashier-shift.port';
+import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
@@ -792,10 +792,18 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
 export class FakeCashierShift implements CashierShiftPort {
   /** Defaults to open: only the shift tests care, and every other counter test needs one. */
   open = true;
+  /**
+   * C5: when the open shift began. Far in the past by default so every existing counter
+   * test still voids — the tests that care about the window set it deliberately.
+   */
+  openedAt = new Date('2000-01-01T00:00:00.000Z');
   calls: { depotId: string; authorization: string }[] = [];
   async hasOpenShift(depotId: string, authorization: string): Promise<boolean> {
+    return (await this.openShift(depotId, authorization)) !== null;
+  }
+  async openShift(depotId: string, authorization: string): Promise<OpenShift | null> {
     this.calls.push({ depotId, authorization });
-    return this.open;
+    return this.open ? { id: 'shift-fake', openedAt: this.openedAt } : null;
   }
 }
 
