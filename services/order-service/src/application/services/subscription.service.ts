@@ -148,6 +148,8 @@ export class SubscriptionService {
           // place one order between them instead of one each. The due date is part of it
           // — the next delivery is a different order, not a replay of this one.
           `sub:${sub.id}:${sub.nextDeliveryAt.toISOString()}`,
+          // D6: the same fact, recorded as data instead of only as a naming convention.
+          sub.id,
         );
         // Counted only when this sweep is the one that moved the schedule on.
         if (await this.subs.advance(sub.id, sub.nextDeliveryAt, advanceDelivery(now, sub.frequency))) {

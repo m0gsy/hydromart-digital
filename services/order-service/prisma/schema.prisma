@@ -108,6 +108,15 @@ model Order {
   /// caller to retry them (subscription sweeps).
   idempotencyKey String?
 
+  /// D6: the subscription that produced this delivery, or null for every order a person
+  /// placed themselves. Carried as data rather than a relation, the same way depotId is —
+  /// a subscription removed for retention must not take its order history with it, and the
+  /// order is the financial record of the two.
+  ///
+  /// Before this, the only link was the sweep's idempotency string `sub:<id>:<iso>`, which
+  /// no read model exposed and nothing could query.
+  subscriptionId String?
+
   items   OrderItem[]
   history OrderStatusHistory[]
   review  OrderReview?
@@ -124,6 +133,8 @@ model Order {
   @@index([customerId, createdAt])
   @@index([status, createdAt])
   @@index([depotId, createdAt])
+  // D6: "every delivery this subscription produced", newest first.
+  @@index([subscriptionId, createdAt])
   // B-13: one order per (buyer, idempotency key). Postgres treats every NULL as distinct,
   // so this only binds requests that actually sent a key.
   @@unique([customerId, idempotencyKey])

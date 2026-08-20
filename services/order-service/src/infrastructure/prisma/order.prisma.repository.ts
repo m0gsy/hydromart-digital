@@ -103,6 +103,7 @@ interface OrderRow {
   notes: string | null;
   deliveryWindow: string | null;
   isWalkIn: boolean;
+  subscriptionId: string | null;
   driverName: string | null;
   driverPhone: string | null;
   estimatedArrivalAt: Date | null;
@@ -202,6 +203,7 @@ export class OrderPrismaRepository implements OrderRepository {
       notes: row.notes,
       deliveryWindow: row.deliveryWindow,
       isWalkIn: row.isWalkIn,
+      subscriptionId: row.subscriptionId,
       driverName: row.driverName,
       driverPhone: row.driverPhone,
       estimatedArrivalAt: row.estimatedArrivalAt,

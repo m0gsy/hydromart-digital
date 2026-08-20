@@ -67,6 +67,12 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   deliveryWindow: string | null;
   /** Cash sale recorded at the depot counter (no courier, no delivery fee). */
   isWalkIn: boolean;
+  /**
+   * D6: the subscription that produced this delivery, null for an order somebody placed
+   * themselves. On the record rather than only in the table so the link is readable —
+   * which is the whole point of the column: nothing could see it before.
+   */
+  subscriptionId: string | null;
   items: OrderItemRecord[];
   history: OrderStatusHistoryRecord[];
   /** Whether the customer has already rated this order (spec 7c). */
@@ -135,6 +141,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
    * instead of placing a second order.
    */
   idempotencyKey?: string | null;
+  /**
+   * D6: the subscription that produced this delivery. Set only by the subscription sweep;
+   * every other path leaves it null. Recorded so "which orders did this subscription
+   * place?" has an answer that is not a pattern match on the idempotency key.
+   */
+  subscriptionId?: string | null;
   items: CreateOrderItemData[];
 }
 
