@@ -204,6 +204,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       history: [{ status: opening, changedBy: null, note: null, createdAt: now }],
       deliveryWindow: rest.deliveryWindow ?? null,
       isWalkIn: rest.isWalkIn ?? false,
+      subscriptionId: rest.subscriptionId ?? null,
       driverName: null,
       driverPhone: null,
       estimatedArrivalAt: null,

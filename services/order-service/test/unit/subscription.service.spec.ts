@@ -139,6 +139,31 @@ describe('SubscriptionService', () => {
     );
   });
 
+  /**
+   * D6 · the sweep is the only caller that knows which subscription a delivery belongs to,
+   * so it is the only place the link can be recorded. Asserted on the stored row rather
+   * than on the call, because a column nothing writes is the same as no column.
+   *
+   * The link existed before only as the idempotency string `sub:<id>:<iso>` — exposed on no
+   * read model, queryable by nobody, and a naming convention D1 would otherwise have to
+   * rest a money predicate on.
+   */
+  it('D6 · stamps the placed order with the subscription that produced it', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+
+    await service.processDue(new Date('2026-07-13T00:00:00Z'));
+
+    expect(orders.rows).toHaveLength(1);
+    expect(orders.rows[0].subscriptionId).toBe(sub.id);
+  });
+
   it('processDue places an order for a due subscription and advances its schedule', async () => {
     const p = seedProduct();
     const sub = await service.create(customer, {

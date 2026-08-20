@@ -532,6 +532,43 @@ describe('OrderService', () => {
       expect(inventory.releaseCalls).toHaveLength(1);
     });
 
+    /**
+     * D6 · a subscription delivery has to be traceable back to the subscription.
+     *
+     * The only link was the idempotency string the sweep happens to build —
+     * `sub:<id>:<iso>` — which is exposed on no read model and is not something anybody can
+     * query. "Which orders did this subscription produce?" had no answer, and D1 needs one:
+     * excluding scheduled orders from the abandonment sweep by pattern-matching a string
+     * would rest a money predicate on a naming convention.
+     *
+     * The column ships one release AHEAD of the code that reads it (schema release rule),
+     * so nothing in this PR consumes it yet.
+     */
+    it('D6 · records which subscription placed a scheduled delivery', async () => {
+      const subscriptionId = randomUUID();
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: product.id, quantity: 2 }],
+        address,
+        `sub:${subscriptionId}:2026-09-01T00:00:00.000Z`,
+        subscriptionId,
+      );
+
+      expect(order.subscriptionId).toBe(subscriptionId);
+    });
+
+    it('D6 · leaves it null for a scheduled order placed without one', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: product.id, quantity: 1 }],
+        address,
+      );
+      expect(order.subscriptionId ?? null).toBeNull();
+    });
+
     // The subscription sweep keys each due delivery the same way (H-3); a re-triggered
     // sweep must get the delivery it already placed, not a second one.
     it('returns the same scheduled order when a sweep replays its key', async () => {

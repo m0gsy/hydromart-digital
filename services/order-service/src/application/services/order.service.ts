@@ -616,6 +616,13 @@ export class OrderService {
     lines: { productId: string; quantity: number }[],
     address: DeliveryAddressSnapshot,
     idempotencyKey: string | null = null,
+    /**
+     * D6: which subscription this delivery belongs to. The sweep is the only caller that
+     * knows, so it is the only place the link can be recorded. Written and nothing more in
+     * this release — the schema rule ships a column one release before the code that reads
+     * it, and the reader is D1.
+     */
+    subscriptionId: string | null = null,
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
     // H-3: the sweep keys each due delivery, so two overlapping sweeps place one order
@@ -645,6 +652,7 @@ export class OrderService {
         discount,
         total,
         idempotencyKey,
+        subscriptionId,
         ...address,
         items,
       },

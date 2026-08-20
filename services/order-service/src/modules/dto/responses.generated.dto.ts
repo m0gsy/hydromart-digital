@@ -581,6 +581,13 @@ export class OrderResponseDto {
   deliveryWindow!: string | null;
   @ApiProperty({ type: Boolean })
   isWalkIn!: boolean;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'D6: the subscription that produced this delivery, null for an order placed by hand. Before this the only link was the sweep’s idempotency key, which no read model exposed.',
+  })
+  subscriptionId!: string | null;
   @ApiProperty({ type: [OrderItemResponseDto] })
   items!: OrderItemResponseDto[];
   @ApiProperty({ type: [OrderStatusHistoryResponseDto] })
