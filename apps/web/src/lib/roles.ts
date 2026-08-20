@@ -276,3 +276,37 @@ export function consoleHome(
   }
   return isStaff(role) ? '/dashboard' : '/products';
 }
+
+/**
+ * The notification feed a role can actually open.
+ *
+ * F2: `/notifications` is the CUSTOMER inbox — `GET /notifications/me` is `@Roles(CUSTOMER)`
+ * — but HR notifications are pushed to staff and their tap destination fell through to that
+ * same path, so a supervisor tapping "Pengajuan cuti masuk" landed on a 403. Staff have
+ * three feeds of their own depending on the console they belong to; a role with no ops feed
+ * at all (a courier) is sent to the console it does have rather than to a refusal.
+ *
+ * Composed from the same gates as `consoleHome`, and every candidate checked against what
+ * THIS binary serves, for the same reason as there.
+ */
+export function notificationHome(
+  role: string | null | undefined,
+  native: boolean = isNativeShell(),
+): string {
+  if (!isStaff(role)) return '/notifications';
+  const first = (...candidates: string[]): string | null =>
+    candidates.find((c) => isServedHere(c)) ?? null;
+  if (canViewOpsNotifications(role)) {
+    if (isHq(role)) {
+      const home = first('/hq/notifications', '/dashboard/notifications');
+      if (home) return home;
+    }
+    if (native && canUseManagerConsole(role)) {
+      const home = first('/m/manager/notifications', '/dashboard/notifications');
+      if (home) return home;
+    }
+    const home = first('/dashboard/notifications', '/hq/notifications');
+    if (home) return home;
+  }
+  return consoleHome(role, native);
+}

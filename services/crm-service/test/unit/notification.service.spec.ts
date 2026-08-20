@@ -161,3 +161,75 @@ describe('NotificationService.purgeOlderThan (retention enforcement)', () => {
     expect(await service.purgeOlderThan(far)).toEqual({ deleted: 0 });
   });
 });
+
+/**
+ * F1 · a preference nobody reads is not a preference.
+ *
+ * `/account` offers a push toggle, customer-service stores it, and the sender never asked.
+ * A customer who turned push off kept receiving push. (The same screen offered `email`
+ * and `whatsapp` switches for two channels that exist nowhere in this repo — that half is
+ * fixed by removing the controls, not by reading them.)
+ */
+describe('NotificationService · F1 push preference', () => {
+  class FakePrefs {
+    public allowed = true;
+    public fail = false;
+    public asked: string[] = [];
+    async pushAllowed(customerId: string): Promise<boolean> {
+      this.asked.push(customerId);
+      if (this.fail) throw new Error('customer-service unreachable');
+      return this.allowed;
+    }
+  }
+
+  let repo: InMemoryNotificationRepository;
+  let push: FakePush;
+  let prefs: FakePrefs;
+  let service: NotificationService;
+
+  beforeEach(() => {
+    repo = new InMemoryNotificationRepository();
+    push = new FakePush();
+    prefs = new FakePrefs();
+    service = new NotificationService(repo, push as unknown as PushService, prefs);
+  });
+
+  /** `notify` fires push without awaiting it; let the microtask chain drain. */
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it('does not push to a customer who turned push off', async () => {
+    prefs.allowed = false;
+    await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await settle();
+    expect(push.pushed).toEqual([]);
+  });
+
+  it('still writes the inbox row — the feed is the record, not the transport', async () => {
+    prefs.allowed = false;
+    const rec = await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await settle();
+    expect(rec.status).toBe(NotificationStatus.SENT);
+    expect(repo.records).toHaveLength(1);
+  });
+
+  it('pushes when the customer left it on', async () => {
+    prefs.allowed = true;
+    await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await settle();
+    expect(push.pushed).toEqual(['cust-1']);
+  });
+
+  it('never asks about a notification with no customer — there is nothing to push to', async () => {
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', { depot: 'D', item: 'G', quantity: '1', minimum: '5' });
+    await settle();
+    expect(prefs.asked).toEqual([]);
+    expect(push.pushed).toEqual([]);
+  });
+
+  it('fails OPEN when the preference cannot be read', async () => {
+    prefs.fail = true;
+    await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await settle();
+    expect(push.pushed).toEqual(['cust-1']);
+  });
+});

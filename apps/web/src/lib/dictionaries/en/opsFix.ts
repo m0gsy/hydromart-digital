@@ -222,6 +222,8 @@ export const opsFix = {
     filterUnread: 'Unread',
     filterStock: 'Stock',
     filterCourier: 'Courier',
+    filterSales: 'Sales',
+    filterHr: 'HR',
     today: 'Today',
     yesterday: 'Yesterday',
     earlier: 'Earlier',

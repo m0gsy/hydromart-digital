@@ -2,6 +2,7 @@ import { CrmConfigService } from '../../src/config/crm-config.service';
 import { SegmentUnavailableError } from '../../src/domain/errors';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activity-segment.http.adapter';
+import { NotificationPreferenceHttpAdapter } from '../../src/infrastructure/http/notification-preference.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
 // header, res.ok branch, fail-CLOSED catch, response parsing) against a mocked global.fetch —
@@ -164,5 +165,66 @@ describe('ActivitySegmentHttpAdapter', () => {
     await expect(
       new ActivitySegmentHttpAdapter(activityConfig()).customersIn({ minOrders: 1 }),
     ).rejects.toBeInstanceOf(SegmentUnavailableError);
+  });
+});
+
+/**
+ * F1: this one FAILS OPEN, which is the opposite of its two neighbours above, so the
+ * tests are mostly about that. A segment that fails closed loses a campaign nobody has
+ * sent yet; a preference that fails closed silently swallows the order-status push
+ * somebody is waiting on. Only an explicit `push: false` may mute.
+ */
+describe('NotificationPreferenceHttpAdapter', () => {
+  const adapter = (over: Partial<Record<string, unknown>> = {}) =>
+    new NotificationPreferenceHttpAdapter(
+      makeConfig({ internalServiceKey: 'k', ...over }),
+    );
+
+  it('returns the stored preference when the read succeeds', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerId: 'c1', push: false } }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(false);
+  });
+
+  it('allows when the customer left push on', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerId: 'c1', push: true } }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('sends the internal key and the customer id, on customer-service', async () => {
+    fetchMock.mockResolvedValue(res({ body: { push: true } }));
+    await adapter().pushAllowed('c 1');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://customer:3002/api/v1/profile/internal/notifications?customerId=c%201');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+  });
+
+  it('allows when the URL is not configured', async () => {
+    await expect(adapter({ customerServiceUrl: '' }).pushAllowed('c1')).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows when the internal key is not configured', async () => {
+    await expect(adapter({ internalServiceKey: '' }).pushAllowed('c1')).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows on a non-2xx answer', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows when the transport fails', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows on a body it cannot read — that is an outage, not a decision', async () => {
+    fetchMock.mockResolvedValue(res({ throwJson: true }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+
+  it('allows on a body with no push field at all', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
   });
 });

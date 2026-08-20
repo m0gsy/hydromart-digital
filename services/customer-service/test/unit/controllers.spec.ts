@@ -8,6 +8,7 @@ import { FavoriteController } from '../../src/modules/favorite.controller';
 import { HealthController } from '../../src/modules/health.controller';
 import { InternalController } from '../../src/modules/internal.controller';
 import { PaymentMethodController } from '../../src/modules/payment-method.controller';
+import { ProfileController } from '../../src/modules/profile.controller';
 
 // Thin HTTP controllers: assert each handler unwraps @CurrentUser/@Query/@Param
 // and delegates to its service, returning the service result (or the documented wrapper).
@@ -256,5 +257,34 @@ describe('HealthController', () => {
   it('throws 503 with a down report when the probe query fails', async () => {
     prisma.$queryRaw.mockRejectedValue(new Error('no db'));
     await expect(c.check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+/**
+ * F1: the sending service can finally ask whether a customer still wants push. Internal
+ * key, not a bearer — a notification is fired by an order webhook, a cron or a courier's
+ * proof of delivery, and none of those hold the customer's token.
+ */
+describe('ProfileController · internal notification preferences', () => {
+  const profiles = { findSegment: jest.fn() };
+  const notifications = { get: jest.fn(), update: jest.fn() };
+  const c = new ProfileController(profiles as never, notifications as never);
+
+  beforeEach(() => {
+    notifications.get.mockReset();
+  });
+
+  it('answers with the same defaults-applied record the customer’s own route returns', async () => {
+    const record = { customerId: 'c1', push: false, email: true, whatsapp: true, categories: {} };
+    notifications.get.mockResolvedValue(record);
+
+    await expect(c.internalNotificationPrefs('c1')).resolves.toEqual(record);
+    expect(notifications.get).toHaveBeenCalledWith('c1');
+  });
+
+  it('asks about the customer it was given, not the caller', async () => {
+    notifications.get.mockResolvedValue({ customerId: 'c2', push: true, email: true, whatsapp: true, categories: {} });
+    await c.internalNotificationPrefs('c2');
+    expect(notifications.get).toHaveBeenCalledWith('c2');
   });
 });

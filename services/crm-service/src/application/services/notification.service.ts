@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { destinationFor } from '../../domain/notification-destination';
 import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
@@ -8,6 +8,7 @@ import {
   NotificationRepository,
   OpsNotificationRecord,
 } from '../ports/notification.repository';
+import { NotificationPreferencePort } from '../ports/notification-preference.port';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
 
@@ -24,6 +25,11 @@ export class NotificationService {
   constructor(
     @Inject(CRM_TOKENS.NotificationRepository) private readonly repo: NotificationRepository,
     private readonly push: PushService,
+    // Optional: crm shipped before this port existed, and a deployment that has not wired
+    // it must keep sending rather than fall silent on an absent dependency.
+    @Optional()
+    @Inject(CRM_TOKENS.NotificationPreference)
+    private readonly prefs?: NotificationPreferencePort,
   ) {}
 
   /**
@@ -36,6 +42,24 @@ export class NotificationService {
     return { deleted };
   }
 
+  /**
+   * Whether this customer still wants push. Optional dependency: crm predates the port,
+   * and a deployment that has not wired it must keep sending rather than go quiet.
+   */
+  private async pushAllowedFor(customerId: string): Promise<boolean> {
+    if (!this.prefs) return true;
+    try {
+      return await this.prefs.pushAllowed(customerId);
+    } catch (e) {
+      // The adapter is meant to absorb its own outages, but the fail-open rule belongs
+      // here too: an adapter that throws must cost an unwanted push, never a missing
+      // order update. Without this the rejection would fall to the chain's `.catch` and
+      // skip the send — failing CLOSED through the back door.
+      this.logger.warn(`push preference unreadable, assuming allowed: ${(e as Error).message}`);
+      return true;
+    }
+  }
+
   async notify(
     event: NotificationEvent,
     phone: string,
@@ -45,13 +69,24 @@ export class NotificationService {
     const message = renderMessage(templateFor(event), vars);
     // Best-effort Web Push to the customer's registered devices. Fire-and-forget: push
     // transport must never block or fail an already-committed notification.
+    //
+    // F1: the preference read joins the same fire-and-forget chain rather than being
+    // awaited before it. Awaiting would put a cross-service round-trip in front of every
+    // notification write — including the ones with no customer to push to — to decide
+    // something that is best-effort anyway. The port fails open, so an outage costs an
+    // unwanted push, never a missing order update. The inbox row below is written either
+    // way: muting push is not muting the record.
     if (customerId) {
-      void this.push
-        .sendToCustomer(customerId, {
-          title: 'Hydromart',
-          body: message,
-          url: destinationFor(event, vars),
-        })
+      void this.pushAllowedFor(customerId)
+        .then((allowed) =>
+          allowed
+            ? this.push.sendToCustomer(customerId, {
+                title: 'Hydromart',
+                body: message,
+                url: destinationFor(event, vars),
+              })
+            : undefined,
+        )
         .catch((e) => this.logger.warn(`Push for ${event} failed: ${(e as Error).message}`));
     }
     return this.repo.record({
