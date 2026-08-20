@@ -101,6 +101,8 @@ orders: {
       depotId?: string;
       unrouted?: boolean;
       orderNumber?: string;
+      /** C6: counter sales only — what the till lists as its own recent sales. */
+      isWalkIn?: boolean;
     } = {},
   ) => {
     const p = new URLSearchParams();
@@ -111,6 +113,7 @@ orders: {
     if (q.unrouted) p.set('unrouted', 'true');
     // Audit F-12: order-number substring, matched by order-service over the whole table.
     if (q.orderNumber) p.set('orderNumber', q.orderNumber);
+    if (q.isWalkIn !== undefined) p.set('isWalkIn', String(q.isWalkIn));
     const qs = p.toString();
     return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
   },

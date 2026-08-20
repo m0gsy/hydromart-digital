@@ -470,6 +470,39 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  /**
+   * C6: the till lists its OWN sales, which is what makes the void endpoint reachable after
+   * a refresh — before this the Batalkan button hung off React state, and a reload left the
+   * endpoint reachable by no UI at all.
+   *
+   * Opt-in: absent means "either", so no existing list changes shape. That is the half
+   * worth pinning, because a filter that leaked into every other query would quietly hide
+   * delivery orders from the staff queue.
+   */
+  it('filters counter sales only when asked, and leaves every other list alone', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+
+    await repo.search({ isWalkIn: true, depotIds: ['depot-a'], page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isWalkIn: true }) }),
+    );
+
+    order.findMany.mockClear();
+    await repo.search({ depotIds: ['depot-a'], page: 1, limit: 10 });
+    const [call] = order.findMany.mock.calls;
+    expect(Object.keys((call![0] as { where: Record<string, unknown> }).where)).not.toContain('isWalkIn');
+  });
+
+  it('can ask for delivery orders only', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    await repo.search({ isWalkIn: false, page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isWalkIn: false }) }),
+    );
+  });
+
   it('batch-reads order totals in one selected findMany query', async () => {
     order.findMany.mockResolvedValue([
       { id: 'ord-1', orderNumber: 'HM-1', total: dec(103_000) },

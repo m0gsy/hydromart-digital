@@ -294,6 +294,10 @@ export interface Order extends DeliveryAddress {
   reviewed: boolean;
   /** Cash sale recorded at the depot counter — no courier, no delivery fee. */
   isWalkIn: boolean;
+  /** C6: when a counter sale was reversed, and why. Both were written and neither was
+   *  ever readable, so a reversal left no trace anybody could look at. */
+  voidedAt?: string | null;
+  voidReason?: string | null;
   /**
    * B1: staff queue only. Whether the server will let depot staff close this DELIVERED
    * order by hand right now — it depends on a per-depot setting, so the server answers it

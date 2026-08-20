@@ -68,6 +68,15 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   /** Cash sale recorded at the depot counter (no courier, no delivery fee). */
   isWalkIn: boolean;
   /**
+   * C6: when the counter sale was reversed, and why.
+   *
+   * Both columns existed and were written by the void, and neither reached any read model —
+   * so a reversal left no trace a person could look at. The reason is the whole point of a
+   * void report: a drawer short by a void nobody can explain is the same as a drawer short.
+   */
+  voidedAt: Date | null;
+  voidReason: string | null;
+  /**
    * D6: the subscription that produced this delivery, null for an order somebody placed
    * themselves. On the record rather than only in the table so the link is readable —
    * which is the whole point of the column: nothing could see it before.
@@ -154,6 +163,15 @@ export interface OrderQuery {
   customerId?: string;
   status?: OrderStatus;
   depotIds?: readonly string[];
+  /**
+   * C6: counter sales only.
+   *
+   * The void endpoint had no reachable UI after a refresh — the Batalkan button lived on a
+   * sale held in React state, so reloading the page stranded it, and nothing anywhere
+   * listed what had been voided. This is what lets the till show its own recent sales
+   * instead of only the one it happens to remember.
+   */
+  isWalkIn?: boolean;
   /**
    * Only orders that reached no depot (`depotId IS NULL`). Legacy rows from when
    * checkout failed open — they match no depot filter, so HQ needs this tray to

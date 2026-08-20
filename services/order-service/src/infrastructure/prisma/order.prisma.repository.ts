@@ -103,6 +103,8 @@ interface OrderRow {
   notes: string | null;
   deliveryWindow: string | null;
   isWalkIn: boolean;
+  voidedAt: Date | null;
+  voidReason: string | null;
   subscriptionId: string | null;
   driverName: string | null;
   driverPhone: string | null;
@@ -203,6 +205,8 @@ export class OrderPrismaRepository implements OrderRepository {
       notes: row.notes,
       deliveryWindow: row.deliveryWindow,
       isWalkIn: row.isWalkIn,
+      voidedAt: row.voidedAt,
+      voidReason: row.voidReason,
       subscriptionId: row.subscriptionId,
       driverName: row.driverName,
       driverPhone: row.driverPhone,
@@ -438,6 +442,9 @@ export class OrderPrismaRepository implements OrderRepository {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      // C6: counter sales only. `undefined` means "either", which is what every existing
+      // caller wants — this filter is opt-in, so no current list changes shape.
+      ...(query.isWalkIn === undefined ? {} : { isWalkIn: query.isWalkIn }),
       ...(query.unrouted
         ? { depotId: null }
         : query.depotIds

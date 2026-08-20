@@ -215,7 +215,10 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   // Undo the sale, then close on the float alone. This is the whole reversal proved by its
   // effect on the money: if the refund had not landed, the drawer would still expect it and
   // the close below would report a shortfall instead of balancing.
-  await page.getByRole('button', { name: /Batalkan penjualan/i }).click();
+  // Exact, because C6 put the same words on every row of the till's recent-sales list. The
+  // rows now name their own sale in their accessible name ("Batalkan penjualan HM-…"), so
+  // an exact match is the one button that means "undo the sale I just made".
+  await page.getByRole('button', { name: 'Batalkan penjualan', exact: true }).click();
   await page.getByLabel(/Alasan/i).fill('E2E: pembeli batal');
   const voided = page.waitForResponse(
     (r) => /\/orders\/api\/v1\/orders\/walk-in\/[^/]+\/void$/.test(new URL(r.url()).pathname),
