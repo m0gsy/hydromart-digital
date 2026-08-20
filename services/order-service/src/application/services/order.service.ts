@@ -840,6 +840,25 @@ export class OrderService {
         this.logger.error(`Outbox ${orderId} tidak bisa dibatalkan: ${err.message}`),
       );
 
+    /*
+     * C4: give the buyer their voucher back.
+     *
+     * `PromoPort` had no reversal method at all, so a void returned the goods and the money
+     * while the redemption stayed burned — a single-use voucher spent on a sale that never
+     * happened, and nothing anywhere could ask for it back.
+     *
+     * Fails OPEN, deliberately the opposite of the burn (B-6): a failed BURN leaves money
+     * given away against a live voucher and must fail the checkout, but a failed RELEASE
+     * leaves one voucher un-returned on a sale that is already reversed. Blocking the void
+     * over that would strand the buyer at the counter with neither goods nor refund.
+     * Idempotent per order, so a retry costs nothing.
+     */
+    await this.promo
+      .release(orderId)
+      .catch((err: Error) =>
+        this.logger.error(`Voucher ${orderId} tidak bisa dikembalikan: ${err.message}`),
+      );
+
     // From here on nothing may fail the call. The money is back and the order is reversed;
     // reporting "gagal membatalkan" now would be a lie the cashier acts on, so a hiccup in
     // any of these is logged and reconciled (opname for stock, the ledger for the rest).

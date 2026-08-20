@@ -258,6 +258,16 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return this.recordRedemption({ ...input, discountApplied });
   }
 
+  /** C4: mirrors `releaseAtomic` — delete the row, decrement the counter, together. */
+  async releaseAtomic(orderId: string): Promise<VoucherRedemptionRecord | null> {
+    const i = this.redemptions.findIndex((r) => r.orderId === orderId);
+    if (i < 0) return null;
+    const [redemption] = this.redemptions.splice(i, 1);
+    const voucher = this.vouchers.find((x) => x.id === redemption.voucherId);
+    if (voucher) voucher.usedCount = Math.max(0, voucher.usedCount - 1);
+    return redemption;
+  }
+
   grants: { voucherId: string; customerId: string }[] = [];
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
     if (this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId)) {

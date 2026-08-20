@@ -693,6 +693,42 @@ describe('ProductCatalogHttpAdapter', () => {
 });
 
 describe('PromoHttpAdapter', () => {
+
+  /**
+   * C4 · handing the voucher back on a void.
+   *
+   * FAILS OPEN, and that is the whole point of these: the sale is already reversed by the
+   * time this runs, so blocking the void over an un-returned voucher would strand the buyer
+   * at the counter with neither goods nor refund. Deliberately the opposite of `redeem`,
+   * which must fail the checkout (B-6).
+   */
+  it('release: posts the order id with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { released: true, discountReturned: 5000 } }));
+    await new PromoHttpAdapter(makeConfig()).release('order-1');
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain('/api/v1/vouchers/release');
+    expect(JSON.parse((init as { body: string }).body)).toEqual({ orderId: 'order-1' });
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBeTruthy();
+  });
+
+  it('release: does not throw on a non-2xx', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).resolves.toBeUndefined();
+  });
+
+  it('release: does not throw when the transport fails', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).resolves.toBeUndefined();
+  });
+
+  it('release: asks nobody when no internal key is configured', async () => {
+    await expect(
+      new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).release('order-1'),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('quote: returns discount on happy path', async () => {
     fetchMock.mockResolvedValue(res({ body: { discount: 5000 } }));
     const out = await new PromoHttpAdapter(makeConfig()).quote(

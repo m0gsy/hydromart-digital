@@ -39,4 +39,20 @@ export interface PromoPort {
     shippingFee: number,
     authorization: string,
   ): Promise<void>;
+
+  /**
+   * C4: give the buyer their voucher back when the sale it paid for is voided.
+   *
+   * This port had NO reversal method at all, so a voided counter sale returned the goods
+   * and the money while the voucher stayed burned — a single-use voucher spent on a sale
+   * that never happened, and nothing downstream could even ask for it back.
+   *
+   * Fails OPEN, unlike `redeem`. The asymmetry is deliberate and is the opposite of B-6's
+   * reasoning: a failed BURN leaves money given away against a live voucher, so it must
+   * fail the checkout; a failed RELEASE leaves a voucher un-returned on a sale that is
+   * already reversed. Blocking the void over it would strand the buyer at the counter with
+   * neither goods nor refund, to protect one voucher use. Idempotent per order, so the
+   * retry that follows costs nothing.
+   */
+  release(orderId: string): Promise<void>;
 }

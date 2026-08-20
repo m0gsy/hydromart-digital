@@ -147,6 +147,20 @@ export interface VoucherRepository {
    * `decide` stays pure domain logic (it computes the discount and throws if a cap is
    * blown); the lock and the write are infrastructure's business.
    */
+  /**
+   * C4: undo one order's redemption — the exact inverse of `redeemAtomic`.
+   *
+   * A voided counter sale gave the buyer their goods back and their money back, but their
+   * voucher stayed burned: the redemption row survived and `usedCount` stayed incremented,
+   * so a single-use voucher was spent on a sale that never happened. There was no reversal
+   * method on the port at all, so nothing downstream could even try.
+   *
+   * In ONE transaction, and in the same order as the redemption it undoes: delete the row,
+   * decrement the counter. Returns null when there is nothing to release — a void of a sale
+   * that used no voucher is not an error, it is the common case.
+   */
+  releaseAtomic(orderId: string): Promise<VoucherRedemptionRecord | null>;
+
   redeemAtomic(
     input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
     decide: (counts: {

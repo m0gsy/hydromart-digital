@@ -57,6 +57,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
   let catalog: FakeProductCatalog;
   let service: OrderService;
   let shift: FakeCashierShift;
+  let promo: FakePromo;
 
   const operator: AuthenticatedUser = {
     sub: 'op-1',
@@ -78,6 +79,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
     loyalty = new FakeLoyaltyCoordination();
     franchiseRevenue = new FakeFranchiseRevenue();
     shift = new FakeCashierShift();
+    promo = new FakePromo();
     service = new OrderService(
       orders,
       cart,
@@ -90,7 +92,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
       new FakeResellerDiscount(),
       new FakeCustomerDirectory(),
       new FakeNotification(),
-      new FakePromo(),
+      promo,
       inventory,
       buildCartService(cart, catalog),
       buildTestConfig(),
@@ -194,6 +196,38 @@ describe('a voided counter sale owes nothing (C3)', () => {
    * The decisive test is the second one: same calendar day, different shift. It passes under
    * the old rule and must fail under it, which is the only way this cannot quietly regress.
    */
+    /**
+     * C4 · the buyer's voucher comes back with the goods and the money.
+     *
+     * `PromoPort` had no reversal method at all, so a void returned everything EXCEPT the
+     * voucher: the redemption stayed burned and `usedCount` stayed incremented, so a
+     * single-use voucher was spent on a sale that never happened.
+     */
+    describe('C4 · a void returns the voucher', () => {
+      it('asks promo-service to release the redemption for that order', async () => {
+        const { order, now } = await sellWithFailingEffects();
+
+        await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+
+        expect(promo.releaseCalls).toEqual([order.id]);
+      });
+
+      /**
+       * Fails OPEN, deliberately the opposite of the burn (B-6). A failed BURN leaves money
+       * given away against a live voucher and must fail the checkout; a failed RELEASE
+       * leaves one voucher un-returned on a sale that is ALREADY reversed. Blocking the
+       * void over that would strand the buyer at the counter with neither goods nor refund.
+       */
+      it('still completes the void when promo-service cannot be reached', async () => {
+        const { order, now } = await sellWithFailingEffects();
+        promo.releaseError = new Error('promo-service down');
+
+        await expect(
+          service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t'),
+        ).resolves.toMatchObject({ status: OrderStatus.VOIDED });
+      });
+    });
+
     describe('C5 · voiding into a drawer that is still open', () => {
     it('allows a sale rung up during the shift that is still open', async () => {
       const { order } = await sellWithFailingEffects();

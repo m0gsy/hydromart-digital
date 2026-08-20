@@ -32,6 +32,8 @@ import {
   MyVoucherDto,
   QuoteVoucherDto,
   RedeemVoucherDto,
+  ReleaseResponseDto,
+  ReleaseVoucherDto,
   UpdateVoucherDto,
 } from './dto/voucher.dto';
 import { BurnSummary3ResponseDto, Grant3ResponseDto, PagedVoucherResponseDto, QuoteResponseDto, RedeemResponseDto, VoucherResponseDto } from './dto/responses.generated.dto';
@@ -115,6 +117,26 @@ export class VoucherController {
   @ApiOperation({ summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)' })
   redeem(@Body() dto: RedeemVoucherDto): Promise<RedeemResult> {
     return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal, dto.shippingFee ?? 0);
+  }
+
+  /**
+   * C4: give the voucher back when the sale it paid for is voided.
+   *
+   * Internal key like `redeem`, and for the same reason: the caller is order-service, not a
+   * person. Idempotent per orderId — a void retried after a timeout must not hand out a use
+   * that was never taken.
+   *
+   * Declared before the `:code` GET so "release" is never read as a voucher code.
+   */
+  @ApiOkResponse({ type: ReleaseResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('release')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Release a voided order's voucher redemption (internal service auth, idempotent)" })
+  release(@Body() dto: ReleaseVoucherDto): Promise<{ released: boolean; discountReturned: number }> {
+    return this.vouchers.release(dto.orderId);
   }
 
   @ApiOkResponse({ type: VoucherResponseDto })

@@ -216,3 +216,19 @@ export class BrowseQueryDto {
   @Type(() => Number)
   limit?: number = 20;
 }
+
+/** C4: which order's redemption to give back. Idempotent — the order id is the key. */
+export class ReleaseVoucherDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orderId!: string;
+}
+
+/** C4: whether anything was actually given back, and how much. */
+export class ReleaseResponseDto {
+  @ApiProperty({ example: true, description: 'False when the order had no redemption — the common case.' })
+  released!: boolean;
+
+  @ApiProperty({ example: 15000, description: 'The discount the buyer gets back on their next use, in IDR.' })
+  discountReturned!: number;
+}

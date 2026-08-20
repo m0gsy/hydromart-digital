@@ -1108,6 +1108,10 @@ export class FakePromo implements PromoPort {
   /** Counter-sale quotes, which name the buyer instead of riding the caller's token. */
   quoteForCalls: { code: string; customerId: string; subtotal: number; shippingFee: number }[] = [];
   redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
+  /** C4: orders whose voucher was handed back on a void. */
+  releaseCalls: string[] = [];
+  /** Set to make the release fail — the void must still complete (fail-open). */
+  releaseError: Error | null = null;
 
   async quote(
     code: string,
@@ -1130,6 +1134,11 @@ export class FakePromo implements PromoPort {
     this.quoteForCalls.push({ code, customerId, subtotal, shippingFee });
     return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
   }
+  async release(orderId: string): Promise<void> {
+    if (this.releaseError) throw this.releaseError;
+    this.releaseCalls.push(orderId);
+  }
+
   async redeem(
     code: string,
     _customerId: string,

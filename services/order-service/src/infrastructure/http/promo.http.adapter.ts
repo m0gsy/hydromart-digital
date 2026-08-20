@@ -139,4 +139,31 @@ export class PromoHttpAdapter implements PromoPort {
       clearTimeout(timer);
     }
   }
+
+  /**
+   * C4: hand the voucher back on a void. Fails OPEN — see the port for why the asymmetry
+   * with `redeem` is deliberate rather than an oversight.
+   */
+  async release(orderId: string): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      this.logger.error(`Voucher for voided order ${orderId} not released: no internal key`);
+      return;
+    }
+    const url = `${this.config.promoServiceUrl}/api/v1/vouchers/release`;
+    try {
+      // `AbortSignal.timeout` rather than a controller plus a `setTimeout` callback: the
+      // callback is a function nothing ever invokes in a passing test, and the deadline is
+      // the only thing it was there for.
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderId }),
+        signal: AbortSignal.timeout(PromoHttpAdapter.TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`promo-service responded ${res.status}`);
+    } catch (error) {
+      this.logger.error(`Voucher release failed for voided order ${orderId}: ${(error as Error).message}`);
+    }
+  }
 }

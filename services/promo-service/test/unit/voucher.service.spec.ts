@@ -100,6 +100,64 @@ describe('VoucherService', () => {
     expect((await service.getByCode('HEMAT10')).usedCount).toBe(1);
   });
 
+  /**
+   * C4 · a voided sale gives the voucher back.
+   *
+   * There was no reversal method on the repository OR the service, so a void returned the
+   * goods and the money while the redemption stayed burned — a single-use voucher spent on
+   * a sale that never happened, and a per-customer limit consumed by an order that does not
+   * exist.
+   */
+  describe('C4 · release', () => {
+    const redeemedOrder = async (over = {}) => {
+      await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000, ...over }));
+      const orderId = randomUUID();
+      const customerId = randomUUID();
+      await service.redeem('HEMAT10', customerId, orderId, 60000);
+      return { orderId, customerId };
+    };
+
+    it('returns the use to the voucher, not just the row', async () => {
+      const { orderId } = await redeemedOrder();
+      expect((await service.getByCode('HEMAT10')).usedCount).toBe(1);
+
+      const out = await service.release(orderId);
+
+      expect(out).toEqual({ released: true, discountReturned: 5000 });
+      expect(repo.redemptions).toHaveLength(0);
+      expect((await service.getByCode('HEMAT10')).usedCount).toBe(0);
+    });
+
+    it('gives the customer their per-customer allowance back', async () => {
+      const { orderId, customerId } = await redeemedOrder({ perCustomerLimit: 1 });
+      await service.release(orderId);
+
+      // Would have thrown VoucherCustomerLimitReachedError before the release.
+      await expect(service.redeem('HEMAT10', customerId, randomUUID(), 60000)).resolves.toBeDefined();
+    });
+
+    /**
+     * IDEMPOTENT, and this is the one that matters: a void retried after a timeout must not
+     * decrement twice and hand out a use nobody took.
+     */
+    it('is a no-op the second time', async () => {
+      const { orderId } = await redeemedOrder();
+      await service.release(orderId);
+
+      const second = await service.release(orderId);
+
+      expect(second).toEqual({ released: false, discountReturned: 0 });
+      expect((await service.getByCode('HEMAT10')).usedCount).toBe(0);
+    });
+
+    it('reports nothing released for an order that used no voucher — the common case', async () => {
+      await expect(service.release(randomUUID())).resolves.toEqual({
+        released: false,
+        discountReturned: 0,
+      });
+    });
+  });
+
   it('enforces the per-customer limit on redeem', async () => {
     await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000, perCustomerLimit: 1 }));
     const customerId = randomUUID();

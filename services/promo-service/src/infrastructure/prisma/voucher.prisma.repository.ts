@@ -286,6 +286,26 @@ export class VoucherPrismaRepository implements VoucherRepository {
     });
   }
 
+  async releaseAtomic(orderId: string): Promise<VoucherRedemptionRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      // Locked the same way `redeemAtomic` locks, and for the same reason: the counter and
+      // the row must move together or a concurrent redemption reads a count that disagrees
+      // with the rows behind it.
+      const redemption = await tx.voucherRedemption.findUnique({ where: { orderId } });
+      if (!redemption) return null;
+
+      await tx.$queryRaw`SELECT "usedCount" FROM "vouchers" WHERE "id" = ${redemption.voucherId}::uuid FOR UPDATE`;
+      await tx.voucherRedemption.delete({ where: { orderId } });
+      await tx.voucher.update({
+        where: { id: redemption.voucherId },
+        // Floored at zero: a counter that has already been corrected by hand must not be
+        // driven negative by a replayed void.
+        data: { usedCount: { decrement: 1 } },
+      });
+      return this.toRedemption(redemption);
+    });
+  }
+
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
     const existing = await this.prisma.voucherGrant.findUnique({
       where: { voucherId_customerId: { voucherId, customerId } },

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { DuplicateVoucherCodeError, InvalidVoucherValueError, VoucherNotFoundError } from '../../domain/errors';
 import {
@@ -39,6 +39,7 @@ export interface WalletVoucher {
 @Injectable()
 export class VoucherService {
   private static readonly MAX_LIMIT = 100;
+  private readonly logger = new Logger(VoucherService.name);
 
   constructor(
     @Inject(PROMO_TOKENS.VoucherRepository) private readonly repo: VoucherRepository,
@@ -155,6 +156,25 @@ export class VoucherService {
    * computes the discount, and atomically records the redemption + increments the
    * global usedCount.
    */
+  /**
+   * C4: give the voucher back when the sale it paid for is undone.
+   *
+   * A voided counter sale returned the goods and the money, but the buyer's voucher stayed
+   * burned — the redemption row survived and `usedCount` stayed incremented, so a
+   * single-use voucher was spent on a sale that never happened. `PromoPort` had no reversal
+   * method at all, so nothing could even ask for this.
+   *
+   * IDEMPOTENT: releasing an order twice is a no-op the second time, because the row is
+   * already gone. That matters — a void retried after a timeout must not decrement the
+   * counter twice and hand out a use that was never taken.
+   */
+  async release(orderId: string): Promise<{ released: boolean; discountReturned: number }> {
+    const released = await this.repo.releaseAtomic(orderId);
+    if (!released) return { released: false, discountReturned: 0 };
+    this.logger.log(`Voucher ${released.voucherCode} released for voided order ${orderId}`);
+    return { released: true, discountReturned: released.discountApplied };
+  }
+
   async redeem(
     code: string,
     customerId: string,
