@@ -29,6 +29,7 @@ import { printReceipt } from '@/lib/receipt';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
+  CounterQuote,
   DepotPaymentPanel,
   InventoryItem,
   Order,
@@ -55,6 +56,17 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
+  /**
+   * C12: the buyer, once the cashier has DELIBERATELY looked them up.
+   *
+   * Never derived from the phone field as it is typed. `resolveByPhone` mints an account,
+   * so quoting per keystroke would print a customer for every number anyone ever half-typed
+   * — people who bought nothing, in the broadcast audience, who will never turn the opt-out
+   * off because nobody is behind them. One tap, one account, and only when the cashier says
+   * this is the buyer.
+   */
+  const [buyerId, setBuyerId] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
   const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
   /** Idempotency key for the sale being rung up; cleared once it is recorded. */
@@ -121,9 +133,65 @@ function WalkIn({ depotId }: { depotId: string }) {
       ...l,
       lineTotal: (priceById.get(l.product.id) ?? l.product.basePrice) * l.quantity,
     }));
-  const total = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+  /** Shelf prices at this depot — now a SUBTOTAL line, not the number the till charges. */
+  const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+
+  /**
+   * C12: what this basket actually costs, answered by the server.
+   *
+   * The screen used to add up shelf prices while the server applied tier, agen price and
+   * voucher on top. Three numbers in three places: the cash-short guard used THIS one, so
+   * an agen handing over exact money was refused by the till; the change here disagreed
+   * with the change on the receipt; and a cashier who trusted the screen collected more
+   * than was recorded — a phantom surplus at shift close.
+   *
+   * Runs the same function the sale runs. An invalid voucher fails HERE, before Bayar,
+   * instead of after the goods have left the counter.
+   */
+  /**
+   * C12: look the buyer up, because the cashier asked. The only call in this screen that
+   * can mint an account. Re-quoting then applies their tier or agen band — the badge and
+   * the discount both come from that one server read rather than being guessed here.
+   */
+  async function identifyBuyer() {
+    if (!phone.trim()) return;
+    setIdentifying(true);
+    try {
+      const found = await api.post<{ customerId: string }>(
+        endpoints.orders.walkInIdentify,
+        { depotId, phone: phone.trim(), name: name.trim() || undefined },
+        true,
+      );
+      setBuyerId(found.customerId);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.identifyFailed'), 'error');
+    } finally {
+      setIdentifying(false);
+    }
+  }
+
+  const quote = useAsync<CounterQuote | null>(
+    () =>
+      lines.length === 0
+        ? Promise.resolve(null)
+        : api.post<CounterQuote>(
+            endpoints.orders.walkInQuote,
+            {
+              depotId,
+              lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+              customerId: buyerId ?? undefined,
+              voucherCode: voucher.trim() || undefined,
+            },
+            true,
+          ),
+    [depotId, lines.map((l) => `${l.product.id}:${l.quantity}`).join(','), buyerId, voucher.trim()],
+  );
+
+  // No silent fall back to shelf prices: a total the server did not agree to is exactly the
+  // bug this replaces. The Bayar button is disabled instead, and the reason is on screen.
+  const total = quote.data?.totalIdr ?? null;
   const cashReceived = Number(cash.replace(/\D/g, '')) || 0;
-  const change = cashReceived - total;
+  const change = total === null ? 0 : cashReceived - total;
 
   // Where the money goes for QRIS/transfer. Per-depot on purpose: a franchise depot is paid
   // directly, so the QR the buyer scans has to be that depot's own.
@@ -143,6 +211,10 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   async function submit() {
     if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
+    // C12: never sell against a total the server did not give. The old guard compared cash
+    // to the SCREEN's sum of shelf prices, which is why an agen handing over exact money
+    // was refused by the till — they were being asked for the retail number.
+    if (total === null) return toast(t('opsFix.walkIn.quoteUnavailable'), 'error');
     if (method === 'CASH' && cashReceived < total) {
       return toast(t('hrFix.walkIn.cashShort'), 'error');
     }
@@ -178,6 +250,8 @@ function WalkIn({ depotId }: { depotId: string }) {
           lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
           customerName: name.trim() || undefined,
           customerPhone: phone.trim() || undefined,
+          // C12: the buyer the cashier identified, so the sale prices exactly as the quote did.
+          customerId: buyerId ?? undefined,
           voucherCode: voucher.trim().toUpperCase() || undefined,
         },
         true,
@@ -369,11 +443,33 @@ function WalkIn({ depotId }: { depotId: string }) {
             <Input
               id="wi-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                // Typing a different number un-identifies the buyer: the badge and the
+                // discount belong to whoever was actually looked up, not to whatever is
+                // in the box now.
+                setBuyerId(null);
+              }}
               inputMode="tel"
               placeholder={t('opsFix.walkIn.buyerPhonePlaceholder')}
             />
           </Field>
+          {/*
+            C12: the one tap that may create an account, and it exists so nothing else does
+            it by accident. Quoting never resolves a phone — see the quote above — so a
+            number half-typed and abandoned costs nothing. The sale still resolves one when
+            a sale actually happens, which is a customer who really bought something.
+          */}
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <Button
+              variant="ghost"
+              onClick={() => void identifyBuyer()}
+              disabled={identifying || !phone.trim() || buyerId !== null}
+            >
+              {buyerId ? t('opsFix.walkIn.buyerIdentified') : t('opsFix.walkIn.identifyBuyer')}
+            </Button>
+            <span className="text-xs text-muted">{t('opsFix.walkIn.identifyHint')}</span>
+          </div>
         </div>
 
         <Field
@@ -389,12 +485,41 @@ function WalkIn({ depotId }: { depotId: string }) {
           />
         </Field>
 
+        {/* C12: shelf prices are now a subtotal. The discount below is the layer only the
+            server knows — tier, agen band, voucher — and it is why this screen stopped
+            adding anything up itself. */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted">{t('opsFix.walkIn.subtotal')}</span>
+          <span className="tabular-nums"><Money amount={subtotal} /></span>
+        </div>
+        {(quote.data?.discountIdr ?? 0) > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 text-muted">
+              {t('opsFix.walkIn.discount')}
+              {quote.data?.agen && (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                  {t('opsFix.walkIn.agenPrice')}
+                </span>
+              )}
+            </span>
+            <span className="tabular-nums text-[color:var(--success)]">
+              −<Money amount={quote.data?.discountIdr ?? 0} />
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between text-sm">
           <span className="font-bold">{t('hrFix.walkIn.total')}</span>
           <span className="text-lg font-extrabold">
-            <Money amount={total} />
+            {quote.loading ? '…' : total === null ? '—' : <Money amount={total} />}
           </span>
         </div>
+        {/* The voucher is refused HERE, before Bayar, instead of after the goods have gone. */}
+        {quote.error && lines.length > 0 && (
+          <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+            {quote.error}
+          </p>
+        )}
         {/* Unread resolved prices silently fall back to the catalog base price, so the
             depot's own override and any active rule vanish from the counter total. Not a
             refusal — the till has to keep working — but the cashier is told which number
@@ -405,15 +530,6 @@ function WalkIn({ depotId }: { depotId: string }) {
             <button type="button" onClick={resolved.reload} className="underline">
               {t('opsFix.walkIn.reload')}
             </button>
-          </p>
-        )}
-        {(voucher.trim() || phone.trim()) && (
-          // The counter shows the shelf price. Tier, agen price and voucher are all priced by
-          // the server against the buyer's own account (the token here is the cashier's), so
-          // promising a number on this screen could be a lie. The struk and the change come
-          // from `order.total`, which is the one that counted.
-          <p className="text-xs text-muted">
-            {t('opsFix.walkIn.discountHint')}
           </p>
         )}
 
@@ -484,7 +600,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         <Button
           className="w-full"
           onClick={() => void submit()}
-          disabled={busy || lines.length === 0 || shiftOpen === false}
+          disabled={busy || lines.length === 0 || shiftOpen === false || total === null}
         >
           <Printer size={18} className="mr-1" />
           {shiftOpen === false

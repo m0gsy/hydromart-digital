@@ -86,6 +86,23 @@ import { CartService, CartView } from './cart.service';
 import { OutboxService } from './outbox.service';
 
 /** One counter sale: depot, lines, and an optional identified buyer. */
+/**
+ * C12: the priced counter basket, as both the quote route and the sale itself see it.
+ * `discount` is the layer only the server knows — tier, agen price, voucher — which is
+ * exactly what the cashier screen could never compute for itself.
+ */
+export interface CounterBasketQuote {
+  items: CreateOrderItemData[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  voucherCode: string | null;
+  /** Why the catalogue price was used instead of the depot's, or null when it was not. */
+  catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
+  /** C12: the agen band is what priced this basket — the screen badges it. */
+  agen: boolean;
+}
+
 export interface WalkInSaleInput {
   depotId: string;
   lines: { productId: string; quantity: number }[];
@@ -707,18 +724,8 @@ export class OrderService {
       throw new NoOpenShiftError();
     }
 
-    const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
-      await this.priceLines(input.depotId, input.lines);
-    const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
-    const discount = await this.counterDiscount(
-      customerId,
-      input.depotId,
-      subtotal,
-      voucherCode,
-      items,
-      tieredProductIds,
-      tierPricedTotal,
-    );
+    const { items, subtotal, discount, voucherCode, catalogFallback } =
+      await this.priceCounterBasket(customerId, input.depotId, input.lines, input.voucherCode);
 
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
@@ -904,10 +911,10 @@ export class OrderService {
     items: CreateOrderItemData[],
     tieredProductIds: Set<string>,
     tierPricedTotal: number,
-  ): Promise<number> {
+  ): Promise<{ discount: number; agen: boolean }> {
     if (customerId === ANONYMOUS_CUSTOMER_ID) {
       if (voucherCode) throw new AnonymousVoucherNotAllowedError();
-      return 0;
+      return { discount: 0, agen: false };
     }
     // An agen is an agen at the till too. This branch used not to exist, so the same buyer
     // paid the flat SOP price online and the list price minus their membership tier in
@@ -919,7 +926,13 @@ export class OrderService {
     const reseller = await this.resellerDiscount.getFor(customerId);
     if (resellerApplies(reseller, depotId)) {
       if (voucherCode) throw new ResellerVoucherNotAllowedError();
-      return resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
+      // C12: reported, not just applied. The screen shows an "Harga agen" badge, and it has
+      // to come from the same read that decided the price — a badge computed separately is
+      // a fourth number waiting to disagree with the other three.
+      return {
+        discount: resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal),
+        agen: true,
+      };
     }
     const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
     let voucherDiscount = 0;
@@ -935,7 +948,10 @@ export class OrderService {
     // unreadable — the buyer is standing at the till and the cashier can say so out loud,
     // and the note would have to be threaded back out of this pure helper. The checkout
     // path, where the complaint arrives days later, is the one that leaves the trace.
-    return money(Math.min(subtotal, money(subtotal * membershipRate.rate) + voucherDiscount));
+    return {
+      discount: money(Math.min(subtotal, money(subtotal * membershipRate.rate) + voucherDiscount)),
+      agen: false,
+    };
   }
 
   /**
@@ -1365,6 +1381,91 @@ export class OrderService {
   }
 
   /** Blank, whitespace or absent all mean "no key" — and NULL never collides in the index. */
+  /**
+   * C12 · what the counter basket actually costs — the ONE function both the quote and the
+   * sale go through.
+   *
+   * The cashier screen used to add up shelf prices itself while the server applied tier,
+   * agen and voucher on top, so three different numbers reached three different places:
+   * the cash-short guard used the screen's total (an agen handing over exact money was
+   * refused by the till), the change on screen differed from the change on the receipt, and
+   * a cashier who trusted the screen collected more than was recorded — a phantom surplus
+   * at shift close.
+   *
+   * Extracted rather than copied on purpose. A second implementation of this is the same
+   * bug again with an extra place to forget.
+   *
+   * Identity is an INPUT here, never something this resolves. `resolveByPhone` mints an
+   * account, so a quote that took a phone number would print a customer on every keystroke
+   * — people who never bought anything, in the broadcast audience, who will never turn the
+   * opt-out off because nobody is behind them. The cashier identifies the buyer with a
+   * deliberate tap instead; see the `identify` route.
+   */
+  /**
+   * C12: the quote route's entry. Prices the basket for whoever the cashier has (or has
+   * not) identified — an anonymous basket gets depot prices and no discount layer, which is
+   * the honest answer rather than a guess at who is standing there.
+   */
+  async quoteCounterBasket(
+    customerId: string | null,
+    depotId: string,
+    lines: { productId: string; quantity: number }[],
+    voucherCode: string | null,
+    authorization = '',
+  ): Promise<CounterBasketQuote> {
+    if (lines.length === 0) throw new EmptyCartError();
+    void authorization;
+    return this.priceCounterBasket(customerId ?? ANONYMOUS_CUSTOMER_ID, depotId, lines, voucherCode);
+  }
+
+  /**
+   * C12: resolve a counter buyer by phone, because the cashier asked for it.
+   *
+   * The one place in the counter flow that may mint an account, and it only runs on a
+   * deliberate tap. Returns the same shape the screen needs to show who it found.
+   */
+  async identifyCounterBuyer(
+    depotId: string,
+    phone: string,
+    name: string | null,
+    authorization = '',
+  ): Promise<{ customerId: string }> {
+    void authorization;
+    // Returns the id and nothing else on purpose: the screen re-quotes with it, and the
+    // quote is where tier, agen and voucher are decided. Reporting a rate here as well
+    // would be a second opinion on the same question.
+    return { customerId: await this.resolveCounterBuyer({ depotId, customerPhone: phone, customerName: name } as WalkInSaleInput) };
+  }
+
+  async priceCounterBasket(
+    customerId: string,
+    depotId: string,
+    lines: { productId: string; quantity: number }[],
+    voucherCodeInput?: string | null,
+  ): Promise<CounterBasketQuote> {
+    const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
+      await this.priceLines(depotId, lines);
+    const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
+    const { discount, agen } = await this.counterDiscount(
+      customerId,
+      depotId,
+      subtotal,
+      voucherCode,
+      items,
+      tieredProductIds,
+      tierPricedTotal,
+    );
+    return {
+      items,
+      subtotal,
+      discount,
+      total: money(subtotal - discount),
+      voucherCode,
+      catalogFallback,
+      agen,
+    };
+  }
+
   private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
     return input.idempotencyKey?.trim() || null;
   }

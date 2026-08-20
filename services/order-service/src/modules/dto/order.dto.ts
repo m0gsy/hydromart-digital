@@ -428,3 +428,94 @@ export class VoidSaleDto {
   @MaxLength(255)
   reason!: string;
 }
+
+/**
+ * C12: what the cashier screen asks the server to price.
+ *
+ * Deliberately NO phone field. Resolving a phone mints an account, so a quote that took
+ * one would print a customer on every keystroke — people who never bought anything,
+ * sitting in the broadcast audience, who will never turn the opt-out off because nobody is
+ * behind them. `customerId` arrives only after the cashier taps to identify the buyer.
+ */
+export class CounterQuoteDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot pricing the basket.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ type: [WalkInLineDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => WalkInLineDto)
+  lines!: WalkInLineDto[];
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'The buyer, once the cashier has identified them.' })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiPropertyOptional({ example: 'HEMAT10', description: 'Rejected here rather than at Bayar.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  voucherCode?: string;
+}
+
+/** C12: the deliberate tap that identifies a counter buyer — the one call that may create an account. */
+export class CounterIdentifyDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: '081234567890' })
+  @IsString()
+  @MaxLength(30)
+  phone!: string;
+
+  @ApiPropertyOptional({ example: 'Budi Santoso' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+}
+
+/** C12: the priced basket. `total` is what the till charges — the screen stops adding up. */
+export class CounterQuoteResponseDto {
+  @ApiProperty({ example: 60000, description: 'Shelf prices at this depot, before the discount layer.' })
+  subtotalIdr!: number;
+
+  @ApiProperty({ example: 15000, description: 'Tier, agen price or voucher — the layer only the server knows.' })
+  discountIdr!: number;
+
+  @ApiProperty({ example: 45000, description: 'What the buyer pays. The cash guard and the change both use this.' })
+  totalIdr!: number;
+
+  @ApiProperty({ example: false, description: 'The agen band priced this basket.' })
+  agen!: boolean;
+
+  @ApiProperty({ nullable: true, example: null, description: 'Set when depot prices were unreachable and the catalogue was used.' })
+  catalogFallback!: string | null;
+
+  static from(quote: {
+    subtotal: number;
+    discount: number;
+    total: number;
+    agen: boolean;
+    catalogFallback: string | null;
+  }): CounterQuoteResponseDto {
+    return {
+      subtotalIdr: quote.subtotal,
+      discountIdr: quote.discount,
+      totalIdr: quote.total,
+      agen: quote.agen,
+      catalogFallback: quote.catalogFallback,
+    };
+  }
+}
+
+/** C12: who the cashier just identified. The screen re-quotes with this id. */
+export class CounterBuyerResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  customerId!: string;
+}

@@ -1,12 +1,18 @@
 import { plainToInstance } from 'class-transformer';
 
+import { BadRequestException } from '@nestjs/common';
+
+import { GlobalValidationPipe } from '@hydromart/platform';
+
 import { SaveMeterReadingDto } from '../../src/modules/dto/meter-reading.dto';
 import { validate } from 'class-validator';
 
 import {
+  CounterQuoteDto,
   CreateSubscriptionDto,
   ListOrdersQueryDto,
   OrderValueBatchDto,
+  WalkInLineDto,
   WalkInSaleDto,
 } from '../../src/modules/dto/order.dto';
 import { SetCartItemQuantityDto } from '../../src/modules/dto/cart.dto';
@@ -118,5 +124,69 @@ describe('SaveMeterReadingDto — the optional intake pair', () => {
     });
     const errors = await validate(dto);
     expect(errors.some((e) => e.property === 'sourceClosingM3')).toBe(true);
+  });
+});
+
+/**
+ * C12 · the quote request's shape, and the one thing it must NOT have.
+ *
+ * There is no phone field, deliberately: resolving a phone mints an account, so a quote
+ * that accepted one would print a customer on every keystroke. The absence is the feature,
+ * so it is asserted rather than left to be re-added by someone who finds it convenient.
+ */
+describe('CounterQuoteDto', () => {
+  const valid = {
+    depotId: '11111111-1111-4111-8111-111111111111',
+    lines: [{ productId: '22222222-2222-4222-8222-222222222222', quantity: 2 }],
+  };
+
+  it('binds the nested lines rather than passing raw objects through', async () => {
+    const dto = plainToInstance(CounterQuoteDto, valid);
+    expect(dto.lines[0]).toBeInstanceOf(WalkInLineDto);
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it('refuses an empty basket at the door', async () => {
+    const dto = plainToInstance(CounterQuoteDto, { ...valid, lines: [] });
+    expect(await validate(dto)).not.toEqual([]);
+  });
+
+  it('refuses a line the nested validator rejects', async () => {
+    const dto = plainToInstance(CounterQuoteDto, {
+      ...valid,
+      lines: [{ productId: 'not-a-uuid', quantity: 0 }],
+    });
+    expect(await validate(dto)).not.toEqual([]);
+  });
+
+  /**
+   * Run through the REAL pipe, not `plainToInstance`: it is `GlobalValidationPipe` that
+   * decides what a route receives, and asserting the transform alone would have passed
+   * while proving nothing.
+   *
+   * It turns out to be stronger than "the field is ignored": the pipe is
+   * `forbidNonWhitelisted`, so a phone sent to the quote route is a 400. Pricing cannot be
+   * made to resolve an identity even by a caller that tries.
+   */
+  it('REFUSES a phone somebody sends anyway — pricing cannot be made to create a customer', async () => {
+    const pipe = new GlobalValidationPipe();
+
+    await expect(
+      pipe.transform(
+        { ...valid, customerPhone: '081234567890' },
+        { type: 'body', metatype: CounterQuoteDto },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts the declared shape through the same pipe', async () => {
+    const pipe = new GlobalValidationPipe();
+    const body = (await pipe.transform(
+      { ...valid, customerId: '33333333-3333-4333-8333-333333333333' },
+      { type: 'body', metatype: CounterQuoteDto },
+    )) as unknown as Record<string, unknown>;
+
+    expect(body.depotId).toBe(valid.depotId);
+    expect(body.customerId).toBe('33333333-3333-4333-8333-333333333333');
   });
 });

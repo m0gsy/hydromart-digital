@@ -39,6 +39,10 @@ import {
   AssignDepotDto,
   CancelOrderDto,
   CheckoutDto,
+  CounterBuyerResponseDto,
+  CounterIdentifyDto,
+  CounterQuoteDto,
+  CounterQuoteResponseDto,
   CreateReviewDto,
   DeliveryOptionsResponseDto,
   InternalRefundDto,
@@ -142,6 +146,70 @@ export class OrderController {
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
       },
+      authorization,
+    );
+  }
+
+  /**
+   * C12 · what this basket actually costs, answered by the server.
+   *
+   * The cashier screen used to add up shelf prices itself while the server applied tier,
+   * agen and voucher on top. Three numbers, three places: the cash-short guard refused an
+   * agen handing over exact money, the change on screen disagreed with the change on the
+   * receipt, and a cashier who trusted the screen collected more than was recorded — a
+   * phantom surplus at shift close.
+   *
+   * Runs the SAME function the sale runs. No shift check, no stock reservation, no voucher
+   * redemption: this prices, it does not sell.
+   *
+   * `customerId` is optional and there is deliberately NO phone field. Resolving a phone
+   * mints an account, so a quote that accepted one would print a customer on every
+   * keystroke — people who never bought anything, sitting in the broadcast audience, who
+   * will never switch the opt-out off because nobody is behind them. Identifying the buyer
+   * is the separate, deliberate tap below.
+   *
+   * Declared before any ':id' route so the static segment wins.
+   */
+  @ApiOkResponse({ type: CounterQuoteResponseDto })
+  @Can('walkInSale')
+  @Post('walk-in/quote')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Price a counter basket without selling it (cashier screen)' })
+  async walkInQuote(
+    @Body() dto: CounterQuoteDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<CounterQuoteResponseDto> {
+    return CounterQuoteResponseDto.from(
+      await this.orders.quoteCounterBasket(
+        dto.customerId ?? null,
+        dto.depotId,
+        dto.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        dto.voucherCode ?? null,
+        authorization,
+      ),
+    );
+  }
+
+  /**
+   * C12 · identify the buyer, once, because the cashier asked.
+   *
+   * This is the tap that may create an account, and it exists so that nothing else does it
+   * by accident. The quote above never resolves a phone; the sale still resolves one when
+   * a sale actually happens, which is a customer who really bought something.
+   */
+  @ApiOkResponse({ type: CounterBuyerResponseDto })
+  @Can('walkInSale')
+  @Post('walk-in/identify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resolve a counter buyer by phone, on the cashier’s explicit request' })
+  async walkInIdentify(
+    @Body() dto: CounterIdentifyDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<CounterBuyerResponseDto> {
+    return this.orders.identifyCounterBuyer(
+      dto.depotId,
+      dto.phone,
+      dto.name ?? null,
       authorization,
     );
   }
