@@ -1225,6 +1225,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_DELIVERY_FEE: '5000',
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
+    ORDER_COUNTER_DELIVERY: '1',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     ORDER_STAFF_COMPLETE_DELIVERED: '1',
     ORDER_CART_DEPOT_PRICING: '1',

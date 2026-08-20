@@ -8,6 +8,7 @@ import {
   AnonymousVoucherNotAllowedError,
   CounterBuyerUnresolvedError,
   CounterBasketChangedError,
+  CounterDeliveryUnavailableError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -20,7 +21,7 @@ import {
   VoidWindowClosedError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
-import { OrderStatus } from '../../src/domain/order-status';
+import { OrderStatus, nextStatuses } from '../../src/domain/order-status';
 import {
   FakeDepotDirectory,
   FakeDepotPricing,
@@ -61,6 +62,7 @@ describe('OrderService.walkInSale', () => {
   let membership: FakeMembership;
   let promo: FakePromo;
   let shift: FakeCashierShift;
+  let cart: InMemoryCartRepository;
   let paymentReversal: FakePaymentReversal;
   let pricing: FakeDepotPricing;
   let directory: FakeCustomerDirectory;
@@ -76,7 +78,7 @@ describe('OrderService.walkInSale', () => {
 
   beforeEach(() => {
     orders = new InMemoryOrderRepository();
-    const cart = new InMemoryCartRepository();
+    cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
     pricing = new FakeDepotPricing();
@@ -204,6 +206,215 @@ describe('OrderService.walkInSale', () => {
       });
 
       expect(again.id).toBe(first.id);
+    });
+  });
+
+  /**
+   * C11 · the buyer came to the depot and asked for it to be delivered.
+   *
+   * Not "the ongkir was forgotten" — the PATH did not exist. And the hole that is easiest
+   * to miss is not the fee: a walk-in is born COMPLETED and `TRANSITIONS[COMPLETED]` is
+   * EMPTY, so a courier could never be assigned. Charging ongkir alone would have billed
+   * for a delivery nobody could perform.
+   */
+  describe('C11 · antar dari konter', () => {
+    /**
+     * The counter never needed the depot DIRECTORY before — it priced from `input.depotId`
+     * and charged no ongkir. A delivery does: the fee is the depot's own, read fail-closed,
+     * because quoting a delivery fee from a depot nobody could reach would be inventing a
+     * price at the till with the buyer standing there.
+     */
+    beforeEach(() => {
+      depots.depots = [
+        {
+          id: DEPOT,
+          lat: -6.9,
+          lng: 107.6,
+          serviceRadiusKm: 10,
+          deliveryFee: 5000,
+          minOrderAmount: null,
+        },
+      ];
+    });
+
+    const ADDRESS = {
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Merdeka 10',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: null,
+    };
+
+    it('is born CONFIRMED so a courier can actually be assigned', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(order.status).toBe(OrderStatus.CONFIRMED);
+      expect(nextStatuses(order.status).length).toBeGreaterThan(0);
+    });
+
+    it('a pick-up is still born COMPLETED, with no ongkir', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+      });
+
+      expect(order.status).toBe(OrderStatus.COMPLETED);
+      expect(order.deliveryFee).toBe(0);
+    });
+
+    it('charges ongkir, and it is NOT a product line', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true, volumeMl: 19000 });
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(order.deliveryFee).toBeGreaterThan(0);
+      expect(order.total).toBe(order.subtotal + order.deliveryFee - order.discount);
+      // The trap: ongkir smuggled in as a galon line would be discounted to the flat agen
+      // price and would report as goods sold rather than as delivery.
+      expect(order.items).toHaveLength(1);
+      expect(order.items[0].productId).toBe(p.id);
+    });
+
+    it('carries the address the buyer gave, not "ambil di depot"', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 1 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(order.addressLine).toBe('Jl. Merdeka 10');
+      expect(order.latitude).toBe(-6.9);
+    });
+
+    /**
+     * The completion fan-out is what credits stock, points and franchise revenue. Firing it
+     * at creation would credit a sale still sitting on a courier's bike.
+     */
+    it('owes its completion effects at proof of delivery, not at the till', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 1 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(orders.outbox!.rows.filter((r) => r.orderId === order.id)).toHaveLength(0);
+    });
+
+    it('refuses rather than quietly handing back a pick-up when the depot is switched off', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      // Same wiring, one setting flipped — the switch has to be the only difference.
+      const svc = new OrderService(
+        orders,
+        cart,
+        catalog,
+        depots,
+        pricing,
+        loyalty,
+        referral,
+        membership,
+        resellerDiscount,
+        directory,
+        notification,
+        promo,
+        inventory,
+        buildCartService(cart, catalog),
+        buildTestConfig({ ORDER_COUNTER_DELIVERY: '0' }),
+        recommendation,
+        forecast,
+        franchiseRevenue,
+        shift,
+        paymentReversal,
+        buildOutbox(orders),
+      );
+
+      await expect(
+        svc.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 1 }],
+          deliveryAddress: ADDRESS,
+        }),
+      ).rejects.toBeInstanceOf(CounterDeliveryUnavailableError);
+    });
+
+    /**
+     * The second trap: `quoteFor` and `redeem` must BOTH see the fee. If only one does, the
+     * voucher book records a discount larger than the one actually given — the mirror of a
+     * defect already documented on the checkout path.
+     */
+    /**
+     * A free-shipping voucher is only meaningless when there is no shipping. On a counter
+     * DELIVERY it is worth exactly the fee and never more — capped here rather than trusted
+     * from the quote, so a shipping voucher can never end up paying for goods.
+     */
+    it('caps a free-shipping voucher at the ongkir, never above it', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      directory.byPhone.set('08123', '77777777-7777-4777-8777-777777777777');
+      promo.quoteDiscount = 999_999;
+      promo.quoteDiscountType = 'FREE_SHIPPING';
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+        customerPhone: '08123',
+        voucherCode: 'GRATISONGKIR',
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(order.discount).toBe(order.deliveryFee);
+    });
+
+    it('still refuses a free-shipping voucher on a pick-up — there is no shipping to pay', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      directory.byPhone.set('08123', '77777777-7777-4777-8777-777777777777');
+      promo.quoteDiscount = 5000;
+      promo.quoteDiscountType = 'FREE_SHIPPING';
+
+      await expect(
+        service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 1 }],
+          customerPhone: '08123',
+          voucherCode: 'GRATISONGKIR',
+        }),
+      ).rejects.toBeInstanceOf(ShippingVoucherAtCounterError);
+    });
+
+    it('quotes AND redeems the voucher against the same ongkir', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      directory.byPhone.set('08123', '77777777-7777-4777-8777-777777777777');
+      promo.quoteDiscount = 1000;
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+        customerPhone: '08123',
+        voucherCode: 'HEMAT',
+        deliveryAddress: ADDRESS,
+      });
+
+      expect(promo.quoteForCalls[0].shippingFee).toBe(order.deliveryFee);
+      expect(promo.redeemCalls[0].shippingFee).toBe(order.deliveryFee);
+      expect(promo.redeemCalls[0].shippingFee).toBe(promo.quoteForCalls[0].shippingFee);
     });
   });
 

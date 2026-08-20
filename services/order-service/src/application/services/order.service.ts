@@ -16,6 +16,7 @@ import {
   DepotRequiredError,
   DepotUnavailableError,
   CounterBasketChangedError,
+  CounterDeliveryUnavailableError,
   DuplicateCheckoutError,
   EmptyCartError,
   InvalidStatusTransitionError,
@@ -116,6 +117,15 @@ export interface WalkInSaleInput {
   voucherCode?: string | null;
   /** Client-supplied `Idempotency-Key` — a re-tapped Bayar returns the same sale (B-13). */
   idempotencyKey?: string | null;
+  /**
+   * C11: the buyer came to the depot and asked for it to be delivered.
+   *
+   * Present = deliver it, absent = today's behaviour exactly. No new enum and no new route:
+   * the whole system had only TWO ways to create an order — customer checkout and the
+   * counter — and neither could produce a counter sale that a courier would carry. The
+   * ongkir was not "forgotten", the path did not exist.
+   */
+  deliveryAddress?: DeliveryAddressSnapshot | null;
 }
 
 export interface CheckoutInput {
@@ -746,8 +756,39 @@ export class OrderService {
       throw new NoOpenShiftError();
     }
 
+    /*
+     * C11 · the buyer is at the counter and wants it delivered.
+     *
+     * Not "the ongkir was forgotten" — the PATH did not exist. The whole system had two
+     * ways to create an order, customer checkout and this one, and neither could produce a
+     * counter sale a courier would carry.
+     *
+     * The hole that is easiest to miss: a walk-in is born COMPLETED and
+     * `TRANSITIONS[COMPLETED]` is EMPTY, so a courier could never be assigned to one.
+     * Adding an ongkir alone would have charged for a delivery nobody could perform. A
+     * delivered counter sale is therefore born CONFIRMED and walks the normal graph, with
+     * the completion fan-out firing at proof of delivery rather than at creation.
+     */
+    const wantsDelivery = !!input.deliveryAddress;
+    if (wantsDelivery && !this.config.counterDelivery(input.depotId)) {
+      // Refuse rather than quietly hand back a pick-up: taking the money and silently
+      // downgrading what was bought is the failure mode this item exists to remove.
+      throw new CounterDeliveryUnavailableError();
+    }
+
+    // Computed ONCE and threaded everywhere, because the two traps in this item are both
+    // about the same number reaching two places and disagreeing.
+    const shippingFee = wantsDelivery
+      ? await this.counterShippingFee(input.depotId, input.lines)
+      : 0;
     const { items, subtotal, discount, voucherCode, catalogFallback } =
-      await this.priceCounterBasket(customerId, input.depotId, input.lines, input.voucherCode);
+      await this.priceCounterBasket(
+        customerId,
+        input.depotId,
+        input.lines,
+        input.voucherCode,
+        shippingFee,
+      );
 
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
@@ -757,43 +798,79 @@ export class OrderService {
         orderNumber: await this.newOrderNumber(),
         customerId,
         depotId: input.depotId,
-        status: OrderStatus.COMPLETED,
+        /*
+         * C11: a delivery is born CONFIRMED and walks the normal graph.
+         *
+         * `TRANSITIONS[COMPLETED]` is EMPTY — deliberately, so a delivered order cannot be
+         * voided out of the till — which means a counter sale born COMPLETED could never
+         * have a courier assigned to it. Charging ongkir on one would have billed for a
+         * delivery nobody could perform. This is the hole the plan warns is easiest to miss.
+         */
+        status: wantsDelivery ? OrderStatus.CONFIRMED : OrderStatus.COMPLETED,
         isWalkIn: true,
         idempotencyKey,
-        // A walk-in is born COMPLETED, so it earns the fan-out at creation rather than at
-        // a later transition. reserveThenCreate stamps these with the id it generates.
-        outbox: OrderService.completionTopics(customerId, input.depotId).map((topic) => ({
-          topic,
-          orderId: '',
-        })),
+        // A pick-up is born COMPLETED, so it earns the fan-out at creation rather than at a
+        // later transition. A DELIVERY has completed nothing yet: its stock, points and
+        // franchise revenue land at proof of delivery through the same path every delivered
+        // order uses. Firing them here would credit a sale still on a courier's bike.
+        outbox: wantsDelivery
+          ? []
+          : OrderService.completionTopics(customerId, input.depotId).map((topic) => ({
+              topic,
+              orderId: '',
+            })),
         subtotal,
-        deliveryFee: 0,
+        deliveryFee: shippingFee,
         discount,
-        total: money(subtotal - discount),
+        total: money(subtotal + shippingFee - discount),
         // The address snapshot columns are NOT NULL and are read by the receipt, the order
         // detail sheet and the driver app. For a counter sale they say who bought and where
         // they took delivery — at the counter.
-        recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
-        phone: input.customerPhone?.trim() || '-',
-        addressLine: 'Ambil langsung di depot',
-        city: '-',
-        province: '-',
-        postalCode: null,
-        latitude: null,
-        longitude: null,
-        notes: null,
+        // C11: a delivery carries the address the buyer gave; a pick-up says, honestly,
+        // that it was taken at the counter.
+        ...(input.deliveryAddress
+          ? input.deliveryAddress
+          : {
+              recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
+              phone: input.customerPhone?.trim() || '-',
+              addressLine: 'Ambil langsung di depot',
+              city: '-',
+              province: '-',
+              postalCode: null,
+              latitude: null,
+              longitude: null,
+              notes: null,
+            }),
         items,
       },
       authorization,
       // Burned before the order row is written, exactly as at checkout (B-6). The counter
       // path had the same fail-open shape, and the same consequence.
+      // C11 trap: `redeem` gets the SAME shippingFee `quoteFor` was given. If only one of
+      // them sees it, the voucher book records a bigger discount than the one handed over.
       voucherCode
-        ? (orderId) => this.promo.redeem(voucherCode, customerId, orderId, subtotal, 0, authorization)
+        ? (orderId) =>
+            this.promo.redeem(voucherCode, customerId, orderId, subtotal, shippingFee, authorization)
         : undefined,
     );
 
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
-    // No ORDER_RECEIVED: the goods are already in the buyer's hands.
+    if (wantsDelivery) {
+      // C11: a live order now, not a finished one. It joins the dispatch queue and completes
+      // at proof of delivery like any other — so no completion fan-out here, and the buyer
+      // gets the same "pesanan diterima" every delivery customer gets.
+      // No `.catch` here, matching `placeScheduled`: the notification port is fail-open by
+      // contract and never throws, so a catch would only be a function nothing ever calls.
+      await this.notification.notify(
+        'ORDER_RECEIVED',
+        order.phone,
+        { name: order.recipientName, orderNumber: order.orderNumber, orderId: order.id },
+        order.customerId,
+        authorization,
+      );
+      return order;
+    }
+    // No ORDER_RECEIVED for a pick-up: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
   }
@@ -959,6 +1036,8 @@ export class OrderService {
     customerId: string,
     depotId: string,
     subtotal: number,
+    /** C11: the ongkir this sale carries, 0 for a pick-up. Both promo calls must see it. */
+    shippingFee: number,
     voucherCode: string | null,
     items: CreateOrderItemData[],
     tieredProductIds: Set<string>,
@@ -991,9 +1070,16 @@ export class OrderService {
     if (voucherCode) {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
-      const quote = await this.promo.quoteFor(voucherCode, customerId, subtotal, 0);
-      if (quote.discountType === 'FREE_SHIPPING') throw new ShippingVoucherAtCounterError();
-      voucherDiscount = quote.discount;
+      const quote = await this.promo.quoteFor(voucherCode, customerId, subtotal, shippingFee);
+      if (quote.discountType === 'FREE_SHIPPING') {
+        // C11: a free-shipping voucher is only meaningless when there is no shipping. On a
+        // counter DELIVERY it is worth exactly the fee, never more — capping it here rather
+        // than trusting the quote keeps a voucher from paying for goods.
+        if (shippingFee <= 0) throw new ShippingVoucherAtCounterError();
+        voucherDiscount = Math.min(shippingFee, quote.discount);
+      } else {
+        voucherDiscount = quote.discount;
+      }
     }
     // Same ceiling as checkout: the stack can wipe out the goods, never go past them.
     // ponytail: the counter sale reads `.rate` and does NOT stamp a note when the tier was
@@ -1488,11 +1574,43 @@ export class OrderService {
     return { customerId: await this.resolveCounterBuyer({ depotId, customerPhone: phone, customerName: name } as WalkInSaleInput) };
   }
 
+  /**
+   * C11: the ongkir a counter delivery is charged, from the depot that will carry it.
+   *
+   * The same formula checkout uses — `depot.deliveryFee` per galon — read through the
+   * directory and FAIL-CLOSED. Quoting a delivery fee from a depot nobody could reach would
+   * be inventing a price at the till, with the buyer standing there.
+   *
+   * TRAP, and it is the reason this is a separate number rather than a basket line: ongkir
+   * must NEVER be smuggled in as a product. `resellerDiscountFor` cuts every galon line
+   * down to `flatGallonPriceIdr`, so an ongkir hidden as a galon would be discounted to
+   * Rp5.000 for an agen — and would report as goods sold rather than as delivery.
+   */
+  private async counterShippingFee(
+    depotId: string,
+    lines: { productId: string; quantity: number }[],
+  ): Promise<number> {
+    const depots = await this.depotDirectory.listActiveDepots();
+    const depot = depots?.find((d) => d.id === depotId);
+    if (!depot) throw new DepotUnavailableError();
+    const { items } = await this.priceLines(depotId, lines);
+    return money(depot.deliveryFee * galonQuantity(items));
+  }
+
   async priceCounterBasket(
     customerId: string,
     depotId: string,
     lines: { productId: string; quantity: number }[],
     voucherCodeInput?: string | null,
+    /**
+     * C11: the ongkir this basket will be charged, 0 for a pick-up.
+     *
+     * TRAP, and it is why this is threaded rather than defaulted: `quoteFor` AND `redeem`
+     * must BOTH see the same fee. If only one does, the voucher book records a discount
+     * larger than the one actually given — the mirror of the defect already documented on
+     * the checkout path.
+     */
+    shippingFee = 0,
   ): Promise<CounterBasketQuote> {
     const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
@@ -1501,6 +1619,7 @@ export class OrderService {
       customerId,
       depotId,
       subtotal,
+      shippingFee,
       voucherCode,
       items,
       tieredProductIds,

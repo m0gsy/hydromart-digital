@@ -24,6 +24,21 @@ export class OrderNotFoundError extends DomainError {
  * with different content is a caller bug, not a retry, and saying so beats replaying a sale
  * nobody made.
  */
+/**
+ * C11: this depot does not deliver counter sales right now.
+ *
+ * Refused outright rather than silently downgraded to a pick-up. Taking the money and
+ * handing the buyer something they did not ask for is the failure this item exists to
+ * remove, not a graceful fallback.
+ */
+export class CounterDeliveryUnavailableError extends DomainError {
+  readonly code = 'ORDER_COUNTER_DELIVERY_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Depot ini sedang tidak melayani antar dari konter.');
+  }
+}
+
 export class CounterBasketChangedError extends DomainError {
   readonly code = 'ORDER_COUNTER_BASKET_CHANGED';
   readonly status = HTTP_STATUS.CONFLICT;
