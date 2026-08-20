@@ -239,6 +239,54 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(out![1].minOrderAmount).toBeNull();
   });
 
+  // The happy-path case above sends neither field, which only ever exercises the "absent"
+  // arm of both guards. The opening-hours reader is what decides whether an order can be
+  // placed at all, so the arm that actually carries a schedule needs its own proof — and
+  // the guard must let a well-formed blob through unchanged rather than flattening it to
+  // "not configured", which `isOpenAt` reads as always open.
+  it('passes a well-formed schedule and holiday list through untouched', async () => {
+    const operatingHours = { mon: { open: '08.00', close: '17.00' } };
+    const holidays = [{ date: '2026-12-25', name: 'Natal' }];
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          items: [
+            { id: 'd1', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 3000, operatingHours, holidays },
+          ],
+        },
+      }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(out![0].operatingHours).toEqual(operatingHours);
+    expect(out![0].holidays).toEqual(holidays);
+  });
+
+  // A JSON column can hold anything. Neither shape below is a schedule, and reading either
+  // as one would let `isOpenAt` decide the depot's trading hours off garbage — so both
+  // collapse to "not configured", which is the always-open reading, never a silent close.
+  it('reads a malformed schedule blob as "not configured" rather than as a schedule', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          items: [
+            {
+              id: 'd1',
+              lat: 1,
+              lng: 2,
+              serviceRadiusKm: 5,
+              deliveryFee: 3000,
+              operatingHours: ['08.00-17.00'],
+              holidays: 'Natal',
+            },
+          ],
+        },
+      }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(out![0].operatingHours).toEqual({});
+    expect(out![0].holidays).toEqual([]);
+  });
+
   it('returns null on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots()).toBeNull();
@@ -1280,6 +1328,22 @@ describe('CustomerDirectoryHttpAdapter', () => {
       expect(url).toBe('http://customer:3002/api/v1/customers/internal/resolve-by-phone');
       expect(init.headers['x-internal-key']).toBe(KEY);
       expect(JSON.parse(init.body)).toEqual({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
+    });
+
+    // C9: an unnamed counter buyer must OMIT the key, not send null. The DTO reads absent
+    // as "unnamed"; a null would have to be special-cased there, and the day it is not, the
+    // buyer is created with a literal null for a name.
+    it('omits fullName entirely when the cashier typed no name', async () => {
+      const fetchMock = jest.fn().mockResolvedValue(res({ body: { customerId: 'c9' } }));
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).resolveByPhone('0811', null, 'd1'),
+      ).resolves.toBe('c9');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body) as Record<string, unknown>;
+      expect(body).toEqual({ phone: '0811', depotId: 'd1' });
+      expect('fullName' in body).toBe(false);
     });
 
     it('calls nothing when there is no internal key', async () => {

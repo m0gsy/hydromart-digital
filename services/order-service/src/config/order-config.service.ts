@@ -126,7 +126,7 @@ export class OrderConfigService {
    * Off removes the action from the screen and changes nothing else — delivery-service's
    * own advance keeps running, which is the behaviour this switch reverts to.
    */
-  staffCompleteDelivered(depotId: string | null = null): boolean {
+  staffCompleteDelivered(depotId: string | null): boolean {
     return (
       this.tunable(
         'staffCompleteDelivered',
@@ -140,7 +140,7 @@ export class OrderConfigService {
    * previewed: it used to be a constant in the checkout screen that the customer saw and
    * the order never included.
    */
-  express(depotId: string | null = null): {
+  express(depotId: string | null): {
     enabled: boolean;
     fee: number;
     etaMinMinutes: number;
@@ -177,7 +177,7 @@ export class OrderConfigService {
    * comma-separated string because that is what the settings screen can edit; the write
    * path enforces the `HH.MM-HH.MM` shape, so a bad entry never reaches here.
    */
-  deliverySlots(depotId: string | null = null): string[] {
+  deliverySlots(depotId: string | null): string[] {
     const def = SETTING_DEF_BY_KEY.deliverySlots;
     const raw = this.settings.effective(
       'deliverySlots',
