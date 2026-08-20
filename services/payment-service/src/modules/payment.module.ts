@@ -13,6 +13,8 @@ import { PaymentPrismaRepository } from '../infrastructure/prisma/payment.prisma
 import { TaxSettingsPrismaRepository } from '../infrastructure/prisma/tax-settings.prisma.repository';
 import { PaymentGatewayHttpAdapter } from '../infrastructure/http/payment-gateway.http.adapter';
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
+import { CashierShiftHttpAdapter } from '../infrastructure/http/cashier-shift.http.adapter';
+import { CASHIER_SHIFT_PORT } from '../application/ports/cashier-shift.port';
 import { PaymentController } from './payment.controller';
 import { TaxController } from './tax.controller';
 
@@ -25,6 +27,8 @@ const providers: Provider[] = [
   { provide: PAYMENT_TOKENS.TaxSettingsRepository, useClass: TaxSettingsPrismaRepository },
   { provide: PAYMENT_TOKENS.PaymentGateway, useClass: PaymentGatewayHttpAdapter },
   { provide: PAYMENT_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
+  // C2: which drawer a counter payment lands in, asked with the cashier's own token.
+  { provide: CASHIER_SHIFT_PORT, useClass: CashierShiftHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

@@ -20,6 +20,8 @@ export interface PaymentRecord {
   changeGiven: number | null;
   /** Depot whose drawer took the money; set only for a counter sale. */
   depotId: string | null;
+  /** C2: the drawer this counter payment landed in. Null for delivery and for history. */
+  cashierShiftId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,8 @@ export interface CreatePaymentData {
   instruction: string | null;
   gatewayData: string | null;
   depotId?: string | null;
+  /** C2: the drawer this counter payment landed in. Null for delivery and for history. */
+  cashierShiftId?: string | null;
 }
 
 export interface PaymentStatusPatch {
@@ -136,7 +140,16 @@ export interface PaymentRepository {
    * drawer. Bounded by settlement time, not creation: a sale rung up before the shift and
    * settled during it is cash this cashier is holding.
    */
-  sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary>;
+  /**
+   * C2: a depot's PAID cash. Given a shift id, it answers for THAT drawer — its own
+   * payments, plus any that predate the column and fall in the window. Given none, it is
+   * the whole depot over the window, which is what the daily report wants.
+   */
+  sumDepotCash(
+    depotId: string,
+    range: DateRange,
+    cashierShiftId?: string,
+  ): Promise<CashCollectedSummary>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 
   /**

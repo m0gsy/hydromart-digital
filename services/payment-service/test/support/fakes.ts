@@ -45,6 +45,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       cashReceived: null,
       changeGiven: null,
       depotId: data.depotId ?? null,
+      cashierShiftId: data.cashierShiftId ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -163,14 +164,22 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   async sumDepotCash(
     depotId: string,
     range: { from?: Date; to?: Date },
+    cashierShiftId?: string,
   ): Promise<CashCollectedSummary> {
+    // C2: mirrors the real query. Named a shift, a row belongs to it either by carrying its
+    // id or by predating the column and falling in the window; named none, it is the whole
+    // depot over the window as before.
+    const inWindow = (r: PaymentRecord) =>
+      (!range.from || (r.paidAt !== null && r.paidAt >= range.from)) &&
+      (!range.to || (r.paidAt !== null && r.paidAt <= range.to));
     const matched = this.rows.filter(
       (r) =>
         r.depotId === depotId &&
         r.method === PaymentMethod.CASH &&
         r.status === PaymentStatus.PAID &&
-        (!range.from || (r.paidAt !== null && r.paidAt >= range.from)) &&
-        (!range.to || (r.paidAt !== null && r.paidAt <= range.to)),
+        (cashierShiftId
+          ? r.cashierShiftId === cashierShiftId || (r.cashierShiftId === null && inWindow(r))
+          : inWindow(r)),
     );
     return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
   }

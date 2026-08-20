@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { money, recordAuditEvent } from '@hydromart/platform';
 
 import {
@@ -39,6 +39,7 @@ import {
 } from '../ports/payment.repository';
 import { PaymentGatewayPort } from '../ports/payment-gateway.port';
 import { OrderCoordinationPort } from '../ports/order-coordination.port';
+import { CASHIER_SHIFT_PORT, CashierShiftPort } from '../ports/cashier-shift.port';
 import { PAYMENT_TOKENS } from '../tokens';
 
 export interface InitiatePaymentInput {
@@ -49,6 +50,12 @@ export interface InitiatePaymentInput {
   atCounter?: boolean;
   /** Depot whose drawer takes the money. Counter sales only. */
   depotId?: string | null;
+  /**
+   * C2: the cashier's own bearer, used SERVER-side to look up which drawer they have open.
+   * Never the shift id itself — a body that could name the shift could name somebody
+   * else's, and this column exists precisely so the cash is answerable to a named person.
+   */
+  authorization?: string;
 }
 
 export interface ListPaymentsInput {
@@ -86,6 +93,12 @@ export class PaymentService {
     @Inject(PAYMENT_TOKENS.OrderCoordination)
     private readonly orderCoordination: OrderCoordinationPort,
     private readonly config: PaymentConfigService,
+    // C2: optional so a deployment that has not wired it keeps taking payments rather than
+    // refusing them. Unwired means every counter payment stays unattributed, and the
+    // reader's window rule still answers for it.
+    @Optional()
+    @Inject(CASHIER_SHIFT_PORT)
+    private readonly cashierShift?: CashierShiftPort,
   ) {}
 
   /**
@@ -120,6 +133,9 @@ export class PaymentService {
       // Only a counter sale names a depot: that drawer is answerable for this cash at
       // shift close. A delivery order's payment belongs to the order's depot, not a till.
       depotId: input.depotId ?? null,
+      // C2: and WHICH drawer. `sumDepotCash` used to sum a depot over a time window with no
+      // cashier dimension, so two shifts open at once each claimed the whole window.
+      cashierShiftId: await this.resolveShift(input),
     };
 
     if (!isOnlineMethod(input.method)) {
@@ -210,6 +226,18 @@ export class PaymentService {
    * computed and recorded, and underpayment is rejected (a COD payment cannot
    * settle short).
    */
+  /**
+   * The open shift of whoever is ringing this up, or null.
+   *
+   * Only for a counter sale: a delivery payment belongs to no till. Fails soft — see
+   * `CashierShiftPort`. Optional dependency so a deployment that has not wired it keeps
+   * taking payments rather than refusing them.
+   */
+  private async resolveShift(input: InitiatePaymentInput): Promise<string | null> {
+    if (!input.depotId || !input.authorization || !this.cashierShift) return null;
+    return this.cashierShift.openShiftId(input.depotId, input.authorization);
+  }
+
   async confirm(id: string, changedBy: string, cashReceived?: number): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     this.assertTransition(payment.status, PaymentStatus.PAID);
@@ -338,8 +366,12 @@ export class PaymentService {
    * The cashier's shift close is measured against this, so it is deliberately the same
    * question `cashCollected` answers for a courier — asked by depot instead of by order.
    */
-  async depotCashCollected(depotId: string, range: DateRange): Promise<CashCollectedSummary> {
-    return this.payments.sumDepotCash(depotId, range);
+  async depotCashCollected(
+    depotId: string,
+    range: DateRange,
+    cashierShiftId?: string,
+  ): Promise<CashCollectedSummary> {
+    return this.payments.sumDepotCash(depotId, range, cashierShiftId);
   }
 
   /**

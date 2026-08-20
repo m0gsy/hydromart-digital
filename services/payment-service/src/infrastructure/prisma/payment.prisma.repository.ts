@@ -44,6 +44,7 @@ interface PaymentRow {
   cashReceived: Decimalish | null;
   changeGiven: Decimalish | null;
   depotId: string | null;
+  cashierShiftId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +75,7 @@ export class PaymentPrismaRepository implements PaymentRepository {
       cashReceived: row.cashReceived ? row.cashReceived.toNumber() : null,
       changeGiven: row.changeGiven ? row.changeGiven.toNumber() : null,
       depotId: row.depotId,
+      cashierShiftId: row.cashierShiftId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -248,13 +250,43 @@ export class PaymentPrismaRepository implements PaymentRepository {
     }));
   }
 
-  async sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary> {
+  /**
+   * C2: a shift asks for ITS OWN drawer.
+   *
+   * This was a depot plus a time window and nothing else, while concurrent shifts at one
+   * depot are supported — so two cashiers open at once each claimed the whole window. The
+   * same rupiah counted against both tills, one of them short by the other's takings, and
+   * the counter cash posted to the cash book twice.
+   *
+   * The `cashierShiftId: null` arm is the GRANDFATHER, and it is not a loose end: every
+   * counter payment taken before this column existed has no shift id, and dropping those
+   * would turn a day of real takings into a shortfall against a real person. Attributing
+   * them by the old window rule is exactly what happened to them before, so nothing moves.
+   * Measured on production before writing this: two such payments exist, both inside a
+   * single shift's window, none straddling two — so the arm is unambiguous today and only
+   * ever shrinks.
+   *
+   * Called without a shift id, it is the old query, unchanged: the depot-wide daily report
+   * genuinely wants every till at once.
+   */
+  async sumDepotCash(
+    depotId: string,
+    range: DateRange,
+    cashierShiftId?: string,
+  ): Promise<CashCollectedSummary> {
     const agg = await this.prisma.payment.aggregate({
       where: {
         depotId,
         method: PaymentMethod.CASH,
         status: PaymentStatus.PAID,
-        paidAt: { gte: range.from, lte: range.to },
+        ...(cashierShiftId
+          ? {
+              OR: [
+                { cashierShiftId },
+                { cashierShiftId: null, paidAt: { gte: range.from, lte: range.to } },
+              ],
+            }
+          : { paidAt: { gte: range.from, lte: range.to } }),
       },
       _sum: { amount: true },
       _count: { _all: true },

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -84,8 +85,13 @@ export class PaymentController {
   @Post('staff')
   @Can('paymentSettle')
   @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
-  initiateForCustomer(@Body() dto: StaffInitiatePaymentDto): Promise<PaymentRecord> {
-    return this.payments.initiate(dto.customerId, { ...dto, atCounter: true });
+  initiateForCustomer(
+    @Body() dto: StaffInitiatePaymentDto,
+    @Headers('authorization') authorization: string,
+  ): Promise<PaymentRecord> {
+    // C2: the cashier's own token, so the service can ask depot-service which drawer THEY
+    // have open. Deliberately not a body field — see `CashierShiftPort`.
+    return this.payments.initiate(dto.customerId, { ...dto, atCounter: true, authorization });
   }
 
   // Voiding a counter sale gives the buyer their money back. Internal-key only, and
@@ -112,10 +118,15 @@ export class PaymentController {
   @Get('internal/depot-cash')
   @ApiOperation({ summary: "Sum a depot's PAID cash over a window (internal service auth)" })
   depotCash(@Query() query: DepotCashQueryDto): Promise<CashCollectedSummary> {
-    return this.payments.depotCashCollected(query.depotId, {
-      from: query.from ? new Date(query.from) : undefined,
-      to: query.to ? new Date(query.to) : undefined,
-    });
+    return this.payments.depotCashCollected(
+      query.depotId,
+      {
+        from: query.from ? new Date(query.from) : undefined,
+        to: query.to ? new Date(query.to) : undefined,
+      },
+      // C2: when the caller names a shift it is asking for that DRAWER, not the depot.
+      query.cashierShiftId,
+    );
   }
 
   /**

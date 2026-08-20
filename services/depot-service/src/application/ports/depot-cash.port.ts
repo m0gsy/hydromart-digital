@@ -7,5 +7,9 @@
  * expected total either accuses a cashier of a shortfall or quietly absolves a real one.
  */
 export interface DepotCashPort {
-  totalPaidCash(depotId: string, from: Date, to: Date): Promise<number>;
+  /**
+   * C2: `cashierShiftId` names the DRAWER. Without it this was a depot plus a window, and
+   * two shifts open at once each claimed the whole window — the same money against both.
+   */
+  totalPaidCash(depotId: string, from: Date, to: Date, cashierShiftId?: string): Promise<number>;
 }

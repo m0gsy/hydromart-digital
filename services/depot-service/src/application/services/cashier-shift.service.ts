@@ -97,7 +97,11 @@ export class CashierShiftService {
     }
 
     const closedAt = new Date();
-    const taken = await this.depotCash.totalPaidCash(shift.depotId, shift.openedAt, closedAt);
+    // C2: ask for THIS shift's drawer. The old call named only the depot and the window,
+    // so two cashiers open at once each closed against the other's takings as well as
+    // their own — one short by exactly what the other took, and the counter cash posted
+    // to the book twice.
+    const taken = await this.depotCash.totalPaidCash(shift.depotId, shift.openedAt, closedAt, shift.id);
     const expected = expectedCash(shift.openingFloat, taken);
     const closed = await this.shifts.close(shiftId, {
       closedAt,

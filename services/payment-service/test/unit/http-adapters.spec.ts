@@ -1,6 +1,7 @@
 import { PaymentConfigService } from '../../src/config/payment-config.service';
 import { PaymentGatewayHttpAdapter } from '../../src/infrastructure/http/payment-gateway.http.adapter';
 import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
+import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import type { ChargeRequest } from '../../src/application/ports/payment-gateway.port';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
@@ -235,5 +236,57 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers when order-service hangs'
     const settled = new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1']);
     await jest.advanceTimersByTimeAsync(10_000);
     expect((await settled).size).toBe(0);
+  });
+});
+
+/**
+ * C2 · which drawer is open, asked with the CASHIER's own token.
+ *
+ * Fails SOFT everywhere, and that is the decision this suite pins down: by the time a
+ * counter payment is being created the goods have already left the shelf, so losing the
+ * payment record over a depot-service blip is strictly worse than a payment the reader's
+ * window rule still attributes.
+ */
+describe('CashierShiftHttpAdapter', () => {
+  const adapter = (over: Partial<Record<string, unknown>> = {}) =>
+    new CashierShiftHttpAdapter(makeConfig({ depotServiceUrl: 'http://depot:3003', ...over }));
+
+  it('returns the open shift id, asked with the caller’s bearer', async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'shift-7' } }));
+
+    await expect(adapter().openShiftId('depot 1', 'Bearer t')).resolves.toBe('shift-7');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://depot:3003/api/v1/cashier-shifts/current?depotId=depot%201');
+    expect((init as RequestInit).headers).toMatchObject({ authorization: 'Bearer t' });
+  });
+
+  it('answers null when the caller is simply not on the counter', async () => {
+    fetchMock.mockResolvedValue(res({ body: null }));
+    await expect(adapter().openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
+  });
+
+  it('answers null with no depot-service configured, and asks nobody', async () => {
+    await expect(adapter({ depotServiceUrl: '' }).openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers null with no token to ask with', async () => {
+    await expect(adapter().openShiftId('depot-1', '')).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers null on a non-2xx', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(adapter().openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
+  });
+
+  it('answers null when the transport fails', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
+  });
+
+  it('answers null on a body it cannot parse', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('bad json'); } } as unknown as Response);
+    await expect(adapter().openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
   });
 });

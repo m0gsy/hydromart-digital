@@ -51,9 +51,16 @@ describe('PaymentController', () => {
 
   it('staff initiate bills the buyer in the body, not the cashier holding the token', async () => {
     const dto = { orderId: 'o1', method: 'CASH', amount: 45000, customerId: 'buyer-9' };
-    expect(await controller.initiateForCustomer(dto as never)).toBe('RESULT');
+    expect(await controller.initiateForCustomer(dto as never, 'Bearer cashier-token')).toBe('RESULT');
     // atCounter marks it a counter sale, which changes the CASH instruction copy.
-    expect(svc.initiate).toHaveBeenCalledWith('buyer-9', { ...dto, atCounter: true });
+    // C2: the cashier's own bearer rides along so the service can ask depot-service which
+    // drawer THEY have open. It is not a body field on purpose — a body that could name the
+    // shift could name somebody else's till.
+    expect(svc.initiate).toHaveBeenCalledWith('buyer-9', {
+      ...dto,
+      atCounter: true,
+      authorization: 'Bearer cashier-token',
+    });
   });
 
   it('list scopes to the current customer', async () => {
@@ -148,15 +155,28 @@ describe('PaymentController', () => {
   // depot's running total is before anyone has closed anything.
   it('depotCash forwards the window, open at both ends when unbounded', async () => {
     await controller.depotCash({ depotId: 'depot-1' } as never);
-    expect(svc.depotCashCollected).toHaveBeenCalledWith('depot-1', {
-      from: undefined,
-      to: undefined,
-    });
+    expect(svc.depotCashCollected).toHaveBeenCalledWith(
+      'depot-1',
+      { from: undefined, to: undefined },
+      undefined,
+    );
     await controller.depotCash({ depotId: 'depot-1', from: ISO, to: ISO } as never);
-    expect(svc.depotCashCollected).toHaveBeenLastCalledWith('depot-1', {
-      from: new Date(ISO),
-      to: new Date(ISO),
-    });
+    expect(svc.depotCashCollected).toHaveBeenLastCalledWith(
+      'depot-1',
+      { from: new Date(ISO), to: new Date(ISO) },
+      undefined,
+    );
+  });
+
+  // C2: a shift close names itself, and that is what turns "this depot's window" into
+  // "this drawer". Two cashiers open at once used to each claim the whole window.
+  it('depotCash forwards the shift when the caller is a shift close', async () => {
+    await controller.depotCash({ depotId: 'depot-1', from: ISO, to: ISO, cashierShiftId: 'shift-7' } as never);
+    expect(svc.depotCashCollected).toHaveBeenLastCalledWith(
+      'depot-1',
+      { from: new Date(ISO), to: new Date(ISO) },
+      'shift-7',
+    );
   });
 
   // The actor is the service, not a person: a counter void must not need a MANAGER at the
