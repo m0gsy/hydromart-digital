@@ -71,6 +71,11 @@ cart: {
 
 orders: {
   walkIn: '/orders/api/v1/orders/walk-in',
+  // C12: prices the basket without selling it. No phone field on purpose — see the route.
+  walkInQuote: '/orders/api/v1/orders/walk-in/quote',
+  // C12: the deliberate tap that identifies a counter buyer, and the only one that may
+  // create an account.
+  walkInIdentify: '/orders/api/v1/orders/walk-in/identify',
   // Undo a counter sale at the till (same day only).
   voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
   checkout: '/orders/api/v1/orders/checkout',

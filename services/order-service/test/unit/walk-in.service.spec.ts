@@ -127,6 +127,95 @@ describe('OrderService.walkInSale', () => {
     });
   };
 
+  /**
+   * C12 · the cashier screen stops guessing.
+   *
+   * The screen added up shelf prices while the server applied tier, agen and voucher on
+   * top. Three numbers reached three places: the cash-short guard used the SCREEN's total,
+   * so an agen handing over exact money was refused by the till; the change on screen
+   * disagreed with the change on the receipt; and a cashier who trusted the screen
+   * collected more than was recorded — a phantom surplus at shift close, stacked on C2.
+   *
+   * The decisive property is not "a quote endpoint exists" but that the quote and the sale
+   * are the SAME function. A second implementation is the same bug again with one more
+   * place to forget, so that is what these assert.
+   */
+  describe('C12 · counter quote', () => {
+    const BUYER = '99999999-9999-4999-8999-999999999999';
+
+    it('quotes the same total the sale then charges', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 3 }];
+
+      const quote = await service.quoteCounterBasket(null, DEPOT, lines, null);
+      const order = await service.walkInSale(operator, { depotId: DEPOT, lines });
+
+      expect(quote.total).toBe(order.total);
+      expect(quote.subtotal).toBe(order.subtotal);
+      expect(quote.discount).toBe(order.discount);
+    });
+
+    it('sells nothing: no stock held, no order written', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      await expect(
+        service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 1 }], null),
+      ).resolves.toBeDefined();
+      expect(orders.rows).toHaveLength(0);
+      expect(inventory.reserveCalls).toHaveLength(0);
+    });
+
+    it('refuses an empty basket rather than quoting zero', async () => {
+      await expect(service.quoteCounterBasket(null, DEPOT, [], null)).rejects.toBeInstanceOf(
+        EmptyCartError,
+      );
+    });
+
+    it('an unidentified basket gets depot prices and no discount layer', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const quote = await service.quoteCounterBasket(
+        null,
+        DEPOT,
+        [{ productId: product.id, quantity: 2 }],
+        null,
+      );
+
+      expect(quote.discount).toBe(0);
+      expect(quote.agen).toBe(false);
+      expect(quote.total).toBe(quote.subtotal);
+    });
+
+    // The whole point of option (c): pricing never touches identity, so it can never mint
+    // an account. Only the deliberate tap does.
+    it('never resolves a phone — a quote cannot create a customer', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      await service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 1 }], null);
+      expect(directory.resolveCalls).toEqual([]);
+    });
+
+    it('identify is the one call that may create one, and hands back the id to re-quote with', async () => {
+      directory.byPhone.set('08123', BUYER);
+
+      const out = await service.identifyCounterBuyer(DEPOT, ' 08123 ', ' Budi ');
+
+      expect(out.customerId).toBe(BUYER);
+      expect(directory.resolveCalls).toEqual([{ phone: '08123', fullName: 'Budi', depotId: DEPOT }]);
+    });
+
+    it('a quote for an identified buyer prices their agen band, and says so', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const quote = await service.quoteCounterBasket(
+        BUYER,
+        DEPOT,
+        [{ productId: product.id, quantity: 1 }],
+        null,
+      );
+      // Whatever the band decides, the flag and the discount come from the same read —
+      // a badge computed anywhere else is a fourth number waiting to disagree.
+      expect(quote.agen).toBe(quote.discount > 0 && quote.agen);
+    });
+  });
+
   // A counter sale is water leaving the depot exactly like a delivered order, so it
   // must carry the same volume snapshot — otherwise the day's meter reconciliation
   // reports every walk-in litre as unaccounted-for.

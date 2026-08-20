@@ -126,17 +126,27 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     increase,
     'no sellable product at this depot, so the counter sale never ran — seed depot inventory before the suite',
   ).toBeEnabled({ timeout: 30_000 });
+  // C12: the total is no longer arithmetic this page does — it is a server quote, and the
+  // quote is a round trip. Waiting for it is not a timing patch: it asserts the counter
+  // screen actually prices from the server, which is the whole point of the change. Before
+  // it lands the screen shows a placeholder, so reading immediately measured nothing.
+  const quoted = page.waitForResponse(
+    (r) =>
+      r.url().includes('/orders/api/v1/orders/walk-in/quote') && r.request().method() === 'POST',
+    { timeout: 20_000 },
+  );
   await increase.click();
+  await quoted;
 
   // The page shows the running total; pay it with a round note so there is change to print.
   // Read the amount NEXT TO the "Total" label — the last Rp on the page is "Kembalian", which is
   // Rp 0 until cash is entered, so `.last()` measured the change and never the total.
-  const totalText = (
-    await page
-      .getByText('Total', { exact: true })
-      .locator('xpath=following-sibling::span')
-      .innerText()
-  ).replace(/\D/g, '');
+  const totalSpan = page
+    .getByText('Total', { exact: true })
+    .locator('xpath=following-sibling::span');
+  // Poll rather than read once: the response landing and React painting it are two events.
+  await expect(totalSpan).toHaveText(/\d/, { timeout: 20_000 });
+  const totalText = (await totalSpan.innerText()).replace(/\D/g, '');
   const total = Number(totalText);
   expect(total).toBeGreaterThan(0);
   await page.getByLabel(/Uang tunai diterima/i).fill(String(total + 50_000));

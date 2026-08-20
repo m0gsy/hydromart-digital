@@ -23,6 +23,16 @@ function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
     walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
+    quoteCounterBasket: jest.fn().mockResolvedValue({
+      subtotal: 60000,
+      discount: 15000,
+      total: 45000,
+      agen: true,
+      catalogFallback: null,
+      items: [],
+      voucherCode: null,
+    }),
+    identifyCounterBuyer: jest.fn().mockResolvedValue({ customerId: 'buyer-9' }),
     voidCounterSale: jest.fn().mockResolvedValue({ id: 'w1', status: 'VOIDED' }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -102,6 +112,63 @@ describe('OrderController', () => {
     const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 2 }] } as never;
     await controller.walkIn(staff, dto, 'Bearer t', 'till-1');
     expect(service.walkInSale.mock.calls[0][1].idempotencyKey).toBe('till-1');
+  });
+
+  /**
+   * C12 · the quote route prices, it does not sell.
+   *
+   * The response is flattened to the *Idr shape the cashier screen reads, and the screen
+   * uses `totalIdr` for the cash-short guard and the change — the two numbers that used to
+   * come from the screen's own sum of shelf prices and therefore disagreed with the
+   * receipt.
+   */
+  it('quotes a counter basket without a phone anywhere in the request', async () => {
+    const dto = {
+      depotId: 'depot-1',
+      lines: [{ productId: 'p1', quantity: 3 }],
+      customerId: 'buyer-9',
+      voucherCode: 'HEMAT10',
+    } as never;
+
+    await expect(controller.walkInQuote(dto, 'Bearer t')).resolves.toEqual({
+      subtotalIdr: 60000,
+      discountIdr: 15000,
+      totalIdr: 45000,
+      agen: true,
+      catalogFallback: null,
+    });
+    expect(service.quoteCounterBasket).toHaveBeenCalledWith(
+      'buyer-9',
+      'depot-1',
+      [{ productId: 'p1', quantity: 3 }],
+      'HEMAT10',
+      'Bearer t',
+    );
+  });
+
+  it('quotes an unidentified basket as anonymous rather than guessing a buyer', async () => {
+    const dto = { depotId: 'depot-1', lines: [{ productId: 'p1', quantity: 1 }] } as never;
+    await controller.walkInQuote(dto, 'Bearer t');
+    expect(service.quoteCounterBasket).toHaveBeenCalledWith(
+      null,
+      'depot-1',
+      [{ productId: 'p1', quantity: 1 }],
+      null,
+      'Bearer t',
+    );
+  });
+
+  // The one route that may mint an account, and it only runs when the cashier taps.
+  it('identifies a buyer on request, and only on request', async () => {
+    const dto = { depotId: 'depot-1', phone: '08123', name: 'Budi' } as never;
+    await expect(controller.walkInIdentify(dto, 'Bearer t')).resolves.toEqual({ customerId: 'buyer-9' });
+    expect(service.identifyCounterBuyer).toHaveBeenCalledWith('depot-1', '08123', 'Budi', 'Bearer t');
+  });
+
+  it('passes a null name rather than an empty one', async () => {
+    const dto = { depotId: 'depot-1', phone: '08123' } as never;
+    await controller.walkInIdentify(dto, 'Bearer t');
+    expect(service.identifyCounterBuyer).toHaveBeenCalledWith('depot-1', '08123', null, 'Bearer t');
   });
 
   it('walk-in: forwards the lines and nulls the optional buyer fields', async () => {

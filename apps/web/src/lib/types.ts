@@ -2530,3 +2530,17 @@ export interface ShiftHandover {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * C12: the server's price for a counter basket. `totalIdr` is what the till charges — the
+ * cashier screen stopped adding shelf prices up itself, because the discount layer (tier,
+ * agen band, voucher) only ever existed on the server.
+ */
+export interface CounterQuote {
+  subtotalIdr: number;
+  discountIdr: number;
+  totalIdr: number;
+  /** The agen band priced this basket; the screen badges it. */
+  agen: boolean;
+  catalogFallback: string | null;
+}
