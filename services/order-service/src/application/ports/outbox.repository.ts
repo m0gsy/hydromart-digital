@@ -10,7 +10,13 @@ export type OutboxTopic =
   | 'INVENTORY_CONSUME'
   | 'LOYALTY_AWARD'
   | 'REFERRAL_QUALIFY'
-  | 'FRANCHISE_REVENUE';
+  | 'FRANCHISE_REVENUE'
+  /**
+   * I1: book the empties this delivery carried out into the depot's gallon-issue ledger.
+   * Durable rather than best-effort because it is the book every later deposit refund is
+   * measured against — a lost write makes the next courier return refund Rp0.
+   */
+  | 'GALLON_ISSUE';
 
 /**
  * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a

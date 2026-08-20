@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import {
   CreateGallonIssueData,
+  CreateGallonIssueFromOrderData,
   GallonIssueDepotRow,
   GallonIssueRecord,
   GallonIssueRepository,
@@ -18,6 +19,20 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
   // GallonIssueRecord — no Decimal conversion needed (unlike gallon-return).
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
     return this.prisma.gallonIssue.create({ data });
+  }
+
+  /**
+   * I1: `upsert` rather than create-if-absent, because two deliveries of the same
+   * completion event can race and a check-then-write would let both through. `update: {}`
+   * makes the second call a read: the ledger is append-only, and a booking that already
+   * happened must not be restated at today's deposit rate.
+   */
+  async createFromOrder(data: CreateGallonIssueFromOrderData): Promise<GallonIssueRecord> {
+    return this.prisma.gallonIssue.upsert({
+      where: { orderId: data.orderId },
+      create: data,
+      update: {},
+    });
   }
 
   async listForDepot(

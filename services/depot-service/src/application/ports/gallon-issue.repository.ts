@@ -2,8 +2,11 @@
 // handed OUT on deposit. Issues carry no condition (nothing to grade on the way out), so
 // — unlike gallon-return — there is no enum; the record shape lives here, with its port.
 //
-// ponytail: manual ledger only. Auto-ingesting issues from an order-completed event
-// (order-service coupling) is a deliberate follow-up, not built here.
+// I1: the follow-up the note below promised is now built. Fulfilment writes this ledger
+// through `createFromOrder`, keyed on `orderId` so an at-least-once completion fan-out
+// cannot book the same deposit twice. Before that, the ledger was written by nobody but
+// the manual returns screen, `depositHeld` was 0 for every depot in production, and every
+// courier return therefore refunded Rp0 and queued a manager approval.
 //
 // Q-3: this comment used to live in src/domain/gallon-issue.ts, a file whose entire
 // runtime content was `export {}` — a doc comment nothing imported, so nobody read it
@@ -12,6 +15,8 @@ export interface GallonIssueRecord {
   id: string;
   depotId: string;
   customerId: string | null;
+  /** I1: the order fulfilment booked this issue from. Null for a staff-entered row. */
+  orderId: string | null;
   quantity: number;
   depositHeld: number;
   note: string | null;
@@ -26,6 +31,11 @@ export interface CreateGallonIssueData {
   depositHeld: number;
   note: string | null;
   actorId: string;
+}
+
+/** I1: one delivery's worth of empties, booked from the order that carried them out. */
+export interface CreateGallonIssueFromOrderData extends CreateGallonIssueData {
+  orderId: string;
 }
 
 /** Rollup of a depot's issues (all time): empties handed out + deposit held. */
@@ -51,6 +61,13 @@ export interface GallonIssueDepotRow {
 
 export interface GallonIssueRepository {
   create(data: CreateGallonIssueData): Promise<GallonIssueRecord>;
+  /**
+   * I1: idempotent on `orderId`. A completion fan-out is at-least-once, so this WILL be
+   * called twice for the same order; the second call must return the row the first wrote
+   * rather than book a second deposit — which would inflate what the depot appears to hold
+   * and therefore what it later refunds.
+   */
+  createFromOrder(data: CreateGallonIssueFromOrderData): Promise<GallonIssueRecord>;
   listForDepot(
     depotId: string,
     page: number,

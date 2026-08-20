@@ -365,7 +365,12 @@ describe('FranchiseApplicationController', () => {
 });
 
 describe('GallonIssueController', () => {
-  const issues = { record: jest.fn(), summary: jest.fn(), list: jest.fn() };
+  const issues = {
+    record: jest.fn(),
+    recordFromOrder: jest.fn(),
+    summary: jest.fn(),
+    list: jest.fn(),
+  };
   const depots = { get: jest.fn() };
   const c = new GallonIssueController(issues as never, depots as never);
   beforeEach(() => {
@@ -389,6 +394,24 @@ describe('GallonIssueController', () => {
       DEPOT,
       expect.objectContaining({ customerId: 'cu', note: 'n' }),
       'user-1',
+    );
+  });
+
+  // I1: the fulfilment route. No user token and no capability — the caller is order-service
+  // delivering its own completion outbox — and no money in the body, because the deposit is
+  // derived at the depot from its own rate.
+  it('books a fulfilment issue with and without a named customer (I1)', async () => {
+    await c.recordFromOrder(DEPOT, { orderId: 'o-1', quantity: 2 } as never);
+    expect(issues.recordFromOrder).toHaveBeenCalledWith(
+      DEPOT,
+      { orderId: 'o-1', customerId: null, quantity: 2 },
+      'order-service',
+    );
+    await c.recordFromOrder(DEPOT, { orderId: 'o-2', customerId: 'cu', quantity: 3 } as never);
+    expect(issues.recordFromOrder).toHaveBeenLastCalledWith(
+      DEPOT,
+      { orderId: 'o-2', customerId: 'cu', quantity: 3 },
+      'order-service',
     );
   });
 

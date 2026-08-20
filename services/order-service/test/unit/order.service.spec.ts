@@ -36,6 +36,7 @@ import {
   FakeRecommendationCoordination,
   FakeForecastCoordination,
   FakeFranchiseRevenue,
+  FakeGallonIssue,
   FakeCashierShift,
   FakePaymentReversal,
   FakeMembership,
@@ -90,6 +91,7 @@ describe('OrderService', () => {
   let recommendation: FakeRecommendationCoordination;
   let forecast: FakeForecastCoordination;
   let franchiseRevenue: FakeFranchiseRevenue;
+  let gallonIssue: FakeGallonIssue;
   let membership: FakeMembership;
   let resellerDiscount: FakeResellerDiscount;
   let customerDirectory: FakeCustomerDirectory;
@@ -116,6 +118,7 @@ describe('OrderService', () => {
     recommendation = new FakeRecommendationCoordination();
     forecast = new FakeForecastCoordination();
     franchiseRevenue = new FakeFranchiseRevenue();
+    gallonIssue = new FakeGallonIssue();
     membership = new FakeMembership();
     resellerDiscount = new FakeResellerDiscount();
     customerDirectory = new FakeCustomerDirectory();
@@ -144,6 +147,7 @@ describe('OrderService', () => {
       recommendation,
       forecast,
       franchiseRevenue,
+      gallonIssue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
       outbox,
@@ -449,17 +453,85 @@ describe('OrderService', () => {
       expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
     });
 
+    // `GALLON_ISSUE` joined this list in I1, and the list is the point of the test: a
+    // completing order owes exactly these effects, durably. The fixture sells a gallon, so
+    // it owes the deposit booking too — the ledger that every later refund is measured
+    // against used to be written by nobody, which is why courier returns refunded Rp0.
     it('marks every effect delivered on the happy path', async () => {
       await complete();
 
       const rows = orders.outbox!.rows;
       expect(rows.map((r) => r.topic).sort()).toEqual([
         'FRANCHISE_REVENUE',
+        'GALLON_ISSUE',
         'INVENTORY_CONSUME',
         'LOYALTY_AWARD',
         'REFERRAL_QUALIFY',
       ]);
       expect(rows.every((r) => r.status === 'DONE')).toBe(true);
+    });
+
+    // The other half of the same rule: an order that carried no gallons owes no deposit
+    // booking. Without this, "every completed order books a deposit" would pass just as
+    // happily and the depot's outstanding balance would grow on sales of nothing physical.
+    it('owes no gallon booking when the order carried no gallons (I1)', async () => {
+      const dry = catalog.seed({ id: randomUUID(), basePrice: 15000, isGallon: false });
+      await cartService.setItem(customer, dry.id, 1, false);
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      for (const st of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+        OrderStatus.COMPLETED,
+      ]) {
+        await service.updateStatus(order.id, st, 'staff', undefined, 'Bearer tok');
+      }
+
+      const topics = orders.outbox!.rows.filter((r) => r.orderId === order.id).map((r) => r.topic);
+      expect(topics).not.toContain('GALLON_ISSUE');
+      expect(gallonIssue.booked).toHaveLength(0);
+    });
+
+    // I1 books gallons out with the deposit DERIVED at the depot, so nothing here names
+    // money. What this pins is the shape depot-service is handed — the depot it goes to,
+    // the order it is keyed by (that key is the idempotency), and the count.
+    it('books the gallons a completed order carried out (I1)', async () => {
+      const order = await complete();
+
+      expect(gallonIssue.booked).toEqual([
+        {
+          depotId: order.depotId,
+          orderId: order.id,
+          customerId: customer,
+          quantity: expect.any(Number),
+        },
+      ]);
+      expect(gallonIssue.booked[0].quantity).toBeGreaterThan(0);
+    });
+
+    // The reason this effect is in the outbox rather than in the fail-open fan-out. A
+    // swallowed failure is a deposit the depot holds in fact and not in its book, and the
+    // next courier return then refunds Rp0 — the very bug I1 exists to close. It has to
+    // stay PENDING and be retried.
+    it('keeps the gallon booking owed when depot-service is down (I1)', async () => {
+      gallonIssue.error = new Error('depot-service down');
+      const order = await complete();
+
+      const row = orders.outbox!.rows.find(
+        (r) => r.orderId === order.id && r.topic === 'GALLON_ISSUE',
+      )!;
+      expect(row.status).toBe('PENDING');
+
+      gallonIssue.error = null;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(gallonIssue.booked).toHaveLength(1);
+      expect(
+        orders.outbox!.rows.find((r) => r.orderId === order.id && r.topic === 'GALLON_ISSUE')!
+          .status,
+      ).toBe('DONE');
     });
   });
 
@@ -2222,6 +2294,7 @@ describe('OrderService', () => {
       recommendation,
       forecast,
       franchiseRevenue,
+      gallonIssue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
       buildOutbox(orders),
@@ -2401,6 +2474,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeRecommendationCoordination(),
       new FakeForecastCoordination(),
       revenue,
+      new FakeGallonIssue(),
       new FakeCashierShift(),
       new FakePaymentReversal(),
       buildOutbox(orders),

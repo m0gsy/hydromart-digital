@@ -75,6 +75,7 @@ import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
+import { GallonIssuePort } from '../ports/gallon-issue.port';
 import { CashierShiftPort } from '../ports/cashier-shift.port';
 import { PaymentReversalPort } from '../ports/payment-reversal.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
@@ -207,6 +208,8 @@ export class OrderService {
     private readonly forecastCoordination: ForecastCoordinationPort,
     @Inject(ORDER_TOKENS.FranchiseRevenue)
     private readonly franchiseRevenue: FranchiseRevenuePort,
+    @Inject(ORDER_TOKENS.GallonIssue)
+    private readonly gallonIssue: GallonIssuePort,
     @Inject(ORDER_TOKENS.CashierShift)
     private readonly cashierShift: CashierShiftPort,
     @Inject(ORDER_TOKENS.PaymentReversal)
@@ -221,6 +224,7 @@ export class OrderService {
     this.outboxService.register('FRANCHISE_REVENUE', (id, auth) =>
       this.postFranchiseRevenue(id, auth),
     );
+    this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
   }
 
   /**
@@ -275,6 +279,31 @@ export class OrderService {
       order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       authorization,
     );
+  }
+
+  /**
+   * I1: book the empties this order carried out into the depot's gallon-issue ledger.
+   *
+   * That ledger used to be written by nobody but the manual returns screen, so
+   * `depositHeld` was 0 for every depot in production — and every courier return then
+   * refunded min(rate × qty, 0) = Rp0 and queued a manager approval, because the balance it
+   * measures against was an empty book.
+   *
+   * The deposit figure is NOT sent: depot-service derives it from its own per-depot rate,
+   * exactly as it derives a courier refund. An anonymous counter sale books the gallons
+   * with no customer — the empties left the depot either way, and the depot's outstanding
+   * balance has to say so even when there is nobody to chase for them.
+   */
+  private async bookGallonIssue(orderId: string): Promise<void> {
+    const order = await this.getAny(orderId);
+    const quantity = galonQuantity(order.items);
+    if (!order.depotId || quantity <= 0) return;
+    await this.gallonIssue.orderDelivered({
+      depotId: order.depotId,
+      orderId: order.id,
+      customerId: order.customerId === ANONYMOUS_CUSTOMER_ID ? null : order.customerId,
+      quantity,
+    });
   }
 
   /**
@@ -815,10 +844,9 @@ export class OrderService {
         // order uses. Firing them here would credit a sale still on a courier's bike.
         outbox: wantsDelivery
           ? []
-          : OrderService.completionTopics(customerId, input.depotId).map((topic) => ({
-              topic,
-              orderId: '',
-            })),
+          : OrderService.completionTopics(customerId, input.depotId, galonQuantity(items)).map(
+              (topic) => ({ topic, orderId: '' }),
+            ),
         subtotal,
         deliveryFee: shippingFee,
         discount,
@@ -1423,7 +1451,11 @@ export class OrderService {
    * unrouted order has no depot to consume from and no owner to credit.
    */
   private static completionOutbox(order: OrderRecord): OutboxWrite[] {
-    return OrderService.completionTopics(order.customerId, order.depotId).map((topic) => ({
+    return OrderService.completionTopics(
+      order.customerId,
+      order.depotId,
+      galonQuantity(order.items),
+    ).map((topic) => ({
       topic,
       orderId: order.id,
     }));
@@ -1433,13 +1465,21 @@ export class OrderService {
    * Which effects a completing order owes. An anonymous counter sale earns nothing
    * identity-bound; an unrouted order has no depot to consume from and no owner to credit.
    */
-  private static completionTopics(customerId: string, depotId: string | null): OutboxTopic[] {
+  private static completionTopics(
+    customerId: string,
+    depotId: string | null,
+    gallons: number,
+  ): OutboxTopic[] {
     const topics: OutboxTopic[] = [];
     if (customerId !== ANONYMOUS_CUSTOMER_ID) {
       topics.push('LOYALTY_AWARD', 'REFERRAL_QUALIFY');
     }
     if (depotId) {
       topics.push('INVENTORY_CONSUME', 'FRANCHISE_REVENUE');
+      // I1: only an order that actually carried gallons out owes a deposit booking, and it
+      // owes it whether or not anybody is named on it — an anonymous counter sale still
+      // takes the empties off the depot's shelf. No depot means no ledger to write to.
+      if (gallons > 0) topics.push('GALLON_ISSUE');
     }
     return topics;
   }

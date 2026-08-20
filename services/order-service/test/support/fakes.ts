@@ -52,6 +52,10 @@ import {
   FranchiseRevenuePort,
   OrderRevenueEvent,
 } from '../../src/application/ports/franchise-revenue.port';
+import {
+  GallonIssueEvent,
+  GallonIssuePort,
+} from '../../src/application/ports/gallon-issue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
@@ -794,6 +798,20 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
   async orderVoided(orderId: string, reason: string): Promise<void> {
     if (this.voidError) throw this.voidError;
     this.voided.push({ orderId, reason });
+  }
+}
+
+/**
+ * I1: the gallon-issue booking a completed delivery owes. Fails LOUD when told to — the
+ * real adapter throws so the outbox retries, and a fake that swallowed would hide exactly
+ * the property that keeps a deposit from being held in fact but not in the book.
+ */
+export class FakeGallonIssue implements GallonIssuePort {
+  booked: GallonIssueEvent[] = [];
+  error: Error | null = null;
+  async orderDelivered(event: GallonIssueEvent): Promise<void> {
+    if (this.error) throw this.error;
+    this.booked.push(event);
   }
 }
 

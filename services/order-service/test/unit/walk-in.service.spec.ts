@@ -30,6 +30,7 @@ import {
   FakeRecommendationCoordination,
   FakeForecastCoordination,
   FakeFranchiseRevenue,
+  FakeGallonIssue,
   FakeCashierShift,
   FakePaymentReversal,
   FakeMembership,
@@ -57,6 +58,7 @@ describe('OrderService.walkInSale', () => {
   let recommendation: FakeRecommendationCoordination;
   let forecast: FakeForecastCoordination;
   let franchiseRevenue: FakeFranchiseRevenue;
+  let gallonIssue: FakeGallonIssue;
   let notification: FakeNotification;
   let inventory: FakeInventory;
   let membership: FakeMembership;
@@ -89,6 +91,7 @@ describe('OrderService.walkInSale', () => {
     recommendation = new FakeRecommendationCoordination();
     forecast = new FakeForecastCoordination();
     franchiseRevenue = new FakeFranchiseRevenue();
+    gallonIssue = new FakeGallonIssue();
     notification = new FakeNotification();
     inventory = new FakeInventory();
     membership = new FakeMembership();
@@ -115,6 +118,7 @@ describe('OrderService.walkInSale', () => {
       recommendation,
       forecast,
       franchiseRevenue,
+      gallonIssue,
       shift,
       paymentReversal,
       buildOutbox(orders),
@@ -342,6 +346,7 @@ describe('OrderService.walkInSale', () => {
         recommendation,
         forecast,
         franchiseRevenue,
+        gallonIssue,
         shift,
         paymentReversal,
         buildOutbox(orders),

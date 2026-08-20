@@ -110,6 +110,9 @@ class SpyApprovalService {
   ofType(type: ApprovalType): CreateApprovalInput[] {
     return this.created.filter((c) => c.type === type);
   }
+  reset(): void {
+    this.created = [];
+  }
 }
 
 describe('GallonReturnService', () => {
@@ -165,6 +168,91 @@ describe('GallonReturnService', () => {
   it('queues nothing when the return is within the outstanding balance (M15-11)', async () => {
     await service.record(depotId, { quantity: 10 }, 'staff-1');
     expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  /**
+   * I1, the whole bug in one test. Every OTHER test in this file gets a 100-gallon issue
+   * seeded in beforeEach — "every test needs a ledger to return AGAINST" — and that seed is
+   * exactly why this was invisible: in production the issue ledger was written by nobody
+   * but the manual returns screen, so it was EMPTY.
+   *
+   * Against an empty book, depositLeft is 0, the courier refund is min(rate × qty, 0) = Rp0,
+   * and gallonsLeft is negative so every single return is queued for a manager. Here
+   * fulfilment writes the book first, the way it now does, and the same return behaves.
+   */
+  it('refunds a real deposit once fulfilment writes the issue ledger (I1)', async () => {
+    // Two independent depots-worth of books, because a return written by the first arm
+    // would otherwise be counted against the second — the arms are separate scenarios,
+    // not two steps of one.
+    const arm = (): { svc: GallonReturnService; issues: InMemoryGallonIssueRepository } => {
+      const issueBook = new InMemoryGallonIssueRepository();
+      return {
+        issues: issueBook,
+        svc: new GallonReturnService(
+          new InMemoryGallonReturnRepository() as never,
+          issueBook as never,
+          depots,
+          configStub,
+          approvals as unknown as ApprovalService,
+        ),
+      };
+    };
+    const order = (n: string): string => `00000000-0000-4000-8000-0000000000${n}`;
+
+    // BEFORE — the production state: the issue ledger was written by nobody.
+    const before = arm();
+    const unbooked = await before.svc.recordFromCourier(
+      depotId,
+      { orderId: order('a1'), quantity: 2 },
+      'c-1',
+    );
+    expect(unbooked.depositRefunded).toBe(0);
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(1);
+
+    // AFTER — fulfilment booked the empties it carried out, which is what I1 added.
+    approvals.reset();
+    const after = arm();
+    await after.issues.createFromOrder({
+      depotId,
+      orderId: order('b2'),
+      customerId: null,
+      quantity: 2,
+      depositHeld: 2 * GALLON_DEPOSIT_IDR,
+      note: null,
+      actorId: 'order-service',
+    });
+    const booked = await after.svc.recordFromCourier(
+      depotId,
+      { orderId: order('b2'), quantity: 2 },
+      'c-1',
+    );
+    expect(booked.depositRefunded).toBe(2 * GALLON_DEPOSIT_IDR);
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  // The constraint the I1a migration added, seen from the service: a completion fan-out is
+  // at-least-once, and a second booking would inflate what the depot appears to hold and
+  // therefore what it refunds. Twice booked, once held.
+  it('books a delivery once however often the completion is delivered (I1)', async () => {
+    const issueBook = new InMemoryGallonIssueRepository();
+    const data = {
+      depotId,
+      orderId: '00000000-0000-4000-8000-00000000dead',
+      customerId: null,
+      quantity: 3,
+      depositHeld: 3 * GALLON_DEPOSIT_IDR,
+      note: null,
+      actorId: 'order-service',
+    };
+    const first = await issueBook.createFromOrder(data);
+    const replay = await issueBook.createFromOrder(data);
+
+    expect(replay.id).toBe(first.id);
+    expect(await issueBook.summaryForDepot(depotId)).toMatchObject({
+      issues: 1,
+      gallons: 3,
+      depositHeld: 3 * GALLON_DEPOSIT_IDR,
+    });
   });
 
   it('queues a damaged return as a deposit-refund decision (M15-04)', async () => {

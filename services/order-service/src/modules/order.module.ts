@@ -29,6 +29,7 @@ import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral
 import { RecommendationCoordinationHttpAdapter } from '../infrastructure/http/recommendation-coordination.http.adapter';
 import { ForecastCoordinationHttpAdapter } from '../infrastructure/http/forecast-coordination.http.adapter';
 import { FranchiseRevenueHttpAdapter } from '../infrastructure/http/franchise-revenue.http.adapter';
+import { GallonIssueHttpAdapter } from '../infrastructure/http/gallon-issue.http.adapter';
 import { CashierShiftHttpAdapter } from '../infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../infrastructure/http/payment-reversal.http.adapter';
 import { PaymentCashHttpAdapter } from '../infrastructure/http/payment-cash.http.adapter';
@@ -79,6 +80,7 @@ const providers: Provider[] = [
   },
   { provide: ORDER_TOKENS.ForecastCoordination, useClass: ForecastCoordinationHttpAdapter },
   { provide: ORDER_TOKENS.FranchiseRevenue, useClass: FranchiseRevenueHttpAdapter },
+  { provide: ORDER_TOKENS.GallonIssue, useClass: GallonIssueHttpAdapter },
   { provide: ORDER_TOKENS.CashierShift, useClass: CashierShiftHttpAdapter },
   { provide: ORDER_TOKENS.PaymentReversal, useClass: PaymentReversalHttpAdapter },
   { provide: ORDER_TOKENS.PaymentCash, useClass: PaymentCashHttpAdapter },

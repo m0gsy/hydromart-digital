@@ -581,6 +581,7 @@ describe('FranchiseApplicationPrismaRepository', () => {
 describe('GallonIssuePrismaRepository', () => {
   const model = {
     create: jest.fn(),
+    upsert: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn(),
@@ -596,6 +597,20 @@ describe('GallonIssuePrismaRepository', () => {
     model.create.mockResolvedValue(row);
     expect(await repo.create({ depotId: 'depot-1' } as never)).toBe(row);
     expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1' } });
+  });
+
+  // I1: a completion fan-out is at-least-once, so this is called twice for the same order.
+  // `update: {}` is what makes the second call a read — the ledger is append-only, and a
+  // booking that already happened must not be restated at today's deposit rate.
+  it('books a fulfilment issue idempotently on the order id', async () => {
+    model.upsert.mockResolvedValue(row);
+    const data = { depotId: 'depot-1', orderId: 'o-1', quantity: 2 } as never;
+    expect(await repo.createFromOrder(data)).toBe(row);
+    expect(model.upsert).toHaveBeenCalledWith({
+      where: { orderId: 'o-1' },
+      create: data,
+      update: {},
+    });
   });
 
   it('reads one customer’s issues at one depot, newest first and capped', async () => {
