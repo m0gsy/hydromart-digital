@@ -21,6 +21,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
@@ -95,7 +96,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
   // and the server refuses anyway if there really is no shift.
   const [shiftOpen, setShiftOpen] = useState<boolean | undefined>(undefined);
-  const [voiding, setVoiding] = useState(false);
+  /** C6: WHICH sale is being voided — not merely "the void sheet is open". */
+  const [voiding, setVoiding] = useState<Order | null>(null);
   const [voidReason, setVoidReason] = useState('');
   // The sale just recorded, kept so its receipt can be printed again — the print window is a
   // popup and a blocked one used to lose the struk with the form already cleared.
@@ -135,6 +137,19 @@ function WalkIn({ depotId }: { depotId: string }) {
    * stepper tap — and this repo has a 429-cascade in its history. `reloadRef` because
    * `useAsync.reload` is not memoised, exactly as `dashboard/tracking` does it.
    */
+  /**
+   * C6: this depot's own recent counter sales, from the server rather than from React
+   * state — which is what makes the void endpoint reachable after a refresh, and what turns
+   * the same list into the void report the application never had.
+   *
+   * `/orders/manage` already scopes to the caller's depot, so this is not a new way to see
+   * another depot's takings. Small page: a till needs the last few, not a ledger.
+   */
+  const recent = useAsync<Page<Order>>(
+    () => api.get(endpoints.orders.manage({ depotId, isWalkIn: true, limit: 8 }), true),
+    [depotId],
+  );
+
   const stockReloadRef = useRef(stock.reload);
   stockReloadRef.current = stock.reload;
   useEffect(() => {
@@ -326,6 +341,8 @@ function WalkIn({ depotId }: { depotId: string }) {
        */
       if (e instanceof ApiError && e.code === 'ORDER_INSUFFICIENT_STOCK') {
         stockReloadRef.current();
+    // C6: the sale just made belongs in the till's own list.
+    void recent.reload();
         return toast(t('opsFix.walkIn.stockShort'), 'error');
       }
       return toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.saveError'), 'error');
@@ -382,17 +399,28 @@ function WalkIn({ depotId }: { depotId: string }) {
    * points — so this only reports it and clears the card; there is nothing to unwind here
    * if it fails, which is why the failure leaves the sale exactly where it was.
    */
+  /**
+   * C6: void whichever counter sale the cashier picked, not only the one still in React
+   * state.
+   *
+   * The Batalkan button used to hang off `lastSale`, so a refresh — a reload, a second
+   * cashier taking over the till, simply coming back after lunch — left the endpoint
+   * reachable by no UI at all. The sale was still voidable on the server and there was no
+   * way in the whole application to reach it.
+   */
   async function voidSale() {
-    if (!lastSale) return;
+    const target = voiding;
+    if (!target) return;
     setBusy(true);
     try {
-      await api.post(endpoints.orders.voidWalkIn(lastSale.order.id), { reason: voidReason.trim() }, true);
-      toast(t('opsFix.walkIn.saleVoided', { order: lastSale.order.orderNumber }));
-      setLastSale(null);
-      setVoiding(false);
+      await api.post(endpoints.orders.voidWalkIn(target.id), { reason: voidReason.trim() }, true);
+      toast(t('opsFix.walkIn.saleVoided', { order: target.orderNumber }));
+      if (lastSale?.order.id === target.id) setLastSale(null);
+      setVoiding(null);
       setVoidReason('');
       // Stock came back, so what the counter may sell changed with it.
       await stock.reload();
+      await recent.reload();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.voidError'), 'error');
     } finally {
@@ -435,9 +463,7 @@ function WalkIn({ depotId }: { depotId: string }) {
               <Printer size={18} className="mr-1" />
               {t('opsFix.walkIn.reprint')}
             </Button>
-            {/* Only the sale still on screen can be voided from here. Anything older is a
-                different day's drawer or someone else's shift — that goes through refunds. */}
-            <Button variant="ghost" onClick={() => setVoiding(true)} disabled={busy}>
+            <Button variant="ghost" onClick={() => setVoiding(lastSale.order)} disabled={busy}>
               <ArrowUUpLeft size={18} className="mr-1" />
               {t('opsFix.walkIn.voidSale')}
             </Button>
@@ -445,11 +471,11 @@ function WalkIn({ depotId }: { depotId: string }) {
         </Card>
       )}
 
-      {lastSale && voiding && (
+      {voiding && (
         <Card className="space-y-3 p-4">
           <div>
             <p className="font-semibold">
-              {t('opsFix.walkIn.voidConfirm', { order: lastSale.order.orderNumber })}
+              {t('opsFix.walkIn.voidConfirm', { order: voiding.orderNumber })}
             </p>
             <p className="text-sm text-muted">
               {t('opsFix.walkIn.voidBody')}
@@ -471,12 +497,74 @@ function WalkIn({ depotId }: { depotId: string }) {
             <Button onClick={() => void voidSale()} disabled={busy || !voidReason.trim()}>
               {t('opsFix.walkIn.voidYes')}
             </Button>
-            <Button variant="ghost" onClick={() => setVoiding(false)} disabled={busy}>
+            <Button variant="ghost" onClick={() => setVoiding(null)} disabled={busy}>
               {t('opsFix.walkIn.voidNo')}
             </Button>
           </div>
         </Card>
       )}
+
+      {/*
+        C6: the till's own recent counter sales.
+        
+        Two holes closed by one list. The Batalkan button used to hang off the sale still in
+        React state, so a refresh left the void endpoint reachable by NO UI at all — the
+        sale was still voidable on the server and there was no way in the application to
+        reach it. And nothing anywhere showed what had been voided, or why: a reversal left
+        no trace a person could look at.
+        
+        Scoped by the server to the caller's own depot (`/orders/manage` does that already),
+        so this is not a new way to see another depot's takings.
+      */}
+      <Card className="p-0">
+        <div className="flex items-center justify-between gap-2 border-b border-app p-3">
+          <span className="text-sm font-bold">{t('opsFix.walkIn.recentTitle')}</span>
+          <span className="text-xs text-muted">{t('opsFix.walkIn.recentHint')}</span>
+        </div>
+        {recent.loading && !recent.data ? (
+          <div className="p-3"><Skeleton className="h-24" /></div>
+        ) : recent.error ? (
+          <div className="p-3"><ErrorState message={recent.error} onRetry={recent.reload} /></div>
+        ) : (recent.data?.items ?? []).length === 0 ? (
+          <p className="p-3 text-sm text-muted">{t('opsFix.walkIn.recentEmpty')}</p>
+        ) : (
+          <div className="divide-y divide-[color:var(--border)]">
+            {(recent.data?.items ?? []).map((o) => {
+              const voided = o.status === 'VOIDED';
+              return (
+                <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold tabular-nums">{o.orderNumber}</span>
+                      {voided && (
+                        <span className="rounded-full bg-[color:var(--danger-bg)] px-2 py-0.5 text-[11px] font-bold text-[color:var(--danger)]">
+                          {t('opsFix.walkIn.voidedBadge')}
+                        </span>
+                      )}
+                    </div>
+                    {/* The reason is the whole point of a void report: a reversal with no
+                        account of itself is a hole in the drawer nobody can explain. */}
+                    <div className="truncate text-xs text-muted">
+                      {voided && o.voidReason ? o.voidReason : formatDateTime(o.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm tabular-nums ${voided ? 'line-through text-muted' : 'font-bold'}`}>
+                      <Money amount={o.total} />
+                    </span>
+                    {!voided && (
+                      <Button variant="ghost" onClick={() => setVoiding(o)} disabled={busy}>
+                        <ArrowUUpLeft size={16} className="mr-1" />
+                        {t('opsFix.walkIn.voidSale')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
         {products.map((p) => (

@@ -70,10 +70,13 @@ const stockLines = (available: number) => [
 let stockAvailable = 12;
 /** Set to make the SALE fail — the quote must still answer, or Bayar never enables. */
 let walkInError: Error | null = null;
+/** C6: what the server says this depot's till has rung up — survives a page reload. */
+let recentSales: Record<string, unknown>[] = [];
 
 beforeEach(() => {
   stockAvailable = 12;
   walkInError = null;
+  recentSales = [];
   // C12: Bayar is disabled until the server quote lands, so the quote has to answer here
   // or no test in this file can ever reach submit.
   post.mockReset().mockImplementation(async (path: string) => {
@@ -97,6 +100,7 @@ beforeEach(() => {
   patch.mockReset().mockResolvedValue({});
   get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('/inventory')) return stockLines(stockAvailable);
+    if (path.includes('/orders/manage')) return { items: recentSales, total: recentSales.length, page: 1, limit: 8 };
     if (path.includes('/products')) return { items: [PRODUCT], total: 1, page: 1, limit: 100 };
     return [];
   });
@@ -221,5 +225,53 @@ describe('C8 · a basket edit retires the till attempt key', () => {
 
     await waitFor(() => expect(keys()).toHaveLength(3));
     expect(keys()[2]).not.toBe(keys()[0]);
+  });
+});
+
+describe('C6 · a counter sale is voidable after a refresh, and voids leave a trace', () => {
+  /**
+   * The Batalkan button used to hang off the sale still in React state, so a reload — or a
+   * second cashier taking over the till, or simply coming back after lunch — left the void
+   * endpoint reachable by NO UI at all. The sale was still voidable on the server and there
+   * was no way in the whole application to reach it.
+   */
+  it('offers Batalkan on a sale this session never made', async () => {
+    recentSales = [
+      { id: 'ord-9', orderNumber: 'HM-9', total: 20000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T02:00:00Z' },
+    ];
+    const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
+    render(<WalkInPage />, { wrapper });
+
+    // Nothing was sold in this render; the sale comes from the server.
+    await waitFor(() => expect(screen.getByText('HM-9')).toBeTruthy());
+    await userEvent.click(screen.getByRole('button', { name: /Batalkan penjualan/i }));
+
+    await userEvent.type(screen.getByLabelText(/Alasan/i), 'Salah ukuran');
+    await userEvent.click(screen.getByRole('button', { name: /^Ya/i }));
+
+    await waitFor(() =>
+      expect(post.mock.calls.some((c) => String(c[0]).includes('/orders/walk-in/ord-9/void'))).toBe(true),
+    );
+  });
+
+  /** The void report the application never had: what was reversed, and why. */
+  it('shows a voided sale with its reason, and offers no second void', async () => {
+    recentSales = [
+      {
+        id: 'ord-8',
+        orderNumber: 'HM-8',
+        total: 20000,
+        status: 'VOIDED',
+        isWalkIn: true,
+        createdAt: '2026-08-20T02:00:00Z',
+        voidReason: 'Pembeli batal',
+      },
+    ];
+    const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
+    render(<WalkInPage />, { wrapper });
+
+    await waitFor(() => expect(screen.getByText('HM-8')).toBeTruthy());
+    expect(screen.getByText('Pembeli batal')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Batalkan penjualan/i })).toBeNull();
   });
 });

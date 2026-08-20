@@ -163,6 +163,8 @@ export interface ListOrdersInput {
   unrouted?: boolean;
   /** Case-insensitive substring of the order number (audit F-12). */
   orderNumber?: string;
+  /** C6: counter sales only, so the till can list its own recent sales. */
+  isWalkIn?: boolean;
 }
 
 @Injectable()

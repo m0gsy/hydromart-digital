@@ -190,3 +190,30 @@ describe('CounterQuoteDto', () => {
     expect(body.customerId).toBe('33333333-3333-4333-8333-333333333333');
   });
 });
+
+/**
+ * C6: `isWalkIn` arrives as a query STRING, so its coercion is where a filter quietly
+ * becomes the wrong filter. Absent must stay absent — that is what keeps every existing
+ * list unchanged; `"false"` must mean false rather than "a non-empty string is truthy",
+ * which is the classic way a boolean query param inverts itself.
+ */
+describe('ListOrdersQueryDto · isWalkIn', () => {
+  const parse = (raw: Record<string, unknown>) =>
+    plainToInstance(ListOrdersQueryDto, raw) as unknown as { isWalkIn?: boolean };
+
+  it('stays absent when nobody asked', () => {
+    expect(parse({}).isWalkIn).toBeUndefined();
+  });
+
+  it('reads "true" as counter sales only', () => {
+    expect(parse({ isWalkIn: 'true' }).isWalkIn).toBe(true);
+  });
+
+  it('reads "false" as delivery orders only, not as truthy', () => {
+    expect(parse({ isWalkIn: 'false' }).isWalkIn).toBe(false);
+  });
+
+  it('accepts a real boolean too, for callers that send JSON', () => {
+    expect(parse({ isWalkIn: true }).isWalkIn).toBe(true);
+  });
+});

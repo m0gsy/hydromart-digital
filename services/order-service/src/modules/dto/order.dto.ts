@@ -140,6 +140,19 @@ export class DeliveryOptionsResponseDto {
 }
 
 export class ListOrdersQueryDto {
+  /**
+   * C6: counter sales only. Opt-in — absent means "either", so no existing list moves.
+   *
+   * The till uses it to show its OWN recent sales, which is what makes the void endpoint
+   * reachable after a refresh and what turns the same list into the void report the app
+   * never had.
+   */
+  @ApiPropertyOptional({ type: Boolean, description: 'Counter sales only.' })
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
+  @IsBoolean()
+  isWalkIn?: boolean;
+
   // Bound the OFFSET skip: page*limit is an offset, so an unbounded page (page=1e6)
   // would make Postgres walk ~100M rows. With limit<=100 and the (status|depot,
   // createdAt) composite indexes, page<=1000 caps the skip at ~100k rows.

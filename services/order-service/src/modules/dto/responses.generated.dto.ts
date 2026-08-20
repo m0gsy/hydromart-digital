@@ -581,6 +581,10 @@ export class OrderResponseDto {
   deliveryWindow!: string | null;
   @ApiProperty({ type: Boolean })
   isWalkIn!: boolean;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, description: 'C6: when the counter sale was reversed.' })
+  voidedAt!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'C6: why it was reversed — the void report reads this.' })
+  voidReason!: string | null;
   @ApiProperty({
     type: String,
     nullable: true,
