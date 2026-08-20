@@ -145,6 +145,22 @@ export class OrderController {
         customerPhone: dto.customerPhone ?? null,
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
+        // C11: present = deliver it, absent = the counter behaviour that was always here.
+        // Mapped field by field like checkout, so an optional DTO field cannot arrive as
+        // `undefined` in a column the snapshot declares as nullable-but-present.
+        deliveryAddress: dto.deliveryAddress
+          ? {
+              recipientName: dto.deliveryAddress.recipientName,
+              phone: dto.deliveryAddress.phone,
+              addressLine: dto.deliveryAddress.addressLine,
+              city: dto.deliveryAddress.city,
+              province: dto.deliveryAddress.province,
+              postalCode: dto.deliveryAddress.postalCode ?? null,
+              latitude: dto.deliveryAddress.latitude ?? null,
+              longitude: dto.deliveryAddress.longitude ?? null,
+              notes: dto.deliveryAddress.notes ?? null,
+            }
+          : null,
       },
       authorization,
     );

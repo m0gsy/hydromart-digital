@@ -394,6 +394,19 @@ export class WalkInLineDto {
 
 /** Cash sale at the depot counter. The buyer's phone is optional (anonymous sale). */
 export class WalkInSaleDto {
+  /**
+   * C11: the buyer came to the depot and asked for it to be delivered.
+   *
+   * Optional on purpose — present means deliver, absent means today's behaviour exactly.
+   * No new enum and no new route: the system had only two ways to create an order, and
+   * neither could produce a counter sale a courier would carry.
+   */
+  @ApiPropertyOptional({ type: DeliveryAddressDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress?: DeliveryAddressDto;
+
   @ApiProperty({ format: 'uuid', description: 'Depot making the sale.' })
   @IsUUID()
   depotId!: string;

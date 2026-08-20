@@ -122,6 +122,39 @@ describe('OrderController', () => {
    * come from the screen's own sum of shelf prices and therefore disagreed with the
    * receipt.
    */
+  /**
+   * C11: the address is mapped field by field like checkout, so an optional DTO field
+   * cannot arrive as `undefined` in a column the snapshot declares nullable-but-present.
+   */
+  it('walk-in: carries a delivery address through, nulling its optional fields', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const dto = {
+      depotId: 'depot-1',
+      lines: [{ productId: 'p1', quantity: 1 }],
+      deliveryAddress: {
+        recipientName: 'Budi',
+        phone: '08123',
+        addressLine: 'Jl. Merdeka 10',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+      },
+    } as never;
+
+    await controller.walkIn(staff, dto, 'Bearer t');
+
+    expect(service.walkInSale.mock.calls[0][1].deliveryAddress).toEqual({
+      recipientName: 'Budi',
+      phone: '08123',
+      addressLine: 'Jl. Merdeka 10',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: null,
+      longitude: null,
+      notes: null,
+    });
+  });
+
   it('quotes a counter basket without a phone anywhere in the request', async () => {
     const dto = {
       depotId: 'depot-1',
@@ -187,6 +220,10 @@ describe('OrderController', () => {
       customerId: null,
       customerName: null,
       customerPhone: null,
+
+      // C11: absent means pick-up, which is the counter behaviour that was always here.
+
+      deliveryAddress: null,
       voucherCode: null,
       idempotencyKey: null,
     });

@@ -73,3 +73,31 @@ describe('OrderConfigService with settings cache', () => {
     expect(cfg.subscriptionDiscountRate()).toBe(0.05);
   });
 });
+
+/**
+ * C11: whether a depot will deliver a sale rung up at its own counter. Per-depot because
+ * the answer is operational — a depot whose only courier is already out cannot promise it.
+ */
+describe('OrderConfigService · counterDelivery', () => {
+  const env = new ConfigService({
+    ORDER_ABANDON_MINUTES: '60',
+    ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
+    ORDER_COUNTER_DELIVERY: '1',
+  } as never);
+
+  it('is on by default, for a named depot and for none', async () => {
+    const cache = cacheWith([]);
+    await cache.refresh();
+    const cfg = new OrderConfigService(env, cache);
+    expect(cfg.counterDelivery('d1')).toBe(true);
+    expect(cfg.counterDelivery()).toBe(true);
+  });
+
+  it('one depot can switch it off without touching the others', async () => {
+    const cache = cacheWith([{ scope: 'DEPOT', depotId: 'd1', key: 'counterDelivery', value: '0' }]);
+    await cache.refresh();
+    const cfg = new OrderConfigService(env, cache);
+    expect(cfg.counterDelivery('d1')).toBe(false);
+    expect(cfg.counterDelivery('d2')).toBe(true);
+  });
+});

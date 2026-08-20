@@ -88,6 +88,24 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1,
     envDefault: 1,
   },
+  /**
+   * C11: whether this depot will deliver a sale rung up at its own counter.
+   *
+   * Per-depot because the answer is operational, not policy: a depot with one courier who
+   * is already out cannot promise it, and the honest place to say so is per depot.
+   *
+   * Killing it makes the counter refuse a delivery request outright rather than take the
+   * money and quietly hand the buyer a pick-up — that failure mode is exactly what C11
+   * exists to remove.
+   */
+  {
+    key: 'counterDelivery',
+    label: 'Antar dari konter (1 = layani, 0 = ambil sendiri saja)',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 1,
+  },
   {
     key: 'expressFee',
     label: 'Biaya antar sekarang',

@@ -161,6 +161,17 @@ export class OrderConfigService {
       ),
     };
   }
+
+  /**
+   * C11: may this depot deliver a sale rung up at its own counter?
+   *
+   * Off means the counter refuses the request rather than taking the money and handing the
+   * buyer a pick-up they did not ask for.
+   */
+  counterDelivery(depotId: string | null = null): boolean {
+    return this.tunable('counterDelivery', this.num('ORDER_COUNTER_DELIVERY'), depotId) === 1;
+  }
+
   /**
    * Scheduled windows the depot offers, in the order they should be shown. Stored as one
    * comma-separated string because that is what the settings screen can edit; the write

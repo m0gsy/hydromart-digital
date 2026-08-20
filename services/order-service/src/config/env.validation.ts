@@ -46,6 +46,7 @@ export const envValidationSchema = Joi.object({
   ORDER_STAFF_COMPLETE_DELIVERED: Joi.number().integer().min(0).max(1).default(1),
   ORDER_SUBSCRIPTION_SWEEP_EXEMPT: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_ENABLED: Joi.number().integer().min(0).max(1).default(1),
+  ORDER_COUNTER_DELIVERY: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_FEE: Joi.number().min(0).default(5000),
   ORDER_EXPRESS_ETA_MIN_MINUTES: Joi.number().integer().positive().default(30),
   ORDER_EXPRESS_ETA_MAX_MINUTES: Joi.number().integer().positive().default(60),
