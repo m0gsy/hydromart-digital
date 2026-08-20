@@ -339,6 +339,74 @@ describe('SettlementService', () => {
     expect(disputed.note).toBe('counts disagree');
   });
 
+  /**
+   * C10 · DISPUTED used to be a one-way door.
+   *
+   * `dispute()` wrote it, `canResolve` accepted only SUBMITTED, and nothing anywhere writes
+   * any other status — so a deposit parked "for offline resolution" could never be resolved.
+   * The money hung there permanently and the courier's account never settled either way.
+   * That is also why C1's surplus rule refuses to auto-dispute: throwing money in here was
+   * throwing it away.
+   */
+  describe('C10 · a dispute can be resolved', () => {
+    const disputedSettlement = async (deposited = 40000) => {
+      const shift = endShift();
+      const orderId = await deliverCodOrder(50000);
+      cash.result = { total: 50000, count: 1, byOrder: [{ orderId, amountIdr: 50000 }] };
+      const s = await service.submit(driver, shift.id, deposited, AUTH);
+      return service.dispute(CASHIER, s.id, 'counts disagree');
+    };
+
+    it('verifies a settlement that was parked for investigation', async () => {
+      const disputed = await disputedSettlement();
+
+      const resolved = await service.verify(CASHIER, disputed.id, {
+        note: 'kurir setor kekurangannya tunai',
+      });
+
+      expect(resolved.status).toBe(SettlementStatus.VERIFIED);
+    });
+
+    it('keeps WHY it was disputed next to HOW it ended', async () => {
+      const disputed = await disputedSettlement();
+
+      const resolved = await service.verify(CASHIER, disputed.id, { note: 'selisih ditemukan' });
+
+      expect(resolved.note).toContain('counts disagree');
+      expect(resolved.note).toContain('selisih ditemukan');
+    });
+
+    it('refuses to end a dispute silently, whatever the variance was', async () => {
+      const disputed = await disputedSettlement();
+
+      await expect(service.verify(CASHIER, disputed.id, {})).rejects.toBeInstanceOf(
+        SettlementSurplusNoteRequiredError,
+      );
+    });
+
+    it('still charges only a genuine shortfall when the dispute ends', async () => {
+      const disputed = await disputedSettlement();
+
+      const resolved = await service.verify(CASHIER, disputed.id, {
+        note: 'ditagihkan',
+        chargedToDriver: true,
+      });
+
+      expect(resolved.chargedToDriver).toBe(true);
+    });
+
+    it('never makes a surplus chargeable, dispute or not', async () => {
+      const disputed = await disputedSettlement(60000);
+
+      const resolved = await service.verify(CASHIER, disputed.id, {
+        note: 'lebih, dicatat',
+        chargedToDriver: true,
+      });
+
+      expect(resolved.chargedToDriver).toBe(false);
+    });
+  });
+
   it("hides another courier's settlement from getForDriver", async () => {
     const shift = endShift();
     cash.result = { total: 0, count: 0, byOrder: [] };

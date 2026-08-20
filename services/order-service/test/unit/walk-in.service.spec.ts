@@ -712,12 +712,18 @@ describe('OrderService.walkInSale', () => {
       expect(voided.status).toBe(OrderStatus.VOIDED);
     });
 
-    // A sale from a previous day belongs to a shift somebody already counted and signed off.
-    it('refuses a sale from another day, in the depot timezone', async () => {
+    /**
+     * C5: this used to say "another DAY", and that was the bug. The calendar-day rule
+     * claimed it stopped a void reaching back into a shift somebody had counted and signed
+     * off, and it did not — two shifts happen in one day all the time. What refuses now is
+     * a sale that predates the drawer currently open, whatever day it was rung up on.
+     */
+    it('refuses a sale rung up before the drawer that is open now', async () => {
       const { order } = await soldToday();
-      const tomorrow = new Date(order.createdAt.getTime() + 24 * 60 * 60 * 1000);
+      shift.openedAt = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+      const later = new Date(order.createdAt.getTime() + 2 * 60 * 60 * 1000);
       await expect(
-        service.voidCounterSale(operator, order.id, 'Batal', tomorrow),
+        service.voidCounterSale(operator, order.id, 'Batal', later),
       ).rejects.toBeInstanceOf(VoidWindowClosedError);
       expect(inventory.restockCalls).toHaveLength(0);
     });

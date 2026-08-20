@@ -773,11 +773,30 @@ describe('CashierShiftHttpAdapter', () => {
     new CashierShiftHttpAdapter(makeConfig(over));
 
   it('confirms an open shift and carries the caller token to that depot', async () => {
-    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1' } }));
+    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }));
     expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://depot:3007/api/v1/cashier-shifts/current?depotId=depot-1');
     expect((init as { headers: Record<string, string> }).headers.authorization).toBe('Bearer t');
+  });
+
+  /**
+   * C5: this endpoint has always returned the shift; the adapter read `id` to answer
+   * yes/no and threw the rest away. `openedAt` is what tells a sale that belongs to the
+   * drawer still open from one that belongs to a drawer already counted.
+   */
+  it('keeps the shift id and the time it opened', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }));
+    await expect(shift().openShift('depot-1', 'Bearer t')).resolves.toEqual({
+      id: 'shift-1',
+      openedAt: new Date('2026-08-20T01:00:00.000Z'),
+    });
+  });
+
+  // A body without openedAt cannot answer the void question, so it is not a shift here.
+  it('treats a shift with no openedAt as none', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1' } }));
+    await expect(shift().openShift('depot-1', 'Bearer t')).resolves.toBeNull();
   });
 
   // depot-service answering `null` is not a failure: the caller simply is not on the counter.

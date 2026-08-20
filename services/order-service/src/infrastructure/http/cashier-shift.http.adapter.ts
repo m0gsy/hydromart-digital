@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { CashierShiftPort } from '../../application/ports/cashier-shift.port';
+import { CashierShiftPort, OpenShift } from '../../application/ports/cashier-shift.port';
 
 /**
  * Reads the caller's own open shift from depot-service, forwarding their token — the answer
@@ -18,7 +18,11 @@ export class CashierShiftHttpAdapter implements CashierShiftPort {
   constructor(private readonly config: OrderConfigService) {}
 
   async hasOpenShift(depotId: string, authorization: string): Promise<boolean> {
-    if (!this.config.depotServiceUrl || !authorization) return false;
+    return (await this.openShift(depotId, authorization)) !== null;
+  }
+
+  async openShift(depotId: string, authorization: string): Promise<OpenShift | null> {
+    if (!this.config.depotServiceUrl || !authorization) return null;
     const url = `${this.config.depotServiceUrl}/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CashierShiftHttpAdapter.TIMEOUT_MS);
@@ -32,11 +36,12 @@ export class CashierShiftHttpAdapter implements CashierShiftPort {
         throw new Error(`depot-service responded ${res.status}`);
       }
       // `null` is a real answer here: the caller is simply not on the counter.
-      const body = (await res.json().catch(() => null)) as { id?: string } | null;
-      return !!body?.id;
+      const body = (await res.json().catch(() => null)) as { id?: string; openedAt?: string } | null;
+      if (!body?.id || !body.openedAt) return null;
+      return { id: body.id, openedAt: new Date(body.openedAt) };
     } catch (error) {
       this.logger.warn(`Open-shift check failed for depot ${depotId}: ${(error as Error).message}`);
-      return false;
+      return null;
     } finally {
       clearTimeout(timer);
     }

@@ -9,36 +9,37 @@ function cacheWith(rows: SettingRow[]): SettingsCache {
 
 describe('OrderConfigService with settings cache', () => {
   const env = new ConfigService({
-    ORDER_DELIVERY_FEE: '1000',
     ORDER_ABANDON_MINUTES: '60',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
   } as never);
 
+  // C13 removed `deliveryFee` — a key with zero callers. These exercise the RESOLUTION
+  // machinery (depot beats global beats env), so they use a key that still has one.
   it('returns depot override when present', async () => {
-    const cache = cacheWith([{ scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '2500' }]);
+    const cache = cacheWith([{ scope: 'DEPOT', depotId: 'd1', key: 'subscriptionDiscountPct', value: '9' }]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
-    expect(cfg.deliveryFee('d1')).toBe(2500);
+    expect(cfg.subscriptionDiscountRate('d1')).toBeCloseTo(0.09);
   });
 
   it('falls back to env when no override', async () => {
     const cache = cacheWith([]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
-    expect(cfg.deliveryFee('d1')).toBe(1000);
-    expect(cfg.deliveryFee()).toBe(1000);
+    expect(cfg.subscriptionDiscountRate('d1')).toBeCloseTo(0.05);
+    expect(cfg.subscriptionDiscountRate()).toBeCloseTo(0.05);
   });
 
   it('a global override applies to every depot; a depot override wins over it', async () => {
     const cache = cacheWith([
-      { scope: 'GLOBAL', depotId: null, key: 'deliveryFee', value: '1500' },
-      { scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '2500' },
+      { scope: 'GLOBAL', depotId: null, key: 'subscriptionDiscountPct', value: '7' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'subscriptionDiscountPct', value: '9' },
     ]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
-    expect(cfg.deliveryFee('d1')).toBe(2500);
-    expect(cfg.deliveryFee('d2')).toBe(1500);
-    expect(cfg.deliveryFee()).toBe(1500);
+    expect(cfg.subscriptionDiscountRate('d1')).toBeCloseTo(0.09);
+    expect(cfg.subscriptionDiscountRate('d2')).toBeCloseTo(0.07);
+    expect(cfg.subscriptionDiscountRate()).toBeCloseTo(0.07);
   });
 
   it('abandonMinutes resolves a GLOBAL override (no per-depot caller exists)', async () => {
@@ -68,7 +69,6 @@ describe('OrderConfigService with settings cache', () => {
     const cache = cacheWith([]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
-    expect(cfg.deliveryFee()).toBe(1000);
     expect(cfg.abandonMinutes).toBe(60);
     expect(cfg.subscriptionDiscountRate()).toBe(0.05);
   });

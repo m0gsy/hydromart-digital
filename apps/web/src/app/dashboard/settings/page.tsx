@@ -77,7 +77,7 @@ function SettingRow({
         </div>
         <p className="text-sm font-medium">{effective}</p>
         <p className="text-xs text-muted">
-          {def.key === 'deliveryFee' ? t('settings.globalOnlyDeliveryFee') : t('settings.globalOnly')}
+          {t('settings.globalOnly')}
         </p>
       </Card>
     );

@@ -128,3 +128,28 @@ export function isVoidableOn(soldAt: Date, now: Date, timeZone: string): boolean
   const day = (d: Date) => d.toLocaleDateString('en-CA', { timeZone });
   return day(soldAt) === day(now);
 }
+
+/**
+ * C5 · a counter sale may only be undone into a drawer that is still open, and only if the
+ * sale belongs to that drawer.
+ *
+ * The calendar-day rule above argued it prevented "voiding backwards into a shift somebody
+ * already counted and signed off" — and it does not. Two shifts happen in one day all the
+ * time: the morning cashier counts, signs off and goes home, and until midnight their sales
+ * are still voidable. The reversal lands in the afternoon drawer while the morning's cash
+ * total has already been booked, so the depot's cash is overstated by the voided amount and
+ * nothing ever reverses it.
+ *
+ * `openedAt` decides it. No new column and no new call: the endpoint the open-shift guard
+ * already hits returns the shift, and the adapter used to throw everything but the id away.
+ *
+ * Known ceiling, stated rather than papered over: with two shifts open at once at one depot,
+ * this permits a cashier to void a sale their colleague rang up after their own shift began.
+ * The MONEY still follows the payment's own drawer (C2's `cashierShiftId`), so the reversal
+ * is booked against the till that took it; what is not enforced here is who may press the
+ * button. Narrowing that needs the sale to record its own shift.
+ */
+export function isVoidableInShift(soldAt: Date, shiftOpenedAt: Date | null): boolean {
+  if (!shiftOpenedAt) return false;
+  return soldAt.getTime() >= shiftOpenedAt.getTime();
+}

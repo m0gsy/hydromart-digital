@@ -68,10 +68,6 @@ export class OrderConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
-  /** Flat per-galon delivery fee (IDR) used when checkout has no routed depot. */
-  deliveryFee(depotId: string | null = null): number {
-    return this.tunable('deliveryFee', this.num('ORDER_DELIVERY_FEE'), depotId);
-  }
   /**
    * Age (minutes) after which an unconfirmed CREATED order is auto-cancelled. The
    * abandoned-order sweep runs platform-wide (no single depot in scope), so this
