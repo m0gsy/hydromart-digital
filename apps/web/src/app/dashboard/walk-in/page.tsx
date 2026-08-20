@@ -553,7 +553,18 @@ function WalkIn({ depotId }: { depotId: string }) {
                       <Money amount={o.total} />
                     </span>
                     {!voided && (
-                      <Button variant="ghost" onClick={() => setVoiding(o)} disabled={busy}>
+                      // Up to eight rows, plus the last-sale card, all carrying the same
+                      // visible words. Without a name of its own each button announces
+                      // "Batalkan penjualan" and says nothing about WHICH sale it reverses
+                      // — for a screen reader that is nine identical buttons over a money
+                      // mutation. The visible label stays short; only the accessible name
+                      // carries the order number.
+                      <Button
+                        variant="ghost"
+                        aria-label={t('opsFix.walkIn.voidSaleOf', { order: o.orderNumber })}
+                        onClick={() => setVoiding(o)}
+                        disabled={busy}
+                      >
                         <ArrowUUpLeft size={16} className="mr-1" />
                         {t('opsFix.walkIn.voidSale')}
                       </Button>

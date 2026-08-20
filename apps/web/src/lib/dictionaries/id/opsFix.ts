@@ -376,6 +376,7 @@ export const opsFix = {
     lastSale: 'Penjualan terakhir',
     reprint: 'Cetak ulang struk',
     voidSale: 'Batalkan penjualan',
+    voidSaleOf: 'Batalkan penjualan {order}',
     voidConfirm: 'Batalkan {order}?',
     voidBody: 'Uang dikembalikan ke pembeli, barang masuk stok lagi, dan poin ditarik kembali.',
     voidReason: 'Alasan',

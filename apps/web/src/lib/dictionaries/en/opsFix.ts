@@ -375,6 +375,7 @@ export const opsFix = {
     lastSale: 'Last sale',
     reprint: 'Reprint receipt',
     voidSale: 'Void sale',
+    voidSaleOf: 'Void sale {order}',
     voidConfirm: 'Void {order}?',
     voidBody: 'The money goes back to the buyer, the goods return to stock, and the points are pulled back.',
     voidReason: 'Reason',

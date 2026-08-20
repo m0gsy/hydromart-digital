@@ -274,4 +274,27 @@ describe('C6 · a counter sale is voidable after a refresh, and voids leave a tr
     expect(screen.getByText('Pembeli batal')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Batalkan penjualan/i })).toBeNull();
   });
+
+  /**
+   * The list put the same visible words on every row, and the accessible name is the
+   * visible words. Eight rows plus the last-sale card is nine buttons that all announce
+   * "Batalkan penjualan" and none of which say which sale they reverse — over a mutation
+   * that moves money. Playwright found it first: its strict-mode locator resolved to two
+   * elements and the walk-in e2e went red.
+   */
+  it('names each row void button after its own sale, so no two buttons announce the same thing', async () => {
+    recentSales = [
+      { id: 'ord-1', orderNumber: 'HM-1', total: 20000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T02:00:00Z' },
+      { id: 'ord-2', orderNumber: 'HM-2', total: 30000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T03:00:00Z' },
+    ];
+    const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
+    render(<WalkInPage />, { wrapper });
+
+    await waitFor(() => expect(screen.getByText('HM-1')).toBeTruthy());
+    const names = screen
+      .getAllByRole('button', { name: /Batalkan penjualan/i })
+      .map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim());
+    expect(names).toEqual(['Batalkan penjualan HM-1', 'Batalkan penjualan HM-2']);
+    expect(new Set(names).size).toBe(names.length);
+  });
 });
