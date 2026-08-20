@@ -148,6 +148,17 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1,
     envDefault: 1,
   },
+  // D1 kill switch. GLOBAL only: the sweep is not depot-scoped, so a per-depot override
+  // would be a lever that moves nothing — the same trap `deliveryFee` was removed for.
+  {
+    key: 'subscriptionSweepExempt',
+    label: 'Pesanan langganan kebal sapuan kedaluwarsa (1 = ya, 0 = tidak)',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 1,
+    global: true,
+  },
   {
     key: 'stalledHours',
     label: 'Batas pesanan mandek di depot',

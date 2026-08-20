@@ -1245,7 +1245,12 @@ export class OrderService {
     ];
     let cancelledCount = 0;
     for (const sweep of sweeps) {
-      const stale = await this.orders.findStaleIn(sweep.statuses, sweep.before);
+      const stale = await this.orders.findStaleIn(
+        sweep.statuses,
+        sweep.before,
+        undefined,
+        this.config.subscriptionSweepExempt,
+      );
       for (const order of stale) {
         const cancelled = await this.orders.applyStatus(
           order.id,

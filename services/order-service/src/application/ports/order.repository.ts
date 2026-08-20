@@ -371,8 +371,21 @@ export interface OrderRepository {
    * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.
    * Oldest first and capped at `limit`, so one tick cannot try to load an unbounded
    * backlog; the next tick continues where this one stopped (audit H-47).
+   *
+   * D1: with `exemptSubscriptions` (the default), orders carrying a `subscriptionId` are
+   * never candidates. Both sweep windows read "nobody is going to act on this", and that is
+   * false for a scheduled delivery: there is no customer at a keyboard to confirm it, and
+   * payment is direct to the depot, so unpaid is its normal state. Excluding in the query
+   * covers both windows at once and keeps a backlog of scheduled orders from eating the
+   * `limit` budget. Pass `false` — the `subscriptionSweepExempt` kill switch — to restore
+   * the pre-D1 behaviour.
    */
-  findStaleIn(statuses: OrderStatus[], before: Date, limit?: number): Promise<OrderRecord[]>;
+  findStaleIn(
+    statuses: OrderStatus[],
+    before: Date,
+    limit?: number,
+    exemptSubscriptions?: boolean,
+  ): Promise<OrderRecord[]>;
   /**
    * Keyset-paginated COMPLETED orders ordered by (createdAt asc, id asc), for the
    * recommendation-service rebuild feed. `cursor` is opaque (the id of the first

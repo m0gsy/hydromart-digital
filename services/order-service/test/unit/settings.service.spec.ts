@@ -102,8 +102,26 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
-  it('order-service now declares no global-only key at all — C13 took the last one', () => {
-    expect(SETTING_DEFS.filter((d) => d.global)).toEqual([]);
+  // Inverted by D1. C13 removed order-service's last global-only key, and this test pinned
+  // that absence — so the guard above had to be exercised against a synthetic registry.
+  // D1's `subscriptionSweepExempt` brings a real one back (the sweep has no depot scope, so
+  // a per-depot override would be a lever moving nothing), which lets the guard be asserted
+  // against the registry that actually ships.
+  it('rejects a DEPOT override for the real global-only key (D1)', async () => {
+    expect(SETTING_DEFS.filter((d) => d.global).map((d) => d.key)).toEqual([
+      'subscriptionSweepExempt',
+    ]);
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(
+      svc.put({
+        scope: 'DEPOT',
+        depotId: '11111111-1111-1111-1111-111111111111',
+        key: 'subscriptionSweepExempt',
+        value: '0',
+        updatedBy: 'u1',
+      }),
+    ).rejects.toThrow();
   });
 
   it('put rejects a prototype-inherited key like "constructor"', async () => {

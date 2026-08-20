@@ -476,12 +476,20 @@ export class OrderPrismaRepository implements OrderRepository {
     statuses: OrderStatus[],
     before: Date,
     limit = STALE_SWEEP_BATCH,
+    exemptSubscriptions = true,
   ): Promise<OrderRecord[]> {
     if (statuses.length === 0) return [];
     // Bounded batch, oldest first: the sweep runs on a schedule, so a backlog is drained
     // over several ticks instead of one tick trying to load every stale order at once.
     const rows = await this.prisma.order.findMany({
-      where: { status: { in: statuses }, createdAt: { lt: before } },
+      // D1: a subscription delivery is never a sweep candidate, in either window. The
+      // exclusion lives in the query rather than in the caller so a backlog of scheduled
+      // orders cannot eat the `take` budget and starve the orders the sweep is for.
+      where: {
+        status: { in: statuses },
+        createdAt: { lt: before },
+        ...(exemptSubscriptions ? { subscriptionId: null } : {}),
+      },
       // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
       include: INCLUDE_NO_HISTORY,
       orderBy: { createdAt: 'asc' },

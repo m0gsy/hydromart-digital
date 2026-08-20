@@ -1668,6 +1668,62 @@ describe('OrderService', () => {
     expect((await service.getAny(order.id)).status).toBe(OrderStatus.DRIVER_ASSIGNED);
   });
 
+  /**
+   * D1: a scheduled delivery has nobody at a keyboard to confirm it, and payment is direct
+   * to the depot — so neither window's premise holds for it. CREATED beyond `abandonMinutes`
+   * means "the customer walked away"; there is no customer here. CONFIRMED beyond
+   * `stalledHours` is the second window, which is why being born CONFIRMED would only have
+   * moved the problem rather than fixed it. Both are asserted, because an exclusion that
+   * covers one still cancels the delivery a few hours later.
+   */
+  it('never sweeps a subscription delivery, in either window (D1)', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    const order = await service.placeScheduled(
+      customer,
+      [{ productId: p.id, quantity: 1 }],
+      address,
+      'sub:s-1:2026-08-20T00:00:00.000Z',
+      's-1',
+    );
+    const age = (): void => {
+      orders.rows.find((r) => r.id === order.id)!.createdAt = new Date(
+        Date.now() - 90 * 24 * 60 * 60 * 1000,
+      );
+    };
+
+    age(); // window one: far beyond abandonMinutes, still CREATED
+    expect((await service.expireAbandoned('admin', 'Bearer tok', 60)).cancelled).toBe(0);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.CREATED);
+
+    await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff', undefined, 'Bearer tok');
+    age(); // window two: far beyond stalledHours, now CONFIRMED
+    expect((await service.expireAbandoned('admin', 'Bearer tok', 60)).cancelled).toBe(0);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.CONFIRMED);
+    expect(inventory.releaseCalls).toHaveLength(0);
+  });
+
+  // A kill switch nobody has watched turn OFF is not a kill switch. `subscriptionSweepExempt`
+  // set to 0 has to put the pre-D1 behaviour back exactly: the scheduled delivery ages out
+  // like any other order and its stock comes back.
+  it('sweeps a subscription delivery again when subscriptionSweepExempt is off (D1 kill switch)', async () => {
+    jest.spyOn(config, 'subscriptionSweepExempt', 'get').mockReturnValue(false);
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    const order = await service.placeScheduled(
+      customer,
+      [{ productId: p.id, quantity: 1 }],
+      address,
+      'sub:s-2:2026-08-20T00:00:00.000Z',
+      's-2',
+    );
+    orders.rows.find((r) => r.id === order.id)!.createdAt = new Date(
+      Date.now() - 90 * 24 * 60 * 60 * 1000,
+    );
+
+    expect((await service.expireAbandoned('admin', 'Bearer tok', 60)).cancelled).toBe(1);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.CANCELLED);
+    expect(inventory.releaseCalls).toHaveLength(1);
+  });
+
   it('lets the system cancel a failed delivery mid-flight, releasing the hold', async () => {
     await addToCart(20000, 2);
     const order = await routedCheckout();

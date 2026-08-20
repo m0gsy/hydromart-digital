@@ -44,6 +44,7 @@ export const envValidationSchema = Joi.object({
   ORDER_CART_DEPOT_PRICING: Joi.number().integer().min(0).max(1).default(1),
   // B1 kill switch: 0 removes the staff "selesaikan" action. Overridable per depot.
   ORDER_STAFF_COMPLETE_DELIVERED: Joi.number().integer().min(0).max(1).default(1),
+  ORDER_SUBSCRIPTION_SWEEP_EXEMPT: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_ENABLED: Joi.number().integer().min(0).max(1).default(1),
   ORDER_EXPRESS_FEE: Joi.number().min(0).default(5000),
   ORDER_EXPRESS_ETA_MIN_MINUTES: Joi.number().integer().positive().default(30),
