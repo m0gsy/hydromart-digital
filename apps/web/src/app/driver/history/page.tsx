@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCircle, XCircle } from '@phosphor-icons/react';
+import Link from 'next/link';
+import { CaretRight, CheckCircle, XCircle } from '@phosphor-icons/react';
 import { useT } from '@/lib/locale-context';
 
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -57,7 +58,15 @@ function History() {
             const ok = d.status === 'DELIVERED';
             const when = d.deliveredAt ?? d.failedAt;
             return (
-              <div key={d.id} className="flex items-center gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3.5">
+              // O3: the only list in the courier app whose rows were plain divs. The detail
+              // route already exists, is already allowed by the same guard as this list, and
+              // does not filter on status — six other courier screens link straight to it.
+              // Nothing was missing but the tap target.
+              <Link
+                key={d.id}
+                href={`/driver/deliveries/detail?id=${d.id}`}
+                className="flex items-center gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3.5"
+              >
                 <span className={`flex size-9 items-center justify-center rounded-xl ${ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                   {ok ? <CheckCircle size={20} weight="fill" /> : <XCircle size={20} weight="fill" />}
                 </span>
@@ -68,7 +77,8 @@ function History() {
                   </div>
                 </div>
                 {!ok && <span className="text-[11px] font-extrabold text-red-600">{t('hrFix.driverHistory.failed')}</span>}
-              </div>
+                <CaretRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              </Link>
             );
           })}
         </div>

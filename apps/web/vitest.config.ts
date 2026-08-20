@@ -8,6 +8,19 @@ export default defineConfig({
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['test/setup.ts'],
     /*
+     * 5 seconds is Vitest's default and it is not enough for this suite under `--coverage`.
+     * A render test that drives a form through `userEvent` — typing six digits, clicking,
+     * awaiting a redirect — measured 4.2s on a quiet machine with v8 instrumentation on.
+     * On a busy one, three of them lost to the clock in a single run while every assertion
+     * in the file still held: the failures were all "timed out", none was a wrong answer,
+     * and a test that had never touched the diff (`native-auth`) went red alongside them.
+     *
+     * A gate that goes red because the machine was busy teaches everyone to re-run it, and
+     * that habit is what actually destroys a gate. Raising the budget weakens no assertion:
+     * a genuinely hung test still fails, twenty seconds later.
+     */
+    testTimeout: 20_000,
+    /*
      * Every one of the 18 services and both shared packages gate at 98%. apps/web — the
      * only code a customer actually touches, and the same code both APK binaries load
      * inside a WebView — gated at nothing at all, so a test could be deleted and CI would

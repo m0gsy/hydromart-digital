@@ -196,6 +196,8 @@ export const driver = {
     },
     notSet: 'Belum diatur',
     depotPlacement: 'Depot penempatan',
+    // O8: one concept had three names and no sentence anywhere saying what it governs.
+    depotPlacementHint: 'Menentukan pesanan yang kamu lihat, pencocokan shift, dan perhitungan gaji. Diatur oleh HR.',
     selfService: 'Absen & slip gaji',
     weeklyPerformance: 'Performa mingguan',
     earnings: 'Pendapatan',

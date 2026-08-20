@@ -243,7 +243,7 @@ export const hrFix = {
     position: "Position",
     phone: "Phone number",
     emailOpt: "Email (optional)",
-    depot: "Depot",
+    depot: "Assigned depot",
     joinDate: "Join date",
     role: "Position (login role)",
     employmentStatus: "Employment status",
@@ -706,6 +706,8 @@ export const hrFix = {
     title: "Earnings",
     available: "Available balance",
     shiftTarget: "Shift target",
+    // O10: the door to the deposit flow, which lived only on the Profile screen.
+    settleCash: "Deposit cash",
     withdraw: "Withdraw",
     overBalance: "That is more than the available balance.",
     breakdown: "Breakdown",

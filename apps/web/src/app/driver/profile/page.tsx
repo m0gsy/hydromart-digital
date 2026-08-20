@@ -5,9 +5,13 @@ import { CalendarCheck, CaretRight, ChartBar, Coins, GearSix, Megaphone, Questio
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { endpoints } from '@/lib/endpoints';
 import { useT, type TVars } from '@/lib/locale-context';
 import { staffDoor } from '@/lib/roles';
+import { useAsync } from '@/lib/use-async';
+import type { Depot, Page } from '@/lib/types';
 
 // "Motor · B 1234 ABC", or "Belum diatur" when the courier has no vehicle on file.
 function vehicleText(
@@ -34,6 +38,20 @@ function Profile() {
   const router = useRouter();
   const { t } = useT();
   const { customer, signOut } = useAuth();
+
+  /**
+   * O8: the depot's NAME, which this screen never showed. `depots.browse` is the public
+   * active-depot list — no new endpoint, no new permission — and `getCached` means the
+   * courier app fetches it once rather than once per screen that wants a name.
+   * Fail-soft: a lookup that does not land leaves the row showing the label alone, which
+   * is what it showed before this change anyway.
+   */
+  const depotId = customer?.assignedDepotId ?? null;
+  const depots = useAsync<Page<Depot>>(
+    () => (depotId ? api.getCached(endpoints.depots.browse({ limit: 100 })) : Promise.resolve({ items: [], total: 0, page: 1, limit: 0 })),
+    [depotId],
+  );
+  const depotName = depots.data?.items.find((d) => d.id === depotId)?.name ?? null;
 
   const logout = () => {
     signOut();
@@ -72,11 +90,33 @@ function Profile() {
           </div>
         )}
         {customer?.assignedDepotId && (
-          <Row
-            icon={<Storefront size={19} weight="fill" />}
-            label={t('driver.profile.depotPlacement')}
-            onClick={() => router.push('/driver/announcements')}
-          />
+          /**
+           * O8: this row was a door to the wrong room. It showed no depot name at all and
+           * tapping it opened Announcements, so a courier checking which depot they belong
+           * to was answered with "Belum ada pengumuman" — a sentence about a different
+           * thing entirely, which reads as "you have no depot".
+           *
+           * It is a fact about you, not a screen, so it no longer pretends to be tappable.
+           * The name is resolved client-side from the public depot list rather than through
+           * a new endpoint: `depots.browse` is already public and already fetched elsewhere
+           * in this app.
+           */
+          <div className="flex w-full items-start gap-3 p-4">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-black/5 text-brand-700">
+              <Storefront size={19} weight="fill" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{t('driver.profile.depotPlacement')}</span>
+                <span className="ml-auto truncate text-sm text-[color:var(--muted)]">
+                  {depotName ?? '—'}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">
+                {t('driver.profile.depotPlacementHint')}
+              </p>
+            </div>
+          </div>
         )}
         {/* HRIS self-service (absen wajah, slip gaji, cuti). The bottom bar is a fixed
             3-tab design, so the door to /hr/me belongs on this list instead. */}

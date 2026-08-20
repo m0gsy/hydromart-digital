@@ -194,7 +194,9 @@ export const driver = {
       MOBIL: 'Car',
     },
     notSet: 'Not set',
-    depotPlacement: 'Depot placement',
+    depotPlacement: 'Assigned depot',
+    // O8: one concept had three names and no sentence anywhere saying what it governs.
+    depotPlacementHint: 'Decides which orders you see, how shifts are matched, and how pay is calculated. Set by HR.',
     selfService: 'Attendance & payslip',
     weeklyPerformance: 'Weekly performance',
     earnings: 'Earnings',

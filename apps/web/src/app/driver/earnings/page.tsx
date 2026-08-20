@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
@@ -95,6 +95,23 @@ function Earnings() {
           <Target size={18} weight="fill" />
         </span>
         <span className="flex-1 text-sm font-bold">{t('hrFix.earnings.shiftTarget')}</span>
+        <CaretRight size={16} className="text-[color:var(--muted)]" />
+      </Link>
+
+      {/*
+        O10: depositing the shift's cash was reachable from exactly one place in the whole
+        app — a row on the Profile screen. This is the wallet, it is where a courier goes
+        for anything about money, and the deposit flow itself has been complete all along;
+        only the way in was missing.
+      */}
+      <Link
+        href="/driver/settlement"
+        className="flex items-center gap-3 rounded-2xl border border-[color:var(--border)] bg-white p-3.5"
+      >
+        <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <Wallet size={18} weight="fill" />
+        </span>
+        <span className="flex-1 text-sm font-bold">{t('hrFix.earnings.settleCash')}</span>
         <CaretRight size={16} className="text-[color:var(--muted)]" />
       </Link>
 

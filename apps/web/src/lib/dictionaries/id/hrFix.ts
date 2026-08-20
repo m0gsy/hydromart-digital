@@ -255,7 +255,7 @@ export const hrFix = {
     position: "Posisi",
     phone: "No. HP",
     emailOpt: "Email (opsional)",
-    depot: "Depot",
+    depot: "Depot penempatan",
     joinDate: "Tanggal masuk",
     role: "Jabatan (peran login)",
     employmentStatus: "Status kepegawaian",
@@ -718,6 +718,8 @@ export const hrFix = {
     title: "Pendapatan",
     available: "Saldo tersedia",
     shiftTarget: "Target shift",
+    // O10: the door to the deposit flow, which lived only on the Profile screen.
+    settleCash: "Setor uang tunai",
     withdraw: "Tarik saldo",
     overBalance: "Jumlah melebihi saldo tersedia.",
     breakdown: "Rincian",
