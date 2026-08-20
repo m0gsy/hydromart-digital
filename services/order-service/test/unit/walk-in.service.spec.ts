@@ -7,6 +7,7 @@ import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
   AnonymousVoucherNotAllowedError,
   CounterBuyerUnresolvedError,
+  CounterBasketChangedError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -140,6 +141,72 @@ describe('OrderService.walkInSale', () => {
    * are the SAME function. A second implementation is the same bug again with one more
    * place to forget, so that is what these assert.
    */
+  /**
+   * C8 · a replay is only a replay if it is the same sale.
+   *
+   * The till holds one attempt key until a submit succeeds (B-13, so a retry after a
+   * timeout returns the sale already recorded instead of selling the goods twice). A
+   * cashier who edited the basket after a failure therefore sent NEW goods under the OLD
+   * key — the guard matched on the key alone, handed back the first order, and the screen
+   * printed a receipt for goods that were never on the counter.
+   */
+  describe('C8 · the same key with a different basket', () => {
+    it('still returns the same sale for a true retry', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const sale = { depotId: DEPOT, lines: [{ productId: product.id, quantity: 2 }] };
+
+      const first = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+      const again = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+
+      expect(again.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+
+    it('refuses rather than replaying a sale nobody made', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+
+      await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 2 }],
+        idempotencyKey: 'till-1',
+      });
+
+      // The buyer changed their mind; the cashier fixed the quantity and pressed Bayar.
+      await expect(
+        service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: product.id, quantity: 5 }],
+          idempotencyKey: 'till-1',
+        }),
+      ).rejects.toBeInstanceOf(CounterBasketChangedError);
+      expect(orders.rows).toHaveLength(1);
+    });
+
+    it('treats the same goods in a different order as the same basket', async () => {
+      const a = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const b = catalog.seed({ id: randomUUID(), basePrice: 5000 });
+
+      const first = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [
+          { productId: a.id, quantity: 1 },
+          { productId: b.id, quantity: 2 },
+        ],
+        idempotencyKey: 'till-2',
+      });
+      const again = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [
+          { productId: b.id, quantity: 2 },
+          { productId: a.id, quantity: 1 },
+        ],
+        idempotencyKey: 'till-2',
+      });
+
+      expect(again.id).toBe(first.id);
+    });
+  });
+
   describe('C12 · counter quote', () => {
     const BUYER = '99999999-9999-4999-8999-999999999999';
 

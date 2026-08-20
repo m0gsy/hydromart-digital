@@ -362,6 +362,7 @@ export const opsFix = {
     identifyHint: "Cek dulu agar harga agen atau tier ikut terhitung.",
     identifyFailed: "Tidak bisa mengecek nomor ini.",
     quoteUnavailable: "Harga belum bisa dihitung server. Coba lagi sebentar.",
+    stockShort: "Stok tidak cukup untuk sebagian barang. Jumlahnya sudah diperbarui — sesuaikan lalu coba lagi.",
     methodOffHint: "Metode yang mati belum diatur depot — isi QRIS/rekening di halaman Depot.",
     title: 'Penjualan di depot',
     subtitle: 'Pembeli datang langsung, bayar tunai.',

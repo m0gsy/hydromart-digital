@@ -361,6 +361,7 @@ export const opsFix = {
     identifyHint: "Check first so an agent or tier price is included.",
     identifyFailed: "Could not look this number up.",
     quoteUnavailable: "The server has not priced this yet. Try again in a moment.",
+    stockShort: "Not enough stock for some items. The numbers have been refreshed — adjust and try again.",
     methodOffHint: "A greyed-out method is one this depot has not set up — add QRIS or a bank account on the Depot page.",
     title: 'Counter sale',
     subtitle: 'Walk-in buyer, paying at the depot.',
