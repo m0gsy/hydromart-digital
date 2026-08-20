@@ -7,13 +7,19 @@ import { ArrowRight, LockKey, ShieldCheck } from '@phosphor-icons/react';
 import { Button, Skeleton } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
+import { resolveDeepLink } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
 import type { OtpChallenge, Session } from '@/lib/types';
 
-const RESEND_SECONDS = 30;
+/**
+ * E4: mirrors `OTP_RESEND_COOLDOWN_SECONDS` on auth-service (default 60). This screen
+ * counted 30 while the server enforced 60, so the first honest resend was always
+ * refused. The server's own answer overrides this whenever it sends one.
+ */
+const RESEND_SECONDS = 60;
 const OTP_LENGTH = 6;
 
 // Design 13a — deep-teal sign-in panel. Reuses the exact OTP flow from the customer
@@ -40,7 +46,12 @@ function HqLoginPanel() {
   // land in the same place. A customer who wanders in is sent to the shop, not stranded.
   const signedInRole = customer?.role ?? null;
   useEffect(() => {
-    if (signedInRole) router.replace(next || consoleHome(signedInRole));
+    // E1: `next` comes off the URL, so it names wherever a stranger's link says. The
+    // plan recorded this hole on `/verify` only — it is the same hole here, and this is
+    // the door RequireAuth sends EVERY signed-out console route to. `resolveDeepLink`
+    // keeps a path, refuses another origin and `//evil`, and drops a route this binary
+    // does not carry.
+    if (signedInRole) router.replace((next && resolveDeepLink(next)) || consoleHome(signedInRole));
   }, [signedInRole, next, router]);
 
   const counting = cooldown > 0;
@@ -56,9 +67,9 @@ function HqLoginPanel() {
     setLoading(true);
     setError(null);
     try {
-      await api.post<OtpChallenge>(endpoints.auth.login, { phone: phone.trim() });
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone: phone.trim() });
       setStep('otp');
-      setCooldown(RESEND_SECONDS);
+      setCooldown(challenge.resendCooldownSeconds ?? RESEND_SECONDS);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.login.error'));
     } finally {

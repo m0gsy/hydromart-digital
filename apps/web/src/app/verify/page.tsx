@@ -8,13 +8,22 @@ import { ArrowLeft, ChatCircleDots } from '@phosphor-icons/react';
 import { Button, Skeleton } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
+import { resolveDeepLink } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
-const RESEND_SECONDS = 30;
+/**
+ * E4: the resend cooldown is the SERVER's rule (`OTP_RESEND_COOLDOWN_SECONDS`, default
+ * 60). This screen counted 30 and the server counted 60, so the first honest "kirim
+ * ulang" was always refused with a 429 — in English, on an Indonesian screen. The number
+ * now arrives from whichever screen issued the code (`?cd=`), and this is only the
+ * fallback for a link opened without one. Kept equal to the server default so the two
+ * cannot disagree silently again.
+ */
+const RESEND_SECONDS = 60;
 const OTP_LENGTH = 6;
 
 function VerifyForm() {
@@ -31,13 +40,26 @@ function VerifyForm() {
   const next = params.get('next');
   // Referral code carried from /register (spec 5c). Redeemed once, post-signup.
   const referral = params.get('ref')?.trim() ?? '';
+  // E4: the cooldown the server just told /login or /register it was enforcing.
+  const issuedCooldown = Number(params.get('cd'));
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resent, setResent] = useState<string | null>(null);
   // A code was already sent on the previous screen, so start the cooldown on mount.
-  const [cooldown, setCooldown] = useState(RESEND_SECONDS);
+  const [cooldown, setCooldown] = useState(
+    Number.isFinite(issuedCooldown) && issuedCooldown > 0 ? issuedCooldown : RESEND_SECONDS,
+  );
+  /**
+   * E5: the challenge is spent — too many wrong codes — and no further guess can
+   * succeed. This used to leave the code boxes typing, the submit button live, and the
+   * only thing that would help (a new code) greyed out behind the cooldown, so the
+   * screen answered every attempt with the same refusal and offered no way forward.
+   * Closing the box makes the resend the one live control, which is what the server's
+   * own message asks for.
+   */
+  const [spent, setSpent] = useState(false);
 
   const counting = cooldown > 0;
   useEffect(() => {
@@ -47,7 +69,7 @@ function VerifyForm() {
   }, [counting]);
 
   async function verify(value: string) {
-    if (loading) return;
+    if (loading || spent) return;
     setLoading(true);
     setError(null);
     try {
@@ -62,9 +84,17 @@ function VerifyForm() {
           /* bad/duplicate code — signup still succeeds */
         }
       }
-      router.replace(next ?? consoleHome(session.customer.role));
+      // E1: `next` arrives from the URL, so it is a stranger's string. It used to be
+      // handed to the router as-is, which meant anything that could put a link in front
+      // of a customer — an SMS, a QR code, a notification from a service that got one
+      // field wrong — chose what this app navigated to, including another origin, still
+      // wearing the app's chrome inside the WebView. `resolveDeepLink` is the function
+      // that already refuses that for promo CTAs and tapped notifications: it keeps only
+      // a path, rejects `//evil`, and drops a route this binary does not carry.
+      router.replace((next && resolveDeepLink(next)) || consoleHome(session.customer.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.error'));
+      if (err instanceof ApiError && err.code === 'AUTH_OTP_MAX_ATTEMPTS') setSpent(true);
       setLoading(false);
     }
   }
@@ -76,7 +106,10 @@ function VerifyForm() {
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.resendOtp, { phone, purpose });
       setResent(t('auth.verify.sentTo', { phone: challenge.phoneMasked }));
-      setCooldown(RESEND_SECONDS);
+      // A fresh challenge means fresh attempts, so the box opens again.
+      setSpent(false);
+      setCode('');
+      setCooldown(challenge.resendCooldownSeconds ?? RESEND_SECONDS);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.resendError'));
     }
@@ -123,7 +156,7 @@ function VerifyForm() {
         }}
         className="flex flex-col gap-4"
       >
-        <OtpInput value={code} onChange={setCode} length={OTP_LENGTH} disabled={loading} autoFocus onComplete={verify} />
+        <OtpInput value={code} onChange={setCode} length={OTP_LENGTH} disabled={loading || spent} autoFocus onComplete={verify} />
 
         {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
         {error && (
@@ -132,7 +165,12 @@ function VerifyForm() {
           </p>
         )}
 
-        <Button type="submit" loading={loading} className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold">
+        <Button
+          type="submit"
+          loading={loading}
+          disabled={spent}
+          className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
+        >
           {t('auth.verify.submit')}
         </Button>
       </form>

@@ -26,6 +26,7 @@ import { opsFix } from './en/opsFix';
 import { mgrFix } from './en/mgrFix';
 import { hrFix } from './en/hrFix';
 import { settings } from './en/settings';
+import { errors } from './en/errors';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
 export const en: Dictionary = {
@@ -180,4 +181,5 @@ export const en: Dictionary = {
   mgrFix,
   hrFix,
   settings,
+  errors,
 };

@@ -65,6 +65,13 @@ export interface Session {
 export interface OtpChallenge {
   phoneMasked: string;
   expiresInSeconds: number;
+  /**
+   * E4: how long the server will refuse another code. The client used to hold its own
+   * copy of this number, guessed it as 30 against a server enforcing 60, and refused
+   * nothing while the server 429'd the first honest retry. Optional so an older gateway
+   * still parses; the screens fall back to the same default the server ships with.
+   */
+  resendCooldownSeconds?: number;
 }
 
 export interface Product {

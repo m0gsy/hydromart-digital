@@ -294,3 +294,42 @@ describe('every endpoint entry has a caller', () => {
     expect(uncalled).toEqual([]);
   });
 });
+
+/**
+ * E3: `api.ts` now refuses a path with an empty segment, because a detail screen opened
+ * without its `?id=` used to build one and get a misleading 404 back. That guard would
+ * be a new way to break a screen if any endpoint legitimately ended in `/`, so this
+ * asserts none does — and fails the moment somebody adds one, which is cheaper than
+ * finding it in production.
+ */
+describe('E3 · no endpoint path can be mistaken for one with a hole in it', () => {
+  const files = import.meta.glob('../src/lib/endpoints/*.ts', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  it('reads the endpoint modules at all (guards against an empty glob)', () => {
+    expect(Object.keys(files).length).toBeGreaterThan(5);
+  });
+
+  it('no path literal ends in "/" or contains "//"', () => {
+    const offenders: string[] = [];
+    for (const [file, source] of Object.entries(files)) {
+      source.split('\n').forEach((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+        for (const match of line.matchAll(/(['"`])((?:\.|(?!\1).)*)\1/g)) {
+          const value = match[2] ?? '';
+          if (!value.startsWith('/')) continue;
+          const beforeQuery = value.split('?')[0] ?? '';
+          if (beforeQuery.length > 1 && beforeQuery.endsWith('/')) {
+            offenders.push(`${file}:${i + 1} ends in "/": ${value}`);
+          }
+          if (beforeQuery.includes('//')) offenders.push(`${file}:${i + 1} has "//": ${value}`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});

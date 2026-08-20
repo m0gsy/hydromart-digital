@@ -61,10 +61,13 @@ describe('toAddressPayload', () => {
     province: 'Jawa Barat',
   };
 
+  // E6: this used to assert the message named the field — `city is required.` — which
+  // was the field's code name, in English, on a customer's screen. It now names the
+  // dictionary key instead; the "which field" test moved to the form, which marks them.
   it('rejects a missing required field', () => {
     const r = toAddressPayload({ ...base, city: '  ' }, t);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/city/);
+    if (!r.ok) expect(r.error).toBe('errors.address.required');
   });
 
   // The pin is required now (UAT-M2-06): depot routing is by distance, so an address
@@ -110,5 +113,38 @@ describe('addressToBookForm', () => {
     expect(addressToBookForm(make({ id: '1', latitude: -6.9, longitude: null, postalCode: null }))).toMatchObject(
       { label: 'Rumah', latitude: '-6.9', longitude: '', postalCode: '' },
     );
+  });
+});
+
+// E6: three of the five refusals in `toAddressPayload` were English literals written for
+// a developer — "label is required.", "Latitude must be between -90 and 90." — shown
+// unaltered to a customer saving an address under `lang="id"`.
+describe('E6 · address validation speaks the customer’s language', () => {
+  const form = {
+    label: 'Rumah',
+    recipientName: 'Budi',
+    phone: '0812',
+    addressLine: 'Jl. Merdeka 10',
+    city: 'Bandung',
+    province: 'Jawa Barat',
+    postalCode: '',
+    notes: '',
+    latitude: '-6.9',
+    longitude: '107.6',
+  };
+
+  it('names the missing field through the dictionary, not through its code name', () => {
+    const out = toAddressPayload({ ...form, recipientName: '  ' }, t);
+    expect(out).toMatchObject({ ok: false, error: 'errors.address.required' });
+  });
+
+  it('rejects an out-of-range latitude through the dictionary', () => {
+    const out = toAddressPayload({ ...form, latitude: '99' }, t);
+    expect(out).toMatchObject({ ok: false, error: 'errors.address.latitudeRange' });
+  });
+
+  it('rejects an out-of-range longitude through the dictionary', () => {
+    const out = toAddressPayload({ ...form, longitude: '-999' }, t);
+    expect(out).toMatchObject({ ok: false, error: 'errors.address.longitudeRange' });
   });
 });

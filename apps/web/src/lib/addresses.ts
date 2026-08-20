@@ -115,8 +115,11 @@ export function toAddressPayload(
     city: form.city.trim(),
     province: form.province.trim(),
   };
-  for (const [key, value] of Object.entries(text)) {
-    if (!value) return { ok: false, error: `${key} is required.` };
+  // E6: this used to answer `${key} is required.` — the field's CODE name, in English,
+  // shown to a customer saving an address. The form marks its required fields already,
+  // so one sentence in their language beats a developer's variable name.
+  if (Object.values(text).some((value) => !value)) {
+    return { ok: false, error: t('errors.address.required') };
   }
 
   const value: AddressPayload = { ...text };
@@ -133,11 +136,11 @@ export function toAddressPayload(
   }
   const lat = numOrNull(form.latitude);
   if (lat === null || lat < -90 || lat > 90) {
-    return { ok: false, error: 'Latitude must be between -90 and 90.' };
+    return { ok: false, error: t('errors.address.latitudeRange') };
   }
   const lng = numOrNull(form.longitude);
   if (lng === null || lng < -180 || lng > 180) {
-    return { ok: false, error: 'Longitude must be between -180 and 180.' };
+    return { ok: false, error: t('errors.address.longitudeRange') };
   }
   value.latitude = lat;
   value.longitude = lng;
