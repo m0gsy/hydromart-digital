@@ -149,7 +149,10 @@ export class ListOrdersQueryDto {
    */
   @ApiPropertyOptional({ type: Boolean, description: 'Counter sales only.' })
   @IsOptional()
-  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
+  // class-transformer never invokes this for an absent key, so the `undefined` guard the
+  // first draft carried was a branch nothing could reach. An absent `isWalkIn` stays
+  // absent because the transform is not called at all — asserted below.
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isWalkIn?: boolean;
 
