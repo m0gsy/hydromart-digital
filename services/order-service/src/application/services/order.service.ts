@@ -883,9 +883,11 @@ export class OrderService {
     if (input.customerId) return input.customerId;
     const phone = input.customerPhone?.trim();
     if (!phone) return ANONYMOUS_CUSTOMER_ID;
+    // C9: the name the cashier typed, or nothing. It used to fall back to the phone number,
+    // which then stood in as a person's name on every screen that lists customers.
     const resolved = await this.customerDirectory.resolveByPhone(
       phone,
-      input.customerName?.trim() || phone,
+      input.customerName?.trim() || null,
       input.depotId,
     );
     // The one counter call that fails CLOSED. Falling back to the sentinel here would make

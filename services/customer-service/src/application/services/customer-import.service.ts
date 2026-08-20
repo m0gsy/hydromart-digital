@@ -61,10 +61,24 @@ export class CustomerImportService {
    */
   async resolveByPhone(
     phone: string,
-    fullName: string,
+    fullName: string | null,
     depotId?: string,
   ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' }> {
-    const { customerId, status } = await this.identity.preRegisterCustomer(phone, fullName);
+    /**
+     * C9: a name the cashier did not type is not a name.
+     *
+     * The counter used to fall back to the phone number, so an account was created with
+     * `fullName` set to "081234567890" — a string that then appeared as a person's name
+     * everywhere a name is shown, on an account nobody verified and nobody consented to.
+     * `fullName` is optional here, so the honest answer is to send nothing and let each
+     * screen render its own "unnamed" state.
+     *
+     * Measured on production 2026-08-20 before changing it: 0 of 21 customers currently
+     * carry a phone-shaped name, so this closes the path before it produced its first row
+     * rather than after.
+     */
+    const named = fullName?.trim() || undefined;
+    const { customerId, status } = await this.identity.preRegisterCustomer(phone, named);
     if (status !== 'active' && depotId) {
       await this.profiles.upsertFavoriteDepot(customerId, depotId);
     }

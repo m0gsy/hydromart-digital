@@ -45,7 +45,7 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
     }
   }
 
-  async resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null> {
+  async resolveByPhone(phone: string, fullName: string | null, depotId: string): Promise<string | null> {
     const key = this.config.internalServiceKey;
     if (!key) return null;
     const url = `${this.config.customerServiceUrl}/api/v1/customers/internal/resolve-by-phone`;
@@ -55,7 +55,9 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-key': key },
-        body: JSON.stringify({ phone, fullName, depotId }),
+        // C9: omitted rather than sent as null when the cashier typed no name — the DTO
+        // treats absent as "unnamed", and a null would have to be special-cased there too.
+        body: JSON.stringify({ phone, fullName: fullName ?? undefined, depotId }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`customer-service responded ${res.status}`);

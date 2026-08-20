@@ -59,7 +59,10 @@ export class InternalController {
   resolveByPhone(
     @Body() dto: ResolveByPhoneDto,
   ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' }> {
-    return this.customers.resolveByPhone(dto.phone, dto.fullName ?? dto.phone, dto.depotId);
+    // C9: no name means NO name. This used to pass the phone number instead, so an account
+    // was created whose `fullName` was "081234567890" — shown as a person's name on every
+    // screen that lists customers, for somebody who never verified and never consented.
+    return this.customers.resolveByPhone(dto.phone, dto.fullName ?? null, dto.depotId);
   }
 
   /**

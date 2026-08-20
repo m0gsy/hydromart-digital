@@ -191,19 +191,19 @@ describe('InternalController', () => {
     expect(resellers.pricingFor).toHaveBeenCalledWith('c1');
   });
 
-  // §I: order-service resolving the counter buyer. The name defaults to the phone so a
-  // cashier who typed only a number still creates a usable account rather than a blank one.
-  it('resolveByPhone forwards the row, defaulting the name to the phone', async () => {
-    imports.resolveByPhone.mockResolvedValue({ customerId: 'c9', status: 'created' });
+  /**
+   * C9: this asserted the DEFAULT, and the default was the bug — an account created with
+   * `fullName` set to the phone number, standing in as a person's name on every screen
+   * that lists customers, for somebody who never verified and never consented.
+   */
+  it('resolveByPhone forwards no name when the caller sent none', async () => {
+    await c.resolveByPhone({ phone: '0811', depotId: 'd1' } as never);
+    expect(imports.resolveByPhone).toHaveBeenCalledWith('0811', null, 'd1');
+  });
 
-    await expect(c.resolveByPhone({ phone: '0811', depotId: 'd1' })).resolves.toEqual({
-      customerId: 'c9',
-      status: 'created',
-    });
-    expect(imports.resolveByPhone).toHaveBeenCalledWith('0811', '0811', 'd1');
-
-    await c.resolveByPhone({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
-    expect(imports.resolveByPhone).toHaveBeenLastCalledWith('0811', 'Budi', 'd1');
+  it('resolveByPhone forwards the name when there is one', async () => {
+    await c.resolveByPhone({ phone: '0811', fullName: 'Budi', depotId: 'd1' } as never);
+    expect(imports.resolveByPhone).toHaveBeenCalledWith('0811', 'Budi', 'd1');
   });
   beforeEach(() => jest.clearAllMocks());
 
