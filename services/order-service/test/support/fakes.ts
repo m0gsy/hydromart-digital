@@ -304,11 +304,17 @@ export class InMemoryOrderRepository implements OrderRepository {
     statuses: OrderStatus[],
     before: Date,
     limit = 500,
+    exemptSubscriptions = true,
   ): Promise<OrderRecord[]> {
-    // Models the real repository: oldest first, capped — a test that sweeps a backlog
-    // has to see the same batching production does.
+    // Models the real repository: oldest first, capped, and subscription deliveries
+    // excluded (D1) — a test that sweeps a backlog has to see what production does.
     return this.rows
-      .filter((r) => statuses.includes(r.status) && r.createdAt < before)
+      .filter(
+        (r) =>
+          statuses.includes(r.status) &&
+          r.createdAt < before &&
+          !(exemptSubscriptions && r.subscriptionId),
+      )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)
       .map((r) => structuredClone(r));
@@ -1225,6 +1231,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_ABANDON_MINUTES: '60',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     ORDER_STAFF_COMPLETE_DELIVERED: '1',
+    ORDER_SUBSCRIPTION_SWEEP_EXEMPT: '1',
     ORDER_CART_DEPOT_PRICING: '1',
     ORDER_EXPRESS_ENABLED: '1',
     ORDER_EXPRESS_FEE: '5000',

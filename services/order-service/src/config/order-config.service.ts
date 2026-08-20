@@ -83,6 +83,17 @@ export class OrderConfigService {
    * pull it out from under a depot that is merely slow. Same platform-wide GLOBAL
    * resolution as the abandonment window.
    */
+  /**
+   * D1 kill switch: are subscription deliveries exempt from the stale sweep?
+   *
+   * On (default) is the fix — a scheduled delivery is never a sweep candidate in either
+   * window. Off restores the pre-D1 behaviour exactly: scheduled orders age out like any
+   * other, which is what to reach for if exempting them ever leaves stock reserved for
+   * orders a depot has genuinely abandoned. Global, because the sweep has no depot scope.
+   */
+  get subscriptionSweepExempt(): boolean {
+    return this.tunable('subscriptionSweepExempt', this.num('ORDER_SUBSCRIPTION_SWEEP_EXEMPT')) === 1;
+  }
   get stalledHours(): number {
     return this.tunable('stalledHours', this.num('ORDER_STALLED_HOURS'));
   }

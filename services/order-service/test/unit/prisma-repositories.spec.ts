@@ -572,7 +572,10 @@ describe('OrderPrismaRepository', () => {
     expect(out.nextCursor).toBe('o-2');
   });
 
-  it('finds stale orders in the given statuses before a cutoff, oldest first and capped', async () => {
+  // `subscriptionId: null` was added here in D1, and this assertion was inverted with it:
+  // it previously pinned a `where` that made every scheduled delivery a sweep candidate.
+  // The exclusion has to be in the query, so the query is where it is asserted.
+  it('finds stale orders in the given statuses before a cutoff, oldest first, capped, and never a subscription delivery', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     const before = new Date('2026-01-05');
     await repo.findStaleIn([OrderStatus.CREATED, OrderStatus.CONFIRMED], before);
@@ -580,11 +583,21 @@ describe('OrderPrismaRepository', () => {
       where: {
         status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] },
         createdAt: { lt: before },
+        subscriptionId: null,
       },
       include: expect.any(Object),
       orderBy: { createdAt: 'asc' },
       take: 500,
     });
+  });
+
+  it('drops the subscription exclusion when the D1 kill switch is off', async () => {
+    order.findMany.mockResolvedValue([]);
+    const before = new Date('2026-01-05');
+    await repo.findStaleIn([OrderStatus.CREATED], before, undefined, false);
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: { in: [OrderStatus.CREATED] }, createdAt: { lt: before } } }),
+    );
   });
 
   it('lets the caller shrink the stale-sweep batch', async () => {
