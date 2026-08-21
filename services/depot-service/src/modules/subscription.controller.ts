@@ -74,12 +74,15 @@ export class SubscriptionController {
   create(@Body() dto: CreateSubscriptionDto): Promise<Subscription> {
     return this.subscriptions.create({
       depotId: dto.depotId,
-      customerId: dto.customerId ?? null,
+      customerId: dto.customerId,
       customerName: dto.customerName,
       productLabel: dto.productLabel,
+      productId: dto.productId,
       quantity: dto.quantity,
       cadence: dto.cadence,
-      nextRunAt: dto.nextRunAt ? new Date(dto.nextRunAt) : null,
+      // D10: what the operator picks is the FIRST delivery. The engine owns every date
+      // after it, so there is no second schedule living here to drift out of step.
+      firstDeliveryAt: new Date(dto.firstDeliveryAt),
       note: dto.note ?? null,
     });
   }

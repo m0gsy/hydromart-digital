@@ -1,3 +1,5 @@
+import { DeliveryAddressSnapshot } from './order.repository';
+
 /**
  * The one thing order-service tells customer-service about a customer: where they bought.
  *
@@ -18,6 +20,17 @@ export interface CustomerDirectoryPort {
    * checkout carries on.
    */
   claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean>;
+
+  /**
+   * D10: where a subscription created FOR this customer by depot staff delivers.
+   *
+   * The customer's primary address, which is the same rule their own subscription screen
+   * uses — one definition of "where a standing order goes" rather than two that can
+   * disagree. `null` when they have none, or when customer-service cannot be read: the
+   * caller must refuse rather than invent an address, because a subscription is a standing
+   * instruction to send water somewhere.
+   */
+  primaryAddress(customerId: string): Promise<DeliveryAddressSnapshot | null>;
 
   /**
    * §I: the counter buyer, resolved (or pre-registered) from the phone the cashier typed.

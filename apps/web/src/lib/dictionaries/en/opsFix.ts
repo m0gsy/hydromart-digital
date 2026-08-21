@@ -444,6 +444,8 @@ export const opsFix = {
     qtyPlaceholder: '2',
     cadence: 'Frequency',
     nextRun: 'Next run',
+    /** D10: the operator picks the first delivery; the engine owns every date after it. */
+    firstRun: "First delivery",
     note: 'Note',
     notePlaceholder: 'e.g. deliver before 9am',
     cancel: 'Cancel',

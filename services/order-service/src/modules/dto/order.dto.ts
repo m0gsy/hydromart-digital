@@ -305,6 +305,36 @@ export class CreateSubscriptionDto {
   deliveryAddress!: DeliveryAddressDto;
 }
 
+/**
+ * D10: what depot-service sends when an operator sets a subscription up for a customer.
+ *
+ * Same shape as the customer's own, minus the address — the engine reads the customer's
+ * primary one. An operator typing an address on somebody else's behalf is how the
+ * unroutable plans D3 refuses were created.
+ */
+export class CreateSubscriptionForCustomerDto {
+  @ApiProperty({ format: 'uuid', description: 'Registered customer the plan is for.' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ minimum: 1, description: 'Units delivered each cycle.' })
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+
+  @ApiProperty({ enum: ['WEEKLY', 'BIWEEKLY', 'MONTHLY'] })
+  @IsIn(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
+  frequency!: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
+  @ApiProperty({ format: 'date-time', description: 'First scheduled delivery.' })
+  @IsDateString()
+  firstDeliveryAt!: string;
+}
+
 /** Optional depot scope: which depot's subscription discount to answer against. */
 export class DepotScopeQueryDto {
   @ApiPropertyOptional({

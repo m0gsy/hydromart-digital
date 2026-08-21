@@ -444,8 +444,13 @@ async function seedAdminMasterData() {
  * closed book. `customerId` is REQUIRED on a subscription (S2) — a free-text name is a
  * note, not a link — so this picks a real customer out of the depot's own CRM directory
  * and skips the row entirely when the directory is empty rather than inventing one.
+ *
+ * D10 added two more requirements, and this seed is a real caller that had to move with
+ * them: the plan runs on order-service's engine now, which places orders for a product ID
+ * and starts on a date. A label cannot be delivered, and a plan with no start has no
+ * schedule for the engine to keep.
  */
-async function seedDepotMasterData(depotByCode) {
+async function seedDepotMasterData(depotByCode, productBySku) {
   const depotId = [...depotByCode.values()][0];
   if (!depotId) return;
 
@@ -470,19 +475,39 @@ async function seedDepotMasterData(depotByCode) {
     if (!customer) {
       console.log(`- subscription skipped: no customer in the depot directory and no ${DEMO_CUSTOMER_PHONE}`);
     } else {
-      ok(
-        await api('POST', '/depots/api/v1/subscriptions', {
+      // D10: the plan runs on order-service's engine now, so it needs what the engine
+      // needs — a product ID the operator picked, not a label, and a first delivery date.
+      // Every date after it belongs to the engine.
+      const productId = productBySku?.get('AIR-GALON-19L');
+      if (!productId) {
+        console.log('- subscription skipped: AIR-GALON-19L not in the catalogue');
+      } else {
+        const made = await api('POST', '/depots/api/v1/subscriptions', {
           depotId,
           customerId: customer.id,
           customerName: customer.fullName ?? customer.name ?? 'Pelanggan',
           productLabel: 'Galon 19L',
+          productId,
           quantity: 2,
           cadence: 'WEEKLY',
+          firstDeliveryAt: new Date(Date.now() + 86_400_000).toISOString(),
           note: 'Langganan contoh (seed)',
-        }),
-        'create subscription',
-      );
-      console.log(`+ subscription ${customer.fullName ?? customer.id}`);
+        });
+        // D10 made a saved address a precondition: the engine delivers to the CUSTOMER's
+        // own address, and inventing one on their behalf is exactly what it forbids. On a
+        // fresh stack nobody has one — this seed cannot create it either, because
+        // addresses are written with the customer's OWN token and the seed holds none.
+        //
+        // So the fixture is skipped, loudly and by name. NOT swallowed: any other failure
+        // still stops the seed, and this one prints what is missing rather than pretending
+        // a subscription exists.
+        if (made.body?.code === 'SUBSCRIPTION_ENGINE_UNAVAILABLE') {
+          console.log(`- subscription skipped: ${made.body.message}`);
+        } else {
+          ok(made, 'create subscription');
+          console.log(`+ subscription ${customer.fullName ?? customer.id}`);
+        }
+      }
     }
   }
 
@@ -514,7 +539,7 @@ async function main() {
   await seedEmployees(depotByCode);
   await seedHrMasterData(depotByCode);
   await seedAdminMasterData();
-  await seedDepotMasterData(depotByCode);
+  await seedDepotMasterData(depotByCode, productBySku);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);
 }

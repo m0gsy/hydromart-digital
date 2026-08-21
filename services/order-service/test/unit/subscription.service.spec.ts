@@ -5,6 +5,7 @@ import { SubscriptionService } from '../../src/application/services/subscription
 import {
   ProductUnavailableError,
   SubscriptionAddressNotRoutableError,
+  SubscriptionCustomerAddressMissingError,
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../src/domain/errors';
@@ -65,6 +66,9 @@ describe('SubscriptionService', () => {
   let orderService: OrderService;
   let service: SubscriptionService;
   let depots: FakeDepotDirectory;
+  // D10: a depot-created subscription reads the customer's own primary address, so the spec
+  // needs a handle on the directory to say whether they have one.
+  let customers: FakeCustomerDirectory;
   // D9: the scheduled-order notification is sent AFTER the row exists and fails open, so
   // the spec needs a handle on it to make a send fail. D2 then reuses it the other way —
   // to see that the sweep TELLS the customer when it gives up on a plan.
@@ -77,6 +81,7 @@ describe('SubscriptionService', () => {
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
     depots.depots = [homeDepot];
+    customers = new FakeCustomerDirectory();
     const cart = new InMemoryCartRepository();
     const cartService = buildCartService(cart, catalog);
     notification = new FakeNotification();
@@ -90,7 +95,7 @@ describe('SubscriptionService', () => {
       new FakeReferralCoordination(),
       new FakeMembership(),
       new FakeResellerDiscount(),
-      new FakeCustomerDirectory(),
+      customers,
       notification,
       new FakePromo(),
       new FakeInventory(),
@@ -104,7 +109,14 @@ describe('SubscriptionService', () => {
       new FakePaymentReversal(),
       buildOutbox(orders),
     );
-    service = new SubscriptionService(subs, catalog, orderService, buildTestConfig(), notification);
+    service = new SubscriptionService(
+      subs,
+      catalog,
+      orderService,
+      buildTestConfig(),
+      notification,
+      customers,
+    );
   });
 
   const seedProduct = () => catalog.seed({ id: randomUUID(), basePrice: 8000 });
@@ -513,6 +525,56 @@ describe('SubscriptionService', () => {
         address: unpinned,
       }),
     ).rejects.toBeInstanceOf(SubscriptionAddressNotRoutableError);
+  });
+
+  /**
+   * D10 · a subscription depot staff set up FOR a customer, on the same engine.
+   *
+   * The address is the CUSTOMER's own primary one, read here rather than taken from the
+   * caller: a depot operator typing an address on somebody else's behalf is how the
+   * unroutable plans D3 refuses got created in the first place.
+   */
+  describe('D10 · createForCustomer', () => {
+    const input = {
+      productId: '',
+      quantity: 2,
+      frequency: 'WEEKLY' as const,
+      firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+    };
+
+    it('delivers to the customer own primary address', async () => {
+      const p = seedProduct();
+      customers.primary = address;
+
+      const sub = await service.createForCustomer(customer, { ...input, productId: p.id });
+
+      expect(sub.customerId).toBe(customer);
+      expect(sub.addressLine).toBe(address.addressLine);
+      expect(sub.latitude).toBe(address.latitude);
+    });
+
+    // No address, no subscription. A standing instruction to send water somewhere cannot
+    // be created against a guess, and the error names the missing thing so the operator
+    // can ask the customer to add it.
+    it('refuses when the customer has no saved address', async () => {
+      const p = seedProduct();
+      customers.primary = null;
+
+      await expect(
+        service.createForCustomer(customer, { ...input, productId: p.id }),
+      ).rejects.toBeInstanceOf(SubscriptionCustomerAddressMissingError);
+    });
+
+    // D3 composes with it: an address that exists but has no map pin is refused too, by
+    // the same guard every customer-made plan goes through.
+    it('refuses an address with no map pin, through the D3 guard', async () => {
+      const p = seedProduct();
+      customers.primary = { ...address, latitude: null, longitude: null };
+
+      await expect(
+        service.createForCustomer(customer, { ...input, productId: p.id }),
+      ).rejects.toBeInstanceOf(SubscriptionAddressNotRoutableError);
+    });
   });
 
   it('refuses to subscribe to an inactive/unknown product', async () => {

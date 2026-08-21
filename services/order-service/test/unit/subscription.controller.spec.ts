@@ -12,6 +12,7 @@ function makeService(): Mocked {
     resume: jest.fn().mockResolvedValue({ id: 's1', status: 'ACTIVE' }),
     cancel: jest.fn().mockResolvedValue({ id: 's1', status: 'CANCELLED' }),
     processDue: jest.fn().mockResolvedValue({ placed: 2 }),
+    createForCustomer: jest.fn().mockResolvedValue({ id: 'sub-1' }),
     discountRate: jest.fn().mockReturnValue(0.08),
   } as unknown as Mocked;
 }
@@ -112,6 +113,29 @@ describe('SubscriptionController', () => {
     expect(service.discountRate).toHaveBeenCalledWith('d1');
     controller.discount({});
     expect(service.discountRate).toHaveBeenLastCalledWith(null);
+  });
+
+  /**
+   * D10: the depot console's create, arriving over the internal key rather than a JWT —
+   * depot-service holds no token for the customer it is acting on behalf of.
+   *
+   * No address in the body, deliberately: the engine reads the customer's own.
+   */
+  it('createInternal: builds a plan for a named customer, with no address in the body', async () => {
+    await controller.createInternal({
+      customerId: 'cust-9',
+      productId: 'prod-9',
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+    } as never);
+
+    expect(service.createForCustomer).toHaveBeenCalledWith('cust-9', {
+      productId: 'prod-9',
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
   });
 
   it('processDue: sweeps due subscriptions as of now', async () => {

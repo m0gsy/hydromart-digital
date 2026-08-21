@@ -359,6 +359,25 @@ export class SubscriptionAddressNotRoutableError extends DomainError {
   }
 }
 
+/**
+ * D10: a subscription depot staff tried to create for a customer who has no saved address.
+ *
+ * The engine delivers to an address, and the only honest one is the customer's own. A depot
+ * operator typing one on somebody else's behalf is how the unroutable plans D3 now refuses
+ * were created — so this refuses instead, and names the missing thing so the operator can
+ * ask the customer to add it.
+ */
+export class SubscriptionCustomerAddressMissingError extends DomainError {
+  readonly code = 'SUBSCRIPTION_CUSTOMER_ADDRESS_MISSING';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Pelanggan ini belum punya alamat tersimpan, jadi langganan tidak bisa dibuat. ' +
+        'Minta pelanggan menambah alamat berikut titik petanya dulu.',
+    );
+  }
+}
+
 /** Spec 7c: an order can only be reviewed once it has been delivered/completed. */
 export class OrderNotReviewableError extends DomainError {
   readonly code = 'ORDER_NOT_REVIEWABLE';

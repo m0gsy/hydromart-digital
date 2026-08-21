@@ -71,3 +71,43 @@ describe('AddressService', () => {
     expect(updated.city).toBe('Jakarta');
   });
 });
+
+/**
+ * D10 · where a subscription created FOR this customer by depot staff delivers.
+ *
+ * The primary one, because that is the same rule the customer's own subscription screen
+ * uses — one definition of "where a standing order goes" rather than two that can disagree.
+ */
+describe('AddressService.primary (D10)', () => {
+  const build = () => {
+    const repo = new InMemoryAddressRepository();
+    return { repo, service: new AddressService(repo, buildTestConfig()) };
+  };
+
+  it('answers the primary address', async () => {
+    const { service } = build();
+    await service.create('c1', input('Rumah'));
+    const second = await service.create('c1', input('Kantor'));
+    await service.setPrimary('c1', second.id);
+
+    await expect(service.primary('c1')).resolves.toMatchObject({ id: second.id });
+  });
+
+  // Falls back to the only one they have rather than answering "none" — a customer with a
+  // single address has an obvious primary even if nothing ever flagged it.
+  it('falls back to the first when nothing is flagged primary', async () => {
+    const { repo, service } = build();
+    const only = await service.create('c1', input('Rumah'));
+    repo.rows.forEach((r) => {
+      r.isPrimary = false;
+    });
+    await expect(service.primary('c1')).resolves.toMatchObject({ id: only.id });
+  });
+
+  // `null`, never an invented address: the caller refuses the subscription rather than
+  // sending water to a guess.
+  it('answers null for a customer with no addresses', async () => {
+    const { service } = build();
+    await expect(service.primary('nobody')).resolves.toBeNull();
+  });
+});

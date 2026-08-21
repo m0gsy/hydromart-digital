@@ -1402,6 +1402,52 @@ describe('CustomerDirectoryHttpAdapter', () => {
       expect('fullName' in body).toBe(false);
     });
 
+    /**
+     * D10: where a subscription created FOR this customer by depot staff delivers. Read
+     * here rather than typed by whoever filled the form — that is what stops an operator
+     * from putting somebody else's address on a standing order.
+     */
+    it('reads the customer primary address', async () => {
+      const fetchMock = jest.fn().mockResolvedValue(
+        res({
+          body: {
+            recipientName: 'Budi',
+            phone: '081234567890',
+            addressLine: 'Jl. Merdeka 10',
+            city: 'Bandung',
+            province: 'Jawa Barat',
+            postalCode: '40111',
+            latitude: -6.9,
+            longitude: 107.6,
+            notes: null,
+          },
+        }),
+      );
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).primaryAddress('c1'),
+      ).resolves.toMatchObject({ addressLine: 'Jl. Merdeka 10', latitude: -6.9 });
+      expect(String(fetchMock.mock.calls[0]![0])).toContain('/addresses/internal/primary?customerId=c1');
+    });
+
+    // Never invents one. The caller refuses the subscription instead of sending water to a
+    // guess, so `null` has to survive an outage, a refusal and an unreadable body alike.
+    it('answers null on a refusal, an outage and a body that is not an address', async () => {
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).primaryAddress('c1'),
+      ).resolves.toBeNull();
+
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ body: {} }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).primaryAddress('c1'),
+      ).resolves.toBeNull();
+
+      const blank = quiet(new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })));
+      await expect(blank.primaryAddress('c1')).resolves.toBeNull();
+    });
+
     it('calls nothing when there is no internal key', async () => {
       const fetchMock = jest.fn();
       (globalThis as { fetch: unknown }).fetch = fetchMock;
