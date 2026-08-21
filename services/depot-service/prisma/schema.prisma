@@ -811,6 +811,14 @@ model Subscription {
   customerId   String?             @db.Uuid
   customerName String
   productLabel String
+  /// D10: what the operator actually PICKED, as opposed to what they typed. The engine
+  /// places orders for a product id; a label cannot be delivered.
+  productId    String?             @db.Uuid
+  /// D10: the order-service subscription this row now stands for — the engine that D1, D2,
+  /// D4, D6, D8 and D9 repaired. Nullable forever: rows created before the link existed
+  /// have none, and a row whose creation reached depot-service but not the engine must be
+  /// visible as exactly that rather than silently look linked.
+  orderSubscriptionId String?      @db.Uuid
   quantity     Int
   cadence      SubscriptionCadence
   status       SubscriptionStatus  @default(ACTIVE)
