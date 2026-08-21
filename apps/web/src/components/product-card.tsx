@@ -11,6 +11,7 @@ import { haptic } from '@/lib/platform';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { cartDepotId } from '@/lib/location-store';
+import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -42,7 +43,9 @@ export function ProductCard({
     e.preventDefault();
     e.stopPropagation();
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${product.id}`)}`);
+      // G1: keep the item and come back HERE, not to a product page nobody asked for.
+      setPendingAdd({ productId: product.id, quantity: 1 });
+      router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     setAdding(true);

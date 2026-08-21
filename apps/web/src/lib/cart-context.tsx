@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api } from './api';
 import { endpoints } from './endpoints';
 import { cartDepotId } from './location-store';
+import { takePendingAdd } from './pending-add';
 import { useAuth } from './auth-context';
 import type { Cart } from './types';
 
@@ -44,6 +45,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
+      /*
+       * G1. A guest who tapped add-to-cart left the item here on the way to the OTP screen.
+       * This is where it is redeemed, and this is the only place it could be: the provider
+       * is mounted on every shopping route and already watches the session change, so the
+       * flush covers arriving from login, from register, and from a biometric unlock that
+       * restores a session without any of those screens rendering at all.
+       *
+       * Posted BEFORE the read, and then the read is skipped: `POST /cart/items` answers
+       * with the whole priced cart, so redeeming costs nothing extra. A failure here falls
+       * through to the plain read — the shopper is signed in with an unchanged cart, which
+       * is exactly where they were, rather than staring at an error for a tap they made two
+       * screens ago.
+       */
+      const pending = takePendingAdd();
+      if (pending) {
+        try {
+          const added = await api.post<Cart>(
+            endpoints.cart.items(cartDepotId()),
+            { productId: pending.productId, quantity: pending.quantity },
+            true,
+          );
+          setCart(added);
+          setOptimistic(0);
+          return;
+        } catch {
+          /* fall through to the ordinary read */
+        }
+      }
       const next = await api.get<Cart>(endpoints.cart.view(cartDepotId()), true);
       setCart(next);
       setOptimistic(0);
