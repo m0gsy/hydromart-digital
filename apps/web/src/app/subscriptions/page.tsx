@@ -312,6 +312,19 @@ function Panel() {
                         {copy.next}: <span className="font-bold text-[color:var(--text)]">{fmtDate(s.nextDeliveryAt)}</span>
                       </div>
                     )}
+                    {/*
+                      D3: a plan whose saved address has no map pin can never be routed to a
+                      depot, so the sweep skips it every tick and the schedule never moves.
+                      It sat here reading "Aktif", next-delivery date frozen in the past,
+                      delivering nothing and explaining nothing. New ones are refused at
+                      creation; the ones already sitting here say why.
+                    */}
+                    {s.status !== 'CANCELLED' &&
+                      (s.latitude == null || s.longitude == null) && (
+                        <div className="mt-2 rounded-xl bg-[color:var(--danger-bg)] px-3 py-2 text-[12px] font-semibold text-[color:var(--danger)]">
+                          {t('customerFix.subscriptionUnroutable')}
+                        </div>
+                      )}
                     {s.status !== 'CANCELLED' && (
                       <div className="mt-3 flex gap-2.5">
                         {s.status === 'ACTIVE' ? (
