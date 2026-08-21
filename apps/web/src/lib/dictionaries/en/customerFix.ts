@@ -1,5 +1,7 @@
 // English mirror of id/customerFix.ts — SAME keys, English values.
 export const customerFix = {
+  /** D3: a subscription whose address cannot be routed delivers nothing, silently. */
+  subscriptionUnroutable: "This plan cannot run yet: its address has no map pin. Open that address, tap \"Use my location\", then create the plan again.",
   /** I5: the customer's own gallon deposit — two numbers that lived only in the staff console. */
   gallonDeposit: {
     title: "Gallon deposit",

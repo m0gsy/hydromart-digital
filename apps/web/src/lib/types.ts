@@ -327,6 +327,13 @@ export interface Subscription {
   frequency: SubscriptionFrequency;
   status: SubscriptionStatus;
   nextDeliveryAt: string;
+  /**
+   * D3: the delivery address snapshot the sweep routes from. The API has always returned
+   * it; the client simply did not know it existed — so a plan whose address has no map pin
+   * showed "Aktif" forever while delivering nothing, and the screen had no way to say why.
+   */
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
   updatedAt: string;
 }

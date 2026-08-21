@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import {
   ProductUnavailableError,
+  SubscriptionAddressNotRoutableError,
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../domain/errors';
@@ -64,6 +65,13 @@ export class SubscriptionService {
   }
 
   async create(customerId: string, input: CreateSubscriptionInput): Promise<SubscriptionRecord> {
+    // D3: refuse a plan nobody could ever fulfil, while somebody is still on the screen to
+    // fix it. The sweep resolves a depot from this snapshot and has nothing to fall back on
+    // — no customer to ask, no depot picker, no session — so an address with no map pin
+    // becomes a subscription that is ACTIVE forever and delivers nothing.
+    if (input.address.latitude === null || input.address.longitude === null) {
+      throw new SubscriptionAddressNotRoutableError();
+    }
     const product = await this.catalog.getProduct(input.productId);
     if (!product || !product.active) {
       throw new ProductUnavailableError(input.productId);

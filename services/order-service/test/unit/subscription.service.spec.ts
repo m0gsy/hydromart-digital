@@ -2,8 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import { OrderService } from '../../src/application/services/order.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
-import { ProductUnavailableError, SubscriptionNotFoundError } from '../../src/domain/errors';
-import { SubscriptionNotActionableError } from '../../src/domain/errors';
+import {
+  ProductUnavailableError,
+  SubscriptionAddressNotRoutableError,
+  SubscriptionNotActionableError,
+  SubscriptionNotFoundError,
+} from '../../src/domain/errors';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
   FakeDepotDirectory,
@@ -324,14 +328,26 @@ describe('SubscriptionService', () => {
     expect(a.placed + b.placed).toBe(1);
   });
 
+  /**
+   * The fixture is written straight to the repository now, because D3 refuses to CREATE an
+   * unroutable plan through the service. The property is still worth guarding and it did
+   * not go away with D3: rows like this exist in production from before the guard, and an
+   * address can stop being routable later — a depot removed, a service radius redrawn.
+   * What must never happen is the sweep placing a depot-less order or advancing past it.
+   */
   it('skips a subscription whose address cannot be routed, leaving its schedule alone', async () => {
     const p = seedProduct();
-    const sub = await service.create(customer, {
+    const sub = await subs.create({
+      customerId: customer,
       productId: p.id,
+      productName: p.name,
+      unit: p.unit,
       quantity: 3,
       frequency: 'WEEKLY',
-      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
-      address: { ...address, latitude: null, longitude: null },
+      nextDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      ...address,
+      latitude: null,
+      longitude: null,
     });
 
     const result = await service.processDue(new Date('2026-07-13T00:00:00Z'));
@@ -341,6 +357,29 @@ describe('SubscriptionService', () => {
     expect(orders.rows).toHaveLength(0);
     const stillDue = (await service.list(customer)).find((s) => s.id === sub.id)!;
     expect(stillDue.nextDeliveryAt.getTime()).toBe(new Date('2026-07-01T00:00:00Z').getTime());
+  });
+
+  /**
+   * L0 REPRO (D3): a subscription whose saved address has no map pin can never be routed.
+   * `placeScheduled` calls `resolveDepot(address)` with no depot to fall back on, so it
+   * throws `DepotRequiredError`, the sweep catches it and skips, and the schedule never
+   * advances — a plan that is ACTIVE forever, delivers nothing, and says nothing.
+   *
+   * The customer set it up, sees "Aktif", and waits.
+   */
+  it('D3 REPRO: an unpinned address creates a subscription that can never deliver', async () => {
+    const p = seedProduct();
+    const unpinned = { ...address, latitude: null, longitude: null };
+
+    await expect(
+      service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address: unpinned,
+      }),
+    ).rejects.toBeInstanceOf(SubscriptionAddressNotRoutableError);
   });
 
   it('refuses to subscribe to an inactive/unknown product', async () => {

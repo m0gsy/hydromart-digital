@@ -339,6 +339,26 @@ export class SubscriptionNotActionableError extends DomainError {
   }
 }
 
+/**
+ * D3: a subscription is refused at birth when its address cannot be routed to a depot.
+ *
+ * The sweep resolves a depot from the saved address and has nothing to fall back on — no
+ * customer to ask, no depot picker, no session. An address with no map pin therefore
+ * produces a plan that is ACTIVE forever, delivers nothing, and explains nothing: the
+ * customer sets it up, sees "Aktif", and waits. Refusing while somebody is still on the
+ * screen to fix the address is the only moment this can be said out loud.
+ */
+export class SubscriptionAddressNotRoutableError extends DomainError {
+  readonly code = 'SUBSCRIPTION_ADDRESS_NOT_ROUTABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Alamat ini belum punya titik peta, jadi langganan tidak bisa dijadwalkan. ' +
+        'Buka alamat itu dan tekan "Gunakan lokasi saya" dulu.',
+    );
+  }
+}
+
 /** Spec 7c: an order can only be reviewed once it has been delivered/completed. */
 export class OrderNotReviewableError extends DomainError {
   readonly code = 'ORDER_NOT_REVIEWABLE';

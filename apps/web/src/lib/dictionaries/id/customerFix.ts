@@ -2,6 +2,8 @@
 // Kept in its own fragment so parallel batches don't collide in id.ts / en.ts.
 // Wire once: import + spread `customerFix` into dictionaries/id.ts and en.ts.
 export const customerFix = {
+  /** D3: a subscription whose address cannot be routed delivers nothing, silently. */
+  subscriptionUnroutable: "Langganan ini belum bisa jalan: alamatnya belum punya titik peta. Buka alamat itu, tekan \"Gunakan lokasi saya\", lalu buat ulang langganannya.",
   /** I5: the customer's own gallon deposit — two numbers that lived only in the staff console. */
   gallonDeposit: {
     title: "Deposit galon",
