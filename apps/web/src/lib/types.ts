@@ -1148,6 +1148,13 @@ export interface Delivery {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  /**
+   * I3: who the empties belong to. Snapshotted at assignment and returned by the driver
+   * detail read all along — the returns screen simply never read it, so every
+   * courier-collected empty was recorded against nobody and no per-customer deposit
+   * balance existed to reconcile. Null on deliveries that predate the snapshot.
+   */
+  customerId?: string | null;
   // Snapshotted at assignment (delivery-service). recipientPhone is the CUSTOMER's
   // own number (courier → customer); items is the manifest; codAmount is whole-IDR
   // cash to collect, null/0 = non-COD. Absent from legacy deliveries.

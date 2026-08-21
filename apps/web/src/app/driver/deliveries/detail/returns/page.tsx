@@ -46,7 +46,19 @@ function Returns() {
     try {
       const rec = await api.post<GallonReturnResult>(
         endpoints.deliveries.gallonReturns.create,
-        { depotId: delivery.depotId, orderId: delivery.orderId, quantity, condition },
+        {
+          depotId: delivery.depotId,
+          orderId: delivery.orderId,
+          // I3: the empties belong to somebody. Without this every courier return was
+          // recorded against nobody, so there was no per-customer deposit balance to
+          // reconcile — and the per-customer return cap has nothing to measure against.
+          //
+          // Omitted rather than sent as null on a delivery that predates the snapshot: the
+          // DTO reads absent as "anonymous", and a null would have to be special-cased.
+          ...(delivery.customerId ? { customerId: delivery.customerId } : {}),
+          quantity,
+          condition,
+        },
         true,
       );
       setDone(rec);
