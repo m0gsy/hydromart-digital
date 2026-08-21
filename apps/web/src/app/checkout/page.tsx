@@ -13,7 +13,6 @@ import {
   Lightning,
   MapPin,
   Money as MoneyIcon,
-  NotePencil,
   Plus,
   QrCode,
   ShieldCheck,
@@ -44,6 +43,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
+import { currentPosition, geoReason } from '@/lib/geo';
 import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
@@ -178,7 +178,6 @@ function CheckoutInner() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [sheet, setSheet] = useState<SheetKey | null>(null);
-  const [editingNote, setEditingNote] = useState(false);
 
   // `null` = a fresh manually-typed address (no saved coordinates). Selecting a saved
   // address stashes its lat/lng, which lets order-service route the order to a depot
@@ -186,6 +185,16 @@ function CheckoutInner() {
   const [selection, setSelection] = useState<'new' | string | null>(null);
   const [saveToBook, setSaveToBook] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
+  /*
+   * O2. How good the pin the customer just captured is, in metres, and whether the capture
+   * is running or failed. Kept beside `coords` rather than inside it because it describes
+   * the READING, not the point: a saved address carries coordinates with no accuracy at
+   * all, and pretending otherwise would put a made-up number on screen.
+   */
+  const [pinAccuracy, setPinAccuracy] = useState<number | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ latitude: number | null; longitude: number | null }>({
     latitude: null,
     longitude: null,
@@ -338,9 +347,36 @@ function CheckoutInner() {
 
   // Editing an address field detaches from the saved coordinates (they no longer match).
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (k !== 'notes') setCoords({ latitude: null, longitude: null });
+    // G2: the `notes` exception stays, and now it earns its keep — patokan is a visible
+    // field on this form, and typing one must not throw away the pin that was just taken.
+    if (k !== 'notes') {
+      setCoords({ latitude: null, longitude: null });
+      setPinAccuracy(null);
+    }
     setForm((f) => ({ ...f, [k]: e.target.value }));
   };
+
+  /*
+   * O2. The pin the address book requires. `latitude` and `longitude` are NOT optional on
+   * customer-service's CreateAddressDto, and this screen's "Simpan alamat" checkbox posted
+   * an address without either of them — so that request was a guaranteed 400, and the 400
+   * went into an empty catch. The checkbox had never once saved an address.
+   */
+  async function capturePin() {
+    setPinError(null);
+    setPinBusy(true);
+    try {
+      const pos = await currentPosition();
+      setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      // `accuracy` is metres, and it is the only honest way to say "is this pin any good"
+      // without a map. A 2km reading and a 12m reading look identical on a coordinate pair.
+      setPinAccuracy(Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null);
+    } catch (err) {
+      setPinError(t(`errors.geo.${geoReason(err)}`));
+    } finally {
+      setPinBusy(false);
+    }
+  }
 
   async function applyVoucher(codeOverride?: string) {
     const code = (codeOverride ?? voucherCode).trim().toUpperCase();
@@ -413,7 +449,16 @@ function CheckoutInner() {
         true,
         { 'Idempotency-Key': attemptKey.current },
       );
-      // Save a fresh address to the book (non-blocking) so it's reusable next time.
+      /*
+       * O2. Saving the address the customer just typed.
+       *
+       * This payload used to omit `latitude` and `longitude`, which are NOT optional on
+       * customer-service's CreateAddressDto — so the request was a guaranteed 400, and the
+       * 400 fell into an empty catch. The checkbox had never saved an address once, and
+       * nothing anywhere said so. The pin is now taken on this screen, sent with the rest,
+       * and a refusal is shown rather than eaten. Still non-blocking: the ORDER is placed,
+       * and a failed book entry must not read as a failed purchase.
+       */
       if (saveToBook && !savedAddresses?.some((a) => a.id === selection)) {
         try {
           await api.post(
@@ -426,11 +471,31 @@ function CheckoutInner() {
               city: form.city,
               province: form.province,
               postalCode: form.postalCode || undefined,
+              latitude: coords.latitude ?? undefined,
+              longitude: coords.longitude ?? undefined,
+              // K1.7: the patokan travels with the address, which is the whole point of
+              // saving it — a courier reads it on every future order to this door.
+              notes: form.notes.trim() || undefined,
             },
             true,
           );
+        } catch (err) {
+          setSaveError(err instanceof ApiError ? err.message : t('order.checkout.saveAddressFailed'));
+        }
+      }
+
+      /*
+       * K1.7. A saved address whose patokan was corrected here used to keep the wrong one
+       * forever: checkout filled the field FROM the address and never wrote back, so the
+       * same bad direction was handed to the next courier, and the one after that. Written
+       * back only when it actually changed, and only for an address that exists.
+       */
+      const chosen = savedAddresses?.find((a) => a.id === selection);
+      if (chosen && form.notes.trim() !== (chosen.notes ?? '').trim()) {
+        try {
+          await api.patch(endpoints.addresses.detail(chosen.id), { notes: form.notes.trim() || null }, true);
         } catch {
-          /* the order is placed; a failed address save must not block the flow */
+          /* the order carries the corrected note either way; the book catches up next time */
         }
       }
       /*
@@ -621,6 +686,59 @@ function CheckoutInner() {
               <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
             </Field>
           </div>
+          {/* O2. The pin, on the screen that needs it. The address book has required one all
+              along; this form simply never offered a way to take it, so every "Simpan
+              alamat" here was a 400 nobody saw. Same one-tap control as /addresses — no map
+              picker, and raw lat/lng is jargon to someone ordering water. */}
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <MapPin size={16} weight="fill" className="text-brand-600" />
+              {t('profile.addresses.pin.title')}
+              <span className="text-xs font-normal text-muted">
+                {saveToBook ? t('profile.addresses.pin.required') : t('profile.addresses.pin.optional')}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                loading={pinBusy}
+                onClick={capturePin}
+                className="rounded-full px-3.5 py-1.5 text-[13px]"
+              >
+                {t('profile.addresses.pin.useLocation')}
+              </Button>
+              {coords.latitude != null && (
+                <span className="text-[13px] font-semibold text-[color:var(--success)]">
+                  {t('profile.addresses.pin.pinned')}
+                </span>
+              )}
+            </div>
+            {/* A coordinate pair cannot be judged by a human. These two lines can: how tight
+                the reading was, and which depot it lands next to. Both are already in hand —
+                `accuracy` from the same fix, the depot from the nearby lookup this screen
+                already runs. No map, no reverse-geocode, no new data leaving the device. */}
+            {coords.latitude != null && (
+              <p className="text-xs leading-relaxed text-muted">
+                {pinAccuracy != null && t('order.checkout.pinAccuracy', { m: Math.round(pinAccuracy) })}
+                {nearbyDepots?.[0] && (
+                  <>
+                    {pinAccuracy != null ? ' · ' : ''}
+                    {t('order.checkout.pinNearDepot', {
+                      depot: nearbyDepots[0].name,
+                      km: nearbyDepots[0].distanceKm.toFixed(1),
+                    })}
+                  </>
+                )}
+              </p>
+            )}
+            {pinError && (
+              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                {pinError}
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-2 border-t border-app pt-3">
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -631,6 +749,18 @@ function CheckoutInner() {
               />
               {t('order.checkout.saveAddress')}
             </label>
+            {/* The confirmation step: what is about to be written, in words, before it is
+                written. A checkbox alone asked someone to agree to something invisible. */}
+            {saveToBook && coords.latitude == null && (
+              <p className="text-xs font-medium text-[color:var(--danger)]">
+                {t('order.checkout.savePinRequired')}
+              </p>
+            )}
+            {saveError && (
+              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                {saveError}
+              </p>
+            )}
             {saveToBook && (
               <Field label={t('order.checkout.addressLabel')} htmlFor="saveLabel" hint={t('order.checkout.addressLabelHint')}>
                 <Input
@@ -646,35 +776,24 @@ function CheckoutInner() {
         </div>
       )}
 
-      {/* Driver note row */}
-      <div className="flex items-center gap-2.5 rounded-[14px] bg-[color:var(--surface-muted)] px-3.5 py-3 text-[12.5px]">
-        <NotePencil size={16} weight="fill" className="flex-shrink-0 text-brand-600" />
-        {editingNote ? (
-          <input
-            autoFocus
-            value={form.notes}
-            onChange={set('notes')}
-            onBlur={() => setEditingNote(false)}
-            placeholder={t('order.checkout.courierNotesPlaceholder')}
-            aria-label={t('order.checkout.courierNotes')}
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[color:var(--text-muted)]"
-          />
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 truncate text-muted">
-              {t('order.checkout.courierNotes')}:{' '}
-              {form.notes || t('order.checkout.courierNotesPlaceholder')}
-            </span>
-            <button
-              type="button"
-              onClick={() => setEditingNote(true)}
-              className="flex-shrink-0 font-bold text-brand-700 hover:text-brand-800"
-            >
-              {t('account.profileCard.edit')}
-            </button>
-          </>
-        )}
-      </div>
+      {/*
+        G2. The patokan, as an ordinary always-visible field.
+
+        It used to be a tap-to-edit row: the value rendered as truncated grey text next to an
+        "Ubah" link, which is how a form asks to be skipped. It is the one line on this
+        screen written for the person who has to FIND the door, and on a saved address it is
+        also the line K1.7 now writes back — a field that has to be discovered by tapping is
+        the wrong home for either job.
+      */}
+      <Field label={t('order.checkout.courierNotes')} htmlFor="courierNotes" hint={t('order.checkout.courierNotesHint')}>
+        <Input
+          id="courierNotes"
+          value={form.notes}
+          onChange={set('notes')}
+          placeholder={t('order.checkout.courierNotesPlaceholder')}
+          maxLength={200}
+        />
+      </Field>
     </div>
     </>
   );
@@ -1204,8 +1323,13 @@ function CheckoutInner() {
           onClose={() => setSheet(null)}
           title={t(titleKey)}
           footer={
+            /* O2. This button closes the sheet. It said "Simpan" on all five of them —
+               including the voucher and payment sheets, which save nothing either — so the
+               word promised a write that no code anywhere performed. Everything in these
+               sheets is already held in form state; the only thing that ever writes is
+               "Buat pesanan". */
             <Button type="button" className="w-full" onClick={() => setSheet(null)}>
-              {t('profile.addresses.form.save')}
+              {t('common.done')}
             </Button>
           }
         >

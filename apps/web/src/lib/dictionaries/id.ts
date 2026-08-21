@@ -148,6 +148,7 @@ export const id = {
     confirm: 'Konfirmasi',
     cancel: 'Batal',
     close: 'Tutup',
+    done: 'Selesai',
     back: 'Kembali',
     retry: 'Coba lagi',
     loading: 'Memuat…',

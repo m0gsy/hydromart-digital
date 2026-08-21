@@ -142,6 +142,7 @@ export const en: Dictionary = {
     confirm: 'Confirm',
     cancel: 'Cancel',
     close: 'Close',
+    done: 'Done',
     back: 'Back',
     retry: 'Try again',
     loading: 'Loading…',
