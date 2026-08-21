@@ -51,6 +51,14 @@ export interface SubscriptionRepository {
   findDue(now: Date): Promise<SubscriptionRecord[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
   /**
+   * D4: resume, which is a status change AND a schedule move in one write.
+   *
+   * Two writes would leave a window where the plan is ACTIVE holding a due date in the
+   * past — and the sweep runs on a timer, so that window is exactly long enough for it to
+   * place the delivery the resume was meant to postpone.
+   */
+  resume(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord>;
+  /**
    * Moves the schedule on, but only from the date the sweep read (H-3).
    *
    * The compare-and-set is what makes one due delivery advance once: a second sweep

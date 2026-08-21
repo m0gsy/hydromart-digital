@@ -99,7 +99,9 @@ export class SubscriptionController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubscriptionRecord> {
-    return this.subscriptions.resume(user.sub, id);
+    // D4: resume needs "now" to know how far the schedule has to move. Passed from the
+    // edge rather than read inside the service, the same way `process-due` does it.
+    return this.subscriptions.resume(user.sub, id, new Date());
   }
 
   @ApiOkResponse({ type: SubscriptionResponseDto })

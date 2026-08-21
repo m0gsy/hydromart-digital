@@ -130,15 +130,73 @@ describe('SubscriptionService', () => {
       address,
     });
     expect((await service.pause(customer, sub.id)).status).toBe('PAUSED');
-    expect((await service.resume(customer, sub.id)).status).toBe('ACTIVE');
+    expect((await service.resume(customer, sub.id, new Date())).status).toBe('ACTIVE');
     expect((await service.cancel(customer, sub.id)).status).toBe('CANCELLED');
     await expect(service.pause(customer, sub.id)).rejects.toBeInstanceOf(
       SubscriptionNotActionableError,
     );
     // resume is equally blocked once cancelled (BR: a cancelled sub is terminal).
-    await expect(service.resume(customer, sub.id)).rejects.toBeInstanceOf(
+    await expect(service.resume(customer, sub.id, new Date())).rejects.toBeInstanceOf(
       SubscriptionNotActionableError,
     );
+  });
+
+  // L0 REPRO (D4): pause never touches nextDeliveryAt, so the plan keeps its old due date
+  // while it is asleep. Resume after six weeks and the very next sweep places a delivery
+  // immediately — the customer paused their water and gets a gallon on the doorstep the
+  // moment they come back.
+  it('D4 REPRO: resuming after six weeks delivers immediately', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+    await service.pause(customer, sub.id);
+
+    const sixWeeksLater = new Date('2026-08-12T00:00:00Z');
+    await service.resume(customer, sub.id, sixWeeksLater);
+
+    // The next delivery must be in the FUTURE, not six weeks in the past.
+    expect((await service.processDue(sixWeeksLater)).placed).toBe(0);
+  });
+
+  // The delivery DAY has to survive the pause too. Stepping the plan's own cadence keeps a
+  // Tuesday plan on Tuesdays; adding one interval to the resume moment would move every
+  // paused plan to whatever weekday the customer happened to press the button.
+  it('keeps the delivery weekday across a pause (D4)', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-07T00:00:00Z'), // a Tuesday
+      address,
+    });
+    await service.pause(customer, sub.id);
+
+    // Resumed on a Thursday, six weeks on.
+    const resumed = await service.resume(customer, sub.id, new Date('2026-08-13T09:00:00Z'));
+    expect(resumed.nextDeliveryAt.toISOString()).toBe('2026-08-18T00:00:00.000Z');
+    expect(resumed.nextDeliveryAt.getUTCDay()).toBe(2); // still Tuesday
+  });
+
+  // Resuming a plan that was never overdue must not push its date out — pausing for an
+  // afternoon should not cost the customer a delivery.
+  it('leaves a not-yet-due plan alone on resume (D4)', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-08-20T00:00:00Z'),
+      address,
+    });
+    await service.pause(customer, sub.id);
+    const resumed = await service.resume(customer, sub.id, new Date('2026-08-14T00:00:00Z'));
+    expect(resumed.nextDeliveryAt.toISOString()).toBe('2026-08-20T00:00:00.000Z');
   });
 
   /**

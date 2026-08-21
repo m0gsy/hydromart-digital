@@ -101,7 +101,9 @@ describe('SubscriptionController', () => {
     await expect(controller.resume(user, 's1')).resolves.toMatchObject({ status: 'ACTIVE' });
     await expect(controller.cancel(user, 's1')).resolves.toMatchObject({ status: 'CANCELLED' });
     expect(service.pause).toHaveBeenCalledWith('cust-1', 's1');
-    expect(service.resume).toHaveBeenCalledWith('cust-1', 's1');
+    // D4: resume also carries "now" — the schedule has to move forward by the plan's own
+    // cadence, and the clock is passed from the edge rather than read inside the service.
+    expect(service.resume).toHaveBeenCalledWith('cust-1', 's1', expect.any(Date));
     expect(service.cancel).toHaveBeenCalledWith('cust-1', 's1');
   });
 

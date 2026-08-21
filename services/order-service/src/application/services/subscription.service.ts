@@ -5,7 +5,7 @@ import {
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../domain/errors';
-import { advanceDelivery } from '../../domain/subscription';
+import { advanceDelivery, nextDeliveryOnOrAfter } from '../../domain/subscription';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
@@ -106,10 +106,20 @@ export class SubscriptionService {
     return this.subs.setStatus(id, 'PAUSED');
   }
 
-  async resume(customerId: string, id: string): Promise<SubscriptionRecord> {
+  /**
+   * D4: resuming moves the schedule forward, it does not just flip the status back.
+   *
+   * Pausing never touched `nextDeliveryAt`, so a plan slept holding a due date in the past
+   * and the first sweep after resuming placed a delivery immediately — the customer paused
+   * their water and got a gallon on the doorstep the moment they came back.
+   *
+   * The new date steps the plan's OWN cadence from its old due date, so a Tuesday plan
+   * stays on Tuesdays. Resuming a plan that is not actually overdue leaves its date alone.
+   */
+  async resume(customerId: string, id: string, now: Date): Promise<SubscriptionRecord> {
     const sub = await this.owned(customerId, id);
     if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
-    return this.subs.setStatus(id, 'ACTIVE');
+    return this.subs.resume(id, nextDeliveryOnOrAfter(sub.nextDeliveryAt, sub.frequency, now));
   }
 
   async cancel(customerId: string, id: string): Promise<SubscriptionRecord> {
