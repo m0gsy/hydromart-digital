@@ -205,10 +205,16 @@ function CartInner() {
         <Money amount={total} />
       </div>
       <p className="text-[12.5px] leading-relaxed text-muted">{t('order.cart.shippingNote')}</p>
-      <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 px-3.5 py-[11px] text-[12.5px] text-amber-900">
+      {/* G7. The hint named a thing the customer owns and then left them to find it: the
+          voucher wallet is a real screen, and this was the one place that mentioned
+          vouchers without linking to it. */}
+      <Link
+        href="/vouchers"
+        className="flex items-center gap-2 rounded-[14px] bg-amber-50 px-3.5 py-[11px] text-[12.5px] font-semibold text-amber-900 hover:bg-amber-100"
+      >
         <Tag size={16} weight="fill" className="flex-shrink-0 text-amber-600" />
         {t('order.cart.voucherHint')}
-      </div>
+      </Link>
       <div className="flex justify-center gap-4 pt-1 text-[11.5px] font-bold text-muted">
         <span className="inline-flex items-center gap-1.5">
           <ShieldCheck size={14} weight="fill" className="text-brand-600" />

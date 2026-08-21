@@ -20,16 +20,13 @@ export const order: typeof base = {
     estTotal: 'Estimated total',
     shippingNote: 'Delivery is calculated at checkout, once a depot is set.',
     checkout: 'Checkout',
-    voucherHint: 'Have a voucher code? Enter it at checkout.',
+    voucherHint: 'Have a voucher code? See your vouchers',
     trustSecure: 'Secure payment',
     trustFast: 'Delivery ±30 min',
     trustSealed: 'Sealed',
   },
   checkout: {
     resellerNoVoucher: "The reseller discount applies automatically. Vouchers cannot be combined with reseller pricing.",
-    stepCart: 'Cart',
-    stepCheckout: 'Checkout',
-    stepDone: 'Done',
     title: 'Checkout',
     deliveryAddress: 'Delivery address',
     newAddress: '+ New address',
@@ -82,6 +79,8 @@ export const order: typeof base = {
       "Prices are re-verified by the depot when the order is placed — you won't be charged more.",
     emptyCart: 'Your cart is empty. Add products before checking out.',
     placeOrderError: 'Could not place the order.',
+    paymentStartFailed:
+      'Your order is placed, but the payment could not be started. Press again to retry — it reuses the same order rather than making a new one.',
   },
   list: {
     title: 'Your orders',

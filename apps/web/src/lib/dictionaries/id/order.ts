@@ -19,16 +19,13 @@ export const order = {
     estTotal: 'Estimasi total',
     shippingNote: 'Ongkir dihitung saat checkout, setelah depot ditentukan.',
     checkout: 'Checkout',
-    voucherHint: 'Punya kode voucher? Masukkan saat checkout.',
+    voucherHint: 'Punya kode voucher? Lihat voucher kamu',
     trustSecure: 'Bayar aman',
     trustFast: 'Antar ±30 mnt',
     trustSealed: 'Tersegel',
   },
   checkout: {
     resellerNoVoucher: "Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.",
-    stepCart: 'Keranjang',
-    stepCheckout: 'Checkout',
-    stepDone: 'Selesai',
     title: 'Checkout',
     deliveryAddress: 'Alamat pengiriman',
     newAddress: '+ Alamat baru',
@@ -81,6 +78,8 @@ export const order = {
       'Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih.',
     emptyCart: 'Keranjangmu kosong. Tambahkan produk sebelum checkout.',
     placeOrderError: 'Tidak bisa membuat pesanan.',
+    paymentStartFailed:
+      'Pesanan sudah dibuat, tapi pembayarannya belum bisa dimulai. Tekan lagi untuk mencoba — pesanan yang sama yang dipakai, bukan pesanan baru.',
   },
   list: {
     title: 'Pesanan kamu',
