@@ -80,11 +80,22 @@ describe('coordination adapters fail open on a non-2xx response', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('notification.notify swallows a 500', async () => {
+  // Inverted by D9. This pinned `undefined` — "the adapter returns nothing" — which is
+  // exactly what made an undelivered message invisible to its caller. It still does not
+  // throw (fail-open is right: the order is already committed), but fail-open is not the
+  // same as fail-invisible, and now it says which one happened.
+  it('notification.notify reports a 500 as undelivered instead of throwing', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(
       new NotificationHttpAdapter(makeConfig()).notify('e', '081234567890', {}, 'c', ''),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
+  });
+
+  it('notification.notify reports a delivered message as delivered', async () => {
+    fetchMock.mockResolvedValue(res({ body: { queued: true } }));
+    await expect(
+      new NotificationHttpAdapter(makeConfig()).notify('e', '081234567890', {}, 'c', ''),
+    ).resolves.toBe(true);
   });
 
   it('referral.qualify swallows a 500', async () => {

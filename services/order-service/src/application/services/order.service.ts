@@ -720,14 +720,44 @@ export class OrderService {
     );
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
 
-    await this.notification.notify(
+    // D9: the send happens AFTER the row exists and the port fails open, so a message that
+    // never lands used to leave the order placed, the customer uninformed, and nothing on
+    // the order saying so — the only trace a warning in a container log nobody reads.
+    //
+    // Every other notification in this service has a person in the loop who notices the
+    // silence: a customer who just pressed Bayar, a courier watching a screen. A scheduled
+    // delivery has nobody. So this one is recorded where a human can find it later.
+    const told = await this.notification.notify(
       'ORDER_RECEIVED',
       order.phone,
       { name: order.recipientName, orderNumber: order.orderNumber, orderId: order.id },
       order.customerId,
       '',
     );
+    if (!told) await this.markCustomerNotNotified(order);
     return order;
+  }
+
+  /**
+   * D9: leave a trace on the order when the customer was not told it exists.
+   *
+   * A note, not a failure: the delivery is real and refusing it because a message bounced
+   * would be worse. Written with the same fail-open guard as `markCatalogPricing` — a
+   * history table that is down must not take the order with it.
+   */
+  private async markCustomerNotNotified(order: OrderRecord): Promise<void> {
+    try {
+      await this.orders.appendNote(
+        order.id,
+        order.status,
+        'order-service',
+        'Pelanggan tidak diberi tahu: notifikasi pesanan terjadwal gagal dikirim',
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
