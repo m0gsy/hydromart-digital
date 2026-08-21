@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { CustomerDirectoryPort } from '../../application/ports/customer-directory.port';
+import { DeliveryAddressSnapshot } from '../../application/ports/order.repository';
 
 /**
  * Tells customer-service where a customer just bought (§I), over the shared internal key.
@@ -42,6 +43,43 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
       return false;
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /**
+   * D10: the customer's primary address, for a subscription depot staff created for them.
+   *
+   * Fails to `null`, never throws and never invents: the caller refuses the subscription
+   * rather than sending water to a guess.
+   */
+  async primaryAddress(customerId: string): Promise<DeliveryAddressSnapshot | null> {
+    const key = this.config.internalServiceKey;
+    if (!key) return null;
+    const url = `${this.config.customerServiceUrl}/api/v1/addresses/internal/primary?customerId=${encodeURIComponent(customerId)}`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'x-internal-key': key },
+        signal: AbortSignal.timeout(CustomerDirectoryHttpAdapter.TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`customer-service responded ${res.status}`);
+      // No `.catch` on the parse: a body that is not JSON throws into the same catch below
+      // and answers `null` there. Adding one would only leave a callback nothing ever runs.
+      const body = (await res.json()) as Record<string, unknown> | null;
+      if (!body || typeof body.addressLine !== 'string') return null;
+      return {
+        recipientName: String(body.recipientName ?? ''),
+        phone: String(body.phone ?? ''),
+        addressLine: body.addressLine,
+        city: String(body.city ?? ''),
+        province: String(body.province ?? ''),
+        postalCode: (body.postalCode as string | null) ?? null,
+        latitude: (body.latitude as number | null) ?? null,
+        longitude: (body.longitude as number | null) ?? null,
+        notes: (body.notes as string | null) ?? null,
+      };
+    } catch (error) {
+      this.logger.warn(`Primary address not read: ${(error as Error).message}`);
+      return null;
     }
   }
 

@@ -9,10 +9,23 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { AddressService } from '../application/services/address.service';
 import { AddressRecord } from '../application/ports/address.repository';
@@ -30,6 +43,26 @@ export class AddressController {
   @ApiOperation({ summary: 'List my delivery addresses' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<AddressRecord[]> {
     return this.addresses.list(user.sub);
+  }
+
+  /**
+   * D10: the address a depot-created subscription delivers to.
+   *
+   * Internal key, not a user token: the caller is order-service building a subscription
+   * that depot staff asked for, and it holds no token for the customer in question. The
+   * customer id comes from the depot console's own picked customer, never from a browser.
+   *
+   * Declared before the `:id` route so the static `internal` segment cannot be read as an
+   * address id.
+   */
+  @ApiOkResponse({ type: AddressResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/primary')
+  @ApiOperation({ summary: "One customer's primary delivery address (internal)" })
+  primary(@Query('customerId', ParseUUIDPipe) customerId: string): Promise<AddressRecord | null> {
+    return this.addresses.primary(customerId);
   }
 
   @ApiOkResponse({ type: AddressResponseDto })

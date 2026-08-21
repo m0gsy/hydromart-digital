@@ -38,6 +38,18 @@ export class AddressService {
     private readonly config: CustomerConfigService,
   ) {}
 
+  /**
+   * D10: the address a subscription created FOR this customer by depot staff delivers to.
+   *
+   * The primary one, because that is the same rule the customer's own subscription screen
+   * uses — one definition of "where a standing order goes", not two that can disagree.
+   * `null` when they have none: the caller has to refuse rather than invent one.
+   */
+  async primary(customerId: string): Promise<AddressRecord | null> {
+    const all = await this.addresses.listByCustomer(customerId);
+    return all.find((a) => a.isPrimary) ?? all[0] ?? null;
+  }
+
   list(customerId: string): Promise<AddressRecord[]> {
     return this.addresses.listByCustomer(customerId);
   }

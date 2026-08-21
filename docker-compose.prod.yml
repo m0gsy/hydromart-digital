@@ -350,6 +350,10 @@ services:
       # rule: counting only the counter cash and calling it the day's takings is worse than
       # refusing to close.
       DELIVERY_SERVICE_URL: http://delivery:3006
+      # D10: a depot-created subscription is made on the ORDER-service engine, not on a
+      # second one grown here. Blank means the console refuses instead of saving a plan
+      # nothing will ever run.
+      ORDER_SERVICE_URL: http://order:3004
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

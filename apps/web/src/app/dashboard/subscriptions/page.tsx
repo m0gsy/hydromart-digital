@@ -23,7 +23,13 @@ import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { DepotCustomer, DepotSubscription, DepotSubscriptionCadence } from '@/lib/types';
+import type {
+  DepotCustomer,
+  DepotSubscription,
+  DepotSubscriptionCadence,
+  Page,
+  Product,
+} from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -37,7 +43,15 @@ const CADENCE_LABEL: Record<DepotSubscriptionCadence, string> = {
   MONTHLY: 'hrFix.depotSubscriptions.monthly',
 };
 
-const CADENCES = Object.keys(CADENCE_LABEL) as DepotSubscriptionCadence[];
+/**
+ * D10: only the cadences the engine can actually run.
+ *
+ * The console used to offer DAILY and EVERY_3_DAYS too, and the difference was invisible
+ * because nothing ran these plans at all — an operator could pick "harian" and the system
+ * would simply never deliver, silently, forever. The server refuses them now; offering a
+ * button that is always refused would be the same lie one step later.
+ */
+const CADENCES: DepotSubscriptionCadence[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'];
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -61,13 +75,27 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
    * picks from is the same one the CRM screen lists.
    */
   const [customerId, setCustomerId] = useState('');
-  const [productLabel, setProductLabel] = useState('');
+  /**
+   * D10: what the operator PICKS, not what they type. The engine places orders for a
+   * product id; a free-text label cannot be delivered to anybody.
+   */
+  const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [cadence, setCadence] = useState<DepotSubscriptionCadence>('WEEKLY');
-  const [nextRunAt, setNextRunAt] = useState('');
+  /** D10: the FIRST delivery. Every date after it belongs to the engine. */
+  const [firstDeliveryAt, setFirstDeliveryAt] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // D10: the depot's catalogue, so the operator picks a product the engine can deliver.
+  const catalog = useAsync<Page<Product>>(
+    () =>
+      open
+        ? api.get<Page<Product>>(endpoints.products.browse({ limit: 100 }))
+        : Promise.resolve({ items: [], total: 0, page: 1, limit: 100 }),
+    [open],
+  );
 
   const customers = useAsync<DepotCustomer[]>(
     () => (open ? api.get(endpoints.depotCrm.list(depotId), true) : Promise.resolve([])),
@@ -76,10 +104,10 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 
   function reset() {
     setCustomerId('');
-    setProductLabel('');
+    setProductId('');
     setQuantity('');
     setCadence('WEEKLY');
-    setNextRunAt('');
+    setFirstDeliveryAt('');
     setNote('');
     setError(null);
   }
@@ -87,7 +115,8 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
   async function submit() {
     const qty = Number(quantity);
     const picked = (customers.data ?? []).find((c) => c.id === customerId);
-    if (!picked || !productLabel.trim() || !Number.isFinite(qty) || qty < 1) {
+    const product = (catalog.data?.items ?? []).find((p) => p.id === productId);
+    if (!picked || !product || !firstDeliveryAt || !Number.isFinite(qty) || qty < 1) {
       setError(t('hrFix.depotSubscriptions.help'));
       return;
     }
@@ -102,10 +131,13 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
           // Still sent: the roster reads as a list of people, and the account name at the
           // moment of signing up is what the depot agreed with.
           customerName: picked.fullName ?? t('opsFix.subs.noName'),
-          productLabel: productLabel.trim(),
+          // Still sent: the roster reads as a list of plans, and the product name at the
+          // moment of signing up is what the depot agreed with.
+          productLabel: product.name,
+          productId: product.id,
           quantity: qty,
           cadence,
-          nextRunAt: nextRunAt || undefined,
+          firstDeliveryAt: new Date(`${firstDeliveryAt}T00:00:00`).toISOString(),
           note: note.trim() || undefined,
         },
         true,
@@ -150,8 +182,22 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
               shorter list — it is a form nobody can submit, for a reason not on screen. */}
           {customers.error && <LoadError onRetry={customers.reload} />}
         </Field>
+        {/* D10: picked, not typed — the engine delivers a product id, never a label. */}
         <Field label={t('opsFix.subs.product')} htmlFor="s-prod">
-          <Input id="s-prod" value={productLabel} onChange={(e) => setProductLabel(e.target.value)} placeholder={t('opsFix.subs.productPlaceholder')} />
+          <select
+            id="s-prod"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            className="h-11 w-full rounded-xl border border-app bg-transparent px-3 text-sm"
+          >
+            <option value="">{t('opsFix.subs.productPlaceholder')}</option>
+            {(catalog.data?.items ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {catalog.error && <LoadError onRetry={catalog.reload} />}
         </Field>
       </div>
       <div className="flex flex-wrap gap-3">
@@ -180,8 +226,15 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             ))}
           </select>
         </Field>
-        <Field label={t('opsFix.subs.nextRun')} htmlFor="s-next">
-          <Input id="s-next" type="date" value={nextRunAt} onChange={(e) => setNextRunAt(e.target.value)} />
+        {/* D10: the FIRST delivery. Every date after it belongs to the engine, so there is
+            no second schedule living here to freeze and drift. */}
+        <Field label={t('opsFix.subs.firstRun')} htmlFor="s-next">
+          <Input
+            id="s-next"
+            type="date"
+            value={firstDeliveryAt}
+            onChange={(e) => setFirstDeliveryAt(e.target.value)}
+          />
         </Field>
       </div>
       <Field label={t('opsFix.subs.note')} htmlFor="s-note">

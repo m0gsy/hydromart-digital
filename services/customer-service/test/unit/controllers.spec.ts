@@ -22,9 +22,19 @@ describe('AddressController', () => {
     update: jest.fn(),
     setPrimary: jest.fn(),
     remove: jest.fn(),
+    primary: jest.fn(),
   };
   const c = new AddressController(svc as never);
   beforeEach(() => jest.clearAllMocks());
+
+  // D10: the internal read order-service uses to find where a depot-created subscription
+  // delivers. The customer id comes from the caller, not from a session — the guard is the
+  // internal key, and the caller is a service acting on a depot operator's request.
+  it('primary → addresses.primary(customerId), for the internal caller', async () => {
+    svc.primary.mockResolvedValue({ id: 'a1' });
+    await expect(c.primary('cust-9')).resolves.toEqual({ id: 'a1' });
+    expect(svc.primary).toHaveBeenCalledWith('cust-9');
+  });
 
   it('list → addresses.list(user.sub)', async () => {
     svc.list.mockResolvedValue(['a']);

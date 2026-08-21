@@ -445,6 +445,8 @@ export const opsFix = {
     qtyPlaceholder: '2',
     cadence: 'Frekuensi',
     nextRun: 'Jalan berikutnya',
+    /** D10: the operator picks the first delivery; the engine owns every date after it. */
+    firstRun: "Pengantaran pertama",
     note: 'Catatan',
     notePlaceholder: 'mis. antar sebelum jam 9 pagi',
     cancel: 'Batal',

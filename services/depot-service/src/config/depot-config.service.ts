@@ -69,6 +69,15 @@ export class DepotConfigService {
   get deliveryServiceUrl(): string {
     return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /**
+   * D10: the subscription engine. A depot-created plan is made THERE, not here — growing a
+   * second engine in this service would inherit none of what D1, D2, D4, D6, D8 and D9
+   * repaired. Blank means the console cannot create one, and says so rather than saving a
+   * row nothing will ever run.
+   */
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Shared secret sent as x-internal-key on the crm internal notification call. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

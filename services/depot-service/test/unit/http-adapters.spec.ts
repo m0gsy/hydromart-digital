@@ -4,6 +4,7 @@ import { LowStockAlertHttpAdapter } from '../../src/infrastructure/http/low-stoc
 import { UntrackedSaleAlert } from '../../src/application/ports/untracked-sale-alert.port';
 import { UntrackedSaleAlertHttpAdapter } from '../../src/infrastructure/http/untracked-sale-alert.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
+import { OrderSubscriptionHttpAdapter } from '../../src/infrastructure/http/order-subscription.http.adapter';
 
 // Exercises the REAL HTTP adapter code (skip branches, URL/header/body building, res.ok
 // branch, fail-open catch) against a mocked global.fetch — the unit the e2e's Fake* stand-in
@@ -250,5 +251,80 @@ describe('an outbound call that hangs is aborted and still settles', () => {
     await jest.advanceTimersByTimeAsync(10_000);
     expect(await settled).toBe('settled');
     expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+/**
+ * D10 · the depot's plans run on order-service's engine, not on a second one grown here.
+ *
+ * This adapter is the one in this file that must NOT fail open. A depot row saved without
+ * its engine subscription is exactly the thing D10 removes — a plan the console shows and
+ * nothing runs — so a failure has to reach the operator while they are still on the screen.
+ */
+describe('OrderSubscriptionHttpAdapter', () => {
+  const input = {
+    customerId: 'c1',
+    productId: 'p1',
+    quantity: 2,
+    frequency: 'WEEKLY' as const,
+    firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+  };
+  const cfg = (over: Partial<Record<string, unknown>> = {}) =>
+    makeConfig({ orderServiceUrl: 'http://order:3004', ...over });
+
+  it('creates the engine subscription and hands back its id', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(jsonRes(200, { id: 'eng-9' }));
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).resolves.toBe('eng-9');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
+    expect(url).toBe('http://order:3004/api/v1/subscriptions/internal');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toEqual({
+      customerId: 'c1',
+      productId: 'p1',
+      quantity: 2,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+    });
+    // No address travels: the engine reads the customer's own, which is what stops an
+    // operator from typing one on somebody else's behalf.
+    expect('address' in body).toBe(false);
+  });
+
+  // The engine knows WHY far better than this layer does. "This customer has no saved
+  // address" is something an operator can act on; flattening it to "failed" wastes it.
+  it('carries the engine own refusal through, word for word', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(jsonRes(422, { message: 'Pelanggan ini belum punya alamat tersimpan' }));
+
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).rejects.toThrow(
+      /belum punya alamat tersimpan/,
+    );
+  });
+
+  it('throws on a 2xx that carries no id, rather than inventing a link', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(jsonRes(200, {}));
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).rejects.toThrow(
+      /order-service responded 200|Langganan tidak bisa dibuat/,
+    );
+  });
+
+  // A deployment with no engine configured must refuse loudly too. Saving a depot row here
+  // would recreate the exact bug: a plan on screen that nothing will ever run.
+  it('refuses when the engine is not configured, and calls nothing', async () => {
+    const fetchMock = jest.fn();
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await expect(
+      new OrderSubscriptionHttpAdapter(cfg({ orderServiceUrl: '' })).create(input),
+    ).rejects.toThrow(/belum dikonfigurasi/);
+    await expect(
+      new OrderSubscriptionHttpAdapter(cfg({ internalServiceKey: '' })).create(input),
+    ).rejects.toThrow(/belum dikonfigurasi/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

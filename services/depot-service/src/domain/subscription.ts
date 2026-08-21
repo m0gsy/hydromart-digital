@@ -26,6 +26,10 @@ export interface Subscription {
   cadence: SubscriptionCadence;
   status: SubscriptionStatus;
   nextRunAt: Date | null;
+  /** D10: what the operator picked; a label cannot be delivered. */
+  productId: string | null;
+  /** D10: the engine subscription this row stands for. Null = created before the link. */
+  orderSubscriptionId: string | null;
   note: string | null;
   createdAt: Date;
   updatedAt: Date;

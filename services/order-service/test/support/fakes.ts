@@ -29,6 +29,7 @@ import {
   RetentionCell,
   SalesBucket,
   SegmentConditions,
+  DeliveryAddressSnapshot,
 } from '../../src/application/ports/order.repository';
 import {
   CreateSubscriptionData,
@@ -1130,6 +1131,16 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
     if (this.claimed.has(customerId)) return false;
     this.claimed.add(customerId);
     return true;
+  }
+
+  /**
+   * D10: the customer's primary address, as customer-service would answer it. `null` by
+   * default — a test that wants a depot-created subscription to succeed must say where it
+   * delivers, because the service refuses rather than inventing one.
+   */
+  primary: DeliveryAddressSnapshot | null = null;
+  async primaryAddress(): Promise<DeliveryAddressSnapshot | null> {
+    return this.primary;
   }
 
   /** phone -> customer id, as customer-service would resolve it. Empty = unreachable. */

@@ -8,6 +8,10 @@ export interface CreateSubscriptionData {
   quantity: number;
   cadence: SubscriptionCadence;
   nextRunAt: Date | null;
+  /** D10: what the operator picked; the engine places orders for a product id. */
+  productId: string | null;
+  /** D10: the engine subscription this row stands for. Null = created before the link. */
+  orderSubscriptionId: string | null;
   note: string | null;
 }
 

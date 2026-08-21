@@ -18,6 +18,8 @@ interface SubscriptionRow {
   cadence: string;
   status: string;
   nextRunAt: Date | null;
+  productId: string | null;
+  orderSubscriptionId: string | null;
   note: string | null;
   createdAt: Date;
   updatedAt: Date;

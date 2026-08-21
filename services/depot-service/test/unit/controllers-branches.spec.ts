@@ -1200,28 +1200,47 @@ describe('SubscriptionController', () => {
   it('lists, creates with defaults/optionals, pauses and resumes', async () => {
     await c.list({ depotId: DEPOT, status: 'ACTIVE' } as never);
     expect(svc.list).toHaveBeenCalledWith(DEPOT, { status: 'ACTIVE' });
+    // Inverted by D10. This pinned a create with NO customer and NO schedule — the shape
+    // that produced a plan nothing could ever run. `customerId`, `productId` and
+    // `firstDeliveryAt` are all required now, because the engine places orders for an
+    // account, for a product id, starting on a date. What is still optional is the note.
     await c.create({
       depotId: DEPOT,
+      customerId: 'cu',
       customerName: 'c',
       productLabel: 'p',
+      productId: 'pr',
       quantity: 1,
       cadence: 'WEEKLY',
+      firstDeliveryAt: '2026-09-01',
     } as never);
     expect(svc.create).toHaveBeenCalledWith(
-      expect.objectContaining({ customerId: null, nextRunAt: null, note: null }),
+      expect.objectContaining({
+        customerId: 'cu',
+        productId: 'pr',
+        firstDeliveryAt: new Date('2026-09-01'),
+        note: null,
+      }),
     );
     await c.create({
       depotId: DEPOT,
       customerId: 'cu',
       customerName: 'c',
       productLabel: 'p',
+      productId: 'pr',
       quantity: 1,
       cadence: 'WEEKLY',
-      nextRunAt: ISO,
+      firstDeliveryAt: ISO,
       note: 'n',
     } as never);
     expect(svc.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({ customerId: 'cu', nextRunAt: new Date(ISO), note: 'n' }),
+      expect.objectContaining({
+        customerId: 'cu',
+        // D10: what the operator picks is the FIRST delivery, not a "next run" this
+        // service then has to keep — the engine owns every date after it.
+        firstDeliveryAt: new Date(ISO),
+        note: 'n',
+      }),
     );
     await c.pause(ID, user);
     expect(svc.pause).toHaveBeenCalledWith(ID);

@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   ProductUnavailableError,
   SubscriptionAddressNotRoutableError,
+  SubscriptionCustomerAddressMissingError,
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../domain/errors';
@@ -10,6 +11,7 @@ import { nextDeliveryOnOrAfter } from '../../domain/subscription';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { NotificationPort } from '../ports/notification.port';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import {
   CreateSubscriptionData,
@@ -75,6 +77,10 @@ export class SubscriptionService {
     // stops arriving with no message is the bug this closes.
     @Inject(ORDER_TOKENS.Notification)
     private readonly notification: NotificationPort,
+    // D10: a depot-created subscription delivers to the CUSTOMER's own primary address,
+    // read here rather than typed by whoever filled the form.
+    @Inject(ORDER_TOKENS.CustomerDirectory)
+    private readonly customers: CustomerDirectoryPort,
   ) {}
 
   /**
@@ -109,6 +115,29 @@ export class SubscriptionService {
       ...input.address,
     };
     return this.subs.create(data);
+  }
+
+  /**
+   * D10: a subscription depot staff set up FOR a customer, on the same engine.
+   *
+   * The depot console used to keep its own table of "plans" that produced nothing — no
+   * sweep, nothing writing a next run, and a screen showing a date that froze where the
+   * operator typed it and drifted further into the past every day. This connects that table
+   * to the engine D1, D2, D4, D6, D8 and D9 repaired, rather than growing a second engine
+   * that would inherit none of it.
+   *
+   * The address is the customer's OWN primary one, read here rather than taken from the
+   * caller: a depot operator typing an address on somebody else's behalf is how the
+   * unroutable plans D3 refuses got created in the first place. No address, no
+   * subscription — and the error says which, so the operator can act on it.
+   */
+  async createForCustomer(
+    customerId: string,
+    input: Omit<CreateSubscriptionInput, 'address'>,
+  ): Promise<SubscriptionRecord> {
+    const address = await this.customers.primaryAddress(customerId);
+    if (!address) throw new SubscriptionCustomerAddressMissingError();
+    return this.create(customerId, { ...input, address });
   }
 
   async list(customerId: string): Promise<SubscriptionRecord[]> {

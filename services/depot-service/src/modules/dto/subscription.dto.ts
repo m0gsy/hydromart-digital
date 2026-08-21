@@ -50,10 +50,22 @@ export class CreateSubscriptionDto {
   @IsEnum(SubscriptionCadence)
   cadence!: SubscriptionCadence;
 
-  @ApiPropertyOptional({ example: '2026-07-25', description: 'Next scheduled run date.' })
-  @IsOptional()
+  /**
+   * D10: what the operator picked, not what they typed. The engine places orders for a
+   * product id; a free-text label cannot be delivered to anybody.
+   */
+  @ApiProperty({ format: 'uuid', description: 'Catalogue product the plan delivers.' })
+  @IsUUID()
+  productId!: string;
+
+  /**
+   * D10: the FIRST delivery. Every date after it belongs to the engine — a second schedule
+   * living in this service is a second truth that drifts the moment it is written, which is
+   * exactly what the frozen `nextRunAt` was.
+   */
+  @ApiProperty({ example: '2026-07-25', description: 'First scheduled delivery.' })
   @IsISO8601()
-  nextRunAt?: string;
+  firstDeliveryAt!: string;
 
   @ApiPropertyOptional({ example: 'Antar pagi hari' })
   @IsOptional()

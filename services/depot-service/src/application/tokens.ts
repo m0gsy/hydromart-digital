@@ -23,6 +23,7 @@ export const DEPOT_TOKENS = {
   MaintenanceRepository: Symbol('MaintenanceRepository'),
   WholesaleTierRepository: Symbol('WholesaleTierRepository'),
   SubscriptionRepository: Symbol('SubscriptionRepository'),
+  OrderSubscriptionPort: Symbol('OrderSubscriptionPort'),
   HuddleRepository: Symbol('HuddleRepository'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),

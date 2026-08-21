@@ -16,7 +16,11 @@ import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, R
 
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
-import { CreateSubscriptionDto, DepotScopeQueryDto } from './dto/order.dto';
+import {
+  CreateSubscriptionDto,
+  CreateSubscriptionForCustomerDto,
+  DepotScopeQueryDto,
+} from './dto/order.dto';
 import { SubscriptionNetworkSummaryView } from '../application/services/subscription.service';
 import { Discount2ResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
 
@@ -113,6 +117,33 @@ export class SubscriptionController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubscriptionRecord> {
     return this.subscriptions.cancel(user.sub, id);
+  }
+
+  /**
+   * D10: create a subscription FOR a customer, on depot staff's behalf.
+   *
+   * Internal key, not a JWT: the caller is depot-service acting on an operator's request,
+   * and it holds no token for the customer. The customer id comes from the depot console's
+   * own picked customer — a registered account — never off a browser.
+   *
+   * No address in the body, deliberately. The engine reads the customer's own primary
+   * address; an operator typing one on somebody else's behalf is how the unroutable plans
+   * D3 refuses were created.
+   */
+  @ApiOkResponse({ type: SubscriptionResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create a subscription for a customer (internal, depot console)' })
+  createInternal(@Body() dto: CreateSubscriptionForCustomerDto): Promise<SubscriptionRecord> {
+    return this.subscriptions.createForCustomer(dto.customerId, {
+      productId: dto.productId,
+      quantity: dto.quantity,
+      frequency: dto.frequency,
+      firstDeliveryAt: new Date(dto.firstDeliveryAt),
+    });
   }
 
   // Ops/scheduler-triggered fulfilment sweep (internal service auth, not a JWT).

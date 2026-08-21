@@ -130,6 +130,40 @@ export class ProductLineRequiresProductError extends DomainError {
  * `depositHeld` (a real money leak) while the `Math.max(0, …)` clamp on the
  * outstanding rollup hides the discrepancy.
  */
+/**
+ * D10: the subscription engine refused, or could not be reached, when depot staff tried to
+ * create a plan for a customer.
+ *
+ * Fails CLOSED on purpose. A depot row saved without its engine subscription is exactly
+ * what D10 removes — a plan the console shows and nothing runs — so the operator is told
+ * while they are still on the screen. The engine's own words travel through when it has
+ * them: "this customer has no saved address" is something an operator can act on.
+ */
+/**
+ * D10: the depot console offers DAILY and EVERY_3_DAYS; the subscription engine has never
+ * had either.
+ *
+ * That difference was invisible while nothing ran these plans at all — an operator could
+ * pick "harian" and the system would simply never deliver, silently, forever. Connecting
+ * the engine turns it into a refusal at the moment of creation, which is the first time
+ * anybody could have been told.
+ */
+export class CadenceNotSupportedError extends DomainError {
+  readonly code = 'SUBSCRIPTION_CADENCE_NOT_SUPPORTED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(cadence: string) {
+    super(`Kadens ${cadence} belum didukung mesin langganan. Pilih mingguan, dua mingguan, atau bulanan.`);
+  }
+}
+
+export class EngineUnavailableError extends DomainError {
+  readonly code = 'SUBSCRIPTION_ENGINE_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(reason: string) {
+    super(`Langganan tidak bisa dibuat: ${reason}`);
+  }
+}
+
 export class GallonOverReturnError extends DomainError {
   readonly code = 'GALLON_OVER_RETURN';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
