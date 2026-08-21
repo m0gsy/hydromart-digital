@@ -1,7 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, assertDepotOwnership } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  assertDepotOwnership,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
 import { DepotService } from '../application/services/depot.service';
@@ -10,7 +17,11 @@ import {
   GallonIssueSummary,
 } from '../application/ports/gallon-issue.repository';
 import { Page } from '../application/pagination';
-import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto';
+import {
+  CreateGallonIssueDto,
+  CreateGallonIssueFromOrderDto,
+  ListIssuesQueryDto,
+} from './dto/gallon-issue.dto';
 import { GallonIssueResponseDto, PagedGallonIssueResponseDto } from './dto/responses.generated.dto';
 
 /** Empty-gallon issues / deposit held nested under a depot (PRD Module 11c). */
@@ -41,6 +52,34 @@ export class GallonIssueController {
         note: dto.note ?? null,
       },
       user.sub,
+    );
+  }
+
+  /**
+   * I1: fulfilment books the empties a completed delivery carried out.
+   *
+   * Internal key, not a staff capability: the caller is order-service delivering its own
+   * completion outbox, and it holds no user token for this depot. Declared before the
+   * `summary`/list reads for the same reason they are ordered — a static segment must never
+   * be readable as anything else.
+   *
+   * Idempotent on `orderId`, because a completion fan-out is at-least-once. A second call
+   * returns the row the first wrote instead of booking a second deposit.
+   */
+  @ApiOkResponse({ type: GallonIssueResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/from-order')
+  @ApiOperation({ summary: 'Book the empties a completed order carried out (internal)' })
+  recordFromOrder(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: CreateGallonIssueFromOrderDto,
+  ): Promise<GallonIssueRecord> {
+    return this.issues.recordFromOrder(
+      depotId,
+      { orderId: dto.orderId, customerId: dto.customerId ?? null, quantity: dto.quantity },
+      'order-service',
     );
   }
 

@@ -432,6 +432,8 @@ export class GallonIssueResponseDto {
   depotId!: string;
   @ApiProperty({ type: String, nullable: true })
   customerId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  orderId!: string | null;
   @ApiProperty({ type: Number })
   quantity!: number;
   @ApiProperty({ type: Number })

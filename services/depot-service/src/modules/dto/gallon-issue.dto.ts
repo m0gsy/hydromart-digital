@@ -31,6 +31,31 @@ export class CreateGallonIssueDto {
   note?: string;
 }
 
+/**
+ * I1: what fulfilment reports. No `depositHeld` on purpose — the deposit is derived from
+ * the depot's own rate server-side, so a caller cannot book money the depot never charged.
+ * The ledger is what every later refund is measured against.
+ */
+export class CreateGallonIssueFromOrderDto {
+  @ApiProperty({ format: 'uuid', description: 'Order the empties went out on.' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Customer who took the empties (omit for an anonymous counter sale).',
+  })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiProperty({ example: 2, description: 'Number of gallons carried out.' })
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  quantity!: number;
+}
+
 export class ListIssuesQueryDto {
   @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()

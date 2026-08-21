@@ -11,6 +11,7 @@ export const ORDER_TOKENS = {
   RecommendationCoordination: Symbol('RecommendationCoordination'),
   ForecastCoordination: Symbol('ForecastCoordination'),
   FranchiseRevenue: Symbol('FranchiseRevenue'),
+  GallonIssue: Symbol('GallonIssue'),
   CashierShift: Symbol('CashierShift'),
   PaymentReversal: Symbol('PaymentReversal'),
   PaymentCash: Symbol('PaymentCash'),

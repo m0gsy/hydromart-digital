@@ -64,6 +64,7 @@ import { ShiftAssignment } from '../../src/domain/shift';
 import { RosterRepository, UpsertShiftData } from '../../src/application/ports/roster.repository';
 import {
   CreateGallonIssueData,
+  CreateGallonIssueFromOrderData,
   GallonIssueRecord,
   GallonIssueRepository,
   GallonIssueSummary,
@@ -763,6 +764,24 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
   private seq = 0;
 
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
+    const row: GallonIssueRecord = {
+      id: `i${++this.seq}`,
+      createdAt: new Date(),
+      orderId: null,
+      ...data,
+    };
+    this.rows.push(row);
+    return row;
+  }
+
+  /**
+   * Mirrors the real repository's upsert on `orderId` (I1). A test that books the same
+   * order twice has to see what production does — one row, not two — or the fake would be
+   * proving the opposite of the constraint the migration added.
+   */
+  async createFromOrder(data: CreateGallonIssueFromOrderData): Promise<GallonIssueRecord> {
+    const existing = this.rows.find((r) => r.orderId === data.orderId);
+    if (existing) return existing;
     const row: GallonIssueRecord = { id: `i${++this.seq}`, createdAt: new Date(), ...data };
     this.rows.push(row);
     return row;

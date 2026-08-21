@@ -22,6 +22,7 @@ import { PromoHttpAdapter } from '../../src/infrastructure/http/promo.http.adapt
 import { ReferralCoordinationHttpAdapter } from '../../src/infrastructure/http/referral-coordination.http.adapter';
 import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/http/recommendation-coordination.http.adapter';
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
+import { GallonIssueHttpAdapter } from '../../src/infrastructure/http/gallon-issue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
 import { PaymentCashHttpAdapter } from '../../src/infrastructure/http/payment-cash.http.adapter';
@@ -397,6 +398,61 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(
       await new DepotDirectoryHttpAdapter(makeConfig()).gallonReturns('d1', new Date(), new Date()),
     ).toBeNull();
+  });
+});
+
+// I1: the ledger every later deposit refund is measured against. This adapter is the one
+// in this file that must NOT fail open — it runs from the completion outbox precisely so a
+// failure is retried instead of lost.
+describe('GallonIssueHttpAdapter', () => {
+  const event = { depotId: 'd1', orderId: 'o1', customerId: 'c1', quantity: 2 };
+
+  it('books the empties against the depot, keyed by the order, with no amount', async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'gi1' } }));
+    await new GallonIssueHttpAdapter(
+      makeConfig({ depotServiceUrl: 'http://depot:3007' }),
+    ).orderDelivered(event);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/depots/d1/gallon-issues/internal/from-order');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    const body = JSON.parse(init.body) as Record<string, unknown>;
+    expect(body).toEqual({ orderId: 'o1', customerId: 'c1', quantity: 2 });
+    // The deposit is derived at the depot from its own rate. A caller that could name it
+    // could book money the depot never charged.
+    expect('depositHeld' in body).toBe(false);
+  });
+
+  it('omits the customer for an anonymous counter sale', async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'gi2' } }));
+    await new GallonIssueHttpAdapter(
+      makeConfig({ depotServiceUrl: 'http://depot:3007' }),
+    ).orderDelivered({ ...event, customerId: null });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body) as Record<string, unknown>;
+    expect(body).toEqual({ orderId: 'o1', quantity: 2 });
+  });
+
+  // Fails CLOSED, unlike every other adapter here. A swallowed failure is a deposit the
+  // depot holds in fact and not in its book, and the next courier return then refunds Rp0.
+  it('throws on a refusal so the outbox retries instead of losing the booking', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(
+      new GallonIssueHttpAdapter(
+        makeConfig({ depotServiceUrl: 'http://depot:3007' }),
+      ).orderDelivered(event),
+    ).rejects.toThrow(/503/);
+  });
+
+  // The one thing it will not retry forever against: a deployment with no depot
+  // integration at all. That is a configuration fact, not an outage.
+  it('skips silently when depot integration is not configured', async () => {
+    fetchMock.mockClear();
+    await new GallonIssueHttpAdapter(makeConfig({ depotServiceUrl: '' })).orderDelivered(event);
+    await new GallonIssueHttpAdapter(
+      makeConfig({ depotServiceUrl: 'http://depot:3007', internalServiceKey: '' }),
+    ).orderDelivered(event);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
