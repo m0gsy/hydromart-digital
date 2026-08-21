@@ -413,7 +413,6 @@ function CheckoutInner() {
         true,
         { 'Idempotency-Key': attemptKey.current },
       );
-      attemptKey.current = '';
       // Save a fresh address to the book (non-blocking) so it's reusable next time.
       if (saveToBook && !savedAddresses?.some((a) => a.id === selection)) {
         try {
@@ -434,17 +433,37 @@ function CheckoutInner() {
           /* the order is placed; a failed address save must not block the flow */
         }
       }
-      // Initiate payment for the placed order; failure here still leaves a valid
-      // order the customer can pay from the order page, so we don't hard-block.
+      /*
+       * G8. Starting the payment for the order that was just placed.
+       *
+       * This used to be swallowed by an empty catch and the customer was redirected to a
+       * success page that then asked them to pay, with no explanation of why the payment
+       * they had just chosen had not begun. The order really is valid, so this must not
+       * read as a failed purchase — but silence is not the alternative.
+       *
+       * Staying on this screen is safe precisely because the idempotency key is still in
+       * hand: pressing "Buat pesanan" again returns THIS order rather than buying the water
+       * a second time, and takes another run at the payment.
+       */
       try {
         await api.post(
           endpoints.payments.initiate,
           { orderId: order.id, method, amount: order.total },
           true,
         );
-      } catch {
-        /* order exists; payment can be retried on the order page */
+      } catch (err) {
+        setSubmitError(err instanceof ApiError ? err.message : t('order.checkout.paymentStartFailed'));
+        setSubmitting(false);
+        return;
       }
+      /*
+       * Cleared HERE, not the moment the order came back. Between those two points sit an
+       * address save, a payment call and a navigation; anything that threw in that window
+       * landed in the outer catch, which shows an error and re-enables the button — with no
+       * key left. The next press would then be a genuinely new purchase of a cart that had
+       * already been bought. The window is now empty.
+       */
+      attemptKey.current = '';
       // placed=1 triggers the one-time success banner on the order page (spec 5b).
       router.replace(`/orders/detail?id=${order.id}&placed=1`);
     } catch (err) {
@@ -520,12 +539,17 @@ function CheckoutInner() {
   const voucherProgressPct = failedVoucher
     ? Math.min(100, Math.round((cart.subtotal / failedVoucher.minSpend) * 100))
     : 0;
-  // Other wallet vouchers that already clear the cart's subtotal — offer them as one-tap swaps.
-  const usableVouchers = voucherError
-    ? (myVouchers ?? []).filter(
-        (v) => v.status === 'AVAILABLE' && v.code !== voucherCode.trim().toUpperCase() && v.minSpend <= cart.subtotal,
-      )
-    : [];
+  /*
+   * G7. Wallet vouchers that already clear this cart, offered as one-tap swaps.
+   *
+   * They used to appear only behind `voucherError` — that is, only after the customer had
+   * typed a code wrong. The wallet was already fetched, and the answer to "do I have a
+   * voucher I can use right now" was sitting in memory the whole time; it was shown only to
+   * people who had just guessed. Nothing here is a new request.
+   */
+  const usableVouchers = (myVouchers ?? []).filter(
+    (v) => v.status === 'AVAILABLE' && v.code !== voucherCode.trim().toUpperCase() && v.minSpend <= cart.subtotal,
+  );
 
   const addressSection = (
     <>
@@ -1048,30 +1072,12 @@ function CheckoutInner() {
 
   return (
     <form onSubmit={placeOrder} className="flex flex-col">
-      {/* Progress stepper — centered in-page row */}
-      <div className="mb-7 flex items-center justify-center gap-1.5 text-[11px] font-bold sm:gap-2.5 sm:text-[13px]">
-        <span className="flex items-center gap-1.5 text-brand-800 sm:gap-2">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand">
-            <Check size={12} weight="bold" />
-          </span>
-          {t('order.checkout.stepCart')}
-        </span>
-        <span className="h-[1.5px] w-4 flex-shrink bg-brand-600 sm:w-[34px]" />
-        <span className="flex items-center gap-1.5 text-brand-800 sm:gap-2">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
-            2
-          </span>
-          {t('order.checkout.stepCheckout')}
-        </span>
-        <span className="h-[1.5px] w-4 flex-shrink bg-[color:var(--border)] sm:w-[34px]" />
-        <span className="flex items-center gap-1.5 text-muted sm:gap-2">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11.5px] text-muted">
-            3
-          </span>
-          {t('order.checkout.stepDone')}
-        </span>
-      </div>
-
+      {/* G5. A three-step progress stepper used to sit here, pinned to step 2 forever: step
+          one always ticked, step three always grey, and no route in the app renders either
+          of the other two states. It measured progress through a flow that has one screen,
+          so the only thing it could ever say was "you are here", which the screen already
+          says. Removed rather than wired up — there is no second and third page to wire it
+          to. */}
       {/* Below `sm:` the app bar carries this title. */}
       <h1 className="mb-5 hidden text-[30px] font-extrabold tracking-[-0.03em] sm:block">
         {t('order.checkout.title')}
@@ -1099,7 +1105,10 @@ function CheckoutInner() {
           <ListRow
             icon={<Clock size={18} weight="fill" className="text-brand-600" />}
             title={t('order.checkout.deliveryWindow')}
-            subtitle={deliveryWindow || undefined}
+            /* G4. Empty here is not "unanswered" — it is the ASAP default, which is a real
+               choice the order is placed with. A blank subtitle read as a field left
+               undone, next to four rows that all carry one. */
+            subtitle={deliveryWindow || t('order.checkout.slotAsap')}
             onClick={() => setSheet('window')}
           />
           <ListRow
