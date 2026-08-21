@@ -9,12 +9,18 @@ import { Button, Chip, ErrorState, Field, LinkButton, LoadError, Skeleton } from
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
 import { subscriptions as subEN } from '@/lib/dictionaries/en/subscriptions';
-import type { Address, Page as Paged, Product, Subscription, SubscriptionFrequency } from '@/lib/types';
+import type {
+  Address,
+  NearbyDepot,
+  Page as Paged,
+  Product,
+  Subscription,
+  SubscriptionFrequency,
+} from '@/lib/types';
 
 const FREQS: SubscriptionFrequency[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'];
 const BENEFIT_ICONS = [Percent, Truck, BellSlash, Pause];
@@ -27,16 +33,46 @@ function inDays(n: number): string {
 
 function Panel() {
   const { t, locale } = useT();
-  const { location } = useLocation();
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
   const products = useAsync<Paged<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
   const addresses = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
   const subs = useAsync<Subscription[]>(() => api.get(endpoints.subscriptions.list, true));
-  // The saving is a per-depot rate now, so it is quoted against the depot behind the
-  // shopper's chosen location (none → the global default). Never a hardcoded 5%.
-  const depotId = location?.depotId ?? null;
+  const primaryAddress = useMemo(
+    () => addresses.data?.find((a) => a.isPrimary) ?? addresses.data?.[0] ?? null,
+    [addresses.data],
+  );
+
+  /**
+   * D7: the saving is quoted against the depot that will actually be CHARGED — the one the
+   * subscription's saved address routes to — not the one behind wherever the shopper
+   * happens to be browsing.
+   *
+   * Those are two different depots with two different rates and nothing reconciling them:
+   * a customer standing near a depot that gives 10% was quoted 10% and billed the 5% their
+   * home depot gives, on every delivery, forever. The sweep prices from
+   * `resolveDepot(address)`; this asks the same question the same way checkout does.
+   *
+   * An address with no map pin cannot be routed by anybody, so the quote falls back to the
+   * global default — which is exactly what the sweep would refuse to place against, and the
+   * form says so separately.
+   */
+  const nearby = useAsync<NearbyDepot[]>(
+    () =>
+      primaryAddress?.latitude != null && primaryAddress?.longitude != null
+        ? api.get(
+            endpoints.depots.nearby({
+              lat: primaryAddress.latitude,
+              lng: primaryAddress.longitude,
+              limit: 1,
+            }),
+            true,
+          )
+        : Promise.resolve([]),
+    [primaryAddress?.latitude, primaryAddress?.longitude],
+  );
+  const depotId = nearby.data?.[0]?.id ?? null;
   const discount = useAsync<{ rate: number }>(
     () => api.get(endpoints.subscriptions.discount(depotId)),
     [depotId],
@@ -52,10 +88,6 @@ function Panel() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const primaryAddress = useMemo(
-    () => addresses.data?.find((a) => a.isPrimary) ?? addresses.data?.[0] ?? null,
-    [addresses.data],
-  );
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID', {
