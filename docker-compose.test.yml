@@ -210,6 +210,11 @@ services:
       PAYMENT_SERVICE_URL: http://payment:3005
       # Closing the DAY's books reads the COD couriers deposited from here. Fails closed too.
       DELIVERY_SERVICE_URL: http://delivery:3006
+      # D10: a depot-created subscription is made on the ORDER-service engine. Blank makes
+      # the console refuse rather than save a plan nothing will ever run — which is right in
+      # production and wrong here, where the integration suite creates one and expects it to
+      # work. The prod compose grew this line in the same change; this one has to match.
+      ORDER_SERVICE_URL: http://order:3004
       GALLON_DEPOSIT_IDR: 20000
       STORAGE_PUBLIC_BASE_URL: http://storage.test/qris
     healthcheck:
