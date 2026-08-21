@@ -242,6 +242,16 @@ model Subscription {
   status     SubscriptionStatus    @default(ACTIVE)
   nextDeliveryAt DateTime
 
+  /// D2: consecutive failed sweep cycles. Reset to 0 on any success, so it measures a
+  /// CURRENT outage rather than a lifetime tally — a plan that failed once a year ago and
+  /// has delivered ever since is not in trouble.
+  failureCount  Int      @default(0)
+  /// When the current run of failures started mattering.
+  lastFailureAt DateTime?
+  /// What went wrong, in words, so a human has something to act on. The container log was
+  /// the only record before this, and nobody reads it.
+  lastFailure   String?
+
   // Delivery address snapshot used for every scheduled order.
   recipientName String
   phone         String
