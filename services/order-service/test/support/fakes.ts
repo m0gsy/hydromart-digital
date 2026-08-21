@@ -672,6 +672,9 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
       ...data,
       id: randomUUID(),
       status: 'ACTIVE',
+      failureCount: 0,
+      lastFailureAt: null,
+      lastFailure: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -722,8 +725,22 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     );
     if (!r) return false;
     r.nextDeliveryAt = to;
+    // D2: a delivery that landed clears the failure run, in the same write.
+    r.failureCount = 0;
+    r.lastFailure = null;
+    r.lastFailureAt = null;
     r.updatedAt = nextDate();
     return true;
+  }
+
+  /** D2: consecutive count, mirroring the real repository. */
+  async recordFailure(id: string, message: string, at: Date): Promise<number> {
+    const r = this.rows.find((x) => x.id === id)!;
+    r.failureCount = (r.failureCount ?? 0) + 1;
+    r.lastFailure = message.slice(0, 500);
+    r.lastFailureAt = at;
+    r.updatedAt = nextDate();
+    return r.failureCount;
   }
 
   async networkSummary(): Promise<SubscriptionNetworkSummary> {

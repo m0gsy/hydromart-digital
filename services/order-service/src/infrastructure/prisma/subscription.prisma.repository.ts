@@ -11,6 +11,9 @@ import {
 import { PrismaService } from './prisma.service';
 
 interface SubscriptionRow {
+  failureCount: number;
+  lastFailureAt: Date | null;
+  lastFailure: string | null;
   id: string;
   customerId: string;
   productId: string;
@@ -56,6 +59,11 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
 
   private toRecord(row: SubscriptionRow): SubscriptionRecord {
     return {
+      // D2: a row written before these columns existed reads as healthy, which is the
+      // honest meaning of "nobody was counting yet".
+      failureCount: row.failureCount ?? 0,
+      lastFailureAt: row.lastFailureAt ?? null,
+      lastFailure: row.lastFailure ?? null,
       id: row.id,
       customerId: row.customerId,
       productId: row.productId,
@@ -136,12 +144,29 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return this.toRecord(row);
   }
 
+  /** D2: see the port — consecutive count, cleared by `advance` on any success. */
+  async recordFailure(id: string, message: string, at: Date): Promise<number> {
+    const row = await this.prisma.subscription.update({
+      where: { id },
+      data: {
+        failureCount: { increment: 1 },
+        lastFailure: message.slice(0, 500),
+        lastFailureAt: at,
+      },
+      select: { failureCount: true },
+    });
+    return row.failureCount;
+  }
+
   async advance(id: string, from: Date, to: Date): Promise<boolean> {
     // updateMany, not update: the schedule predicate is not part of any unique key, and a
     // miss has to come back as a count rather than as an exception.
     const { count } = await this.prisma.subscription.updateMany({
       where: { id, status: 'ACTIVE', nextDeliveryAt: from },
-      data: { nextDeliveryAt: to },
+      // D2: a delivery that landed clears the failure run in the SAME write that moves the
+      // schedule. Two writes could leave a plan advanced but still counted as failing, and
+      // the next outage would then be measured from a number that was never true.
+      data: { nextDeliveryAt: to, failureCount: 0, lastFailure: null, lastFailureAt: null },
     });
     return count === 1;
   }
