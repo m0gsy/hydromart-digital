@@ -6,6 +6,7 @@ import { CaretDown, Check, Crosshair, MapPin } from '@phosphor-icons/react';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition, geoReason } from '@/lib/geo';
+import { servingDepot } from '@/lib/depots';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
@@ -44,12 +45,16 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         let depotId: string | undefined;
         let label = t('home.location.myLocation');
         try {
-          const near = await api.get<NearbyDepot[]>(endpoints.depots.nearby({ lat, lng, limit: 1 }));
-          if (near[0]) {
-            depotId = near[0].id;
-            label = near[0].withinService
-              ? t('home.location.near', { city: near[0].city })
-              : t('home.location.myLocation');
+          // A3/G3: only a depot whose radius COVERS this point may be stored. The old code
+          // took `near[0]` whichever it was and merely softened the label — so a customer
+          // 15 km outside every radius carried an unusable depot id around, and G3 (which
+          // defaults checkout's depot from exactly this value) would have handed checkout a
+          // depot the server refuses. Ten candidates because radii differ per depot.
+          const near = await api.get<NearbyDepot[]>(endpoints.depots.nearby({ lat, lng, limit: 10 }));
+          const serving = servingDepot(near);
+          if (serving) {
+            depotId = serving.id;
+            label = t('home.location.near', { city: serving.city });
           }
         } catch {
           /* nearby is best-effort; still set the raw coords */
