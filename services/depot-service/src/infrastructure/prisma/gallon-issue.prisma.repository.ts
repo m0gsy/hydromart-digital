@@ -2,6 +2,7 @@ import type { GallonCustomerRow } from '../../application/ports/gallon-issue.rep
 import { Injectable } from '@nestjs/common';
 
 import {
+  GallonCustomerBalance,
   CreateGallonIssueData,
   CreateGallonIssueFromOrderData,
   GallonIssueDepotRow,
@@ -75,6 +76,18 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       gallons: agg._sum.quantity ?? 0,
       depositHeld: agg._sum.depositHeld ?? 0,
     };
+  }
+
+  /** I2: one customer's issued gallons and deposit held at one depot. */
+  async summaryForCustomerAtDepot(
+    depotId: string,
+    customerId: string,
+  ): Promise<GallonCustomerBalance> {
+    const agg = await this.prisma.gallonIssue.aggregate({
+      where: { depotId, customerId },
+      _sum: { quantity: true, depositHeld: true },
+    });
+    return { gallons: agg._sum.quantity ?? 0, amountIdr: agg._sum.depositHeld ?? 0 };
   }
 
   async perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]> {

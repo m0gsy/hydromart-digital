@@ -798,6 +798,15 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
       depositHeld: all.reduce((s, r) => s + r.depositHeld, 0),
     };
   }
+  /** I2: mirrors the real repository's targeted per-customer aggregate. */
+  async summaryForCustomerAtDepot(depotId: string, customerId: string) {
+    const mine = this.rows.filter((r) => r.depotId === depotId && r.customerId === customerId);
+    return {
+      gallons: mine.reduce((s, r) => s + r.quantity, 0),
+      amountIdr: mine.reduce((s, r) => s + (r.depositHeld ?? 0), 0),
+    };
+  }
+
   async perCustomerForDepot(depotId: string) {
     const by = new Map<string, { customerId: string; gallons: number; amountIdr: number }>();
     for (const r of this.rows.filter((x) => x.depotId === depotId && x.customerId)) {

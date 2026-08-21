@@ -133,11 +133,23 @@ export class ProductLineRequiresProductError extends DomainError {
 export class GallonOverReturnError extends DomainError {
   readonly code = 'GALLON_OVER_RETURN';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor(kind: 'gallons' | 'deposit', requested: number, remaining: number) {
+  /**
+   * I2: `scope` is what the balance was measured against. It used to always be the depot,
+   * because the cap always was — and an operator told "this depot still holds 0" while the
+   * depot plainly held plenty had no way to guess the real reason was that THIS customer
+   * holds none.
+   */
+  constructor(
+    kind: 'gallons' | 'deposit',
+    requested: number,
+    remaining: number,
+    scope: 'depot' | 'customer' = 'depot',
+  ) {
+    const whose = scope === 'customer' ? 'this customer' : 'this depot';
     super(
       kind === 'gallons'
-        ? `Return exceeds the empties this depot has outstanding (returning ${requested}, ${remaining} outstanding).`
-        : `Deposit refund exceeds the deposit this depot still holds (refunding ${requested}, ${remaining} held).`,
+        ? `Return exceeds the empties ${whose} has outstanding (returning ${requested}, ${remaining} outstanding).`
+        : `Deposit refund exceeds the deposit ${whose} still holds (refunding ${requested}, ${remaining} held).`,
     );
   }
 }

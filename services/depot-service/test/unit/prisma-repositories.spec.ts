@@ -613,6 +613,31 @@ describe('GallonIssuePrismaRepository', () => {
     });
   });
 
+  // I2: the cap reads ONE customer's balance per return, so it needs a targeted aggregate —
+  // `perCustomerForDepot` would read every customer of the depot to serve one refund.
+  it('aggregates one customer’s issued gallons and deposit held', async () => {
+    model.aggregate.mockResolvedValue({ _sum: { quantity: 5, depositHeld: 100000 } });
+    await expect(repo.summaryForCustomerAtDepot('depot-1', 'c1')).resolves.toEqual({
+      gallons: 5,
+      amountIdr: 100000,
+    });
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: 'c1' },
+      _sum: { quantity: true, depositHeld: true },
+    });
+  });
+
+  // A customer who has never taken a gallon here reads as zero, not as null — the cap
+  // subtracts these, and a null would make the arithmetic NaN and the comparison always
+  // false, which is the leak wearing a different hat.
+  it('reads a customer with no issues as zero, not null', async () => {
+    model.aggregate.mockResolvedValue({ _sum: { quantity: null, depositHeld: null } });
+    await expect(repo.summaryForCustomerAtDepot('depot-1', 'nobody')).resolves.toEqual({
+      gallons: 0,
+      amountIdr: 0,
+    });
+  });
+
   it('reads one customer’s issues at one depot, newest first and capped', async () => {
     model.findMany.mockResolvedValue([row]);
     await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([row]);
@@ -695,6 +720,30 @@ describe('GallonReturnPrismaRepository', () => {
   };
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
+
+  // I2's other half. `depositRefunded` is a Decimal column, so the sum arrives as an object
+  // and has to be coerced — subtracting it raw would give NaN and let every refund through.
+  it('aggregates one customer’s returned gallons and refunded deposit', async () => {
+    model.aggregate.mockResolvedValue({
+      _sum: { quantity: 3, depositRefunded: { toString: () => '60000' } },
+    });
+    await expect(repo.summaryForCustomerAtDepot('depot-1', 'c1')).resolves.toEqual({
+      gallons: 3,
+      amountIdr: 60000,
+    });
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: 'c1' },
+      _sum: { quantity: true, depositRefunded: true },
+    });
+  });
+
+  it('reads a customer with no returns as zero, not null', async () => {
+    model.aggregate.mockResolvedValue({ _sum: { quantity: null, depositRefunded: null } });
+    await expect(repo.summaryForCustomerAtDepot('depot-1', 'nobody')).resolves.toEqual({
+      gallons: 0,
+      amountIdr: 0,
+    });
+  });
 
   it('reads one customer’s returns at one depot, coercing the Decimal refund', async () => {
     model.findMany.mockResolvedValue([

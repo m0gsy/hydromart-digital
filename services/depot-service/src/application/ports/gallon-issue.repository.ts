@@ -53,6 +53,16 @@ export interface GallonCustomerRow {
   amountIdr: number;
 }
 
+/**
+ * I2: one named customer's side of one ledger at one depot. `amountIdr` is deposit HELD on
+ * the issue ledger and deposit REFUNDED on the return ledger — the same asymmetry
+ * `GallonCustomerRow` already carries, kept so the two can be subtracted directly.
+ */
+export interface GallonCustomerBalance {
+  gallons: number;
+  amountIdr: number;
+}
+
 export interface GallonIssueDepotRow {
   depotId: string;
   gallons: number;
@@ -81,6 +91,12 @@ export interface GallonIssueRepository {
    * an anonymous counter issue is not a person anybody can chase for a gallon back.
    */
   perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
+  /**
+   * I2: one customer's totals at one depot. `perCustomerForDepot` would answer this too,
+   * but it reads every customer of the depot to serve one return — this is the targeted
+   * read the cap needs on the hot path.
+   */
+  summaryForCustomerAtDepot(depotId: string, customerId: string): Promise<GallonCustomerBalance>;
   /** One customer's most recent issues at one depot — the CRM detail deposit ledger. */
   listForCustomerAtDepot(
     depotId: string,
