@@ -39,6 +39,17 @@ interface SubscriptionRow {
  */
 const CANCELLED_HISTORY = 5;
 
+/**
+ * D8: subscriptions one fulfilment tick will place orders for. The next tick continues
+ * from what is still due.
+ *
+ * Smaller than the stale-order sweep's 500 on purpose: that one CANCELS rows, this one
+ * PLACES ORDERS — routing, pricing, stock reservation and a notification each — serially,
+ * inside a single request. Unbounded, a backlog is work the tick cannot finish, and it
+ * dies partway with nothing recording where it stopped.
+ */
+const DUE_SWEEP_BATCH = 100;
+
 @Injectable()
 export class SubscriptionPrismaRepository implements SubscriptionRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -102,10 +113,11 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return [...live, ...cancelled].map((r) => this.toRecord(r));
   }
 
-  async findDue(now: Date): Promise<SubscriptionRecord[]> {
+  async findDue(now: Date, limit = DUE_SWEEP_BATCH): Promise<SubscriptionRecord[]> {
     const rows = await this.prisma.subscription.findMany({
       where: { status: 'ACTIVE', nextDeliveryAt: { lte: now } },
       orderBy: { nextDeliveryAt: 'asc' },
+      take: limit,
     });
     return rows.map((r) => this.toRecord(r));
   }

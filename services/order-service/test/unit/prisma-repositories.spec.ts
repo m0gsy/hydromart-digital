@@ -185,14 +185,38 @@ describe('SubscriptionPrismaRepository', () => {
     );
   });
 
-  it('finds ACTIVE subscriptions due at or before now', async () => {
-    model.findMany.mockResolvedValue([row]);
-    const now = new Date('2026-02-01');
+  /**
+   * D8: the sweep places a real order per row — routing, pricing, stock reservation and a
+   * notification each — serially, inside one request. Unbounded, a backlog is work the tick
+   * cannot finish, and it dies partway with nothing recording where it stopped.
+   */
+  it('claims a bounded batch of due subscriptions, oldest first', async () => {
+    model.findMany.mockResolvedValue([]);
+    const now = new Date('2026-08-21T00:00:00Z');
     await repo.findDue(now);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { status: 'ACTIVE', nextDeliveryAt: { lte: now } },
       orderBy: { nextDeliveryAt: 'asc' },
+      take: 100,
     });
+  });
+
+  it('lets the caller shrink the due batch', async () => {
+    model.findMany.mockResolvedValue([]);
+    await repo.findDue(new Date('2026-08-21T00:00:00Z'), 10);
+    expect(model.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 10 }));
+  });
+
+  // Inverted by D8: this pinned a due query with NO `take`, i.e. it asserted the unbounded
+  // read as the contract. The predicate is what it was really guarding and that survives
+  // here; the bound is asserted above.
+  it('finds ACTIVE subscriptions due at or before now', async () => {
+    model.findMany.mockResolvedValue([row]);
+    const now = new Date('2026-02-01');
+    await repo.findDue(now);
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'ACTIVE', nextDeliveryAt: { lte: now } } }),
+    );
   });
 
   it('sets status and advances the next delivery date', async () => {
