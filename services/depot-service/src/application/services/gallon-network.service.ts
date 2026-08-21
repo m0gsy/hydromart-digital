@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { DepotRepository } from '../ports/depot.repository';
 import { GallonIssueRepository } from '../ports/gallon-issue.repository';
 import {
   GallonReturnRangeSummary,
@@ -27,6 +28,18 @@ export interface CustomerGallonRow {
   depositHeldIdr: number;
 }
 
+/**
+ * I5: one depot where a customer is still holding gallons, or still has deposit with it.
+ * `depotName` travels with it because the customer screen has no other way to name a depot
+ * — it is not staff, it has no depot directory.
+ */
+export interface CustomerDepotDepositRow {
+  depotId: string;
+  depotName: string;
+  gallonsOnLoan: number;
+  depositHeldIdr: number;
+}
+
 /** One movement of the deposit ledger, as the CRM detail screen lists it. */
 export interface CustomerGallonLedgerEntry {
   id: string;
@@ -46,7 +59,47 @@ export class GallonNetworkService {
   constructor(
     @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.GallonReturnRepository) private readonly returns: GallonReturnRepository,
+    @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
   ) {}
+
+  /**
+   * I5: what ONE customer is still holding, and still has on deposit, at each depot they
+   * have used. The mirror of `perCustomer` — that answers a depot asking about its
+   * customers; this answers a customer asking about their depots.
+   *
+   * The customer had no screen for either number anywhere: the data existed and was
+   * rendered only in the staff console, so the person whose money it is could not see it.
+   *
+   * Floored at 0 per depot for the same reason `perCustomer` floors: a return recorded
+   * against the wrong depot must not show the customer a negative loan. Depots where both
+   * numbers are 0 are dropped — a list of every depot they ever bought from is not the
+   * question being asked.
+   *
+   * ponytail: names are read one depot at a time. A customer has a handful of depots, not
+   * a network of them; batch it if that ever stops being true.
+   */
+  async forCustomer(customerId: string): Promise<CustomerDepotDepositRow[]> {
+    const [issued, returned] = await Promise.all([
+      this.issues.perDepotForCustomer(customerId),
+      this.returns.perDepotForCustomer(customerId),
+    ]);
+    const returnedBy = new Map(returned.map((r) => [r.depotId, r]));
+    const rows: CustomerDepotDepositRow[] = [];
+    for (const i of issued) {
+      const back = returnedBy.get(i.depotId);
+      const gallonsOnLoan = Math.max(0, i.gallons - (back?.gallons ?? 0));
+      const depositHeldIdr = Math.max(0, i.amountIdr - (back?.amountIdr ?? 0));
+      if (!gallonsOnLoan && !depositHeldIdr) continue;
+      const depot = await this.depots.findById(i.depotId, false);
+      rows.push({
+        depotId: i.depotId,
+        depotName: depot?.name ?? '',
+        gallonsOnLoan,
+        depositHeldIdr,
+      });
+    }
+    return rows;
+  }
 
   /**
    * Gallons handed back at one depot on one day — the two columns order-service's daily

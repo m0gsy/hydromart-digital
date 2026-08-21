@@ -1255,6 +1255,18 @@ export class CustomerGallonRowResponseDto {
   depositHeldIdr!: number;
 }
 
+/** Mirrors `CustomerDepotDepositRow` exactly — generated for audit D-6, no field added or removed. */
+export class CustomerDepotDepositRowResponseDto {
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: String })
+  depotName!: string;
+  @ApiProperty({ type: Number })
+  gallonsOnLoan!: number;
+  @ApiProperty({ type: Number })
+  depositHeldIdr!: number;
+}
+
 /** Mirrors `CustomerGallonLedgerEntry` exactly — generated for audit D-6, no field added or removed. */
 export class CustomerGallonLedgerEntryResponseDto {
   @ApiProperty({ type: String })

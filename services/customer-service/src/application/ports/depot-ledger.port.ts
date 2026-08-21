@@ -25,8 +25,25 @@ export interface DepotGallonLedgerEntry {
   at: string;
 }
 
+/** I5: one depot where THIS customer still holds gallons, or still has deposit. */
+export interface CustomerDepotDepositRow {
+  depotId: string;
+  depotName: string;
+  gallonsOnLoan: number;
+  depositHeldIdr: number;
+}
+
 export interface DepotLedgerPort {
   gallonsByCustomer(depotId: string): Promise<DepotGallonLedgerRow[] | null>;
+  /**
+   * I5: the mirror of `gallonsByCustomer`. That answers a depot asking about its customers;
+   * this answers a customer asking about their depots — the two numbers whose money is
+   * theirs, and which they had no screen for anywhere.
+   *
+   * Fails SOFT to `null` for the same reason as its sibling: `[]` would mean "you are
+   * holding nothing and are owed nothing", which is a deposit quietly disappearing.
+   */
+  depositsForCustomer(customerId: string): Promise<CustomerDepotDepositRow[] | null>;
   /**
    * One customer's deposit movements at this depot.
    *

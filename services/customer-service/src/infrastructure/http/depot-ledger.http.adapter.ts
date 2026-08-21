@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import {
+  CustomerDepotDepositRow,
   DepotGallonLedgerEntry,
   DepotGallonLedgerRow,
   DepotLedgerPort,
@@ -25,6 +26,11 @@ export class DepotLedgerHttpAdapter implements DepotLedgerPort {
   async gallonsByCustomer(depotId: string): Promise<DepotGallonLedgerRow[] | null> {
     const qs = `depotId=${encodeURIComponent(depotId)}`;
     return this.read<DepotGallonLedgerRow>(`by-customer?${qs}`, null);
+  }
+
+  async depositsForCustomer(customerId: string): Promise<CustomerDepotDepositRow[] | null> {
+    const qs = `customerId=${encodeURIComponent(customerId)}`;
+    return this.read<CustomerDepotDepositRow>(`for-customer?${qs}`, null);
   }
 
   async customerLedger(depotId: string, customerId: string): Promise<DepotGallonLedgerEntry[]> {

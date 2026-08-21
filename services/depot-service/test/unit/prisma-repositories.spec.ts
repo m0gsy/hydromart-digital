@@ -638,6 +638,23 @@ describe('GallonIssuePrismaRepository', () => {
     });
   });
 
+  // I5: the same totals grouped the other way — one customer, every depot they have used.
+  it('groups one customer’s issues by depot', async () => {
+    model.groupBy.mockResolvedValue([
+      { depotId: 'd1', _sum: { quantity: 5, depositHeld: 100000 } },
+      { depotId: 'd2', _sum: { quantity: null, depositHeld: null } },
+    ]);
+    await expect(repo.perDepotForCustomer('c1')).resolves.toEqual([
+      { depotId: 'd1', gallons: 5, amountIdr: 100000 },
+      { depotId: 'd2', gallons: 0, amountIdr: 0 },
+    ]);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: { customerId: 'c1' },
+      _sum: { quantity: true, depositHeld: true },
+    });
+  });
+
   it('reads one customer’s issues at one depot, newest first and capped', async () => {
     model.findMany.mockResolvedValue([row]);
     await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([row]);
@@ -742,6 +759,23 @@ describe('GallonReturnPrismaRepository', () => {
     await expect(repo.summaryForCustomerAtDepot('depot-1', 'nobody')).resolves.toEqual({
       gallons: 0,
       amountIdr: 0,
+    });
+  });
+
+  // Same grouping on the return side, with the Decimal coercion its column needs.
+  it('groups one customer’s returns by depot, coercing the Decimal refund', async () => {
+    model.groupBy.mockResolvedValue([
+      { depotId: 'd1', _sum: { quantity: 3, depositRefunded: { toString: () => '60000' } } },
+      { depotId: 'd2', _sum: { quantity: null, depositRefunded: null } },
+    ]);
+    await expect(repo.perDepotForCustomer('c1')).resolves.toEqual([
+      { depotId: 'd1', gallons: 3, amountIdr: 60000 },
+      { depotId: 'd2', gallons: 0, amountIdr: 0 },
+    ]);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: { customerId: 'c1' },
+      _sum: { quantity: true, depositRefunded: true },
     });
   });
 

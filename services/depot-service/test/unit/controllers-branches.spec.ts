@@ -429,6 +429,7 @@ describe('GallonNetworkController', () => {
   const gallon = {
     outstanding: jest.fn(),
     perCustomer: jest.fn(),
+    forCustomer: jest.fn(),
     customerLedger: jest.fn(),
     gallonsInRange: jest.fn(),
   };
@@ -441,6 +442,14 @@ describe('GallonNetworkController', () => {
     gallon.perCustomer.mockResolvedValue([]);
     gallon.gallonsInRange.mockResolvedValue({ gallons: 0, damaged: 0 });
     gallon.customerLedger.mockResolvedValue([]);
+  });
+
+  // I5: the mirror read, for the customer's OWN screen. The customer id comes from the
+  // caller's verified session, never off the browser — the guard here is the internal key.
+  it('passes the customer id straight through to the per-depot deposit read (I5)', async () => {
+    gallon.forCustomer.mockResolvedValue([]);
+    await expect(c.forCustomer(CUSTOMER)).resolves.toEqual([]);
+    expect(gallon.forCustomer).toHaveBeenCalledWith(CUSTOMER);
   });
 
   it('passes both ids straight through to the customer ledger', async () => {

@@ -15,7 +15,11 @@ import {
   UpdateProfileDto,
 } from './dto/profile.dto';
 import { NotificationPreferenceRecord } from '../application/ports/notification.repository';
-import { NotificationPreferenceResponseDto } from './dto/responses.generated.dto';
+import {
+  CustomerDepotDepositRowResponseDto,
+  NotificationPreferenceResponseDto,
+} from './dto/responses.generated.dto';
+import { CustomerDepotDepositRow } from '../application/ports/depot-ledger.port';
 
 function toProfileResponse(p: CustomerProfileRecord): ProfileResponseDto {
   return {
@@ -43,6 +47,23 @@ export class ProfileController {
   @ApiOkResponse({ type: ProfileResponseDto })
   async getProfile(@CurrentUser() user: AuthenticatedUser): Promise<ProfileResponseDto> {
     return toProfileResponse(await this.profiles.get(user.sub));
+  }
+
+  /**
+   * I5: my gallons on loan and my deposit still held, per depot.
+   *
+   * Scoped to the caller's own session — the customer id never comes off the request, so
+   * one customer cannot read another's deposit. `null` from depot-service is passed through
+   * as `null`, not flattened to `[]`: the screen must say "belum tersambung" rather than
+   * print a zero nobody checked, because a zero here reads as "you have no deposit".
+   */
+  @Get('profile/gallon-deposit')
+  @ApiOperation({ summary: 'My gallons on loan and deposit held, per depot' })
+  @ApiOkResponse({ type: CustomerDepotDepositRowResponseDto, isArray: true })
+  myGallonDeposits(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CustomerDepotDepositRow[] | null> {
+    return this.profiles.myGallonDeposits(user.sub);
   }
 
   @Patch('profile')

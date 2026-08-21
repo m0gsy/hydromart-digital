@@ -265,6 +265,27 @@ describe('HealthController', () => {
  * key, not a bearer — a notification is fired by an order webhook, a cron or a courier's
  * proof of delivery, and none of those hold the customer's token.
  */
+// I5: the customer's own deposit read. The id comes off the verified session, never off
+// the request — one customer must not be able to read another's deposit by asking.
+describe('ProfileController · my gallon deposit (I5)', () => {
+  const profiles = { myGallonDeposits: jest.fn() };
+  const c = new ProfileController(profiles as never, {} as never);
+
+  it('scopes the read to the caller and returns what the service answered', async () => {
+    const rows = [
+      { depotId: 'd1', depotName: 'Depot Cikini', gallonsOnLoan: 2, depositHeldIdr: 40000 },
+    ];
+    profiles.myGallonDeposits.mockResolvedValue(rows);
+    await expect(c.myGallonDeposits(user)).resolves.toEqual(rows);
+    expect(profiles.myGallonDeposits).toHaveBeenCalledWith('u1');
+  });
+
+  it('passes null through, so the screen can say "not connected"', async () => {
+    profiles.myGallonDeposits.mockResolvedValue(null);
+    await expect(c.myGallonDeposits(user)).resolves.toBeNull();
+  });
+});
+
 describe('ProfileController · internal notification preferences', () => {
   const profiles = { findSegment: jest.fn() };
   const notifications = { get: jest.fn(), update: jest.fn() };

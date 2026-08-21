@@ -1,5 +1,15 @@
 // English mirror of id/customerFix.ts — SAME keys, English values.
 export const customerFix = {
+  /** I5: the customer's own gallon deposit — two numbers that lived only in the staff console. */
+  gallonDeposit: {
+    title: "Gallon deposit",
+    subtitle: "Gallons you are still holding, and the deposit still with the depot.",
+    gallons: "{n} gallons held",
+    held: "Deposit held",
+    empty: "You are not holding any gallons.",
+    unavailable: "Not connected — the deposit data cannot be read right now.",
+    note: "The deposit comes back when the gallons go back to the same depot.",
+  },
   address: {
     pinRequired: "A map pin is required — tap \"Use my location\".",
   },
