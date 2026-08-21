@@ -11,6 +11,12 @@ export const errors = {
     AUTH_ACCOUNT_NOT_ACTIVE: 'This account is not active. Contact Hydromart support.',
   },
   missingRouteId: 'This page was opened without the record it needs. Go back and pick one.',
+  geo: {
+    denied: 'Location access denied. Allow location for this app in Settings, then try again.',
+    unavailable: 'Could not get a location. Turn on Location/GPS on your device, then try again.',
+    timeout: 'No location signal yet. Try again somewhere more open.',
+    unsupported: 'This device does not support location.',
+  },
   address: {
     required: 'Fill in every required field.',
     latitudeRange: 'Invalid map pin: latitude must be between -90 and 90.',

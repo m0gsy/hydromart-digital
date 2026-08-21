@@ -7,7 +7,7 @@ import { Broadcast, Coffee, Moon } from '@phosphor-icons/react';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { currentPosition } from '@/lib/geo';
+import { currentPosition, GeoError } from '@/lib/geo';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -39,7 +39,13 @@ function ShiftStatusScreen() {
       await fn();
       shift.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('driver.shiftStatus.actionError'));
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof GeoError
+            ? t(`errors.geo.${e.reason}`)
+            : t('driver.shiftStatus.actionError'),
+      );
     } finally {
       setBusy(null);
     }
@@ -59,14 +65,20 @@ function ShiftStatusScreen() {
   const setStatus = (status: Exclude<ShiftStatus, 'ENDED'>) =>
     act(() => api.patch(endpoints.deliveries.shifts.status(s.id), { status }, true), status);
 
-  const checkOut = async () => {
-    const pos = await currentPosition();
-    await act(
-      () => api.post(endpoints.deliveries.shifts.checkOut(s.id), { lat: pos.coords.latitude, lng: pos.coords.longitude }, true),
-      'ENDED',
-    );
-    router.replace('/driver/shift/check-in');
-  };
+  // J1: the position was read OUTSIDE `act`, so a geolocation failure rejected here with
+  // nobody catching it — no message, no spinner, no reset. The courier tapped "tutup
+  // shift" and the screen simply did nothing. Reading it inside the same try is the whole
+  // fix: `act` already owns the busy flag and the error line.
+  const checkOut = () =>
+    act(async () => {
+      const pos = await currentPosition();
+      await api.post(
+        endpoints.deliveries.shifts.checkOut(s.id),
+        { lat: pos.coords.latitude, lng: pos.coords.longitude },
+        true,
+      );
+      router.replace('/driver/shift/check-in');
+    }, 'ENDED');
 
   return (
     <div className="space-y-4 px-5 py-6">

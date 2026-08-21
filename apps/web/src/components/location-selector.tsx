@@ -5,7 +5,7 @@ import { CaretDown, Check, Crosshair, MapPin } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { currentPosition, GeoError } from '@/lib/geo';
+import { currentPosition, geoReason } from '@/lib/geo';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
@@ -58,7 +58,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         setOpen(false);
       }
     } catch (err) {
-      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      const reason = geoReason(err);
       setGeoError(t(`home.location.${reason}`));
     } finally {
       setGeoBusy(false);

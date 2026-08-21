@@ -70,7 +70,7 @@ export const home = {
     timeout: 'Sinyal lokasi belum ketemu. Coba lagi, atau pilih kota.',
     myLocation: 'Lokasi saya',
     near: 'Dekat {city}',
-    denied: 'Tidak bisa mengakses lokasi. Izinkan akses atau pilih kota.',
+    denied: 'Akses lokasi ditolak. Izinkan lokasi di Setelan aplikasi, atau pilih kota di bawah.',
     placeholder: 'Pilih lokasi pengiriman',
     searching: 'Mencari lokasi…',
     useMyLocation: 'Gunakan lokasi saya',
