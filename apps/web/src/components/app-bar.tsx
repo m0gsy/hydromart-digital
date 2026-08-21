@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Bell, MagnifyingGlass, ShoppingCartSimple } from '@phosphor-icons/react';
 
+import { LocationSelector } from '@/components/location-selector';
 import { BrandMark, Input } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
@@ -75,10 +76,29 @@ export function AppBar() {
           <h1 className="truncate text-[19px] font-extrabold tracking-[-0.02em]">
             {t(chrome.titleKey)}
           </h1>
-        ) : (
+        ) : staff ? (
           <Link href="/">
             <BrandMark />
           </Link>
+        ) : (
+          /*
+           * G6. On a phone the delivery location had no home in the chrome at all. The
+           * `sm:` nav has carried this exact control for a while; the app bar that replaces
+           * it below that breakpoint carried the wordmark instead, so the only way to set a
+           * location was to scroll the home page down to the "Depot terdekat" card — which
+           * is also the only place that tells you your location is wrong.
+           *
+           * It replaces the brand rather than joining it, and that is width, not taste. At
+           * 320px the row has 320 − 32 (px-4) − 44 (bell) − 44 (cart) − gaps ≈ 186px for
+           * this slot; the lockup is a 36px circle plus a nine-character wordmark at 19px,
+           * which eats most of it on its own. Both would leave the chip an ellipsis, and an
+           * ellipsis is not a control. The mark is one tap away on every other surface —
+           * this is the home screen, where the brand is the least new information present.
+           *
+           * Staff keep the wordmark: the picker sets a CUSTOMER delivery location, and the
+           * depot a staff member works from is their assignment, not their choice.
+           */
+          <LocationSelector compact />
         )}
 
         <div className="ml-auto flex flex-none items-center gap-1.5">
