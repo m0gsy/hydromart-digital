@@ -55,8 +55,13 @@ const nextConfig = {
   // Dropped for the mobile export: `headers()` needs a server to send them, and there
   // is none — the pages are files on the device. The protections themselves are not
   // lost, they move to where they belong on that platform: the WebView is the frame,
-  // the app is not embeddable, and camera/geolocation are Android runtime permissions
-  // declared in the manifest.
+  // the app is not embeddable, and camera/geolocation are Android runtime permissions.
+  //
+  // Not "declared in the manifest", which this said until J1: the CUSTOMER binary strips
+  // both `CAMERA` and `ACCESS_FINE_LOCATION` out of the merged manifest (see
+  // `mobile/android/app/build.gradle`), so on that build the gate is coarse location
+  // alone — and a stripped permission is denied by the system with no dialog at all,
+  // which is exactly how geolocation came to be dead there.
   ...(MOBILE
     ? {}
     : {
