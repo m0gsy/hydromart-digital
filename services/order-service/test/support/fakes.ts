@@ -682,8 +682,15 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     const r = this.rows.find((x) => x.id === id);
     return r ? structuredClone(r) : null;
   }
+  /**
+   * D4: mirrors the real repository — every live plan, but only the recent few cancelled
+   * ones. A fake that returned the graveyard would prove the opposite of the bound.
+   */
   async listByCustomer(customerId: string): Promise<SubscriptionRecord[]> {
-    return this.rows.filter((r) => r.customerId === customerId).map((r) => structuredClone(r));
+    const mine = this.rows.filter((r) => r.customerId === customerId).reverse();
+    const live = mine.filter((r) => r.status !== 'CANCELLED');
+    const cancelled = mine.filter((r) => r.status === 'CANCELLED').slice(0, 5);
+    return [...live, ...cancelled].map((r) => structuredClone(r));
   }
   async findDue(now: Date): Promise<SubscriptionRecord[]> {
     return this.rows
@@ -693,6 +700,14 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;
     r.status = status;
+    r.updatedAt = nextDate();
+    return structuredClone(r);
+  }
+  /** D4: status and schedule in one write, mirroring the real repository. */
+  async resume(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
+    const r = this.rows.find((x) => x.id === id)!;
+    r.status = 'ACTIVE';
+    r.nextDeliveryAt = nextDeliveryAt;
     r.updatedAt = nextDate();
     return structuredClone(r);
   }

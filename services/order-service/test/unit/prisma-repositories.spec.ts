@@ -80,6 +80,38 @@ describe('SubscriptionPrismaRepository', () => {
   const $queryRaw = jest.fn();
   const prisma = { subscription: model, $queryRaw } as unknown as PrismaService;
   const repo = new SubscriptionPrismaRepository(prisma);
+
+  /**
+   * D4: cancel is terminal, so cancelled plans used to pile up in the customer's list
+   * forever — an unbounded read that grows for the life of the account. Live plans stay
+   * unbounded on purpose (hiding one would hide a standing charge); cancelled ones do not.
+   */
+  it('returns every live plan but only the recent few cancelled ones', async () => {
+    model.findMany.mockResolvedValue([]);
+    await repo.listByCustomer('cust-1');
+
+    const [live, cancelled] = model.findMany.mock.calls.map((c) => c[0]);
+    expect(live).toMatchObject({ where: { customerId: 'cust-1', status: { not: 'CANCELLED' } } });
+    expect(live.take).toBeUndefined();
+    expect(cancelled).toMatchObject({
+      where: { customerId: 'cust-1', status: 'CANCELLED' },
+      take: 5,
+    });
+  });
+
+  // D4: status and schedule in ONE write. Two would leave a window where the plan is
+  // ACTIVE holding a due date in the past — and the sweep runs on a timer, so that window
+  // is exactly long enough for it to place the delivery the resume was meant to postpone.
+  it('resumes by writing status and schedule together', async () => {
+    model.update.mockResolvedValue({ ...row, status: 'ACTIVE' });
+    const when = new Date('2026-08-18T00:00:00Z');
+    await repo.resume('sub-1', when);
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'ACTIVE', nextDeliveryAt: when },
+    });
+  });
+
   const row = {
     id: 'sub-1',
     customerId: 'cust-1',
@@ -140,14 +172,17 @@ describe('SubscriptionPrismaRepository', () => {
     expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'nope' } });
   });
 
+  // Inverted by D4, and the reason is the point: this pinned ONE unbounded query over
+  // every subscription the customer ever had, cancelled ones included, forever. The list
+  // is now two reads — live (unbounded, by design) and cancelled (bounded) — asserted in
+  // its own test above. What survives here is the ordering and the mapping.
   it('lists a customer subscriptions newest-first', async () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.listByCustomer('cust-1');
-    expect(out).toHaveLength(1);
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { customerId: 'cust-1' },
-      orderBy: { createdAt: 'desc' },
-    });
+    expect(out).toHaveLength(2); // one row per read, both mocked to the same list
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: 'desc' } }),
+    );
   });
 
   it('finds ACTIVE subscriptions due at or before now', async () => {
