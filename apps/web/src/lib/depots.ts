@@ -6,9 +6,55 @@ import type { Translate } from './addresses';
 import type { Depot, DepotPayload, NearbyDepot } from './types';
 
 /**
+ * A3 — the depot that will actually fulfil an order at this point: the nearest one whose
+ * service radius COVERS the point, not merely the nearest one.
+ *
+ * This mirrors order-service `selectNearestDepot`, which is the authority. The nearby list
+ * arrives nearest-first, so the first in-range row is the same depot the server elects.
+ *
+ * Reading `[0]` instead was wrong in a way that reached the money. Measured against
+ * production at Jakarta Pusat: the only candidate came back 14.98 km away with a 3 km
+ * radius and `withinService: false` — and the web quoted its Rp1.000 ongkir, priced the
+ * whole cart with `cart.view(thatDepot)`, and only failed at submit with
+ * `OutOfServiceAreaError`. `withinService` was already on the wire and already read by two
+ * other screens; only the one that decides the price ignored it.
+ *
+ * Radii differ per depot, so "nearest" and "in range" are genuinely different questions:
+ * a depot 8 km out with a 20 km radius serves a point that one 3 km out with a 2 km radius
+ * does not. That is also why the caller must ask for more than one candidate.
+ */
+export function servingDepot(nearby: NearbyDepot[] | null | undefined): NearbyDepot | null {
+  return nearby?.find((d) => d.withinService) ?? null;
+}
+
+/**
+ * G3 — the depot an unpinned checkout should start on: the one the home location already
+ * resolved to. Returns null when there is none, or when it is no longer on offer — a stale
+ * id from an archived depot would otherwise sail past the disabled-submit guard and come
+ * back `DepotUnavailableError` after the customer pressed the button.
+ *
+ * Safe to feed from the home location precisely because `location-selector` now stores only
+ * a depot whose radius covers the point (see `servingDepot`).
+ */
+export function defaultDepotFromLocation(
+  homeDepotId: string | null | undefined,
+  choices: Depot[] | null | undefined,
+): string | null {
+  if (!homeDepotId) return null;
+  return choices?.some((d) => d.id === homeDepotId) ? homeDepotId : null;
+}
+
+/**
  * Which depot the checkout ongkir preview should quote. An address with a map pin is
  * routed by the nearby lookup; one without has no lookup at all and the customer picks
  * the depot by hand — reading only the nearby result showed those orders no ongkir.
+ *
+ * The radius rule applies to the PINNED path only, and deliberately: the server enforces
+ * it there and nowhere else. For an address with no pin it accepts whatever depot was
+ * asked for (`resolveDepot`, order.service.ts), because there is no point to measure a
+ * radius against. Applying the veto to both paths is what would make A3 and G3 cancel each
+ * other — G3 fills the depot in, A3 throws it out, and checkout blocks on a choice the
+ * customer never made.
  */
 export function resolveDeliveryDepot(
   needsDepotPick: boolean,
@@ -17,7 +63,7 @@ export function resolveDeliveryDepot(
   nearbyDepots: NearbyDepot[] | null | undefined,
 ): Depot | NearbyDepot | null {
   if (needsDepotPick) return depotChoices?.find((d) => d.id === pickedDepotId) ?? null;
-  return nearbyDepots?.[0] ?? null;
+  return servingDepot(nearbyDepots);
 }
 
 export interface DepotForm {

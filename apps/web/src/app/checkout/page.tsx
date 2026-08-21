@@ -43,7 +43,8 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
-import { resolveDeliveryDepot } from '@/lib/depots';
+import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
+import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
@@ -193,11 +194,14 @@ function CheckoutInner() {
   // Advisory delivery-fee preview: when the selected address carries coords, look up the
   // nearest depot to show an estimated ongkir. Fail-soft — errors are ignored and no fee is
   // added; this is display-only and never sent to the API or used in placeOrder.
-  const { data: nearbyDepots } = useAsync<NearbyDepot[]>(
+  // A3: ten candidates, not one. Service radii differ per depot, so the nearest depot is
+  // not always the one that covers the point — asking for a single row made an out-of-range
+  // depot the only answer and hid every in-range one behind it.
+  const { data: nearbyDepots, loading: nearbyLoading } = useAsync<NearbyDepot[]>(
     () =>
       coords.latitude != null && coords.longitude != null
         ? api.get(
-            endpoints.depots.nearby({ lat: coords.latitude, lng: coords.longitude, limit: 1 }),
+            endpoints.depots.nearby({ lat: coords.latitude, lng: coords.longitude, limit: 10 }),
             true,
           )
         : Promise.resolve([]),
@@ -219,10 +223,36 @@ function CheckoutInner() {
     if (!needsDepotPick) setPickedDepotId(null);
   }, [needsDepotPick]);
 
+  /*
+   * G3. An address with no map pin still has a home location — the one set on Beranda,
+   * which already resolved to a depot. Default the fulfilling depot to that one instead of
+   * opening a hundred-row picker and blocking the order until somebody scrolls it.
+   *
+   * Only if that depot is still one of the choices: a stale id from an archived depot would
+   * otherwise sail past the disabled-submit guard and come back DepotUnavailableError. The
+   * picker below stays exactly as it was, as the override — this sets a default, it does
+   * not take the decision away.
+   */
+  const { location } = useLocation();
+  useEffect(() => {
+    if (!needsDepotPick || pickedDepotId) return;
+    const fromHome = defaultDepotFromLocation(location?.depotId, depotChoices?.items);
+    if (fromHome) setPickedDepotId(fromHome);
+  }, [needsDepotPick, pickedDepotId, location?.depotId, depotChoices]);
+
   // The depot that will fulfil this order, however it was determined. Everything the
   // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
   // here rather than per line.
   const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
+
+  /*
+   * A3. This address has a map pin and no depot's radius covers it. The server will refuse
+   * the order for exactly this reason, so say it here rather than after the customer has
+   * filled in the form, read a delivery fee, and pressed the button that spends money.
+   *
+   * `nearbyLoading` guards it: an empty list mid-fetch is not an out-of-area verdict.
+   */
+  const outOfServiceArea = !needsDepotPick && !nearbyLoading && nearbyDepots != null && depot === null;
 
   /*
    * A1/A2. The cart, priced by the depot that will actually fulfil the order — the depot's
@@ -1100,13 +1130,18 @@ function CheckoutInner() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={needsDepotPick && !pickedDepotId}
+            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea}
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
           </Button>
           {needsDepotPick && !pickedDepotId && (
             <p className="text-xs text-muted">{t('order.checkout.pickDepotRequired')}</p>
+          )}
+          {outOfServiceArea && (
+            <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+              {t('order.checkout.outOfServiceArea')}
+            </p>
           )}
         </Card>
       </div>
@@ -1120,6 +1155,11 @@ function CheckoutInner() {
       )}
       {needsDepotPick && !pickedDepotId && (
         <p className="mb-2 text-xs text-muted lg:hidden">{t('order.checkout.pickDepotRequired')}</p>
+      )}
+      {outOfServiceArea && (
+        <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
+          {t('order.checkout.outOfServiceArea')}
+        </p>
       )}
       {/* A direct child of the form on purpose: `sticky` only holds while its containing
           block is on screen, and a wrapper div is exactly as tall as the bar itself. */}
@@ -1138,7 +1178,7 @@ function CheckoutInner() {
         <Button
           type="submit"
           loading={submitting}
-          disabled={needsDepotPick && !pickedDepotId}
+          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea}
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >
           {/* Not `placeOrder`: that string ends in an em dash because the rail version is

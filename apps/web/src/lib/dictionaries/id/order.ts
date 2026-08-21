@@ -70,9 +70,11 @@ export const order = {
     total: 'Total',
     pickDepot: 'Pilih depot pengantar',
     pickDepotHint:
-      'Alamat ini belum punya titik lokasi, jadi kami tidak bisa memilih depot otomatis. Pilih depot terdekat dari rumahmu.',
+      'Alamat ini belum punya titik lokasi. Kalau Anda sudah menyetel lokasi di beranda, depotnya kami isikan dari situ — ganti di bawah bila bukan itu.',
     pickDepotEmpty: 'Belum ada depot aktif. Coba lagi nanti.',
     pickDepotRequired: 'Pilih depot dulu untuk melanjutkan.',
+    outOfServiceArea:
+      'Titik alamat ini di luar radius antar semua depot kami. Pilih alamat lain, atau ubah titik petanya ke lokasi yang kami layani.',
     placeOrder: 'Buat pesanan —',
     placeOrderShort: 'Buat pesanan',
     priceVerified:
