@@ -692,9 +692,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     const cancelled = mine.filter((r) => r.status === 'CANCELLED').slice(0, 5);
     return [...live, ...cancelled].map((r) => structuredClone(r));
   }
-  async findDue(now: Date): Promise<SubscriptionRecord[]> {
+  /** D8: bounded and oldest-first, mirroring the real repository. */
+  async findDue(now: Date, limit = 100): Promise<SubscriptionRecord[]> {
     return this.rows
       .filter((r) => r.status === 'ACTIVE' && r.nextDeliveryAt.getTime() <= now.getTime())
+      .sort((a, b) => a.nextDeliveryAt.getTime() - b.nextDeliveryAt.getTime())
+      .slice(0, limit)
       .map((r) => structuredClone(r));
   }
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {

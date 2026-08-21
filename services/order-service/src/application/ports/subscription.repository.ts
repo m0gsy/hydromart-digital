@@ -48,7 +48,17 @@ export interface SubscriptionRepository {
   findById(id: string): Promise<SubscriptionRecord | null>;
   listByCustomer(customerId: string): Promise<SubscriptionRecord[]>;
   /** ACTIVE subscriptions whose next delivery is due at or before `now`. */
-  findDue(now: Date): Promise<SubscriptionRecord[]>;
+  /**
+   * D8: bounded, oldest first. The sweep places a real order per row, serially, inside one
+   * request — so an unbounded read is a backlog the tick cannot finish, and it dies
+   * somewhere in the middle with no record of where. `limit` caps one tick; the next tick
+   * continues from what is still due.
+   *
+   * Note the bound alone does not rescue a queue whose HEAD keeps failing: those rows never
+   * advance, so they are re-read every tick and eventually fill the batch. That is D2b's
+   * job — the failure counter that stops asking.
+   */
+  findDue(now: Date, limit?: number): Promise<SubscriptionRecord[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
   /**
    * D4: resume, which is a status change AND a schedule move in one write.
