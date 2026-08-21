@@ -1,0 +1,32 @@
+-- D10: a depot-side subscription produces nothing.
+--
+-- There is no sweep, nothing ever writes `nextRunAt`, and the screen renders it as the
+-- "next run" — so it shows a date that freezes at whatever the operator typed and drifts
+-- further into the past every day, while the depot believes a standing order exists.
+--
+-- The decision taken: connect it to the engine that already exists rather than grow a
+-- second one in depot-service. That engine — order-service subscriptions — is the one D1,
+-- D2, D4, D6, D8 and D9 have just been repaired; a rival implementation would inherit
+-- none of it.
+--
+-- The engine needs identity, and this table has only labels:
+--   customerName  free text  ->  a real customer id
+--   productLabel  free text  ->  a real product id
+-- so a depot row as it stands CANNOT place an order for anybody.
+--
+-- Two columns close that gap:
+--   productId            what the operator actually picked, not what they typed.
+--   orderSubscriptionId  the engine's own subscription this row now stands for. Nullable
+--                        forever: a row created before this link existed has none, and a
+--                        row whose creation reached depot-service but not the engine must
+--                        be visible as exactly that rather than silently look linked.
+--
+-- Both nullable, no backfill: production holds ZERO rows in this table (measured before
+-- writing this), so there is nothing to migrate and nothing to guess.
+--
+-- Written and nothing more in this release. The caller that fills them is D10b — schema
+-- rule ships a column one release before the code that reads it.
+-- AlterTable
+ALTER TABLE "subscriptions"
+  ADD COLUMN "productId"           UUID,
+  ADD COLUMN "orderSubscriptionId" UUID;
