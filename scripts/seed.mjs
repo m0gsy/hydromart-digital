@@ -482,21 +482,31 @@ async function seedDepotMasterData(depotByCode, productBySku) {
       if (!productId) {
         console.log('- subscription skipped: AIR-GALON-19L not in the catalogue');
       } else {
-        ok(
-          await api('POST', '/depots/api/v1/subscriptions', {
-            depotId,
-            customerId: customer.id,
-            customerName: customer.fullName ?? customer.name ?? 'Pelanggan',
-            productLabel: 'Galon 19L',
-            productId,
-            quantity: 2,
-            cadence: 'WEEKLY',
-            firstDeliveryAt: new Date(Date.now() + 86_400_000).toISOString(),
-            note: 'Langganan contoh (seed)',
-          }),
-          'create subscription',
-        );
-        console.log(`+ subscription ${customer.fullName ?? customer.id}`);
+        const made = await api('POST', '/depots/api/v1/subscriptions', {
+          depotId,
+          customerId: customer.id,
+          customerName: customer.fullName ?? customer.name ?? 'Pelanggan',
+          productLabel: 'Galon 19L',
+          productId,
+          quantity: 2,
+          cadence: 'WEEKLY',
+          firstDeliveryAt: new Date(Date.now() + 86_400_000).toISOString(),
+          note: 'Langganan contoh (seed)',
+        });
+        // D10 made a saved address a precondition: the engine delivers to the CUSTOMER's
+        // own address, and inventing one on their behalf is exactly what it forbids. On a
+        // fresh stack nobody has one — this seed cannot create it either, because
+        // addresses are written with the customer's OWN token and the seed holds none.
+        //
+        // So the fixture is skipped, loudly and by name. NOT swallowed: any other failure
+        // still stops the seed, and this one prints what is missing rather than pretending
+        // a subscription exists.
+        if (made.body?.code === 'SUBSCRIPTION_ENGINE_UNAVAILABLE') {
+          console.log(`- subscription skipped: ${made.body.message}`);
+        } else {
+          ok(made, 'create subscription');
+          console.log(`+ subscription ${customer.fullName ?? customer.id}`);
+        }
       }
     }
   }
