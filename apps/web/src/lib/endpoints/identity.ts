@@ -68,6 +68,10 @@ auth: {
 // knows whose phone number to show.
 profile: {
   me: '/customers/api/v1/profile',
+  // I5: my gallons still on loan and my deposit still held, per depot. Both numbers
+  // existed only in the staff console before this — the person whose money it is had no
+  // screen for either.
+  gallonDeposit: '/customers/api/v1/profile/gallon-deposit',
 },
 
 // Notification channel preferences (GET to read, PATCH to update).

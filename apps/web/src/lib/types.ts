@@ -1182,6 +1182,18 @@ export interface Delivery {
   history?: DeliveryStatusHistoryEntry[];
 }
 
+/**
+ * I5: one depot where the signed-in customer is still holding gallons, or still has a
+ * deposit sitting with it. `null` from the API means depot-service could not be read —
+ * NOT "you have no deposit", which is why the screen distinguishes the two.
+ */
+export interface MyDepotDeposit {
+  depotId: string;
+  depotName: string;
+  gallonsOnLoan: number;
+  depositHeldIdr: number;
+}
+
 /** No-show gate status returned by the contact-attempt endpoint (design 5a). */
 export interface NoShowStatus {
   attempts: number;

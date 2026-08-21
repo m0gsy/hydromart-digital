@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import {
   GallonCustomerBalance,
+  GallonDepotBalance,
   CreateGallonIssueData,
   CreateGallonIssueFromOrderData,
   GallonIssueDepotRow,
@@ -88,6 +89,20 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       _sum: { quantity: true, depositHeld: true },
     });
     return { gallons: agg._sum.quantity ?? 0, amountIdr: agg._sum.depositHeld ?? 0 };
+  }
+
+  /** I5: one customer's issued gallons and deposit held, grouped by depot. */
+  async perDepotForCustomer(customerId: string): Promise<GallonDepotBalance[]> {
+    const grouped = await this.prisma.gallonIssue.groupBy({
+      by: ['depotId'],
+      where: { customerId },
+      _sum: { quantity: true, depositHeld: true },
+    });
+    return grouped.map((g) => ({
+      depotId: g.depotId,
+      gallons: g._sum.quantity ?? 0,
+      amountIdr: g._sum.depositHeld ?? 0,
+    }));
   }
 
   async perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]> {

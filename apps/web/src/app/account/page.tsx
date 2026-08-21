@@ -33,6 +33,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { Sheet, ConfirmDialog } from '@/components/overlay';
+import { GallonDepositCard } from '@/components/gallon-deposit-card';
 import {
   Button,
   Chip,
@@ -641,6 +642,8 @@ export default function AccountPage() {
 
         <div className="flex flex-col gap-4">
           <ProfileCard customer={customer} subtitle={memberSub} />
+
+          <GallonDepositCard />
 
           <div className={`${GROUP} lg:hidden`}>
             {links.map(({ href, label, icon: Icon }) => (

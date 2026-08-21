@@ -9,6 +9,10 @@ import {
   ProfileRepository,
   SegmentFilter,
 } from '../ports/profile.repository';
+import {
+  CustomerDepotDepositRow,
+  DepotLedgerPort,
+} from '../ports/depot-ledger.port';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 export interface BirthdayRewardResult {
@@ -29,8 +33,21 @@ export class ProfileService {
   constructor(
     @Inject(CUSTOMER_TOKENS.ProfileRepository) private readonly profiles: ProfileRepository,
     @Inject(CUSTOMER_TOKENS.LoyaltyRewardPort) private readonly loyalty: LoyaltyRewardPort,
+    @Inject(CUSTOMER_TOKENS.DepotLedgerPort) private readonly depotLedger: DepotLedgerPort,
     private readonly config: CustomerConfigService,
   ) {}
+
+  /**
+   * I5: the gallons this customer is still holding, and the deposit still with each depot.
+   *
+   * Both numbers already existed and were rendered only in the staff console, so the person
+   * whose money it is had no screen for either. `null` means depot-service could not be
+   * read — the screen has to say so rather than print zeroes, because a zero here reads as
+   * "you have no deposit anywhere" and that is somebody's money.
+   */
+  myGallonDeposits(customerId: string): Promise<CustomerDepotDepositRow[] | null> {
+    return this.depotLedger.depositsForCustomer(customerId);
+  }
 
   /** Get the profile, lazily creating a default one on first access. */
   async get(customerId: string): Promise<CustomerProfileRecord> {

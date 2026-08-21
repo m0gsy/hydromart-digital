@@ -807,6 +807,18 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
     };
   }
 
+  /** I5: the same totals, grouped by depot instead of scoped to one. */
+  async perDepotForCustomer(customerId: string) {
+    const by = new Map<string, { depotId: string; gallons: number; amountIdr: number }>();
+    for (const r of this.rows.filter((x) => x.customerId === customerId)) {
+      const acc = by.get(r.depotId) ?? { depotId: r.depotId, gallons: 0, amountIdr: 0 };
+      acc.gallons += r.quantity;
+      acc.amountIdr += r.depositHeld ?? 0;
+      by.set(r.depotId, acc);
+    }
+    return [...by.values()];
+  }
+
   async perCustomerForDepot(depotId: string) {
     const by = new Map<string, { customerId: string; gallons: number; amountIdr: number }>();
     for (const r of this.rows.filter((x) => x.depotId === depotId && x.customerId)) {

@@ -12,12 +12,14 @@ import {
 
 import { DepotService } from '../application/services/depot.service';
 import {
+  CustomerDepotDepositRow,
   CustomerGallonLedgerEntry,
   CustomerGallonRow,
   GallonNetworkService,
   GallonOutstandingRow,
 } from '../application/services/gallon-network.service';
 import {
+  CustomerDepotDepositRowResponseDto,
   CustomerGallonLedgerEntryResponseDto,
   CustomerGallonRowResponseDto,
   GallonOutstandingRowResponseDto,
@@ -56,6 +58,26 @@ export class GallonNetworkController {
   @ApiOperation({ summary: "One depot's outstanding empties + deposit per customer (internal)" })
   perCustomer(@Query('depotId', ParseUUIDPipe) depotId: string): Promise<CustomerGallonRow[]> {
     return this.gallon.perCustomer(depotId);
+  }
+
+  /**
+   * I5: the mirror of `by-customer` — one CUSTOMER's balance at each depot they have used,
+   * rather than one depot's balance for each of its customers.
+   *
+   * Internal key for the same reason as its sibling: the caller is customer-service
+   * assembling the customer's own screen, and it holds no depot token. The customer id
+   * comes from the caller's verified session, never from the browser.
+   */
+  @ApiOkResponse({ type: CustomerDepotDepositRowResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/for-customer')
+  @ApiOperation({ summary: "One customer's outstanding empties + deposit per depot (internal)" })
+  forCustomer(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<CustomerDepotDepositRow[]> {
+    return this.gallon.forCustomer(customerId);
   }
 
   /**

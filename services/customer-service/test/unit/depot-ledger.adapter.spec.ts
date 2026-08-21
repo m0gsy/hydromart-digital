@@ -45,6 +45,34 @@ describe('DepotLedgerHttpAdapter', () => {
     expect(init.headers['x-internal-key']).toBe('k');
   });
 
+  // I5: the mirror read, for the customer's own screen rather than the depot's directory.
+  it('asks depot-service for one customer, across every depot they have used', async () => {
+    const rows = [
+      { depotId: 'd1', depotName: 'Depot Cikini', gallonsOnLoan: 2, depositHeldIdr: 40_000 },
+    ];
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => rows });
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await expect(
+      new DepotLedgerHttpAdapter(configured).depositsForCustomer('c1'),
+    ).resolves.toEqual(rows);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://depot:3007/api/v1/gallon-outstanding/internal/for-customer?customerId=c1',
+    );
+    expect(init.headers['x-internal-key']).toBe('k');
+  });
+
+  // `null`, not `[]`, for the same reason as its sibling: `[]` would tell the customer they
+  // are holding nothing and owed nothing, and that is somebody's money.
+  it('is null when the deposit read fails, never an empty list', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
+    await expect(
+      quiet(new DepotLedgerHttpAdapter(configured)).depositsForCustomer('c1'),
+    ).resolves.toBeNull();
+  });
+
   it('is null, not [], when depot-service is unconfigured — and calls nothing', async () => {
     const fetchMock = jest.fn();
     (globalThis as { fetch: unknown }).fetch = fetchMock;

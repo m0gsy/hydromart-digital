@@ -63,6 +63,11 @@ export interface GallonCustomerBalance {
   amountIdr: number;
 }
 
+/** I5: one customer's side of one ledger, at one named depot. */
+export interface GallonDepotBalance extends GallonCustomerBalance {
+  depotId: string;
+}
+
 export interface GallonIssueDepotRow {
   depotId: string;
   gallons: number;
@@ -97,6 +102,12 @@ export interface GallonIssueRepository {
    * read the cap needs on the hot path.
    */
   summaryForCustomerAtDepot(depotId: string, customerId: string): Promise<GallonCustomerBalance>;
+  /**
+   * I5: one customer's totals at EVERY depot they have used. The mirror of
+   * `perCustomerForDepot` — a depot asks "which of my customers owe me", a customer asks
+   * "where am I holding gallons". Depots with no activity are simply absent.
+   */
+  perDepotForCustomer(customerId: string): Promise<GallonDepotBalance[]>;
   /** One customer's most recent issues at one depot — the CRM detail deposit ledger. */
   listForCustomerAtDepot(
     depotId: string,

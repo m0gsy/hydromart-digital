@@ -1,12 +1,21 @@
 import { ProfileService } from '../../src/application/services/profile.service';
 import { NotificationService } from '../../src/application/services/notification.service';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
+import type { DepotLedgerPort } from '../../src/application/ports/depot-ledger.port';
 import {
   buildTestConfig,
   FakeLoyaltyReward,
   InMemoryNotificationRepository,
   InMemoryProfileRepository,
 } from '../support/fakes';
+
+/**
+ * I5: the profile now reads the depot deposit ledger. It defaults to `null` — "not known" —
+ * which is the honest answer when depot-service is unreachable, and the one the screen
+ * renders as "belum tersambung" rather than as a zero nobody checked.
+ */
+const ledger = (rows: unknown = null): DepotLedgerPort =>
+  ({ depositsForCustomer: async () => rows }) as unknown as DepotLedgerPort;
 
 describe('ProfileService', () => {
   let repo: InMemoryProfileRepository;
@@ -16,7 +25,7 @@ describe('ProfileService', () => {
   beforeEach(() => {
     repo = new InMemoryProfileRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ProfileService(repo, loyalty, buildTestConfig());
+    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig());
   });
 
   it('lazily creates a default BASIC profile on first read', async () => {
@@ -42,6 +51,38 @@ describe('ProfileService', () => {
   });
 });
 
+/**
+ * I5: the customer's own deposit, read straight through from depot-service.
+ *
+ * `null` must survive the trip. Flattening it to `[]` anywhere on the way would tell the
+ * customer they are holding nothing and owed nothing — and that is somebody's money.
+ */
+describe('ProfileService.myGallonDeposits (I5)', () => {
+  const rows = [
+    { depotId: 'd1', depotName: 'Depot Cikini', gallonsOnLoan: 2, depositHeldIdr: 40000 },
+  ];
+
+  it('hands back what the depot ledger answered, for the caller only', async () => {
+    const svc = new ProfileService(
+      new InMemoryProfileRepository(),
+      new FakeLoyaltyReward(),
+      ledger(rows),
+      buildTestConfig(),
+    );
+    await expect(svc.myGallonDeposits('c1')).resolves.toEqual(rows);
+  });
+
+  it('passes null through rather than flattening it to an empty list', async () => {
+    const svc = new ProfileService(
+      new InMemoryProfileRepository(),
+      new FakeLoyaltyReward(),
+      ledger(null),
+      buildTestConfig(),
+    );
+    await expect(svc.myGallonDeposits('c1')).resolves.toBeNull();
+  });
+});
+
 describe('ProfileService birthday promo (FR-091)', () => {
   const TODAY = new Date('2026-05-17T09:00:00Z');
   let repo: InMemoryProfileRepository;
@@ -51,7 +92,7 @@ describe('ProfileService birthday promo (FR-091)', () => {
   beforeEach(() => {
     repo = new InMemoryProfileRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ProfileService(repo, loyalty, buildTestConfig());
+    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig());
   });
 
   const withBirthday = async (id: string, iso: string) => {
@@ -95,6 +136,7 @@ describe('ProfileService birthday promo (FR-091)', () => {
     const disabled = new ProfileService(
       repo,
       loyalty,
+      ledger(),
       buildTestConfig({ LOYALTY_SERVICE_URL: '' }),
     );
     await withBirthday('bday-a', '1990-05-17');

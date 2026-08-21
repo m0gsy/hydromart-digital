@@ -7,6 +7,7 @@ import {
   GallonReturnDepotRow,
   GallonReturnRepository,
 } from '../../src/application/ports/gallon-return.repository';
+import { DepotRepository } from '../../src/application/ports/depot.repository';
 
 // Only networkSummary() is exercised; the rest of each repo port is irrelevant to the
 // rollup, so the fakes stub just that one method.
@@ -14,12 +15,19 @@ const issues = (rows: GallonIssueDepotRow[]) =>
   ({ networkSummary: async () => rows }) as unknown as GallonIssueRepository;
 const returns = (rows: GallonReturnDepotRow[]) =>
   ({ networkSummary: async () => rows }) as unknown as GallonReturnRepository;
+// I5's `forCustomer` names each depot, so the service reads the depot repo too. The rollup
+// tests below never reach that path; this stub exists so they can keep not caring.
+const depots = (byId: Record<string, string> = {}) =>
+  ({
+    findById: async (id: string) => (byId[id] ? { id, name: byId[id] } : null),
+  }) as unknown as DepotRepository;
 
 describe('GallonNetworkService.outstanding', () => {
   it('merges issue + return rows per depot into outstanding + net deposit', async () => {
     const service = new GallonNetworkService(
       issues([{ depotId: 'd1', gallons: 100, depositHeld: 500000 }]),
       returns([{ depotId: 'd1', gallons: 40, depositRefunded: 200000 }]),
+      depots(),
     );
     const [row] = await service.outstanding();
     expect(row).toEqual({
@@ -37,6 +45,7 @@ describe('GallonNetworkService.outstanding', () => {
     const service = new GallonNetworkService(
       issues([{ depotId: 'd1', gallons: 10, depositHeld: 50000 }]),
       returns([{ depotId: 'd1', gallons: 25, depositRefunded: 120000 }]),
+      depots(),
     );
     const [row] = await service.outstanding();
     expect(row.outstanding).toBe(0);
@@ -47,6 +56,7 @@ describe('GallonNetworkService.outstanding', () => {
     const service = new GallonNetworkService(
       issues([]),
       returns([{ depotId: 'd2', gallons: 5, depositRefunded: 25000 }]),
+      depots(),
     );
     const [row] = await service.outstanding();
     expect(row).toMatchObject({ depotId: 'd2', issued: 0, returned: 5, outstanding: 0 });
@@ -59,13 +69,14 @@ describe('GallonNetworkService.outstanding', () => {
         { depotId: 'd2', gallons: 10, depositHeld: 0 },
       ]),
       returns([{ depotId: 'd3', gallons: 4, depositRefunded: 0 }]),
+      depots(),
     );
     const ids = (await service.outstanding()).map((r) => r.depotId).sort();
     expect(ids).toEqual(['d1', 'd2', 'd3']);
   });
 
   it('returns an empty array when there is no activity', async () => {
-    const service = new GallonNetworkService(issues([]), returns([]));
+    const service = new GallonNetworkService(issues([]), returns([]), depots());
     expect(await service.outstanding()).toEqual([]);
   });
 });
@@ -85,6 +96,7 @@ describe('GallonNetworkService.perCustomer (J-2)', () => {
     new GallonNetworkService(
       { perCustomerForDepot: async () => issued } as unknown as GallonIssueRepository,
       { perCustomerForDepot: async () => returned } as unknown as GallonReturnRepository,
+      depots(),
     ).perCustomer('d1');
 
   it('nets returns off issues, per customer', async () => {
@@ -158,6 +170,7 @@ describe('GallonNetworkService.customerLedger', () => {
     new GallonNetworkService(
       { listForCustomerAtDepot: async () => issued } as unknown as GallonIssueRepository,
       { listForCustomerAtDepot: async () => returned } as unknown as GallonReturnRepository,
+      depots(),
     ).customerLedger('d1', 'c1', limit);
 
   it('merges both sides into one newest-first history', async () => {
@@ -200,6 +213,70 @@ describe('GallonNetworkService.customerLedger', () => {
 });
 
 // S2. The daily report asks for one depot's day; the service is a straight pass-through
+/*
+ * I5: the mirror of perCustomer — one CUSTOMER's balance at each depot they have used.
+ * The customer had no screen for either number; both lived only in the staff console.
+ */
+describe('GallonNetworkService.forCustomer (I5)', () => {
+  const forCustomer = (
+    issued: { depotId: string; gallons: number; amountIdr: number }[],
+    returned: { depotId: string; gallons: number; amountIdr: number }[],
+    names: Record<string, string> = { d1: 'Depot Cikini', d2: 'Depot Menteng' },
+  ) =>
+    new GallonNetworkService(
+      { perDepotForCustomer: async () => issued } as unknown as GallonIssueRepository,
+      { perDepotForCustomer: async () => returned } as unknown as GallonReturnRepository,
+      depots(names),
+    ).forCustomer('c1');
+
+  it('nets each depot and names it, because the customer has no depot directory', async () => {
+    await expect(
+      forCustomer(
+        [
+          { depotId: 'd1', gallons: 5, amountIdr: 100000 },
+          { depotId: 'd2', gallons: 2, amountIdr: 40000 },
+        ],
+        [{ depotId: 'd1', gallons: 3, amountIdr: 60000 }],
+      ),
+    ).resolves.toEqual([
+      { depotId: 'd1', depotName: 'Depot Cikini', gallonsOnLoan: 2, depositHeldIdr: 40000 },
+      { depotId: 'd2', depotName: 'Depot Menteng', gallonsOnLoan: 2, depositHeldIdr: 40000 },
+    ]);
+  });
+
+  // Settled up is not the same as "a depot I once used". A list of every depot they ever
+  // bought from is not the question being asked.
+  it('drops a depot the customer has fully settled with', async () => {
+    await expect(
+      forCustomer(
+        [{ depotId: 'd1', gallons: 3, amountIdr: 60000 }],
+        [{ depotId: 'd1', gallons: 3, amountIdr: 60000 }],
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  // Floored for the same reason perCustomer floors: a return recorded against the wrong
+  // depot must never show the customer a negative loan — or a negative deposit.
+  it('never shows a negative loan or a negative deposit', async () => {
+    await expect(
+      forCustomer(
+        [{ depotId: 'd1', gallons: 1, amountIdr: 20000 }],
+        [{ depotId: 'd1', gallons: 4, amountIdr: 80000 }],
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  // A depot row whose depot has since been removed still carries the money. Dropping the
+  // row would hide a deposit; an empty name is the honest degradation.
+  it('keeps the row when the depot cannot be named', async () => {
+    await expect(
+      forCustomer([{ depotId: 'gone', gallons: 1, amountIdr: 20000 }], []),
+    ).resolves.toEqual([
+      { depotId: 'gone', depotName: '', gallonsOnLoan: 1, depositHeldIdr: 20000 },
+    ]);
+  });
+});
+
 // to the repository, and this pins that it does not quietly widen the window.
 describe('GallonNetworkService.gallonsInRange', () => {
   it('passes the depot and both bounds through untouched', async () => {
@@ -207,6 +284,7 @@ describe('GallonNetworkService.gallonsInRange', () => {
     const service = new GallonNetworkService(
       {} as unknown as GallonIssueRepository,
       { gallonsInRange } as unknown as GallonReturnRepository,
+      depots(),
     );
     const from = new Date('2026-07-14T17:00:00.000Z');
     const to = new Date('2026-07-15T17:00:00.000Z');

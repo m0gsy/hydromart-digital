@@ -2,6 +2,16 @@
 // Kept in its own fragment so parallel batches don't collide in id.ts / en.ts.
 // Wire once: import + spread `customerFix` into dictionaries/id.ts and en.ts.
 export const customerFix = {
+  /** I5: the customer's own gallon deposit — two numbers that lived only in the staff console. */
+  gallonDeposit: {
+    title: "Deposit galon",
+    subtitle: "Galon yang masih Anda pegang dan deposit yang masih dititip di depot.",
+    gallons: "{n} galon dipegang",
+    held: "Deposit ditahan",
+    empty: "Belum ada galon yang Anda pegang.",
+    unavailable: "Belum tersambung — data deposit tidak bisa dibaca sekarang.",
+    note: "Deposit kembali saat galon dikembalikan ke depot yang sama.",
+  },
   address: {
     pinRequired: "Titik peta wajib diisi — tekan \"Gunakan lokasi saya\".",
   },
