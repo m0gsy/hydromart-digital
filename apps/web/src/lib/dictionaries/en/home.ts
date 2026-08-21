@@ -72,7 +72,7 @@ export const home: typeof base = {
     timeout: 'No location signal yet. Try again, or pick a city.',
     myLocation: 'My location',
     near: 'Near {city}',
-    denied: 'Cannot access location. Allow access or pick a city.',
+    denied: 'Location access denied. Allow location in app settings, or pick a city below.',
     placeholder: 'Choose delivery location',
     searching: 'Finding location…',
     useMyLocation: 'Use my location',

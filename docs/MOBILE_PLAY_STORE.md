@@ -39,8 +39,17 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
 
 **Bukan** "Financial info": pembayaran di Hydromart selesai langsung di depot (tunai/QRIS
 di tempat) — tidak ada gateway pembayaran, tidak ada nomor kartu, tidak ada rekening yang
-masuk ke aplikasi. **Bukan** "Location": aplikasi pelanggan tidak pernah membaca posisi;
-alamat diketik, bukan diambil dari GPS.
+masuk ke aplikasi.
+
+**Location — dikoreksi (J1).** Baris ini dulu menyatakan aplikasi pelanggan tidak pernah
+membaca posisi. Itu salah: layar alamat dan pemilih lokasi beranda membaca posisi kasar
+lalu **mengirimnya ke server** untuk mencari depot terdekat — menurut definisi Play itu
+_dikumpulkan_. Yang benar: **Approximate location**, dikumpulkan **ya**, dibagikan ke
+pihak ketiga **tidak**, **opsional** (pelanggan bisa mengetik alamat tanpa memberi izin),
+tujuan **fungsi aplikasi** saja, terenkripsi saat transit **ya**, bisa diminta hapus
+**ya**. Binari pelanggan tidak membawa `ACCESS_FINE_LOCATION` — izin itu dicabut dari
+merged manifest — jadi deklarasinya tetap Approximate, bukan Precise. Mengisi formulir
+Data Safety-nya adalah pekerjaan N1.
 
 ### App 2 — Hydromart Ops (`id.hydromart.ops`, staf)
 

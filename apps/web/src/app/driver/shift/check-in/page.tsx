@@ -16,10 +16,10 @@ import {
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, LoadError } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { currentPosition } from '@/lib/geo';
+import { currentPosition, GeoError } from '@/lib/geo';
 import { runOrQueue } from '@/lib/offline-queue';
 import { requestPushOnce } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
@@ -87,9 +87,12 @@ function CheckIn() {
       void requestPushOnce();
       router.replace('/driver');
     } catch (e) {
-      // Keep the thrown message — "Lokasi GPS ditolak. Aktifkan izin lokasi." tells the
-      // courier what to do; the generic fallback does not.
-      setError(e instanceof Error ? e.message : t('driver.checkIn.error'));
+      // J1: this used to render `e.message` raw, believing it read "Lokasi GPS ditolak."
+      // `GeoError`'s message IS its reason token, so a courier with a slow fix was shown
+      // the single word "timeout". The reason still survives to the screen — translated.
+      setError(
+        e instanceof GeoError ? t(`errors.geo.${e.reason}`) : e instanceof ApiError ? e.message : t('driver.checkIn.error'),
+      );
       setBusy(false);
     }
   };

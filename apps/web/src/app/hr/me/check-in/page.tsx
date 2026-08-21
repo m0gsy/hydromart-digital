@@ -8,7 +8,7 @@ import { OfflineQueueBanner } from '@/components/offline-queue-banner';
 import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { currentPosition, GeoError } from '@/lib/geo';
+import { currentPosition, geoReason } from '@/lib/geo';
 import { fmtTime, type Attendance } from '@/lib/hr';
 import { runOrQueue } from '@/lib/offline-queue';
 
@@ -32,7 +32,7 @@ function getPosition(messages: {
   return currentPosition().then(
     (pos) => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
     (err: unknown) => {
-      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      const reason = geoReason(err);
       throw new Error(reason === 'unsupported' ? messages.noGps : messages.allowGps);
     },
   );

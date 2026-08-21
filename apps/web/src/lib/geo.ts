@@ -32,6 +32,17 @@ export class GeoError extends Error {
   }
 }
 
+/**
+ * The reason behind any thrown value, for screens that must show one.
+ *
+ * Three screens had this ternary inlined and two more had nothing at all — those two put
+ * `GeoError.message` on screen, and that message is the reason token itself, so a courier
+ * whose GPS was slow read the single word "timeout". One helper, so a caller cannot
+ * forget. An unknown throw is a timeout: it is the only reason that invites a retry, and
+ * the retry is free.
+ */
+export const geoReason = (err: unknown): GeoFailure => (err instanceof GeoError ? err.reason : 'timeout');
+
 const ask = (options: PositionOptions): Promise<GeolocationPosition> =>
   new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, options));
 

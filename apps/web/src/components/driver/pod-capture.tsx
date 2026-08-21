@@ -6,7 +6,7 @@ import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { currentPosition } from '@/lib/geo';
+import { currentPosition, GeoError } from '@/lib/geo';
 import { compressImage } from '@/lib/image';
 import { runOrQueue } from '@/lib/offline-queue';
 
@@ -171,7 +171,17 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : t('hrFix.pod.finishFailed'));
+      // J1: `e.message` on a GeoError is its reason token — this screen showed the courier
+      // the bare word "timeout" at the one moment they are standing at a customer's door.
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof GeoError
+            ? t(`errors.geo.${e.reason}`)
+            : e instanceof Error
+              ? e.message
+              : t('hrFix.pod.finishFailed'),
+      );
     } finally {
       setSubmitting(false);
     }

@@ -8,7 +8,7 @@ import { ConfirmDialog, Sheet } from '@/components/overlay';
 import { Button, Card, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { currentPosition, GeoError } from '@/lib/geo';
+import { currentPosition, geoReason } from '@/lib/geo';
 import {
   AddressBookForm,
   EMPTY_ADDRESS_FORM,
@@ -256,7 +256,7 @@ function AddressForm({
       const pos = await currentPosition();
       setCoords(pos.coords.latitude, pos.coords.longitude);
     } catch (err) {
-      const reason = err instanceof GeoError ? err.reason : 'timeout';
+      const reason = geoReason(err);
       setGeoHint(
         reason === 'unsupported'
           ? t('profile.addresses.pin.unsupported')

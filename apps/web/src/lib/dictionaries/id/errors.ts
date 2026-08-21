@@ -24,6 +24,14 @@ export const errors = {
   // and show the server's 404, which reads as "this record was deleted" rather than
   // "you arrived here without naming one".
   missingRouteId: 'Halaman ini dibuka tanpa data yang diperlukan. Kembali lalu pilih ulang.',
+  // J1: the same four failures on staff screens, which have no city picker to fall back on.
+  // The customer wording lives in `home.location` and keeps its "atau pilih kota" way out.
+  geo: {
+    denied: 'Akses lokasi ditolak. Izinkan lokasi untuk aplikasi ini di Setelan, lalu coba lagi.',
+    unavailable: 'Lokasi tidak bisa didapat. Nyalakan Lokasi/GPS di perangkat, lalu coba lagi.',
+    timeout: 'Sinyal lokasi belum ketemu. Coba lagi di tempat yang lebih terbuka.',
+    unsupported: 'Perangkat ini tidak mendukung lokasi.',
+  },
   address: {
     required: 'Lengkapi semua kolom yang wajib diisi.',
     latitudeRange: 'Titik peta tidak valid: lintang harus antara -90 dan 90.',
