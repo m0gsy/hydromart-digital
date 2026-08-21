@@ -163,6 +163,8 @@ export class DeliveryResponseDto {
   driverId!: string;
   @ApiProperty({ type: String, nullable: true })
   depotId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  customerId!: string | null;
   @ApiProperty({ enum: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'FAILED', 'RESCHEDULED'] })
   status!: string;
   @ApiProperty({ type: String })
