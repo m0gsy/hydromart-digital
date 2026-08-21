@@ -54,6 +54,14 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
         .reduce((s, r) => s + r.quantity, 0),
     };
   }
+  /** I2: mirrors the real repository's targeted per-customer aggregate. */
+  async summaryForCustomerAtDepot(depotId: string, customerId: string) {
+    const mine = this.rows.filter((r) => r.depotId === depotId && r.customerId === customerId);
+    return {
+      gallons: mine.reduce((s, r) => s + r.quantity, 0),
+      amountIdr: mine.reduce((s, r) => s + r.depositRefunded, 0),
+    };
+  }
   async perCustomerForDepot(depotId: string) {
     const by = new Map<string, { customerId: string; gallons: number; amountIdr: number }>();
     for (const r of this.rows.filter((x) => x.depotId === depotId && x.customerId)) {
@@ -168,6 +176,79 @@ describe('GallonReturnService', () => {
   it('queues nothing when the return is within the outstanding balance (M15-11)', async () => {
     await service.record(depotId, { quantity: 10 }, 'staff-1');
     expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  /**
+   * I2. The cap used to be measured DEPOT-wide, so a person who had never left a gallon or
+   * a rupiah at this depot could be refunded out of somebody else's deposit — and the
+   * depot's own total still looked healthy, so nothing complained.
+   *
+   * Ani has 5 gallons out on deposit here. Budi has nothing.
+   */
+  const withAniOnDeposit = (): GallonReturnService => {
+    const bareIssues = new InMemoryGallonIssueRepository();
+    void bareIssues.create({
+      depotId,
+      customerId: 'ani',
+      quantity: 5,
+      depositHeld: 5 * GALLON_DEPOSIT_IDR,
+      note: null,
+      actorId: 'staff-1',
+    });
+    return new GallonReturnService(
+      new InMemoryGallonReturnRepository() as never,
+      bareIssues as never,
+      depots,
+      configStub,
+      approvals as unknown as ApprovalService,
+    );
+  };
+
+  it('refuses to refund a customer out of another customer deposit (I2)', async () => {
+    await expect(
+      withAniOnDeposit().record(
+        depotId,
+        { customerId: 'budi', quantity: 2, depositRefunded: 2 * GALLON_DEPOSIT_IDR },
+        'staff-1',
+      ),
+      // Operator-entered money above what is held is a typo, not a physical fact, so it is
+      // refused rather than clamped — and the message now names WHOSE balance ran out.
+    ).rejects.toThrow(/this customer still holds \(refunding 40000, 0 held\)/);
+  });
+
+  it('still refunds the customer who actually has the deposit (I2)', async () => {
+    const rec = await withAniOnDeposit().record(
+      depotId,
+      { customerId: 'ani', quantity: 2, depositRefunded: 2 * GALLON_DEPOSIT_IDR },
+      'staff-1',
+    );
+    expect(rec.depositRefunded).toBe(2 * GALLON_DEPOSIT_IDR);
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  // The courier path never supplies an amount, so it clamps instead of refusing — the
+  // handover is physical and refusing it would lose the gallons. What I2 changes is WHOSE
+  // balance it clamps against: Budi's, which is empty, not the depot's pooled one.
+  it('clamps a courier refund to the customer own deposit, not the depot pool (I2)', async () => {
+    const rec = await withAniOnDeposit().recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000f00d', customerId: 'budi', quantity: 2 },
+      'courier-1',
+    );
+    expect(rec.depositRefunded).toBe(0);
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(1);
+  });
+
+  // An anonymous counter return has no person to hold a balance against, and refusing it
+  // would lose a gallon that is physically on the counter. The depot total is the only
+  // bound that exists for it, so it keeps the old measure — deliberately, not by omission.
+  it('measures an anonymous return against the depot, as before (I2)', async () => {
+    const rec = await withAniOnDeposit().record(
+      depotId,
+      { quantity: 2, depositRefunded: 2 * GALLON_DEPOSIT_IDR },
+      'staff-1',
+    );
+    expect(rec.depositRefunded).toBe(2 * GALLON_DEPOSIT_IDR);
   });
 
   /**

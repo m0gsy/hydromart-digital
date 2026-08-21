@@ -1,4 +1,4 @@
-import type { GallonCustomerRow } from './gallon-issue.repository';
+import type { GallonCustomerBalance, GallonCustomerRow } from './gallon-issue.repository';
 import { GallonCondition } from '../../domain/gallon-return';
 
 export interface GallonReturnRecord {
@@ -67,6 +67,8 @@ export interface GallonReturnRepository {
   networkSummary(): Promise<GallonReturnDepotRow[]>;
   /** Return totals per CUSTOMER at one depot (J-2); rows with no customer are excluded. */
   perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
+  /** I2: one customer's returned gallons and refunded deposit at one depot. */
+  summaryForCustomerAtDepot(depotId: string, customerId: string): Promise<GallonCustomerBalance>;
   /** One customer's most recent returns at one depot — the CRM detail deposit ledger. */
   listForCustomerAtDepot(
     depotId: string,

@@ -68,23 +68,42 @@ export class GallonReturnService {
    * Money is treated differently: an operator-entered refund above the deposit still
    * held is a typo, not a physical fact, and is still refused outright.
    *
-   * ponytail: the balance is DEPOT-wide, not per-customer — it reuses the two
-   * `summaryForDepot` rollups that already exist. Move to a per-customer balance (new
-   * repo queries on both ledgers) when ops needs to block one customer over-returning
-   * while the depot as a whole is still in credit.
+   * I2: measured PER CUSTOMER when the return names one, not depot-wide.
+   *
+   * Depot-wide was the leak. One customer's refund came out of the depot's pooled balance,
+   * so a person who had never left a gallon or a rupiah here could be paid out of somebody
+   * else's deposit — and the depot's own total still looked healthy, so nothing complained.
+   * The per-customer rows this reads are the same ones the customer directory already
+   * shows; only the cap was measured against the wrong set.
+   *
+   * A return with NO customer keeps the depot-wide measure. That is not a leftover: an
+   * anonymous counter return has no person to hold a balance against, and refusing it
+   * outright would lose a gallon that is physically on the counter. The depot total is the
+   * only bound that exists for it.
    */
   private async measureAgainstOutstanding(
     depotId: string,
     quantity: number,
+    customerId: string | null,
   ): Promise<{ excessGallons: number; depositLeft: number }> {
-    const [issued, returned] = await Promise.all([
-      this.issues.summaryForDepot(depotId),
-      this.returns.summaryForDepot(depotId),
-    ]);
+    // Both branches answer in the same shape, so the arithmetic below is written once.
+    const [issued, returned] = customerId
+      ? await Promise.all([
+          this.issues.summaryForCustomerAtDepot(depotId, customerId),
+          this.returns.summaryForCustomerAtDepot(depotId, customerId),
+        ])
+      : await Promise.all([
+          this.issues
+            .summaryForDepot(depotId)
+            .then((r) => ({ gallons: r.gallons, amountIdr: r.depositHeld })),
+          this.returns
+            .summaryForDepot(depotId)
+            .then((r) => ({ gallons: r.gallons, amountIdr: r.depositRefunded })),
+        ]);
     const gallonsLeft = issued.gallons - returned.gallons;
     return {
       excessGallons: Math.max(0, quantity - Math.max(0, gallonsLeft)),
-      depositLeft: Math.max(0, issued.depositHeld - returned.depositRefunded),
+      depositLeft: Math.max(0, issued.amountIdr - returned.amountIdr),
     };
   }
 
@@ -158,9 +177,15 @@ export class GallonReturnService {
     const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
       depotId,
       input.quantity,
+      input.customerId ?? null,
     );
     if (depositRefunded > depositLeft) {
-      throw new GallonOverReturnError('deposit', depositRefunded, depositLeft);
+      throw new GallonOverReturnError(
+        'deposit',
+        depositRefunded,
+        depositLeft,
+        input.customerId ? 'customer' : 'depot',
+      );
     }
     const condition = input.condition ?? GallonCondition.GOOD;
     const record = await this.returns.create({
@@ -197,6 +222,7 @@ export class GallonReturnService {
     const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
       depotId,
       input.quantity,
+      input.customerId ?? null,
     );
     // The courier never supplies an amount, so instead of refusing the handover when
     // the depot's held deposit is short, refund what is actually held. The gallons are

@@ -7,7 +7,11 @@ import {
   NearbyDepotsQueryDto,
 } from '../../src/modules/dto/depot.dto';
 import { ListApplicationsQueryDto } from '../../src/modules/dto/franchise-application.dto';
-import { CreateGallonIssueDto, ListIssuesQueryDto } from '../../src/modules/dto/gallon-issue.dto';
+import {
+  CreateGallonIssueDto,
+  CreateGallonIssueFromOrderDto,
+  ListIssuesQueryDto,
+} from '../../src/modules/dto/gallon-issue.dto';
 import {
   CreateCourierReturnDto,
   CreateGallonReturnDto,
@@ -67,6 +71,14 @@ describe('DTO @Type transforms coerce query and nested values', () => {
     expect(
       plainToInstance(CreateGallonIssueDto, { quantity: '3', depositHeld: '15000' }),
     ).toMatchObject({ quantity: 3, depositHeld: 15000 });
+    // I1: the fulfilment body carries no money at all — the deposit is derived at the
+    // depot — so the only thing to coerce is the count.
+    expect(
+      plainToInstance(CreateGallonIssueFromOrderDto, {
+        orderId: 'o-1',
+        quantity: '2',
+      }),
+    ).toMatchObject({ orderId: 'o-1', quantity: 2 });
     expect(
       plainToInstance(CreateGallonReturnDto, { quantity: '3', depositRefunded: '15000' }),
     ).toMatchObject({ quantity: 3, depositRefunded: 15000 });
