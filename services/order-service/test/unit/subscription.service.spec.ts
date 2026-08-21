@@ -66,7 +66,8 @@ describe('SubscriptionService', () => {
   let service: SubscriptionService;
   let depots: FakeDepotDirectory;
   // D9: the scheduled-order notification is sent AFTER the row exists and fails open, so
-  // the spec needs a handle on it to make a send fail.
+  // the spec needs a handle on it to make a send fail. D2 then reuses it the other way —
+  // to see that the sweep TELLS the customer when it gives up on a plan.
   let notification: FakeNotification;
   const customer = randomUUID();
 
@@ -103,7 +104,7 @@ describe('SubscriptionService', () => {
       new FakePaymentReversal(),
       buildOutbox(orders),
     );
-    service = new SubscriptionService(subs, catalog, orderService, buildTestConfig());
+    service = new SubscriptionService(subs, catalog, orderService, buildTestConfig(), notification);
   });
 
   const seedProduct = () => catalog.seed({ id: randomUUID(), basePrice: 8000 });
@@ -280,6 +281,133 @@ describe('SubscriptionService', () => {
     expect(orders.notes).toHaveLength(0);
   });
 
+  /**
+   * L0 REPRO (D2, calendar half): the sweep advances from NOW, not from the due date it
+   * missed — `advanceDelivery(now, ...)`. So a plan that fails for three days and then
+   * succeeds has its delivery day moved permanently: Tuesday becomes Friday and never
+   * comes back. Verifikasi D asks for exactly this test.
+   */
+  it('D2 REPRO: a late delivery must not move the delivery day', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-07T00:00:00Z'), // a Tuesday
+      address,
+    });
+
+    // The sweep only gets to it three days late.
+    await service.processDue(new Date('2026-07-10T09:00:00Z')); // Friday
+
+    const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
+    expect(after.nextDeliveryAt.toISOString()).toBe('2026-07-14T00:00:00.000Z');
+    expect(after.nextDeliveryAt.getUTCDay()).toBe(2); // still Tuesday
+  });
+
+  /**
+   * D2, the failure half. The sweep used to write one warning and move on, so a plan whose
+   * product had been pulled was retried on every tick for as long as it existed, and the
+   * customer was never told their standing order had stopped arriving.
+   */
+  describe('D2 · a failing cycle is counted, explained, and eventually stopped', () => {
+    const failingPlan = async () => {
+      const p = seedProduct();
+      const sub = await service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address,
+      });
+      // The product is pulled from the catalogue after the plan was made — the exact
+      // shape of a subscription that quietly stops being fulfillable.
+      catalog.products.delete(p.id);
+      return sub;
+    };
+    const tick = (n: number) => service.processDue(new Date(`2026-07-0${n}T00:00:00Z`));
+
+    it('records the count and the reason, in words', async () => {
+      const sub = await failingPlan();
+      await tick(2);
+
+      const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
+      expect(after.failureCount).toBe(1);
+      expect(after.lastFailure).toBeTruthy();
+      expect(after.lastFailureAt).not.toBeNull();
+      // One blip is not a condition: still ACTIVE, still being tried.
+      expect(after.status).toBe('ACTIVE');
+    });
+
+    it('pauses the plan and tells the customer once it stops being a blip', async () => {
+      const sub = await failingPlan();
+      await tick(2);
+      await tick(3);
+      await tick(4);
+
+      const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
+      expect(after.failureCount).toBe(3);
+      expect(after.status).toBe('PAUSED');
+      expect(notification.calls.map((c) => c.event)).toContain('SUBSCRIPTION_PAUSED');
+    });
+
+    /**
+     * The pause is the durable part; telling the customer is best-effort on top of it. A
+     * notification port that throws must not escape here — this code runs INSIDE the
+     * sweep's own catch, and an exception thrown from a catch block leaves the loop and
+     * takes every remaining subscription in the batch with it.
+     */
+    it('still pauses when telling the customer throws', async () => {
+      const sub = await failingPlan();
+      notification.notify = async () => {
+        throw new Error('crm down');
+      };
+
+      await tick(2);
+      await tick(3);
+      await expect(tick(4)).resolves.toEqual({ placed: 0 });
+
+      const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
+      expect(after.status).toBe('PAUSED');
+    });
+
+    // Same reason, one level earlier: if the failure cannot even be RECORDED, the sweep
+    // still has to finish the batch.
+    it('survives a failure it cannot record', async () => {
+      await failingPlan();
+      subs.recordFailure = async () => {
+        throw new Error('db down');
+      };
+      await expect(tick(2)).resolves.toEqual({ placed: 0 });
+    });
+
+    // The reason the count is CONSECUTIVE and not cumulative: a plan that failed once and
+    // has delivered ever since is not in trouble, and must not be paused a year later by
+    // arithmetic nobody remembers.
+    it('clears the run as soon as one delivery lands', async () => {
+      const p = seedProduct();
+      const sub = await service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address,
+      });
+      const pulled = catalog.products.get(p.id)!;
+      catalog.products.delete(p.id);
+      await tick(2);
+      expect((await service.list(customer)).find((s) => s.id === sub.id)!.failureCount).toBe(1);
+
+      catalog.products.set(p.id, pulled);
+      await tick(3);
+
+      const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
+      expect(after.failureCount).toBe(0);
+      expect(after.lastFailure).toBeNull();
+      expect(after.status).toBe('ACTIVE');
+    });
+  });
+
   it('processDue places an order for a due subscription and advances its schedule', async () => {
     const p = seedProduct();
     const sub = await service.create(customer, {
@@ -299,9 +427,14 @@ describe('SubscriptionService', () => {
     // spec 7b: the routed depot's subscription discount applied (5% by default here).
     // subtotal = 8000 × 3 = 24000 → 1200 off.
     expect(orders.rows[0].discount).toBe(1200);
-    // schedule advanced one week past `now`.
+    // Inverted by D2, and this line was the bug written down as an expectation: "one week
+    // past NOW" is exactly what moved the delivery day every time a cycle ran late. The
+    // plan was due 1 July; the sweep only reached it on the 13th; the next delivery is the
+    // next Tuesday on the plan's own cadence — 15 July — not a week after whenever the
+    // sweep happened to run.
     const advanced = (await service.list(customer))[0].nextDeliveryAt;
-    expect(advanced.getTime()).toBe(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    expect(advanced.toISOString()).toBe('2026-07-15T00:00:00.000Z');
+    expect(advanced.getTime()).toBeGreaterThan(now.getTime());
     // a paused subscription is not swept.
     await service.pause(customer, sub.id);
     expect((await service.processDue(new Date('2026-08-01T00:00:00Z'))).placed).toBe(0);

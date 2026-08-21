@@ -13,6 +13,10 @@ export interface SubscriptionRecord extends DeliveryAddressSnapshot {
   frequency: SubscriptionFrequency;
   status: SubscriptionStatus;
   nextDeliveryAt: Date;
+  /** D2: consecutive failed cycles. 0 whenever the last one landed. */
+  failureCount: number;
+  lastFailureAt: Date | null;
+  lastFailure: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +80,15 @@ export interface SubscriptionRepository {
    * `false` — so it neither re-advances the plan nor counts a delivery it did not make.
    */
   advance(id: string, from: Date, to: Date): Promise<boolean>;
+  /**
+   * D2: one more consecutive failed cycle, with what went wrong. Returns the new count so
+   * the caller can decide whether this plan has stopped being worth asking.
+   *
+   * Consecutive, not cumulative: `advance` clears it on any success, so the number always
+   * describes an outage happening NOW rather than a lifetime tally. A plan that failed once
+   * a year ago and has delivered every week since is not in trouble.
+   */
+  recordFailure(id: string, message: string, at: Date): Promise<number>;
   /** Network aggregate of ACTIVE subscriptions for the HQ console (18c). */
   networkSummary(): Promise<SubscriptionNetworkSummary>;
 }

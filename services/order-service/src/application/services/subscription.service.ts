@@ -6,9 +6,10 @@ import {
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../domain/errors';
-import { advanceDelivery, nextDeliveryOnOrAfter } from '../../domain/subscription';
+import { nextDeliveryOnOrAfter } from '../../domain/subscription';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
+import { NotificationPort } from '../ports/notification.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import {
   CreateSubscriptionData,
@@ -27,6 +28,23 @@ export interface CreateSubscriptionInput {
   firstDeliveryAt: Date;
   address: DeliveryAddressSnapshot;
 }
+
+/**
+ * D2: consecutive failed cycles before the sweep stops asking and pauses the plan.
+ *
+ * Three, not one: a single failure is usually a blip — crm down, a depot unreachable for a
+ * minute — and pausing a customer's water over one of those is worse than retrying. Three
+ * consecutive ticks is a condition, not a blip.
+ */
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * D2: the same `instanceof Error` dance was about to appear in three places along one
+ * failure path. One helper, one branch — three copies would be three branches nobody would
+ * ever exercise separately, and a rejection that is not an Error is the same fact wherever
+ * it surfaces.
+ */
+const messageOf = (err: unknown): string => (err instanceof Error ? err.message : 'unknown');
 
 /** Deliveries a single subscription generates per 30-day month, by cadence. */
 const MONTHLY_DELIVERY_RATE: Record<SubscriptionFrequency, number> = {
@@ -53,6 +71,10 @@ export class SubscriptionService {
     private readonly catalog: ProductCatalogPort,
     private readonly orders: OrderService,
     private readonly config: OrderConfigService,
+    // D2: a plan the sweep gives up on has to TELL the customer. A standing order that
+    // stops arriving with no message is the bug this closes.
+    @Inject(ORDER_TOKENS.Notification)
+    private readonly notification: NotificationPort,
   ) {}
 
   /**
@@ -169,16 +191,77 @@ export class SubscriptionService {
           // D6: the same fact, recorded as data instead of only as a naming convention.
           sub.id,
         );
+        // D2: the schedule steps from the date this cycle was DUE, never from `now`.
+        //
+        // Advancing from `now` moved the delivery day permanently every time a cycle ran
+        // late: a plan due Tuesday that the sweep only reached on Friday became a Friday
+        // plan, at whatever hour the sweep happened to run, and never came back.
+        // `nextDeliveryOnOrAfter` also skips whole cadences that were missed, so a plan
+        // rescued after a long outage owes one delivery, not the backlog.
+        //
         // Counted only when this sweep is the one that moved the schedule on.
-        if (await this.subs.advance(sub.id, sub.nextDeliveryAt, advanceDelivery(now, sub.frequency))) {
+        const next = nextDeliveryOnOrAfter(sub.nextDeliveryAt, sub.frequency, now);
+        if (await this.subs.advance(sub.id, sub.nextDeliveryAt, next)) {
           placed += 1;
         }
       } catch (err) {
-        this.logger.warn(
-          `Subscription ${sub.id} delivery skipped: ${err instanceof Error ? err.message : 'unknown'}`,
-        );
+        await this.recordCycleFailure(sub, err, now);
       }
     }
     return { placed };
+  }
+
+  /**
+   * D2: a cycle that failed is counted, explained, and eventually stopped.
+   *
+   * Before this the sweep wrote one warning and moved on — so a plan whose product had been
+   * pulled from the catalogue was retried on every tick, for as long as the plan existed,
+   * and the customer was never told their standing order had stopped arriving. The only
+   * trace was a line in a container log nobody reads.
+   *
+   * Pausing rather than cancelling: the plan is the customer's, and the cause may be
+   * temporary. PAUSED is the state they can resume from once it is fixed — and D4 already
+   * makes resuming move the schedule forward instead of delivering on the spot.
+   *
+   * Every step is fail-open. This runs inside the sweep's own catch, and a failure to
+   * RECORD a failure must not take the rest of the batch down with it.
+   */
+  private async recordCycleFailure(
+    sub: SubscriptionRecord,
+    err: unknown,
+    now: Date,
+  ): Promise<void> {
+    const reason = messageOf(err);
+    this.logger.warn(`Subscription ${sub.id} delivery skipped: ${reason}`);
+    let failures: number;
+    try {
+      failures = await this.subs.recordFailure(sub.id, reason, now);
+    } catch (recordErr) {
+      this.logger.warn(
+        `Subscription ${sub.id} failure not recorded: ${messageOf(recordErr)}`,
+      );
+      return;
+    }
+    if (failures < MAX_CONSECUTIVE_FAILURES) return;
+
+    try {
+      await this.subs.setStatus(sub.id, 'PAUSED');
+    } catch (pauseErr) {
+      this.logger.warn(
+        `Subscription ${sub.id} not paused after ${failures} failures: ${messageOf(pauseErr)}`,
+      );
+      return;
+    }
+    // Telling the customer is the whole point — a standing order that stops arriving with
+    // no message is the bug. Fail-open: the pause already happened and is the durable part.
+    await this.notification
+      .notify(
+        'SUBSCRIPTION_PAUSED',
+        sub.phone,
+        { name: sub.recipientName, product: sub.productName, reason },
+        sub.customerId,
+        '',
+      )
+      .catch(() => false);
   }
 }

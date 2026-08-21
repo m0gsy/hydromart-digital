@@ -12,11 +12,6 @@ const FREQUENCY_DAYS: Record<SubscriptionFrequency, number> = {
   MONTHLY: 30,
 };
 
-/** The delivery date one frequency-cycle after `from`. */
-export function advanceDelivery(from: Date, frequency: SubscriptionFrequency): Date {
-  return new Date(from.getTime() + FREQUENCY_DAYS[frequency] * 24 * 60 * 60 * 1000);
-}
-
 /**
  * D4: the next delivery on or after `notBefore`, stepping the plan's own cadence from
  * `from` — so the delivery DAY is preserved across a pause.

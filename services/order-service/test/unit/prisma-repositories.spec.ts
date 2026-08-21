@@ -234,11 +234,27 @@ describe('SubscriptionPrismaRepository', () => {
     await expect(repo.advance('sub-1', due, next)).resolves.toBe(true);
     expect(model.updateMany).toHaveBeenCalledWith({
       where: { id: 'sub-1', status: 'ACTIVE', nextDeliveryAt: due },
-      data: { nextDeliveryAt: next },
+      // D2: a delivery that landed clears the failure run in the SAME write that moves the
+      // schedule. Two writes could leave a plan advanced but still counted as failing, and
+      // the next outage would then be measured from a number that was never true.
+      data: { nextDeliveryAt: next, failureCount: 0, lastFailure: null, lastFailureAt: null },
     });
 
     model.updateMany.mockResolvedValue({ count: 0 });
     await expect(repo.advance('sub-1', due, next)).resolves.toBe(false);
+  });
+
+  // D2: consecutive, and capped in length — `lastFailure` carries whatever a downstream
+  // threw, and an unbounded upstream message must not become an unbounded column write.
+  it('counts a failed cycle with its reason, truncated', async () => {
+    model.update.mockResolvedValue({ failureCount: 2 });
+    const at = new Date('2026-08-21T00:00:00Z');
+    await expect(repo.recordFailure('sub-1', 'x'.repeat(900), at)).resolves.toBe(2);
+    const call = model.update.mock.calls.at(-1)![0];
+    expect(call.where).toEqual({ id: 'sub-1' });
+    expect(call.data.failureCount).toEqual({ increment: 1 });
+    expect(call.data.lastFailureAt).toBe(at);
+    expect(call.data.lastFailure).toHaveLength(500);
   });
 
   it('summarizes the active network, sorted by subscriber count desc', async () => {
