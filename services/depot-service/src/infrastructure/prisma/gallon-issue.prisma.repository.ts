@@ -17,10 +17,18 @@ import { PrismaService } from './prisma.service';
 export class GallonIssuePrismaRepository implements GallonIssueRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  // depositHeld is a plain integer column (whole IDR), so Prisma rows already match
-  // GallonIssueRecord — no Decimal conversion needed (unlike gallon-return).
+  /**
+   * I4: `depositHeld` is Decimal now, matching the return side. Prisma hands a Decimal
+   * object back, and `GallonIssueRecord` promises a number — the same shape
+   * `GallonReturnPrismaRepository.toRecord` has always had. Skipping this would put a
+   * Decimal into arithmetic that expects a number and produce string concatenation.
+   */
+  private toRecord(row: { depositHeld: unknown }): GallonIssueRecord {
+    return { ...(row as GallonIssueRecord), depositHeld: Number(row.depositHeld) };
+  }
+
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
-    return this.prisma.gallonIssue.create({ data });
+    return this.toRecord(await this.prisma.gallonIssue.create({ data }));
   }
 
   /**
@@ -30,11 +38,13 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
    * happened must not be restated at today's deposit rate.
    */
   async createFromOrder(data: CreateGallonIssueFromOrderData): Promise<GallonIssueRecord> {
-    return this.prisma.gallonIssue.upsert({
-      where: { orderId: data.orderId },
-      create: data,
-      update: {},
-    });
+    return this.toRecord(
+      await this.prisma.gallonIssue.upsert({
+        where: { orderId: data.orderId },
+        create: data,
+        update: {},
+      }),
+    );
   }
 
   async listForDepot(
@@ -51,19 +61,20 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       }),
       this.prisma.gallonIssue.count({ where: { depotId } }),
     ]);
-    return { items, total };
+    return { items: items.map((r) => this.toRecord(r)), total };
   }
 
-  listForCustomerAtDepot(
+  async listForCustomerAtDepot(
     depotId: string,
     customerId: string,
     limit: number,
   ): Promise<GallonIssueRecord[]> {
-    return this.prisma.gallonIssue.findMany({
+    const rows = await this.prisma.gallonIssue.findMany({
       where: { depotId, customerId },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
+    return rows.map((r) => this.toRecord(r));
   }
 
   async summaryForDepot(depotId: string): Promise<GallonIssueSummary> {
@@ -75,7 +86,7 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return {
       issues: agg._count._all,
       gallons: agg._sum.quantity ?? 0,
-      depositHeld: agg._sum.depositHeld ?? 0,
+      depositHeld: Number(agg._sum.depositHeld ?? 0),
     };
   }
 
@@ -88,7 +99,7 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       where: { depotId, customerId },
       _sum: { quantity: true, depositHeld: true },
     });
-    return { gallons: agg._sum.quantity ?? 0, amountIdr: agg._sum.depositHeld ?? 0 };
+    return { gallons: agg._sum.quantity ?? 0, amountIdr: Number(agg._sum.depositHeld ?? 0) };
   }
 
   /** I5: one customer's issued gallons and deposit held, grouped by depot. */
@@ -101,7 +112,10 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return grouped.map((g) => ({
       depotId: g.depotId,
       gallons: g._sum.quantity ?? 0,
-      amountIdr: g._sum.depositHeld ?? 0,
+      // I4: I5 opened this read while the column was still Int, so it never needed a cast.
+      // It does now — and an uncast Decimal does not throw here, it reaches the customer's
+      // own deposit screen and concatenates instead of adding.
+      amountIdr: Number(g._sum.depositHeld ?? 0),
     }));
   }
 
@@ -114,7 +128,7 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return grouped.map((g) => ({
       customerId: g.customerId as string,
       gallons: g._sum.quantity ?? 0,
-      amountIdr: g._sum.depositHeld ?? 0,
+      amountIdr: Number(g._sum.depositHeld ?? 0),
     }));
   }
 
@@ -126,7 +140,7 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return grouped.map((g) => ({
       depotId: g.depotId,
       gallons: g._sum.quantity ?? 0,
-      depositHeld: g._sum.depositHeld ?? 0,
+      depositHeld: Number(g._sum.depositHeld ?? 0),
     }));
   }
 }
