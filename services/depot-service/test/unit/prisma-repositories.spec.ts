@@ -589,14 +589,33 @@ describe('GallonIssuePrismaRepository', () => {
   };
   const prisma = { gallonIssue: model } as unknown as PrismaService;
   const repo = new GallonIssuePrismaRepository(prisma);
-  const row = { id: 'gi-1', depotId: 'depot-1', quantity: 5, depositHeld: 100000 };
+  /** I4: what Prisma actually hands back for a Decimal column. */
+  const decimal = (v: string) => ({ toString: () => v }) as unknown as number;
+  const row = { id: 'gi-1', depotId: 'depot-1', quantity: 5, depositHeld: decimal('100000') };
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('creates and returns the row unchanged', async () => {
+  it('creates and returns the row, coercing the Decimal deposit (I4)', async () => {
     model.create.mockResolvedValue(row);
-    expect(await repo.create({ depotId: 'depot-1' } as never)).toBe(row);
+    expect(await repo.create({ depotId: 'depot-1' } as never)).toEqual({
+      ...row,
+      depositHeld: 100000,
+    });
     expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1' } });
+  });
+
+  /**
+   * I4: `depositHeld` is Decimal now, matching the return side, so Prisma hands back a
+   * Decimal object where the record promises a number. Left uncoerced it does not throw —
+   * it CONCATENATES: `deposit + refund` becomes a string, and every balance in the domain
+   * silently stops being arithmetic. That is what this pins.
+   */
+  it('never lets a Decimal deposit reach arithmetic as a string (I4)', async () => {
+    model.create.mockResolvedValue({ ...row, depositHeld: decimal('20000.50') });
+    const rec = await repo.create({ depotId: 'depot-1' } as never);
+    expect(rec.depositHeld).toBe(20000.5);
+    expect(typeof rec.depositHeld).toBe('number');
+    expect(rec.depositHeld + 1).toBe(20001.5);
   });
 
   // I1: a completion fan-out is at-least-once, so this is called twice for the same order.
@@ -605,7 +624,7 @@ describe('GallonIssuePrismaRepository', () => {
   it('books a fulfilment issue idempotently on the order id', async () => {
     model.upsert.mockResolvedValue(row);
     const data = { depotId: 'depot-1', orderId: 'o-1', quantity: 2 } as never;
-    expect(await repo.createFromOrder(data)).toBe(row);
+    expect(await repo.createFromOrder(data)).toEqual({ ...row, depositHeld: 100000 });
     expect(model.upsert).toHaveBeenCalledWith({
       where: { orderId: 'o-1' },
       create: data,
@@ -639,9 +658,12 @@ describe('GallonIssuePrismaRepository', () => {
   });
 
   // I5: the same totals grouped the other way — one customer, every depot they have used.
-  it('groups one customer’s issues by depot', async () => {
+  // I4: this read was opened by I5 while the column was still Int, so it never needed a
+  // cast. It does now — and an uncast Decimal does not throw, it reaches the customer's own
+  // deposit screen and concatenates instead of adding.
+  it('groups one customer’s issues by depot, coercing the Decimal deposit', async () => {
     model.groupBy.mockResolvedValue([
-      { depotId: 'd1', _sum: { quantity: 5, depositHeld: 100000 } },
+      { depotId: 'd1', _sum: { quantity: 5, depositHeld: decimal('100000') } },
       { depotId: 'd2', _sum: { quantity: null, depositHeld: null } },
     ]);
     await expect(repo.perDepotForCustomer('c1')).resolves.toEqual([
@@ -657,7 +679,9 @@ describe('GallonIssuePrismaRepository', () => {
 
   it('reads one customer’s issues at one depot, newest first and capped', async () => {
     model.findMany.mockResolvedValue([row]);
-    await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([row]);
+    await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([
+      { ...row, depositHeld: 100000 },
+    ]);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1', customerId: 'c1' },
       orderBy: { createdAt: 'desc' },
@@ -697,7 +721,7 @@ describe('GallonIssuePrismaRepository', () => {
       take: 10,
     });
     expect(model.count).toHaveBeenCalledWith({ where: { depotId: 'depot-1' } });
-    expect(out).toEqual({ items: [row], total: 1 });
+    expect(out).toEqual({ items: [{ ...row, depositHeld: 100000 }], total: 1 });
   });
 
   it('summarises a depot, defaulting null sums to zero', async () => {

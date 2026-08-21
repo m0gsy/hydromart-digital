@@ -169,8 +169,13 @@ model GallonIssue {
   orderId     String?  @db.Uuid
   /// Number of empty gallons issued.
   quantity    Int
-  /// Deposit held from the customer in whole IDR (0 = no deposit).
-  depositHeld Int      @default(0)
+  /// I4: deposit held from the customer, in IDR (0 = no deposit).
+  ///
+  /// Decimal, matching `GallonReturn.depositRefunded` — every balance in this domain is
+  /// `held − refunded`, and the two halves of one subtraction must not disagree about what
+  /// a rupiah is. Widened from Int rather than narrowing the other side, because widening
+  /// is additive and reversible.
+  depositHeld Decimal  @db.Decimal(12, 2) @default(0)
   note        String?
   /// Staff member who recorded the issue.
   actorId     String
