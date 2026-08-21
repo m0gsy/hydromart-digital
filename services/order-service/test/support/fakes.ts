@@ -1138,8 +1138,11 @@ export class FakeNotification implements NotificationPort {
     vars: Record<string, string>,
     customerId: string,
     authorization: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.calls.push({ event, phone, vars, customerId, authorization });
+    // D9: the fake delivers. A test that wants a failure replaces `notify` outright, and
+    // a fake that quietly answered `false` would make every caller look un-notified.
+    return true;
   }
 }
 

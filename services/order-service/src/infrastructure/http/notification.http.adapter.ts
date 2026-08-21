@@ -39,11 +39,11 @@ export class NotificationHttpAdapter implements NotificationPort {
     vars: Record<string, string>,
     customerId: string | null,
     _authorization: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const internalKey = this.config.internalServiceKey;
     if (!internalKey) {
       this.logger.warn(`No internal service key; skipped ${event} notification`);
-      return;
+      return false;
     }
     const dialled = dial(phone);
     // Still unusable after normalising (empty, free text, too short): say so by name. crm
@@ -51,7 +51,7 @@ export class NotificationHttpAdapter implements NotificationPort {
     // its report while every log line reads "skipped".
     if (!CRM_PHONE_RE.test(dialled)) {
       this.logger.warn(`${event} notification skipped: "${phone}" is not a usable phone number`);
-      return;
+      return false;
     }
     const url = `${this.config.crmServiceUrl}/api/v1/notifications/internal`;
     const controller = new AbortController();
@@ -66,8 +66,10 @@ export class NotificationHttpAdapter implements NotificationPort {
       if (!res.ok) {
         throw new Error(`crm-service responded ${res.status}`);
       }
+      return true;
     } catch (error) {
       this.logger.warn(`${event} notification skipped: ${(error as Error).message}`);
+      return false;
     } finally {
       clearTimeout(timer);
     }

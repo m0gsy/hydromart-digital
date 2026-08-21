@@ -94,9 +94,10 @@ class SpyNotification implements NotificationPort {
     vars: Record<string, string>,
     _customerId: string | null,
     _authorization: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (this.throwOnNotify) throw new Error('crm down');
     this.calls.push({ event, phone, vars });
+    return true;
   }
 }
 

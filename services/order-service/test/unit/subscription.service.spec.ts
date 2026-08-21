@@ -61,6 +61,9 @@ describe('SubscriptionService', () => {
   let orderService: OrderService;
   let service: SubscriptionService;
   let depots: FakeDepotDirectory;
+  // D9: the scheduled-order notification is sent AFTER the row exists and fails open, so
+  // the spec needs a handle on it to make a send fail.
+  let notification: FakeNotification;
   const customer = randomUUID();
 
   beforeEach(() => {
@@ -71,6 +74,7 @@ describe('SubscriptionService', () => {
     depots.depots = [homeDepot];
     const cart = new InMemoryCartRepository();
     const cartService = buildCartService(cart, catalog);
+    notification = new FakeNotification();
     orderService = new OrderService(
       orders,
       cart,
@@ -82,7 +86,7 @@ describe('SubscriptionService', () => {
       new FakeMembership(),
       new FakeResellerDiscount(),
       new FakeCustomerDirectory(),
-      new FakeNotification(),
+      notification,
       new FakePromo(),
       new FakeInventory(),
       cartService,
@@ -222,6 +226,54 @@ describe('SubscriptionService', () => {
 
     expect(orders.rows).toHaveLength(1);
     expect(orders.rows[0].subscriptionId).toBe(sub.id);
+  });
+
+  // L0 REPRO (D9): the ORDER_RECEIVED for a scheduled delivery is sent AFTER the order row
+  // exists, and the notification port fails open — so a send that never lands leaves the
+  // order placed, the customer uninformed, and nothing on the order saying so. The only
+  // trace is a warning in a container log nobody reads.
+  it('D9 REPRO: a scheduled order records nothing when the customer was never told', async () => {
+    const p = seedProduct();
+    await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+    // How the real adapter reports an outage: it fails OPEN and answers `false`. Throwing
+    // here would simulate an adapter that does not exist, and would test the sweep's
+    // isolation instead of the silence this is about.
+    notification.notify = async () => false;
+
+    const out = await service.processDue(new Date('2026-07-02T00:00:00Z'));
+    expect(out.placed).toBe(1);
+
+    const placed = orders.rows[0]!;
+    expect(orders.notes).toContainEqual(
+      expect.objectContaining({
+        id: placed.id,
+        changedBy: 'order-service',
+        note: expect.stringMatching(/tidak diberi tahu/i),
+      }),
+    );
+  });
+
+  // The other half, or "record the silence" becomes "record everything": a delivery whose
+  // message DID land must carry no such note, or the note stops meaning anything.
+  it('leaves no not-notified note when the message landed (D9)', async () => {
+    const p = seedProduct();
+    await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+
+    expect((await service.processDue(new Date('2026-07-02T00:00:00Z'))).placed).toBe(1);
+    expect(notification.calls.map((c) => c.event)).toContain('ORDER_RECEIVED');
+    expect(orders.notes).toHaveLength(0);
   });
 
   it('processDue places an order for a due subscription and advances its schedule', async () => {
