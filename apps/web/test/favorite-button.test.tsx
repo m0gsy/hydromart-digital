@@ -29,11 +29,18 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('FavoriteButton', () => {
-  it('a guest is redirected to login instead of toggling', async () => {
+  /*
+   * G1. This used to assert `next=/products/detail?id=p1` — the gate sent every guest to a
+   * PRODUCT PAGE after signing in, whatever screen they had been on. This button lives on
+   * catalog cards and rails as much as on the detail screen, so "come back" meant "go
+   * somewhere else" for most of the people who pressed it. It returns to where they are now.
+   */
+  it('a guest is sent to login and back to the screen they were on', async () => {
     customer = null;
+    window.history.pushState({}, '', '/products?category=galon');
     render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     await userEvent.click(screen.getByRole('button'));
-    expect(push).toHaveBeenCalledWith('/login?next=%2Fproducts%2Fdetail%3Fid%3Dp1');
+    expect(push).toHaveBeenCalledWith(`/login?next=${encodeURIComponent('/products?category=galon')}`);
     expect(post).not.toHaveBeenCalled();
   });
 

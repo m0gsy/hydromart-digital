@@ -24,6 +24,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
 import { cartDepotId } from '@/lib/location-store';
+import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
 import { memberPrice, useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
@@ -97,7 +98,10 @@ export default function ProductDetailPage() {
 
   async function addToCart() {
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${id}`)}`);
+      // G1: the quantity chosen on this screen travels too — signing in must not silently
+      // reset it to one.
+      setPendingAdd({ productId: id, quantity: qty });
+      router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     setAdding(true);
@@ -339,7 +343,8 @@ function FbtCard({ item }: { item: Recommendation }) {
     e.preventDefault();
     e.stopPropagation();
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${item.productId}`)}`);
+      setPendingAdd({ productId: item.productId, quantity: 1 });
+      router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     setAdding(true);

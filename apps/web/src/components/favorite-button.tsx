@@ -7,6 +7,7 @@ import { Heart } from '@phosphor-icons/react';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { currentPath } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
 
 // Wishlist toggle (gap 13d). Single-product surfaces (PDP) — reads the caller's
@@ -36,7 +37,9 @@ export function FavoriteButton({ productId, className = '' }: { productId: strin
 
   async function toggle() {
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${productId}`)}`);
+      // G1: a favourite is not a cart add, so nothing is stashed — but the return trip was
+      // wrong here too, sending the shopper to a product page instead of back.
+      router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     const next = !on;
