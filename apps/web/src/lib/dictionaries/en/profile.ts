@@ -54,6 +54,9 @@ export const profile: typeof base = {
       cancel: 'Cancel',
       cancelled: 'Redemption cancelled — your points are back.',
       cancelError: 'Could not cancel the redemption.',
+      collectAt: 'Collect at {depot}',
+      collectDepotUnknown: 'the depot you chose',
+      collectAnyDepot: 'Collect at any depot',
       status: {
         ACTIVE: 'Waiting for collection',
         USED: 'Collected',

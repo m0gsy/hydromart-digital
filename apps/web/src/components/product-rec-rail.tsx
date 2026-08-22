@@ -11,10 +11,11 @@ import { endpoints } from '@/lib/endpoints';
 import { cartDepotId } from '@/lib/location-store';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
-import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import { useRecommendationPhotos } from '@/lib/product-photos';
+import { useAsync } from '@/lib/use-async';
 import { SectionHeader } from '@/components/ui';
-import type { Cart, Product, Recommendation } from '@/lib/types';
+import type { Cart, Recommendation } from '@/lib/types';
 
 // 1c rec card: mirrors the catalog ProductCard tile, but a Recommendation carries
 // no price, so it drops the price/member chip — name, unit, and a round teal add
@@ -124,12 +125,7 @@ export function ProductRecRail({
   // only once the recommendations are known. A failure here costs the photos, never the
   // rail: the cards fall back to the placeholder they used to always show.
   const shown = (data ?? []).slice(0, 4);
-  const ids = shown.map((i) => i.productId).join(',');
-  const { data: products } = useAsync<Product[]>(
-    () => (ids ? api.getCached<Product[]>(endpoints.products.batch(ids.split(','))) : Promise.resolve([])),
-    [ids],
-  );
-  const imageFor = new Map((products ?? []).map((p) => [p.id, p.imageUrl]));
+  const imageFor = useRecommendationPhotos(shown);
 
   if (loading || error || !data || data.length === 0) return null;
 

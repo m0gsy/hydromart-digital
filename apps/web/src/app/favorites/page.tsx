@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 import { ArrowLeft, Heart } from '@phosphor-icons/react';
 
+import { FavoriteButton } from '@/components/favorite-button';
 import { ProductCard } from '@/components/product-card';
 import { RequireAuth } from '@/components/require-auth';
 import { ErrorState, Skeleton } from '@/components/ui';
@@ -66,7 +67,23 @@ function FavoritesInner() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {data.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            /*
+             * H8. A favourite could be added from anywhere and removed from nowhere: this
+             * screen drew plain catalogue tiles, so the only way to drop one was to open
+             * its detail page and un-heart it there.
+             *
+             * The heart is a SIBLING of the card, not a child: `ProductCard` is a `Link`,
+             * and a button inside it would navigate to the product on every tap. Stacked
+             * above it instead, the tap lands on the button and never reaches the link.
+             * The row deliberately stays put once un-hearted — the next load drops it,
+             * and a tile vanishing under the thumb makes an accidental tap unrecoverable.
+             */
+            <div key={p.id} className="relative">
+              <ProductCard product={p} />
+              <div className="absolute right-2.5 top-2.5 z-10">
+                <FavoriteButton productId={p.id} className="h-10 w-10 bg-[color:var(--surface)]" />
+              </div>
+            </div>
           ))}
         </div>
       )}
