@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { Lock, Info, Wallet, CheckCircle, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -10,7 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotFinance } from '@/lib/roles';
+import { canConfirmPayment, canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
@@ -126,10 +127,16 @@ function StatusBadge({ status }: { status: PaymentStatus | null }) {
   );
 }
 
-function ReconRowItem({ row }: { row: ReconRow }) {
+/*
+ * O9 — the row is the only place this screen names a problem, and the button that fixes it
+ * lives on the order. `href` is null for a role that holds `depotFinance` but not
+ * `paymentSettle` (SUPERVISOR, DIREKTUR): handing them a link into a screen they may only
+ * read is an affordance that lies. The screen says it is read-only instead.
+ */
+function ReconRowItem({ row, href }: { row: ReconRow; href: string | null }) {
   const { t } = useT();
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-app py-3 last:border-0">
+  const inner = (
+    <>
       <div className="min-w-0">
         <p className="truncate font-medium">{row.ref}</p>
         <p className="text-xs text-muted">
@@ -142,12 +149,22 @@ function ReconRowItem({ row }: { row: ReconRow }) {
           <StatusBadge status={row.status} />
         </div>
       </div>
-    </div>
+    </>
+  );
+  const className = 'flex items-center justify-between gap-3 border-b border-app py-3 last:border-0';
+  return href ? (
+    <Link href={href} className={`${className} hover:bg-[color:var(--surface-soft)]`}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={className}>{inner}</div>
   );
 }
 
 function PaymentReconBody() {
   const { t } = useT();
+  const { customer } = useAuth();
+  const canSettle = canConfirmPayment(customer?.role);
   const { scopedId, ready, depots } = useDepot();
   const today = useMemo(
     () => new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -213,9 +230,16 @@ function PaymentReconBody() {
             ) : (
               <div className="flex flex-col">
                 {rows.map((r) => (
-                  <ReconRowItem key={r.id} row={r} />
+                  <ReconRowItem
+                    key={r.id}
+                    row={r}
+                    href={canSettle ? `/dashboard/orders?order=${r.id}` : null}
+                  />
                 ))}
               </div>
+            )}
+            {!canSettle && (
+              <p className="mt-3 text-xs text-muted">{t('dashB.paymentRecon.readOnly')}</p>
             )}
           </Card>
 

@@ -186,11 +186,13 @@ export const dashB = {
   },
   paymentRecon: {
     settled: 'Lunas',
-    pending: 'Menunggu',
+    pending: 'Menunggu pembayaran',
     failed: 'Gagal',
     refunded: 'Dikembalikan',
     noPayment: 'Belum ada pembayaran',
     noMethod: 'Belum ada metode',
+    readOnly:
+      'Layar ini baca-saja untuk peranmu. Konfirmasi lunas dikerjakan di antrean pesanan oleh kepala depot, staf depot, manajer, atau keuangan.',
     title: 'Rekonsiliasi pembayaran',
     unsettledCount: '{n} belum lunas',
     transactions: 'Daftar transaksi',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ClipboardText, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -320,6 +321,26 @@ function QueueBody() {
   // Land on the group that actually has work. The default tab only holds PREPARING
   // orders, so a depot whose queue is all CREATED/CONFIRMED opened on "Antrean kosong"
   // with orders waiting one tab over. Fires once per load; switching back stays put.
+  /*
+   * O9 — `?order=<id>` opens that order's detail on arrival. The reconciliation screen
+   * links here because the confirm button lives in this detail and nowhere else, and the
+   * row it links from is usually NOT in `items`: this queue reads the open backlog, while
+   * a row awaiting payment is often already closed. So the id is fetched by itself rather
+   * than looked up in whatever page happened to load. Fires once; closing it stays closed.
+   */
+  const requestedId = useSearchParams().get('order');
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!requestedId || deepLinked.current) return;
+    deepLinked.current = true;
+    api
+      .get<Order>(endpoints.orders.manageGet(requestedId), true)
+      .then(setDetailOrder)
+      // A bad or forbidden id leaves the queue exactly as it is — the queue is still
+      // useful, and an error screen over it would hide the work the operator came for.
+      .catch(() => undefined);
+  }, [requestedId]);
+
   const autoGrouped = useRef(false);
   useEffect(() => {
     if (autoGrouped.current || loading) return;
