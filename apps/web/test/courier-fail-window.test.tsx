@@ -137,3 +137,49 @@ describe('the courier screen, step by step', () => {
     expect(await screen.findByRole('button', { name: /coba lagi|try again/i })).toBeInTheDocument();
   });
 });
+
+/**
+ * B5b. The customer picks a delivery window at checkout and is shown a confirmation of it.
+ * order-service stored it, its own response DTO returned it, and it reached nobody — least
+ * of all the person whose day it governs, standing at the door with the box.
+ *
+ * B5a snapshotted it onto the delivery at assignment. This is the screen that reads it.
+ */
+describe('B5b — the window on the screen of the person carrying the box', () => {
+  it('shows the window the customer chose', async () => {
+    get.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('/deliveries/del-1')) {
+        return Promise.resolve({ ...delivery('ON_DELIVERY'), deliveryWindow: '2026-08-22 09:00-12:00' });
+      }
+      if (p.includes('/payments')) return Promise.resolve({ items: [], total: 0 });
+      return Promise.resolve(null);
+    });
+    render(<DeliveryDetailPage />, { wrapper: LocaleProvider });
+    expect(await screen.findByText(/09:00-12:00/)).toBeInTheDocument();
+  });
+
+  it('says nothing rather than inventing one for a delivery that carried none', async () => {
+    mount('ON_DELIVERY');
+    await screen.findByText(/HM-1001/);
+    expect(screen.queryByText(/09:00-12:00/)).toBeNull();
+  });
+
+  it('shows it beside the landmark — one did not replace the other', async () => {
+    get.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('/deliveries/del-1')) {
+        return Promise.resolve({
+          ...delivery('ON_DELIVERY'),
+          deliveryWindow: '2026-08-22 09:00-12:00',
+          notes: 'Pagar hijau sebelah warung Bu Ani',
+        });
+      }
+      if (p.includes('/payments')) return Promise.resolve({ items: [], total: 0 });
+      return Promise.resolve(null);
+    });
+    render(<DeliveryDetailPage />, { wrapper: LocaleProvider });
+    expect(await screen.findByText(/09:00-12:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Pagar hijau sebelah warung Bu Ani/)).toBeInTheDocument();
+  });
+});
