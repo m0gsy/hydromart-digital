@@ -487,6 +487,35 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  /*
+   * B3. The stalled-order sweep cancels by how old an order IS, not by how long it has been
+   * stuck: `findStaleIn` filters on `createdAt`. For CONFIRMED/PREPARING those are not the
+   * same question — an order placed 25 hours ago and accepted by the depot one minute ago
+   * is already past `stalledHours`, so the next tick auto-cancels it and releases stock out
+   * from under a depot that had just started work.
+   *
+   * The column is written here, one release before the sweep reads it (B3b).
+   */
+  it('stamps when the order entered its new status, not just that it moved', async () => {
+    order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
+    await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
+    const data = order.update.mock.calls.at(-1)![0].data;
+    expect(data.statusChangedAt).toBeInstanceOf(Date);
+  });
+
+  /*
+   * A void is a status transition that does NOT go through `applyStatus`. A column only
+   * some transitions write is worse than no column: it reads as fresh for exactly the rows
+   * nothing ever touched.
+   */
+  it('stamps it on a void too, with the void time itself', async () => {
+    order.updateMany.mockResolvedValue({ count: 1 });
+    order.findUnique.mockResolvedValue(orderRow());
+    const at = new Date('2026-08-22T04:00:00.000Z');
+    await repo.voidWalkIn('ord-1', 'salah input', 'cashier-1', at);
+    expect(order.updateMany.mock.calls.at(-1)![0].data).toMatchObject({ statusChangedAt: at });
+  });
+
   it('writes the outbox rows alongside a walk-in, which is born COMPLETED', async () => {
     order.create.mockResolvedValue(orderRow());
     await repo.create({
@@ -777,6 +806,8 @@ describe('OrderPrismaRepository', () => {
       where: { id: 'ord-1', status: OrderStatus.CREATED },
       data: {
         status: OrderStatus.CONFIRMED,
+        // B3: every transition now stamps when the order entered the status it is in.
+        statusChangedAt: expect.any(Date),
         history: { create: { status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
       },
       include: expect.any(Object),
@@ -1086,7 +1117,8 @@ describe('OrderPrismaRepository', () => {
 
       expect(order.updateMany).toHaveBeenCalledWith({
         where: { id: 'ord-1', status: 'COMPLETED', isWalkIn: true },
-        data: { status: 'VOIDED', voidedAt: at, voidReason: 'Salah ukuran' },
+        // B3: a void is a transition too, so it stamps `statusChangedAt` with the void time.
+        data: { status: 'VOIDED', statusChangedAt: at, voidedAt: at, voidReason: 'Salah ukuran' },
       });
       expect(orderStatusHistory.create).toHaveBeenCalledWith({
         data: { orderId: 'ord-1', status: 'VOIDED', changedBy: 'cashier-1', note: 'Salah ukuran' },
