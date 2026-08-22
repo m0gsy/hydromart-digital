@@ -1529,9 +1529,6 @@ export const hrFix = {
     yourDepot: "Your depot",
     loadFailed: "Could not load",
   },
-  registerPage: {
-    addPhoto: "Add a photo (optional)",
-  },
   assets2: {
     manageAssets: "Manage assets",
     none: "No company property is held.",

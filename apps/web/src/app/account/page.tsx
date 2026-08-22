@@ -577,13 +577,35 @@ export default function AccountPage() {
       <CenterState
         icon={<Receipt size={40} weight="duotone" />}
         title={t('account.guestTitle')}
-        action={<LinkButton href="/login">{t('nav.signIn')}</LinkButton>}
+        /*
+         * H7. This was a bare `/login`, so signing in from the account screen landed the
+         * customer in the CATALOGUE — the one screen they had just navigated away from.
+         * Every other sign-in door in the app already carries `?next=`; this one did not.
+         */
+        action={<LinkButton href={`/login?next=${encodeURIComponent('/account')}`}>{t('nav.signIn')}</LinkButton>}
       >
         {t('account.guestBody')}
       </CenterState>
     );
   }
-  if (!customer) return null;
+  /*
+   * H6. This was `return null`, and it ran for the WHOLE window between mount and `ready`
+   * — so /account was a blank page while auth settled. That window is not instant on the
+   * device this ships to: a cold start waits on the biometric unlock, several seconds of
+   * a screen saying nothing at all, which reads as a crash rather than as loading.
+   *
+   * Skeletons rather than a spinner, in the shape of what is about to arrive, so the
+   * layout does not jump when it does.
+   */
+  if (!customer) {
+    return (
+      <div className="flex flex-col gap-4" role="status" aria-busy="true" aria-label={t('account.title')}>
+        <Skeleton className="h-[76px] w-full rounded-2xl" />
+        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   const opsHref = canViewDashboard(customer.role) ? '/dashboard' : '/dashboard/orders';
   const showOps = isStaff(customer.role);
