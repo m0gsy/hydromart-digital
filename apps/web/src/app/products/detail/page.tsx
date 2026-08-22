@@ -27,6 +27,7 @@ import { cartDepotId } from '@/lib/location-store';
 import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
 import { memberPrice, useMemberRate } from '@/lib/member';
+import { useRecommendationPhotos } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
 import type { Cart, Category, LoyaltyAccount, NearbyDepot, Product, Recommendation } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
@@ -82,6 +83,11 @@ export default function ProductDetailPage() {
     () => api.get<Recommendation[]>(endpoints.recommendations.related(id)),
     [id],
   );
+  // The four that will actually be drawn, and their photos — one catalogue call for the
+  // row, never one per card. Hooks run before the early returns below, so the slice is
+  // computed here rather than at the render site.
+  const shownRelated = (related ?? []).slice(0, 4);
+  const relatedPhotos = useRecommendationPhotos(shownRelated);
 
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
@@ -318,8 +324,8 @@ export default function ProductDetailPage() {
         <section className="mt-6">
           <h2 className="mb-4 text-[21px] font-extrabold tracking-tight">{t('shop.pdp.related')}</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {related.slice(0, 4).map((item) => (
-              <FbtCard key={item.productId} item={item} />
+            {shownRelated.map((item) => (
+              <FbtCard key={item.productId} item={item} imageUrl={relatedPhotos.get(item.productId)} />
             ))}
           </div>
         </section>
@@ -330,8 +336,10 @@ export default function ProductDetailPage() {
 
 // Horizontal mini-card for the frequently-bought row. Duplicates the add-to-cart
 // wiring of ProductRecRail's RailCard — ponytail: the shared rail renders a
-// different (scrolling) layout, so this page needs its own card shape.
-function FbtCard({ item }: { item: Recommendation }) {
+// different (row vs tile) layout, so this page needs its own card shape. The photo
+// lookup is NOT duplicated: `useRecommendationPhotos` is the one both call, because
+// this card being a pre-fix copy of that one is exactly how H1 happened.
+function FbtCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string | null }) {
   const router = useRouter();
   const { t } = useT();
   const { customer } = useAuth();
@@ -366,8 +374,22 @@ function FbtCard({ item }: { item: Recommendation }) {
       href={`/products/detail?id=${item.productId}`}
       className="surface flex items-center gap-[13px] rounded-[18px] p-3 shadow-card transition-shadow hover:shadow-lift"
     >
-      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[color:var(--surface-soft)]">
-        <Drop size={30} weight="thin" className="text-brand-300" />
+      <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[color:var(--surface-soft)]">
+        {/*
+          H1. This drew the placeholder drop UNCONDITIONALLY, so a related product's photo
+          could never reach this row however many were uploaded — the identical defect the
+          home rail had, in the card that was copied from it before the fix landed.
+        */}
+        {imageUrl ? (
+          <RemoteImage
+            src={imageUrl}
+            alt={item.name}
+            className="h-full w-full object-cover"
+            fallback={<Drop size={30} weight="thin" className="text-brand-300" />}
+          />
+        ) : (
+          <Drop size={30} weight="thin" className="text-brand-300" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="line-clamp-2 text-[13.5px] font-bold leading-snug">{item.name}</h3>

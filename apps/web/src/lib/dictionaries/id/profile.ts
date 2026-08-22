@@ -52,6 +52,9 @@ export const profile = {
       cancel: 'Batalkan',
       cancelled: 'Penukaran dibatalkan, poin sudah dikembalikan.',
       cancelError: 'Gagal membatalkan penukaran.',
+      collectAt: 'Diambil di {depot}',
+      collectDepotUnknown: 'depot yang kamu pilih',
+      collectAnyDepot: 'Bisa diambil di depot mana pun',
       status: {
         ACTIVE: 'Menunggu diambil',
         USED: 'Sudah diambil',

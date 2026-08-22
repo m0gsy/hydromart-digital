@@ -14,6 +14,7 @@ import {
   Medal,
   ShoppingBag,
   Sparkle,
+  Storefront,
   Ticket,
   WarningCircle,
 } from '@phosphor-icons/react';
@@ -378,6 +379,16 @@ function MyRedemptions({
     () => api.get(endpoints.rewards.myRedemptions, true),
     [reloadKey],
   );
+  /*
+   * H14. The collection depot is asked at redemption time and comes straight back on the
+   * row, and this screen printed the reward, the date and the points and dropped it — so
+   * the customer held a code with nowhere written on it to take the code.
+   *
+   * `getCached` because the depot directory does not move while someone reads their
+   * redemptions, and the redeem sheet on this same screen fetches the same list.
+   */
+  const depots = useAsync<Page<Depot>>(() => api.getCached(endpoints.depots.browse({ limit: 50 })));
+  const depotName = new Map((depots.data?.items ?? []).map((d) => [d.id, d.name]));
   const [pending, setPending] = useState<string | null>(null);
 
   async function cancel(row: RedemptionListItem) {
@@ -422,6 +433,19 @@ function MyRedemptions({
                 <div className="text-[15px] font-extrabold leading-tight">{row.rewardName}</div>
                 <div className="mt-0.5 text-xs text-muted">
                   {formatDateTime(row.createdAt)} · {idr(row.pointsSpent)} {t('profile.rewards.points.unit')}
+                </div>
+                {/*
+                  Rows made before the question was asked carry `depotId: null` — three of
+                  the four in production. Naming a depot for them would invent one, so they
+                  are told the truth instead: any depot will hand it over.
+                */}
+                <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-brand-700">
+                  <Storefront size={13} weight="fill" />
+                  {row.depotId
+                    ? t('profile.rewards.redemptions.collectAt', {
+                        depot: depotName.get(row.depotId) ?? t('profile.rewards.redemptions.collectDepotUnknown'),
+                      })
+                    : t('profile.rewards.redemptions.collectAnyDepot')}
                 </div>
                 {row.status === 'ACTIVE' && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
