@@ -11,6 +11,16 @@ export enum NotificationEvent {
   ORDER_DELIVERED = 'ORDER_DELIVERED',
   ORDER_COMPLETED = 'ORDER_COMPLETED',
   ORDER_CANCELLED = 'ORDER_CANCELLED',
+  // B6: the one transition where silence costs the customer something. BR-006 ends their
+  // right to cancel the moment a courier is assigned, and nothing told them — the button
+  // simply stopped being there. Tokens: {{name}}, {{orderNumber}}, {{driver}}.
+  ORDER_DRIVER_ASSIGNED = 'ORDER_DRIVER_ASSIGNED',
+  // B4: delivery-service has been sending this since reschedule shipped and it was never a
+  // member here, so `@IsEnum` answered 400 and the sending adapter logged the refusal as a
+  // warning and moved on. Every reschedule notification was lost between two services that
+  // both believed they had done their part.
+  // Tokens: {{orderNumber}}, {{rescheduledFor}}, {{slot}}, {{note}}.
+  DELIVERY_RESCHEDULED = 'DELIVERY_RESCHEDULED',
   // Operational (not customer-facing): fired by depot-service when a stock line crosses
   // below its minimum. Recipient is an ops/warehouse number, not the customer.
   STOCK_LOW = 'STOCK_LOW',
@@ -67,6 +77,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Pesanan {{orderNumber}} sudah sampai. Selamat menikmati air bersih dari Hydromart, {{name}}! 💧',
   [NotificationEvent.ORDER_COMPLETED]:
     'Terima kasih, {{name}}! Pesanan {{orderNumber}} selesai. Poin loyalti kamu sudah ditambahkan — cek saldo poin di aplikasi.',
+  [NotificationEvent.ORDER_DRIVER_ASSIGNED]:
+    'Halo {{name}}! Pesanan {{orderNumber}} sudah diambil kurir kami dan segera berangkat. Mulai sekarang pesanan tidak bisa dibatalkan sendiri lewat aplikasi — hubungi depot bila ada perubahan.',
+  [NotificationEvent.DELIVERY_RESCHEDULED]:
+    'Halo, pengiriman pesanan {{orderNumber}} dijadwalkan ulang ke {{rescheduledFor}} {{slot}}. {{note}} Mohon maaf atas ketidaknyamanannya.',
   [NotificationEvent.ORDER_CANCELLED]:
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:

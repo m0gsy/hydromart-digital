@@ -37,6 +37,11 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
   NotificationEvent.ORDER_DELIVERED,
   NotificationEvent.ORDER_COMPLETED,
   NotificationEvent.ORDER_CANCELLED,
+  // Both open the order they are about: a reschedule is only actionable next to the
+  // delivery it moved, and "you can no longer cancel this yourself" is only useful on the
+  // screen that now offers the depot's number instead (H10).
+  NotificationEvent.ORDER_DRIVER_ASSIGNED,
+  NotificationEvent.DELIVERY_RESCHEDULED,
 ]);
 
 export function destinationFor(

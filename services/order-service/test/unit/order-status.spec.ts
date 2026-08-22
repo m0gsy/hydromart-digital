@@ -125,3 +125,38 @@ describe('OrderStatus state machine (BR-012, BR-005, BR-006)', () => {
     });
   });
 });
+
+
+/*
+ * B6. Two holes on the same timeline, in opposite directions.
+ *
+ * DRIVER_ASSIGNED was silent — and that is the exact moment the customer's own right to
+ * cancel ends (BR-006). The one transition where saying nothing costs them something.
+ *
+ * At the other end, proof of delivery marches the order through DELIVERED and then
+ * COMPLETED in ONE loop (delivery.service.ts:285), so both fired seconds apart. Measured,
+ * the customer got THREE messages at the door: "sudah sampai", "selesai — poin sudah
+ * ditambahkan", and POINTS_EARNED with the actual number. Two of the three were about
+ * points, and only one of those two knew how many.
+ */
+describe('B6 — the transitions that speak, and the one that repeats itself', () => {
+  it('tells the customer when their own right to cancel has ended', () => {
+    expect(notificationEventFor(OrderStatus.DRIVER_ASSIGNED)).toBe('ORDER_DRIVER_ASSIGNED');
+  });
+
+  it('stays silent on COMPLETED when DELIVERED just said it', () => {
+    expect(notificationEventFor(OrderStatus.COMPLETED, OrderStatus.DELIVERED)).toBeNull();
+  });
+
+  it('still speaks on COMPLETED reached any other way', () => {
+    expect(notificationEventFor(OrderStatus.COMPLETED, OrderStatus.ON_DELIVERY)).toBe(
+      'ORDER_COMPLETED',
+    );
+    expect(notificationEventFor(OrderStatus.COMPLETED)).toBe('ORDER_COMPLETED');
+  });
+
+  it('leaves PREPARING and PICKED_UP silent, which they are right to be', () => {
+    expect(notificationEventFor(OrderStatus.PREPARING)).toBeNull();
+    expect(notificationEventFor(OrderStatus.PICKED_UP)).toBeNull();
+  });
+});

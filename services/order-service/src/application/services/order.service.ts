@@ -1786,12 +1786,21 @@ export class OrderService {
     // FR-093/FR-094: notify the customer over WhatsApp on notable lifecycle changes.
     // Delivery progress reaches here too — delivery-service advances the order status
     // over HTTP, so ON_DELIVERY/DELIVERED notifications flow through this one point.
-    const event = notificationEventFor(to);
+    // B6: `order.status` is where this transition came FROM, and it decides whether
+    // COMPLETED speaks. Proof of delivery walks DELIVERED then COMPLETED in one loop, so
+    // without it the customer gets two messages seconds apart about the same doorstep.
+    const event = notificationEventFor(to, order.status);
     if (event) {
       await this.notification.notify(
         event,
         updated.phone,
-        { name: updated.recipientName, orderNumber: updated.orderNumber, orderId: updated.id },
+        {
+          name: updated.recipientName,
+          orderNumber: updated.orderNumber,
+          orderId: updated.id,
+          // Only ORDER_DRIVER_ASSIGNED names a courier; every other template ignores it.
+          driver: updated.driverName ?? '',
+        },
         updated.customerId,
         authorization,
       );

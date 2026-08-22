@@ -1437,17 +1437,28 @@ describe('OrderService', () => {
         quantity: i.quantity,
       })),
     );
-    // FR-093/094: order-received fires at checkout, then notable transitions notify the
-    // customer (CONFIRMED, ON_DELIVERY, DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/
-    // PICKED_UP are silent. On COMPLETED, POINTS_EARNED (spec 5h) fires just before the
-    // generic ORDER_COMPLETED.
+    /*
+     * FR-093/094 — and B6 moved two of these, in opposite directions.
+     *
+     * ORDER_DRIVER_ASSIGNED is new. It was filed under "intermediate state, silent", which
+     * it is not to the customer: it is the exact moment BR-006 ends their own right to
+     * cancel. The button stopped being there and nothing said why.
+     *
+     * ORDER_COMPLETED is gone from this sequence, and its absence is the point. Proof of
+     * delivery marches DELIVERED then COMPLETED in one loop, so the customer was getting
+     * THREE messages at the door — "sudah sampai", "selesai, poin sudah ditambahkan", and
+     * POINTS_EARNED with the actual number. Two were about points and only one knew how
+     * many. DELIVERED is the news, POINTS_EARNED is the number; the middle one was neither.
+     *
+     * COMPLETED reached any other way still speaks — see order-status.spec.
+     */
     expect(notification.calls.map((c) => c.event)).toEqual([
       'ORDER_RECEIVED',
       'ORDER_CONFIRMED',
+      'ORDER_DRIVER_ASSIGNED',
       'ORDER_ON_DELIVERY',
       'ORDER_DELIVERED',
       'POINTS_EARNED',
-      'ORDER_COMPLETED',
     ]);
     const confirmed = notification.calls[1];
     expect(confirmed).toMatchObject({
