@@ -124,6 +124,12 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// B3: when the order last ENTERED its current status — not when it was created.
+  /// The stalled-order sweep needs the difference: an order placed a day ago and accepted
+  /// by the depot a minute ago has been stuck for a minute, and `createdAt` says a day.
+  /// Written by every transition; `order_status_history` remains the full audit trail.
+  statusChangedAt DateTime @default(now())
+
   // Reporting + paginated list all filter/sort on createdAt; composites back the
   // customer-, status- and depot-scoped predicates (audit DB-3, DB-4). The three
   // single-column indexes these replaced were redundant: Postgres uses the leftmost

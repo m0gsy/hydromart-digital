@@ -562,6 +562,10 @@ export class OrderPrismaRepository implements OrderRepository {
           where: { id, status: from },
           data: {
             status,
+            // B3: the moment this order entered THIS status. The stalled sweep needs it
+            // because `createdAt` answers a different question, and answering the wrong
+            // one cancels orders a depot has only just picked up.
+            statusChangedAt: new Date(),
             ...(driverName != null ? { driverName } : {}),
             ...(driverPhone != null ? { driverPhone } : {}),
             ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
@@ -701,7 +705,10 @@ export class OrderPrismaRepository implements OrderRepository {
     // on the same sale would otherwise both restock it. The second update matches no row.
     const { count } = await this.prisma.order.updateMany({
       where: { id, status: DbOrderStatus.COMPLETED, isWalkIn: true },
-      data: { status: DbOrderStatus.VOIDED, voidedAt: at, voidReason: reason },
+      // B3: `statusChangedAt` here too. A void is a status transition that does not go
+      // through `applyStatus`, and a column that only SOME transitions write is worse than
+      // no column — it reads as fresh for exactly the rows it never touched.
+      data: { status: DbOrderStatus.VOIDED, statusChangedAt: at, voidedAt: at, voidReason: reason },
     });
     if (count === 0) {
       throw new OrderAlreadyVoidedError();
