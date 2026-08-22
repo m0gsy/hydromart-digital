@@ -3,7 +3,7 @@ export const review = {
   title: 'Rate order',
   heading: 'How was your order?',
   headingCourier: "How was {name}'s delivery?",
-  tipBodyCourier: 'Optional · goes straight to {name}',
+  starAria: '{n} stars',
   ratingHint: {
     1: 'Bad',
     2: 'Poor',
@@ -19,8 +19,6 @@ export const review = {
     accuracy: 'Order accuracy',
   },
   commentPlaceholder: 'Write a comment (optional)…',
-  tipTitle: 'Tip the courier?',
-  tipBody: 'Optional · goes straight to the courier',
   submit: 'Submit review',
   submitted: 'Thanks for your review!',
   submitError: 'Failed to submit review.',

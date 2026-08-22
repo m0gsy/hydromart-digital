@@ -3,7 +3,7 @@ export const review = {
   title: 'Nilai pesanan',
   heading: 'Bagaimana pesananmu?',
   headingCourier: 'Bagaimana antaran {name}?',
-  tipBodyCourier: 'Opsional · langsung ke {name}',
+  starAria: '{n} bintang',
   ratingHint: {
     1: 'Buruk',
     2: 'Kurang',
@@ -19,8 +19,6 @@ export const review = {
     accuracy: 'Akurasi pesanan',
   },
   commentPlaceholder: 'Tulis komentar (opsional)…',
-  tipTitle: 'Beri tip kurir?',
-  tipBody: 'Opsional · langsung ke kurir',
   submit: 'Kirim ulasan',
   submitted: 'Terima kasih atas ulasanmu!',
   submitError: 'Gagal mengirim ulasan.',
