@@ -69,6 +69,7 @@ interface DeliveryRow {
   items: Prisma.JsonValue | null;
   codAmount: number | null;
   notes: string | null;
+  deliveryWindow: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
@@ -120,6 +121,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       items: (row.items as DeliveryItem[] | null) ?? null,
       codAmount: row.codAmount,
       notes: row.notes,
+      deliveryWindow: row.deliveryWindow,
       lastLat: row.lastLat,
       lastLng: row.lastLng,
       lastLocationAt: row.lastLocationAt,

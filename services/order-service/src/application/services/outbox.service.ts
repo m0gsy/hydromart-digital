@@ -53,12 +53,14 @@ export class OutboxService {
    *
    * Every handler is idempotent on the receiving side (keyed by order id), so a redelivery
    * costs a wasted call, never a double consume or a double credit. That is what makes it
-   * safe for two sweeps to overlap, and why the claim does not need a lock.
+   * safe for two sweeps to overlap, and why no lock is taken. B10: the repository method
+   * used to be called `claimDue`, which promised one — it is `findDue` now, because a name
+   * that lies is how the next person builds on a guarantee nobody ever made.
    */
   async processDue(now: Date = new Date()): Promise<OutboxSweepResult> {
     // The sweep carries no caller token: these adapters authenticate service-to-service
     // with the internal key, which is what lets a retry hours later still land.
-    return this.run(await this.outbox.claimDue(now, OutboxService.BATCH), '', now);
+    return this.run(await this.outbox.findDue(now, OutboxService.BATCH), '', now);
   }
 
   /**
@@ -81,7 +83,7 @@ export class OutboxService {
 
   async processForOrder(orderId: string, authorization: string): Promise<OutboxSweepResult> {
     const now = new Date();
-    const due = (await this.outbox.claimDue(now, OutboxService.BATCH)).filter(
+    const due = (await this.outbox.findDue(now, OutboxService.BATCH)).filter(
       (m) => m.orderId === orderId,
     );
     return this.run(due, authorization, now);

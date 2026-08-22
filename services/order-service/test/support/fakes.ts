@@ -1352,7 +1352,7 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     }
   }
 
-  async claimDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
+  async findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
     return this.rows
       .filter((r) => r.status === 'PENDING' && r.nextAttemptAt.getTime() <= now.getTime())
       .sort((a, b) => a.nextAttemptAt.getTime() - b.nextAttemptAt.getTime())

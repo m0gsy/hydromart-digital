@@ -145,6 +145,9 @@ function AssignPanel({
           // supervisor roles are not granted, so their dispatches went out as non-COD.
           // Snapshot the customer's landmark/note so the courier sees it on the delivery.
           notes: order.notes ?? undefined,
+          // B5: and the window they chose, for the same reason — it was stored at checkout,
+          // returned by order-service, and reached neither this payload nor any screen.
+          deliveryWindow: order.deliveryWindow ?? undefined,
         },
         true,
       );

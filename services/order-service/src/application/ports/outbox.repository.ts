@@ -51,7 +51,7 @@ export interface OutboxRepository {
    * because every handler is idempotent on the receiving side (keyed by order id) — the
    * same property that makes retrying safe at all.
    */
-  claimDue(now: Date, limit: number): Promise<OutboxMessageRecord[]>;
+  findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]>;
   /** The effect landed; the row is closed and never picked up again. */
   markDone(id: string): Promise<void>;
   /**

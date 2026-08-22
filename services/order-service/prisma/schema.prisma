@@ -333,7 +333,7 @@ model OutboxMessage {
   orderId   String   @db.Uuid
   status    String   @default("PENDING")
   attempts  Int      @default(0)
-  /// Exponential backoff: a claim only picks up rows due at or before now.
+  /// Exponential backoff: the sweep only picks up rows due at or before now.
   nextAttemptAt DateTime @default(now())
   lastError String?
   createdAt DateTime @default(now())
@@ -341,7 +341,9 @@ model OutboxMessage {
 
   /// One row per effect per order: re-running the completion cannot owe it twice.
   @@unique([topic, orderId])
-  /// The claim predicate.
+  /// B10: the sweep's predicate. NOT a claim — nothing is locked here, deliberately:
+  /// every outbox handler is idempotent per order, so overlapping sweeps cost a wasted
+  /// call and never a double effect. The old wording promised a guarantee nobody made.
   @@index([status, nextAttemptAt])
   @@map("outbox_messages")
 }

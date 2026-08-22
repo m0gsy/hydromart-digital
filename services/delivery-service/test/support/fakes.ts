@@ -100,6 +100,9 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const now = nextDate();
     const rec: DeliveryRecord = {
       ...data,
+      // B5: optional on the create payload (a delivery made before the column existed
+      // carries no window), required on the record — so it is defaulted here, once.
+      deliveryWindow: data.deliveryWindow ?? null,
       id: randomUUID(),
       status: DeliveryStatus.ASSIGNED,
       lastLat: null,

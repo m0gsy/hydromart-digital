@@ -161,6 +161,10 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
           // went as non-COD.
           // Snapshot the customer's landmark/note so the courier sees it on the delivery.
           notes: order.notes ?? undefined,
+          // B5: snapshot the window onto the delivery, the same way the landmark is —
+          // the courier's screen must not need a second service to answer a question
+          // about the box in their hand.
+          deliveryWindow: order.deliveryWindow ?? undefined,
         },
         true,
       );
@@ -261,6 +265,16 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
             {order.postalCode ? ` ${order.postalCode}` : ''}
           </p>
           {order.notes && <p className="mt-1 text-muted">Catatan: {order.notes}</p>}
+          {/*
+            B5. The customer picks a delivery window at checkout, is shown a confirmation of
+            it, and it reached nobody: not this sheet, not the courier payload. The depot
+            scheduling the run was blind to a choice the customer had already been promised.
+          */}
+          {order.deliveryWindow && (
+            <p className="mt-1 font-medium text-brand-700">
+              {t('hrFix.orderDetail.window')}: {order.deliveryWindow}
+            </p>
+          )}
           {order.driverName && <p className="mt-1 font-medium">Kurir: {order.driverName}</p>}
         </div>
 

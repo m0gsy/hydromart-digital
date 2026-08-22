@@ -36,7 +36,21 @@ function toRecord(row: OutboxRow): OutboxMessageRecord {
 export class OutboxPrismaRepository implements OutboxRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async claimDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
+  /**
+   * B10. This was called `claimDue`, and it claims nothing: it is a `findMany` over PENDING
+   * rows that are due. The name promised a lock that was never taken, and the schema
+   * comment beside the index called it "the claim predicate".
+   *
+   * The lock is not missing by accident — `OutboxService.processDue` says so out loud:
+   * every handler is idempotent on the receiving side, keyed by order id, so a redelivery
+   * costs a wasted call and never a double consume or a double credit. That is what makes
+   * overlapping sweeps safe, and the sweep script locks per job on top of it.
+   *
+   * So the defect was the WORD, not the behaviour, and the honest fix is the word. Adding a
+   * real claim here would build a mechanism the design deliberately decided against — and
+   * a name that lies is how the next person builds on a guarantee nobody ever made.
+   */
+  async findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
     const rows = await this.prisma.outboxMessage.findMany({
       where: { status: 'PENDING', nextAttemptAt: { lte: now } },
       orderBy: { nextAttemptAt: 'asc' },

@@ -44,6 +44,7 @@ export interface DeliveryRecord {
   items: DeliveryItem[] | null;
   codAmount: number | null;
   notes: string | null;
+  deliveryWindow: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
@@ -76,6 +77,12 @@ export interface CreateDeliveryData {
   items: DeliveryItem[] | null;
   codAmount: number | null;
   notes: string | null;
+  /*
+   * B5. Optional, like `customerId` above and for the same reason: a delivery created
+   * before the column existed carries no window, and the field being absent says that more
+   * honestly than a null every fixture has to spell out.
+   */
+  deliveryWindow?: string | null;
 }
 
 export interface DeliveryTimestamps {

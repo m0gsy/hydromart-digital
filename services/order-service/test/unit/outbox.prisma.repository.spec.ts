@@ -29,7 +29,7 @@ describe('OutboxPrismaRepository', () => {
   it('claims only PENDING rows whose backoff has elapsed, oldest first', async () => {
     model.findMany.mockResolvedValue([row]);
     const now = new Date('2026-08-03T11:00:00Z');
-    const out = await repo.claimDue(now, 50);
+    const out = await repo.findDue(now, 50);
 
     expect(out[0]).toMatchObject({ id: 'ob-1', topic: 'INVENTORY_CONSUME', attempts: 2 });
     expect(model.findMany).toHaveBeenCalledWith({
