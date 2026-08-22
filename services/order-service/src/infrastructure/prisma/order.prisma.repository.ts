@@ -487,12 +487,15 @@ export class OrderPrismaRepository implements OrderRepository {
       // orders cannot eat the `take` budget and starve the orders the sweep is for.
       where: {
         status: { in: statuses },
-        createdAt: { lt: before },
+        // B3b: how long it has been STUCK, not how old it is. `createdAt` answered the
+        // second question and the sweep was asking the first — see the port for what that
+        // cost. The column shipped in B3a; this is the release that reads it.
+        statusChangedAt: { lt: before },
         ...(exemptSubscriptions ? { subscriptionId: null } : {}),
       },
       // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
       include: INCLUDE_NO_HISTORY,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { statusChangedAt: 'asc' },
       take: limit,
     });
     return rows.map((r) => this.toRecord(r));

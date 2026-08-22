@@ -719,11 +719,13 @@ describe('OrderPrismaRepository', () => {
     expect(order.findMany).toHaveBeenCalledWith({
       where: {
         status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] },
-        createdAt: { lt: before },
+        // B3b: how long it has been STUCK, not how old it is. `createdAt` answered a
+        // different question, and the CONFIRMED/PREPARING window was asking this one.
+        statusChangedAt: { lt: before },
         subscriptionId: null,
       },
       include: expect.any(Object),
-      orderBy: { createdAt: 'asc' },
+      orderBy: { statusChangedAt: 'asc' },
       take: 500,
     });
   });
@@ -733,8 +735,34 @@ describe('OrderPrismaRepository', () => {
     const before = new Date('2026-01-05');
     await repo.findStaleIn([OrderStatus.CREATED], before, undefined, false);
     expect(order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: { in: [OrderStatus.CREATED] }, createdAt: { lt: before } } }),
+      expect.objectContaining({
+        where: { status: { in: [OrderStatus.CREATED] }, statusChangedAt: { lt: before } },
+      }),
     );
+  });
+
+  /*
+   * B3b. The whole point, stated as the case that used to be wrong: an order PLACED long
+   * ago but ACCEPTED by the depot a minute ago is not stale. Under `createdAt` it was
+   * swept on the very next tick — cancelled, and its stock released — out from under a
+   * depot that had just started work on it.
+   *
+   * Asserted on the predicate rather than on a row, because the bug was the predicate: the
+   * query never had a way to tell the two orders apart, so no fixture could have.
+   */
+  it('asks how long an order has been STUCK, never how old it is', async () => {
+    order.findMany.mockResolvedValue([]);
+    const before = new Date('2026-01-05');
+    await repo.findStaleIn([OrderStatus.CONFIRMED, OrderStatus.PREPARING], before);
+    const where = order.findMany.mock.calls.at(-1)![0].where;
+    expect(where).not.toHaveProperty('createdAt');
+    expect(where.statusChangedAt).toEqual({ lt: before });
+  });
+
+  it('drains the oldest-STUCK first, so a backlog cannot starve one order forever', async () => {
+    order.findMany.mockResolvedValue([]);
+    await repo.findStaleIn([OrderStatus.CREATED], new Date('2026-01-05'));
+    expect(order.findMany.mock.calls.at(-1)![0].orderBy).toEqual({ statusChangedAt: 'asc' });
   });
 
   it('lets the caller shrink the stale-sweep batch', async () => {

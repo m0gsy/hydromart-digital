@@ -1,0 +1,15 @@
+-- B3b: the index the stalled sweep now reads through.
+--
+-- The column shipped in B3a; this is the release whose code filters and orders by it, so
+-- this is the release the index belongs to. It could not ship with the column: an index
+-- cannot be pre-built CONCURRENTLY on a column that does not exist yet, and
+-- check-index-concurrency refuses the pair in one migration for exactly that reason.
+--
+-- Built CONCURRENTLY by scripts/create-indexes.sh, NOT here. Prisma Migrate runs a
+-- migration file inside a transaction and CONCURRENTLY cannot run in one, so a plain
+-- CREATE INDEX here would take a lock that blocks writes to `orders` — the busiest table
+-- in the system — for the whole build (audit H-39).
+--
+-- This file is therefore deliberately a no-op that exists to carry the record and the
+-- rollback. `IF NOT EXISTS` so a database where the runner already built it is unaffected.
+SELECT 1;
