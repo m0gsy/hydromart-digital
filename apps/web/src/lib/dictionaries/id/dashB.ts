@@ -170,6 +170,9 @@ export const dashB = {
     assignToCourier: 'Tugaskan ke kurir',
     chipAssign: 'Perlu ditugaskan',
     chipProcess: 'Diproses',
+    // B8: the two halves of an order's life the depot queue never showed.
+    chipDelivery: 'Dikirim',
+    chipClosed: 'Ditutup',
     backlog: '{n} pesanan belum selesai',
     title: 'Antrean pesanan',
     scopedBefore: 'Antrean untuk ',

@@ -168,6 +168,9 @@ export const dashB = {
     assignToCourier: 'Assign to courier',
     chipAssign: 'Needs assignment',
     chipProcess: 'Processing',
+    // B8: the two halves of an order's life the depot queue never showed.
+    chipDelivery: 'In delivery',
+    chipClosed: 'Closed',
     backlog: '{n} open orders',
     title: 'Order queue',
     scopedBefore: 'Queue for ',

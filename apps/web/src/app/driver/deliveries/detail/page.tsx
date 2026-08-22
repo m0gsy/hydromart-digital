@@ -250,19 +250,37 @@ function Detail() {
               <Recycle size={18} weight="fill" className="text-brand-700" />
               {t('hrFix.deliveryDetail.returnEmpties')}
             </button>
-            <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--muted)]">
-              <button type="button" onClick={() => router.push(`/driver/deliveries/detail/no-show?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
-                {t('hrFix.deliveryDetail.noShow')}
-              </button>
-              <button type="button" onClick={() => router.push(`/driver/deliveries/detail/reschedule?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
-                {t('hrFix.deliveryDetail.reschedule')}
-              </button>
-              <button type="button" onClick={() => router.push(`/driver/deliveries/detail/fail?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2 text-red-600">
-                {t('hrFix.deliveryDetail.failed2')}
-              </button>
-            </div>
           </div>
         ))}
+
+      {/*
+        B9. This row used to live INSIDE the ON_DELIVERY branch above, and the domain has
+        allowed FAILED and RESCHEDULED from ASSIGNED and PICKED_UP since the state machine
+        was written (delivery-status.ts TRANSITIONS). So a courier who reaches the depot and
+        finds the stock is not there could do exactly nothing — not fail it, not reschedule
+        it. The delivery sat ASSIGNED holding a stock reservation and a courier's slot until
+        somebody at a desk noticed.
+
+        No-show is the one that stays at ON_DELIVERY, and stays there on purpose: a customer
+        cannot fail to be home before the courier has set off for their home.
+      */}
+      {(delivery.status === 'ASSIGNED' ||
+        delivery.status === 'PICKED_UP' ||
+        delivery.status === 'ON_DELIVERY') && (
+        <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--muted)]">
+          {delivery.status === 'ON_DELIVERY' && (
+            <button type="button" onClick={() => router.push(`/driver/deliveries/detail/no-show?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
+              {t('hrFix.deliveryDetail.noShow')}
+            </button>
+          )}
+          <button type="button" onClick={() => router.push(`/driver/deliveries/detail/reschedule?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
+            {t('hrFix.deliveryDetail.reschedule')}
+          </button>
+          <button type="button" onClick={() => router.push(`/driver/deliveries/detail/fail?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2 text-red-600">
+            {t('hrFix.deliveryDetail.failed2')}
+          </button>
+        </div>
+      )}
       {(delivery.status === 'FAILED' || delivery.status === 'RESCHEDULED') && (
         <Card className="p-4 text-sm">
           {delivery.status === 'RESCHEDULED' ? (

@@ -25,6 +25,20 @@ const ACTIVE_DELIVERY: Delivery['status'][] = ['ASSIGNED', 'PICKED_UP', 'ON_DELI
 // CONFIRMED are still being processed (advance them in the order detail sheet first).
 const NEEDS_ASSIGN = (o: Order) => o.status === 'PREPARING';
 const IN_PROCESS = (o: Order) => o.status === 'CREATED' || o.status === 'CONFIRMED';
+/*
+ * B8. Half the order lifecycle had no depot screen at all. The queue offered these two
+ * groups and nothing else, so the moment a depot assigned a courier the order VANISHED from
+ * the only screen the depot has for orders — for the entire half of its life where "where
+ * is HM-0042?" is the question actually being asked.
+ *
+ * Both new groups are read-only by design. Assignment stays PREPARING-only because the
+ * state machine allows PREPARING → DRIVER_ASSIGNED and nothing else; a group that offered
+ * couriers the server would refuse is the same class of lie this phase exists to close.
+ */
+const IN_DELIVERY = (o: Order) =>
+  o.status === 'DRIVER_ASSIGNED' || o.status === 'PICKED_UP' || o.status === 'ON_DELIVERY' || o.status === 'DELIVERED';
+const CLOSED = (o: Order) =>
+  o.status === 'COMPLETED' || o.status === 'CANCELLED' || o.status === 'VOIDED';
 
 function initials(name: string | null, phone: string) {
   const src = (name || phone || '?').trim();
@@ -256,7 +270,7 @@ function AssignPanel({
 
 function QueueBody() {
   const { t } = useT();
-  const [group, setGroup] = useState<'assign' | 'process'>('assign');
+  const [group, setGroup] = useState<'assign' | 'process' | 'delivery' | 'closed'>('assign');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   // The QUEUE filters, it does not need one depot: `selectedId` (null = every depot the
@@ -287,11 +301,17 @@ function QueueBody() {
   const items = useMemo(() => data?.items ?? [], [data]);
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);
   const inProcess = useMemo(() => items.filter(IN_PROCESS), [items]);
-  const list = group === 'assign' ? needAssign : inProcess;
+  const inDelivery = useMemo(() => items.filter(IN_DELIVERY), [items]);
+  const closed = useMemo(() => items.filter(CLOSED), [items]);
+  const GROUPS = { assign: needAssign, process: inProcess, delivery: inDelivery, closed };
+  const list = GROUPS[group];
   // Assignment itself stays PREPARING-only: the order state machine allows
   // PREPARING → DRIVER_ASSIGNED and nothing else, so a wider "needs assigning" tab would
   // offer couriers the server refuses. The header carries the honest total instead.
-  const backlog = needAssign.length + inProcess.length;
+  //
+  // B8: still the OPEN backlog. An order out with a courier is open work the depot owns,
+  // so it counts; a closed one does not, or the badge would only ever grow.
+  const backlog = needAssign.length + inProcess.length + inDelivery.length;
   const selected = items.find((o) => o.id === selectedId) ?? null;
 
   // Land on the group that actually has work. The default tab only holds PREPARING
@@ -304,9 +324,11 @@ function QueueBody() {
     autoGrouped.current = true;
   }, [loading, needAssign.length, inProcess.length]);
 
-  const CHIPS: { value: 'assign' | 'process'; label: string; count: number }[] = [
+  const CHIPS: { value: keyof typeof GROUPS; label: string; count: number }[] = [
     { value: 'assign', label: t('dashB.orders.chipAssign'), count: needAssign.length },
     { value: 'process', label: t('dashB.orders.chipProcess'), count: inProcess.length },
+    { value: 'delivery', label: t('dashB.orders.chipDelivery'), count: inDelivery.length },
+    { value: 'closed', label: t('dashB.orders.chipClosed'), count: closed.length },
   ];
 
   return (
