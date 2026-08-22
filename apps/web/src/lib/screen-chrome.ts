@@ -64,9 +64,21 @@ const PUSHED: Record<string, string> = {
   // heading is the hero artwork, and `screen-chrome.test.ts` says so.
   '/waralaba': 'franchise.title',
   '/favorites': 'hrFix.favorites.title',
+  /*
+   * H4. Both of these were `bare`, and on a phone that is a dead end: no app bar, no back
+   * chevron, no tab bar, and the only way out is the OS back gesture. They are also the
+   * two pages a Play reviewer opens, and a review deep-link lands on one with nothing
+   * behind it at all — where `back()` exits the app rather than returning anywhere.
+   *
+   * `bare` stays right for /login, /register and /verify: those own the whole viewport on
+   * purpose, and `app-shell` pays for their missing app bar with its own top inset. A
+   * legal page is an ordinary pushed screen and always was.
+   */
+  '/hapus-akun': 'deleteAccount.navLabel',
+  '/kebijakan-privasi': 'privacy.title',
 };
 
-const BARE = new Set(['/login', '/register', '/verify', '/hapus-akun', '/kebijakan-privasi']);
+const BARE = new Set(['/login', '/register', '/verify']);
 
 /**
  * Where the back chevron goes when `history.length` says there is nothing behind us. Only

@@ -1,5 +1,7 @@
 // Pengajuan kemitraan waralaba (design 5a). Form publik, tanpa login.
 export const franchise = {
+  // H3: the row label on /account — the only way into this form from a phone.
+  navLabel: 'Jadi mitra waralaba',
   title: 'Jadi mitra waralaba',
   intro:
     'Isi data calon depot Anda. Tim kami meninjau setiap pengajuan dan menghubungi lewat nomor yang Anda tulis.',
