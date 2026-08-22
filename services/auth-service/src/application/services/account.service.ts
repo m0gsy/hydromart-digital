@@ -235,6 +235,35 @@ export class AccountService {
   }
 
   /**
+   * F8. The account ids of the ACTIVE staff at one depot — the people an operational alert
+   * about that depot is for.
+   *
+   * Ops alerts (stock low, stock untracked, meter variance, a HIGH-severity courier
+   * incident) went to a phone number and carried `customerId: null`, so crm skipped push
+   * entirely: they had no channel that could wake anybody. crm has no depot-to-staff map of
+   * its own and should not grow one — the roster lives here.
+   *
+   * Ids only, on purpose: crm needs somewhere to send a push, not a staff directory. The
+   * same bounded paging as `listDrivers`, and the same refusal rather than a short list
+   * that looks complete.
+   */
+  async staffIdsForDepot(depotId: string): Promise<string[]> {
+    const PAGE = 100;
+    const ids: string[] = [];
+    let seen = 0;
+    for (let page = 1; ; page += 1) {
+      const { items, total } = await this.customers.listStaff(page, PAGE, undefined, depotId);
+      seen += items.length;
+      for (const c of items) {
+        if (c.status === CustomerStatus.ACTIVE) ids.push(c.id);
+      }
+      if (items.length === 0 || seen >= total) break;
+      if (seen >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
+    }
+    return ids;
+  }
+
+  /**
    * Invite a staff member by phone (PRD Module 7). Promotes an existing account to
    * the given staff role, or creates a new pre-activated account if the phone is
    * unknown (they sign in by phone OTP). The role must not be CUSTOMER.

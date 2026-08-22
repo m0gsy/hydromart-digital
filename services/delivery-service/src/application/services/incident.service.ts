@@ -47,6 +47,7 @@ export class IncidentService {
         category: incident.category,
         severity: incident.severity,
         description: incident.description,
+        depotId: incident.depotId,
       });
     }
     return incident;

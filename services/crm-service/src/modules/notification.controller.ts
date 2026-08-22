@@ -122,6 +122,7 @@ export class NotificationController {
       dto.phone,
       dto.vars ?? {},
       dto.customerId ?? null,
+      dto.depotId ?? null,
     );
     return NotificationDto.from(record);
   }

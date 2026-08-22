@@ -130,7 +130,15 @@ export const en: Dictionary = {
     },
     prefs: {
       title: 'Preferences',
-      push: { title: 'Order notifications', body: 'Delivery & courier status updates.' },
+      // F6: two states that had no words, because the switch never actually asked the
+      // device anything.
+      push: {
+        title: 'Order notifications',
+        body: 'Delivery & courier status updates.',
+        unsupported: 'This device cannot receive notifications.',
+        denied: 'Notifications are blocked. Allow Hydromart in your device settings, then try again.',
+        failed: 'Could not register this device for notifications. Try again.',
+      },
       marketing: { title: 'Promos & offers', body: 'Deals from your depot. Turn off any time.' },
       saveError: 'Could not save preferences.',
     },

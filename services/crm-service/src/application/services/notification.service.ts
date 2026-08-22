@@ -8,6 +8,7 @@ import {
   NotificationRepository,
   OpsNotificationRecord,
 } from '../ports/notification.repository';
+import { DepotStaffPort } from '../ports/depot-staff.port';
 import { NotificationPreferencePort } from '../ports/notification-preference.port';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
@@ -30,6 +31,11 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.NotificationPreference)
     private readonly prefs?: NotificationPreferencePort,
+    // F8. Optional for the same reason as `prefs`: a deployment that has not wired it must
+    // keep behaving exactly as it did, which is "ops alerts reach the feed and no device".
+    @Optional()
+    @Inject(CRM_TOKENS.DepotStaff)
+    private readonly depotStaff?: DepotStaffPort,
   ) {}
 
   /**
@@ -60,11 +66,48 @@ export class NotificationService {
     }
   }
 
+  /**
+   * F8. An operational alert has no customer, so it had no push: `notify()` skips the send
+   * when `customerId` is null, and every ops event passes null because it is addressed to a
+   * phone number rather than to an account. Stock low, stock untracked, a meter variance,
+   * the twice-daily sales update — and a HIGH-severity courier incident. None of them had a
+   * channel that could wake anybody; they landed in the ops feed and waited for somebody to
+   * open a screen.
+   *
+   * With a depot on the alert, the recipients are that depot's active staff. Fire-and-forget
+   * on the same chain as the customer push, and fail-soft the same way: the ops feed row is
+   * already written by the time this runs, so an unreachable roster costs a push, never the
+   * alert. `Promise.allSettled` because one staff member's dead endpoint must not silence
+   * the rest of the shift.
+   */
+  private pushToDepotStaff(event: NotificationEvent, message: string, depotId: string, vars: Record<string, string>): void {
+    if (!this.depotStaff) return;
+    void this.depotStaff
+      .staffIdsForDepot(depotId)
+      .then(async (ids) => {
+        if (ids.length === 0) {
+          this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);
+          return;
+        }
+        await Promise.allSettled(
+          ids.map((id) =>
+            this.push.sendToCustomer(id, {
+              title: 'Hydromart',
+              body: message,
+              url: destinationFor(event, vars),
+            }),
+          ),
+        );
+      })
+      .catch((e) => this.logger.warn(`Ops push for ${event} failed: ${(e as Error).message}`));
+  }
+
   async notify(
     event: NotificationEvent,
     phone: string,
     vars: Record<string, string>,
     customerId: string | null = null,
+    depotId: string | null = null,
   ): Promise<NotificationRecord> {
     const message = renderMessage(templateFor(event), vars);
     // Best-effort Web Push to the customer's registered devices. Fire-and-forget: push
@@ -88,6 +131,11 @@ export class NotificationService {
             : undefined,
         )
         .catch((e) => this.logger.warn(`Push for ${event} failed: ${(e as Error).message}`));
+    } else if (depotId && OPS_EVENTS.includes(event)) {
+      // No customer to push to, but a depot whose staff this is for. The preference check
+      // above is deliberately NOT applied: it is a customer's mute on their own order
+      // updates, not a staff member's opt-out from an incident at the depot they work at.
+      this.pushToDepotStaff(event, message, depotId, vars);
     }
     return this.repo.record({
       event,

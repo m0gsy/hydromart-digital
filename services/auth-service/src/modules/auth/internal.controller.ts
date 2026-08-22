@@ -1,4 +1,14 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AccountService } from '../../application/services/account.service';
@@ -15,6 +25,7 @@ import {
   ProvisionStaffDto,
   PurgeBeforeDto,
   SetStaffActiveDto,
+  DepotStaffIdsDto,
   UpdateStaffProfileDto,
 } from './dto/internal.dto';
 import { PurgeAuditLogs3ResponseDto } from '../dto/responses.generated.dto';
@@ -40,6 +51,22 @@ export class InternalAccountController {
     private readonly account: AccountService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * F8. Which accounts an operational alert about this depot should reach.
+   *
+   * Internal-key only, and ids only: crm needs somewhere to send a push, not a staff
+   * directory. Handing it names and phone numbers would put the whole roster behind a
+   * service key for a job that never needed one.
+   */
+  @ApiOkResponse({ type: DepotStaffIdsDto })
+  @Get('staff/depot/:depotId')
+  @ApiOperation({ summary: 'Active staff account ids at one depot (internal service auth)' })
+  async staffIdsForDepot(
+    @Param('depotId', new ParseUUIDPipe()) depotId: string,
+  ): Promise<DepotStaffIdsDto> {
+    return { ids: await this.account.staffIdsForDepot(depotId) };
+  }
 
   @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff')

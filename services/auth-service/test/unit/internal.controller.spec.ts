@@ -221,3 +221,22 @@ describe('ProvisionManagedStaffDto role allowlist', () => {
     expect((await validate(viaImport)).map((e) => e.property)).toContain('role');
   });
 });
+
+/*
+ * F8. crm asks auth-service which accounts an operational alert about a depot should reach.
+ * Ids only, behind the internal key: crm needs somewhere to send a push, not a roster.
+ */
+describe('InternalAccountController — depot staff ids (F8)', () => {
+  it('answers with the ids the account service resolves', async () => {
+    const account = { staffIdsForDepot: jest.fn().mockResolvedValue(['s-1', 's-2']) };
+    const controller = new InternalAccountController(account as never, {} as never);
+    expect(await controller.staffIdsForDepot('dep-1')).toEqual({ ids: ['s-1', 's-2'] });
+    expect(account.staffIdsForDepot).toHaveBeenCalledWith('dep-1');
+  });
+
+  it('answers with an empty list rather than null for a depot with nobody on it', async () => {
+    const account = { staffIdsForDepot: jest.fn().mockResolvedValue([]) };
+    const controller = new InternalAccountController(account as never, {} as never);
+    expect(await controller.staffIdsForDepot('dep-1')).toEqual({ ids: [] });
+  });
+});

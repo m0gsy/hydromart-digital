@@ -34,6 +34,9 @@ export class OpsNotifierHttpAdapter implements OpsNotifierPort {
         body: JSON.stringify({
           event: 'COURIER_INCIDENT',
           phone,
+          // F8: crm pushes an ops alert to the depot's own active staff. Omitted when the
+          // incident carries no depot — better no push than one sent to the wrong shift.
+          ...(alert.depotId ? { depotId: alert.depotId } : {}),
           vars: {
             severity: alert.severity,
             category: alert.category,

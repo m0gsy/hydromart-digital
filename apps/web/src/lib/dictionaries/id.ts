@@ -131,7 +131,15 @@ export const id = {
     },
     prefs: {
       title: 'Preferensi',
-      push: { title: 'Notifikasi pesanan', body: 'Update status antar & kurir.' },
+      // F6: dua keadaan yang dulu tidak punya kalimat, karena tombolnya tidak pernah
+      // benar-benar bertanya ke perangkat.
+      push: {
+        title: 'Notifikasi pesanan',
+        body: 'Update status antar & kurir.',
+        unsupported: 'Perangkat ini tidak mendukung notifikasi.',
+        denied: 'Notifikasi diblokir. Izinkan Hydromart di setelan perangkat, lalu coba lagi.',
+        failed: 'Gagal mendaftarkan perangkat untuk notifikasi. Coba lagi.',
+      },
       // F1b: berhenti dari info promo TANPA ikut mematikan update pesanan. Dua hal berbeda,
       // dan menggabungkannya berarti pelanggan yang cuma tidak mau dipromosikan harus ikut
       // membutakan dirinya dari status antar.

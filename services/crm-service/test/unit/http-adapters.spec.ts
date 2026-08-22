@@ -3,6 +3,7 @@ import { SegmentUnavailableError } from '../../src/domain/errors';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activity-segment.http.adapter';
 import { NotificationPreferenceHttpAdapter } from '../../src/infrastructure/http/notification-preference.http.adapter';
+import { DepotStaffHttpAdapter } from '../../src/infrastructure/http/depot-staff.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
 // header, res.ok branch, fail-CLOSED catch, response parsing) against a mocked global.fetch —
@@ -267,5 +268,58 @@ describe('NotificationPreferenceHttpAdapter · marketingAllowed', () => {
     await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
     fetchMock.mockResolvedValue(res({ body: { push: true, categories: { marketing: false } } }));
     await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
+  });
+});
+
+/*
+ * F8. The roster lives in auth-service and stays there — crm growing its own depot-to-staff
+ * map would be a second copy that drifts the first time somebody changes depots.
+ *
+ * FAILS SOFT and says why: the ops feed row is already written by the time this runs, so an
+ * outage costs a push and never the alert. What it must not do is fail soft SILENTLY, or a
+ * misconfigured URL looks exactly like a depot with nobody rostered.
+ */
+describe('DepotStaffHttpAdapter', () => {
+  const cfg = (over: Record<string, unknown> = {}) =>
+    ({
+      authServiceUrl: 'http://auth.test',
+      internalServiceKey: 'k',
+      ...over,
+    }) as never;
+
+  it('returns the ids auth-service reports', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ids: ['s-1', 's-2'] }) } as never);
+    expect(await new DepotStaffHttpAdapter(cfg()).staffIdsForDepot('d-1')).toEqual(['s-1', 's-2']);
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toContain('/auth/internal/staff/depot/d-1');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+  });
+
+  it('answers empty, not undefined, when the key is missing', async () => {
+    expect(await new DepotStaffHttpAdapter(cfg({ internalServiceKey: '' })).staffIdsForDepot('d-1')).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers empty on a refusal', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403 } as never);
+    expect(await new DepotStaffHttpAdapter(cfg()).staffIdsForDepot('d-1')).toEqual([]);
+  });
+
+  it('answers empty when auth-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    expect(await new DepotStaffHttpAdapter(cfg()).staffIdsForDepot('d-1')).toEqual([]);
+  });
+
+  it('drops anything in the list that is not an id', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ids: ['s-1', 7, null] }) } as never);
+    expect(await new DepotStaffHttpAdapter(cfg()).staffIdsForDepot('d-1')).toEqual(['s-1']);
+  });
+});
+
+describe('DepotStaffHttpAdapter — a body that is not the shape it promised', () => {
+  it('answers empty when auth-service returns no list at all', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
+    const cfg = { authServiceUrl: 'http://auth.test', internalServiceKey: 'k' } as never;
+    expect(await new DepotStaffHttpAdapter(cfg).staffIdsForDepot('d-1')).toEqual([]);
   });
 });

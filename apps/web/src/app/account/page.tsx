@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -57,6 +57,8 @@ import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
+import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
+import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
 import { formatDateTime } from '@/lib/format';
 import type {
@@ -415,14 +417,48 @@ function PrefsBody() {
   const [local, setLocal] = useState<NotificationPreferences | null>(null);
   const prefs = local ?? data;
 
-  async function togglePref(key: 'push', value: boolean) {
+  /*
+   * F6. This switch wrote a preference row and did NOTHING else — it never asked the OS for
+   * permission and never registered the device. The only place the app ever asks is
+   * `requestPushOnce`, after a first order. So a customer who had not ordered yet could
+   * turn this on, watch it stay on, and never receive a single notification for as long as
+   * they kept the app.
+   *
+   * The switch is the device's real state now. The stored preference still matters — crm
+   * reads it before every push — but it is the second half, not the whole thing, and when
+   * the two disagree the device is the one telling the truth.
+   */
+  const [pushState, setPushState] = useState<PushState | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void getPushState().then((s) => alive && setPushState(s));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const pushOn = pushState === 'subscribed';
+  const pushImpossible = pushState === 'unsupported';
+
+  async function togglePush(value: boolean) {
     if (!prefs) return;
-    const next = { ...prefs, [key]: value };
-    setLocal(next); // optimistic
+    const before = pushState;
+    setPushState(value ? 'subscribed' : 'unsubscribed'); // optimistic
     try {
-      await api.patch(endpoints.preferences.notifications, { [key]: value }, true);
+      const next = value ? await subscribeToPush() : await unsubscribeFromPush();
+      setPushState(next);
+      if (value && next !== 'subscribed') {
+        // Granted-and-registered is the only "on" there is. Anything else must not read as
+        // on, and must say which wall was hit — the OS dialog is not coming back by itself.
+        toast(t(next === 'denied' ? 'account.prefs.push.denied' : 'account.prefs.push.failed'), 'error');
+        return;
+      }
+      // The preference row follows the device, so crm's own check agrees with what the
+      // customer just did. A failure here costs the preference, never the subscription.
+      setLocal({ ...prefs, push: value });
+      await api.patch(endpoints.preferences.notifications, { push: value }, true);
     } catch {
-      setLocal(prefs); // revert
+      setPushState(before);
+      setLocal(prefs);
       toast(t('account.prefs.saveError'), 'error');
     }
   }
@@ -458,7 +494,6 @@ function PrefsBody() {
   // stopped nothing because nothing was being sent; turning it on promised a channel that
   // could never arrive. The stored fields are left alone: removing a column is a migration
   // for no gain, and a control nobody can see cannot mislead anybody.
-  const rows = [{ key: 'push' as const, icon: Bell }];
 
   if (loading) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -466,17 +501,19 @@ function PrefsBody() {
 
   return (
     <div className="divide-y divide-[color:var(--border-soft)]">
-      {rows.map(({ key, icon: Icon }) => (
-        <ListRow
-          key={key}
-          icon={<Icon size={18} weight="fill" className={ROW_ICON} />}
-          title={t(`account.prefs.${key}.title`)}
-          subtitle={t(`account.prefs.${key}.body`)}
-          trailing={
-            <Toggle on={prefs[key]} onChange={(v) => togglePref(key, v)} label={t(`account.prefs.${key}.title`)} />
-          }
-        />
-      ))}
+      <ListRow
+        icon={<Bell size={18} weight="fill" className={ROW_ICON} />}
+        title={t('account.prefs.push.title')}
+        subtitle={t(pushImpossible ? 'account.prefs.push.unsupported' : 'account.prefs.push.body')}
+        trailing={
+          <Toggle
+            on={pushOn}
+            disabled={pushState === null || pushImpossible}
+            onChange={togglePush}
+            label={t('account.prefs.push.title')}
+          />
+        }
+      />
 
       <ListRow
         icon={<Megaphone size={18} weight="fill" className={ROW_ICON} />}
