@@ -30,6 +30,11 @@ vi.mock('@/components/require-auth', () => ({
 // calls it would load a second instance that never runs and report as uncovered.
 Element.prototype.scrollIntoView = vi.fn();
 
+// H15: the screen now scopes its loyalty read to the depot being shopped from, so it
+// needs a location the same way the home teaser always did.
+vi.mock('@/lib/location-context', () => ({
+  useLocation: () => ({ location: null, ready: true }),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/rewards',

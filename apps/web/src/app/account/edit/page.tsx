@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Camera } from '@phosphor-icons/react';
 
@@ -12,6 +12,7 @@ import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { useAsync } from '@/lib/use-async';
 import type { Customer } from '@/lib/types';
 
 // Max avatar upload — mirrors the auth-service limit (rejects client-side first).
@@ -25,6 +26,24 @@ function EditProfileInner() {
 
   const [name, setName] = useState(customer?.fullName ?? '');
   const [email, setEmail] = useState(customer?.email ?? '');
+  /*
+   * H16. The birthday reward is built end to end on the server — a `birthdate` column, a
+   * PATCH that sets it, a `lastBirthdayRewardYear` guard, configurable points and a daily
+   * sweep that grants them — and it could never once fire, because no screen had ever
+   * asked anybody for a date of birth. Production on 22 Aug 2026: 4 profiles, 0 with one.
+   *
+   * It lives here rather than at sign-up: this is the screen that already owns name, email
+   * and photo, and a date of birth is personal data nobody should have to hand over to
+   * make an account. Optional, and clearable — the deletion page has promised "Tanggal
+   * lahir dihapus" since before the field existed to delete.
+   */
+  const profile = useAsync<{ birthdate: string | null } | null>(
+    () => (customer ? api.get(endpoints.profile.me, true) : Promise.resolve(null)),
+    [customer?.id],
+  );
+  const [birthdate, setBirthdate] = useState<string | null>(null);
+  const loaded = profile.data?.birthdate ?? null;
+  useEffect(() => setBirthdate(loaded), [loaded]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +88,16 @@ function EditProfileInner() {
         { fullName: name.trim(), email: email.trim() || undefined },
         true,
       );
+      /*
+       * Two writes, two services: the identity fields live in auth-service, the birthdate
+       * in customer-service. Sent only when it actually moved, so an untouched form still
+       * costs one request. An empty field means "remove it" and must be `null`, not '' —
+       * the DTO validates a date string and would refuse the empty one.
+       */
+      if ((birthdate || null) !== loaded) {
+        await api.patch(endpoints.profile.me, { birthdate: birthdate || null }, true);
+        profile.reload();
+      }
       signIn({ ...session, customer: updated });
       toast(t('account.profileCard.saved'), 'success');
     } catch (err) {
@@ -150,6 +179,14 @@ function EditProfileInner() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             placeholder={t('hrFix.accountEdit.emailHint')}
+          />
+        </Field>
+        <Field label={t('account.profileCard.birthdate')} htmlFor="edit-birthdate" hint={t('account.profileCard.birthdateHint')}>
+          <Input
+            id="edit-birthdate"
+            type="date"
+            value={birthdate ?? ''}
+            onChange={(e) => setBirthdate(e.target.value)}
           />
         </Field>
         <Button type="submit" loading={saving} className="h-[52px] rounded-[14px] text-[15px] font-extrabold">
