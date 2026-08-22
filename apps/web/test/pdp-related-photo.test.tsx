@@ -12,10 +12,16 @@ vi.mock('@/lib/api', () => ({
   api: { get, getCached, post },
   ApiError: class ApiError extends Error {},
 }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' } }) }));
+// Mutable so a case can put the screen in a different state without a second mock factory.
+const state = { customer: { id: 'c-1' } as { id: string } | null, location: null as { lat: number; lng: number } | null, rate: 0 };
+
+vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: state.customer }) }));
 vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn() }) }));
-vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
-vi.mock('@/lib/member', () => ({ useMemberRate: () => 0, memberPrice: (n: number) => n }));
+vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: state.location }) }));
+vi.mock('@/lib/member', () => ({
+  useMemberRate: () => state.rate,
+  memberPrice: (n: number, r: number) => Math.round(n * (1 - r)),
+}));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'p-hero' }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -38,6 +44,9 @@ const RELATED = [{ productId: 'p-rel', name: 'Tutup Galon', sku: 'TG', unit: 'Pc
  */
 describe('product detail — frequently bought together photos', () => {
   beforeEach(() => {
+    state.customer = { id: 'c-1' };
+    state.location = null;
+    state.rate = 0;
     get.mockReset().mockImplementation((path: string) => {
       const p = String(path);
       if (p.includes('/recommendations/')) return Promise.resolve(RELATED);
@@ -88,5 +97,78 @@ describe('product detail — frequently bought together photos', () => {
     await waitFor(() =>
       expect(screen.queryByRole('img', { name: 'Tutup Galon' })).toBeNull(),
     );
+  });
+});
+
+
+/**
+ * The states this screen draws, and the ones it used to draw for nobody: before H1 landed
+ * a test on this page it had no render coverage at all, so v8 reported it as a single
+ * covered line and the gate read "fine". Every case below is a branch that was executing
+ * in production and measured by nothing.
+ */
+describe('product detail — the states it draws', () => {
+  const FULL = {
+    id: 'p-hero',
+    name: 'Galon 19L',
+    unit: 'Galon',
+    basePrice: 20000,
+    imageUrl: 'https://cdn.test/hero.jpg',
+    images: ['https://cdn.test/hero.jpg', 'https://cdn.test/side.jpg'],
+    description: 'Air mineral pegunungan.',
+    categoryId: 'cat-1',
+  };
+
+  beforeEach(() => {
+    state.customer = { id: 'c-1' };
+    state.location = null;
+    state.rate = 0;
+    get.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('/recommendations/')) return Promise.resolve([]);
+      if (p.includes('/products/p-hero')) return Promise.resolve(FULL);
+      if (p.includes('/loyalty/me')) return Promise.resolve({ discountRate: 0.05, tier: 'GOLD' });
+      if (p.includes('/depots')) {
+        return Promise.resolve([{ id: 'd-1', name: 'Depot Kemang', distanceKm: 1.2, deliveryFee: 5000 }]);
+      }
+      return Promise.resolve(null);
+    });
+    getCached.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('categories')) return Promise.resolve([{ id: 'cat-1', name: 'Galon' }]);
+      return Promise.resolve([]);
+    });
+  });
+
+  it('draws the hero photo, the gallery and the description when the product has them', async () => {
+    render(<ProductDetailPage />, { wrapper: LocaleProvider });
+
+    const hero = await screen.findByRole('img', { name: /Galon 19L/ });
+    expect(hero.getAttribute('src')).toBe('https://cdn.test/hero.jpg');
+    expect(await screen.findByText('Air mineral pegunungan.')).toBeInTheDocument();
+    // The category breadcrumb only appears once the categories call resolves a match.
+    expect(await screen.findAllByText('Galon')).not.toHaveLength(0);
+  });
+
+  it('shows the member price only when a member rate applies', async () => {
+    state.rate = 0.1;
+    render(<ProductDetailPage />, { wrapper: LocaleProvider });
+    expect(await screen.findByText(/18\.000/)).toBeInTheDocument();
+  });
+
+  it('names the serving depot once a location is known', async () => {
+    state.location = { lat: -6.2, lng: 106.8 };
+    render(<ProductDetailPage />, { wrapper: LocaleProvider });
+    expect(await screen.findByText(/Depot Kemang/)).toBeInTheDocument();
+  });
+
+  it('offers a retry rather than a blank screen when the product will not load', async () => {
+    get.mockImplementation((path: string) =>
+      String(path).includes('/products/p-hero')
+        ? Promise.reject(new Error('503 dari katalog'))
+        : Promise.resolve([]),
+    );
+    render(<ProductDetailPage />, { wrapper: LocaleProvider });
+    expect(await screen.findByRole('button', { name: /coba lagi|try again/i })).toBeInTheDocument();
   });
 });

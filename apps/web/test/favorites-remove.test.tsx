@@ -63,3 +63,38 @@ describe('/favorites — removing a favourite', () => {
     expect(String(del.mock.calls[0]?.[0])).toContain('/favorites/p-1');
   });
 });
+
+
+/**
+ * The other two states this screen has. The "empty" one is the whole point of the screen
+ * existing when nothing is saved, and the third is a favourite whose product was deleted
+ * from the catalogue — a stale id must cost that one tile, never the whole grid.
+ */
+describe('/favorites — nothing saved, and a favourite that no longer exists', () => {
+  it('offers a way to the catalogue when nothing is saved', async () => {
+    getCached.mockResolvedValue({ productIds: [] });
+    render(<FavoritesPage />, { wrapper: LocaleProvider });
+
+    const link = await screen.findByRole('link', { name: /jelajahi produk/i });
+    expect(link).toHaveAttribute('href', '/products');
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('drops only the tile whose product has gone, not the grid', async () => {
+    getCached.mockResolvedValue({ productIds: ['p-1', 'p-gone'] });
+    get.mockImplementation((path: string) =>
+      String(path).includes('p-gone') ? Promise.reject(new Error('404')) : Promise.resolve(PRODUCT),
+    );
+    render(<FavoritesPage />, { wrapper: LocaleProvider });
+
+    expect(await screen.findByText('Galon 19L')).toBeInTheDocument();
+    expect(screen.queryByText('p-gone')).toBeNull();
+  });
+
+  it('offers a retry when the favourites list itself will not load', async () => {
+    getCached.mockRejectedValue(new Error('boom'));
+    render(<FavoritesPage />, { wrapper: LocaleProvider });
+
+    expect(await screen.findByRole('button', { name: /coba lagi|try again/i })).toBeInTheDocument();
+  });
+});
