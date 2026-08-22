@@ -111,6 +111,7 @@ export const profile = {
       edit: 'Ubah',
       delete: 'Hapus',
       saveError: 'Gagal menyimpan alamat.',
+      actionError: 'Gagal memperbarui alamat. Coba lagi.',
     },
     sheet: {
       newTitle: 'Alamat baru',

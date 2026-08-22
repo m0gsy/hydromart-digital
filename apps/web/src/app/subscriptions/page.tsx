@@ -133,12 +133,21 @@ function Panel() {
     }
   }
 
+  /*
+   * H9. This had `try/finally` and NO catch, so a refusal escaped as an unhandled promise
+   * rejection: nothing on screen changed, nothing was said, and the row snapped back
+   * looking exactly like a tap that had not registered. Pausing and cancelling a standing
+   * order are the two actions on this screen that decide whether water arrives — a silent
+   * refusal on either is the customer believing they stopped something they did not.
+   */
   async function act(id: string, action: 'pause' | 'resume' | 'cancel') {
     setBusyId(id);
     try {
       await api.post(endpoints.subscriptions[action](id), {}, true);
-      subs.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : copy.actionError, 'error');
     } finally {
+      subs.reload();
       setBusyId(null);
       setCancelId(null);
     }

@@ -44,6 +44,19 @@ export function isCancellable(status: OrderStatus): boolean {
   return status === 'CREATED' || status === 'CONFIRMED' || status === 'PREPARING';
 }
 
+/**
+ * H10. The window that opens the moment BR-006 closes: a courier is holding the order and
+ * the customer can no longer stop it themselves, but the depot still can.
+ *
+ * This exists because the cancel button simply DISAPPEARED at that boundary — no line
+ * saying why, nothing offered in its place — on the exact screen someone opens when they
+ * have realised a mistake, at the exact moment the mistake starts costing a delivery run.
+ * The rule is unchanged; what it needed was a name, so the screen can say it out loud.
+ */
+export function isDepotOnlyCancel(status: OrderStatus): boolean {
+  return status === 'DRIVER_ASSIGNED' || status === 'PICKED_UP' || status === 'ON_DELIVERY';
+}
+
 /** The next status in the fulfilment flow, or null at the end / for CANCELLED. */
 export function nextStatus(status: OrderStatus): OrderStatus | null {
   const idx = ORDER_FLOW.indexOf(status);

@@ -132,6 +132,9 @@ export const order = {
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Batalkan pesanan?',
     cancelIntro: 'Masih bisa dibatalkan karena depot belum menyiapkan pesanan. Dana yang sudah dibayar akan direfund.',
+    // H10: shown where the cancel button used to simply vanish.
+    cancelClosed: 'Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini. Depot masih bisa menghentikannya.',
+    contactDepot: 'Hubungi depot',
     cancelReasonLabel: 'Alasan',
     cancelConfirm: 'Batalkan pesanan',
     cancelReasons: {

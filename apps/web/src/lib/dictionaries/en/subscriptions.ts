@@ -25,6 +25,7 @@ export const subscriptions = {
   start: 'Start subscription',
   started: 'Subscription created.',
   createError: 'Failed to create subscription.',
+  actionError: 'Could not update the subscription. Try again.',
   benefitsTitle: 'Why subscribe?',
   benefits: [
     'Automatic discount on every subscription delivery',
