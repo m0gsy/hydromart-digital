@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, HandCoins, Star, User } from '@phosphor-icons/react';
+import { ArrowLeft, Star, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, CenterState, ErrorState, LinkButton, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import { review as reviewID } from '@/lib/dictionaries/id/review';
@@ -17,7 +18,6 @@ import type { Order, OrderReview } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const ASPECTS = ['speed', 'condition', 'courtesy', 'accuracy'] as const;
-const TIPS = [0, 2000, 5000] as const;
 const CAN_REVIEW: Order['status'][] = ['DELIVERED', 'COMPLETED'];
 
 function Form({ order }: { order: Order }) {
@@ -29,7 +29,6 @@ function Form({ order }: { order: Order }) {
   const [rating, setRating] = useState(0);
   const [aspects, setAspects] = useState<string[]>([]);
   const [comment, setComment] = useState('');
-  const [tip, setTip] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +46,7 @@ function Form({ order }: { order: Order }) {
     try {
       await api.post(
         endpoints.orders.review(order.id),
-        { rating, aspects, comment: comment.trim() || undefined, tipAmount: tip },
+        { rating, aspects, comment: comment.trim() || undefined },
         true,
       );
       toast(copy.submitted, 'success');
@@ -80,7 +79,7 @@ function Form({ order }: { order: Order }) {
         </div>
         <div className="mt-3 flex items-center justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n}`}>
+            <button key={n} type="button" onClick={() => setRating(n)} aria-label={t('review.starAria', { n })}>
               <Star
                 size={34}
                 weight={n <= rating ? 'fill' : 'regular'}
@@ -128,37 +127,81 @@ function Form({ order }: { order: Order }) {
         className="mt-4 w-full resize-none rounded-[14px] border-[1.5px] border-app surface px-3.5 py-3 text-[13px] leading-relaxed outline-none placeholder:text-muted focus:border-brand-600"
       />
 
-      {/* tip */}
-      <div className="mt-3 flex items-center gap-3 rounded-[14px] border border-app surface px-3.5 py-[13px]">
-        <HandCoins size={20} weight="fill" className="text-brand-600" />
-        <div className="flex-1">
-          <div className="text-[12.5px] font-extrabold">{copy.tipTitle}</div>
-          <div className="text-[11px] text-muted">
-            {order.driverName ? t('review.tipBodyCourier', { name: order.driverName }) : copy.tipBody}
-          </div>
-        </div>
-        <div className="flex gap-1.5">
-          {TIPS.map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              onClick={() => setTip(amt)}
-              aria-pressed={tip === amt}
-              className={`min-h-11 rounded-lg px-2.5 py-1.5 text-[11.5px] font-extrabold transition-colors ${
-                tip === amt ? 'bg-brand-600 text-on-brand' : 'surface border border-app'
-              }`}
-            >
-              {amt === 0 ? '—' : `${amt / 1000}rb`}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/*
+        H12. A tip picker stood here, captioned "Beri tip kurir? · Opsional, langsung ke
+        kurir". It wrote `tipAmount` to the review row and NOTHING on earth read it back:
+        never charged, never confirmed, never shown again, and it never reached the courier
+        the caption promised it went straight to. Payment in this product goes direct to
+        the depot with no gateway, so no path existed that could have billed it.
 
+        Measured in production 22 Aug 2026: 0 reviews, 0 tips, Rp 0 — nobody was shorted
+        yet, and the first person to tip would have been. The offer is withdrawn rather
+        than half-built. The column stays (zero rows, so no migration) and the server still
+        accepts the field, so nothing already shipped breaks; what goes is the promise.
+      */}
       {error && <p className="mt-3 text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
 
       <Button onClick={submit} loading={saving} className="mt-4 w-full">
         {copy.submit}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * H13. The page already FETCHED this review — it needs it to know whether to show the form
+ * — and then threw the contents away, printing "Pesanan ini sudah dinilai." and nothing
+ * else. The customer could not read back what they had said, on the one screen that had it
+ * in hand.
+ *
+ * Read-only on purpose: the server allows one review per order, so offering an edit here
+ * would be a second button that fails. What it offers instead is the way back.
+ */
+function SubmittedReview({ review, orderId }: { review: OrderReview; orderId: string }) {
+  const { t, locale } = useT();
+  const copy = locale === 'en' ? reviewEN : reviewID;
+
+  return (
+    <div className="mx-auto max-w-[430px]">
+      <div className="flex items-center gap-3">
+        <LinkButton href={`/orders/detail?id=${orderId}`} variant="secondary" className="!h-11 !w-11 !rounded-full !p-0">
+          <ArrowLeft size={17} weight="bold" />
+        </LinkButton>
+        <div className="text-base font-extrabold">{copy.alreadyReviewed}</div>
+      </div>
+
+      <div className="surface mt-4 rounded-[18px] border border-app p-[18px]">
+        <div className="flex items-center gap-1.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Star
+              key={n}
+              size={22}
+              weight={n <= review.rating ? 'fill' : 'regular'}
+              data-testid={n <= review.rating ? 'review-star-filled' : 'review-star-empty'}
+              className={n <= review.rating ? 'text-[#d09415]' : 'text-[color:var(--border)]'}
+            />
+          ))}
+        </div>
+
+        {review.aspects.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {review.aspects.map((a) => (
+              <span
+                key={a}
+                className="rounded-full border-[1.5px] border-brand-600 bg-brand-50 px-[13px] py-1.5 text-[12.5px] font-bold text-brand-800"
+              >
+                {t(`review.aspects.${a}`)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {review.comment && (
+          <p className="mt-3 text-[13px] leading-relaxed text-muted">{review.comment}</p>
+        )}
+
+        <p className="mt-3 text-[11.5px] text-muted">{formatDateTime(review.createdAt)}</p>
+      </div>
     </div>
   );
 }
@@ -175,12 +218,7 @@ function Guard() {
 
   if (loading) return <Skeleton className="mx-auto h-[520px] max-w-[430px] rounded-3xl" />;
   if (error || !order) return <ErrorState message={error ?? 'not found'} onRetry={reload} />;
-  if (existing) {
-    return (
-      <CenterState icon={<Star size={40} weight="fill" />} title={copy.alreadyReviewed}
-        action={<LinkButton href={`/orders/detail?id=${id}`}>{t('common.back')}</LinkButton>} />
-    );
-  }
+  if (existing) return <SubmittedReview review={existing} orderId={id} />;
   if (!CAN_REVIEW.includes(order.status)) {
     return (
       <CenterState title={copy.notEligible}
