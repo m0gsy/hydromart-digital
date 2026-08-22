@@ -1185,6 +1185,12 @@ export interface Delivery {
   codAmount?: number | null;
   /** Delivery note / landmark (patokan) snapshotted from the order. */
   notes?: string | null;
+  /**
+   * B5b: the delivery time-window the customer chose at checkout, snapshotted onto the
+   * delivery at assignment. It was stored by order-service and reached nobody — least of
+   * all the person whose day it governs, holding the box.
+   */
+  deliveryWindow?: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: string | null;
