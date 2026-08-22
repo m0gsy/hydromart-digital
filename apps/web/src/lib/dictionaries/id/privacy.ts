@@ -3,7 +3,7 @@
 // Perbarui `effective` setiap kali isi kebijakan berubah secara material.
 export const privacy = {
   title: 'Kebijakan Privasi',
-  effective: 'Berlaku sejak 20 Agustus 2026',
+  effective: 'Berlaku sejak 23 Agustus 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
@@ -14,6 +14,10 @@ export const privacy = {
     {
       heading: 'Data yang kami kumpulkan',
       body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan.',
+    },
+    {
+      heading: 'Lokasi perangkat',
+      body: 'Kalau kamu menekan “Gunakan lokasi saya” di beranda atau saat menyimpan alamat, aplikasi membaca lokasi perkiraan (approximate) perangkatmu dan mengirimkannya ke server kami untuk mencari depot terdekat serta memeriksa apakah titik itu masuk jangkauan antar depot. Titik itu ikut tersimpan pada alamat yang kamu simpan. Ini opsional: kamu bisa mengetik alamat sendiri tanpa memberi izin lokasi, dan aplikasi tetap bisa dipakai sepenuhnya. Lokasi tidak dibagikan ke pihak ketiga, tidak dipakai untuk iklan maupun analitik, dikirim lewat koneksi terenkripsi, dan bisa kamu minta hapus bersama data akunmu. Aplikasi pelanggan tidak meminta izin lokasi presisi (GPS); lokasi presisi hanya dipakai aplikasi staf untuk bukti pengantaran dan absensi kurir.',
     },
     {
       heading: 'Tujuan penggunaan',

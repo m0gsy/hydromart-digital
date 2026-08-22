@@ -158,6 +158,11 @@ dependencies {
  * system photo picker, which needs no permission) and only needs a rough position to pick
  * the nearest depot. Both are permissions a Play reviewer asks you to justify in writing.
  *
+ * N1: `ACCESS_COARSE_LOCATION` stays in the customer binary on purpose — the rough
+ * position is read and SENT to `depots.nearby`, so Play calls it collected. It is
+ * declared as Approximate location in the Data Safety form and in the privacy policy
+ * (`lib/dictionaries/{id,en}/privacy.ts`). Only the precise one is stripped here.
+ *
  * Why a manifest TRANSFORM and not something simpler:
  *
  *  - `tools:node="${placeholder}"` does not work. The manifest merger resolves `tools:node`
