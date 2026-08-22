@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   SignOut,
   SlidersHorizontal,
+  Storefront,
   Translate,
   TrashSimple,
 } from '@phosphor-icons/react';
@@ -601,6 +602,13 @@ export default function AccountPage() {
     { href: '/referral', label: t('account.nav.referral'), icon: Gift },
     { href: '/notifications', label: t('notifications.title'), icon: Bell },
     { href: '/help', label: t('help.title'), icon: Headset },
+    /*
+     * H3. `/waralaba` is a real franchise application form whose only way in was the
+     * desktop footer — `hidden ... sm:block` — so on a phone, and therefore inside both
+     * APKs, the form did not exist. The privacy policy and the deletion page already
+     * moved here for exactly this reason; this one was missed.
+     */
+    { href: '/waralaba', label: t('franchise.navLabel'), icon: Storefront },
     ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp }] : []),
   ];
 

@@ -31,11 +31,18 @@ const ROUTES: Record<string, 'root' | 'pushed' | 'bare'> = {
   '/waralaba': 'pushed',
   '/resellers': 'pushed',
 
+  /*
+   * H4. These two were listed as `bare` here, which is what made the dead end look like a
+   * decision: no app bar, no back chevron, no tab bar, and on a phone nothing to leave by.
+   * They are also the two pages a Play reviewer opens. `bare` remains right for the three
+   * auth screens, which own the whole viewport on purpose.
+   */
+  '/hapus-akun': 'pushed',
+  '/kebijakan-privasi': 'pushed',
+
   '/login': 'bare',
   '/register': 'bare',
   '/verify': 'bare',
-  '/hapus-akun': 'bare',
-  '/kebijakan-privasi': 'bare',
 };
 
 describe('screenChrome', () => {

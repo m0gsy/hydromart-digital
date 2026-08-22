@@ -1,5 +1,7 @@
 // Franchise partnership application (design 5a). Public form, no sign-in.
 export const franchise = {
+  // H3: the row label on /account — the only way into this form from a phone.
+  navLabel: 'Become a franchise partner',
   title: 'Become a franchise partner',
   intro:
     'Tell us about the depot you have in mind. We review every application and reply on the number you give us.',

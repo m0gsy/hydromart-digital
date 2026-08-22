@@ -113,12 +113,19 @@ export function PromoCarousel() {
         <TealCard promo={first} />
         {second && <AmberCard promo={second} />}
       </div>
-      {/* ponytail: only link out when the carousel doesn't already show every promo */}
-      {data.length > 2 && (
-        <Link href="/promo" className="self-end text-sm font-extrabold text-brand-700 hover:underline">
-          {t('home.promo.seeAll')}
-        </Link>
-      )}
+      {/*
+        H2. This was gated on `data.length > 2`, and it is the ONLY inbound link the
+        252-line /promo screen has — so a depot running one or two promotions had a screen
+        nobody could reach at all. Production ran zero on 22 Aug 2026.
+
+        The old reason ("the carousel already shows every promo") does not survive reading
+        the page it gates: /promo also lists the customer's vouchers and the products a
+        promo applies to, neither of which this duo draws. It is never redundant, so the
+        link shows whenever the carousel does.
+      */}
+      <Link href="/promo" className="self-end text-sm font-extrabold text-brand-700 hover:underline">
+        {t('home.promo.seeAll')}
+      </Link>
     </section>
   );
 }
