@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
-import { ArrowLeft, Check, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Clock, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
@@ -94,6 +94,19 @@ function Detail() {
       <Card className="overflow-hidden p-0">
         <div className="p-4">
         <div className="text-sm font-bold">{delivery.destinationAddress}</div>
+        {/*
+          B5b. The window the customer chose at checkout, beside the landmark it travelled
+          with. Both are snapshotted onto the delivery at assignment for the same reason:
+          this screen must not need a second service to answer a question about the box in
+          the courier's hand. Before B5 the window reached nobody at all — stored by
+          order-service, returned by its own DTO, and read by no screen in the app.
+        */}
+        {delivery.deliveryWindow && (
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-2 text-[12.5px] font-bold text-brand-900">
+            <Clock size={14} weight="fill" className="text-brand-700" />
+            {delivery.deliveryWindow}
+          </div>
+        )}
         {delivery.notes && (
           <div className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-[12.5px] text-brand-900">
             <span className="font-bold">{t('hrFix.deliveryDetail.landmark')} </span>
