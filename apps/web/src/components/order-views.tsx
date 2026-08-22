@@ -59,12 +59,21 @@ export function OrderProgress({
   eta?: string | null;
 }) {
   const { t } = useT();
-  if (status === 'CANCELLED') {
+  /*
+   * B7. VOIDED used to fall straight through to the tracker below, and the tracker drew it
+   * as a LIVE order sitting at step one: `ORDER_FLOW.indexOf('VOIDED')` is −1, so
+   * `activePos` fell back to 0 and the customer saw "Dipesan" lit with four steps still to
+   * come — for a counter sale the cashier had already reversed and refunded in person.
+   *
+   * Both terminal-off-track states now take the same door. Their copy differs because the
+   * news does: one is a cancelled order, the other a reversed counter sale.
+   */
+  if (status === 'CANCELLED' || status === 'VOIDED') {
     return (
       <div className="flex items-center gap-2.5 rounded-2xl bg-[color:var(--danger-bg)] px-[18px] py-[14px]">
         <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--danger)]" />
         <span className="text-sm font-bold text-[color:var(--danger)]">
-          {t('order.banner.CANCELLED')}
+          {t(`order.banner.${status}`)}
         </span>
       </div>
     );
