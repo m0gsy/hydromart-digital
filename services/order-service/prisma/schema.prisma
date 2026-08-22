@@ -141,6 +141,10 @@ model Order {
   @@index([depotId, createdAt])
   // D6: "every delivery this subscription produced", newest first.
   @@index([subscriptionId, createdAt])
+  // B3b: the stalled sweep filters and orders by (status, statusChangedAt). Built
+  // CONCURRENTLY by scripts/create-indexes.sh — a plain build here would lock the busiest
+  // table in the system for its whole duration (audit H-39).
+  @@index([status, statusChangedAt])
   // B-13: one order per (buyer, idempotency key). Postgres treats every NULL as distinct,
   // so this only binds requests that actually sent a key.
   @@unique([customerId, idempotencyKey])

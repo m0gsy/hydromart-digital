@@ -368,9 +368,19 @@ export interface OrderRepository {
   ): Promise<{ day: string; gallons: number }[]>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
   /**
-   * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.
-   * Oldest first and capped at `limit`, so one tick cannot try to load an unbounded
-   * backlog; the next tick continues where this one stopped (audit H-47).
+   * Orders in any of `statuses` that ENTERED their current status before `before` —
+   * candidates for the stale sweep. Oldest first and capped at `limit`, so one tick cannot
+   * try to load an unbounded backlog; the next tick continues where this one stopped
+   * (audit H-47).
+   *
+   * B3: "entered", not "was placed". This filtered on `createdAt`, which is the same
+   * question only for the CREATED window — an order enters CREATED at the moment it is
+   * created. For the CONFIRMED/PREPARING window it is a different question entirely: an
+   * order placed 25 hours ago and accepted by the depot ONE MINUTE ago was already past
+   * `stalledHours`, so the next tick auto-cancelled it and released its stock out from
+   * under a depot that had just started work on it. The longer an order legitimately
+   * waited before a depot picked it up, the more certain it was to be killed the instant
+   * the depot did.
    *
    * D1: with `exemptSubscriptions` (the default), orders carrying a `subscriptionId` are
    * never candidates. Both sweep windows read "nobody is going to act on this", and that is
