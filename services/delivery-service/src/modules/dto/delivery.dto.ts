@@ -143,6 +143,17 @@ export class AssignDeliveryDto {
   @IsString()
   @MaxLength(255)
   notes?: string;
+
+  // B5: the window the customer picked at checkout, snapshotted for the courier the same
+  // way the landmark is. Free-form client label, not a slot the server allocates.
+  @ApiPropertyOptional({
+    example: '2026-08-22 09:00-12:00',
+    description: 'Delivery time-window chosen by the customer, snapshotted from the order.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deliveryWindow?: string;
 }
 
 /** Proof of delivery — photo + GPS + timestamp mandatory; signature + note optional. */

@@ -33,6 +33,7 @@ function seedDelivered(
     items: null,
     codAmount: null,
     notes: null,
+    deliveryWindow: null,
     estimatedArrivalAt: null,
     lastLat: null,
     lastLng: null,

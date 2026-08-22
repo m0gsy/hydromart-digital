@@ -616,6 +616,8 @@ export const hrFix = {
   orderDetail: {
     onlineRefundHint: 'Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service (belum tersambung ke antrean ini).',
     printReceipt2: "Cetak struk",
+    // B5: the delivery window the customer picked at checkout, finally on a screen.
+    window: "Jendela antar",
     assignCourier: "Tugaskan kurir",
     loadingCouriers: "Memuat kurir…",
     noCouriers: "Belum ada kurir aktif. Undang kurir di menu Staf &amp; peran.",

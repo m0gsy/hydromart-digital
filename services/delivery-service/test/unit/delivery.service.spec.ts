@@ -820,4 +820,37 @@ describe('DeliveryService', () => {
     // The rows are already gone; one stubborn object must not abort erasure for everyone else.
     await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
   });
+
+  /*
+   * B5. The customer picks a delivery window at checkout and is shown a confirmation of it.
+   * order-service stores it and returns it in its own response. Then it stopped: absent from
+   * the web `Order` type, absent from the depot's order sheet, absent from THIS payload. The
+   * one person whose day it governs — the courier holding the box — could never see it, and
+   * the depot scheduling the run could not either.
+   *
+   * Snapshotted at assignment, exactly like the landmark (`notes`) beside it, so a later edit
+   * to the order cannot silently move a run already dispatched.
+   */
+  describe('B5 — the delivery window reaches the delivery', () => {
+    it('snapshots the window the customer chose', async () => {
+      const d = await service.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-W1',
+          driverId: driver,
+          destinationAddress: 'Jl. Merdeka 10',
+          deliveryWindow: '2026-08-22 09:00-12:00',
+        },
+        AUTH,
+      );
+      expect(d.deliveryWindow).toBe('2026-08-22 09:00-12:00');
+    });
+
+    it('records no window rather than inventing one when the order carried none', async () => {
+      const d = await assign();
+      expect(d.deliveryWindow).toBeNull();
+    });
+  });
+
 });

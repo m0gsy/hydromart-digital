@@ -304,6 +304,16 @@ export interface Order extends DeliveryAddress {
    * and this screen reflects the answer instead of re-deriving one. Absent reads as no.
    */
   staffCanComplete?: boolean;
+  /**
+   * B5: the delivery time-window the customer chose at checkout. Written by checkout,
+   * stored by order-service, returned by its own response DTO — and then absent from THIS
+   * type, so no screen in the app could read it. The depot scheduling the run and the
+   * courier holding the box were both flying blind on a choice the customer had made and
+   * been shown a confirmation for.
+   */
+  deliveryWindow?: string | null;
+  /** The landmark (patokan) the customer wrote for the courier. */
+  notes?: string | null;
   driverName: string | null;
   /** Assigned courier's phone (null until DRIVER_ASSIGNED) — lets the customer call the driver. */
   driverPhone: string | null;

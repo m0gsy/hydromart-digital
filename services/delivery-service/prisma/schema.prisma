@@ -131,6 +131,12 @@ model Delivery {
   // courier sees "pagar hijau sebelah warung" on the delivery detail. Optional.
   notes          String?
 
+  /// B5: the time-window the customer picked at checkout ("2026-08-22 09:00-12:00",
+  /// "Express"), snapshotted at assignment for the same reason `notes` is — the courier's
+  /// screen must not need a second service to answer a question about the box in their
+  /// hand. Free-form client label, not a server-allocated slot.
+  deliveryWindow String?
+
   // Latest reported driver position (live tracking, PRD 10a). Overwritten on each
   // ping while en route; no history kept (MVP — "where is the driver now").
   lastLat        Float?

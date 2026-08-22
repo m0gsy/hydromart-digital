@@ -604,6 +604,8 @@ export const hrFix = {
   orderDetail: {
     onlineRefundHint: 'An online-paid order must be refunded by finance or a manager. Refund status lives in payment-service (not wired into this queue yet).',
     printReceipt2: "Print receipt",
+    // B5: the delivery window the customer picked at checkout, finally on a screen.
+    window: "Delivery window",
     assignCourier: "Assign a courier",
     loadingCouriers: "Loading couriers…",
     noCouriers: "No active couriers. Invite one from Staff &amp; roles.",

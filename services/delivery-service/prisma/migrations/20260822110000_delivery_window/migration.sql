@@ -1,0 +1,21 @@
+-- B5: the delivery time-window the customer chose is stored and shown to nobody.
+--
+-- Checkout collects it, order-service persists it on `orders.deliveryWindow`, and its own
+-- response DTO returns it. Then it stops: it is absent from the web `Order` type, absent
+-- from the depot's order sheet, and absent from the payload that creates the delivery. So
+-- the one person whose day it governs — the courier holding the box — has never been able
+-- to see it, and the depot scheduling the run could not either.
+--
+-- One nullable column, mirroring `notes` (the landmark) which was snapshotted onto the
+-- delivery for exactly the same reason: the courier's screen must not need a second
+-- service to answer a question about the delivery in their hand.
+--
+-- Free-form on purpose, like the order column it is copied from: it is a client label
+-- ("2026-08-22 09:00-12:00", "Express"), not a slot the server allocates. Snapshotted at
+-- assignment, so a later edit to the order cannot silently move a run already dispatched.
+--
+-- Written and nothing more in this release. The courier screen that reads it is B5b.
+-- Schema rule: a column ships one release before the code that reads it.
+
+-- AlterTable
+ALTER TABLE "deliveries" ADD COLUMN "deliveryWindow" TEXT;

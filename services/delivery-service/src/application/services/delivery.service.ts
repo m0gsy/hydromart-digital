@@ -82,6 +82,7 @@ export interface AssignInput {
    */
   codAmount?: number;
   notes?: string;
+  deliveryWindow?: string;
 }
 
 export type ProofInput = Omit<ProofRecord, 'capturedAt'> & {
@@ -206,6 +207,7 @@ export class DeliveryService {
       items: input.items ?? null,
       codAmount,
       notes: input.notes ?? null,
+      deliveryWindow: input.deliveryWindow ?? null,
     };
     const delivery = existing
       ? await this.deliveries.reassign(
