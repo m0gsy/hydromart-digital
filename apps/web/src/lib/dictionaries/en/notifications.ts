@@ -11,6 +11,8 @@ export const notifications = {
     ORDER_DELIVERED: 'Order delivered',
     ORDER_COMPLETED: 'Order completed',
     ORDER_CANCELLED: 'Order cancelled',
+    ORDER_DRIVER_ASSIGNED: 'Courier assigned',
+    DELIVERY_RESCHEDULED: 'Delivery rescheduled',
     CUSTOMER_REGISTERED: 'Welcome to Hydromart',
     STOCK_LOW: 'Low stock',
     POINTS_EARNED: 'Points earned',

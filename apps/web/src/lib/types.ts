@@ -572,6 +572,11 @@ export type NotificationEvent =
   | 'ORDER_DELIVERED'
   | 'ORDER_COMPLETED'
   | 'ORDER_CANCELLED'
+  // B6: sent when a courier is assigned — the moment BR-006 ends the customer's own right
+  // to cancel. B4: sent by delivery-service since reschedule shipped, and refused by crm
+  // for want of a member here, so 100% of them were lost.
+  | 'ORDER_DRIVER_ASSIGNED'
+  | 'DELIVERY_RESCHEDULED'
   | 'CUSTOMER_REGISTERED'
   | 'STOCK_LOW'
   | 'STOCK_UNTRACKED'

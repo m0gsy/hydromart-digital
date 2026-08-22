@@ -79,20 +79,41 @@ export function isCancellable(status: OrderStatus): boolean {
 
 /**
  * Maps a status the order just entered to the customer notification event to fire
- * (FR-093/FR-094), or null when that transition warrants no message. The string
- * values are a contract with crm-service's NotificationEvent enum. Intermediate
- * states (PREPARING, DRIVER_ASSIGNED, PICKED_UP) and CREATED are intentionally silent.
+ * (FR-093/FR-094), or null when that transition warrants no message. The string values are
+ * a contract with crm-service's NotificationEvent enum.
+ *
+ * B6 changed two answers here, in opposite directions.
+ *
+ * DRIVER_ASSIGNED used to be silent, filed under "intermediate state". It is not an
+ * intermediate state to the customer: it is the exact moment BR-006 ends their own right to
+ * cancel. The button simply stopped being there and nothing said why — the one transition
+ * where saying nothing costs them something.
+ *
+ * COMPLETED is now silent when it arrives FROM DELIVERED, because proof of delivery marches
+ * the order through both in one loop (delivery.service.ts) and both fired seconds apart.
+ * Measured at the door, the customer got three messages: "sudah sampai", "selesai — poin
+ * sudah ditambahkan", and POINTS_EARNED carrying the actual number. Two of the three were
+ * about points and only one of those knew how many. DELIVERED is the news; POINTS_EARNED is
+ * the number; the middle one was neither.
+ *
+ * `from` is optional so every existing caller keeps its answer — the suppression binds only
+ * where the caller can say what the order came from.
+ *
+ * PREPARING and PICKED_UP stay silent and are right to: ORDER_ON_DELIVERY already carries
+ * "it is on its way", which is the part the customer can act on.
  */
-export function notificationEventFor(status: OrderStatus): string | null {
+export function notificationEventFor(status: OrderStatus, from?: OrderStatus): string | null {
   switch (status) {
     case OrderStatus.CONFIRMED:
       return 'ORDER_CONFIRMED';
+    case OrderStatus.DRIVER_ASSIGNED:
+      return 'ORDER_DRIVER_ASSIGNED';
     case OrderStatus.ON_DELIVERY:
       return 'ORDER_ON_DELIVERY';
     case OrderStatus.DELIVERED:
       return 'ORDER_DELIVERED';
     case OrderStatus.COMPLETED:
-      return 'ORDER_COMPLETED';
+      return from === OrderStatus.DELIVERED ? null : 'ORDER_COMPLETED';
     case OrderStatus.CANCELLED:
       return 'ORDER_CANCELLED';
     // A void is settled face to face at the counter — the buyer is standing there getting
