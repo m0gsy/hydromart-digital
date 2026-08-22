@@ -237,3 +237,110 @@ describe('NotificationService · F1 push preference', () => {
     expect(push.pushed).toEqual(['cust-1']);
   });
 });
+
+/*
+ * F8. Every operational alert — stock low, stock untracked, meter variance, the twice-daily
+ * sales update, and a HIGH-severity courier incident — is addressed to a phone NUMBER, not
+ * to an account, so it passed `customerId: null`. `notify()` skips push when there is no
+ * customer id, so not one of them had a channel that could wake anybody: they landed in the
+ * ops feed and waited for somebody to open a screen.
+ *
+ * With a depot on the alert, the recipients are that depot's own active staff — resolved
+ * from auth-service, which owns the roster, rather than from a second copy here that would
+ * drift the first time somebody changed depots.
+ */
+describe('F8 — an ops alert that can wake somebody', () => {
+  const staffIds = ['s-1', 's-2'];
+
+  function build(overrides: { ids?: string[]; throws?: boolean } = {}) {
+    const sent: { customerId: string; body: string }[] = [];
+    const push = {
+      sendToCustomer: jest.fn(async (customerId: string, payload: { body: string }) => {
+        sent.push({ customerId, body: payload.body });
+      }),
+    };
+    const repo = { record: jest.fn(async (r: unknown) => r) };
+    const depotStaff = {
+      staffIdsForDepot: jest.fn(async () =>
+        overrides.throws ? Promise.reject(new Error('auth down')) : (overrides.ids ?? staffIds),
+      ),
+    };
+    const service = new NotificationService(
+      repo as never,
+      push as never,
+      undefined,
+      depotStaff as never,
+    );
+    return { service, sent, push, depotStaff, repo };
+  }
+
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  it('pushes a HIGH courier incident to every active staff member at that depot', async () => {
+    const { service, sent } = build();
+    await service.notify(
+      NotificationEvent.COURIER_INCIDENT,
+      '+628000000000',
+      { severity: 'HIGH', category: 'ACCIDENT', note: 'truk terguling' },
+      null,
+      'depot-1',
+    );
+    await flush();
+    expect(sent.map((s) => s.customerId).sort()).toEqual(['s-1', 's-2']);
+    expect(sent[0]!.body).toContain('truk terguling');
+  });
+
+  it('still writes the ops feed row when the roster cannot be read', async () => {
+    const { service, repo, sent } = build({ throws: true });
+    await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+    await flush();
+    expect(repo.record).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('says so rather than going quiet when a depot has nobody rostered', async () => {
+    const { service, repo, sent } = build({ ids: [] });
+    await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+    await flush();
+    expect(repo.record).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('does not route a CUSTOMER event to depot staff, even with a depot on it', async () => {
+    const { service, depotStaff } = build();
+    await service.notify(
+      NotificationEvent.ORDER_DELIVERED,
+      '+628111111111',
+      { name: 'Wahyu', orderNumber: 'HM-1' },
+      null,
+      'depot-1',
+    );
+    await flush();
+    expect(depotStaff.staffIdsForDepot).not.toHaveBeenCalled();
+  });
+
+  it('leaves an ops alert with no depot exactly as it was — feed only', async () => {
+    const { service, depotStaff, repo } = build();
+    await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, null);
+    await flush();
+    expect(depotStaff.staffIdsForDepot).not.toHaveBeenCalled();
+    expect(repo.record).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * F8. The port is @Optional for the same reason the preference port is: a deployment that
+ * has not wired it must behave exactly as it did before — ops alerts reach the feed and no
+ * device — rather than throw on a dependency that did not exist last release.
+ */
+describe('F8 — a deployment that has not wired the roster', () => {
+  it('writes the ops feed row and pushes nothing', async () => {
+    const repo = { record: jest.fn(async (r: unknown) => r) };
+    const push = { sendToCustomer: jest.fn() };
+    const service = new NotificationService(repo as never, push as never);
+    await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+    await new Promise((r) => setImmediate(r));
+    expect(repo.record).toHaveBeenCalledTimes(1);
+    expect(push.sendToCustomer).not.toHaveBeenCalled();
+  });
+});

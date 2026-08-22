@@ -45,6 +45,14 @@ export class CrmConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
   }
+  /**
+   * F8. auth-service base URL, for resolving which staff an ops alert about a depot should
+   * wake. Already validated (and required in production) by env.validation for the
+   * capability poller; this getter just names the second reader.
+   */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').trim();
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '').trim();
   }

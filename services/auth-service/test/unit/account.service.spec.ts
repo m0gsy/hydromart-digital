@@ -1009,4 +1009,90 @@ describe('AccountService', () => {
       expect(pending.customerId).toBeDefined();
     });
   });
+
+  /*
+   * F8. Operational alerts — stock low, stock untracked, meter variance, and a HIGH-severity
+   * courier incident — are addressed to a phone number, so they carry no customer id, so crm
+   * skipped push entirely and none of them had a channel that could wake anybody.
+   *
+   * crm asks here rather than keeping a depot-to-staff map of its own, which would drift the
+   * first time somebody changed depots. Ids only: crm needs somewhere to send a push, not a
+   * staff directory.
+   */
+  describe('staffIdsForDepot (F8)', () => {
+    it('returns the ACTIVE staff at that depot, whatever their role', async () => {
+      customers.seed(
+        makeCustomer({
+          phone: '+628994440001',
+          role: Role.STAFF_DEPOT,
+          status: CustomerStatus.ACTIVE,
+          assignedDepotId: 'depot-1',
+        }),
+      );
+      customers.seed(
+        makeCustomer({
+          phone: '+628994440002',
+          role: Role.KEPALA_DEPOT,
+          status: CustomerStatus.ACTIVE,
+          assignedDepotId: 'depot-1',
+        }),
+      );
+      // A suspended account must not be woken, and another depot's staff must not be either.
+      customers.seed(
+        makeCustomer({
+          phone: '+628994440003',
+          role: Role.STAFF_DEPOT,
+          status: CustomerStatus.SUSPENDED,
+          assignedDepotId: 'depot-1',
+        }),
+      );
+      customers.seed(
+        makeCustomer({
+          phone: '+628994440004',
+          role: Role.STAFF_DEPOT,
+          status: CustomerStatus.ACTIVE,
+          assignedDepotId: 'depot-2',
+        }),
+      );
+
+      expect(await service.staffIdsForDepot('depot-1')).toHaveLength(2);
+      expect(await service.staffIdsForDepot('depot-2')).toHaveLength(1);
+    });
+
+    it('answers an empty list for a depot with nobody on it', async () => {
+      expect(await service.staffIdsForDepot('depot-empty')).toEqual([]);
+    });
+
+    it('refuses rather than returning a short roster that looks complete', async () => {
+      // Same ceiling and same rule as `listDrivers`: a silently short list is a staff
+      // member who exists and never gets woken, which reads as "nobody was on duty".
+      const many = {
+        listStaff: jest.fn(async (page: number) => ({
+          items: Array.from({ length: 100 }, (_v, i) =>
+            makeCustomer({ phone: `+6288${page}${i}`, status: CustomerStatus.ACTIVE }),
+          ),
+          total: 100_000,
+        })),
+      };
+      const svc = new AccountService(many as never, sessions, new AuditService(audit));
+      await expect(svc.staffIdsForDepot('depot-big')).rejects.toBeInstanceOf(
+        DriverRosterTooLargeError,
+      );
+    });
+
+    it('walks past the first page instead of cutting the roster off', async () => {
+      for (let i = 0; i < 150; i += 1) {
+        customers.seed(
+          makeCustomer({
+            phone: `+62899555${String(i).padStart(4, '0')}`,
+            role: Role.STAFF_DEPOT,
+            status: CustomerStatus.ACTIVE,
+            assignedDepotId: 'depot-1',
+          }),
+        );
+      }
+      expect(await service.staffIdsForDepot('depot-1')).toHaveLength(150);
+    });
+  });
+
 });

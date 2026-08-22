@@ -136,6 +136,7 @@ describe('OpsNotifierHttpAdapter', () => {
     category: 'ACCIDENT' as never,
     severity: 'HIGH' as never,
     description: 'truck stuck',
+    depotId: 'dep-1',
   };
 
   it('skips without ops phone', async () => {
@@ -653,5 +654,37 @@ describe('CustomerNotificationHttpAdapter', () => {
     await expect(
       new CustomerNotificationHttpAdapter(makeConfig()).notify('X', '08123456789', vars, null),
     ).resolves.toBeUndefined();
+  });
+});
+
+/*
+ * F8. A HIGH-severity field incident reached the ops feed and no device at all: crm skips
+ * push when there is no `customerId`, and an ops alert has none — it is addressed to a
+ * phone number. The depot id is what gives it a set of devices to reach, so it has to
+ * survive the wire.
+ */
+describe('OpsNotifierHttpAdapter — F8 depot routing', () => {
+  it('sends the depot so crm can wake that depot’s staff', async () => {
+    fetchMock.mockResolvedValue({ ok: true } as never);
+    await new OpsNotifierHttpAdapter(makeConfig()).incidentReported({
+      category: 'ACCIDENT' as never,
+      severity: 'HIGH' as never,
+      description: 'truck stuck',
+      depotId: 'dep-1',
+    });
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)![1] as RequestInit).body));
+    expect(body).toMatchObject({ event: 'COURIER_INCIDENT', depotId: 'dep-1' });
+  });
+
+  it('omits it entirely rather than sending null — better no push than the wrong shift', async () => {
+    fetchMock.mockResolvedValue({ ok: true } as never);
+    await new OpsNotifierHttpAdapter(makeConfig()).incidentReported({
+      category: 'ACCIDENT' as never,
+      severity: 'HIGH' as never,
+      description: 'truck stuck',
+      depotId: null,
+    });
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)![1] as RequestInit).body));
+    expect(body).not.toHaveProperty('depotId');
   });
 });

@@ -9,4 +9,6 @@ export const CRM_TOKENS = {
   PushSender: Symbol('PushSender'),
   BroadcastDelivery: Symbol('BroadcastDelivery'),
   NotificationPreference: Symbol('NotificationPreference'),
+  // F8: which staff an ops alert about a depot should wake.
+  DepotStaff: Symbol('DepotStaff'),
 } as const;

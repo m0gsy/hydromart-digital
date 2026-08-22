@@ -166,3 +166,12 @@ export class PurgeBeforeDto {
   @IsISO8601()
   cutoff!: string;
 }
+
+/**
+ * F8. Active staff account ids at one depot — the recipients of an operational alert about
+ * that depot. Ids only, deliberately: crm needs somewhere to send a push, not a roster.
+ */
+export class DepotStaffIdsDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  ids!: string[];
+}

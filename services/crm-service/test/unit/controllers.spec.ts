@@ -163,6 +163,9 @@ describe('NotificationController', () => {
       '+6281',
       { name: 'Andi' },
       'cust-1',
+      // F8: the depot an OPS alert is about, so crm can push it to that depot's own staff.
+      // Null on a customer event, which already has an account to reach.
+      null,
     );
     expect(out.id).toBe('n1');
   });
@@ -176,6 +179,28 @@ describe('NotificationController', () => {
       '+6281',
       {},
       null,
+      null,
+    );
+  });
+
+  /*
+   * F8. The one ops alert that carries a depot. Without it, `notify` skips push entirely
+   * (no customer id) and a HIGH-severity incident reaches the feed and no device at all.
+   */
+  it('passes the depot an ops alert is about through to the service', async () => {
+    const notifications = { notify: jest.fn().mockResolvedValue(notifRecord()) };
+    const controller = new NotificationController(notifications as never);
+    await controller.sendInternal({
+      event: NotificationEvent.COURIER_INCIDENT,
+      phone: '+6281',
+      depotId: 'dep-1',
+    });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      NotificationEvent.COURIER_INCIDENT,
+      '+6281',
+      {},
+      null,
+      'dep-1',
     );
   });
 });

@@ -30,6 +30,16 @@ export class SendNotificationDto {
   @IsUUID()
   customerId?: string;
 
+  /**
+   * F8. The depot an OPERATIONAL alert is about. Ops events carry no customer — they are
+   * addressed to a phone number — so this is what gives them a set of devices to reach:
+   * the depot's own active staff. Ignored for customer events, which already have one.
+   */
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot an operational alert is about (ops push routing).' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
   @ApiPropertyOptional({
     description: 'Template variables, e.g. { "name": "Budi", "orderNumber": "HM-..." }.',
     type: 'object',
