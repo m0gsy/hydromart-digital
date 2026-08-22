@@ -1541,9 +1541,6 @@ export const hrFix = {
     yourDepot: "Depot kamu",
     loadFailed: "Gagal memuat",
   },
-  registerPage: {
-    addPhoto: "Tambahkan foto (opsional)",
-  },
   assets2: {
     manageAssets: "Kelola aset",
     none: "Tidak ada aset perusahaan yang dipegang.",

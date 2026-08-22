@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { ArrowLeft, ArrowRight, Camera, Gift, User } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Gift, User } from '@phosphor-icons/react';
 
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -80,29 +80,35 @@ function RegisterForm() {
           <ArrowLeft size={18} weight="bold" />
         </Link>
         <h1 className="text-[16px] font-extrabold tracking-tight">{t('auth.register.heading')}</h1>
-        <Link href="/products" className="text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]">
+        {/*
+          H11. This pointed at /products and dropped `next`, so someone who signed up
+          mid-checkout and skipped landed in the catalogue with their cart behind them.
+          `next` already defaults to /products, so a visitor who arrived without one sees
+          no change; a gated destination still bounces at RequireAuth, which is the honest
+          answer to someone who has just declined to make an account.
+        */}
+        <Link href={next} className="text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]">
           Lewati
         </Link>
       </div>
 
-      {/* Avatar picker — visual only (no upload endpoint). */}
+      {/*
+        H11. This carried a camera badge and the caption "Tambahkan foto", and there was no
+        file input behind either — nor could there be: the upload endpoint is
+        `/auth/me/avatar` and this screen holds no token, because register only mints an
+        OTP challenge. It was a picture of a control, and every tap on it did nothing.
+
+        /account/edit has the real uploader, reachable the moment the account exists. The
+        offer is withdrawn here rather than half-built: an avatar carried across the OTP
+        hop would need the photo stashed somewhere for a screen that may never be reached.
+      */}
       <div className="flex flex-col items-center gap-2">
-        <div className="relative">
-          <span
-            className="flex items-center justify-center rounded-full bg-brand-50"
-            style={{ width: 78, height: 78 }}
-          >
-            <User size={38} weight="fill" className="text-brand-600" />
-          </span>
-          <span
-            aria-hidden
-            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full bg-brand-600 text-white ring-2 ring-[color:var(--surface-muted)]"
-            style={{ width: 28, height: 28 }}
-          >
-            <Camera size={15} weight="fill" />
-          </span>
-        </div>
-        <p className="text-[13px] text-muted">{t('hrFix.registerPage.addPhoto')}</p>
+        <span
+          className="flex items-center justify-center rounded-full bg-brand-50"
+          style={{ width: 78, height: 78 }}
+        >
+          <User size={38} weight="fill" className="text-brand-600" />
+        </span>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3.5">
