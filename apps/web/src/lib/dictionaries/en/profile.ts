@@ -116,6 +116,7 @@ export const profile: typeof base = {
       edit: 'Edit',
       delete: 'Delete',
       saveError: 'Failed to save address.',
+      actionError: 'Could not update the address. Try again.',
     },
     sheet: {
       newTitle: 'New address',

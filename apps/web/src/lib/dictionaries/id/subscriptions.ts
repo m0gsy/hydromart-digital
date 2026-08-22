@@ -25,6 +25,7 @@ export const subscriptions = {
   start: 'Mulai langganan',
   started: 'Langganan dibuat.',
   createError: 'Gagal membuat langganan.',
+  actionError: 'Gagal memperbarui langganan. Coba lagi.',
   benefitsTitle: 'Kenapa langganan?',
   benefits: [
     'Diskon otomatis tiap pengiriman langganan',

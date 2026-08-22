@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Crosshair, MapPin, PencilSimple, Plus, Star, Trash, X } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { useToast } from '@/components/toast';
 import { ConfirmDialog, Sheet } from '@/components/overlay';
 import { Button, Card, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -21,6 +22,7 @@ import type { Address } from '@/lib/types';
 
 function AddressesInner() {
   const { t } = useT();
+  const { toast } = useToast();
   const { data: addresses, error, loading, reload } = useAsync<Address[]>(() =>
     api.get(endpoints.addresses.list, true),
   );
@@ -76,14 +78,25 @@ function AddressesInner() {
     }
   }
 
+  /*
+   * H9. The catch here was EMPTY, with a comment claiming "the reload reflects reality".
+   * It does not: a refused action and an action that changed nothing look identical from
+   * the outside — the row snaps back either way and the customer is left guessing whether
+   * the tap registered. The depot-side screens were fixed first and say exactly this
+   * (`dashboard/promotions/page.tsx`, Audit F-14); the customer-side ones were missed.
+   *
+   * The reload still runs on failure, because the list on screen may genuinely be stale —
+   * what changes is that the refusal is now said out loud, in the server's own words when
+   * it gave any.
+   */
   async function act(id: string, fn: () => Promise<unknown>) {
     setBusyId(id);
     try {
       await fn();
-      reload();
-    } catch {
-      /* a failed row action leaves the list unchanged; the reload reflects reality */
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('profile.addresses.list.actionError'), 'error');
     } finally {
+      reload();
       setBusyId(null);
     }
   }

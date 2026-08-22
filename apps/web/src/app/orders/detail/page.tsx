@@ -6,12 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowsClockwise,
   CaretRight,
+  ChatCircleDots,
   CheckCircle,
   Copy,
   Money as MoneyIcon,
   Star,
 } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { Sheet } from '@/components/overlay';
@@ -21,7 +23,7 @@ import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton, StickyActio
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
-import { isCancellable, tone } from '@/lib/order-status';
+import { isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
@@ -97,6 +99,24 @@ function OrderDetailInner({ id }: { id: string }) {
     () => (depotId ? api.get(endpoints.depots.paymentInfo(depotId), true) : Promise.resolve(null)),
     [depotId],
   );
+
+  /*
+   * H10. The depot's own number, asked for only inside the window where it is the answer —
+   * a courier is already holding the order, so the customer cannot stop it and the depot
+   * still can. Outside that window this resolves to null and costs nothing.
+   *
+   * Fail-soft on purpose, exactly like the help screen: no number, no button. A depot that
+   * never filled its phone in must not be offered as a call to nobody.
+   */
+  const depotOnly = order ? isDepotOnlyCancel(order.status) : false;
+  const { data: contact } = useAsync<{ name: string; contactPhone: string | null } | null>(
+    () =>
+      depotId && depotOnly
+        ? api.get<{ name: string; contactPhone: string | null }>(endpoints.depots.contact(depotId), true).catch(() => null)
+        : Promise.resolve(null),
+    [depotId, depotOnly],
+  );
+  const depotPhone = contact?.contactPhone ?? null;
 
   const [action, setAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -508,6 +528,26 @@ function OrderDetailInner({ id }: { id: string }) {
               </Button>
             )}
           </div>
+
+          {/*
+            H10. The cancel button used to just vanish here. A rule the customer cannot see
+            is indistinguishable from a bug, so it is stated — and the door that IS still
+            open is offered next to it rather than left for them to find.
+          */}
+          {depotOnly && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-[14px] border border-app px-4 py-3">
+              <p className="min-w-0 flex-1 text-[13px] text-muted">{t('order.detail.cancelClosed')}</p>
+              {depotPhone && (
+                <ExternalLink
+                  href={`https://wa.me/${depotPhone.replace(/[^0-9]/g, '')}`}
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-brand-600 px-4 text-[13px] font-extrabold text-on-brand transition-colors hover:bg-brand-700"
+                >
+                  <ChatCircleDots size={16} weight="fill" />
+                  {t('order.detail.contactDepot')}
+                </ExternalLink>
+              )}
+            </div>
+          )}
         </div>
 
         {/* RIGHT — timeline */}

@@ -133,6 +133,9 @@ export const order: typeof base = {
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Cancel this order?',
     cancelIntro: 'Still cancellable — the depot hasn’t prepared it yet. Any amount already paid will be refunded.',
+    // H10: shown where the cancel button used to simply vanish.
+    cancelClosed: 'A courier has been assigned, so this order can no longer be cancelled from here. The depot can still stop it.',
+    contactDepot: 'Contact the depot',
     cancelReasonLabel: 'Reason',
     cancelConfirm: 'Cancel order',
     cancelReasons: {
