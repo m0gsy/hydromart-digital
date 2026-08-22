@@ -53,6 +53,7 @@ import { api, ApiError } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
@@ -567,9 +568,21 @@ export default function AccountPage() {
   const { customer, ready, signOut } = useAuth();
   const { t } = useT();
   const router = useRouter();
-  // Global on purpose: this is the customer's card across the network, not their
-  // standing at one depot.
-  const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
+  /*
+   * H15. This said "global on purpose: the customer's card across the network, not their
+   * standing at one depot" — and the home teaser said the opposite, scoping the same read
+   * to the shopper's depot. Two deliberate choices, one account, two answers.
+   *
+   * Resolved toward the depot: the tier badge on this screen sits next to a discount the
+   * customer will be charged at checkout, and checkout prices at the depot. A card that
+   * names a network tier the local depot does not honour is a promise the till breaks.
+   */
+  const { location } = useLocation();
+  const depotId = location?.depotId ?? null;
+  const { data: loyalty } = useAsync<LoyaltyAccount>(
+    () => api.get(endpoints.loyalty.me(depotId), true),
+    [depotId],
+  );
   const [sheet, setSheet] = useState<SheetKey | null>(null);
 
   if (ready && !customer) {

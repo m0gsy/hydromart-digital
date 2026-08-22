@@ -26,6 +26,7 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, formatIDR } from '@/lib/format';
+import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { tierProgress } from '@/lib/loyalty';
 import { useAsync } from '@/lib/use-async';
@@ -658,6 +659,7 @@ type RewardsTab = 'tukar' | 'voucher' | 'riwayat';
 
 function RewardsInner() {
   const { t } = useT();
+  const { location } = useLocation();
   /**
    * Plain state, not `?tab=`. The obvious version puts the tab in the URL so a link can
    * point at one, and it does not work here: the App Router does not re-render this screen
@@ -667,9 +669,24 @@ function RewardsInner() {
    * instead of walking through three tabs, which on a phone is the better answer anyway.
    */
   const [tab, setTab] = useState<RewardsTab>('tukar');
-  // The member card and its ladder: global, network-wide standing.
-  const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
-  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
+  /*
+   * H15. These two read the loyalty account UNSCOPED while the home teaser reads it scoped
+   * to the shopper's depot, so one account could answer twice in one session. The points
+   * were never at risk — loyalty-service keeps one balance per customer on purpose — but
+   * the TIER and the DISCOUNT RATE are re-derived against the depot's own ladder, so the
+   * same customer could read GOLD on the home screen and SILVER two taps later, with two
+   * different percentages promised.
+   *
+   * The truth chosen is the one the customer will actually be charged: the standing at the
+   * depot they are shopping from. That is already the argument written on the home teaser
+   * — a teaser promising a rate the local depot does not give is worse than no teaser —
+   * and a rewards screen quoting a rate checkout will not honour is the same fault, one
+   * screen along. No depot yet (a first visit, location not set) falls back to the
+   * network-wide ladder, which is what `depotId = null` means to the service.
+   */
+  const depotId = location?.depotId ?? null;
+  const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(depotId), true), [depotId]);
+  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers(depotId)), [depotId]);
   const [balance, setBalance] = useState<number | null>(null);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   // Bumped after a redeem so the redemption list picks the new row up without a page reload.
