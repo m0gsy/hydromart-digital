@@ -3,7 +3,7 @@ import { privacy as base } from '../id/privacy';
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
   title: 'Privacy Policy',
-  effective: 'Effective 20 August 2026',
+  effective: 'Effective 23 August 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
   sections: [
@@ -14,6 +14,10 @@ export const privacy: typeof base = {
     {
       heading: 'Data we collect',
       body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over.',
+    },
+    {
+      heading: 'Device location',
+      body: 'If you tap “Use my location” on the home screen or while saving an address, the app reads your device’s approximate location and sends it to our servers to find the nearest depot and to check whether that point falls inside a depot’s delivery range. The point is also stored on the address you save. This is optional: you can type an address yourself without granting location permission, and the app stays fully usable. Location is not shared with third parties, is not used for advertising or analytics, is sent over an encrypted connection, and can be deleted on request together with your account data. The customer app does not request precise (GPS) location permission; precise location is used only by the staff app for proof of delivery and courier attendance.',
     },
     {
       heading: 'How we use it',

@@ -36,6 +36,7 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
 | Purchase history          | Ya     | Wajib    | Fungsi aplikasi              | Riwayat pesanan, poin, tier                                  |
 | Device or other IDs       | Ya     | Opsional | Fungsi aplikasi              | Token FCM, hanya kalau notifikasi diizinkan                  |
 | App interactions          | Ya     | Wajib    | Fungsi aplikasi              | Status pesanan & notifikasi in-app                           |
+| Approximate location      | Ya     | Opsional | Fungsi aplikasi              | Dikirim ke server untuk cari depot terdekat — lihat catatan di bawah |
 
 **Bukan** "Financial info": pembayaran di Hydromart selesai langsung di depot (tunai/QRIS
 di tempat) — tidak ada gateway pembayaran, tidak ada nomor kartu, tidak ada rekening yang
