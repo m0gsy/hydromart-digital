@@ -24,7 +24,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
-import { offeredMethods, PAYMENT_METHODS, needsPayment } from '@/lib/payments';
+import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
