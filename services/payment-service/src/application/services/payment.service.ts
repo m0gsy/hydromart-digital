@@ -142,6 +142,21 @@ export class PaymentService {
       return this.payments.create(base);
     }
 
+    /*
+     * O5: refuse a gateway method BEFORE it costs a row.
+     *
+     * E-wallet and virtual account are the only methods that leave the building, and
+     * `PAYMENT_GATEWAY_BASE_URL` is empty in production — so both are buttons that cannot
+     * succeed. The refusal already existed, but it happened AFTER the payment row was
+     * written: the adapter threw, the row was marked FAILED, and every attempt left one
+     * behind on the order. Same answer to the customer, one less piece of debris in the
+     * ledger, and one less "failed payment" for a depot to explain.
+     */
+    if (!this.gateway.isConfigured()) {
+      this.logger.warn(`${input.method} refused: no payment gateway configured`);
+      throw new GatewayUnavailableError();
+    }
+
     // Online method: create the record first so the gateway can reference it,
     // then attach the charge. Fail closed if the gateway is unreachable.
     const payment = await this.payments.create(base);
@@ -420,6 +435,25 @@ export class PaymentService {
       refundApproval: RefundApproval.REJECTED,
       refundReason: reason ?? payment.refundReason,
     });
+  }
+
+  /**
+   * O5: which methods this deployment can actually take.
+   *
+   * The screen had no way to ask, so it offered all five and let two of them fail at the
+   * gateway. Derived from configuration rather than stored per depot: what makes them
+   * impossible today is one missing URL for the whole platform, and a per-depot switch
+   * would be a lever that moves nothing until a gateway exists.
+   */
+  availableMethods(): Record<PaymentMethod, boolean> {
+    const online = this.gateway.isConfigured();
+    return {
+      [PaymentMethod.CASH]: true,
+      [PaymentMethod.TRANSFER]: true,
+      [PaymentMethod.QRIS]: true,
+      [PaymentMethod.EWALLET]: online,
+      [PaymentMethod.VA]: online,
+    };
   }
 
   /** Settles a refund: gateway call (online methods) then PAID → REFUNDED. */

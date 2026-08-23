@@ -29,6 +29,10 @@ export class PaymentGatewayHttpAdapter implements PaymentGatewayPort {
 
   constructor(private readonly config: PaymentConfigService) {}
 
+  isConfigured(): boolean {
+    return Boolean(this.config.gatewayBaseUrl);
+  }
+
   async createCharge(request: ChargeRequest): Promise<ChargeResult> {
     const body = await this.post('/charges', {
       method: request.method,

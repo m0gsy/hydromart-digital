@@ -24,7 +24,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
-import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
+import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -111,6 +111,12 @@ function OrderDetailInner({ id }: { id: string }) {
   // K2.4: a second attempt puts the order back on PREPARING, so the status alone would
   // reopen the customer's cancel button on goods that already left the depot. Once
   // dispatched, this is the depot's call — which is exactly what `depotOnly` already says.
+
+  // O5: the same filter as checkout — this screen offers the methods again when a payment
+  // was never completed, and must not re-offer the two that cannot work.
+  const { data: methodsAvailable } = useAsync<Record<string, boolean>>(() =>
+    api.getCached(endpoints.payments.methods),
+  );
   const dispatched = order ? hasBeenDispatched(order.history ?? []) : false;
   const depotOnly = order ? isDepotOnlyCancel(order.status) || (isCancellable(order.status) && dispatched) : false;
   const { data: contact } = useAsync<{ name: string; contactPhone: string | null } | null>(
@@ -468,7 +474,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 </p>
               </div>
               <div className="flex flex-col gap-2">
-                {PAYMENT_METHODS.map((m) => (
+                {offeredMethods(methodsAvailable ?? null).map((m) => (
                   <RadioCard
                     key={m.value}
                     selected={payMethod === m.value}

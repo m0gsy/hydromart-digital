@@ -11,6 +11,9 @@ export const money = {
 payments: {
   initiateStaff: '/payments/api/v1/payments/staff',
   initiate: '/payments/api/v1/payments',
+  // O5: which methods this deployment can actually take. Public — the answer belongs to
+  // the platform's configuration, and checkout asks before there is an order.
+  methods: '/payments/api/v1/payments/methods',
   forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
   // Staff: an order's payments (for settlement) — not customer-scoped.
   forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,

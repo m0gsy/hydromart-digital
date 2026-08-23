@@ -49,7 +49,7 @@ import { currentPosition, geoReason } from '@/lib/geo';
 import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
-import { PAYMENT_METHODS } from '@/lib/payments';
+import { offeredMethods, PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
 import { memberDiscount, shippingFeeFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
@@ -141,6 +141,17 @@ function CheckoutInner() {
    * agen outside their own depot; this screen went on promising it. The rule is asked once
    * now, of the priced cart, so the badge and the bill cannot disagree.
    */
+
+  /*
+   * O5: only offer what this deployment can take. E-wallet and virtual account go through a
+   * gateway that production does not have, so they were two buttons that could only fail
+   * after the customer had already chosen how to pay. Cached: the answer is configuration,
+   * not per-order state.
+   */
+  const { data: methodsAvailable } = useAsync<Record<string, boolean>>(() =>
+    api.getCached(endpoints.payments.methods),
+  );
+  const payMethods = offeredMethods(methodsAvailable ?? null);
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -853,7 +864,7 @@ function CheckoutInner() {
     {/* Payment method */}
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {PAYMENT_METHODS.map((m) => {
+        {payMethods.map((m) => {
           const Icon = PAY_ICONS[m.value];
           const on = method === m.value;
           return (

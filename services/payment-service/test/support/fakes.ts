@@ -204,9 +204,15 @@ export class InMemoryPaymentRepository implements PaymentRepository {
 }
 
 export class FakeGateway implements PaymentGatewayPort {
+  /** O5: set false to stand in for production, where no gateway URL is configured. */
+  configured = true;
   throwOnCharge = false;
   throwOnRefund = false;
   charges: ChargeRequest[] = [];
+
+  isConfigured(): boolean {
+    return this.configured;
+  }
 
   async createCharge(request: ChargeRequest): Promise<ChargeResult> {
     if (this.throwOnCharge) {
