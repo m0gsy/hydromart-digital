@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Ticket } from '@phosphor-icons/react';
+import { ArrowLeft, CheckCircle, Copy, Ticket } from '@phosphor-icons/react';
+
+import { useState } from 'react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { ErrorState, Skeleton } from '@/components/ui';
@@ -20,6 +22,41 @@ const VOUCHER_MUTED: Record<VoucherStatus, boolean> = {
   UPCOMING: false,
   SOLD_OUT: true,
 };
+
+/** Copy + "use it" for one voucher the customer actually holds. */
+function VoucherActions({ code }: { code: string }) {
+  const { t } = useT();
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the code is on screen, same fallback as /rewards */
+    }
+  }
+
+  return (
+    <div className="mt-2.5 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={copy}
+        className="inline-flex items-center gap-1.5 rounded-full border border-app px-3 py-1.5 text-[12px] font-bold transition-colors hover:bg-brand-50"
+      >
+        {copied ? <CheckCircle size={14} weight="fill" /> : <Copy size={14} weight="bold" />}
+        {copied ? t('profile.rewards.wallet.copied') : t('profile.rewards.wallet.copy')}
+      </button>
+      <Link
+        href={`/checkout?voucher=${encodeURIComponent(code)}`}
+        className="inline-flex items-center rounded-full bg-brand-600 px-3 py-1.5 text-[12px] font-bold text-on-brand transition-colors hover:bg-brand-700"
+      >
+        {t('profile.rewards.wallet.use')}
+      </Link>
+    </div>
+  );
+}
 
 function VouchersInner() {
   const { t } = useT();
@@ -92,6 +129,14 @@ function VouchersInner() {
                       </span>
                     )}
                   </div>
+                  {/*
+                    K1.2: the wallet used to stop at showing the code. Copy is the same
+                    control /rewards already gives the referral code, and "Pakai" is a link
+                    rather than an apply API — checkout already loads the customer's
+                    vouchers and already has the field, so all this screen owes it is the
+                    code in the URL. Spent and expired vouchers get neither.
+                  */}
+                  {!muted && <VoucherActions code={v.code} />}
                 </div>
               </div>
             );

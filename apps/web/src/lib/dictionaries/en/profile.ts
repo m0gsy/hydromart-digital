@@ -26,6 +26,9 @@ export const profile: typeof base = {
       pct: '{pct}% off',
       minSpend: 'Min. spend {amount}',
       until: 'until {date}',
+      copy: 'Copy',
+      copied: 'Copied',
+      use: 'Use',
       status: {
         AVAILABLE: 'Active',
         USED: 'Used',

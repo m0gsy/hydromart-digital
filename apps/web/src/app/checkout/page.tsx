@@ -40,6 +40,8 @@ import {
   StickyActionBar,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useQueryParam } from '@/lib/use-query-param';
+import { voucherToApply } from '@/lib/vouchers';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
@@ -377,6 +379,21 @@ function CheckoutInner() {
       setPinBusy(false);
     }
   }
+
+  /*
+   * K1.2: arrive with a voucher already chosen — the wallet links here with `?voucher=`.
+   * `voucherToApply` owns the three conditions (see lib/vouchers), so this effect only
+   * has to fire once.
+   */
+  const carriedVoucher = useQueryParam('voucher');
+  const voucherApplied = useRef(false);
+  useEffect(() => {
+    const code = voucherToApply(carriedVoucher, !!cart, voucherApplied.current);
+    if (!code) return;
+    voucherApplied.current = true;
+    void applyVoucher(code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carriedVoucher, cart]);
 
   async function applyVoucher(codeOverride?: string) {
     const code = (codeOverride ?? voucherCode).trim().toUpperCase();
