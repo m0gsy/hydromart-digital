@@ -20,6 +20,7 @@ interface NotificationRow {
   message: string;
   status: string;
   error: string | null;
+  destination: string | null;
   createdAt: Date;
 }
 
@@ -48,6 +49,7 @@ export class NotificationPrismaRepository implements NotificationRepository {
         message: data.message,
         status: data.status as unknown as PrismaNotificationStatus,
         error: data.error,
+        destination: data.destination,
       },
     });
     return this.toRecord(row);

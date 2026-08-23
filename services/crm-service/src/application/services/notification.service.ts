@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
-import { destinationFor } from '../../domain/notification-destination';
+import { destinationFor, storedDestinationFor } from '../../domain/notification-destination';
 import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
 import {
@@ -144,6 +144,10 @@ export class NotificationService {
       message,
       status: NotificationStatus.SENT,
       error: null,
+      // O1a: the column ships and starts filling one release before the client reads it,
+      // so the list is never half-tappable — by the time the reader lands, every row
+      // written since this release already carries its destination.
+      destination: storedDestinationFor(event, vars),
     });
   }
 

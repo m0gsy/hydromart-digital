@@ -8,6 +8,8 @@ export interface NotificationRecord {
   message: string;
   status: NotificationStatus;
   error: string | null;
+  /** O1: the in-app screen this notification opens, or null when it opens nothing. */
+  destination: string | null;
   createdAt: Date;
 }
 
@@ -18,6 +20,7 @@ export interface RecordNotificationData {
   message: string;
   status: NotificationStatus;
   error: string | null;
+  destination: string | null;
 }
 
 /** A feed row plus the *calling* staff member's own read receipt (null = unread by them). */
