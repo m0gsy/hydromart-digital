@@ -50,7 +50,38 @@ log "backing up databases first (rollback safety net)"
 bash scripts/backup-db.sh
 
 git fetch origin "$BRANCH"
-NEW_SHA="$(git rev-parse "origin/$BRANCH")"
+TIP_SHA="$(git rev-parse "origin/$BRANCH")"
+
+# M26 — ship the commit whose CI went green, not whatever the tip is by the time we get here.
+#
+# The workflow gate checks its TRIGGER (`workflow_run.conclusion == 'success'`) while this
+# script picked its own target, so the guarantee that actually held was "some commit is
+# green", not "this commit is green". Measured on 2026-08-22: #230 merged at 16:30, #232 at
+# 16:57, CI(#230) went green at 17:13, and the deploy it fired reset to #232 — which ran in
+# production for 41 minutes under #230's CI, and missed being caught a second time by 28
+# seconds. The realistic failure is not "a red PR lands" (nobody merges one); it is two PRs
+# each green alone and red together, which C6 and C11 were on e2e that same day.
+#
+# DEPLOY_SHA arrives from the workflow (`workflow_run.head_sha`); a manual dispatch leaves it
+# empty and keeps the old behaviour of taking the tip deliberately.
+NEW_SHA="${DEPLOY_SHA:-$TIP_SHA}"
+if [ -n "${DEPLOY_SHA:-}" ]; then
+  if ! git merge-base --is-ancestor "$NEW_SHA" "$TIP_SHA" 2>/dev/null; then
+    log "!! $NEW_SHA is not on origin/$BRANCH — refusing to deploy it"
+    exit 1
+  fi
+  # CI runs finish out of order, so the green SHA can be OLDER than what is already serving.
+  # Deploying it would roll production backwards with no failure anywhere to explain why.
+  # `--is-ancestor X X` is true, so this also makes a repeat deploy of the same commit a
+  # no-op rather than a rebuild.
+  if git merge-base --is-ancestor "$NEW_SHA" "$PREV_SHA" 2>/dev/null; then
+    log "$NEW_SHA is already contained in the running $PREV_SHA — nothing to deploy"
+    exit 0
+  fi
+  if [ "$NEW_SHA" != "$TIP_SHA" ]; then
+    log "deploying the green commit $NEW_SHA (tip is $TIP_SHA — its own deploy will follow)"
+  fi
+fi
 
 # Decide which services to rebuild BEFORE moving the working tree. The diff is computed
 # unconditionally now — --all changes what gets rebuilt, not whether the incoming commit

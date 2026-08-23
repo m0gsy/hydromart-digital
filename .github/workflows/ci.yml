@@ -318,6 +318,14 @@ jobs:
       - name: Deploy probes query tables that exist
         run: node scripts/check-deploy-probes.mjs
 
+      # M26. The deploy fires on a green CI and then chose its own target, so what held was
+      # "some commit is green", not "this one". Two PRs green apart and red together is not
+      # a hypothetical here — it happened on e2e the same day this was measured. YAML is a
+      # string to shellcheck and the shell is a string to actionlint, so nothing but this
+      # sees the wiring break.
+      - name: Deploy ships the commit whose CI went green
+        run: node scripts/check-deploy-sha.mjs
+
       # A UAT token minted with a role that no longer exists is refused by every guard, and
       # the harness reports it as the product refusing. Three such roles survived the
       # thirteen-role rebuild and produced 99 FORBIDDEN in one run.
