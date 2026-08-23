@@ -70,3 +70,18 @@ export function destinationFor(
       return INBOX;
   }
 }
+
+/**
+ * O1 — the destination as it is STORED on the audit row, which is not the same thing as
+ * the destination a push payload gets. A push always needs somewhere to land, so
+ * `destinationFor` falls back to the inbox; a row inside that same inbox must not become
+ * a link back to the list it is already in. Null means "this row is not tappable", and
+ * the client renders it as plain text rather than an affordance that lies.
+ */
+export function storedDestinationFor(
+  event: NotificationEvent,
+  vars: Record<string, string> = {},
+): string | null {
+  const url = destinationFor(event, vars);
+  return url === INBOX ? null : url;
+}

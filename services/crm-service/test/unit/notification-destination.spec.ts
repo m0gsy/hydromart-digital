@@ -1,6 +1,6 @@
 import { NotificationService } from '../../src/application/services/notification.service';
 import { PushService } from '../../src/application/services/push.service';
-import { destinationFor } from '../../src/domain/notification-destination';
+import { destinationFor, storedDestinationFor } from '../../src/domain/notification-destination';
 import { NotificationEvent } from '../../src/domain/notification-event';
 import { PushPayload } from '../../src/application/ports/push-sender.port';
 import { InMemoryNotificationRepository } from '../support/fakes';
@@ -66,5 +66,24 @@ describe('NotificationService push destination', () => {
     expect(payloads[0]?.url).toBe('/orders/detail?id=ord-9');
     // The id is a routing hint, never copy — no template names it.
     expect(payloads[0]?.body).not.toContain('ord-9');
+  });
+});
+
+/*
+ * O1 — what gets STORED is not what a push gets. A push always needs a landing screen, so
+ * the fallback is the inbox; a row already inside that inbox must not link to itself.
+ */
+describe('storedDestinationFor', () => {
+  it('keeps a real screen', () => {
+    expect(storedDestinationFor(NotificationEvent.POINTS_EARNED)).toBe('/rewards');
+    expect(storedDestinationFor(NotificationEvent.ORDER_CONFIRMED, { orderId: 'o-1' })).toBe(
+      '/orders/detail?id=o-1',
+    );
+  });
+
+  it('is null where the push would fall back to the inbox itself', () => {
+    expect(storedDestinationFor(NotificationEvent.STOCK_LOW, {})).toBeNull();
+    // Called with no vars at all — the ops emitters do exactly this.
+    expect(storedDestinationFor(NotificationEvent.HR_ANNOUNCEMENT)).toBeNull();
   });
 });

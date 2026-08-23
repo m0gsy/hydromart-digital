@@ -246,6 +246,7 @@ describe('NotificationPrismaRepository', () => {
     message: 'Order confirmed',
     status: 'SENT',
     error: null,
+    destination: '/orders',
     createdAt: new Date('2026-01-01'),
   });
 
@@ -260,6 +261,7 @@ describe('NotificationPrismaRepository', () => {
       message: 'Order confirmed',
       status: NotificationStatus.SENT,
       error: null,
+      destination: '/orders',
     });
     expect(notification.create).toHaveBeenCalledWith({
       data: {
@@ -269,6 +271,7 @@ describe('NotificationPrismaRepository', () => {
         message: 'Order confirmed',
         status: 'SENT',
         error: null,
+        destination: '/orders',
       },
     });
     expect(record.status).toBe(NotificationStatus.SENT);

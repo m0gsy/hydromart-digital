@@ -344,3 +344,44 @@ describe('F8 — a deployment that has not wired the roster', () => {
     expect(push.sendToCustomer).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * O1a — the destination is computed for the push payload and then thrown away, so a tap
+ * from the phone's tray lands on the right screen while the same notification in the
+ * in-app list is dead text. This is the release that ships the column and starts WRITING
+ * it; the list becomes tappable one release later, when every row already carries one.
+ */
+describe('recorded destination', () => {
+  let repo: InMemoryNotificationRepository;
+  let service: NotificationService;
+
+  beforeEach(() => {
+    repo = new InMemoryNotificationRepository();
+    service = new NotificationService(repo, new FakePush() as unknown as PushService);
+  });
+
+  it('stores the same destination the push payload gets', async () => {
+    await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '+62800',
+      { name: 'Budi', orderNumber: 'HM-1', orderId: 'o-9' },
+      'cust-1',
+    );
+    expect(repo.records[0].destination).toBe('/orders/detail?id=o-9');
+  });
+
+  it('stores the fallback destination when the event carries no id', async () => {
+    await service.notify(NotificationEvent.POINTS_EARNED, '+62800', { points: '10' }, 'cust-1');
+    expect(repo.records[0].destination).toBe('/rewards');
+  });
+
+  it('stores null for an event with no screen to open', async () => {
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', {
+      depot: 'D',
+      item: 'G',
+      quantity: '1',
+      minimum: '5',
+    });
+    expect(repo.records[0].destination).toBeNull();
+  });
+});

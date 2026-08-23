@@ -151,6 +151,12 @@ model Notification {
   message    String
   status     NotificationStatus @default(SENT)
   error      String?
+  /// O1: the in-app screen a tap on this row opens. Null = nothing to open, and the
+  /// client keeps the row as plain text rather than a link that goes nowhere.
+  destination String?
+  /// O6: the depot an operational notification belongs to. Null for customer rows and
+  /// for every row written before the ops feed learned to scope itself per depot.
+  depotId    String?
   createdAt  DateTime           @default(now())
 
   opsReads OpsNotificationRead[]

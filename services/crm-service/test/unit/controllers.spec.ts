@@ -38,6 +38,7 @@ const notifRecord = (over: Partial<NotificationRecord> = {}): NotificationRecord
   message: 'hi',
   status: NotificationStatus.SENT,
   error: null,
+  destination: null,
   createdAt: new Date('2026-01-01'),
   ...over,
 });
