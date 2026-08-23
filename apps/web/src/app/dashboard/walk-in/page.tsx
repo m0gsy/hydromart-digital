@@ -8,6 +8,7 @@ import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
+import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import {
   Button,
@@ -57,6 +58,8 @@ type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
  * faster than they can scan a barcode.
  */
 const STOCK_REFRESH_MS = 20000;
+/** Notes an Indonesian buyer actually hands over — same list the courier COD screen uses. */
+const NOTES = [50000, 100000, 150000, 200000];
 
 function WalkIn({ depotId }: { depotId: string }) {
   const { t, locale } = useT();
@@ -107,17 +110,37 @@ function WalkIn({ depotId }: { depotId: string }) {
     method: CounterMethod;
   } | null>(null);
 
-  const catalog = useAsync<Page<Product>>(
-    () => api.get(endpoints.products.browse({ limit: 100 })),
-    [depotId],
-  );
-  // What this depot can actually hand over. The counter used to list the whole catalogue,
-  // so a cashier could ring up a product this depot never stocks and only find out when the
-  // reservation bounced — with the buyer already standing there.
+  // What this depot can actually hand over. Read FIRST, because it is also the list of
+  // products the till is allowed to name (see `catalog` below).
   const stock = useAsync<InventoryItem[]>(
     () => api.get(endpoints.inventory.lines(depotId), true),
     [depotId],
   );
+  const stockedIds = useMemo(
+    () =>
+      (stock.data ?? [])
+        .filter((line) => line.productId && line.available > 0)
+        .map((line) => line.productId as string),
+    [stock.data],
+  );
+  /*
+   * K3.5: the till used to take page one of the GLOBAL catalogue — `browse({limit:100})`,
+   * ordered `createdAt desc` — and filter it by what this depot stocks. 100 is the server's
+   * own maximum in two independent places, so there was no bigger page to ask for; the
+   * moment the network catalogue passed 100 active products the OLDEST SKUs stopped being
+   * on it, and the oldest SKU is AIR-GALON-19L — the product the business is. A depot with
+   * five stock lines would have shown an empty till and no error at all.
+   *
+   * The depot's own stock list is not paginated server-side, so this screen was already
+   * holding the complete, authoritative list of what it may sell and throwing it away
+   * against a truncated catalogue. Ask for those ids by name instead: one call, no page
+   * size to outgrow, no search box, no pagination controls.
+   */
+  const catalog = useAsync<Product[]>(
+    () => (stockedIds.length === 0 ? Promise.resolve([]) : api.get(endpoints.products.batch(stockedIds))),
+    [stockedIds.join(',')],
+  );
+
   /**
    * C14: the number on this screen was stale from the FIRST sale, and so was the stepper's
    * ceiling.
@@ -164,7 +187,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     return map;
   }, [stock.data]);
   const products = useMemo(
-    () => (catalog.data?.items ?? []).filter((p) => (availableById.get(p.id) ?? 0) > 0),
+    () => (catalog.data ?? []).filter((p) => (availableById.get(p.id) ?? 0) > 0),
     [catalog.data, availableById],
   );
   const ids = products.map((p) => p.id);
@@ -260,6 +283,9 @@ function WalkIn({ depotId }: { depotId: string }) {
   const total = quote.data?.totalIdr ?? null;
   const cashReceived = Number(cash.replace(/\D/g, '')) || 0;
   const change = total === null ? 0 : cashReceived - total;
+  // K3.6: short only once a number has actually been typed — an empty field is a cashier
+  // who has not started counting, not a cashier who is short.
+  const short = total !== null && cash.length > 0 && cashReceived < total;
 
   // Where the money goes for QRIS/transfer. Per-depot on purpose: a franchise depot is paid
   // directly, so the QR the buyer scans has to be that depot's own.
@@ -758,23 +784,61 @@ function WalkIn({ depotId }: { depotId: string }) {
         )}
 
         {method === 'CASH' && (
-          <Field label={t('opsFix.walkIn.cashReceived')} htmlFor="wi-cash">
-            <Input
-              id="wi-cash"
-              value={cash}
-              onChange={(e) => setCash(e.target.value)}
-              inputMode="numeric"
-              placeholder={t('opsFix.walkIn.cashPlaceholder')}
-            />
-          </Field>
-        )}
-        {method === 'CASH' && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">{t('opsFix.walkIn.change')}</span>
-            <span className={change < 0 ? 'font-bold text-red-600' : 'font-bold'}>
-              <Money amount={Math.max(0, change)} />
-            </span>
-          </div>
+          <>
+            {/*
+              K3.6: the same three controls the courier's COD screen already has, on the
+              screen that takes more cash than it does. Sanitising as it is typed matches
+              both other cash-taking screens; the notes and "uang pas" are copied from
+              driver/deliveries/detail/pay, which does this job better than the till did.
+            */}
+            <Field
+              label={t('opsFix.walkIn.cashReceived')}
+              htmlFor="wi-cash"
+              error={short ? t('opsFix.walkIn.cashShort', { amount: formatIDR(-change) }) : undefined}
+            >
+              <Input
+                id="wi-cash"
+                value={cash}
+                onChange={(e) => setCash(e.target.value.replace(/[^0-9]/g, ''))}
+                inputMode="numeric"
+                placeholder={t('opsFix.walkIn.cashPlaceholder')}
+              />
+            </Field>
+            {total !== null && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCash(String(total))}
+                  className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
+                >
+                  {t('opsFix.walkIn.exactCash')}
+                </button>
+                {NOTES.filter((n) => n >= total).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCash(String(n))}
+                    className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold tabular-nums"
+                  >
+                    {n.toLocaleString('id-ID')}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">
+                {short ? t('opsFix.walkIn.stillShort') : t('opsFix.walkIn.change')}
+              </span>
+              <span className={short ? 'font-bold text-red-600' : 'font-bold'}>
+                {/*
+                  Was `Math.max(0, change)`: a short payment printed "Rp 0" in red and
+                  never said how much more to ask for — the one number the cashier is
+                  standing there needing. Now the shortfall is the number shown.
+                */}
+                <Money amount={Math.abs(change)} />
+              </span>
+            </div>
+          </>
         )}
 
         <Button
