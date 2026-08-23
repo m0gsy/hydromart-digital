@@ -39,6 +39,7 @@ import {
 import {
   OrderStatus,
   canTransition,
+  hasBeenDispatched,
   isCancellable,
 
   isVoidableInShift,
@@ -1337,7 +1338,10 @@ export class OrderService {
     authorization = '',
   ): Promise<OrderRecord> {
     const order = await this.getForCustomer(customerId, orderId);
-    if (!isCancellable(order.status)) {
+    // K2.4: the status alone is not the window. A rescheduled order sits on PREPARING
+    // again, and BR-006 would hand the customer back a right that ended when the goods
+    // left the depot — releasing stock that has physically moved.
+    if (!isCancellable(order.status) || hasBeenDispatched(order.history)) {
       throw new OrderNotCancellableError(order.status);
     }
     const cancelled = await this.orders.applyStatus(

@@ -120,3 +120,40 @@ describe('H10 — the window in which an order can still be cancelled', () => {
     expect(screen.queryByText(/kurir sudah ditugaskan|courier has been assigned/i)).toBeNull();
   });
 });
+
+/*
+ * K2.4 — the window REOPENS after a failed attempt. A reschedule hands the order back to
+ * the dispatch queue on PREPARING, and BR-006 reads the status alone: an order whose goods
+ * already left the depot, rode around and came back offers its cancel button again — and
+ * cancelling releases a stock hold on goods that have physically moved.
+ */
+describe('K2.4 · a second attempt does not reopen the cancel window', () => {
+  const withHistory = (status: string, history: string[]) => {
+    get.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('/orders/o-1'))
+        return Promise.resolve({
+          ...order(status),
+          history: history.map((s, i) => ({ status: s, note: null, createdAt: `2026-08-2${i}T03:00:00.000Z` })),
+        });
+      if (p.includes('/contact')) return Promise.resolve({ name: 'Depot Kemang', contactPhone: '081298765432' });
+      if (p.includes('/payment-info')) return Promise.resolve(null);
+      if (p.includes('/payments')) return Promise.resolve({ items: [], total: 0 });
+      return Promise.resolve(null);
+    });
+  };
+
+  it('still offers cancel on an order that never left the depot', async () => {
+    withHistory('PREPARING', ['CREATED', 'CONFIRMED', 'PREPARING']);
+    renderPage();
+    expect(await screen.findByRole('button', { name: /batalkan/i })).toBeTruthy();
+  });
+
+  it('withholds it once the order has been out with a courier, even back on PREPARING', async () => {
+    withHistory('PREPARING', ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'ON_DELIVERY', 'PREPARING']);
+    renderPage();
+    // The depot line — the one H10 added for exactly this situation — takes its place.
+    await screen.findAllByText(/depot/i);
+    expect(screen.queryByRole('button', { name: /batalkan/i })).toBeNull();
+  });
+});
