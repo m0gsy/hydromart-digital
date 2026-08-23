@@ -40,6 +40,14 @@ export interface NotificationRepository {
   /** Append a notification audit row. */
   record(data: RecordNotificationData): Promise<NotificationRecord>;
 
+  /**
+   * K5.4: the delivery this row promised did not happen. Called after the fire-and-forget
+   * push chain settles, so the row exists first and the customer's inbox never waits on a
+   * transport. A row nobody can find any more is not an error worth raising — the message
+   * is still readable in the app either way.
+   */
+  markFailed(id: string, error: string): Promise<void>;
+
   /** A customer's own notification feed, newest first (backed by @@index([customerId, createdAt])). */
   listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]>;
 

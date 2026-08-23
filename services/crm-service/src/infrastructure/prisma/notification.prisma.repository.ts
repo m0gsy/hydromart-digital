@@ -55,6 +55,17 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return this.toRecord(row);
   }
 
+  async markFailed(id: string, error: string): Promise<void> {
+    // `updateMany` rather than `update`: a retention purge can delete the row between the
+    // write and the push settling, and a rejected promise there would land in a `.catch`
+    // that only logs — noise about a row nobody has any more.
+    await this.prisma.notification.updateMany({
+      where: { id },
+      // Truncated: the column is for a human reading a feed, not for a stack trace.
+      data: { status: 'FAILED' as unknown as PrismaNotificationStatus, error: error.slice(0, 500) },
+    });
+  }
+
   async listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]> {
     const rows = await this.prisma.notification.findMany({
       where: { customerId },

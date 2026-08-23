@@ -385,3 +385,68 @@ describe('recorded destination', () => {
     expect(repo.records[0].destination).toBeNull();
   });
 });
+
+/*
+ * K5.4 — every notification row is written SENT with a null error, whatever happened to the
+ * delivery. The push fan-out is fire-and-forget (F1, deliberately: transport must never
+ * block a committed notification), and its failure only ever reached a log line reading
+ * "skipped". So `FAILED` and the `error` column have never been written by anything, on any
+ * row, ever: two columns that exist to say a message did not arrive, and cannot.
+ *
+ * The record still gets written either way — muting or losing push is not losing the row.
+ * What changes is that the row stops CLAIMING delivery it never had.
+ */
+describe('a failed push is recorded, not just logged', () => {
+  class ExplodingPush {
+    async sendToCustomer(): Promise<void> {
+      throw new Error('FCM 502');
+    }
+  }
+
+  it('marks the row FAILED with the reason when the push throws', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo, new ExplodingPush() as unknown as PushService);
+    const rec = await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '+62800',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    // The write is synchronous with the call; the push settles after it.
+    await new Promise((r) => setImmediate(r));
+    const stored = repo.records.find((r) => r.id === rec.id);
+    expect(stored?.status).toBe(NotificationStatus.FAILED);
+    expect(stored?.error).toContain('FCM 502');
+    // The message itself is still there to read in the app.
+    expect(stored?.message).toContain('Budi');
+  });
+
+  it('leaves a delivered one SENT with no error', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo, new FakePush() as unknown as PushService);
+    const rec = await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '+62800',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    await new Promise((r) => setImmediate(r));
+    const stored = repo.records.find((r) => r.id === rec.id);
+    expect(stored?.status).toBe(NotificationStatus.SENT);
+    expect(stored?.error).toBeNull();
+  });
+
+  it('does not invent a failure for a row that never had a push to make', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo, new ExplodingPush() as unknown as PushService);
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', {
+      depot: 'D',
+      item: 'G',
+      quantity: '1',
+      minimum: '5',
+    });
+    await new Promise((r) => setImmediate(r));
+    expect(repo.records[0].status).toBe(NotificationStatus.SENT);
+    expect(repo.records[0].error).toBeNull();
+  });
+});

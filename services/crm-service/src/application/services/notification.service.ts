@@ -110,34 +110,18 @@ export class NotificationService {
     depotId: string | null = null,
   ): Promise<NotificationRecord> {
     const message = renderMessage(templateFor(event), vars);
-    // Best-effort Web Push to the customer's registered devices. Fire-and-forget: push
-    // transport must never block or fail an already-committed notification.
-    //
-    // F1: the preference read joins the same fire-and-forget chain rather than being
-    // awaited before it. Awaiting would put a cross-service round-trip in front of every
-    // notification write — including the ones with no customer to push to — to decide
-    // something that is best-effort anyway. The port fails open, so an outage costs an
-    // unwanted push, never a missing order update. The inbox row below is written either
-    // way: muting push is not muting the record.
-    if (customerId) {
-      void this.pushAllowedFor(customerId)
-        .then((allowed) =>
-          allowed
-            ? this.push.sendToCustomer(customerId, {
-                title: 'Hydromart',
-                body: message,
-                url: destinationFor(event, vars),
-              })
-            : undefined,
-        )
-        .catch((e) => this.logger.warn(`Push for ${event} failed: ${(e as Error).message}`));
-    } else if (depotId && OPS_EVENTS.includes(event)) {
-      // No customer to push to, but a depot whose staff this is for. The preference check
-      // above is deliberately NOT applied: it is a customer's mute on their own order
-      // updates, not a staff member's opt-out from an incident at the depot they work at.
-      this.pushToDepotStaff(event, message, depotId, vars);
-    }
-    return this.repo.record({
+    /*
+     * The row first, the transport after — the reverse of how this used to read.
+     *
+     * F1 keeps the push fire-and-forget: transport must never block or fail an
+     * already-committed notification, and the preference read must not put a cross-service
+     * round trip in front of every write. That is unchanged. What changes (K5.4) is that
+     * the row is written BEFORE the push is fired, so the chain has an id to come back to
+     * — and a push that dies stops being a log line reading "skipped" on a row that claims
+     * it was sent. Until this, nothing in the system had ever written FAILED or filled the
+     * `error` column: two columns whose whole job is to say a message did not arrive.
+     */
+    const record = await this.repo.record({
       event,
       customerId,
       phone,
@@ -149,6 +133,39 @@ export class NotificationService {
       // written since this release already carries its destination.
       destination: storedDestinationFor(event, vars),
     });
+
+    const failed = (e: unknown) => {
+      const reason = (e as Error).message;
+      this.logger.warn(`Push for ${event} failed: ${reason}`);
+      // Fail-soft on the bookkeeping too: if THIS write dies the message is still in the
+      // customer's inbox, and an unhandled rejection here would be a second outage on top
+      // of the first.
+      void this.repo
+        .markFailed(record.id, reason)
+        .catch((err) => this.logger.warn(`could not mark ${record.id} failed: ${(err as Error).message}`));
+    };
+
+    if (customerId) {
+      void this.pushAllowedFor(customerId)
+        .then((allowed) =>
+          allowed
+            ? this.push.sendToCustomer(customerId, {
+                title: 'Hydromart',
+                body: message,
+                url: destinationFor(event, vars),
+              })
+            : undefined,
+        )
+        // A customer who muted push has not suffered a failed delivery — `pushAllowedFor`
+        // resolves, nothing is sent, and the row stays SENT. Only a throw lands here.
+        .catch(failed);
+    } else if (depotId && OPS_EVENTS.includes(event)) {
+      // No customer to push to, but a depot whose staff this is for. The preference check
+      // above is deliberately NOT applied: it is a customer's mute on their own order
+      // updates, not a staff member's opt-out from an incident at the depot they work at.
+      this.pushToDepotStaff(event, message, depotId, vars);
+    }
+    return record;
   }
 
   /** A customer's own notification inbox, newest first. */
