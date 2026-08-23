@@ -65,6 +65,9 @@ export class NotificationDto {
   status!: NotificationStatus;
   @ApiProperty({ nullable: true })
   error!: string | null;
+  /** O1: the in-app screen a tap opens, or null when this row opens nothing. */
+  @ApiProperty({ nullable: true })
+  destination!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
@@ -77,6 +80,7 @@ export class NotificationDto {
       message: record.message,
       status: record.status,
       error: record.error,
+      destination: record.destination,
       createdAt: record.createdAt,
     };
   }
