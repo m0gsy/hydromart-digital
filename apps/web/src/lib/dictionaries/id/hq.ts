@@ -255,6 +255,7 @@ export const hq = {
       forecast: 'Perkiraan permintaan',
       churn: 'Risiko churn',
       paymentSettle: 'Konfirmasi pembayaran',
+      paymentRead: 'Lihat pembayaran pesanan',
       courierPayout: 'Dompet & klaim kurir',
       courierSettle: 'Setoran COD kurir',
       courierReturn: 'Retur galon di pelanggan',

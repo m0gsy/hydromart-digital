@@ -37,6 +37,7 @@ export const ops = {
     campaign: 'Campaign',
     vouchers: 'Voucher',
     churn: 'Risiko churn',
+    resellers: 'Reseller / Agen',
     payout: 'Payout & komisi',
     settlements: 'Setoran COD',
     expenseClaims: 'Klaim pengeluaran',

@@ -28,6 +28,7 @@ import {
   GearSix,
   MagnifyingGlass,
   MapPin,
+  Handshake,
   Megaphone,
   Package,
   QrCode,
@@ -90,6 +91,7 @@ import {
   can,
   isHq,
   isStaff,
+  canViewResellers,
 } from '@/lib/roles';
 
 type Role = string | null | undefined;
@@ -164,6 +166,13 @@ export const GROUPS: RailGroup[] = [
       { href: '/dashboard/campaigns', labelKey: 'campaign', icon: ChatCircleText, show: canViewCampaigns },
       { href: '/dashboard/vouchers', labelKey: 'vouchers', icon: Ticket, show: canViewVouchers },
       { href: '/dashboard/churn', labelKey: 'churn', icon: UsersThree, show: canViewChurn },
+      /*
+       * J10: the agen registry had no door for the role that owns it. `/resellers` was
+       * linked from the HQ rail only — a rail a depot manager never sees — while the
+       * capability that opens the screen (`resellerView`) is theirs. Reachable by typing
+       * the URL is the same as not existing.
+       */
+      { href: '/resellers', labelKey: 'resellers', icon: Handshake, show: canViewResellers },
     ],
   },
   {

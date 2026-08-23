@@ -35,6 +35,7 @@ export const ops = {
     campaign: 'Campaigns',
     vouchers: 'Vouchers',
     churn: 'Churn risk',
+    resellers: 'Resellers',
     payout: 'Payout & commission',
     settlements: 'COD settlements',
     expenseClaims: 'Expense claims',

@@ -231,7 +231,9 @@ export class PaymentController {
   // static 'for-order' segment wins. Not customer-scoped (staff act across customers).
   @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get('for-order/:orderId')
-  @Can('paymentSettle')
+  // J9: reading is not settling. `paymentSettle` 403'd the SUPERVISOR and
+  // ASSISTANT_SUPERVISOR that `orderQueue` had already let into the screen this serves.
+  @Can('paymentRead')
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
   listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
     return this.payments.listAll({ orderId, limit: 20 });

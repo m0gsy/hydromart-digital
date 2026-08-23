@@ -156,6 +156,7 @@ export const dashC = {
       forecast: 'Perencanaan / forecast',
       churn: 'Churn & re-engagement',
       paymentSettle: 'Konfirmasi pembayaran',
+      paymentRead: 'Lihat pembayaran pesanan',
       courierPayout: 'Penghasilan kurir (milik sendiri)',
       courierSettle: 'Setoran COD kurir',
       expenseApprove: 'Setujui klaim biaya',
