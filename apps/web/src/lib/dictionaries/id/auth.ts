@@ -48,6 +48,8 @@ export const auth = {
     resendIn: 'Kirim ulang dalam {n}d',
     resend: 'Kirim ulang kode',
     sentTo: 'Kode baru dikirim ke {phone}.',
+    validFor: 'Kode berlaku {time} lagi.',
+    expired: 'Kode kedaluwarsa. Minta kode baru.',
     error: 'Verifikasi gagal.',
     resendError: 'Tidak bisa mengirim ulang kode.',
     back: 'Kembali ke masuk',

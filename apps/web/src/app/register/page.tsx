@@ -55,6 +55,8 @@ function RegisterForm() {
       if (referral.trim()) onward.set('ref', referral.trim());
       // E4: the server's cooldown, carried so /verify counts the same seconds it does.
       if (challenge.resendCooldownSeconds) onward.set('cd', String(challenge.resendCooldownSeconds));
+      // K1.1: the code's lifetime, so /verify can count it down and say so when it ends.
+      if (challenge.expiresInSeconds) onward.set('exp', String(challenge.expiresInSeconds));
       router.push(`/verify?${onward.toString()}`);
     } catch (err) {
       // E8: the other half of one door — a number that already has an account belongs on

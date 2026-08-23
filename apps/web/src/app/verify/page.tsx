@@ -26,6 +26,9 @@ import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 const RESEND_SECONDS = 60;
 const OTP_LENGTH = 6;
 
+/** m:ss — a bare second count reads as a code, which is the one thing this screen is full of. */
+const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
 function VerifyForm() {
   const { t } = useT();
   const router = useRouter();
@@ -42,6 +45,14 @@ function VerifyForm() {
   const referral = params.get('ref')?.trim() ?? '';
   // E4: the cooldown the server just told /login or /register it was enforcing.
   const issuedCooldown = Number(params.get('cd'));
+  /*
+   * K1.1: how long the code the previous screen just triggered will live. The server has
+   * always answered with it and both screens threw it away, so this screen could say
+   * nothing about the code's life until a guess came back rejected. Absent (an old link,
+   * a screen that has not been updated) means no countdown at all — an invented one would
+   * be a second number that can disagree with the server, which is the bug E4 fixed.
+   */
+  const issuedLifetime = Number(params.get('exp'));
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -60,8 +71,18 @@ function VerifyForm() {
    * own message asks for.
    */
   const [spent, setSpent] = useState(false);
+  // Seconds of life left in the current code, or null when nobody told us.
+  const [lifetime, setLifetime] = useState<number | null>(
+    Number.isFinite(issuedLifetime) && issuedLifetime > 0 ? issuedLifetime : null,
+  );
+  const expired = lifetime === 0;
 
-  const counting = cooldown > 0;
+  const counting = cooldown > 0 && !expired;
+  useEffect(() => {
+    if (lifetime === null || lifetime <= 0) return;
+    const id = setInterval(() => setLifetime((s) => (s === null ? null : Math.max(0, s - 1))), 1000);
+    return () => clearInterval(id);
+  }, [lifetime]);
   useEffect(() => {
     if (!counting) return;
     const id = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
@@ -110,13 +131,38 @@ function VerifyForm() {
       setSpent(false);
       setCode('');
       setCooldown(challenge.resendCooldownSeconds ?? RESEND_SECONDS);
+      // A fresh code is a fresh life. Null stays null: a server that does not answer with
+      // one leaves this screen exactly as it behaved before K1.1.
+      setLifetime(challenge.expiresInSeconds || null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.resendError'));
     }
   }
 
+  /*
+   * K1.8: a link opened without a number used to be one grey sentence telling the visitor
+   * to start again from the sign-in screen, on a screen with no app chrome and no control
+   * of any kind — so the only way to take that advice was to know the URL. The sentence
+   * now comes with the door it names.
+   */
   if (!phone) {
-    return <p className="text-center text-sm text-muted">{t('auth.verify.noPhone')}</p>;
+    return (
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        <span
+          className="flex items-center justify-center rounded-[16px] bg-brand-50"
+          style={{ width: 56, height: 56 }}
+        >
+          <ChatCircleDots size={28} weight="fill" className="text-brand-600" />
+        </span>
+        <p className="text-sm text-muted">{t('auth.verify.noPhone')}</p>
+        <Link
+          href="/login"
+          className="flex h-[52px] w-full max-w-[320px] items-center justify-center rounded-[14px] bg-brand-600 text-[15px] font-extrabold text-on-brand transition-colors hover:bg-brand-700"
+        >
+          {t('auth.verify.back')}
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -156,8 +202,18 @@ function VerifyForm() {
         }}
         className="flex flex-col gap-4"
       >
-        <OtpInput value={code} onChange={setCode} length={OTP_LENGTH} disabled={loading || spent} autoFocus onComplete={verify} />
+        <OtpInput value={code} onChange={setCode} length={OTP_LENGTH} disabled={loading || spent || expired} autoFocus onComplete={verify} />
 
+        {lifetime !== null &&
+          (expired ? (
+            <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="status">
+              {t('auth.verify.expired')}
+            </p>
+          ) : (
+            <p className="text-center text-[12.5px] text-muted">
+              {t('auth.verify.validFor', { time: mmss(lifetime) })}
+            </p>
+          ))}
         {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
         {error && (
           <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -168,7 +224,7 @@ function VerifyForm() {
         <Button
           type="submit"
           loading={loading}
-          disabled={spent}
+          disabled={spent || expired}
           className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
         >
           {t('auth.verify.submit')}
