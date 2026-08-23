@@ -229,6 +229,19 @@ export class PaymentController {
 
   // Staff: read an order's payments to confirm receipt. Declared before ':id' so the
   // static 'for-order' segment wins. Not customer-scoped (staff act across customers).
+  /*
+   * O5: which methods this deployment can take. Declared before ':id' so the static
+   * segment wins, and public: the checkout screen asks before anyone has an order, and the
+   * answer is a property of the platform's configuration, not of a customer.
+   */
+  @ApiOkResponse({ description: 'Payment methods this deployment can accept.' })
+  @Public()
+  @Get('methods')
+  @ApiOperation({ summary: 'Which payment methods are available' })
+  methods(): Record<string, boolean> {
+    return this.payments.availableMethods();
+  }
+
   @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get('for-order/:orderId')
   // J9: reading is not settling. `paymentSettle` 403'd the SUPERVISOR and

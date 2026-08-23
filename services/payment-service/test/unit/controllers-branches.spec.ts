@@ -35,12 +35,21 @@ describe('PaymentController', () => {
     approveRefund: jest.fn(),
     rejectRefund: jest.fn(),
     handleWebhook: jest.fn(),
+    availableMethods: jest.fn(),
   };
   const controller = new PaymentController(svc as unknown as PaymentService);
 
   beforeEach(() => {
     jest.clearAllMocks();
     Object.values(svc).forEach((fn) => fn.mockResolvedValue('RESULT'));
+  });
+
+  // O5: the screen needs one answer to "which methods can this take", and there was no
+  // endpoint that could give it — so it offered all five and let two fail at the gateway.
+  it('answers which payment methods are available', () => {
+    svc.availableMethods.mockReturnValue({ CASH: true, TRANSFER: true, QRIS: true, EWALLET: false, VA: false });
+    expect(controller.methods()).toMatchObject({ EWALLET: false, VA: false });
+    expect(svc.availableMethods).toHaveBeenCalled();
   });
 
   it('initiate forwards the customer id + dto', async () => {

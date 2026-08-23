@@ -14,6 +14,22 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string; hint: strin
 ];
 
 /**
+ * O5: keep only the methods this deployment can take.
+ *
+ * E-wallet and virtual account are the only ones that go through a gateway, and no gateway
+ * is configured in production — so both were buttons that could only fail, after the
+ * customer had already chosen how to pay. A missing answer (the read failed, or an older
+ * gateway that does not carry the route) hides them too: a method that cannot be offered is
+ * a smaller loss than one that cannot work, and the other three take every real payment
+ * this business receives today.
+ */
+export function offeredMethods(available: Record<string, boolean> | null): typeof PAYMENT_METHODS {
+  return PAYMENT_METHODS.filter((m) =>
+    available ? available[m.value] === true : m.value !== 'EWALLET' && m.value !== 'VA',
+  );
+}
+
+/**
  * Whether an order still needs a payment initiated. True when the order is not
  * cancelled and there is no active (PENDING/PAID) payment — i.e. no payment yet,
  * or the last attempt FAILED/was CANCELLED. payment-service also enforces the

@@ -45,6 +45,13 @@ const charge = (): ChargeRequest =>
   }) as unknown as ChargeRequest;
 
 describe('PaymentGatewayHttpAdapter', () => {
+  // O5: the adapter is the thing holding the URL, so it is the thing that knows whether a
+  // charge is possible at all. Production answers false — the variable is empty there.
+  it('isConfigured follows the base URL', () => {
+    expect(new PaymentGatewayHttpAdapter(makeConfig()).isConfigured()).toBe(true);
+    expect(new PaymentGatewayHttpAdapter(makeConfig({ gatewayBaseUrl: '' })).isConfigured()).toBe(false);
+  });
+
   it('createCharge: posts to /charges and parses reference + instruction', async () => {
     fetchMock.mockResolvedValue(res({ body: { reference: 'REF-1', instruction: 'Pay at BCA' } }));
     const out = await new PaymentGatewayHttpAdapter(makeConfig()).createCharge(charge());
