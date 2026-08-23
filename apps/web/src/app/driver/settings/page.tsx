@@ -6,8 +6,6 @@ import { ArrowLeft, BellRinging, ChatCircleText, DeviceMobile, type Icon, Info, 
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, Toggle } from '@/components/ui';
-import { api } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import {
   getPushState,
@@ -17,11 +15,20 @@ import {
   unsubscribeFromPush,
 } from '@/lib/push';
 import { type Theme, useTheme } from '@/lib/theme-context';
-import type { NotificationPreferences } from '@/lib/types';
 
-// Notification category mutes are persisted server-side (customer-service
-// /profile/notifications `categories` map), so they follow the account across devices.
-// A localStorage mirror keeps the toggles instant on next open before the fetch lands.
+/*
+ * K5.1: these switches are device-local, and that is now what the screen says.
+ *
+ * They used to be written to customer-service's `/profile/notifications` with the COURIER's
+ * account id — a customer preference row keyed by a staff account, in a table that holds
+ * one audience by design, read by nobody: staff pushes deliberately ignore a customer's own
+ * mutes. The endpoint is CUSTOMER-only now, so that call would 403 straight into a swallowed
+ * catch: a switch that says it saved and does not.
+ *
+ * Staff-wide preferences are their own piece of work (O6, which gives depot staff real
+ * notification settings). Until then this stores what it can actually keep — this device —
+ * and the screen states it rather than implying an account-wide setting.
+ */
 const PREF_KEY = 'hydromart_driver_notif_prefs';
 const NOTIF: { id: string; icon: Icon; def: boolean }[] = [
   { id: 'tasks', icon: Package, def: true },
@@ -63,28 +70,14 @@ function Settings() {
   };
 
   useEffect(() => {
-    // Local mirror first (instant), then reconcile with the server's stored categories.
     const raw = localStorage.getItem(PREF_KEY);
     if (raw) setPrefs((p) => ({ ...p, ...(JSON.parse(raw) as Record<string, boolean>) }));
-    api
-      .get<NotificationPreferences>(endpoints.preferences.notifications, true)
-      .then((res) => {
-        if (res.categories && Object.keys(res.categories).length > 0) {
-          setPrefs((p) => ({ ...p, ...res.categories }));
-          localStorage.setItem(PREF_KEY, JSON.stringify({ ...res.categories }));
-        }
-      })
-      .catch(() => {
-        /* offline / not reachable — keep the local mirror */
-      });
   }, []);
 
   const set = (id: string, on: boolean) => {
     const next = { ...prefs, [id]: on };
     setPrefs(next);
     localStorage.setItem(PREF_KEY, JSON.stringify(next));
-    // Persist just this category; the backend merges it over the stored map.
-    void api.patch(endpoints.preferences.notifications, { categories: { [id]: on } }, true).catch(() => {});
   };
 
   return (
@@ -103,6 +96,8 @@ function Settings() {
       <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
         {t('driver.settings.notifSection')}
       </div>
+      {/* K5.1: says what these switches can actually keep — this device, not the account. */}
+      <p className="px-1 text-[11px] text-[color:var(--muted)]">{t('driver.settings.notifScope')}</p>
       {pushSupported() && (
         <Card className="p-0">
           <div className="flex items-center gap-3 px-4 py-3.5">

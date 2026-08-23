@@ -144,6 +144,16 @@ export class ProfileController {
     return this.profiles.runBirthdayRewards(authorization);
   }
 
+  /*
+   * K5.1: CUSTOMER only, and it was nobody-in-particular before.
+   *
+   * This writes `user.sub` into the CUSTOMER preference table, so a courier toggling a
+   * switch in the driver app minted a customer-preference row keyed by a staff account —
+   * rows nothing reads (staff pushes deliberately ignore a customer's own mutes, F8) in a
+   * table that holds one audience by design. Staff preferences are their own piece of work
+   * (O6); until then the guard says who this belongs to.
+   */
+  @Roles(Role.CUSTOMER)
   @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   @Get('profile/notifications')
   @ApiOperation({ summary: 'Get my notification preferences' })
@@ -151,6 +161,7 @@ export class ProfileController {
     return this.notifications.get(user.sub);
   }
 
+  @Roles(Role.CUSTOMER)
   @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   @Patch('profile/notifications')
   @ApiOperation({ summary: 'Update my notification preferences' })

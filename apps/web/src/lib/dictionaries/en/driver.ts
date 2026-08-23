@@ -212,6 +212,7 @@ export const driver = {
   settings: {
     title: 'Settings',
     notifSection: 'Notifications',
+    notifScope: 'These switches apply to this device only.',
     pushLabel: 'Push on this device',
     pushDenied: 'Permission blocked — enable it in your browser settings',
     pushHint: 'Receive notifications even when the app is closed',
