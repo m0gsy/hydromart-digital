@@ -101,6 +101,9 @@ beforeEach(() => {
   get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('/inventory')) return stockLines(stockAvailable);
     if (path.includes('/orders/manage')) return { items: recentSales, total: recentSales.length, page: 1, limit: 8 };
+    // K3.5: the till now asks for the ids its own stock list names, so this answers the
+    // batch route with an array rather than a page of the global catalogue.
+    if (path.includes('/products/batch')) return [PRODUCT];
     if (path.includes('/products')) return { items: [PRODUCT], total: 1, page: 1, limit: 100 };
     return [];
   });
