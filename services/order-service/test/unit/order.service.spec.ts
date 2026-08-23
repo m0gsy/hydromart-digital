@@ -572,6 +572,70 @@ describe('OrderService', () => {
       expect(inventory.releaseCalls[0].orderId).not.toBe(a.id);
     });
 
+    /*
+     * K2.5 — the loser of the race has ALREADY burned the voucher.
+     *
+     * `reserveThenCreate` burns before it writes the row (B-6: a burn that fails must abort
+     * the checkout rather than hand out an unpaid discount), against an id it generated so
+     * stock could be held. When the unique index picks the other tap as the winner, that id
+     * never becomes an order — but the redemption against it stands. The voucher is spent,
+     * on an order number that does not exist, and neither the customer nor support can see
+     * where it went. Documented in the code for months, never fixed.
+     */
+    it('hands the voucher back when its tap loses the race (K2.5)', async () => {
+      await addToCart(20000, 2);
+      promo.quoteDiscount = 5000;
+
+      const [a, b] = await Promise.all([
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+      ]);
+
+      expect(orders.rows).toHaveLength(1);
+      expect(a.id).toBe(b.id);
+      // Both taps burned it; exactly the one that produced no order gives it back.
+      expect(promo.redeemCalls).toHaveLength(2);
+      expect(promo.releaseCalls).toHaveLength(1);
+      expect(promo.releaseCalls[0]).not.toBe(a.id);
+      expect(promo.redeemCalls.map((r) => r.orderId)).toContain(promo.releaseCalls[0]);
+    });
+
+    it('hands it back when the winner cannot be read back either', async () => {
+      await addToCart(20000, 2);
+      promo.quoteDiscount = 5000;
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValue(null);
+      jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+      ).rejects.toBeInstanceOf(DuplicateCheckoutError);
+      expect(promo.releaseCalls).toHaveLength(1);
+    });
+
+    it('lets the checkout fail with its own reason when handing the voucher back also fails', async () => {
+      await addToCart(20000, 2);
+      promo.quoteDiscount = 5000;
+      promo.releaseError = new Error('promo-service down');
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValue(null);
+      jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
+
+      // Fail-open: the caller sees why their checkout failed, never a second failure on
+      // the way out. (The voucher stays burned in that case — a stuck redemption is worse
+      // reported than a wrong error, and promo-service being down is its own alert.)
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+      ).rejects.toBeInstanceOf(DuplicateCheckoutError);
+    });
+
+    it('releases nothing when no voucher was in play', async () => {
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ).rejects.toBeInstanceOf(DuplicateCheckoutError);
+      expect(promo.releaseCalls).toHaveLength(0);
+    });
+
     it('still places separate orders when no key is sent', async () => {
       await addToCart(20000, 2);
       await service.checkout(customer, { deliveryAddress: address });

@@ -1552,9 +1552,11 @@ export class OrderService {
     const id = randomUUID();
     const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
     await this.inventory.reserve(depotId, id, lines, authorization);
+    let burned = false;
     try {
       if (burnVoucher) {
         await burnVoucher(id);
+        burned = true;
       }
       return await this.orders.create({
         ...data,
@@ -1567,6 +1569,23 @@ export class OrderService {
       // Fail-open like every other inventory call: what the caller must see is why the
       // order could not be written, never a release that also failed on the way out.
       await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      /*
+       * K2.5: the same is true of the voucher, and for far longer. The burn happens BEFORE
+       * the row is written (B-6, deliberately: a burn that fails must abort the checkout
+       * rather than hand out an unpaid discount) against an id generated here so stock
+       * could be held. When the write loses the unique-index race — a double-tapped Bayar
+       * — that id never becomes an order, and the redemption against it stood anyway: the
+       * voucher spent on an order number that does not exist, invisible to the customer
+       * and to support alike.
+       *
+       * `release` fails OPEN, exactly as it does on a counter void: what the caller must
+       * see is why their checkout failed, never a second failure on the way out. A hold
+       * this attempt never took is not released either — `burned` says whether there is
+       * anything to hand back.
+       */
+      if (burned) {
+        await this.promo.release(id).catch(() => {});
+      }
       // B-13, the in-flight half: two taps got past the pre-check together and the unique
       // index picked a winner. The loser has just handed its stock back and now answers
       // with the winner's order — one order, one hold, which is what the customer expects
