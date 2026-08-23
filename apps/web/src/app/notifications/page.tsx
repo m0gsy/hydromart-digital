@@ -16,7 +16,11 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
+import Link from 'next/link';
+
 import { useRouter } from 'next/navigation';
+
+import { resolveDeepLink } from '@/lib/deep-link';
 
 import { RequireAuth } from '@/components/require-auth';
 import { CenterState, ErrorState, Skeleton, Spinner } from '@/components/ui';
@@ -115,13 +119,28 @@ function Feed() {
               const style = EVENT_STYLE[n.event] ?? FALLBACK_STYLE;
               const Ic = style.icon;
               const unread = n.createdAt > lastSeen;
-              return (
-                <div
-                  key={n.id}
-                  className={`flex items-start gap-3 rounded-[14px] border border-app px-3.5 py-[13px] ${
-                    unread ? 'bg-brand-50/40' : 'surface'
-                  }`}
-                >
+              /*
+               * O1b: the row opens what the message is about. Two guards, because the
+               * column is a server-written string and an href is not a tap:
+               *  - an absolute URL is refused outright. `resolveDeepLink` strips the origin
+               *    and hands back the path, which is right for a tap and wrong for a link.
+               *  - `/` is refused unless the row actually asked for `/`. That is what the
+               *    resolver answers for a route this binary does not carry, and a row about
+               *    an order must not quietly become a link to the home screen.
+               * Anything left is a route this app serves; anything else stays plain text,
+               * because an affordance that leads nowhere is worse than none.
+               */
+              const internal =
+                n.destination && n.destination.startsWith('/') && !n.destination.startsWith('//')
+                  ? n.destination
+                  : null;
+              const resolved = internal ? resolveDeepLink(internal) : null;
+              const href = resolved === '/' && internal !== '/' ? null : resolved;
+              const className = `flex items-start gap-3 rounded-[14px] border border-app px-3.5 py-[13px] ${
+                unread ? 'bg-brand-50/40' : 'surface'
+              }`;
+              const inner = (
+                <>
                   <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${style.bg}`}>
                     <Ic size={19} weight="fill" className={style.fg} />
                   </span>
@@ -131,6 +150,15 @@ function Feed() {
                     <div className="mt-1.5 text-[10.5px] text-muted">{formatDateTime(n.createdAt)}</div>
                   </div>
                   {unread && <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-brand-600" />}
+                </>
+              );
+              return href ? (
+                <Link key={n.id} href={href} className={`${className} transition-colors hover:bg-brand-50`}>
+                  {inner}
+                </Link>
+              ) : (
+                <div key={n.id} className={className}>
+                  {inner}
                 </div>
               );
             })}

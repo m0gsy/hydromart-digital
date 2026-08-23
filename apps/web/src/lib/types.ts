@@ -631,6 +631,11 @@ export interface Notification {
   message: string;
   status: 'SENT' | 'FAILED';
   error: string | null;
+  /**
+   * O1: the in-app screen a tap on this row opens, or null when it opens nothing. Written
+   * by crm since the release before this one, so older rows carry null and stay plain text.
+   */
+  destination: string | null;
   createdAt: string;
 }
 
