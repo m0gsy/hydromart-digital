@@ -50,6 +50,8 @@ export const auth: typeof base = {
     resendIn: 'Resend in {n}s',
     resend: 'Resend code',
     sentTo: 'A new code was sent to {phone}.',
+    validFor: 'Code valid for another {time}.',
+    expired: 'Code expired. Request a new one.',
     error: 'Verification failed.',
     resendError: 'Could not resend the code.',
     back: 'Back to sign-in',

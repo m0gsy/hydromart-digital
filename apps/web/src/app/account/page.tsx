@@ -616,9 +616,15 @@ export default function AccountPage() {
    */
   const { location } = useLocation();
   const depotId = location?.depotId ?? null;
+  /*
+   * K1.3: a staff account has no loyalty account — the read answered for nobody and its
+   * tier decorated a screen that should not have been showing shop rows in the first
+   * place. `null` keeps `useAsync` from firing at all rather than firing and discarding.
+   */
+  const staff = isStaff(customer?.role);
   const { data: loyalty } = useAsync<LoyaltyAccount>(
-    () => api.get(endpoints.loyalty.me(depotId), true),
-    [depotId],
+    () => (staff ? Promise.resolve(null as never) : api.get(endpoints.loyalty.me(depotId), true)),
+    [depotId, staff],
   );
   const [sheet, setSheet] = useState<SheetKey | null>(null);
 
@@ -664,7 +670,13 @@ export default function AccountPage() {
 
   // One list, two presentations: rows below `lg:`, the sidebar above it. Two arrays would
   // drift the first time a destination is added.
-  const links = [
+  /*
+   * K1.3: two menus, not one. A courier or an operator was handed rewards, vouchers,
+   * favourites, subscriptions, referral and the franchise application — none of which a
+   * staff account can use — while the one row they came for sat at the bottom. Everything
+   * in `shopLinks` belongs to a shopping account; everything below it belongs to anyone.
+   */
+  const shopLinks = [
     { href: '/orders', label: t('account.nav.orders'), icon: Receipt },
     { href: '/addresses', label: t('account.nav.addresses'), icon: MapPin },
     { href: '/rewards', label: t('account.nav.rewards'), icon: Medal },
@@ -672,8 +684,6 @@ export default function AccountPage() {
     { href: '/favorites', label: t('account.nav.favorites'), icon: Heart },
     { href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise },
     { href: '/referral', label: t('account.nav.referral'), icon: Gift },
-    { href: '/notifications', label: t('notifications.title'), icon: Bell },
-    { href: '/help', label: t('help.title'), icon: Headset },
     /*
      * H3. `/waralaba` is a real franchise application form whose only way in was the
      * desktop footer — `hidden ... sm:block` — so on a phone, and therefore inside both
@@ -681,6 +691,13 @@ export default function AccountPage() {
      * moved here for exactly this reason; this one was missed.
      */
     { href: '/waralaba', label: t('franchise.navLabel'), icon: Storefront },
+  ];
+  const links = [
+    ...(showOps ? [] : shopLinks),
+    // Both audiences keep these: a staff member needs the depot's number and their own
+    // notification inbox exactly as much as a customer does.
+    { href: '/notifications', label: t('notifications.title'), icon: Bell },
+    { href: '/help', label: t('help.title'), icon: Headset },
     ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp }] : []),
   ];
 

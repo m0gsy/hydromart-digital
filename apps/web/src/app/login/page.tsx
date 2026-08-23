@@ -89,6 +89,10 @@ function LoginForm() {
       // E4: carry the server's own cooldown forward so /verify counts the same seconds
       // the server is enforcing, instead of its own guess.
       if (challenge.resendCooldownSeconds) params.set('cd', String(challenge.resendCooldownSeconds));
+      // K1.1: and the code's own lifetime with it. The server has always answered with
+      // `expiresInSeconds`; both screens dropped it, so /verify could not say the code
+      // was about to die and could not tell a dead one from an unlucky one before a guess.
+      if (challenge.expiresInSeconds) params.set('exp', String(challenge.expiresInSeconds));
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       // E8: one door. An unknown number used to stop here on a 404 — which since E6 at
