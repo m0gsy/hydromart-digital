@@ -24,6 +24,9 @@ export const profile = {
       pct: 'Diskon {pct}%',
       minSpend: 'Min. belanja {amount}',
       until: 's/d {date}',
+      copy: 'Salin',
+      copied: 'Tersalin',
+      use: 'Pakai',
       status: {
         AVAILABLE: 'Aktif',
         USED: 'Terpakai',
