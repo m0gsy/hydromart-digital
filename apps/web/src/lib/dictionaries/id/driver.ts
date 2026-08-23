@@ -213,6 +213,7 @@ export const driver = {
   settings: {
     title: 'Pengaturan',
     notifSection: 'Notifikasi',
+    notifScope: 'Pengaturan ini berlaku di perangkat ini saja.',
     pushLabel: 'Push di perangkat ini',
     pushDenied: 'Izin diblokir — aktifkan lewat setelan browser',
     pushHint: 'Terima notifikasi meski aplikasi tertutup',
