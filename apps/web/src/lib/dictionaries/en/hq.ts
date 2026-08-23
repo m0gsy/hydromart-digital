@@ -252,6 +252,7 @@ export const hq = {
       forecast: 'Demand forecast',
       churn: 'Churn risk',
       paymentSettle: 'Confirm payment',
+      paymentRead: 'View order payments',
       courierPayout: 'Courier wallet & claims',
       courierSettle: 'Courier COD deposit',
       courierReturn: 'Doorstep gallon returns',

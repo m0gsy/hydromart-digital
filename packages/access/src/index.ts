@@ -173,6 +173,29 @@ export const CAPABILITIES = {
   // payment-service — settle a payment (confirm cash/transfer/QRIS received). Mirrors
   // the settlement roles; STAFF_DEPOT can confirm cash-on-delivery, FINANCE for the office.
   paymentSettle: ['KEPALA_DEPOT', 'MANAGER', 'STAFF_DEPOT', 'FINANCE', 'SUPER_ADMIN'],
+  /*
+   * J9 — payment-service — READ an order's payments. Reading is not settling, and gating
+   * the read on `paymentSettle` handed SUPERVISOR and ASSISTANT_SUPERVISOR an order queue
+   * whose payment panel 403'd on every order: `orderQueue` admits them to the screen,
+   * `paymentSettle` deliberately does not admit them to the money. delivery-service hit
+   * the same wall from the other side and routed around it with an internal key — the
+   * comment on `internal/for-order` says so in as many words.
+   *
+   * Split rather than widened, the same shape as `depotBroadcastRead`: whoever may settle
+   * may read, the roles that already see the order may read, and nobody gains the power to
+   * settle by being able to look. DIREKTUR is here for the same reason `depotFinance`
+   * carries them — they read money, they do not move it.
+   */
+  paymentRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'STAFF_DEPOT',
+    'FINANCE',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // payout-service — a courier reads their own earnings ledger and files their own
   // expense claims. Scoped to self by the controller, never cross-courier.
   courierPayout: ['STAFF_DEPOT'],

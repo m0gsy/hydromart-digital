@@ -154,6 +154,7 @@ export const dashC = {
       forecast: 'Planning / forecast',
       churn: 'Churn & re-engagement',
       paymentSettle: 'Payment confirmation',
+      paymentRead: 'View order payments',
       courierPayout: 'Courier earnings (own)',
       courierSettle: 'Courier COD deposits',
       expenseApprove: 'Approve expense claims',
