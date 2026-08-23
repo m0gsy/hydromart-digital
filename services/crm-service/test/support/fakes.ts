@@ -231,6 +231,14 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     return { ...rec };
   }
 
+  async markFailed(id: string, error: string): Promise<void> {
+    const row = this.records.find((r) => r.id === id);
+    if (row) {
+      row.status = 'FAILED' as NotificationRecord['status'];
+      row.error = error;
+    }
+  }
+
   async listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]> {
     return this.records
       .filter((r) => r.customerId === customerId)
