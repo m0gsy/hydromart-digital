@@ -184,11 +184,13 @@ export const dashB = {
   },
   paymentRecon: {
     settled: 'Settled',
-    pending: 'Awaiting',
+    pending: 'Awaiting payment',
     failed: 'Failed',
     refunded: 'Refunded',
     noPayment: 'No payment yet',
     noMethod: 'No method yet',
+    readOnly:
+      'This screen is read-only for your role. Marking a payment settled is done from the order queue by a depot head, depot staff, a manager, or finance.',
     title: 'Payment reconciliation',
     unsettledCount: '{n} unsettled',
     transactions: 'Transaction list',

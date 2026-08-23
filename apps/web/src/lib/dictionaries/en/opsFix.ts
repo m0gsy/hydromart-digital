@@ -39,7 +39,7 @@ export const opsFix = {
     aCustomer: "the customer",
   },
   settlementStatus: {
-    SUBMITTED: "Awaiting",
+    SUBMITTED: "Awaiting verification",
     VERIFIED: "Verified",
     DISPUTED: "Disputed",
   },

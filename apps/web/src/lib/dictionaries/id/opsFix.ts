@@ -39,7 +39,7 @@ export const opsFix = {
     aCustomer: "pelanggan",
   },
   settlementStatus: {
-    SUBMITTED: "Menunggu",
+    SUBMITTED: "Menunggu verifikasi",
     VERIFIED: "Terverifikasi",
     DISPUTED: "Sengketa",
   },
