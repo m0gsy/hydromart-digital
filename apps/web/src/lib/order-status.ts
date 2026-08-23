@@ -45,6 +45,18 @@ export function isCancellable(status: OrderStatus): boolean {
 }
 
 /**
+ * K2.4: mirrors the server rule. BR-006 read the status alone, and a rescheduled order is
+ * back on PREPARING — so an order whose goods already left the depot showed its customer a
+ * cancel button again, and pressing it released stock that had physically moved. The right
+ * ends when the goods leave; the history is where that survives a second attempt.
+ */
+export function hasBeenDispatched(history: readonly { status: OrderStatus }[] = []): boolean {
+  return history.some(
+    (h) => h.status === 'DRIVER_ASSIGNED' || h.status === 'PICKED_UP' || h.status === 'ON_DELIVERY',
+  );
+}
+
+/**
  * H10. The window that opens the moment BR-006 closes: a courier is holding the order and
  * the customer can no longer stop it themselves, but the depot still can.
  *

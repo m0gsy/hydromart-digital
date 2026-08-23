@@ -961,6 +961,30 @@ describe('OrderService', () => {
     );
   });
 
+  /*
+   * K2.4 — the cancel window REOPENS after a reschedule. A failed attempt sends the order
+   * back to PREPARING so dispatch can hand it to another courier, and BR-006 reads the
+   * status alone: an order whose goods already left the depot, rode around and came back
+   * becomes customer-cancellable again, and cancelling releases stock that has physically
+   * moved. The right of cancellation ends when the goods leave, not when a status happens
+   * to read PREPARING again.
+   */
+  it('does not reopen the cancel window after an order has already been dispatched (K2.4)', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+    await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+    await service.updateStatus(order.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+    await service.updateStatus(order.id, OrderStatus.PICKED_UP, 'staff');
+    await service.updateStatus(order.id, OrderStatus.ON_DELIVERY, 'staff');
+    // The attempt failed; the delivery service hands the order back to the queue.
+    await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+
+    await expect(service.cancel(customer, order.id)).rejects.toBeInstanceOf(
+      OrderNotCancellableError,
+    );
+  });
+
   it('reviews a delivered order once, then rejects a second review (spec 7c)', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });

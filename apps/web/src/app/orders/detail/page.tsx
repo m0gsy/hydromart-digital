@@ -23,7 +23,7 @@ import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton, StickyActio
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
-import { isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
+import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
@@ -108,7 +108,11 @@ function OrderDetailInner({ id }: { id: string }) {
    * Fail-soft on purpose, exactly like the help screen: no number, no button. A depot that
    * never filled its phone in must not be offered as a call to nobody.
    */
-  const depotOnly = order ? isDepotOnlyCancel(order.status) : false;
+  // K2.4: a second attempt puts the order back on PREPARING, so the status alone would
+  // reopen the customer's cancel button on goods that already left the depot. Once
+  // dispatched, this is the depot's call — which is exactly what `depotOnly` already says.
+  const dispatched = order ? hasBeenDispatched(order.history ?? []) : false;
+  const depotOnly = order ? isDepotOnlyCancel(order.status) || (isCancellable(order.status) && dispatched) : false;
   const { data: contact } = useAsync<{ name: string; contactPhone: string | null } | null>(
     () =>
       depotId && depotOnly
@@ -518,7 +522,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 {t('review.rateCta')}
               </LinkButton>
             )}
-            {isCancellable(order.status) && (
+            {isCancellable(order.status) && !dispatched && (
               <Button
                 variant="secondary"
                 onClick={() => setCancelOpen(true)}

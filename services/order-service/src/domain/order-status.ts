@@ -78,6 +78,25 @@ export function isCancellable(status: OrderStatus): boolean {
 }
 
 /**
+ * K2.4: BR-006 read the CURRENT status and nothing else, and a reschedule puts a
+ * dispatched order back on PREPARING so another courier can take it. So the customer's
+ * right to cancel reopened for an order whose goods had already left the depot, ridden
+ * around and come back — and cancelling releases the stock hold on goods that physically
+ * moved, at a depot that has to reconcile them.
+ *
+ * The right ends when the goods leave, not when a status happens to read PREPARING again.
+ * History is the only place that fact survives a second attempt.
+ */
+export function hasBeenDispatched(history: readonly { status: OrderStatus }[]): boolean {
+  return history.some(
+    (h) =>
+      h.status === OrderStatus.DRIVER_ASSIGNED ||
+      h.status === OrderStatus.PICKED_UP ||
+      h.status === OrderStatus.ON_DELIVERY,
+  );
+}
+
+/**
  * Maps a status the order just entered to the customer notification event to fire
  * (FR-093/FR-094), or null when that transition warrants no message. The string values are
  * a contract with crm-service's NotificationEvent enum.
