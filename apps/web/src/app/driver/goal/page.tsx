@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Lightning, LockSimple } from '@phosphor-icons/react';
+import { ArrowLeft, Check, LockSimple } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
@@ -141,10 +141,16 @@ function ShiftGoal() {
         })}
       </div>
 
-      <div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3.5 py-3">
-        <Lightning size={18} weight="fill" className="shrink-0 text-amber-600" />
-        <span className="text-[11.5px] leading-snug text-amber-800">{t('courierFix.shiftGoal.peakHint')}</span>
-      </div>
+      {/*
+        K2.11 follow-up: the peak-hour bonus panel that stood here promised couriers
+        "+Rp 3.000 per antar" between 17.00 and 19.00. Nothing pays it. There is no
+        peak-hour rule in payroll, no setting behind the number, and no code path that
+        reads it — it was a sentence in a dictionary.
+
+        Removed rather than wired to a setting, on the owner's call: promising money that
+        never arrives is worse for a courier than promising nothing, and the tier bonuses
+        above this are real and read their amounts from the server.
+      */}
     </div>
   );
 }

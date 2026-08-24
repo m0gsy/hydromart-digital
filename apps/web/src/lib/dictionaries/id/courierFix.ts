@@ -59,7 +59,6 @@ export const courierFix = {
     tierTarget: 'Bonus {amount} · kurang {n} antar',
     tierLocked: 'Bonus {amount} · terkunci',
     tierTargetBadge: 'Target',
-    peakHint: 'Jam sibuk 17.00–19.00 · setiap antar +Rp 3.000. Kejar targetmu!',
     loadError: 'Gagal memuat target. Coba lagi.',
   },
   podSuccess: {
