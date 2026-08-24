@@ -15,6 +15,10 @@ export const courierFix = {
     hrPunch: 'Absen wajah',
     shiftCheckIn: 'Mulai shift',
     pod: 'Bukti pengantaran',
+    codConfirm: 'Uang tunai diterima',
+    gallonReturn: 'Retur galon kosong',
+    deliveryFail: 'Pengantaran gagal',
+    deliveryReschedule: 'Jadwal ulang',
   },
   deliveryStatus: {
     ASSIGNED: 'Ditugaskan',

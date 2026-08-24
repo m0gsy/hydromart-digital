@@ -398,7 +398,13 @@ export class PaymentController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConfirmPaymentDto,
   ): Promise<PaymentRecord> {
-    return this.payments.confirm(id, user.sub, dto.cashReceived);
+    return this.payments.confirm(
+      id,
+      user.sub,
+      dto.cashReceived,
+      // K2.9: only an offline-queued COD sends this. The service clamps it.
+      dto.capturedAt ? new Date(dto.capturedAt) : undefined,
+    );
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })

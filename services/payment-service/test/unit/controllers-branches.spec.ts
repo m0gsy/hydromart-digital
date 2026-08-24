@@ -237,7 +237,24 @@ describe('PaymentController', () => {
 
   it('confirm forwards id, actor and cashReceived', async () => {
     await controller.confirm(user, 'pay-1', { cashReceived: 50000 } as never);
-    expect(svc.confirm).toHaveBeenCalledWith('pay-1', 'user-1', 50000);
+    // K2.9: undefined, not a date — an online confirmation claims no capture time, and the
+    // service reads that as "now".
+    expect(svc.confirm).toHaveBeenCalledWith('pay-1', 'user-1', 50000, undefined);
+  });
+
+  // K2.9: an offline-queued COD carries the moment the courier took the notes. Parsed here,
+  // clamped in the service — shift close reads `paidAt` to decide whose drawer they are in.
+  it('confirm parses an offline capture time and hands it over as a Date', async () => {
+    await controller.confirm(user, 'pay-1', {
+      cashReceived: 50000,
+      capturedAt: '2026-08-24T09:00:00.000Z',
+    } as never);
+    expect(svc.confirm).toHaveBeenCalledWith(
+      'pay-1',
+      'user-1',
+      50000,
+      new Date('2026-08-24T09:00:00.000Z'),
+    );
   });
 
   it('fail forwards id and actor', async () => {

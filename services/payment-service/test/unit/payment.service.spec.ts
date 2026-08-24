@@ -740,6 +740,57 @@ describe('PaymentService', () => {
     });
   });
 
+  /*
+   * K2.9 — a COD collected offline belongs to the shift it was collected in.
+   *
+   * COD confirmation now goes through the offline capture queue: before this, a courier in a
+   * dead spot could queue the PROOF that they delivered and not the CASH they had just been
+   * handed. That makes the sync time wrong for the one thing that reads `paidAt` — shift
+   * close sums a depot's PAID cash over the shift WINDOW, so money taken at 16:00 and synced
+   * at 19:00 would be booked to whichever drawer was open at 19:00.
+   *
+   * Clamped rather than trusted: the value comes from a device clock.
+   */
+  describe('confirm with an offline capture time (K2.9)', () => {
+    const confirmAt = async (capturedAt?: Date) => {
+      const payment = await initiate(PaymentMethod.CASH, 45000, randomUUID());
+      return service.confirm(payment.id, 'courier-1', 45000, capturedAt);
+    };
+
+    it('books the cash at the moment it was collected, not at the sync', async () => {
+      const collected = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const paid = await confirmAt(collected);
+      expect(paid.paidAt?.toISOString()).toBe(collected.toISOString());
+    });
+
+    it('an online confirmation with no capture time still settles at now', async () => {
+      const before = Date.now();
+      const paid = await confirmAt(undefined);
+      expect(paid.paidAt!.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    // A device clock running fast must not book cash into a shift that has not opened.
+    it('refuses a capture time in the future and falls back to now', async () => {
+      const before = Date.now();
+      const paid = await confirmAt(new Date(Date.now() + 6 * 60 * 60 * 1000));
+      expect(paid.paidAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(paid.paidAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
+    // Past the queue's own retention the job would have been dropped on the device, so a
+    // capture time older than that did not come from a job that was waiting.
+    it('refuses a capture time older than the queue keeps jobs', async () => {
+      const before = Date.now();
+      const paid = await confirmAt(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+      expect(paid.paidAt!.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('ignores an unparseable capture time rather than writing an Invalid Date', async () => {
+      const paid = await confirmAt(new Date('not-a-date'));
+      expect(Number.isNaN(paid.paidAt!.getTime())).toBe(false);
+    });
+  });
+
   describe('voidForOrder', () => {
     it('refunds a settled counter sale straight through, never via the approval queue', async () => {
       const orderId = randomUUID();

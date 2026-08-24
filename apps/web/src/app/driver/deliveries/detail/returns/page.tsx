@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle, Minus, Plus, Recycle } from '@phosphor-icons/re
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, ErrorState, Field, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { runOrQueue } from '@/lib/offline-queue';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -31,6 +32,9 @@ function Returns() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<GallonReturnResult | null>(null);
+  // K2.9: the refund amount comes from the server, so a queued return cannot show one.
+  // Saying so beats showing Rp 0 to a courier who just handed over empties.
+  const [queued, setQueued] = useState(false);
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-72 w-full" /></div>;
   if (load.error || !load.data) {
@@ -44,9 +48,12 @@ function Returns() {
     setBusy(true);
     setError(null);
     try {
-      const rec = await api.post<GallonReturnResult>(
-        endpoints.deliveries.gallonReturns.create,
-        {
+      // K2.9: a deposit refund the courier has already handed over in empties. Losing this
+      // call means the customer's deposit balance never moves and the empties are on the
+      // truck with nothing recording where they came from.
+      const out = await runOrQueue<GallonReturnResult>({
+        kind: 'gallonReturn',
+        payload: {
           depotId: delivery.depotId,
           orderId: delivery.orderId,
           // I3: the empties belong to somebody. Without this every courier return was
@@ -59,9 +66,12 @@ function Returns() {
           quantity,
           condition,
         },
-        true,
-      );
-      setDone(rec);
+      });
+      if (out.outcome === 'queued') {
+        setQueued(true);
+        return;
+      }
+      setDone(out.result);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.returns.error'));
     } finally {
@@ -81,7 +91,16 @@ function Returns() {
         </div>
       </header>
 
-      {done ? (
+      {queued ? (
+        <Card className="flex flex-col items-center gap-2 p-6 text-center">
+          <CheckCircle size={44} weight="fill" className="text-amber-500" />
+          <div className="text-base font-extrabold">{t('driver.returns.queuedTitle')}</div>
+          <div className="text-sm text-[color:var(--muted)]">{t('driver.returns.queuedBody')}</div>
+          <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>
+            {t('driver.returns.backToDetail')}
+          </Button>
+        </Card>
+      ) : done ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-green-600" />
           <div className="text-base font-extrabold">{t('driver.returns.doneTitle')}</div>

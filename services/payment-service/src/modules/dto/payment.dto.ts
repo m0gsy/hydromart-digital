@@ -5,6 +5,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsISO8601,
   IsIn,
   IsInt,
   IsOptional,
@@ -204,6 +205,20 @@ export class ConfirmPaymentDto {
   @Type(() => Number)
   @IsPositive()
   cashReceived?: number;
+
+  /**
+   * K2.9: when the courier actually took the cash, for a COD confirmed from the offline
+   * queue. Clamped by the service — never later than now, never older than the queue's own
+   * retention — because shift close reads `paidAt` to decide whose drawer the notes belong
+   * to. Absent means "now", which is what every online confirmation sends.
+   */
+  @ApiPropertyOptional({
+    example: '2026-08-24T09:00:00.000Z',
+    description: 'Device capture time for an offline-queued COD confirmation (ISO 8601).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  capturedAt?: string;
 }
 
 export class RefundPaymentDto {
