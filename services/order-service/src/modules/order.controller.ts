@@ -397,8 +397,11 @@ export class OrderController {
   assignDepot(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignDepotDto,
+    // K2.7: the bearer is forwarded because assigning a depot now reserves its stock, and
+    // depot-service's reserve is an authenticated call like the one checkout makes.
+    @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
-    return this.orders.assignDepot(id, dto.depotId);
+    return this.orders.assignDepot(id, dto.depotId, authorization);
   }
 
   @ApiOkResponse({ type: OrderResponseDto })

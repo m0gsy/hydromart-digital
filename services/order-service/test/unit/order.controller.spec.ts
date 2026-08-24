@@ -324,9 +324,11 @@ describe('OrderController', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('assignDepot: hands the order and depot to the service', async () => {
-    await controller.assignDepot('order-1', { depotId: 'depot-a' });
-    expect(service.assignDepot).toHaveBeenCalledWith('order-1', 'depot-a');
+  it('assignDepot: hands the order, depot and bearer to the service', async () => {
+    // K2.7: the bearer travels because assigning a depot now reserves its stock, and
+    // depot-service's reserve is authenticated exactly like the checkout one.
+    await controller.assignDepot('order-1', { depotId: 'depot-a' }, 'Bearer tok');
+    expect(service.assignDepot).toHaveBeenCalledWith('order-1', 'depot-a', 'Bearer tok');
   });
 
   it('getManaged: loads the order then passes the depot access check', async () => {
