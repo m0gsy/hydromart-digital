@@ -602,7 +602,7 @@ export const hrFix = {
     uploadPhoto: "Upload an agent photo",
   },
   orderDetail: {
-    onlineRefundHint: 'An online-paid order must be refunded by finance or a manager. Refund status lives in payment-service (not wired into this queue yet).',
+    onlineRefundHint: 'The payment was settled when this order was cancelled: an unpaid one was voided, a paid one refunded. A high-value refund waits for HQ approval before the money moves.',
     printReceipt2: "Print receipt",
     // B5: the delivery window the customer picked at checkout, finally on a screen.
     window: "Delivery window",

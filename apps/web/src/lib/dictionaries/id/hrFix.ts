@@ -614,7 +614,7 @@ export const hrFix = {
     uploadPhoto: "Unggah foto agen",
   },
   orderDetail: {
-    onlineRefundHint: 'Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service (belum tersambung ke antrean ini).',
+    onlineRefundHint: 'Pembayaran sudah diselesaikan saat pesanan ini dibatalkan: yang belum lunas dibatalkan, yang sudah lunas direfund. Refund bernilai besar menunggu persetujuan HQ sebelum uangnya bergerak.',
     printReceipt2: "Cetak struk",
     // B5: the delivery window the customer picked at checkout, finally on a screen.
     window: "Jendela antar",

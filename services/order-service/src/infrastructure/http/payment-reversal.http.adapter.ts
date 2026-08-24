@@ -22,13 +22,26 @@ export class PaymentReversalHttpAdapter implements PaymentReversalPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async voidForOrder(orderId: string, reason: string): Promise<void> {
+  voidForOrder(orderId: string, reason: string): Promise<void> {
+    return this.post('void-for-order', orderId, reason);
+  }
+
+  /**
+   * K2.3: the cancellation counterpart. A separate endpoint rather than a flag, because
+   * the two differ in the one way that matters — a counter void settles immediately with
+   * no approval, a cancellation goes through the HQ refund threshold like any other refund.
+   */
+  cancelForOrder(orderId: string, reason: string): Promise<void> {
+    return this.post('cancel-for-order', orderId, reason);
+  }
+
+  private async post(route: string, orderId: string, reason: string): Promise<void> {
     const { internalServiceKey, paymentServiceUrl } = this.config;
     if (!internalServiceKey || !paymentServiceUrl) {
       this.logger.error(`Payment reversal unavailable for order ${orderId}: not configured`);
       throw new PaymentReversalFailedError();
     }
-    const url = `${paymentServiceUrl}/api/v1/payments/internal/void-for-order`;
+    const url = `${paymentServiceUrl}/api/v1/payments/internal/${route}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PaymentReversalHttpAdapter.TIMEOUT_MS);
     try {

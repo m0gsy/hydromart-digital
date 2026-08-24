@@ -8,4 +8,14 @@
  */
 export interface PaymentReversalPort {
   voidForOrder(orderId: string, reason: string): Promise<void>;
+  /**
+   * K2.3: settle a CANCELLED order's payment — fail a PENDING one, refund a PAID one.
+   *
+   * Cancellation used to skip this service entirely: the order flipped to CANCELLED, the
+   * stock came back, and the screen showed a paragraph explaining the refund rule instead
+   * of a refund. Fails CLOSED for the same reason `voidForOrder` does, and is called
+   * BEFORE the status is written — an order recorded as cancelled while its money is
+   * still held is worse than an order that refused to cancel.
+   */
+  cancelForOrder(orderId: string, reason: string): Promise<void>;
 }
