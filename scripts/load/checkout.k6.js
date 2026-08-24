@@ -160,6 +160,25 @@ export default function (data) {
   if (res.status === 429) {
     fail('Rate-limited mid-run (429) — raise RATE_LIMIT_MAX on the target and re-run.');
   }
+  /*
+   * Out of stock is a SETUP fault, exactly like the 429 above, and it has to say so.
+   *
+   * Folded into the failure rate it produced the most misleading run this repo has
+   * recorded: p95 530ms against a 1500ms threshold — the number this script exists to
+   * measure, comfortably green — and a red job reporting `checkout_success 41%`. Nothing
+   * in that summary named stock. Worse, a refused checkout leaves the server-side cart
+   * standing, so the next iteration adds another unit to every line and the quantities
+   * compound; from the first exhaustion onward the run measures nothing at all.
+   *
+   * Raise SEED_STOCK_QTY on the seed step rather than lowering VUS — the load is the point.
+   */
+  if (res.status === 422 && String(res.body).includes('ORDER_INSUFFICIENT_STOCK')) {
+    fail(
+      'Out of stock mid-run — the seeded shelf is smaller than this run consumes. Raise ' +
+        'SEED_STOCK_QTY on the seed step and re-run; every number after this point is ' +
+        'stock depletion, not latency.',
+    );
+  }
   const ok = check(res, { 'checkout 2xx': (x) => x.status >= 200 && x.status < 300 });
   checkoutOk.add(ok);
   if (!ok) console.error(`checkout ${res.status}: ${res.body}`);
