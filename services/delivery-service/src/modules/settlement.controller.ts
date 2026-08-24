@@ -4,11 +4,13 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { SettlementService } from '../application/services/settlement.service';
+import { SURPLUS_NOTE_THRESHOLD_IDR } from '../domain/settlement';
 import { DepositedCod, SettlementRecord } from '../application/ports/settlement.repository';
 import {
   DepositedCodQueryDto,
   DisputeSettlementDto,
   SettlementQueryDto,
+  SettlementRulesDto,
   VerifySettlementDto,
 } from './dto/settlement.dto';
 import { DepositedCodResponseDto, SettlementResponseDto } from './dto/responses.generated.dto';
@@ -40,6 +42,18 @@ export class SettlementController {
       new Date(query.from),
       new Date(query.to),
     );
+  }
+
+  /*
+   * Declared before the list route and before any `:id`, and a static segment either way.
+   * No service call: the rule is a constant, and routing it through the service would only
+   * put a layer between the screen's sentence and the number that refuses the deposit.
+   */
+  @ApiOkResponse({ type: SettlementRulesDto })
+  @Get('rules')
+  @ApiOperation({ summary: 'Settlement rules a cashier screen states (C1)' })
+  rules(): SettlementRulesDto {
+    return { surplusNoteThresholdIdr: SURPLUS_NOTE_THRESHOLD_IDR };
   }
 
   @ApiOkResponse({ type: SettlementResponseDto, isArray: true })

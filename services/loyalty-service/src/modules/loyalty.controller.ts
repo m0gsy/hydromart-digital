@@ -23,6 +23,7 @@ import {
   EarnResultDto,
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
+  LoyaltyRulesDto,
   PointsTransactionDto,
   ReverseEarnDto,
   RewardPointsDto,
@@ -46,6 +47,19 @@ export class LoyaltyController {
   @ApiOperation({ summary: 'List membership tiers and their benefits (FR-014)' })
   tiers(@Query() query: TierScopeQueryDto): TierBenefit[] {
     return this.loyalty.getTiers(query.depotId ?? null);
+  }
+
+  /*
+   * Public, like `tiers` above and for the same reason: the rewards card and the help FAQ
+   * quote these two numbers to people who are not signed in, and the settings schema that
+   * holds them is `@Can('depotAdmin')`. Read-only, and nothing here is per-customer.
+   */
+  @ApiOkResponse({ type: LoyaltyRulesDto })
+  @Public()
+  @Get('rules')
+  @ApiOperation({ summary: 'The earning rules a screen may state (BR-013/014)' })
+  rules(@Query() query: TierScopeQueryDto): LoyaltyRulesDto {
+    return this.loyalty.getRules(query.depotId ?? null);
   }
 
   @ApiOkResponse({ type: LoyaltyAccountDto })

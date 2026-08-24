@@ -1057,7 +1057,7 @@ export const hq = {
     tiers: 'Member tiers',
     threshold: 'Point threshold',
     discount: 'Member discount',
-    earnNote: 'Customers earn 1 point per Rp 1,000 spent.',
+    earnNote: 'Customers earn 1 point per {amount} spent.',
     tiersEmpty: 'No tiers yet.',
     rewards: 'Point rewards',
     points: '{n} points',

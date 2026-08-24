@@ -58,6 +58,20 @@ export class LoyaltyService {
   }
 
   /**
+   * The earning rules, for screens that state them in prose.
+   *
+   * Read from the same config accessors `earn()` prices points with, so the sentence on
+   * the screen and the arithmetic behind it cannot disagree — which they did, silently,
+   * for every depot that ever changed its rate.
+   */
+  getRules(depotId: string | null): { earnRateRupiah: number; pointExpiryMonths: number } {
+    return {
+      earnRateRupiah: this.config.earnRateRupiah(depotId),
+      pointExpiryMonths: this.config.pointExpiryMonths(depotId),
+    };
+  }
+
+  /**
    * A customer's standing as seen from one depot: same points, but the tier and rate are
    * re-derived against that depot's ladder. The stored `tier` column is deliberately left
    * alone — it is the customer's card across the whole network, and letting whichever

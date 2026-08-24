@@ -405,6 +405,14 @@ export class PaymentService {
    * PENDING approval queue and settle only once HQ approves. At or below it, the
    * refund goes through immediately (unchanged behaviour).
    */
+  /**
+   * The refund rule the HQ queue states in prose, from the same config the queue is filled
+   * from — so the subtitle and the branch below can never disagree.
+   */
+  refundRules(): { hqApprovalThresholdIdr: number } {
+    return { hqApprovalThresholdIdr: this.config.refundApprovalThreshold };
+  }
+
   async refund(id: string, changedBy: string, reason?: string): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     if (!isRefundable(payment.status)) {

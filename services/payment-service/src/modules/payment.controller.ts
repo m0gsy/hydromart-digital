@@ -47,6 +47,7 @@ import {
   RefundPaymentDto,
   StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
+  RefundRulesDto,
 } from './dto/payment.dto';
 import {
   CashByOrderResponseDto,
@@ -366,6 +367,18 @@ export class PaymentController {
     @Query() query: CashCollectedQueryDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
     return this.payments.cashCollected(query.orderIds);
+  }
+
+  /*
+   * Declared with the queue and before `:id`, and guarded the same way: whoever may watch
+   * the queue may read the rule that fills it.
+   */
+  @ApiOkResponse({ type: RefundRulesDto })
+  @Get('refunds/rules')
+  @Can('refundQueueRead')
+  @ApiOperation({ summary: 'The refund rules the HQ queue states' })
+  refundRules(): RefundRulesDto {
+    return this.payments.refundRules();
   }
 
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ

@@ -6,18 +6,26 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useLoyaltyRules } from '@/lib/loyalty-rules';
+import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { RewardItem, TierBenefit } from '@/lib/types';
 
-// Design 18b — loyalty program. Real: loyalty.tiers + rewards.catalog. The 1-point-per-
-// Rp1.000 earn rate is a fixed program constant (shown as a note, not a computed metric).
+// Design 18b — loyalty program. Real: loyalty.tiers + rewards.catalog + loyalty.rules.
+//
+// The earn rate was written here as "Rp 1.000", described in this comment as "a fixed
+// program constant". It is not one: `earnRateRupiah` is a per-depot setting, and this is
+// the HQ screen an operator reads before going to Pengaturan to change it. It now reads
+// the value, network-wide, from the same accessor the earning arithmetic uses.
 export default function HqLoyaltyPage() {
   const { t } = useT();
   // No depot arg: HQ looks at the network-wide ladder. Per-depot overrides are edited
   // in Pengaturan, scoped to their depot.
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
   const rewards = useAsync<RewardItem[]>(() => api.get(endpoints.rewards.catalog));
+  // No depot arg, same as `tiers`: HQ states the network-wide rule.
+  const rules = useLoyaltyRules();
 
   const ladder = [...(tiers.data ?? [])].sort((a, b) => a.threshold - b.threshold);
 
@@ -28,7 +36,12 @@ export default function HqLoyaltyPage() {
       {/* Tiers — REAL */}
       <Card className="flex flex-col gap-3 p-5">
         <h2 className="font-semibold">{t('hq.loyalty.tiers')}</h2>
-        <p className="text-xs text-muted">{t('hq.loyalty.earnNote')}</p>
+        {/* No rate read, no sentence: a note that invents a number is worse than no note. */}
+        {rules.data && (
+          <p className="text-xs text-muted">
+            {t('hq.loyalty.earnNote', { amount: formatIDR(rules.data.earnRateRupiah) })}
+          </p>
+        )}
         {tiers.loading ? (
           <Skeleton className="h-24 w-full" />
         ) : tiers.error ? (

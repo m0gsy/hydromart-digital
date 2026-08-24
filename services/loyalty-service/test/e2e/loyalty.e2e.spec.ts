@@ -87,6 +87,21 @@ describe('Loyalty HTTP flows (e2e)', () => {
     expect(res.body[0]).toMatchObject({ tier: 'REGULAR', discountRate: 0 });
   });
 
+  /*
+   * Three screens state the earn rate as prose — the customer rewards card, the help FAQ,
+   * and the HQ loyalty page, which is the very screen an operator edits it from. All three
+   * said "1 poin per Rp 1.000" as a literal, and `earnRateRupiah` is a per-depot tunable:
+   * change it and every one of them keeps quoting the old number to the customer.
+   *
+   * The settings schema that carries the real value is `@Can('depotAdmin')`, so a customer
+   * cannot read it at all. This is the customer-readable half: the two numbers the program
+   * states in public, and nothing else.
+   */
+  it('publishes the earning rules a screen is allowed to quote', async () => {
+    const res = await request(server()).get('/api/v1/loyalty/rules').expect(200);
+    expect(res.body).toEqual({ earnRateRupiah: 1000, pointExpiryMonths: 12 });
+  });
+
   it('requires auth to read the current account, then lazily creates it', async () => {
     await request(server()).get('/api/v1/loyalty/me').expect(401);
     const res = await request(server())

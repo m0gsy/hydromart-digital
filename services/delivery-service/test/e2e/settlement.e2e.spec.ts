@@ -159,6 +159,20 @@ describe('Cash settlement HTTP flows (e2e)', () => {
     settlementId = res.body.id;
   });
 
+  /*
+   * The cashier screen states this threshold in its own note — "wajib untuk setoran lebih
+   * di atas Rp5.000" — as a literal, next to a rule the server enforces from a constant.
+   * Two places holding one number, and the screen is the one nobody would remember to
+   * change. It reads the number now, from the side that refuses the deposit.
+   */
+  it('publishes the surplus-note threshold the cashier screen states', async () => {
+    const res = await request(server())
+      .get('/api/v1/settlements/rules')
+      .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
+      .expect(200);
+    expect(res.body).toEqual({ surplusNoteThresholdIdr: 5000 });
+  });
+
   it('forbids a courier from verifying a settlement', async () => {
     await request(server())
       .post(`/api/v1/settlements/${settlementId}/verify`)

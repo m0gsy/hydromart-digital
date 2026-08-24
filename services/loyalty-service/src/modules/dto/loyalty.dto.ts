@@ -122,6 +122,22 @@ export class TierScopeQueryDto {
   depotId?: string;
 }
 
+/**
+ * The two program rules a screen is allowed to state out loud.
+ *
+ * Both are per-depot tunables. The settings schema that carries them is
+ * `@Can('depotAdmin')`, which no customer has — so the rewards card and the help FAQ had
+ * no way to read the numbers they were quoting, and quoted literals instead. This is the
+ * customer-readable half of that schema: two numbers, no editing, no other settings.
+ */
+export class LoyaltyRulesDto {
+  @ApiProperty({ description: 'Rupiah of order subtotal that earns one point (BR-013).' })
+  earnRateRupiah!: number;
+
+  @ApiProperty({ description: 'Months a point stays valid after it is earned (BR-014).' })
+  pointExpiryMonths!: number;
+}
+
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()

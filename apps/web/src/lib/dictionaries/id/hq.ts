@@ -586,7 +586,7 @@ export const hq = {
   },
   refunds: {
     title: 'Persetujuan refund',
-    subtitle: 'Di atas Rp 100rb butuh persetujuan HQ',
+    subtitle: 'Di atas {amount} butuh persetujuan HQ',
     count: '{n} menunggu',
     order: 'Pesanan',
     reason: 'Alasan',
@@ -1061,7 +1061,7 @@ export const hq = {
     tiers: 'Tingkatan member',
     threshold: 'Ambang poin',
     discount: 'Diskon member',
-    earnNote: 'Pelanggan mendapat 1 poin per Rp 1.000 belanja.',
+    earnNote: 'Pelanggan mendapat 1 poin per {amount} belanja.',
     tiersEmpty: 'Belum ada tingkatan.',
     rewards: 'Hadiah tukar poin',
     points: '{n} poin',

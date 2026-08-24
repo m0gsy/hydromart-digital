@@ -73,3 +73,16 @@ export class SettlementQueryDto {
   @IsEnum(SettlementStatus)
   status?: SettlementStatus;
 }
+
+/**
+ * The one settlement rule the cashier screen states in prose.
+ *
+ * `SURPLUS_NOTE_THRESHOLD_IDR` is a constant on purpose (see its comment: one fewer number
+ * every depot must fill in before go-live), and the screen's note quoted it as a literal.
+ * A constant held in two places is still two places, and the screen is the one nobody
+ * would remember. It reads the number from the side that enforces it.
+ */
+export class SettlementRulesDto {
+  @ApiProperty({ description: 'A surplus above this needs a written note before verifying (C1).' })
+  surplusNoteThresholdIdr!: number;
+}
