@@ -1772,6 +1772,42 @@ describe('OrderService', () => {
         expect((await service.listAll({ unrouted: true })).items).toHaveLength(0);
       });
 
+      /*
+       * K2.7 — routing an order to a depot IS the promise that the depot will fill it, so
+       * the stock is held when the promise is made.
+       *
+       * This reverses a decision the code used to defend in a comment: "stock is NOT
+       * reserved retroactively ... the operator checks availability when they pick the order
+       * up". That last clause describes a mechanism that does not exist — the operator queue
+       * shows no availability at all — so nobody was checking anything, and the shortfall
+       * surfaced hours later at `consumeForOrder` instead.
+       */
+      it('holds the stock at the depot it routes the order to', async () => {
+        const id = await unroute();
+        // `unroute()` checks out first and then clears the depot, so the checkout's own
+        // reserve is already on the record. What is under test is the SECOND one.
+        inventory.reserveCalls.length = 0;
+        await service.assignDepot(id, homeDepot.id, 'Bearer tok');
+        expect(inventory.reserveCalls).toHaveLength(1);
+        expect(inventory.reserveCalls[0]).toMatchObject({
+          depotId: homeDepot.id,
+          orderId: id,
+          authorization: 'Bearer tok',
+        });
+      });
+
+      // Fails CLOSED and BEFORE the write: an order recorded at a depot that cannot fill it
+      // is not undone by the operator trying again, and the refusal has to arrive while
+      // somebody is still on the screen to pick a different depot.
+      it('refuses the routing when the depot cannot cover the order, leaving it in the tray', async () => {
+        const id = await unroute();
+        inventory.reserveError = new Error('Insufficient stock at the fulfilling depot');
+        await expect(service.assignDepot(id, homeDepot.id, 'Bearer tok')).rejects.toThrow(
+          'Insufficient stock',
+        );
+        expect((await service.listAll({ unrouted: true })).items.map((o) => o.id)).toEqual([id]);
+      });
+
       it('refuses an unknown depot and refuses to move an already-routed order', async () => {
         const id = await unroute();
         await expect(service.assignDepot(id, randomUUID())).rejects.toBeInstanceOf(

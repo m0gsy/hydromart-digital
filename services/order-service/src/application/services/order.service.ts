@@ -1316,17 +1316,44 @@ export class OrderService {
    * order already at a depot keeps it, so this can't be used to move work between
    * depots behind the operator's back.
    *
-   * Stock is NOT reserved retroactively: the reserve step never ran for these rows,
-   * and silently holding stock now would surprise the depot mid-day. The operator
-   * checks availability when they pick the order up.
+   * K2.7 — this now RESERVES, and that reverses a decision this comment used to defend.
+   *
+   * The old text read: "Stock is NOT reserved retroactively: the reserve step never ran for
+   * these rows, and silently holding stock now would surprise the depot mid-day. The
+   * operator checks availability when they pick the order up."
+   *
+   * The last sentence is the whole argument, and it describes a mechanism that does not
+   * exist: the operator queue shows no availability at all, so nobody was checking anything.
+   * What actually happened is that HQ routed an order to a depot, the depot's ledger stayed
+   * silent about it, and the shortfall surfaced hours later at `consumeForOrder` — the same
+   * "trace arrives too late" shape as K2.6. Routing an order to a depot IS the promise that
+   * the depot will fill it; a promise with nothing held behind it is the oversell this
+   * service reserves at checkout precisely to prevent.
+   *
+   * Fails CLOSED, before the assignment is written, for the same reason checkout does: a
+   * shortfall must refuse the routing while somebody is still on the screen to pick a
+   * different depot. `InsufficientStockError` names the products and the numbers, so the
+   * refusal tells the operator what to do instead of only that they cannot.
+   *
+   * Idempotent by construction — `OrderAlreadyRoutedError` means this runs at most once per
+   * order, so there is no second hold to worry about, and the reservation is keyed to the
+   * order id exactly like the checkout one.
    */
-  async assignDepot(orderId: string, depotId: string): Promise<OrderRecord> {
+  async assignDepot(orderId: string, depotId: string, authorization = ''): Promise<OrderRecord> {
     const order = await this.orders.findById(orderId);
     if (!order) throw new OrderNotFoundError();
     if (order.depotId) throw new OrderAlreadyRoutedError();
     const depots = await this.depotDirectory.listActiveDepots();
     if (depots === null) throw new DepotUnavailableError();
     if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
+    // Before the write: an order recorded at a depot that cannot fill it is the state this
+    // exists to prevent, and it is not undone by the operator trying again.
+    await this.inventory.reserve(
+      depotId,
+      orderId,
+      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      authorization,
+    );
     return this.orders.assignDepot(orderId, depotId);
   }
 
