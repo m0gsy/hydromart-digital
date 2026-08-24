@@ -203,6 +203,52 @@ describe('Delivery HTTP flows (e2e)', () => {
     expect(done.body.proof.recipientName).toBe('Budi');
   });
 
+  /*
+   * K2.8b · the seal answer, finally written down.
+   *
+   * The courier screen has always gated Selesai on a seal checkbox, and the answer lived
+   * for exactly one button press — `ProofOfDeliveryDto` had no field for it. So a customer
+   * claiming a broken seal and a courier insisting it was intact argued with no evidence on
+   * either side, on every delivery this platform has ever made.
+   *
+   * The column shipped a release ahead (#287). This is the code that writes it.
+   */
+  it('records the seal answer the courier gave, and keeps it null when never asked', async () => {
+    const flow = async (proof: Record<string, unknown>) => {
+      const created = await request(server())
+        .post('/api/v1/deliveries')
+        .set(auth(staffToken))
+        .send({ ...assignBody(), driverId })
+        .expect(201);
+      const id = created.body.id;
+      await request(server())
+        .patch(`/api/v1/driver/deliveries/${id}/pickup`)
+        .set(auth(driverToken))
+        .expect(200);
+      await request(server())
+        .patch(`/api/v1/driver/deliveries/${id}/start`)
+        .set(auth(driverToken))
+        .expect(200);
+      return request(server())
+        .post(`/api/v1/driver/deliveries/${id}/complete`)
+        .set(auth(driverToken))
+        .send(proof)
+        .expect(201);
+    };
+
+    expect((await flow({ ...PROOF, sealIntact: true })).body.proof.sealIntact).toBe(true);
+    // A courier who says the seal was broken is the whole point: the answer is evidence
+    // either way, and refusing the handover would strand them at the customer's gate.
+    expect((await flow({ ...PROOF, sealIntact: false })).body.proof.sealIntact).toBe(false);
+    /*
+     * The customer app is a static export inside an APK, so an old build in somebody's
+     * hand keeps posting proof with no seal field for as long as they do not update.
+     * NULL means "nobody was ever asked" — defaulting it to true would manufacture
+     * testimony nobody gave, which is the exact fake evidence this column exists to stop.
+     */
+    expect((await flow(PROOF)).body.proof.sealIntact).toBeNull();
+  });
+
   it('rejects completion without full proof (400)', async () => {
     const created = await request(server())
       .post('/api/v1/deliveries')

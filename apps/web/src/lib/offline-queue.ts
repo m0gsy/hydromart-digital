@@ -60,6 +60,8 @@ export interface PodPayload {
   /** Data URLs — the File objects themselves cannot survive a reload. */
   photo: string;
   signature?: string;
+  /** K2.8: the seal answer the courier gave on this handover. */
+  sealIntact: boolean;
   recipientName: string;
   latitude: number;
   longitude: number;
@@ -319,6 +321,7 @@ async function run(job: Job, capturedAt: string): Promise<unknown> {
     {
       photoUrl,
       signatureUrl,
+      sealIntact: p.sealIntact,
       recipientName: p.recipientName,
       latitude: p.latitude,
       longitude: p.longitude,

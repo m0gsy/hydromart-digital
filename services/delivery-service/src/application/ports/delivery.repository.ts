@@ -4,6 +4,15 @@ import { ContactMethod, ContactState } from '../../domain/no-show';
 export interface ProofRecord {
   photoUrl: string;
   signatureUrl: string | null;
+  /**
+   * K2.8: what the courier answered about the gallon seal, or NULL if nobody was asked.
+   *
+   * Three values, three meanings, and the third is the reason this is nullable: `true` and
+   * `false` are testimony, NULL is its absence. Every proof written before the column, and
+   * every old APK still in somebody's hand, lands in NULL — and defaulting those to `true`
+   * would manufacture evidence nobody gave.
+   */
+  sealIntact: boolean | null;
   recipientName: string;
   latitude: number;
   longitude: number;

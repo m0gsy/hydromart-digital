@@ -30,6 +30,8 @@ describe('DeliveryPrismaRepository', () => {
   const proofRow = {
     photoUrl: 'p.jpg',
     signatureUrl: 's.png',
+    // A proof from before the seal column: null, and it must stay null through the mapper.
+    sealIntact: null,
     recipientName: 'Budi',
     latitude: -6.2,
     longitude: 106.8,
@@ -408,6 +410,7 @@ describe('DeliveryPrismaRepository', () => {
     const proof = {
       photoUrl: 'p.jpg',
       signatureUrl: 's.png',
+      sealIntact: true,
       recipientName: 'Budi',
       latitude: -6.2,
       longitude: 106.8,

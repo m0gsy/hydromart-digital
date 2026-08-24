@@ -333,6 +333,7 @@ describe('edges nothing else exercises', () => {
       {
         photoUrl: 'https://cdn/pod/x.jpg',
         signatureUrl: null,
+        sealIntact: null,
         recipientName: 'Budi',
         latitude: -6.9147,
         longitude: 107.6098,

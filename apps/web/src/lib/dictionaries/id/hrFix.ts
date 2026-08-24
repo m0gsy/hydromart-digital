@@ -830,6 +830,10 @@ export const hrFix = {
   },
   pod: {
     sealIntact: 'Segel galon utuh & tidak bocor',
+    // K2.8b: dibaca saat menyelidiki keluhan, bukan saat mengantar.
+    sealLabel: 'Segel',
+    sealYes: 'Utuh saat diserahkan',
+    sealNo: 'Rusak saat diserahkan',
     clearSignature: 'Hapus tanda tangan',
     heading: 'Bukti pengantaran · {order}',
     previewAlt: 'Pratinjau foto pengantaran',

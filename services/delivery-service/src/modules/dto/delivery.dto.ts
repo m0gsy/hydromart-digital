@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -169,6 +170,14 @@ export class ProofOfDeliveryDto {
   @IsString()
   @MaxLength(500)
   signatureUrl?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Did the courier confirm the gallon seal was intact? Omit it and the answer stays null — never asked is not the same as yes.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  sealIntact?: boolean;
 
   @ApiProperty({ example: 'Budi Santoso' })
   @IsString()

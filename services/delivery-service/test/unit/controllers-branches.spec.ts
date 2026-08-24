@@ -204,7 +204,8 @@ describe('DriverDeliveryController', () => {
     expect(deliveries.complete).toHaveBeenCalledWith(
       user.sub,
       id,
-      { photoUrl: 'p', signatureUrl: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: null, capturedAt: null },
+      // sealIntact null: this body omits the field, which is an old APK — never asked.
+      { photoUrl: 'p', signatureUrl: null, sealIntact: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: null, capturedAt: null },
       auth,
     );
   });
@@ -219,7 +220,7 @@ describe('DriverDeliveryController', () => {
     expect(deliveries.complete).toHaveBeenCalledWith(
       user.sub,
       id,
-      { photoUrl: 'p', signatureUrl: 's', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok', capturedAt: null },
+      { photoUrl: 'p', signatureUrl: 's', sealIntact: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok', capturedAt: null },
       auth,
     );
   });

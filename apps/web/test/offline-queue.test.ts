@@ -192,6 +192,7 @@ describe('offline queue', () => {
         deliveryId: 'del-1',
         orderNumber: 'HM-1',
         photo: 'data:image/jpeg;base64,/9j/4AAQ',
+        sealIntact: true,
         recipientName: 'Budi',
         latitude: -6.2,
         longitude: 106.8,
@@ -202,6 +203,9 @@ describe('offline queue', () => {
     expect(post.mock.calls[0]![1]).toMatchObject({
       photoUrl: 'https://cdn/p.jpg',
       signatureUrl: undefined,
+      // K2.8b: the seal answer travels with the proof, through the queue as well as live.
+      // It used to be dropped on the floor — the courier answered and nothing kept it.
+      sealIntact: true,
       recipientName: 'Budi',
     });
   });

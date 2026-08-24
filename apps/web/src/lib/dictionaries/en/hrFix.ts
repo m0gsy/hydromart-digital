@@ -818,6 +818,9 @@ export const hrFix = {
   },
   pod: {
     sealIntact: 'Gallon seal intact and not leaking',
+    sealLabel: 'Seal',
+    sealYes: 'Intact at handover',
+    sealNo: 'Broken at handover',
     clearSignature: 'Clear signature',
     heading: 'Proof of delivery · {order}',
     previewAlt: 'Photo preview',

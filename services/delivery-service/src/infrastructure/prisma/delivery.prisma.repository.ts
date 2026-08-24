@@ -40,6 +40,7 @@ function rejectStaleStatus(error: unknown): never {
 interface ProofRow {
   photoUrl: string;
   signatureUrl: string | null;
+  sealIntact: boolean | null;
   recipientName: string;
   latitude: number;
   longitude: number;
@@ -139,6 +140,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         ? {
             photoUrl: row.proof.photoUrl,
             signatureUrl: row.proof.signatureUrl,
+            sealIntact: row.proof.sealIntact,
             recipientName: row.proof.recipientName,
             latitude: row.proof.latitude,
             longitude: row.proof.longitude,

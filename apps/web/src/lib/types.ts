@@ -1155,6 +1155,8 @@ export interface DeliveryStatusHistoryEntry {
 export interface ProofOfDelivery {
   photoUrl: string;
   signatureUrl: string | null;
+  /** K2.8: the courier's seal answer. `null` = nobody was ever asked, not "yes". */
+  sealIntact: boolean | null;
   recipientName: string;
   latitude: number;
   longitude: number;
