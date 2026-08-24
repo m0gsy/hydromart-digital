@@ -377,7 +377,7 @@ describe('SubscriptionService', () => {
 
       await tick(2);
       await tick(3);
-      await expect(tick(4)).resolves.toEqual({ placed: 0 });
+      await expect(tick(4)).resolves.toEqual({ placed: 0, failed: 1, ok: false });
 
       const after = (await service.list(customer)).find((s) => s.id === sub.id)!;
       expect(after.status).toBe('PAUSED');
@@ -390,7 +390,7 @@ describe('SubscriptionService', () => {
       subs.recordFailure = async () => {
         throw new Error('db down');
       };
-      await expect(tick(2)).resolves.toEqual({ placed: 0 });
+      await expect(tick(2)).resolves.toEqual({ placed: 0, failed: 1, ok: false });
     });
 
     // The reason the count is CONSECUTIVE and not cumulative: a plan that failed once and
@@ -450,6 +450,59 @@ describe('SubscriptionService', () => {
     // a paused subscription is not swept.
     await service.pause(customer, sub.id);
     expect((await service.processDue(new Date('2026-08-01T00:00:00Z'))).placed).toBe(0);
+  });
+
+  /*
+   * J7 — a round that failed everything must not read like a round with nothing to do.
+   *
+   * The sweep catches per subscription so one bad plan cannot take the batch down, and
+   * that is why `{ placed: 0 }` was the answer to both "nothing was due" and "every plan
+   * threw". `scripts/scheduler/sweep.sh` saw HTTP 200 in both cases and refreshed the
+   * heartbeat its container healthcheck reads, so the scheduler reported healthy while no
+   * subscription order was being placed at all.
+   */
+  it('J7 · an idle round and a round that failed everything answer differently', async () => {
+    const idle = await service.processDue(new Date('2026-07-13T00:00:00Z'));
+    expect(idle).toEqual({ placed: 0, failed: 0, ok: true });
+
+    const p = seedProduct();
+    await service.create(customer, {
+      productId: p.id,
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+    jest.spyOn(orders, 'create').mockRejectedValue(new Error('depot-service unreachable'));
+
+    const dead = await service.processDue(new Date('2026-07-13T00:00:00Z'));
+    expect(dead).toEqual({ placed: 0, failed: 1, ok: false });
+  });
+
+  // The other half of the rule: losing one plan out of two is a working sweep. Reporting
+  // that as a dead round would pin the scheduler to unhealthy for as long as the bad plan
+  // exists, which hides the next real outage exactly as well as always-green does.
+  it('J7 · a round that placed something stays ok even having lost a plan', async () => {
+    const p = seedProduct();
+    for (const q of [3, 4]) {
+      await service.create(customer, {
+        productId: p.id,
+        quantity: q,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address,
+      });
+    }
+    let calls = 0;
+    const real = orders.create.bind(orders);
+    jest.spyOn(orders, 'create').mockImplementation(async (...args: Parameters<typeof real>) => {
+      calls += 1;
+      if (calls === 1) throw new Error('depot-service unreachable');
+      return real(...args);
+    });
+
+    const result = await service.processDue(new Date('2026-07-13T00:00:00Z'));
+    expect(result).toEqual({ placed: 1, failed: 1, ok: true });
   });
 
   // H-3. The sweep read due rows, placed an order, then advanced the schedule. Two
@@ -672,6 +725,8 @@ describe('SubscriptionService', () => {
 
     await expect(service.processDue(new Date('2026-07-13T00:00:00Z'))).resolves.toEqual({
       placed: 0,
+      failed: 1,
+      ok: false,
     });
   });
 });

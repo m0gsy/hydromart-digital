@@ -16,6 +16,14 @@ export interface ReportSweepResult {
   due: number;
   produced: number;
   failed: number;
+  /**
+   * J7: false when reports came due and none of them was produced.
+   *
+   * `failed` was counted and unread — `sweep.sh` refreshed the scheduler heartbeat on the
+   * HTTP 200 alone, so an hour where every due report threw wrote the same green marker
+   * as an hour with nothing due.
+   */
+  ok: boolean;
 }
 
 /**
@@ -48,7 +56,7 @@ export class ScheduledReportRunnerService {
 
   async runDue(now = new Date()): Promise<ReportSweepResult> {
     const due = await this.schedules.findDue(now, ScheduledReportRunnerService.MAX_PER_SWEEP);
-    const result: ReportSweepResult = { due: due.length, produced: 0, failed: 0 };
+    const result: ReportSweepResult = { due: due.length, produced: 0, failed: 0, ok: true };
 
     for (const schedule of due) {
       const ok = await this.runOne(schedule, now);
@@ -61,6 +69,7 @@ export class ScheduledReportRunnerService {
         nextRunAt: nextRunAfter(schedule.cadence, now),
       });
     }
+    result.ok = result.failed === 0 || result.produced > 0;
     return result;
   }
 

@@ -138,7 +138,7 @@ describe('ScheduledReportRunnerService', () => {
       dataset: ReportDataset.REVENUE_BY_PRODUCT,
     });
 
-    expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1, failed: 0 });
+    expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1, failed: 0, ok: true });
 
     expect(rowsFor).toHaveBeenCalledWith(
       ReportDataset.REVENUE_BY_PRODUCT,
@@ -167,7 +167,7 @@ describe('ScheduledReportRunnerService', () => {
       recipients: ['finance@hydromart.id'],
     });
 
-    expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1 - 1, failed: 1 });
+    expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1 - 1, failed: 1, ok: false });
     expect(logs.rows[0]).toMatchObject({ status: ExportStatus.FAILED, rowCount: null, hasFile: false });
   });
 
@@ -198,7 +198,7 @@ describe('ScheduledReportRunnerService', () => {
       recipients: ['a@b.c'],
       nextRunAt: new Date('2026-08-20T00:00:00.000Z'),
     });
-    expect(await runner.runDue(WED)).toEqual({ due: 0, produced: 0, failed: 0 });
+    expect(await runner.runDue(WED)).toEqual({ due: 0, produced: 0, failed: 0, ok: true });
   });
 
   // A schedule created before the executor existed was never stamped. Reading NULL as

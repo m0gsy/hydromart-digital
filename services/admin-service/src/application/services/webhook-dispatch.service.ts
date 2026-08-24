@@ -61,7 +61,20 @@ export class WebhookDispatchService {
   }
 
   /** Send every due delivery. Driven by the scheduler; safe to run concurrently. */
-  async process(now = new Date()): Promise<{ sent: number; failed: number; dead: number }> {
+  /**
+   * J7: `ok` is false only when this round had deliveries due and sent none of them.
+   *
+   * The counters were already right and nothing read them. `sweep.sh` refreshed the
+   * scheduler heartbeat on the HTTP 200, so every partner integration failing at once —
+   * every five minutes — wrote the same green marker as a tick with nothing due.
+   *
+   * A round that sends most and loses one stays ok on purpose. Retries back off on their
+   * own, and a scheduler pinned to unhealthy by one flaky partner endpoint reports an
+   * outage no more usefully than one that is always green.
+   */
+  async process(
+    now = new Date(),
+  ): Promise<{ sent: number; failed: number; dead: number; ok: boolean }> {
     const due = await this.deliveries.claimDue(now, BATCH, LEASE_MS);
     let sent = 0;
     let failed = 0;
@@ -77,7 +90,7 @@ export class WebhookDispatchService {
     }
 
     for (const endpointId of touched) await this.refreshStats(endpointId);
-    return { sent, failed, dead };
+    return { sent, failed, dead, ok: failed + dead === 0 || sent > 0 };
   }
 
   /** Re-queue one delivery (partner API / HQ). 404 when the id is unknown. */

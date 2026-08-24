@@ -64,12 +64,36 @@ notify_failure() {
     "$ALERT_WEBHOOK_URL" >/dev/null 2>&1 || true
 }
 
-if wget -q -O- -T "$TIMEOUT" --header="x-internal-key: ${INTERNAL_SERVICE_KEY}" \
-    --post-data='' "http://${host}/api/v1/${path}"; then
-  echo "${now} swept ${path}"
-  # Two heartbeats: one per job for diagnosis, one shared for the container healthcheck.
-  : > "$STATE/$slug.ok"
-  : > "$STATE/last-success"
+# J7 — a 200 is not a verdict.
+#
+# Every check above this line is about the TRANSPORT. The body went straight to the
+# container log unread, and that is where the answer was: `{"placed":0}` from a round in
+# which every subscription threw is byte-for-byte the same as a round with nothing due,
+# because the sweep catches per row and returns only what succeeded. Both wrote the
+# shared heartbeat, so the healthcheck stayed green while the flow was dead — "alur mati"
+# and "sistem tenang" were the same two files on disk.
+#
+# So sweeps now answer with `ok`, decided in the service where the counters have names:
+# FALSE only when the round failed at something and accomplished nothing. A round that
+# placed forty orders and lost one is still a working sweep — flagging that would pin the
+# scheduler to unhealthy forever, which is the same blindness pointing the other way.
+#
+# `ok` absent means the endpoint makes no claim, and the exit code stands exactly as
+# before. No jq in this image; the field is a flat boolean, so a fixed-string grep is the
+# whole parser.
+if body="$(wget -q -O- -T "$TIMEOUT" --header="x-internal-key: ${INTERNAL_SERVICE_KEY}" \
+    --post-data='' "http://${host}/api/v1/${path}")"; then
+  [ -n "$body" ] && echo "$body"
+  if echo "$body" | tr -d ' ' | grep -q '"ok":false'; then
+    echo "${now} FAILED ${path} — answered 200 but reported a dead round: ${body}" >&2
+    : > "$STATE/$slug.failed"
+    notify_failure
+  else
+    echo "${now} swept ${path}"
+    # Two heartbeats: one per job for diagnosis, one shared for the container healthcheck.
+    : > "$STATE/$slug.ok"
+    : > "$STATE/last-success"
+  fi
 else
   echo "${now} FAILED ${path}" >&2
   : > "$STATE/$slug.failed"

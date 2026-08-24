@@ -1412,7 +1412,7 @@ describe('ReportService.broadcastDailySales', () => {
 
   it("sends each depot today's gallon count, to the depot's own number", async () => {
     const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0 });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
     expect(notify).toHaveBeenCalledWith(
       'DEPOT_SALES_UPDATE',
       '0811',
@@ -1426,7 +1426,7 @@ describe('ReportService.broadcastDailySales', () => {
   // it would make an unfilled field look like a depot that sold nothing.
   it('falls back to the ops number when the depot has none', async () => {
     const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: null }]);
-    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0 });
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
     expect(notify.mock.calls[0]?.[1]).toBe('0800-ops');
     expect(notify.mock.calls[0]?.[2]).toMatchObject({ slot: 'sore' });
   });
@@ -1435,7 +1435,7 @@ describe('ReportService.broadcastDailySales', () => {
     const { svc, notify } = build([{ id: 'd1', name: 'D', contactPhone: null }], {
       alertPhone: '',
     });
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 1 });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 1, failed: 0, ok: true });
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -1454,18 +1454,18 @@ describe('ReportService.broadcastDailySales', () => {
       ],
       { notify },
     );
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 1 });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 1, ok: true });
   });
 
   it('does nothing when depot-service cannot answer', async () => {
     const { svc, notify } = build(null);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0 });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0, failed: 0, ok: false });
     expect(notify).not.toHaveBeenCalled();
   });
 
   // The ports are optional so every two-argument ReportService in these tests still builds.
   it('does nothing at all when the ports are not wired', async () => {
     const svc = new ReportService(orders, config);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0 });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0, failed: 0, ok: false });
   });
 });

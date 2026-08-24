@@ -76,6 +76,33 @@ describe('PurgeService', () => {
     expect(result.unenforced).toEqual(['pesanan']);
   });
 
+  /*
+   * J7 — a run where every dataset threw must not read like a clean night.
+   *
+   * The per-dataset catch is what keeps one failure from aborting the sweep; it is also
+   * why a total failure still answered HTTP 200 with a well-formed body, and
+   * `scripts/scheduler/sweep.sh` refreshed the heartbeat behind the scheduler
+   * healthcheck on the strength of that 200.
+   */
+  it('J7 · a run where every dataset failed reports ok:false', async () => {
+    const boom = (dataset: string) => ({
+      dataset,
+      mode: 'DELETE' as const,
+      purge: jest.fn(async () => {
+        throw new Error('owner down');
+      }),
+    });
+    const service = new PurgeService(
+      plan([{ dataset: 'audit_logs' }, { dataset: 'notifications_messages' }]) as never,
+      [boom('audit_logs'), boom('notifications_messages')],
+    );
+
+    const result = await service.run({ now: NOW });
+
+    expect(result.entries.every((e) => e.outcome === 'FAILED')).toBe(true);
+    expect(result.ok).toBe(false);
+  });
+
   it('one failing dataset does not abort the others', async () => {
     const boom = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn(async () => { throw new Error('owner down'); }) };
     const ok = { dataset: 'notifications_messages', mode: 'DELETE' as const, purge: jest.fn(async () => 3) };
@@ -87,6 +114,10 @@ describe('PurgeService', () => {
     const result = await service.run({ now: NOW });
 
     expect(result.entries[0]).toMatchObject({ outcome: 'FAILED', error: 'owner down', deleted: 0 });
+    // J7: one dataset down while another was purged is a working sweep. Reporting that as
+    // a dead round would pin the scheduler to unhealthy for as long as the bad dataset
+    // exists, hiding the next real outage as thoroughly as always-green does.
+    expect(result.ok).toBe(true);
     expect(result.entries[1]).toMatchObject({ outcome: 'PURGED', deleted: 3 });
     expect(result.totalDeleted).toBe(3);
   });

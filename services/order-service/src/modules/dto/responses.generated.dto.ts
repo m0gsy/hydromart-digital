@@ -986,8 +986,16 @@ export class InternalDepotSales2ResponseDto {
 export class InternalDailySalesBroadcastResponseDto {
   @ApiProperty({ type: Number })
   attempted!: number;
-  @ApiProperty({ type: Number })
+  @ApiProperty({ type: Number, description: 'Depots with no number on file to send to.' })
   skipped!: number;
+  @ApiProperty({ type: Number, description: 'Depots whose update threw on the way out.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'J7: false when the round failed at something and reached nobody. sweep.sh withholds the scheduler heartbeat on false.',
+  })
+  ok!: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
@@ -1054,6 +1062,14 @@ export class InternalCustomerOrdersResponseDto {
 export class RemindStale2ResponseDto {
   @ApiProperty({ type: Number })
   reminded!: number;
+  @ApiProperty({ type: Number, description: 'Targets whose reminder could not be sent.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'J7: false when the round failed at something and reminded nobody. sweep.sh withholds the scheduler heartbeat on false.',
+  })
+  ok!: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
@@ -1145,6 +1161,14 @@ export class Discount2ResponseDto {
 export class ProcessDue2ResponseDto {
   @ApiProperty({ type: Number })
   placed!: number;
+  @ApiProperty({ type: Number, description: 'Due plans this round could not place.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'J7: false when the round failed at something and placed nothing. sweep.sh withholds the scheduler heartbeat on false.',
+  })
+  ok!: boolean;
 }
 
 /** Mirrors `DepotDailyRow` exactly — generated for audit D-6, no field added or removed. */

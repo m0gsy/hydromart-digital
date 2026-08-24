@@ -13,7 +13,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from
 import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, assertDepotAccess } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
-import { ReportService } from '../application/services/report.service';
+import { DailySalesBroadcastResult, ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
   DepotCompareQueryDto,
@@ -265,7 +265,7 @@ export class ReportController {
     // so a body DTO would arrive empty and 400 on every cron tick. It also gives the two
     // slots separate sweep locks, which is what you want — siang must not block sore.
     @Param('slot') slot: string,
-  ): Promise<{ attempted: number; skipped: number }> {
+  ): Promise<DailySalesBroadcastResult> {
     if (slot !== 'siang' && slot !== 'sore') {
       throw new BadRequestException('slot must be siang or sore');
     }
