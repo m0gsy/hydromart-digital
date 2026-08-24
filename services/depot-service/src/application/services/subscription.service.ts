@@ -71,6 +71,17 @@ export class SubscriptionService {
     return this.subscriptions.activeCustomerIdsForDepot(depotId);
   }
 
+  /**
+   * K1.11: the depot-created half of the subscription population, network-wide.
+   *
+   * No depot argument and no depot existence check: this is the whole network, which is
+   * the only scope at which HQ's screen asks the question. It exists because that screen
+   * was reading order-service's customer-created plans and calling the answer the total.
+   */
+  networkSummary(): Promise<{ activeSubscriptions: number; activeSubscribers: number }> {
+    return this.subscriptions.networkActiveCounts();
+  }
+
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();

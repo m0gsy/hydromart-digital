@@ -10,13 +10,25 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { SubscriptionNetworkSummary } from '@/lib/types';
 
-// Design 18c — gallon subscriptions, now REAL (order-service subscriptions/admin/summary):
-// active counts + per-plan breakdown. estMonthlyDeliveries is an estimate — order-service
-// snapshots no subscription price, so a rupiah MRR is not derivable (labelled as such).
+// Design 18c — gallon subscriptions, now REAL: active counts + per-plan breakdown.
+// estMonthlyDeliveries is an estimate — order-service snapshots no subscription price, so a
+// rupiah MRR is not derivable (labelled as such).
+//
+// K1.11: this screen used to read ONE of the two subscription systems — order-service's
+// customer-created plans — and label the answer as the network's. Depot-created
+// subscriptions live in depot-service and were only ever listable one depot at a time, so
+// every one of them was silently missing from a number an operator plans against. Both
+// halves are read now, each labelled for what it actually counts, with a line saying they
+// are two populations and not one. Adding them together would be a third wrong number.
 export default function HqSubscriptionsPage() {
   const { t } = useT();
   const { data, loading, error, reload } = useAsync<SubscriptionNetworkSummary>(
     () => api.get(endpoints.subscriptions.adminSummary, true),
+  );
+  // Read separately, and allowed to fail separately: a depot-service outage must not blank
+  // the customer figures this screen could always show.
+  const depotSubs = useAsync<{ activeSubscriptions: number; activeSubscribers: number }>(
+    () => api.get(endpoints.depotSubscriptions.adminSummary, true),
   );
 
   const freqLabel = (f: string) => t(`hq.subscriptions.freq.${f}`);
@@ -31,6 +43,8 @@ export default function HqSubscriptionsPage() {
         <ErrorState message={error} onRetry={reload} />
       ) : (
         <>
+          <p className="text-xs text-muted">{t('hq.subscriptions.twoSystems')}</p>
+
           <div className="grid gap-3 sm:grid-cols-3">
             <Card className="flex flex-col gap-1 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('hq.subscriptions.activeSubs')}</p>
@@ -50,6 +64,27 @@ export default function HqSubscriptionsPage() {
                 ≈ {(data?.estMonthlyDeliveries ?? 0).toLocaleString('id-ID')}
               </p>
               <p className="text-[11px] text-muted">{t('hq.subscriptions.estHint')}</p>
+            </Card>
+            <Card className="flex flex-col gap-1 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('hq.subscriptions.depotSubs')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {/* A dash, not a zero: unread is not none, and this whole item exists
+                    because a missing population was rendered as an answer. */}
+                {depotSubs.error
+                  ? '—'
+                  : (depotSubs.data?.activeSubscriptions ?? 0).toLocaleString('id-ID')}
+              </p>
+              {depotSubs.error && (
+                <p className="text-[11px] text-muted">{t('hq.subscriptions.depotUnreadable')}</p>
+              )}
+            </Card>
+            <Card className="flex flex-col gap-1 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('hq.subscriptions.depotSubscribers')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {depotSubs.error
+                  ? '—'
+                  : (depotSubs.data?.activeSubscribers ?? 0).toLocaleString('id-ID')}
+              </p>
             </Card>
           </div>
 

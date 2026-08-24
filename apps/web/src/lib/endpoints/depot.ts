@@ -74,6 +74,9 @@ depotSubscriptions: {
     if (q.status) p.set('status', q.status);
     return `/depots/api/v1/subscriptions?${p}`;
   },
+  // K1.11: network aggregate of the DEPOT-created half. HQ's screen read only
+  // order-service's customer-created plans and presented that as the network total.
+  adminSummary: '/depots/api/v1/subscriptions/admin/summary',
   create: '/depots/api/v1/subscriptions',
   pause: (id: string) => `/depots/api/v1/subscriptions/${id}/pause`,
   resume: (id: string) => `/depots/api/v1/subscriptions/${id}/resume`,

@@ -1122,6 +1122,14 @@ export class SchemaResponseDto {
 }
 
 /** Mirrors `Subscription` exactly — generated for audit D-6, no field added or removed. */
+/** K1.11: the depot-created half of the subscription population, network-wide. */
+export class SubscriptionNetworkCountsResponseDto {
+  @ApiProperty({ type: Number })
+  activeSubscriptions!: number;
+  @ApiProperty({ type: Number, description: 'Distinct linked customers, not row count.' })
+  activeSubscribers!: number;
+}
+
 export class SubscriptionResponseDto {
   @ApiProperty({ type: String })
   id!: string;
