@@ -1,3 +1,4 @@
+import { CatalogUnavailableError } from '../../src/domain/errors';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { buildTestConfig } from '../support/fakes';
 
@@ -53,7 +54,7 @@ describe('ProductCatalogHttpAdapter', () => {
 
   it('throws on a failed batch so checkout fails closed', async () => {
     mockFetch(() => ({ status: 500, ok: false }));
-    await expect(adapter.getProducts(['p1'])).rejects.toThrow('product-service responded 500');
+    await expect(adapter.getProducts(['p1'])).rejects.toBeInstanceOf(CatalogUnavailableError);
   });
 
   it('maps a 404 to null (product missing or inactive)', async () => {
@@ -63,13 +64,35 @@ describe('ProductCatalogHttpAdapter', () => {
 
   it('throws on a non-404 error response so checkout fails closed', async () => {
     mockFetch(() => ({ status: 500, ok: false }));
-    await expect(adapter.getProduct('p1')).rejects.toThrow('product-service responded 500');
+    await expect(adapter.getProduct('p1')).rejects.toBeInstanceOf(CatalogUnavailableError);
   });
 
-  it('propagates a network failure', async () => {
+  it('propagates a network failure as an upstream outage, not a bug in the request', async () => {
     global.fetch = jest.fn(async () => {
       throw new Error('ECONNREFUSED');
     }) as unknown as typeof fetch;
-    await expect(adapter.getProduct('p1')).rejects.toThrow('ECONNREFUSED');
+    await expect(adapter.getProduct('p1')).rejects.toBeInstanceOf(CatalogUnavailableError);
+  });
+
+  /*
+   * The 429-as-500. Every non-ok status left here as a bare `Error`, and the exception
+   * filter renders those as 500 INTERNAL_ERROR / "An unexpected error occurred." So a
+   * customer adding a galon to their cart while product-service was being throttled was
+   * told the system had broken, with no reason and nothing to do about it. It had not
+   * broken: it was busy, the customer had done nothing wrong, and trying again in a moment
+   * would have worked. 503 and a sentence that says exactly that.
+   *
+   * The sibling adapter got this right already — `inventory.http.adapter` maps the same
+   * failures to StockCheckUnavailableError. This one was the only rethrowing adapter in
+   * order-service still handing the filter a bare Error.
+   */
+  it.each([429, 502, 503, 504])('maps upstream %i to a retryable 503, not a 500', async (status) => {
+    mockFetch(() => ({ status, ok: false }));
+    const err = await adapter.getProduct('p1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CatalogUnavailableError);
+    expect((err as CatalogUnavailableError).status).toBe(503);
+    expect((err as CatalogUnavailableError).code).toBe('ORDER_CATALOG_UNAVAILABLE');
+    // Said in the language of the person reading it, and honest about what to do next.
+    expect((err as CatalogUnavailableError).message).toMatch(/coba lagi/i);
   });
 });

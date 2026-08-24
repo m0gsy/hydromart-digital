@@ -9,6 +9,7 @@ export const errors = {
     AUTH_OTP_EXPIRED: 'That verification code has expired. Request a new one.',
     AUTH_OTP_MAX_ATTEMPTS: 'Too many attempts. Request a new code.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'This account is not active. Contact Hydromart support.',
+    ORDER_CATALOG_UNAVAILABLE: 'The product catalogue is busy right now. Wait a moment and try again.',
   },
   missingRouteId: 'This page was opened without the record it needs. Go back and pick one.',
   geo: {

@@ -19,6 +19,9 @@ export const errors = {
     AUTH_OTP_EXPIRED: 'Kode verifikasi sudah kedaluwarsa. Minta kode baru.',
     AUTH_OTP_MAX_ATTEMPTS: 'Terlalu banyak percobaan. Minta kode baru.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'Akun ini tidak aktif. Hubungi dukungan Hydromart.',
+    // The server already answers this one in Indonesian; it is listed so the English
+    // dictionary has somewhere to put its own sentence, not to translate anything.
+    ORDER_CATALOG_UNAVAILABLE: 'Katalog produk sedang sibuk. Tunggu sebentar, lalu coba lagi.',
   },
   // E3: a detail screen opened without its `?id=` used to build a URL with a hole in it
   // and show the server's 404, which reads as "this record was deleted" rather than
