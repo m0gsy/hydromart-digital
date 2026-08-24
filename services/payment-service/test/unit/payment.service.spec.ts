@@ -516,6 +516,131 @@ describe('PaymentService', () => {
     expect(result.handled).toBe(false);
   });
 
+  /*
+   * K2.2 — a payment nobody completed has to stop being live eventually.
+   *
+   * There was no sweep and no cron line. The damage is not untidiness: `initiate` refuses
+   * while an active (PENDING/PAID) payment exists, so one abandoned transfer locks its
+   * order out of EVERY other method, permanently, with nothing saying why. Measured on
+   * the live stack before this was written: 52 non-cash PENDING rows, oldest 26 July.
+   */
+  describe('expireStalePending (K2.2)', () => {
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000);
+
+    const seedPending = async (method: PaymentMethod, createdAt: Date) => {
+      const row = await repo.create({
+        orderId: randomUUID(),
+        customerId: customer,
+        method,
+        amount: 45000,
+        reference: null,
+        instruction: null,
+        gatewayData: null,
+        depotId: null,
+        cashierShiftId: null,
+      });
+      repo.rows.find((r) => r.id === row.id)!.createdAt = createdAt;
+      return row;
+    };
+
+    it('frees the order an abandoned transfer had locked out of every other method', async () => {
+      const stale = await seedPending(PaymentMethod.TRANSFER, hoursAgo(30));
+      // The lockout, stated before it is lifted: this is what the customer hit.
+      await expect(
+        service.initiate(customer, {
+          orderId: stale.orderId,
+          method: PaymentMethod.CASH,
+          amount: 45000,
+        }),
+      ).rejects.toBeInstanceOf(PaymentAlreadyExistsError);
+
+      expect(await service.expireStalePending(new Date())).toEqual({
+        expired: 1,
+        failed: 0,
+        ok: true,
+      });
+
+      const retried = await service.initiate(customer, {
+        orderId: stale.orderId,
+        method: PaymentMethod.CASH,
+        amount: 45000,
+      });
+      expect(retried.status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('never touches CASH — a COD payment is PENDING until the courier confirms', async () => {
+      await seedPending(PaymentMethod.CASH, hoursAgo(24 * 30));
+      expect(await service.expireStalePending(new Date())).toEqual({
+        expired: 0,
+        failed: 0,
+        ok: true,
+      });
+      expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('leaves a payment still inside its window alone', async () => {
+      await seedPending(PaymentMethod.QRIS, hoursAgo(2));
+      expect((await service.expireStalePending(new Date())).expired).toBe(0);
+      expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('a TTL of zero is the kill switch: nothing expires, and that is a clean round', async () => {
+      const svc = new PaymentService(
+        repo,
+        gateway,
+        orders,
+        buildTestConfig({ PAYMENT_PENDING_TTL_HOURS: '0' }),
+      );
+      await seedPending(PaymentMethod.QRIS, hoursAgo(24 * 30));
+      expect(await svc.expireStalePending(new Date())).toEqual({ expired: 0, failed: 0, ok: true });
+      expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
+    });
+
+    // The customer who pays in the same instant the sweep reaches their row must win.
+    it('declines to overwrite a payment that was settled mid-sweep', async () => {
+      const row = await seedPending(PaymentMethod.QRIS, hoursAgo(30));
+      jest.spyOn(repo, 'findStalePending').mockImplementation(async () => {
+        await repo.update(row.id, { status: PaymentStatus.PAID, paidAt: new Date() });
+        return [{ ...row }];
+      });
+      expect(await service.expireStalePending(new Date())).toEqual({
+        expired: 0,
+        failed: 0,
+        ok: true,
+      });
+      expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    });
+
+    // J7: a round that could not expire anything must not read like a round with nothing
+    // to expire — sweep.sh withholds the scheduler heartbeat on ok:false.
+    it('reports ok:false when every row it found failed to move', async () => {
+      await seedPending(PaymentMethod.QRIS, hoursAgo(30));
+      jest.spyOn(repo, 'updateIfStatus').mockRejectedValue(new Error('db down'));
+      expect(await service.expireStalePending(new Date())).toEqual({
+        expired: 0,
+        failed: 1,
+        ok: false,
+      });
+    });
+
+    it('stays ok when it expired something despite losing a row', async () => {
+      await seedPending(PaymentMethod.QRIS, hoursAgo(31));
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(30));
+      const real = repo.updateIfStatus.bind(repo);
+      let n = 0;
+      jest.spyOn(repo, 'updateIfStatus').mockImplementation(async (...args) => {
+        n += 1;
+        if (n === 1) throw new Error('db down');
+        return real(...args);
+      });
+      expect(await service.expireStalePending(new Date())).toEqual({
+        expired: 1,
+        failed: 1,
+        ok: true,
+      });
+    });
+  });
+
   describe('cashCollected (courier COD deposit)', () => {
     const settleCash = async (amount: number) => {
       const orderId = randomUUID();

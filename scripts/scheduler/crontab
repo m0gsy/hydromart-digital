@@ -35,6 +35,14 @@
 # the sweep is bounded and idempotent (it claims rows), and an effect a customer is waiting
 # on should not be a day late. `outbox/pending` reports the backlog if it ever stops draining.
 */10 * * * * sh /scripts/sweep.sh orders/outbox/internal/process
+# K2.2: fail non-cash payments left PENDING past their window. There was no sweep and no
+# line here, so an abandoned transfer or QRIS attempt stayed PENDING for as long as the
+# database did — and because `initiate` refuses to start a payment while an active one
+# exists, that one dead row locked its order out of EVERY other payment method, forever,
+# with nothing anywhere saying why. Hourly: the window is measured in hours, the tick is
+# bounded at 500 rows, and whatever it does not reach is still stale next hour. CASH is
+# never touched — a COD payment is PENDING by design until the courier confirms.
+25 * * * * sh /scripts/sweep.sh payments/internal/expire-pending payment:3005
 # Release the stock held by orders nobody ever confirmed. Also unscheduled until now, so a
 # reservation from an abandoned checkout was never given back — a slow leak into false
 # out-of-stock. Hourly is enough: the threshold is measured in minutes-to-hours, and the

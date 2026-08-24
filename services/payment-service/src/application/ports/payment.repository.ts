@@ -94,6 +94,19 @@ export interface PaymentRepository {
   /** Active = PENDING or PAID. Used to enforce one live payment per order. */
   findActiveByOrder(orderId: string): Promise<PaymentRecord | null>;
   findByReference(reference: string): Promise<PaymentRecord | null>;
+  /**
+   * K2.2: PENDING rows of the given methods created before `before`, oldest first.
+   *
+   * Bounded by `limit` because this is a sweep: the backlog on a stack that has never had
+   * one is unbounded by definition, and a first run that tries to walk all of it in one
+   * request is how a sweep times out and never completes at all. Whatever it does not
+   * reach is still stale on the next tick.
+   */
+  findStalePending(
+    before: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]>;
   search(
     query: PaymentQuery,
   ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }>;

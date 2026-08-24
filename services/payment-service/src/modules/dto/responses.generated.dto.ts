@@ -164,3 +164,17 @@ export class RefundCountsResponseDto {
   @ApiProperty({ type: [RefundCountRowResponseDto] })
   customers!: RefundCountRowResponseDto[];
 }
+
+/** K2.2: what one stale-payment sweep did, in the shape J7 gave every sweep. */
+export class ExpirePendingPaymentsResponseDto {
+  @ApiProperty({ type: Number, description: 'Stale PENDING payments failed on this tick.' })
+  expired!: number;
+  @ApiProperty({ type: Number, description: 'Rows the sweep could not move.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'J7: false when the round failed at something and expired nothing. sweep.sh withholds the scheduler heartbeat on false.',
+  })
+  ok!: boolean;
+}

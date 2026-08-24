@@ -15,6 +15,7 @@ import {
   RefundNotPendingError,
 } from '../../domain/errors';
 import {
+  EXPIRABLE_PENDING_METHODS,
   PaymentMethod,
   PaymentStatus,
   RefundApproval,
@@ -70,6 +71,18 @@ export interface ListPaymentsInput {
 /** Provider webhook event mapped to a settlement outcome. */
 export type WebhookEvent = 'PAID' | 'FAILED';
 
+/**
+ * K2.2 — one run of the stale-payment sweep, in the shape J7 gave every sweep.
+ *
+ * `ok` is false only when the round failed at something and expired nothing;
+ * `scripts/scheduler/sweep.sh` reads it and withholds the scheduler heartbeat.
+ */
+export interface PaymentExpirySweepResult {
+  expired: number;
+  failed: number;
+  ok: boolean;
+}
+
 export interface WebhookPayload {
   reference: string;
   event: WebhookEvent;
@@ -84,6 +97,13 @@ export type RefundQueueRow = PaymentRecord & { orderNumber: string | null };
 
 @Injectable()
 export class PaymentService {
+  /**
+   * K2.2: rows per sweep tick. The backlog on a stack that never had this sweep is
+   * unbounded by definition, so the first run must not try to walk all of it in one
+   * request. Hourly at 500 clears a five-figure backlog in a day and steady state never
+   * comes near it.
+   */
+  private static readonly EXPIRY_SWEEP_LIMIT = 500;
   private static readonly MAX_LIMIT = 100;
   private readonly logger = new Logger(PaymentService.name);
 
@@ -278,6 +298,62 @@ export class PaymentService {
     this.assertTransition(payment.status, PaymentStatus.FAILED);
     this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
     return this.payments.update(id, { status: PaymentStatus.FAILED, failedAt: new Date() });
+  }
+
+  /**
+   * K2.2 — a payment nobody completed has to stop being live eventually.
+   *
+   * There was no sweep and no cron line, so a PENDING transfer or QRIS row stayed PENDING
+   * for as long as the database did. That is not merely untidy: `initiate` refuses to
+   * start a payment while an active (PENDING/PAID) one exists, and a partial UNIQUE index
+   * enforces it, so the abandoned attempt locks its order out of EVERY other payment
+   * method — permanently, with nothing anywhere saying why. Measured on the live stack
+   * before this was written: 52 non-cash PENDING rows, the oldest created 26 July.
+   *
+   * CASH is excluded by `EXPIRABLE_PENDING_METHODS` and must stay excluded — a COD payment
+   * is PENDING by design until the courier confirms at the door.
+   *
+   * Bounded per tick, and the write is a compare-and-set on PENDING: a customer who pays
+   * in the same instant the sweep reaches their row wins, because their confirm moved the
+   * status and `updateIfStatus` then declines to overwrite it.
+   */
+  async expireStalePending(now: Date): Promise<PaymentExpirySweepResult> {
+    const hours = this.config.pendingPaymentTtlHours;
+    // Zero is the kill switch: it restores exactly what this service did before, which is
+    // nothing. Reported as a clean round rather than a failure — a switch somebody turned
+    // off on purpose is not an outage.
+    if (hours <= 0) return { expired: 0, failed: 0, ok: true };
+
+    const before = new Date(now.getTime() - hours * 3_600_000);
+    const stale = await this.payments.findStalePending(
+      before,
+      EXPIRABLE_PENDING_METHODS,
+      PaymentService.EXPIRY_SWEEP_LIMIT,
+    );
+
+    let expired = 0;
+    let failed = 0;
+    for (const payment of stale) {
+      try {
+        const moved = await this.payments.updateIfStatus(payment.id, [PaymentStatus.PENDING], {
+          status: PaymentStatus.FAILED,
+          failedAt: now,
+        });
+        if (moved) expired += 1;
+      } catch (error) {
+        // One row's failure is its own; the rest of the batch still has to run. Counted,
+        // because J7: a round that could not expire anything must not look like a round
+        // with nothing to expire.
+        failed += 1;
+        this.logger.warn(
+          `Expiring stale payment ${payment.id} failed: ${(error as Error).message}`,
+        );
+      }
+    }
+    if (expired > 0) {
+      this.logger.log(`Expired ${expired} stale PENDING payment(s) older than ${hours}h`);
+    }
+    return { expired, failed, ok: failed === 0 || expired > 0 };
   }
 
   /**

@@ -1,6 +1,11 @@
 import { PaymentPrismaRepository } from '../../src/infrastructure/prisma/payment.prisma.repository';
 import { TaxSettingsPrismaRepository } from '../../src/infrastructure/prisma/tax-settings.prisma.repository';
-import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
+import {
+  EXPIRABLE_PENDING_METHODS,
+  PaymentMethod,
+  PaymentStatus,
+  RefundApproval,
+} from '../../src/domain/payment';
 import { TaxRounding } from '../../src/domain/tax';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
@@ -104,6 +109,25 @@ describe('PaymentPrismaRepository', () => {
   it('findActiveByOrder returns null when none active', async () => {
     model.findFirst.mockResolvedValue(null);
     expect(await repo.findActiveByOrder('order-1')).toBeNull();
+  });
+
+  // K2.2: the sweep's read. Bounded and oldest-first on purpose — the backlog on a stack
+  // that never had this sweep is unbounded, and CASH must never appear in `methods`.
+  it('findStalePending bounds the batch, takes the oldest first, and filters by method', async () => {
+    model.findMany.mockResolvedValue([fullRow()]);
+    const before = new Date('2026-08-01T00:00:00.000Z');
+    const rows = await repo.findStalePending(before, EXPIRABLE_PENDING_METHODS, 500);
+    expect(rows).toHaveLength(1);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        status: PaymentStatus.PENDING,
+        method: { in: EXPIRABLE_PENDING_METHODS },
+        createdAt: { lt: before },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 500,
+    });
+    expect(EXPIRABLE_PENDING_METHODS).not.toContain(PaymentMethod.CASH);
   });
 
   it('findByReference queries by reference and maps / returns null', async () => {

@@ -36,6 +36,15 @@ export class PaymentConfigService {
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /**
+   * K2.2: how long a non-cash PENDING payment may sit before the sweep fails it.
+   *
+   * Zero disables the sweep entirely and restores the old behaviour exactly — that is the
+   * kill switch, and it costs nothing because "never expire" is what this used to do.
+   */
+  get pendingPaymentTtlHours(): number {
+    return Number(this.config.get<string>('PAYMENT_PENDING_TTL_HOURS', '24'));
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }

@@ -60,6 +60,22 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const row = this.rows.find((r) => r.orderId === orderId && ACTIVE.includes(r.status));
     return row ? { ...row } : null;
   }
+  async findStalePending(
+    before: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === PaymentStatus.PENDING &&
+          methods.includes(r.method) &&
+          r.createdAt.getTime() < before.getTime(),
+      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
   async findByReference(reference: string): Promise<PaymentRecord | null> {
     const row = this.rows.find((r) => r.reference === reference);
     return row ? { ...row } : null;

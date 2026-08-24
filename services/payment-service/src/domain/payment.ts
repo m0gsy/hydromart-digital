@@ -74,6 +74,23 @@ export function isWebhookFresh(timestamp: number, now: number): boolean {
 
 const ONLINE_METHODS: readonly PaymentMethod[] = [PaymentMethod.EWALLET, PaymentMethod.VA];
 
+/**
+ * K2.2: the methods a stale PENDING row may be expired on — everything except CASH.
+ *
+ * CASH is deliberately absent and must stay absent. A COD payment is PENDING by design
+ * from checkout until the courier confirms at the door, so expiring it on age would fail
+ * the payment for a delivery that is still on its way. On the live stack today the
+ * PENDING rows split exactly along this line: 56 CASH awaiting a courier, and 52
+ * TRANSFER/QRIS rows whose oldest was created 26 July and has been blocking its order
+ * from being paid any other way ever since.
+ */
+export const EXPIRABLE_PENDING_METHODS: readonly PaymentMethod[] = [
+  PaymentMethod.TRANSFER,
+  PaymentMethod.QRIS,
+  PaymentMethod.EWALLET,
+  PaymentMethod.VA,
+];
+
 export function isOnlineMethod(method: PaymentMethod): boolean {
   return ONLINE_METHODS.includes(method);
 }
