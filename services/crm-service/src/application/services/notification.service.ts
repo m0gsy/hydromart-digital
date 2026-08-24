@@ -132,6 +132,10 @@ export class NotificationService {
       // so the list is never half-tappable — by the time the reader lands, every row
       // written since this release already carries its destination.
       destination: storedDestinationFor(event, vars),
+      // O6: which depot this row belongs to. Null for customer rows — a customer's order
+      // update is not a depot's alert — and null for every ops row written before the
+      // column existed.
+      depotId: OPS_EVENTS.includes(event) ? depotId : null,
     });
 
     const failed = (e: unknown) => {
@@ -177,8 +181,12 @@ export class NotificationService {
    * Staff operational feed (PRD 10d): recent notifications for operational events, with
    * the caller's own read receipts. Read state is per staff member, never shared.
    */
-  async listOpsFeed(staffId: string, limit = 50): Promise<OpsNotificationRecord[]> {
-    return this.repo.listOpsFeedFor(OPS_EVENTS, staffId, clampLimit(limit));
+  async listOpsFeed(
+    staffId: string,
+    depotIds?: readonly string[],
+    limit = 50,
+  ): Promise<OpsNotificationRecord[]> {
+    return this.repo.listOpsFeedFor(OPS_EVENTS, staffId, clampLimit(limit), depotIds);
   }
 
   /** Mark one ops notification read for this staff member. Idempotent; null when unknown. */

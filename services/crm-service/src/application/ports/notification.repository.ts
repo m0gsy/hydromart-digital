@@ -10,6 +10,8 @@ export interface NotificationRecord {
   error: string | null;
   /** O1: the in-app screen this notification opens, or null when it opens nothing. */
   destination: string | null;
+  /** O6: the depot an operational row belongs to; null for customer rows and legacy rows. */
+  depotId: string | null;
   createdAt: Date;
 }
 
@@ -21,6 +23,7 @@ export interface RecordNotificationData {
   status: NotificationStatus;
   error: string | null;
   destination: string | null;
+  depotId: string | null;
 }
 
 /** A feed row plus the *calling* staff member's own read receipt (null = unread by them). */
@@ -55,7 +58,19 @@ export interface NotificationRepository {
    * Operational feed: notifications for the given events, newest first, with `staffId`'s
    * read receipt joined in. Read state is per staff member — the audit rows are shared.
    */
-  listOpsFeedFor(events: string[], staffId: string, limit: number): Promise<OpsNotificationRecord[]>;
+  /**
+   * O6: `depotIds` scopes the feed. `undefined` = every depot (head office and the
+   * director, who have no depot of their own). Rows with a null depot stay visible to
+   * everyone: every ops row written before this column existed has one, and hiding a
+   * depot's own history from it the day the filter shipped would be a worse lie than the
+   * one the filter fixes.
+   */
+  listOpsFeedFor(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<OpsNotificationRecord[]>;
 
   /**
    * Idempotent read receipt. Returns the read timestamp (the existing one when already

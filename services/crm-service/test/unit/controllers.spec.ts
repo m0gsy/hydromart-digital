@@ -39,6 +39,7 @@ const notifRecord = (over: Partial<NotificationRecord> = {}): NotificationRecord
   status: NotificationStatus.SENT,
   error: null,
   destination: null,
+  depotId: null,
   createdAt: new Date('2026-01-01'),
   ...over,
 });
@@ -125,8 +126,21 @@ describe('NotificationController', () => {
     };
     const notifications = { listOpsFeed: jest.fn().mockResolvedValue([ops]) };
     const out = await new NotificationController(notifications as never).listOps(user);
-    expect(notifications.listOpsFeed).toHaveBeenCalledWith('user-1');
+    // O6: the caller's depot scope rides along. This `user` is an HQ role with no depot of
+    // its own, so the scope is `undefined` — "every depot", which is what it saw before.
+    expect(notifications.listOpsFeed).toHaveBeenCalledWith('user-1', undefined);
     expect(out[0].readAt).toBeNull();
+  });
+
+  it('scopes the ops feed to a depot-locked caller own depot (O6)', async () => {
+    const ops: OpsNotificationRecord = {
+      ...notifRecord({ event: NotificationEvent.STOCK_LOW }),
+      readAt: null,
+    };
+    const notifications = { listOpsFeed: jest.fn().mockResolvedValue([ops]) };
+    const staff = { sub: 'staff-1', role: 'STAFF_DEPOT', depotId: 'depot-a' } as never;
+    await new NotificationController(notifications as never).listOps(staff);
+    expect(notifications.listOpsFeed).toHaveBeenCalledWith('staff-1', ['depot-a']);
   });
 
   it('marks one ops notification read', async () => {

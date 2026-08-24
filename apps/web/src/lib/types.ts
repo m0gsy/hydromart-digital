@@ -588,6 +588,8 @@ export type NotificationEvent =
   | 'ORDER_DRIVER_ASSIGNED'
   | 'DELIVERY_RESCHEDULED'
   | 'CUSTOMER_REGISTERED'
+  // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
+  | 'DEPOT_ORDER_INCOMING'
   | 'STOCK_LOW'
   | 'STOCK_UNTRACKED'
   | 'METER_VARIANCE'
@@ -611,6 +613,7 @@ export type NotificationEvent =
  * reachable by no chip at all. Declared here so a test can assert the map covers it.
  */
 export const OPS_EVENTS = [
+  'DEPOT_ORDER_INCOMING',
   'STOCK_LOW',
   'STOCK_UNTRACKED',
   'METER_VARIANCE',

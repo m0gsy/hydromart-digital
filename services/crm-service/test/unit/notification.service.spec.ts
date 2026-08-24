@@ -450,3 +450,53 @@ describe('a failed push is recorded, not just logged', () => {
     expect(repo.records[0].error).toBeNull();
   });
 });
+
+/*
+ * O6 — the ops feed had no depot filter at all: its own index comment says "no customer
+ * filter" in as many words. Adding an "an order arrived" event without one would have shown
+ * every depot the orders of every other depot, which is worse than the silence it replaces.
+ */
+describe('ops feed is scoped to the reader depot', () => {
+  let repo: InMemoryNotificationRepository;
+  let service: NotificationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryNotificationRepository();
+    service = new NotificationService(repo, new FakePush() as unknown as PushService);
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', { depot: 'A', item: 'G', quantity: '1', minimum: '5' }, null, 'depot-a');
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', { depot: 'B', item: 'G', quantity: '1', minimum: '5' }, null, 'depot-b');
+    // A row from before the column existed: no depot at all.
+    await repo.record({
+      event: NotificationEvent.METER_VARIANCE,
+      customerId: null,
+      phone: '+62800',
+      message: 'legacy',
+      status: NotificationStatus.SENT,
+      error: null,
+      destination: null,
+      depotId: null,
+    });
+  });
+
+  it('shows a depot its own rows and the ones belonging to no depot', async () => {
+    const feed = await service.listOpsFeed('staff-1', ['depot-a']);
+    expect(feed.map((r) => r.depotId).sort((a, b) => String(a).localeCompare(String(b)))).toEqual(['depot-a', null]);
+  });
+
+  it('shows every depot to a reader with no depot of their own', async () => {
+    const feed = await service.listOpsFeed('hq-1');
+    expect(feed).toHaveLength(3);
+  });
+
+  it('writes the depot only for operational rows', async () => {
+    await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '+62800',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+      'depot-a',
+    );
+    const customerRow = repo.records.find((r) => r.event === NotificationEvent.ORDER_CONFIRMED);
+    expect(customerRow?.depotId).toBeNull();
+  });
+});

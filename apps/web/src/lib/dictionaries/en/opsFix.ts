@@ -220,6 +220,7 @@ export const opsFix = {
     markAllRead: 'Mark all as read',
     filterAll: 'All',
     filterUnread: 'Unread',
+    filterOrders: 'Orders',
     filterStock: 'Stock',
     filterCourier: 'Courier',
     filterSales: 'Sales',

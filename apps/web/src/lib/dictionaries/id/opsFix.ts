@@ -220,6 +220,7 @@ export const opsFix = {
     markAllRead: 'Tandai semua dibaca',
     filterAll: 'Semua',
     filterUnread: 'Belum dibaca',
+    filterOrders: 'Pesanan',
     filterStock: 'Stok',
     filterCourier: 'Kurir',
     filterSales: 'Penjualan',

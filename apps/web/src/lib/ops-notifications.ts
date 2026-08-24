@@ -14,13 +14,16 @@ import type { OpsNotification } from './types';
  * "mark unread": an alert someone has seen is seen).
  */
 
-export type OpsNotifGroup = 'stock' | 'courier' | 'sales' | 'hr';
+export type OpsNotifGroup = 'orders' | 'stock' | 'courier' | 'sales' | 'hr';
 export type OpsNotifFilter = 'all' | 'unread' | OpsNotifGroup;
 
 /** Chip row, shared so desktop and mobile offer the same filters (styling stays local). */
 export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
   { key: 'all', labelKey: 'opsFix.notif.filterAll' },
   { key: 'unread', labelKey: 'opsFix.notif.filterUnread' },
+  // O6: the depot's own arriving orders — the first ops event a depot's staff will read
+  // every day, so it sits ahead of the ledger chips rather than under "Semua".
+  { key: 'orders', labelKey: 'opsFix.notif.filterOrders' },
   { key: 'stock', labelKey: 'opsFix.notif.filterStock' },
   { key: 'courier', labelKey: 'opsFix.notif.filterCourier' },
   { key: 'sales', labelKey: 'opsFix.notif.filterSales' },
@@ -37,6 +40,7 @@ export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
  * so a tenth event fails here rather than arriving invisible.
  */
 export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
+  DEPOT_ORDER_INCOMING: 'orders',
   STOCK_LOW: 'stock',
   // A sale the depot has no stock line for, and a meter reading that disagrees with the
   // litres sold, are both "the stock ledger is wrong" — the same person chases them.

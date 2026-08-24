@@ -15,6 +15,7 @@ export const notifications = {
     ORDER_DRIVER_ASSIGNED: 'Kurir ditugaskan',
     DELIVERY_RESCHEDULED: 'Pengiriman dijadwalkan ulang',
     CUSTOMER_REGISTERED: 'Selamat datang di Hydromart',
+    DEPOT_ORDER_INCOMING: 'Pesanan baru masuk',
     STOCK_LOW: 'Stok menipis',
     POINTS_EARNED: 'Poin bertambah',
     VOUCHER_GRANTED: 'Voucher baru',

@@ -21,6 +21,7 @@ interface NotificationRow {
   status: string;
   error: string | null;
   destination: string | null;
+  depotId: string | null;
   createdAt: Date;
 }
 
@@ -50,6 +51,7 @@ export class NotificationPrismaRepository implements NotificationRepository {
         status: data.status as unknown as PrismaNotificationStatus,
         error: data.error,
         destination: data.destination,
+        depotId: data.depotId,
       },
     });
     return this.toRecord(row);
@@ -75,11 +77,21 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
-  async listOpsFeedFor(events: string[], staffId: string, limit: number): Promise<OpsNotificationRecord[]> {
+  async listOpsFeedFor(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<OpsNotificationRecord[]> {
     // One query: the feed window plus *this* staff member's receipts (the relation filter
     // keeps other staff's reads out, so `opsReads` holds at most one row per notification).
     const rows = await this.prisma.notification.findMany({
-      where: { event: { in: events } },
+      where: {
+        event: { in: events },
+        // O6: this depot's rows, plus the ones that belong to no depot (every row written
+        // before the column existed, and the platform-wide ones).
+        ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { opsReads: { where: { staffId }, select: { readAt: true } } },

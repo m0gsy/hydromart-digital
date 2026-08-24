@@ -12,7 +12,16 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { NotificationService } from '../application/services/notification.service';
 import {
@@ -52,7 +61,10 @@ export class NotificationController {
   @ApiOperation({ summary: 'List recent operational notifications (staff ops center)' })
   @ApiOkResponse({ type: OpsNotificationDto, isArray: true })
   async listOps(@CurrentUser() user: AuthenticatedUser): Promise<OpsNotificationDto[]> {
-    const records = await this.notifications.listOpsFeed(user.sub);
+    // O6: a depot's staff see their own depot's alerts (plus the ones belonging to no
+    // depot). Head office and the director have no depot of their own — `depotScopeIds`
+    // answers `undefined` for them, which is "every depot", exactly as before this filter.
+    const records = await this.notifications.listOpsFeed(user.sub, depotScopeIds(user));
     return records.map((record) => OpsNotificationDto.fromOps(record));
   }
 
