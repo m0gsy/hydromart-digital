@@ -619,6 +619,16 @@ export class InMemoryOrderRepository implements OrderRepository {
     return ids.size;
   }
 
+  async ordersForCustomers(customerIds: string[], range: ReportRange): Promise<OrderRecord[]> {
+    const wanted = new Set(customerIds);
+    return this.rows
+      .filter((r) => wanted.has(r.customerId))
+      .filter((r) => !range.from || r.createdAt >= range.from)
+      .filter((r) => !range.to || r.createdAt < range.to)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((r) => structuredClone(r));
+  }
+
   async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
     return this.rows
       .filter((r) => r.depotId === depotId)

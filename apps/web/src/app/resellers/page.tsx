@@ -256,6 +256,14 @@ function ResellerRow({
         <div className="font-semibold">{name ?? r.customerId}</div>
         <div className="text-muted">
           {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
+          {/*
+            J12: attainment counts every depot they took gallons from, because the target is
+            theirs. The home depot's share is named only when the two differ — otherwise the
+            line would carry a number that says nothing.
+          */}
+          {roll != null && roll.volumeAtDepotQty !== roll.volumeQty && (
+            <> ({t('hrFix.resellers.atThisDepot', { n: roll.volumeAtDepotQty })})</>
+          )}
           {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
           {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
           {r.flatGallonPriceIdr > 0 ? (

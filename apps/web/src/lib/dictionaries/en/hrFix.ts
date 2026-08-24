@@ -553,6 +553,7 @@ export const hrFix = {
   },
   resellers: {
     perGallon: "Rp{amount}/gallon",
+    atThisDepot: "{n} at this depot",
     addReseller2: "Add reseller",
     save2: "Save",
     cancel2: "Cancel",

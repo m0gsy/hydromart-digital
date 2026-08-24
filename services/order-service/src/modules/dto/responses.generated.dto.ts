@@ -268,8 +268,10 @@ export class SegmentEstimateResponseDto {
 export class ResellerRollupRowResponseDto {
   @ApiProperty({ type: String })
   customerId!: string;
-  @ApiProperty({ type: Number })
+  @ApiProperty({ type: Number, description: 'Delivered gallons at ANY depot (J12).' })
   volumeQty!: number;
+  @ApiProperty({ type: Number, description: "The home depot's own share of volumeQty." })
+  volumeAtDepotQty!: number;
   @ApiProperty({ type: Number })
   prevVolumeQty!: number;
   @ApiProperty({ type: Number })

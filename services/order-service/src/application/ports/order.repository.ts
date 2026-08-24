@@ -526,4 +526,12 @@ export interface OrderRepository {
    * cancelled vs live itself (orders/revenue exclude cancelled; failed counts them).
    */
   ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]>;
+  /**
+   * J12: a named set of customers' orders in a window, across every depot.
+   *
+   * Bounded by the id set the caller passes — the depot's own agen registry — so this is
+   * not an unbounded scan wearing a different name. It exists because an agen's attainment
+   * is about the agen: gallons they took from a sibling depot are still gallons they took.
+   */
+  ordersForCustomers(customerIds: string[], range: ReportRange): Promise<OrderRecord[]>;
 }

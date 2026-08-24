@@ -565,6 +565,8 @@ export const hrFix = {
   },
   resellers: {
     perGallon: "Rp{amount}/galon",
+    // J12: disebut hanya kalau berbeda dari total — angka yang sama dua kali tidak memberi tahu apa pun.
+    atThisDepot: "{n} di depot ini",
     addReseller2: "Tambah reseller",
     save2: "Simpan",
     cancel2: "Batal",
