@@ -33,6 +33,39 @@ export const envValidationSchema = Joi.object({
   // default in domain/payment.ts, which is the only place that number lives — a
   // `.default()` here would be a second copy of it, free to drift.
   REFUND_HQ_THRESHOLD: Joi.number().integer().positive().optional(),
+  // K2.1b: where an uploaded payment proof is stored. Same shape and same variable names
+  // the other upload-bearing services already read, so a deployment that has them set for
+  // delivery-service needs only to pass them to this one as well — one bucket, one prefix
+  // per service (`payment-proof/` here).
+  STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
+  // Returned URLs are `${STORAGE_PUBLIC_BASE_URL}/uploads/<key>` on local disk and
+  // `${STORAGE_PUBLIC_BASE_URL}/<key>` on S3. In production it MUST be a real public
+  // origin: a localhost value bakes an unreachable URL into the one record a payment
+  // dispute is settled from.
+  STORAGE_PUBLIC_BASE_URL: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
+      otherwise: Joi.string().uri().default('http://localhost:3004'),
+    }),
+  STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  STORAGE_S3_ENDPOINT: Joi.string()
+    .uri()
+    .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_REGION: Joi.string().default('auto'),
+  STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
+  STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   // K2.2: hours a non-cash PENDING payment may sit before the scheduler fails it.
   // 0 disables the sweep and restores the old "never expires" behaviour.

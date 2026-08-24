@@ -23,6 +23,9 @@ payments: {
   forOrders: '/payments/api/v1/payments/for-orders',
   // Staff: confirm a payment as received (cash/transfer/QRIS).
   confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
+  // K2.1b: the payer attaches their transfer/QRIS receipt to their own payment.
+  // Multipart, one call: upload and attach together, because the customer is online.
+  proof: (id: string) => `/payments/api/v1/payments/${id}/proof`,
   // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).
   unsettledByMethod: (q: { from?: string; to?: string } = {}) => {
     const p = new URLSearchParams();

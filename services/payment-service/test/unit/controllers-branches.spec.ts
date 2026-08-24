@@ -1,5 +1,6 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 
+import { StoragePort } from '../../src/application/ports/storage.port';
 import { PaymentController } from '../../src/modules/payment.controller';
 import { TaxController } from '../../src/modules/tax.controller';
 import { HealthController } from '../../src/modules/health.controller';
@@ -31,6 +32,7 @@ describe('PaymentController', () => {
     cancelForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
     getForCustomer: jest.fn(),
+    attachProof: jest.fn(),
     confirm: jest.fn(),
     fail: jest.fn(),
     refund: jest.fn(),
@@ -39,7 +41,13 @@ describe('PaymentController', () => {
     handleWebhook: jest.fn(),
     availableMethods: jest.fn(),
   };
-  const controller = new PaymentController(svc as unknown as PaymentService);
+  // K2.1b: the controller now owns a storage port. `put` resolves to a URL by default;
+  // the tests that care about the failure arm override it.
+  const storage = { put: jest.fn() };
+  const controller = new PaymentController(
+    svc as unknown as PaymentService,
+    storage as unknown as StoragePort,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -282,6 +290,51 @@ describe('PaymentController', () => {
     await controller.webhook(dto);
     expect(svc.handleWebhook).toHaveBeenCalledWith(dto);
   });
+
+  /*
+   * K2.1b · the three arms the happy path never walks: no file at all, bytes that are not
+   * an image, and a bucket that is down. Each one is a different sentence to the customer,
+   * and the third is a 503 rather than a 500 because they did nothing wrong.
+   */
+  describe('uploadProof', () => {
+    const user = { sub: 'cust-1' } as never;
+    const id = '00000000-0000-4000-8000-0000000000aa';
+    /** A 1x1 PNG — the sniffer reads the IHDR, not just the magic bytes. */
+    const png = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
+        '0000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+      'hex',
+    );
+
+    it('refuses a request with no file at all', async () => {
+      await expect(controller.uploadProof(user, id, undefined)).rejects.toThrow('file is required');
+      expect(storage.put).not.toHaveBeenCalled();
+    });
+
+    it('refuses bytes that are not an image the bucket may serve back', async () => {
+      const file = { buffer: Buffer.from('<svg onload=alert(1)>') } as never;
+      await expect(controller.uploadProof(user, id, file)).rejects.toThrow('unsupported file type');
+      expect(storage.put).not.toHaveBeenCalled();
+    });
+
+    it('answers a storage outage with 503 and a sentence, not a bare 500', async () => {
+      storage.put.mockRejectedValueOnce(new Error('bucket unreachable'));
+      await expect(
+        controller.uploadProof(user, id, { buffer: png } as never),
+      ).rejects.toThrow(/Penyimpanan bukti bayar/);
+    });
+
+    it('stores the receipt and attaches it to the payment', async () => {
+      storage.put.mockResolvedValueOnce({ url: 'https://cdn/payment-proof/a.png', key: 'k' });
+      await controller.uploadProof(user, id, { buffer: png } as never);
+      expect(svc.attachProof).toHaveBeenCalledWith(
+        'cust-1',
+        id,
+        'https://cdn/payment-proof/a.png',
+      );
+    });
+  });
+
 });
 
 describe('TaxController', () => {

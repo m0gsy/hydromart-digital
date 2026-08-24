@@ -630,6 +630,8 @@ export const hrFix = {
     total: "Total",
     cancelled: "Pesanan dibatalkan",
     statusHistory: "Riwayat status",
+    proofLabel: 'Bukti bayar',
+    proofMissing: 'Belum diunggah pelanggan.',
     cashReceived: "Uang tunai diterima (opsional)",
     cashHint: "Diisi = kembalian ikut tercatat pada pembayaran.",
     courier: "Kurir",

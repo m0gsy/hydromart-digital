@@ -58,6 +58,48 @@ describe('PaymentConfigService', () => {
   });
 });
 
+/*
+ * K2.1b · the storage accessors. Reading them is the whole of what the S3 adapter does at
+ * construction time, and a typo in any one of the five keys is a service that boots fine
+ * and then loses every receipt a customer uploads.
+ */
+describe('PaymentConfigService — storage', () => {
+  it('defaults to the local-disk driver and trims a trailing slash off the base URL', () => {
+    const config = buildTestConfig({ STORAGE_PUBLIC_BASE_URL: 'https://cdn.example///' });
+    expect(config.storageDriver).toBe('local');
+    expect(config.storageLocalDir).toBe('./var/uploads');
+    expect(config.storagePublicBaseUrl).toBe('https://cdn.example');
+  });
+
+  // Not storage, but the same class of accessor and the last one nothing read: an empty
+  // DEPOT_SERVICE_URL leaves every counter payment unattributed to a drawer (C2).
+  it('trims the depot service URL and tolerates it being unset', () => {
+    expect(buildTestConfig({ DEPOT_SERVICE_URL: 'http://depot:3007/' }).depotServiceUrl).toBe(
+      'http://depot:3007',
+    );
+    expect(buildTestConfig().depotServiceUrl).toBe('');
+  });
+
+  it('reads the five S3 keys when the driver is s3', () => {
+    const config = buildTestConfig({
+      STORAGE_DRIVER: 's3',
+      STORAGE_S3_ENDPOINT: 'https://nos.jkt-1.neo.id',
+      STORAGE_S3_REGION: 'jkt-1',
+      STORAGE_S3_BUCKET: 'hydromart',
+      STORAGE_S3_ACCESS_KEY_ID: 'k',
+      STORAGE_S3_SECRET_ACCESS_KEY: 's',
+    });
+    expect(config.storageDriver).toBe('s3');
+    expect(config.s3).toEqual({
+      endpoint: 'https://nos.jkt-1.neo.id',
+      region: 'jkt-1',
+      bucket: 'hydromart',
+      accessKeyId: 'k',
+      secretAccessKey: 's',
+    });
+  });
+});
+
 // H-25: SEC-1 (the client-supplied amount check) is skipped whenever
 // ORDER_SERVICE_URL or INTERNAL_SERVICE_KEY is blank. Production must not be
 // able to boot into that state.
@@ -82,6 +124,10 @@ describe('envValidationSchema — SEC-1 coordination keys', () => {
     NODE_ENV: 'production',
     AUTH_SERVICE_URL: 'http://auth:3001',
     DEPOT_SERVICE_URL: 'http://depot:3007',
+    // K2.1b: a production boot must name a real public origin for payment proofs — a
+    // localhost value would bake an unreachable URL into the one record a payment dispute
+    // is settled from, which is why the schema refuses it rather than defaulting.
+    STORAGE_PUBLIC_BASE_URL: 'https://nos.jkt-1.neo.id/hydromart',
   };
 
   it.each([
