@@ -157,6 +157,10 @@ services:
       PAYMENT_GATEWAY_API_KEY: itest-stub-key
       PAYMENT_WEBHOOK_SECRET: itest-webhook-secret-min-16-chars
       ORDER_SERVICE_URL: http://order:3004
+      # K2.1b: payment-proof storage. Required to boot under NODE_ENV=production, which is
+      # what this stack runs for parity — the same reason auth, customer, product, delivery
+      # and depot each carry one of these lines.
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/payment-proof
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3005/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
