@@ -22,6 +22,8 @@ export class PaymentResponseDto {
   @ApiProperty({ type: String, nullable: true })
   instruction!: string | null;
   @ApiProperty({ type: String, nullable: true })
+  proofUrl!: string | null;
+  @ApiProperty({ type: String, nullable: true })
   gatewayData!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   paidAt!: string | null;

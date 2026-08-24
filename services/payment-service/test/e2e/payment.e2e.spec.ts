@@ -19,6 +19,7 @@ describe('Payment HTTP flows (e2e)', () => {
   let app: INestApplication;
   let customerToken: string;
   let financeToken: string;
+  let strangerToken: string;
   let webhookSecret: string;
 
   beforeAll(async () => {
@@ -74,6 +75,8 @@ describe('Payment HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     financeToken = jwt.sign({ sub: randomUUID(), role: Role.FINANCE, phone: '+62' }, { secret });
+    // A second customer, for the "not your payment" case below.
+    strangerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -102,6 +105,65 @@ describe('Payment HTTP flows (e2e)', () => {
       .post('/api/v1/payments')
       .send({ orderId: randomUUID(), method: 'CASH', amount: 45000 })
       .expect(401);
+  });
+
+  /*
+   * K2.1b · the read/write side of the proof column.
+   *
+   * `offlineInstruction` has always told a TRANSFER customer to "keep your receipt" and a
+   * QRIS customer to "show the payment proof to staff" — with nowhere to put either. So the
+   * proof was a WhatsApp message to whichever number the customer happened to have, and the
+   * operator's only affordance was a "Konfirmasi lunas" button pressed blind. When the
+   * customer says they paid and the depot says the money never arrived, neither side has
+   * anything to put on the table.
+   *
+   * The column shipped a release ahead (#292, already in production). This is the code
+   * that fills it.
+   */
+  it('takes a proof upload for the payer own payment, and shows it to staff', async () => {
+    const created = await request(server())
+      .post('/api/v1/payments')
+      .set(auth(customerToken))
+      .send({ orderId: randomUUID(), method: 'TRANSFER', amount: 45000 })
+      .expect(201);
+    const id = created.body.id;
+    // Nothing uploaded yet, and the operator must be able to SEE that rather than guess it.
+    expect(created.body.proofUrl).toBeNull();
+
+    const png = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
+        '0000000a49444154789c6300010000050001' +
+        '0d0a2db40000000049454e44ae426082',
+      'hex',
+    );
+    const up = await request(server())
+      .post(`/api/v1/payments/${id}/proof`)
+      .set(auth(customerToken))
+      .attach('file', png, { filename: 'bukti.png', contentType: 'image/png' })
+      .expect(201);
+    expect(up.body.proofUrl).toMatch(/payment-proof\/.+\.png$/);
+
+    // Staff read the same row and see the receipt instead of pressing Konfirmasi blind.
+    const seen = await request(server())
+      .get(`/api/v1/payments/for-order/${created.body.orderId}`)
+      .set(auth(financeToken))
+      .expect(200);
+    expect(seen.body.items[0].proofUrl).toBe(up.body.proofUrl);
+  });
+
+  it('refuses a proof upload for somebody else payment (404, not 403)', async () => {
+    const created = await request(server())
+      .post('/api/v1/payments')
+      .set(auth(customerToken))
+      .send({ orderId: randomUUID(), method: 'QRIS', amount: 45000 })
+      .expect(201);
+    // 404 and not 403: telling a stranger "that payment exists but is not yours" is
+    // already telling them it exists.
+    await request(server())
+      .post(`/api/v1/payments/${created.body.id}/proof`)
+      .set(auth(strangerToken))
+      .attach('file', Buffer.from('89504e470d0a1a0a', 'hex'), 'x.png')
+      .expect(404);
   });
 
   it('initiates a cash payment, then forbids a customer from confirming it', async () => {

@@ -230,6 +230,22 @@ export class PaymentService {
     return payment;
   }
 
+  /**
+   * K2.1b: attach the payer's receipt to their own payment.
+   *
+   * Scoped through `getForCustomer`, which answers a stranger with PaymentNotFound rather
+   * than Forbidden — telling somebody "that payment exists but is not yours" already tells
+   * them it exists.
+   *
+   * Any status is allowed. A customer who transferred and only found the receipt after the
+   * depot had already confirmed still has evidence worth keeping, and a payment that later
+   * goes into dispute is exactly when somebody goes looking for it.
+   */
+  async attachProof(customerId: string, id: string, proofUrl: string): Promise<PaymentRecord> {
+    await this.getForCustomer(customerId, id);
+    return this.payments.attachProof(id, proofUrl);
+  }
+
   async getAny(id: string): Promise<PaymentRecord> {
     const payment = await this.payments.findById(id);
     if (!payment) {

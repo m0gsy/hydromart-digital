@@ -369,6 +369,8 @@ export interface Payment {
   amount: number;
   reference: string | null;
   instruction: string | null;
+  /** K2.1: the receipt the payer uploaded, or null when there is none (see the port). */
+  proofUrl: string | null;
   // COD only (design 7a): cash tendered + change given back, set on confirm.
   cashReceived?: number | null;
   changeGiven?: number | null;

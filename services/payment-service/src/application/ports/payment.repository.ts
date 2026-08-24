@@ -22,6 +22,15 @@ export interface PaymentRecord {
   depotId: string | null;
   /** C2: the drawer this counter payment landed in. Null for delivery and for history. */
   cashierShiftId: string | null;
+  /**
+   * K2.1: the receipt the payer uploaded, or null when there is none.
+   *
+   * Most payments have none and should: CASH is handed over and witnessed, and EWALLET/VA
+   * are not accepted at all (O5). Only TRANSFER and QRIS produce a receipt — and even
+   * there the customer may pay and never upload. That last case is the point: an operator
+   * must be able to SEE "belum diunggah" rather than guess it before pressing Konfirmasi.
+   */
+  proofUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +98,13 @@ export interface DateRange {
 }
 
 export interface PaymentRepository {
+  /**
+   * Attach a payer's receipt. Narrow on purpose: uploading a proof is not a status change,
+   * and `update` demands a status — routing this through it would make every proof upload
+   * rewrite the payment's state.
+   */
+  attachProof(id: string, proofUrl: string): Promise<PaymentRecord>;
+
   create(data: CreatePaymentData): Promise<PaymentRecord>;
   findById(id: string): Promise<PaymentRecord | null>;
   /** Active = PENDING or PAID. Used to enforce one live payment per order. */

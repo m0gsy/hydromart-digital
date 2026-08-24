@@ -45,6 +45,7 @@ interface PaymentRow {
   changeGiven: Decimalish | null;
   depotId: string | null;
   cashierShiftId: string | null;
+  proofUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +77,7 @@ export class PaymentPrismaRepository implements PaymentRepository {
       changeGiven: row.changeGiven ? row.changeGiven.toNumber() : null,
       depotId: row.depotId,
       cashierShiftId: row.cashierShiftId,
+      proofUrl: row.proofUrl,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -311,6 +313,11 @@ export class PaymentPrismaRepository implements PaymentRepository {
       _count: { _all: true },
     });
     return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
+  }
+
+  async attachProof(id: string, proofUrl: string): Promise<PaymentRecord> {
+    const row = await this.prisma.payment.update({ where: { id }, data: { proofUrl } });
+    return this.toRecord(row);
   }
 
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {

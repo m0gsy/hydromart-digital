@@ -20,9 +20,10 @@ import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton, StickyActionBar } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
+import { compressImage } from '@/lib/image';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
@@ -75,6 +76,75 @@ function CopyButton({
       <Copy size={13} weight="bold" />
       {label}
     </button>
+  );
+}
+
+/**
+ * K2.1b · somewhere to put the receipt this screen has always asked for.
+ *
+ * Upload and attach in one call: the customer is online — they have just paid — so the
+ * upload-then-submit pair the courier PoD uses would only add a way to leave an orphan
+ * object in the bucket. Compressed first, because this is a phone photo of a bank app and
+ * the raw file is routinely several times the 5 MB ceiling.
+ *
+ * Uploading again replaces the previous receipt. That is deliberate: the common case is a
+ * customer who photographed the wrong screen, and making them ask staff to clear it would
+ * put the operator back to confirming blind.
+ */
+function ProofUpload({
+  paymentId,
+  proofUrl,
+  onUploaded,
+}: {
+  paymentId: string;
+  proofUrl: string | null;
+  onUploaded: () => void;
+}) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const src = mediaUrl(proofUrl);
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Clearing the input lets the same file be picked again after a failed attempt.
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadFile(endpoints.payments.proof(paymentId), await compressImage(file));
+      onUploaded();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('order.detail.proofFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-app p-4">
+      <p className="text-sm font-bold">{t('order.detail.proofTitle')}</p>
+      <p className="text-[12.5px] text-muted">{t('order.detail.proofBody')}</p>
+      {src && (
+        <RemoteImage
+          src={src}
+          alt={t('order.detail.proofTitle')}
+          width={160}
+          height={160}
+          className="max-h-40 w-auto rounded-xl border border-app object-contain"
+        />
+      )}
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-app px-4 py-3 text-sm font-bold text-brand-700 hover:border-brand-500">
+        {busy ? t('order.detail.proofUploading') : src ? t('order.detail.proofReplace') : t('order.detail.proofPick')}
+        <input type="file" accept="image/*" onChange={pick} disabled={busy} className="hidden" />
+      </label>
+    </div>
   );
 }
 
@@ -430,6 +500,17 @@ function OrderDetailInner({ id }: { id: string }) {
                 <p className="text-[12.5px] text-muted">
                   Pembayaran masuk langsung ke {depot.name}. {t('order.detail.transferAck')}
                 </p>
+                {/*
+                  K2.1b: somewhere to put the receipt this screen has always asked for.
+                  Until now "simpan bukti transfer" and "tunjukkan bukti ke staf" meant a
+                  WhatsApp message to whichever number the customer happened to have, and
+                  the depot's only affordance was a Konfirmasi button pressed blind.
+                */}
+                <ProofUpload
+                  paymentId={payment.id}
+                  proofUrl={payment.proofUrl}
+                  onUploaded={reloadPayments}
+                />
               </div>
             )}
 

@@ -30,6 +30,13 @@ const ACTIVE: PaymentStatus[] = [PaymentStatus.PENDING, PaymentStatus.PAID];
 export class InMemoryPaymentRepository implements PaymentRepository {
   rows: PaymentRecord[] = [];
 
+  async attachProof(id: string, proofUrl: string): Promise<PaymentRecord> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row) throw new Error(`no payment ${id}`);
+    row.proofUrl = proofUrl;
+    return row;
+  }
+
   async create(data: CreatePaymentData): Promise<PaymentRecord> {
     const now = nextDate();
     const rec: PaymentRecord = {
@@ -42,6 +49,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundReason: null,
       refundedAmount: null,
       refundApproval: RefundApproval.NONE,
+      proofUrl: null,
       cashReceived: null,
       changeGiven: null,
       depotId: data.depotId ?? null,

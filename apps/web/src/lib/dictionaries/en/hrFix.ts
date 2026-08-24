@@ -618,6 +618,8 @@ export const hrFix = {
     total: "Total",
     cancelled: "Order cancelled",
     statusHistory: "Status history",
+    proofLabel: 'Payment proof',
+    proofMissing: 'Not uploaded by the customer.',
     cashReceived: "Cash received (optional)",
     cashHint: "Filled in means the change is recorded on the payment too.",
     courier: "Courier",

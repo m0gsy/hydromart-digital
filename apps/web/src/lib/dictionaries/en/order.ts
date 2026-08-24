@@ -123,6 +123,12 @@ export const order: typeof base = {
     nominal: 'Amount',
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
+    proofTitle: 'Payment proof',
+    proofBody: 'Upload a photo of the transfer receipt or QRIS slip. The depot sees it when checking the payment, so there is no need to send it over WhatsApp.',
+    proofPick: 'Choose a photo',
+    proofReplace: 'Replace the photo',
+    proofUploading: 'Uploading…',
+    proofFailed: 'The payment proof could not be uploaded. Try again.',
     transferAck: 'Already transferred? The status turns to paid once depot staff confirm.',
     // Order-success banner (spec 5b)
     successTitle: 'Order placed!',

@@ -31,6 +31,8 @@ const fullRow = () => ({
   refundApproval: 'APPROVED',
   cashReceived: dec(20000),
   changeGiven: dec(2000),
+  // CASH here, so no receipt: the majority case, and the one the mapper must carry as null.
+  proofUrl: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-04'),
 });
@@ -406,6 +408,22 @@ describe('PaymentPrismaRepository', () => {
     expect(model.update).toHaveBeenCalledWith({ where: { id: 'pay-1' }, data: patch });
     expect(record.status).toBe(PaymentStatus.PAID);
     expect(record.cashReceived).toBe(20000);
+  });
+
+  /*
+   * K2.1b: attaching a receipt writes ONE column. It has its own method because `update`
+   * demands a status, and routing a proof upload through it would make every receipt
+   * rewrite the payment's state — a PENDING transfer silently re-marked PENDING is
+   * harmless, but the same call on a PAID row would not be.
+   */
+  it('attachProof writes only proofUrl', async () => {
+    model.update.mockResolvedValue({ ...fullRow(), proofUrl: 'https://cdn/b.png' });
+    const record = await repo.attachProof('pay-1', 'https://cdn/b.png');
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'pay-1' },
+      data: { proofUrl: 'https://cdn/b.png' },
+    });
+    expect(record.proofUrl).toBe('https://cdn/b.png');
   });
 });
 

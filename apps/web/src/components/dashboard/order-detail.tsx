@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { ExternalLink } from '@/components/external-link';
+import { RemoteImage } from '@/components/remote-image';
 import { Sheet } from '@/components/overlay';
 import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, mediaUrl } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { useAuth } from '@/lib/auth-context';
@@ -19,7 +21,7 @@ import type { Customer, Order, Page, Payment } from '@/lib/types';
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
 /** Payment status + staff "confirm received" for cash/transfer/QRIS (settlement). */
-function PaymentSettle({ order }: { order: Order }) {
+export function PaymentSettle({ order }: { order: Order }) {
   const { t } = useT();
   const { customer } = useAuth();
   const canConfirm = canConfirmPayment(customer?.role);
@@ -32,6 +34,9 @@ function PaymentSettle({ order }: { order: Order }) {
   const [cash, setCash] = useState('');
   const payment = data?.items[0];
   const isCash = payment?.method === 'CASH';
+  // A service-relative proof path only resolves against the gateway; rendering it raw is
+  // the same bug that broke the QRIS image on the customer's own payment screen.
+  const proofSrc = mediaUrl(payment?.proofUrl);
 
   async function confirm() {
     if (!payment) return;
@@ -85,6 +90,34 @@ function PaymentSettle({ order }: { order: Order }) {
             placeholder="50000"
           />
         </Field>
+      )}
+      {/*
+        K2.1b: the receipt the payer uploaded, beside the button that used to be pressed
+        blind. `offlineInstruction` has always told a TRANSFER customer to keep their
+        receipt and a QRIS customer to show it to staff — and there was nowhere to put it,
+        so the proof was a WhatsApp message to whoever's number they had. "Belum diunggah"
+        is said out loud rather than guessed: the operator can see there is nothing to
+        check before deciding to confirm anyway.
+      */}
+      {!isCash && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted">
+            {t('hrFix.orderDetail.proofLabel')}
+          </span>
+          {proofSrc ? (
+            <ExternalLink href={proofSrc} className="self-start">
+              <RemoteImage
+                src={proofSrc}
+                alt={t('hrFix.orderDetail.proofLabel')}
+                width={160}
+                height={160}
+                className="max-h-40 w-auto rounded-xl border border-app object-contain"
+              />
+            </ExternalLink>
+          ) : (
+            <span className="text-sm text-muted">{t('hrFix.orderDetail.proofMissing')}</span>
+          )}
+        </div>
       )}
       {canConfirm && pending && (
         <Button onClick={confirm} loading={busy}>

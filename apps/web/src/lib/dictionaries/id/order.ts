@@ -122,6 +122,12 @@ export const order = {
     nominal: 'Nominal',
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
+    proofTitle: 'Bukti bayar',
+    proofBody: 'Unggah foto bukti transfer atau struk QRIS-nya. Depot melihatnya saat mengecek pembayaran, jadi tidak perlu kirim lewat WhatsApp.',
+    proofPick: 'Pilih foto bukti',
+    proofReplace: 'Ganti foto bukti',
+    proofUploading: 'Mengunggah…',
+    proofFailed: 'Bukti bayar gagal diunggah. Coba lagi.',
     transferAck: 'Sudah transfer? Status berubah menjadi lunas setelah staf depot mengonfirmasi.',
     // Order-success banner (spec 5b)
     successTitle: 'Pesanan berhasil dibuat!',

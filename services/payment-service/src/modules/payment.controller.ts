@@ -1,17 +1,32 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   HttpCode,
   HttpStatus,
+  Inject,
+  Logger,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
+  ServiceUnavailableException,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import {
   Can,
@@ -19,7 +34,13 @@ import {
   CurrentUser,
   InternalAuthGuard,
   Public,
+  SNIFFED_MIME,
+  sniffFileType,
 } from '@hydromart/platform';
+
+import { PAYMENT_TOKENS } from '../application/tokens';
+import { StoragePort } from '../application/ports/storage.port';
+import { MulterExceptionFilter } from './multer-exception.filter';
 
 import {
   PaymentExpirySweepResult,
@@ -68,11 +89,19 @@ import {
 // deliberately wider than refundQueue so whoever raises a refund is not whoever signs
 // it off.
 
+/** A transfer receipt photographed on a phone. Same ceiling the PoD upload uses. */
+const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
 @ApiTags('Payments')
 @ApiBearerAuth()
 @Controller({ path: 'payments', version: '1' })
 export class PaymentController {
-  constructor(private readonly payments: PaymentService) {}
+  private readonly logger = new Logger(PaymentController.name);
+
+  constructor(
+    private readonly payments: PaymentService,
+    @Inject(PAYMENT_TOKENS.Storage) private readonly storage: StoragePort,
+  ) {}
 
   @ApiOkResponse({ type: PaymentResponseDto })
   @Post()
@@ -390,6 +419,55 @@ export class PaymentController {
   @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
   listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<RefundQueueRow>> {
     return this.payments.listRefundQueue(query);
+  }
+
+  /**
+   * K2.1b · the payer attaches their receipt.
+   *
+   * One endpoint, not the upload-then-submit pair the courier PoD uses: that pair exists
+   * because a PoD is captured offline and flushed later, and its URL has to survive the
+   * queue. A customer uploading a transfer receipt is online — they have just paid — so
+   * two round trips would only add a way to leave an orphan object in the bucket.
+   *
+   * Declared before ':id' so the static segment cannot be read as a payment id.
+   */
+  @ApiOkResponse({ type: PaymentResponseDto })
+  @Post(':id/proof')
+  @ApiOperation({ summary: 'Upload the receipt for your own payment (TRANSFER/QRIS)' })
+  @ApiConsumes('multipart/form-data')
+  @UseFilters(MulterExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PROOF_BYTES } }))
+  async uploadProof(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<PaymentRecord> {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    // Ownership first, before the bytes are even inspected: a stranger guessing payment ids
+    // gets the same PaymentNotFound whatever they attach, so the route tells them nothing
+    // about which ids exist — and never spends work on a request it will refuse.
+    await this.payments.getForCustomer(user.sub, id);
+    // H-20: `file.mimetype` is whatever the client typed into the multipart part. Trust the
+    // bytes — the bucket serves what lands there straight back to a browser, so an .html or
+    // an .svg wearing an image/jpeg label is a stored XSS aimed at the operator opening it.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
+    if (!ext) {
+      throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
+    }
+    let url: string;
+    try {
+      ({ url } = await this.storage.put({ body: file.buffer, contentType: SNIFFED_MIME[ext], ext }));
+    } catch (error) {
+      this.logger.error(`Payment proof upload failed: ${(error as Error).message}`);
+      // 503, not 500: the customer did nothing wrong and retrying in a moment works.
+      throw new ServiceUnavailableException(
+        'Penyimpanan bukti bayar sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
+    return this.payments.attachProof(user.sub, id, url);
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })

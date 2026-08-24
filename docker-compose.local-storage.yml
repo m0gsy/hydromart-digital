@@ -41,3 +41,6 @@ services:
   hr:
     environment:
       STORAGE_DRIVER: local
+  payment:
+    environment:
+      STORAGE_DRIVER: local
