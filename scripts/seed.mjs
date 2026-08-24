@@ -180,7 +180,21 @@ const INCIDENTS = [
 // put a phone number nobody owns into the auth table.
 const DEMO_CUSTOMER_PHONE = '+6281298765432';
 
-const STOCK_QTY = 200;
+/*
+ * Overridable because 200 is a demo shelf, not a load-test shelf.
+ *
+ * The weekly Load run has been red since it started running, and not for a reason anyone
+ * would guess from the job name: k6 booted fine, p95 came in at 530ms against a 1500ms
+ * threshold, and the run still failed — because 10 VUs place ~970 orders in 60s against
+ * 200 units per product. Stock ran out in the first seconds, checkout began answering
+ * ORDER_INSUFFICIENT_STOCK, and a failed checkout leaves the server-side cart standing, so
+ * the next iteration added another unit to every line and the quantities compounded
+ * (`need 16, have 0` in the log). Everything after that measured stock depletion.
+ *
+ * The Load workflow sets this to a number the run cannot exhaust. Seeding is one-time and
+ * the field is an integer, so a large value costs nothing here.
+ */
+const STOCK_QTY = Number(process.env.SEED_STOCK_QTY || 200);
 const STOCK_MIN = 20;
 
 // ---------------------------------------------------------------- seed
