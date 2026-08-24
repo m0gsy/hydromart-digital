@@ -21,5 +21,11 @@ export interface NotificationPort {
      */
     customerId: string | null,
     authorization: string,
+    /**
+     * O6: the depot an OPERATIONAL event is about. crm routes those to that depot's staff
+     * and scopes its ops feed by it; ignored for customer events, which are addressed to a
+     * person rather than to a place. Optional so every existing caller stays as it was.
+     */
+    depotId?: string | null,
   ): Promise<boolean>;
 }

@@ -39,6 +39,7 @@ export class NotificationHttpAdapter implements NotificationPort {
     vars: Record<string, string>,
     customerId: string | null,
     _authorization: string,
+    depotId: string | null = null,
   ): Promise<boolean> {
     const internalKey = this.config.internalServiceKey;
     if (!internalKey) {
@@ -60,7 +61,7 @@ export class NotificationHttpAdapter implements NotificationPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
-        body: JSON.stringify({ event, phone: dialled, customerId, vars }),
+        body: JSON.stringify({ event, phone: dialled, customerId, vars, depotId }),
         signal: controller.signal,
       });
       if (!res.ok) {

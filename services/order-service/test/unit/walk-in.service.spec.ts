@@ -700,6 +700,9 @@ describe('OrderService.walkInSale', () => {
   it('never sends ORDER_RECEIVED — the goods already left with the buyer', async () => {
     await sell(1, { customerId: randomUUID(), customerPhone: '0812' });
     expect(notification.calls.map((n) => n.event)).not.toContain('ORDER_RECEIVED');
+    // O6 does not fire here either: a pick-up sale is typed in by the very staff member
+    // an alert would wake. The event is for orders that ARRIVE.
+    expect(notification.calls.map((n) => n.event)).not.toContain('DEPOT_ORDER_INCOMING');
   });
 
   it('refuses a depot-locked operator selling for another depot', async () => {

@@ -6,6 +6,11 @@
 
 export enum NotificationEvent {
   ORDER_RECEIVED = 'ORDER_RECEIVED',
+  /**
+   * O6: a new order landed at a depot — addressed to the DEPOT's staff, not to the buyer.
+   * Distinct from ORDER_RECEIVED, which is the customer's own "we have your order".
+   */
+  DEPOT_ORDER_INCOMING = 'DEPOT_ORDER_INCOMING',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -69,6 +74,8 @@ export enum NotificationEvent {
 export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
   [NotificationEvent.ORDER_RECEIVED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami terima dan sedang menunggu konfirmasi. Kami segera memprosesnya untukmu 💧',
+  [NotificationEvent.DEPOT_ORDER_INCOMING]:
+    'Pesanan baru masuk: {{orderNumber}} · {{total}}. Buka antrean untuk memprosesnya.',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami konfirmasi dan sedang kami siapkan. Terima kasih sudah memesan di Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:
@@ -115,6 +122,9 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
 // as opposed to the customer inbox. STOCK_LOW is the operational alert today; add more
 // staff-targeted events here as they are introduced.
 export const OPS_EVENTS: NotificationEvent[] = [
+  // O6: the depot's own "an order just arrived". The toggle for it has been on the ops
+  // settings screen, defaulted ON, since before anything could emit it.
+  NotificationEvent.DEPOT_ORDER_INCOMING,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,

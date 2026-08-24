@@ -1049,6 +1049,37 @@ describe('OrderService', () => {
     );
   });
 
+  /*
+   * O6 — a new order reached nobody at the depot.
+   *
+   * The only emission when an order is created is the CUSTOMER's "we have your order".
+   * There was no ops event for it at all, the ops feed has no depot column to filter by,
+   * and depot staff could not open that feed anyway — while the ops settings screen has
+   * shown them a "Pesanan baru masuk (depot)" toggle, defaulted ON, the whole time. A
+   * promise in the UI with nothing behind it.
+   */
+  describe('O6 · the depot hears about its own new order', () => {
+    it('emits a depot-addressed event on checkout, carrying the depot', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      const ops = notification.calls.filter((c) => c.event === 'DEPOT_ORDER_INCOMING');
+      expect(ops).toHaveLength(1);
+      expect(ops[0].depotId).toBe(order.depotId);
+      expect(ops[0].vars.orderNumber).toBe(order.orderNumber);
+      // Addressed to a depot, not to a person: no customer id rides with it, or crm would
+      // push the depot's alert to the buyer's phone.
+      expect(ops[0].customerId).toBeNull();
+    });
+
+    it('still sends the customer their own confirmation', async () => {
+      await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(notification.calls.some((c) => c.event === 'ORDER_RECEIVED')).toBe(true);
+    });
+
+  });
+
   it('reviews a delivered order once, then rejects a second review (spec 7c)', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
@@ -1540,7 +1571,10 @@ describe('OrderService', () => {
      *
      * COMPLETED reached any other way still speaks — see order-status.spec.
      */
-    expect(notification.calls.map((c) => c.event)).toEqual([
+    // O6 added a message addressed to the DEPOT, not to the door. This assertion is about
+    // what the CUSTOMER hears, so it reads the customer-addressed calls — a depot alert
+    // landing here would have made "three messages at one door" true again by accident.
+    expect(notification.calls.filter((c) => c.customerId !== null).map((c) => c.event)).toEqual([
       'ORDER_RECEIVED',
       'ORDER_CONFIRMED',
       'ORDER_DRIVER_ASSIGNED',
@@ -1548,7 +1582,7 @@ describe('OrderService', () => {
       'ORDER_DELIVERED',
       'POINTS_EARNED',
     ]);
-    const confirmed = notification.calls[1];
+    const confirmed = notification.calls.filter((c) => c.customerId !== null)[1];
     expect(confirmed).toMatchObject({
       phone: order.phone,
       customerId: customer,

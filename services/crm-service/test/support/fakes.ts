@@ -257,8 +257,17 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       .slice(0, limit);
   }
 
-  async listOpsFeedFor(events: string[], staffId: string, limit: number): Promise<OpsNotificationRecord[]> {
-    return this.window(events, limit).map((r) => ({ ...r, readAt: this.reads.get(`${r.id}:${staffId}`) ?? null }));
+  async listOpsFeedFor(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<OpsNotificationRecord[]> {
+    return this.window(events, limit)
+      // O6: this depot's rows plus the ones belonging to no depot, mirroring the Prisma
+      // filter — a fake that answers a wider set would hide the bug the filter exists for.
+      .filter((r) => !depotIds || r.depotId === null || depotIds.includes(r.depotId))
+      .map((r) => ({ ...r, readAt: this.reads.get(`${r.id}:${staffId}`) ?? null }));
   }
 
   async markOpsRead(notificationId: string, events: string[], staffId: string): Promise<Date | null> {

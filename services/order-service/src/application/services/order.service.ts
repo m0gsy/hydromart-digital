@@ -557,7 +557,41 @@ export class OrderService {
       order.customerId,
       authorization,
     );
+    await this.notifyDepotOfOrder(order, authorization);
     return order;
+  }
+
+
+  /**
+   * O6: tell the DEPOT an order just landed on it.
+   *
+   * Separate from the buyer's own "pesanan diterima": that one is addressed to a person and
+   * this one to a place, so it carries a depot and no customer id — crm fans it out to that
+   * depot's staff and scopes its ops feed by it, and a customer id here would push the
+   * depot's alert to the buyer's phone.
+   *
+   * Fail-open by contract like every other notify: the port never throws, and an order that
+   * is already placed must not be unwound because a message did not go.
+   */
+  private async notifyDepotOfOrder(order: OrderRecord, authorization: string): Promise<void> {
+    if (!order.depotId) return;
+    await this.notification.notify(
+      'DEPOT_ORDER_INCOMING',
+      order.phone,
+      {
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        // Formatted here because the template is a sentence, not a spreadsheet: `25000`
+        // read at a glance on a phone is not a price. The depot's own NAME is deliberately
+        // absent — the feed is scoped to the reader's depot and the push goes to that
+        // depot's staff, so naming it again would be noise this row cannot fill honestly
+        // (the name is not on the order).
+        total: `Rp ${order.total.toLocaleString('id-ID')}`,
+      },
+      null,
+      authorization,
+      order.depotId,
+    );
   }
 
   /**
@@ -927,8 +961,17 @@ export class OrderService {
         order.customerId,
         authorization,
       );
+      await this.notifyDepotOfOrder(order, authorization);
       return order;
     }
+    /*
+     * No depot alert for a pick-up either, and that is a scope decision rather than an
+     * omission: the staff member who would read it is the one who just typed the sale into
+     * the till. O6 exists for orders that ARRIVE and need processing. It also avoids a
+     * dead end — an anonymous counter sale has no phone (`-`), and crm refuses a
+     * notification whose number is unusable, so the alert would have been silently dropped
+     * exactly where it was least useful.
+     */
     // No ORDER_RECEIVED for a pick-up: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;

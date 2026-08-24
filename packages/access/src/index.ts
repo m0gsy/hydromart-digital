@@ -149,6 +149,11 @@ export const CAPABILITIES = {
   // crm-service — operational notification feed.
   opsNotif: [
     'KEPALA_DEPOT',
+    // O6: depot staff could not open the ops feed AT ALL, while the settings screen has
+    // offered them a "new order arrived (depot)" toggle — defaulted on — for months. The
+    // feed is now depot-scoped, so admitting them shows them their own depot and nothing
+    // else; before that filter this line would have shown every depot to everyone.
+    'STAFF_DEPOT',
     'MANAGER',
     'SUPERVISOR',
     'HEAD_OFFICE',
