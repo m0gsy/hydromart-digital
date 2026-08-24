@@ -109,8 +109,25 @@ for (const file of ROOTS.flatMap((r) => sourceFiles(r))) {
   for (const rule of RULES) {
     for (const m of text.matchAll(rule.re)) {
       if (HARMLESS.has(m[1])) continue;
+      /*
+       * The key carries no line number, and that is the point.
+       *
+       * It used to be `file:line code`, which made every entry expire the moment anything
+       * above it moved. Adding four keys to a dictionary shifted one finding from line 58 to
+       * 62, its allowlist entry stopped matching, a finding that had been recorded and
+       * explained became unrecorded, and `main` went red on a change that had nothing to do
+       * with money. A gate that punishes an unrelated edit is not measuring what it claims.
+       *
+       * `file + the matched text` is stable under insertion, and it is also the right unit:
+       * the same literal twice in one file is one fact with one reason, not two.
+       *
+       * The line is still resolved and printed in the failure report — a human needs it to
+       * find the thing; the allowlist does not need it to remember the decision.
+       */
+      const where = file.split('\\').join('/');
       findings.push({
-        id: `${file.replace(/\\/g, '/')}:${lineOf(text, m.index)} ${m[0].trim()}`,
+        id: `${where} ${m[0].trim()}`,
+        at: `${where}:${lineOf(text, m.index)}`,
         why: rule.why,
       });
     }
@@ -135,7 +152,10 @@ const failures = findings.filter((f) => !allowed.has(f.id));
 
 if (failures.length > 0) {
   console.error('Business numbers written into the web client:');
-  for (const f of failures) console.error(`  - ${f.id}\n      ${f.why}`);
+  // The line is printed even though the key no longer carries it: the key is for the
+  // allowlist to remember a decision, the line is for a person to find the code.
+  for (const f of failures) console.error(`  - ${f.at}
+      ${f.id.split(' ').slice(1).join(' ')} — ${f.why}`);
   console.error('\nRead the number from the API or a per-depot setting instead. If it really is');
   console.error('presentation, run with --update and say why in the PR.');
   process.exit(1);
