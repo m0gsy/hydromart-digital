@@ -95,6 +95,9 @@ export class DriverDeliveryController {
       {
         photoUrl: dto.photoUrl,
         signatureUrl: dto.signatureUrl ?? null,
+        // `?? null` and never `?? true`: an old APK omits the field entirely, and that is
+        // "nobody asked", not "the courier said yes".
+        sealIntact: dto.sealIntact ?? null,
         recipientName: dto.recipientName,
         latitude: dto.latitude,
         longitude: dto.longitude,

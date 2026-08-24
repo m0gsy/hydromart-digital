@@ -127,6 +127,8 @@ export class ProofResponseDto {
   photoUrl!: string;
   @ApiProperty({ type: String, nullable: true })
   signatureUrl!: string | null;
+  @ApiProperty({ type: Boolean, nullable: true })
+  sealIntact!: boolean | null;
   @ApiProperty({ type: String })
   recipientName!: string;
   @ApiProperty({ type: Number })

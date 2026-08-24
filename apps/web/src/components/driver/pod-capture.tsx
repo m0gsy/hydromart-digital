@@ -163,6 +163,10 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           orderNumber,
           photo: await toDataUrl(photoBlob, t('hrFix.pod.readFailed')),
           signature: signatureBlob ? await toDataUrl(signatureBlob, t('hrFix.pod.readFailed')) : undefined,
+          // Always true here — Selesai is gated on it above — but sent rather than assumed
+          // server-side, because the server must be able to tell "said yes" from "never
+          // asked", and an old APK is exactly the second case.
+          sealIntact: sealOk,
           recipientName: recipientName.trim(),
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -203,9 +207,9 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         )}
       </div>
 
-      {/* Seal-check gate (spec): courier must confirm the gallon seal is intact before
-          closing the delivery. ponytail: client-side gate only — ProofOfDeliveryDto has no
-          seal field yet, so it isn't persisted; add `sealIntact` to the proof DTO to record it. */}
+      {/* K2.8b: the seal answer is recorded now, not merely gated on. It used to live for
+          exactly one button press — so a customer claiming a broken seal and a courier
+          insisting it was intact argued with no evidence on either side. */}
       <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[color:var(--border)] p-3">
         <input
           type="checkbox"

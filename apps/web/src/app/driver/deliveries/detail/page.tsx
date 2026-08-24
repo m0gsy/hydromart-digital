@@ -327,6 +327,22 @@ function Detail() {
               <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.time')}</dt>
               <dd className="tabular-nums">{STAMP.format(new Date(delivery.proof.capturedAt))}</dd>
             </div>
+            {/*
+              K2.8b: the seal answer, shown only when there IS one. A delivery recorded
+              before the column, or by an APK that never sent the field, must not be
+              rendered as though the courier had testified — that is the fake evidence the
+              nullable column exists to prevent.
+            */}
+            {delivery.proof.sealIntact !== null && (
+              <div>
+                <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">
+                  {t('hrFix.pod.sealLabel')}
+                </dt>
+                <dd className={delivery.proof.sealIntact ? '' : 'font-bold text-red-600'}>
+                  {t(delivery.proof.sealIntact ? 'hrFix.pod.sealYes' : 'hrFix.pod.sealNo')}
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">GPS</dt>
               <dd>

@@ -34,6 +34,8 @@ const PROOF = {
   // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
   photoUrl: 'https://cdn/pod/x.jpg',
   signatureUrl: 'https://cdn/pod/sig.png',
+  // K2.8b: the courier's seal answer. `true` here — these are handovers where one was given.
+  sealIntact: true,
   recipientName: 'Budi',
   latitude: -6.9147,
   longitude: 107.6098,
@@ -419,7 +421,7 @@ describe('DeliveryService', () => {
     const d = await assign(driver, orderId);
     await service.pickup(driver, d.id, AUTH);
     await service.start(driver, d.id, AUTH);
-    await service.complete(driver, d.id, { photoUrl: 'u', recipientName: 'Budi', signatureUrl: null, latitude: -6.19, longitude: 106.84, note: null }, AUTH);
+    await service.complete(driver, d.id, { photoUrl: 'u', recipientName: 'Budi', signatureUrl: null, sealIntact: true, latitude: -6.19, longitude: 106.84, note: null }, AUTH);
     await expect(assign(randomUUID(), orderId)).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
   });
 
