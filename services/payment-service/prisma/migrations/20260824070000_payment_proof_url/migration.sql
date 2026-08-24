@@ -1,0 +1,29 @@
+-- K2.1: somewhere for the payment proof the app has always told the customer to produce.
+--
+-- The instruction text is not ambiguous about it. `offlineInstruction` returns, verbatim:
+--
+--   TRANSFER  "Transfer to the depot bank account and keep your receipt."
+--   QRIS      "Scan the depot QRIS and show the payment proof to staff."
+--
+-- And there is nowhere to put it. No upload on the customer's payment screen, no column
+-- here, nothing on the staff order view. So "show the payment proof to staff" resolves, in
+-- practice, to a WhatsApp message to whoever the customer happens to have a number for —
+-- and the only affordance the operator has is a "Konfirmasi lunas" button they press blind.
+-- When a customer says they paid and the depot says no money arrived, neither side has
+-- anything to put on the table.
+--
+-- NULLABLE, and it stays nullable for good: most payments legitimately have no proof. CASH
+-- is handed to a courier or a cashier and witnessed; e-wallet and VA are refused outright
+-- (O5). Only TRANSFER and QRIS produce a receipt at all, and even there a customer may pay
+-- and never upload — which the operator must be able to see as "not uploaded" rather than
+-- have guessed at.
+--
+-- No index. This is read one payment at a time, from a row already fetched by id or by
+-- order; an index on a mostly-NULL text column that nothing filters on is pure write cost.
+--
+-- Written and nothing more in this release. The upload endpoint, the customer's screen and
+-- the operator's view of it are the next one.
+-- Schema rule: a column ships one release before the code that reads it.
+
+-- AlterTable
+ALTER TABLE "payments" ADD COLUMN "proofUrl" TEXT;

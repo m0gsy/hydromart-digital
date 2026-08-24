@@ -56,6 +56,14 @@ model Payment {
   instruction  String?
   /// Opaque provider payload snapshot (JSON string) for audit/reconciliation.
   gatewayData  String?
+  /// K2.1: the transfer/QRIS receipt the customer uploads, as a stored file URL.
+  ///
+  /// The payment instruction has always told them to produce one ("show the payment proof
+  /// to staff") and there was nowhere to put it, so the operator's only affordance was a
+  /// blind "confirm paid". Stays nullable for good: CASH is witnessed at the counter or the
+  /// door, e-wallet and VA are refused (O5), and even a TRANSFER customer may pay without
+  /// uploading — which the operator must see as "not uploaded", not guess at.
+  proofUrl     String?
   paidAt       DateTime?
   failedAt     DateTime?
   /// Depot that took the money, set only for a counter sale. A delivery order's payment
