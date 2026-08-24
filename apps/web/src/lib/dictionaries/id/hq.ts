@@ -1071,8 +1071,13 @@ export const hq = {
   subscriptions: {
     title: 'Langganan galon',
     subtitle: 'Jadwal isi ulang berulang & jumlah pelanggan',
-    activeSubs: 'Langganan aktif',
-    subscribers: 'Pelanggan',
+    activeSubs: 'Langganan pelanggan',
+    subscribers: 'Pelanggan berlangganan',
+    depotSubs: 'Langganan dibuat depot',
+    depotSubscribers: 'Pelanggan (dibuat depot)',
+    twoSystems:
+      'Dua sistem terpisah: langganan yang dibuat pelanggan sendiri, dan langganan yang dicatatkan depot. Angka di atas dihitung terpisah — jumlahnya bukan satu populasi.',
+    depotUnreadable: 'Angka langganan depot tidak bisa dibaca sekarang.',
     estDeliveries: 'Est. pengantaran / bln',
     estHint:
       'Estimasi dari frekuensi — order-service tak menyimpan harga langganan (tanpa MRR rupiah).',

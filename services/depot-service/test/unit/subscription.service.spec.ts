@@ -58,6 +58,19 @@ class InMemorySubscriptionRepository implements SubscriptionRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async networkActiveCounts(): Promise<{
+    activeSubscriptions: number;
+    activeSubscribers: number;
+  }> {
+    const active = this.rows.filter((r) => r.status === SubscriptionStatus.ACTIVE);
+    return {
+      activeSubscriptions: active.length,
+      activeSubscribers: new Set(
+        active.filter((r) => r.customerId !== null).map((r) => r.customerId as string),
+      ).size,
+    };
+  }
+
   async activeCustomerIdsForDepot(depotId: string): Promise<string[]> {
     return [
       ...new Set(
@@ -288,5 +301,58 @@ describe('SubscriptionService.activeCustomerIds', () => {
       new StubEngine() as never,
     );
     await expect(service.activeCustomerIds('depot-a')).resolves.toEqual([]);
+  });
+});
+
+/*
+ * K1.11 · two subscription systems, one nav label, one number.
+ *
+ * HQ's /hq/subscriptions reads order-service's `subscriptions/admin/summary` — the
+ * customer-created plans — and calls the result "langganan jaringan". Depot-created
+ * subscriptions live in THIS service and are listed one depot at a time, so every one of
+ * them is silently missing from the network figure. Nothing on that screen says so: the
+ * number is not labelled "customer subscriptions", it is labelled as the total.
+ *
+ * A count that quietly excludes a whole population is worse than no count — an operator
+ * reading it plans against it. This is the half that was never countable network-wide.
+ */
+describe('SubscriptionService.networkSummary', () => {
+  const base = {
+    customerName: 'x',
+    productLabel: 'Galon 19L',
+    productId: '22222222-2222-4222-8222-222222222222',
+    quantity: 1,
+    cadence: SubscriptionCadence.WEEKLY,
+    firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+    note: null,
+  };
+  const build = () =>
+    new SubscriptionService(
+      new InMemorySubscriptionRepository(),
+      { exists: async () => true } as never,
+      new StubEngine() as never,
+    );
+
+  it('counts ACTIVE depot subscriptions across every depot, and their distinct subscribers', async () => {
+    const service = build();
+    await service.create({ ...base, depotId: 'depot-a', customerId: 'c1' });
+    // Same person, second plan: two subscriptions, one subscriber.
+    await service.create({ ...base, depotId: 'depot-a', customerId: 'c1' });
+    await service.create({ ...base, depotId: 'depot-b', customerId: 'c2' });
+    // Paused is not subscribing — the same rule `activeCustomerIds` already applies.
+    const paused = await service.create({ ...base, depotId: 'depot-b', customerId: 'c3' });
+    await service.pause(paused.id);
+
+    await expect(service.networkSummary()).resolves.toEqual({
+      activeSubscriptions: 3,
+      activeSubscribers: 2,
+    });
+  });
+
+  it('answers zero rather than throwing when no depot has any', async () => {
+    await expect(build().networkSummary()).resolves.toEqual({
+      activeSubscriptions: 0,
+      activeSubscribers: 0,
+    });
   });
 });

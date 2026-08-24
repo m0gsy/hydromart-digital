@@ -59,6 +59,24 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return rows.map((r) => r.customerId as string);
   }
 
+  async networkActiveCounts(): Promise<{
+    activeSubscriptions: number;
+    activeSubscribers: number;
+  }> {
+    // Two reads rather than one grouped query: `count` with `distinct` is not a thing in
+    // Prisma, and the subscriber figure has to be DISTINCT or a person on two plans is
+    // counted as two people. Both are bounded aggregates over one indexed status column.
+    const [activeSubscriptions, subscribers] = await Promise.all([
+      this.prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
+      this.prisma.subscription.findMany({
+        where: { status: SubscriptionStatus.ACTIVE, customerId: { not: null } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      }),
+    ]);
+    return { activeSubscriptions, activeSubscribers: subscribers.length };
+  }
+
   async findById(id: string): Promise<Subscription | null> {
     const row = await this.prisma.subscription.findUnique({ where: { id } });
     return row ? this.toRecord(row) : null;

@@ -63,6 +63,32 @@ describe('prisma repository null/empty branches', () => {
     expect(subscription.findMany).toHaveBeenCalledTimes(2);
   });
 
+  /*
+   * K1.11: two reads, not one, and the second one has to be DISTINCT — a person holding two
+   * plans is one subscriber, and counting rows there is how a network figure quietly
+   * inflates. Prisma has no count-distinct, which is why this is shaped the way it is.
+   */
+  it('counts depot subscriptions network-wide and their DISTINCT subscribers', async () => {
+    const subscription = {
+      count: jest.fn().mockResolvedValue(3),
+      // Already deduplicated by `distinct` — two rows back means two people.
+      findMany: jest.fn().mockResolvedValue([{ customerId: 'c1' }, { customerId: 'c2' }]),
+    };
+    const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
+
+    expect(await repo.networkActiveCounts()).toEqual({
+      activeSubscriptions: 3,
+      activeSubscribers: 2,
+    });
+    // No depotId anywhere in either read: this is the whole network on purpose.
+    expect(subscription.count).toHaveBeenCalledWith({ where: { status: 'ACTIVE' } });
+    expect(subscription.findMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', customerId: { not: null } },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    });
+  });
+
   it('returns null from handover findById when the row is missing', async () => {
     const shiftHandover = { findUnique: jest.fn().mockResolvedValue(null) };
     const repo = new HandoverPrismaRepository({ shiftHandover } as unknown as PrismaService);

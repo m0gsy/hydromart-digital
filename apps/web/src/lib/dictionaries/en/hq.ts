@@ -1067,8 +1067,13 @@ export const hq = {
   subscriptions: {
     title: 'Gallon subscriptions',
     subtitle: 'Recurring refill schedules & subscriber counts',
-    activeSubs: 'Active subscriptions',
-    subscribers: 'Subscribers',
+    activeSubs: 'Customer subscriptions',
+    subscribers: 'Subscribers (customer-created)',
+    depotSubs: 'Depot-created subscriptions',
+    depotSubscribers: 'Subscribers (depot-created)',
+    twoSystems:
+      'Two separate systems: plans customers start themselves, and plans a depot records for them. The figures above are counted separately — they are not one population.',
+    depotUnreadable: 'The depot subscription figures could not be read.',
     estDeliveries: 'Est. deliveries / mo',
     estHint: 'Estimated from cadence — order-service holds no subscription price (no rupiah MRR).',
     product: 'Product',

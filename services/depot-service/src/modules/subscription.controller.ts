@@ -29,7 +29,10 @@ import {
 import { SubscriptionService } from '../application/services/subscription.service';
 import { Subscription } from '../domain/subscription';
 import { CreateSubscriptionDto, ListSubscriptionQueryDto } from './dto/subscription.dto';
-import { SubscriptionResponseDto } from './dto/responses.generated.dto';
+import {
+  SubscriptionNetworkCountsResponseDto,
+  SubscriptionResponseDto,
+} from './dto/responses.generated.dto';
 
 /** Customer recurring subscriptions (design 16b). */
 @ApiTags('Subscriptions')
@@ -59,6 +62,25 @@ export class SubscriptionController {
     return this.subscriptions
       .activeCustomerIds(depotId)
       .then((customerIds) => ({ customerIds }));
+  }
+
+  /**
+   * K1.11 · the depot-created half of the subscription population, counted network-wide.
+   *
+   * `hqConsole` and not the class-level `depotSubscriptions`: the caller is HQ reading a
+   * network figure, not a manager acting on one depot's plans, and `depotSubscriptions` is
+   * MANAGER/SUPER_ADMIN — it would 403 exactly the HEAD_OFFICE reader this exists for. The
+   * same capability order-service's own `subscriptions/admin/summary` uses, because the two
+   * halves now sit side by side on one screen.
+   *
+   * Declared before `@Get()` so the static `admin` segment wins.
+   */
+  @ApiOkResponse({ type: SubscriptionNetworkCountsResponseDto })
+  @Can('hqConsole')
+  @Get('admin/summary')
+  @ApiOperation({ summary: 'Network aggregate of depot-created subscriptions (18c)' })
+  networkSummary(): Promise<{ activeSubscriptions: number; activeSubscribers: number }> {
+    return this.subscriptions.networkSummary();
   }
 
   @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })

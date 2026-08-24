@@ -32,6 +32,15 @@ export interface SubscriptionRepository {
    * route now insists on a real customer rather than leaving the gap open.
    */
   activeCustomerIdsForDepot(depotId: string): Promise<string[]>;
+  /**
+   * K1.11: how many ACTIVE depot subscriptions exist across the whole network, and how
+   * many distinct people hold them.
+   *
+   * Network-wide because HQ's subscription screen is network-wide, and until now this half
+   * of the population could only be listed one depot at a time — so the figure HQ read was
+   * the customer-created plans alone, presented as the total.
+   */
+  networkActiveCounts(): Promise<{ activeSubscriptions: number; activeSubscribers: number }>;
   findById(id: string): Promise<Subscription | null>;
   update(id: string, data: UpdateSubscriptionData): Promise<Subscription>;
 }
