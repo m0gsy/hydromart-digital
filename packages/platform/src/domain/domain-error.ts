@@ -23,4 +23,6 @@ export const HTTP_STATUS = {
   CONFLICT: 409,
   UNPROCESSABLE: 422,
   TOO_MANY: 429,
+  /** Upstream is throttling or stumbling: the caller did nothing wrong and may retry. */
+  SERVICE_UNAVAILABLE: 503,
 } as const;

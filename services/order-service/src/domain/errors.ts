@@ -282,12 +282,19 @@ export class ProductUnavailableError extends DomainError {
   }
 }
 
-/** The catalog could not be reached to price the order (BR: never trust client prices). */
+/**
+ * The catalog could not be reached to price the order (BR: never trust client prices).
+ *
+ * 503, not 422: 422 says the request was unprocessable, and this request was fine — the
+ * thing it needed was busy. It was 422 here and a bare 500 everywhere the adapter threw,
+ * so the same outage was described to the customer two different wrong ways. One error,
+ * one status, and it says retrying is worth doing because it is.
+ */
 export class CatalogUnavailableError extends DomainError {
   readonly code = 'ORDER_CATALOG_UNAVAILABLE';
-  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
   constructor() {
-    super('Could not verify product prices right now. Please try again.');
+    super('Katalog produk sedang sibuk. Tunggu sebentar, lalu coba lagi.');
   }
 }
 
