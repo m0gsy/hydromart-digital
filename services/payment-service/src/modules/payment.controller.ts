@@ -21,7 +21,11 @@ import {
   Public,
 } from '@hydromart/platform';
 
-import { PaymentService, RefundQueueRow } from '../application/services/payment.service';
+import {
+  PaymentExpirySweepResult,
+  PaymentService,
+  RefundQueueRow,
+} from '../application/services/payment.service';
 import {
   CashCollectedSummary,
   OrderCashRow,
@@ -46,6 +50,7 @@ import {
 } from './dto/payment.dto';
 import {
   CashByOrderResponseDto,
+  ExpirePendingPaymentsResponseDto,
   InternalExportRowsResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
@@ -106,6 +111,23 @@ export class PaymentController {
   @ApiOperation({ summary: "Reverse a voided counter sale's payment (internal service auth)" })
   voidForOrder(@Body() dto: VoidForOrderDto): Promise<PaymentRecord | null> {
     return this.payments.voidForOrder(dto.orderId, dto.reason, 'order-service');
+  }
+
+  /**
+   * K2.2: the stale-payment sweep, for the scheduler (crond holds no bearer).
+   *
+   * Not merely housekeeping — an abandoned PENDING attempt locks its order out of every
+   * other payment method, because `initiate` refuses while an active one exists.
+   */
+  @ApiOkResponse({ type: ExpirePendingPaymentsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/expire-pending')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Fail non-cash payments left PENDING too long (internal service auth)' })
+  expirePending(): Promise<PaymentExpirySweepResult> {
+    return this.payments.expireStalePending(new Date());
   }
 
   // Shift close asks this: how much cash should be in THIS depot's drawer right now.

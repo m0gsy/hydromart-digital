@@ -110,6 +110,25 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async findStalePending(
+    before: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PENDING,
+        method: { in: methods as PaymentMethod[] },
+        createdAt: { lt: before },
+      },
+      // Oldest first: the sweep is bounded, so the rows that have been stuck longest are
+      // the ones a bounded pass must reach.
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async findByReference(reference: string): Promise<PaymentRecord | null> {
     const row = await this.prisma.payment.findFirst({ where: { reference } });
     return row ? this.toRecord(row) : null;

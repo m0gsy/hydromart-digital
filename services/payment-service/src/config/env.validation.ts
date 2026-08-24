@@ -34,6 +34,9 @@ export const envValidationSchema = Joi.object({
   // `.default()` here would be a second copy of it, free to drift.
   REFUND_HQ_THRESHOLD: Joi.number().integer().positive().optional(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
+  // K2.2: hours a non-cash PENDING payment may sit before the scheduler fails it.
+  // 0 disables the sweep and restores the old "never expires" behaviour.
+  PAYMENT_PENDING_TTL_HOURS: Joi.number().integer().min(0).default(24),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an

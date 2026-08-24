@@ -27,6 +27,7 @@ describe('PaymentController', () => {
     cashCollected: jest.fn(),
     depotCashCollected: jest.fn(),
     voidForOrder: jest.fn(),
+    expireStalePending: jest.fn(),
     listRefundQueue: jest.fn(),
     getForCustomer: jest.fn(),
     confirm: jest.fn(),
@@ -162,6 +163,13 @@ describe('PaymentController', () => {
 
   // Shift close reads this. An open window means "everything so far", which is what a
   // depot's running total is before anyone has closed anything.
+  // K2.2: the scheduler's route. crond holds no bearer, so this is internal-key only.
+  it('expirePending runs the stale-payment sweep and returns its verdict', async () => {
+    svc.expireStalePending.mockResolvedValue({ expired: 2, failed: 0, ok: true });
+    await expect(controller.expirePending()).resolves.toEqual({ expired: 2, failed: 0, ok: true });
+    expect(svc.expireStalePending).toHaveBeenCalledWith(expect.any(Date));
+  });
+
   it('depotCash forwards the window, open at both ends when unbounded', async () => {
     await controller.depotCash({ depotId: 'depot-1' } as never);
     expect(svc.depotCashCollected).toHaveBeenCalledWith(
