@@ -20,11 +20,13 @@ export SWEEP_STATE_DIR="$TMP/state"
 export SWEEP_ENV_FILE="$TMP/sweep.env"
 printf 'export INTERNAL_SERVICE_KEY=test-key\n' > "$SWEEP_ENV_FILE"
 
-# wget stub: exits 0 or 1 depending on $TMP/wget-exit, and records that it was called.
+# wget stub: exits 0 or 1 depending on $TMP/wget-exit, prints whatever $TMP/wget-body
+# holds (the sweep endpoint's response), and records that it was called.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/wget" <<'STUB'
 #!/bin/sh
 echo called >> "$TMP/wget-calls"
+cat "$TMP/wget-body" 2>/dev/null
 exit "$(cat "$TMP/wget-exit" 2>/dev/null || echo 0)"
 STUB
 chmod +x "$TMP/bin/wget"
@@ -52,6 +54,41 @@ run orders/reminders/reorder
   || ok "a failed sweep leaves the heartbeat alone"
 [ -f "$SWEEP_STATE_DIR/orders-reminders-reorder.failed" ] && ok "failure is recorded per job" \
   || bad "expected a per-job .failed marker"
+
+# --- J7: a 200 that reports a dead round is not a success -------------------------
+#
+# The transport said OK, so everything above was satisfied. What the body SAID went
+# unread: `{"placed":0}` from a sweep where every subscription threw is byte-identical
+# to a sweep where nothing was due, and both wrote the heartbeat. Sweeps now answer with
+# `ok`, and this is the script reading it.
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"
+echo 0 > "$TMP/wget-exit"
+printf '{"placed":0,"failed":12,"ok":false}' > "$TMP/wget-body"
+run subscriptions/process-due
+[ -f "$SWEEP_STATE_DIR/last-success" ] && bad "a 200 reporting ok:false must not write last-success" \
+  || ok "a round that failed every row leaves the heartbeat alone"
+[ -f "$SWEEP_STATE_DIR/subscriptions-process-due.failed" ] && ok "and is recorded as a failure" \
+  || bad "expected a per-job .failed marker for ok:false"
+[ -f "$SWEEP_STATE_DIR/subscriptions-process-due.ok" ] && bad "ok:false must not write the per-job .ok marker" \
+  || ok "no success marker for a dead round"
+
+# The other half of the same rule: a round that did work while losing one row is a
+# working sweep. Marking it failed would put the scheduler permanently unhealthy, which
+# is the same blindness in the other direction.
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"
+printf '{"placed":41,"failed":1,"ok":true}' > "$TMP/wget-body"
+run subscriptions/process-due
+[ -f "$SWEEP_STATE_DIR/last-success" ] && ok "a productive round with one bad row stays healthy" \
+  || bad "ok:true must still write last-success"
+
+# An endpoint that says nothing about itself keeps the old contract — the exit code.
+# Nothing that is not a sweep gets reinterpreted by this change.
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"
+printf '{"cancelled":0}' > "$TMP/wget-body"
+run orders/internal/expire-abandoned
+[ -f "$SWEEP_STATE_DIR/last-success" ] && ok "a body with no verdict falls back to the exit code" \
+  || bad "a 200 without an ok field must still count as success"
+: > "$TMP/wget-body"
 
 # --- lock ------------------------------------------------------------------------
 echo 0 > "$TMP/wget-exit"

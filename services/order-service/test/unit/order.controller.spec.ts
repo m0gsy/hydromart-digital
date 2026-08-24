@@ -44,7 +44,7 @@ function makeService(): Mocked {
     depotCustomerAggregates: jest.fn(),
     customerOrdersAtDepot: jest.fn().mockResolvedValue([]),
     findOrderValues: jest.fn().mockResolvedValue([{ orderId: 'o1', total: 42000 }]),
-    remindStaleCustomers: jest.fn().mockResolvedValue({ reminded: 4 }),
+    remindStaleCustomers: jest.fn().mockResolvedValue({ reminded: 4, failed: 0, ok: true }),
     getForCustomer: jest.fn().mockResolvedValue({ id: 'o1', history: ['h1', 'h2'] }),
     cancel: jest.fn().mockResolvedValue({ id: 'o1', status: 'CANCELLED' }),
     repeat: jest.fn().mockResolvedValue({ items: ['x'] }),
@@ -448,7 +448,7 @@ describe('OrderController', () => {
   });
 
   it('remindStale: defaults days/limit to undefined, else forwards numbers', async () => {
-    await expect(controller.remindStale()).resolves.toEqual({ reminded: 4 });
+    await expect(controller.remindStale()).resolves.toEqual({ reminded: 4, failed: 0, ok: true });
     let call = service.remindStaleCustomers.mock.calls[0];
     expect(call[0]).toBeInstanceOf(Date);
     expect(call[1]).toBeUndefined();

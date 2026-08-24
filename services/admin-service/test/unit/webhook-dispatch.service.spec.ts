@@ -141,7 +141,7 @@ describe('WebhookDispatchService', () => {
     const { deliveries, endpoints, calls } = makeRepos([due()]);
     const service = new WebhookDispatchService(deliveries, endpoints);
 
-    await expect(service.process(NOW)).resolves.toEqual({ sent: 1, failed: 0, dead: 0 });
+    await expect(service.process(NOW)).resolves.toEqual({ sent: 1, failed: 0, dead: 0, ok: true });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://partner.example.com/hooks');
@@ -172,6 +172,8 @@ describe('WebhookDispatchService', () => {
       sent: 0,
       failed: 1,
       dead: 0,
+      // J7: due deliveries, none sent — the scheduler must not call this round healthy.
+      ok: false,
     });
     expect(calls.retried[0]).toMatchObject({ attempts: 2, error: 'endpoint responded 500' });
     expect(calls.retried[0]!.nextAttemptAt.getTime()).toBe(NOW.getTime() + nextAttemptDelayMs(2));
@@ -194,6 +196,7 @@ describe('WebhookDispatchService', () => {
       sent: 0,
       failed: 0,
       dead: 1,
+      ok: false,
     });
     expect(calls.dead[0]).toMatchObject({ attempts: MAX_ATTEMPTS });
     expect(calls.retried).toHaveLength(0);
@@ -231,6 +234,8 @@ describe('WebhookDispatchService', () => {
       sent: 0,
       failed: 0,
       dead: 0,
+      // Nothing due is not a failure — this is the idle body a healthy tick answers with.
+      ok: true,
     });
     expect(calls.updated).toHaveLength(0);
   });

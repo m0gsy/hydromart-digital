@@ -22,6 +22,23 @@ import { DepotGovernanceFigures, DepotCostBreakdown, DepotCostsPort } from '../p
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
+/**
+ * One depot-SOP sales broadcast round (J7).
+ *
+ * `skipped` and `failed` were one number. A depot with no phone on file and a depot whose
+ * gallon query threw both landed in `skipped`, so the twice-daily report could reach
+ * nobody at all and answer with a body that reads like an ordinary quiet round — which
+ * `sweep.sh` then wrote the scheduler heartbeat for.
+ */
+export interface DailySalesBroadcastResult {
+  attempted: number;
+  /** Depots with no number to send to — a configuration gap, not a failure. */
+  skipped: number;
+  /** Depots whose update threw on the way out. */
+  failed: number;
+  ok: boolean;
+}
+
 export interface ReportRangeView {
   from: string | null;
   to: string | null;
@@ -864,17 +881,22 @@ export class ReportService {
    * actually left the building, and a cron line reading "sent 12" while WhatsApp was down
    * is the kind of false all-clear that keeps an outage quiet for a week.
    */
-  async broadcastDailySales(
-    slot: 'siang' | 'sore',
-  ): Promise<{ attempted: number; skipped: number }> {
-    if (!this.depotDirectory || !this.notifications) return { attempted: 0, skipped: 0 };
+  async broadcastDailySales(slot: 'siang' | 'sore'): Promise<DailySalesBroadcastResult> {
+    // J7: a missing port is not "nothing to do". Both of these used to answer
+    // `{ attempted: 0, skipped: 0 }` — the body of a clean, idle sweep — while the
+    // broadcast could not be attempted at all, and the scheduler heartbeat was written
+    // on the strength of the 200.
+    if (!this.depotDirectory || !this.notifications) {
+      return { attempted: 0, skipped: 0, failed: 0, ok: false };
+    }
     const contacts = await this.depotDirectory.listContacts();
-    if (!contacts) return { attempted: 0, skipped: 0 };
+    if (!contacts) return { attempted: 0, skipped: 0, failed: 0, ok: false };
 
     const today = localDayKey(new Date(), this.config.businessTimeZone);
     const fallback = this.config.alertPhone;
     let attempted = 0;
     let skipped = 0;
+    let failed = 0;
     for (const depot of contacts) {
       const phone = depot.contactPhone || fallback;
       if (!phone) {
@@ -895,13 +917,19 @@ export class ReportService {
       } catch (error) {
         // One depot's failure is its own; the round continues. In practice this catches the
         // gallon query, not the notify — see the note above.
+        //
+        // J7: counted apart from `skipped`. Both used to land in the same number, so a
+        // sweep where every gallon query threw was indistinguishable from one where every
+        // depot simply has no phone on file — and on this stack today the live sweep
+        // answers `{"attempted":0,"skipped":60}`, which under the old shape said nothing
+        // about which of the two it was.
         this.logger.warn(
-          `Daily sales update skipped for ${depot.id}: ${(error as Error).message}`,
+          `Daily sales update failed for ${depot.id}: ${(error as Error).message}`,
         );
-        skipped++;
+        failed++;
       }
     }
-    return { attempted, skipped };
+    return { attempted, skipped, failed, ok: failed === 0 || attempted > 0 };
   }
 
   /**

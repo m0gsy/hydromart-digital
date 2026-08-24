@@ -38,6 +38,15 @@ export interface CampaignSweepResult {
   sent: number;
   failed: number;
   completed: number;
+  /**
+   * J7: false when the round tried to deliver and delivered nothing.
+   *
+   * `failed` was already counted here and nothing read it. `sweep.sh` refreshed the
+   * scheduler heartbeat on the HTTP 200 alone, so a campaign burning its whole audience
+   * on recipients it could not reach — every two minutes — wrote the same green marker as
+   * a tick with no campaign sending at all.
+   */
+  ok: boolean;
 }
 
 @Injectable()
@@ -201,7 +210,13 @@ export class CampaignService {
      * per recipient below rather than by refusing the whole sweep.
      */
     const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
-    const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
+    const result: CampaignSweepResult = {
+      campaigns: 0,
+      sent: 0,
+      failed: 0,
+      completed: 0,
+      ok: true,
+    };
 
     for (const campaign of campaigns) {
       result.campaigns += 1;
@@ -258,6 +273,7 @@ export class CampaignService {
         );
       }
     }
+    result.ok = result.failed === 0 || result.sent > 0;
     return result;
   }
 }

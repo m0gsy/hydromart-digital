@@ -38,6 +38,16 @@ export interface PurgeRunResult {
   unenforced: string[];
   /** REPORT-only datasets that currently have rows past their window. */
   awaitingReview: string[];
+  /**
+   * J7: false when every dataset this run touched threw.
+   *
+   * A per-dataset catch keeps one failure from aborting the rest, which also meant a run
+   * where all of them failed still answered HTTP 200 with a well-formed body, and
+   * `sweep.sh` wrote the scheduler heartbeat for it. `unenforced` is deliberately NOT part
+   * of this verdict — a dataset with a policy and no executor is a standing compliance gap
+   * this sweep reports every night, not a failure of the night it ran.
+   */
+  ok: boolean;
 }
 
 /**
@@ -124,6 +134,8 @@ export class PurgeService {
         // the nullish half could never be taken and only pretended to guard something.
         .filter((e) => e.outcome === 'REPORT_ONLY' && Boolean(e.eligible))
         .map((e) => e.dataset),
+      ok: !entries.some((e) => e.outcome === 'FAILED') ||
+        entries.some((e) => e.outcome === 'PURGED' || e.outcome === 'REPORT_ONLY'),
     };
     this.logger.log(
       `Retention sweep${dryRun ? ' (dry run)' : ''}: deleted ${result.totalDeleted}, unenforced ${result.unenforced.length}`,

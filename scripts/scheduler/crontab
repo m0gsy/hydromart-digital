@@ -1,3 +1,25 @@
+# J7 / L1.1 — what "the sweep succeeded" means here.
+#
+# HTTP 200 is a statement about the transport, not about the round. Most of these sweeps
+# catch per row so one bad item cannot take the batch down, which means a round in which
+# EVERYTHING failed answers 200 with a well-formed body — and sweep.sh used to write the
+# heartbeat the container healthcheck reads on the strength of that 200. A dead flow and a
+# quiet one were the same two files on disk.
+#
+# So every sweep below now answers with `ok`, decided in the service where the counters
+# have names: false only when the round failed at something and accomplished nothing.
+# Partial failure stays true on purpose — a scheduler pinned to unhealthy by one bad row
+# reports an outage no more usefully than one that is always green.
+#
+# All eleven were checked (L1.1). Three never had a failure count at all and now do:
+# subscriptions/process-due, orders/reminders/reorder, and daily-sales-broadcast — whose
+# `skipped` conflated "this depot has no number" with "this depot's update threw", so on
+# the live stack it answers {"attempted":0,"skipped":60} and that said nothing about which.
+# Five already counted their failures honestly and nobody read them: outbox, webhooks,
+# scheduled-reports, campaigns, fraud-flags (as `unavailable`). Two need no verdict —
+# orders/internal/expire-abandoned and announcements/publish-due have no per-row catch, so
+# a failure propagates and the exit code already carries it; leave them that way.
+#
 # Hydromart internal sweeps (busybox crond). Times are the container's TZ, which follows
 # PRICING_TZ (Asia/Jakarta by default) — so every time below is a WIB business hour, the
 # same clock the reports and day boundaries use. Logs go to the container.

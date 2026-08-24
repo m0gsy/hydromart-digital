@@ -56,6 +56,7 @@ describe('OutboxService edges', () => {
       delivered: 0,
       failed: 0,
       dead: 0,
+      ok: true,
     });
   });
 

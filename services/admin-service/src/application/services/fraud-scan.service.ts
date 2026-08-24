@@ -15,6 +15,14 @@ export interface FraudScanResult {
   skipped: number;
   /** True when the signals could not be read at all: `scanned: 0` then means nothing. */
   unavailable: boolean;
+  /**
+   * J7: the mirror of `unavailable`, in the one field `scripts/scheduler/sweep.sh` reads.
+   *
+   * This result already said, honestly, that a scan which could read nothing means
+   * nothing. The scheduler never looked: HTTP 200 refreshed the heartbeat, so a daily
+   * scan that had not seen a signal in weeks was indistinguishable from a clean month.
+   */
+  ok: boolean;
 }
 
 /**
@@ -48,7 +56,7 @@ export class FraudScanService {
     const customers = await this.signals.repeatedRefunds(from, now, minRefunds);
     if (customers === null) {
       // Nothing was scanned, and saying "0 flagged" here would read as a clean week.
-      return { scanned: 0, flagged: 0, skipped: 0, unavailable: true };
+      return { scanned: 0, flagged: 0, skipped: 0, unavailable: true, ok: false };
     }
 
     /*
@@ -85,6 +93,6 @@ export class FraudScanService {
     this.logger.log(
       `Fraud scan: ${customers.length} customer(s) over the threshold, ${flagged} flagged, ${skipped} already open`,
     );
-    return { scanned: customers.length, flagged, skipped, unavailable: false };
+    return { scanned: customers.length, flagged, skipped, unavailable: false, ok: true };
   }
 }

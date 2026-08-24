@@ -16,6 +16,18 @@ export interface OutboxSweepResult {
   failed: number;
   /** Rows that ran out of retries on this pass — somebody has to look at these. */
   dead: number;
+  /**
+   * J7: false when the round claimed work and delivered none of it.
+   *
+   * These counters were already honest; nothing read them. `sweep.sh` saw HTTP 200 and
+   * refreshed the scheduler heartbeat, so `{"claimed":50,"delivered":0,"failed":50}` —
+   * every owed stock consume, loyalty award and franchise credit failing, every ten
+   * minutes — looked exactly like `{"claimed":0,...}`, a quiet backlog-free tick.
+   *
+   * True while any row got through: a partial failure is a retry, and pinning the
+   * scheduler to unhealthy for one bad row hides the next real outage.
+   */
+  ok: boolean;
 }
 
 /** Runs one effect for one order. Registered by OrderService, which owns the adapters. */
@@ -94,7 +106,13 @@ export class OutboxService {
     authorization: string,
     now: Date,
   ): Promise<OutboxSweepResult> {
-    const result: OutboxSweepResult = { claimed: due.length, delivered: 0, failed: 0, dead: 0 };
+    const result: OutboxSweepResult = {
+      claimed: due.length,
+      delivered: 0,
+      failed: 0,
+      dead: 0,
+      ok: true,
+    };
 
     for (const message of due) {
       try {
@@ -121,6 +139,7 @@ export class OutboxService {
         `Outbox sweep: ${result.delivered} delivered, ${result.failed} failed, ${result.dead} dead`,
       );
     }
+    result.ok = result.failed === 0 || result.delivered > 0;
     return result;
   }
 

@@ -21,7 +21,7 @@ import {
   CreateSubscriptionForCustomerDto,
   DepotScopeQueryDto,
 } from './dto/order.dto';
-import { SubscriptionNetworkSummaryView } from '../application/services/subscription.service';
+import { SubscriptionNetworkSummaryView, SubscriptionSweepResult } from '../application/services/subscription.service';
 import { Discount2ResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Subscriptions')
@@ -155,7 +155,7 @@ export class SubscriptionController {
   @Post('process-due')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Place orders for all due subscriptions (internal, spec 7b)' })
-  processDue(): Promise<{ placed: number }> {
+  processDue(): Promise<SubscriptionSweepResult> {
     return this.subscriptions.processDue(new Date());
   }
 }

@@ -58,6 +58,28 @@ const MONTHLY_DELIVERY_RATE: Record<SubscriptionFrequency, number> = {
 /** Network aggregate (18c). estMonthlyDeliveries is an ESTIMATE — a rupiah MRR
  * can't be derived here (subscriptions snapshot no price), so we report the
  * expected monthly delivery volume instead. */
+/**
+ * J7 — what one fulfilment sweep did, including what it could not do.
+ *
+ * This used to be `{ placed }` alone, and that single number is why a dead flow was
+ * invisible: the loop below catches per subscription, so a round in which every plan
+ * threw returns `{ placed: 0 }` — the same body, byte for byte, as a round with nothing
+ * due. `scripts/scheduler/sweep.sh` saw HTTP 200 either way and refreshed the heartbeat
+ * the container healthcheck reads, so the scheduler reported healthy while the sweep
+ * accomplished nothing, for as long as that lasted.
+ *
+ * `ok` is the verdict, decided here where the counters mean something rather than by a
+ * shell script guessing at field names. False only for a round that failed at something
+ * and got nothing done. A sweep that placed forty orders and lost one is working — call
+ * that unhealthy and the scheduler pins to red forever, which hides an outage exactly as
+ * well as always-green does.
+ */
+export interface SubscriptionSweepResult {
+  placed: number;
+  failed: number;
+  ok: boolean;
+}
+
 export interface SubscriptionNetworkSummaryView extends SubscriptionNetworkSummary {
   estMonthlyDeliveries: number;
 }
@@ -193,9 +215,10 @@ export class SubscriptionService {
    * Each subscription is isolated: a placement failure logs and skips (never blocks
    * the rest), and the schedule only advances when the order was actually placed.
    */
-  async processDue(now: Date): Promise<{ placed: number }> {
+  async processDue(now: Date): Promise<SubscriptionSweepResult> {
     const due = await this.subs.findDue(now);
     let placed = 0;
+    let failed = 0;
     for (const sub of due) {
       const address: DeliveryAddressSnapshot = {
         recipientName: sub.recipientName,
@@ -234,10 +257,11 @@ export class SubscriptionService {
           placed += 1;
         }
       } catch (err) {
+        failed += 1;
         await this.recordCycleFailure(sub, err, now);
       }
     }
-    return { placed };
+    return { placed, failed, ok: failed === 0 || placed > 0 };
   }
 
   /**

@@ -574,7 +574,7 @@ export class OrderController {
   remindStale(
     @Query('days') days?: string,
     @Query('limit') limit?: string,
-  ): Promise<{ reminded: number }> {
+  ): Promise<{ reminded: number; failed: number; ok: boolean }> {
     return this.orders.remindStaleCustomers(
       new Date(),
       days ? Number(days) : undefined,

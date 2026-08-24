@@ -816,7 +816,18 @@ describe('OrderService', () => {
         throw new Error('sms gateway down');
       };
       const out = await service.remindStaleCustomers(new Date());
-      expect(out.reminded).toBe(0);
+      // J7: `{ reminded: 0 }` alone was the same answer as "nobody was due", and
+      // `sweep.sh` wrote the scheduler heartbeat for both. A round that reached nobody
+      // and lost somebody now says so, and the heartbeat is withheld.
+      expect(out).toEqual({ reminded: 0, failed: 1, ok: false });
+    });
+
+    it('J7 · a round with nobody due is ok, and says nothing failed', async () => {
+      await expect(service.remindStaleCustomers(new Date('2020-01-02T00:00:00.000Z'))).resolves.toEqual({
+        reminded: 0,
+        failed: 0,
+        ok: true,
+      });
     });
 
     it('completes even when notification, recommendation and forecast all throw', async () => {
@@ -1148,7 +1159,7 @@ describe('OrderService', () => {
     // A "now" 30 days after the order, with a 14-day window → the order is stale.
     const future = new Date(order.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
     const res = await service.remindStaleCustomers(future, 14);
-    expect(res.reminded).toBe(1);
+    expect(res).toEqual({ reminded: 1, failed: 0, ok: true });
     expect(notification.calls.map((c) => c.event)).toContain('REORDER_REMINDER');
 
     // Within the window → no reminder.

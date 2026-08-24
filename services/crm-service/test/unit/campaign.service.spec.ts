@@ -303,7 +303,7 @@ describe('CampaignService', () => {
       await service.send(created.id);
 
       const result = await service.processSending();
-      expect(result).toEqual({ campaigns: 1, sent: 1, failed: 1, completed: 1 });
+      expect(result).toEqual({ campaigns: 1, sent: 1, failed: 1, completed: 1, ok: true });
 
       const done = await service.get(created.id);
       expect(done.status).toBe(CampaignStatus.SENT);
@@ -339,10 +339,31 @@ describe('CampaignService', () => {
       expect(delivery.sent[0].message).toBe('Hi Andi (+6281)');
     });
 
+    /*
+     * J7 — a sweep that delivered to nobody must not report the same thing as a quiet tick.
+     *
+     * Delivery is per recipient and fail-open, so `failed` was already counted here; what
+     * was missing is anyone reading it. `scripts/scheduler/sweep.sh` saw HTTP 200 and
+     * refreshed the heartbeat behind the scheduler's healthcheck, so a campaign burning
+     * its whole audience on recipients it could not reach — every two minutes — looked
+     * exactly like a tick with no campaign sending.
+     */
+    it('J7 · a round that reached nobody reports ok:false', async () => {
+      const created = await service.create('staff-1', 'Blast', 'Hi', recipients);
+      for (const r of recipients) delivery.failOn(r.phone);
+      await service.send(created.id);
+
+      const result = await service.processSending();
+      expect(result.sent).toBe(0);
+      expect(result.failed).toBeGreaterThan(0);
+      expect(result.ok).toBe(false);
+    });
+
     it('does nothing for a DRAFT campaign nobody has queued', async () => {
       await service.create('staff-1', 'Blast', 'Hi', recipients);
       expect(await service.processSending()).toEqual({
         campaigns: 0,
+        ok: true,
         sent: 0,
         failed: 0,
         completed: 0,
@@ -362,6 +383,7 @@ describe('CampaignService', () => {
 
       expect(await service.processSending()).toEqual({
         campaigns: 0,
+        ok: true,
         sent: 0,
         failed: 0,
         completed: 0,

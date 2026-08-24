@@ -56,7 +56,7 @@ export class WebhookInternalController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send every due webhook delivery (scheduler sweep)' })
   @ApiOkResponse({ description: 'Counts for this sweep: sent, failed, dead.' })
-  process(): Promise<{ sent: number; failed: number; dead: number }> {
+  process(): Promise<{ sent: number; failed: number; dead: number; ok: boolean }> {
     return this.dispatch.process();
   }
 }

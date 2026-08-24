@@ -39,7 +39,7 @@ describe('FraudScanService', () => {
 
     const result = await scan.run(NOW);
 
-    expect(result).toEqual({ scanned: 1, flagged: 1, skipped: 0, unavailable: false });
+    expect(result).toEqual({ scanned: 1, flagged: 1, skipped: 0, unavailable: false, ok: true });
     expect(flags.rows).toHaveLength(1);
     expect(flags.rows[0]).toMatchObject({
       entityType: FraudEntityType.ACCOUNT,
@@ -75,7 +75,7 @@ describe('FraudScanService', () => {
     await scan.run(NOW);
     const second = await scan.run(NOW);
 
-    expect(second).toEqual({ scanned: 1, flagged: 0, skipped: 1, unavailable: false });
+    expect(second).toEqual({ scanned: 1, flagged: 0, skipped: 1, unavailable: false, ok: true });
     expect(flags.rows).toHaveLength(1);
   });
 
@@ -102,7 +102,7 @@ describe('FraudScanService', () => {
 
     const result = await scan.run(NOW);
 
-    expect(result).toEqual({ scanned: 0, flagged: 0, skipped: 0, unavailable: true });
+    expect(result).toEqual({ scanned: 0, flagged: 0, skipped: 0, unavailable: true, ok: false });
     expect(flags.rows).toHaveLength(0);
   });
 

@@ -1198,11 +1198,22 @@ export class OrderService {
    * "Time to refill" nudge sweep (spec 5h): notify customers whose most-recent order
    * predates `days` ago. Ops/scheduler-triggered (mirrors expireAbandoned) — this repo
    * has no cron daemon. Each notification is fail-open (never throws).
+   *
+   * J7: fail-open per customer meant the round's own failures were unreportable. Five
+   * hundred targets and a notification transport that is down returns `{ reminded: 0 }`,
+   * which is the same answer as "nobody is due" — and `sweep.sh` wrote the scheduler
+   * heartbeat on both. The count of what did NOT go out is now part of the answer, and
+   * `ok` is false only when the round sent nothing and lost something.
    */
-  async remindStaleCustomers(now: Date, days = 14, limit = 500): Promise<{ reminded: number }> {
+  async remindStaleCustomers(
+    now: Date,
+    days = 14,
+    limit = 500,
+  ): Promise<{ reminded: number; failed: number; ok: boolean }> {
     const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     const targets = await this.orders.findReorderReminderTargets(cutoff, limit);
     let reminded = 0;
+    let failed = 0;
     for (const target of targets) {
       const ok = await this.notification
         .notify(
@@ -1215,8 +1226,9 @@ export class OrderService {
         .then(() => true)
         .catch(() => false);
       if (ok) reminded += 1;
+      else failed += 1;
     }
-    return { reminded };
+    return { reminded, failed, ok: failed === 0 || reminded > 0 };
   }
 
   async listForCustomer(customerId: string, input: ListOrdersInput): Promise<Page<OrderRecord>> {
