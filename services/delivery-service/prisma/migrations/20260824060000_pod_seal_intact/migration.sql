@@ -1,0 +1,29 @@
+-- K2.8: the gallon seal check the courier is asked for on every delivery, finally recorded.
+--
+-- The screen has always had the gate: a checkbox the courier must tick before the Complete
+-- button unlocks. `pod-capture.tsx` says out loud what happened to the answer — "client-side
+-- gate only — ProofOfDeliveryDto has no seal field yet, so it isn't persisted". So the
+-- courier attested to the seal on every single delivery and the attestation existed for the
+-- length of one button press. A customer claiming a broken seal and a courier insisting it
+-- was intact are both, today, arguing without evidence.
+--
+-- NULLABLE, and that is the whole design of this column rather than an oversight:
+--
+--   true   the courier was asked and said the seal was intact
+--   false  the courier was asked and said it was not
+--   NULL   nobody was ever asked
+--
+-- NULL covers two real populations that must not be dressed up as either answer. Every
+-- proof row that already exists was captured before this column, and — because the customer
+-- app is a static export shipped inside an APK — an older APK in somebody's hand goes on
+-- posting proofs with no seal field for as long as they decline to update. Defaulting those
+-- to `true` would manufacture an attestation nobody made, which is exactly the evidence this
+-- column exists to stop inventing. Same rule as the consent ledger: never asked is not
+-- refused, and it is not consented either.
+--
+-- Written and nothing more in this release. The DTO, the courier payload and the dispute
+-- view that read it are the next one.
+-- Schema rule: a column ships one release before the code that reads it.
+
+-- AlterTable
+ALTER TABLE "proofs_of_delivery" ADD COLUMN "sealIntact" BOOLEAN;
