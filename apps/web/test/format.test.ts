@@ -36,6 +36,28 @@ describe('formatIDR', () => {
     expect(formatIDR(0)).toBe('Rp 0');
     expect(formatIDR(1234567)).toBe('Rp 1.234.567');
   });
+
+  /*
+   * K2.10 — a fraction must be visible, not rounded into a plausible price.
+   *
+   * `maximumFractionDigits: 0` turned 20000.5 into "Rp 20.001" and 20000.4 into
+   * "Rp 20.000". Money here is whole rupiah — every amount is a Decimal(12,2) that
+   * Postgres rounds to an integer — so a fraction on a screen means the client computed it
+   * and the stored order will not agree. It surfaced later as a total one rupiah off the
+   * receipt with nothing to explain it.
+   */
+  it('shows a fraction instead of rounding it into a plausible price', () => {
+    expect(formatIDR(20000.5)).toBe('Rp 20.000,50');
+    expect(formatIDR(20000.4)).toBe('Rp 20.000,40');
+    // Sign inside the prefix, matching how a negative whole amount has always rendered.
+    expect(formatIDR(-1500.25)).toBe('Rp -1.500,25');
+  });
+
+  // Both are wrong, but one of them does not look like a price.
+  it('does not render a non-finite amount as a price', () => {
+    expect(formatIDR(Number.NaN)).toBe('—');
+    expect(formatIDR(Number.POSITIVE_INFINITY)).toBe('—');
+  });
 });
 
 describe('normalizePhone', () => {

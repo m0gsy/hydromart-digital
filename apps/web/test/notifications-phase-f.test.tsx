@@ -15,7 +15,7 @@
  *    previous account's pushes, and the next account is never registered because the
  *    endpoint is identical and dedupes.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { replace, post, get, patch, del, unsubscribeFromPush } = vi.hoisted(() => ({

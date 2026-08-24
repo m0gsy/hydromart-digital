@@ -5,7 +5,7 @@
  * a manager never sees. The screen has been reachable by typing the URL, which is the same
  * as not existing.
  */
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const role = vi.hoisted(() => ({ current: 'MANAGER' }));
