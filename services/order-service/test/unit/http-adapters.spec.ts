@@ -4,9 +4,10 @@ import { HTTP_STATUS } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../src/config/order-config.service';
 import {
+  CounterBuyerDirectoryUnconfiguredError,
   InsufficientStockError,
-  StockCheckUnavailableError,
   PaymentReversalFailedError,
+  StockCheckUnavailableError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 import type { OrderRecord } from '../../src/application/ports/order.repository';
@@ -1386,6 +1387,35 @@ describe('CustomerDirectoryHttpAdapter', () => {
       expect(JSON.parse(init.body)).toEqual({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
     });
 
+    /*
+     * K3.1 — "could not reach it" and "there is nothing to reach" must not be the same answer.
+     *
+     * Both used to return null, and the counter fails CLOSED for a named buyer, so the
+     * cashier got "coba lagi" against a wall: with no INTERNAL_SERVICE_KEY the answer is
+     * identical for as long as that deployment stands. They retried, it failed, they
+     * retried, and nothing said the key was missing.
+     */
+    it('refuses outright, without a request, when there is no internal key to use', async () => {
+      const fetchMock = jest.fn();
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new CustomerDirectoryHttpAdapter(
+          makeConfig({ internalServiceKey: '' }),
+        ).resolveByPhone('0811', 'Budi', 'd1'),
+      ).rejects.toBeInstanceOf(CounterBuyerDirectoryUnconfiguredError);
+      // Not a network problem, so no network call — and the message says retrying will not help.
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // The transient case keeps answering null, which is what makes the two tellable apart.
+    it('still answers null when the service is simply unreachable', async () => {
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+    });
+
     // C9: an unnamed counter buyer must OMIT the key, not send null. The DTO reads absent
     // as "unnamed"; a null would have to be special-cased there, and the day it is not, the
     // buyer is created with a literal null for a name.
@@ -1448,17 +1478,21 @@ describe('CustomerDirectoryHttpAdapter', () => {
       await expect(blank.primaryAddress('c1')).resolves.toBeNull();
     });
 
-    it('calls nothing when there is no internal key', async () => {
-      const fetchMock = jest.fn();
-      (globalThis as { fetch: unknown }).fetch = fetchMock;
-      const adapter = new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+    // K3.1: the assertion that used to stand here was the defect, written down as an
+    // expectation — "resolves to null when there is no internal key". That null then became
+    // "coba lagi" on a cashier's screen, forever. It is now the refusal test above.
 
-      await expect(adapter.resolveByPhone('0811', 'Budi', 'd1')).resolves.toBeNull();
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    // Fails OPEN: the sale is booked anonymously rather than a cashier being stopped with
-    // the buyer standing at the counter.
+    /*
+     * K3.1 note, because the comment that used to sit here was wrong in a way worth
+     * recording: it read "fails OPEN: the sale is booked anonymously rather than a cashier
+     * being stopped with the buyer standing at the counter."
+     *
+     * The ADAPTER fails open — it answers null. The SALE does not: `resolveCounterBuyer`
+     * throws `CounterBuyerUnresolvedError` on that null, deliberately, because the replay
+     * guard is keyed by buyer id and falling back to the sentinel would let a retry sell the
+     * same goods twice. So the cashier IS stopped. Null here means "ask again", not
+     * "proceed".
+     */
     it('answers null on a refusal, an outage, and an unreadable body', async () => {
       (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
       await expect(

@@ -227,6 +227,30 @@ export class CounterBuyerUnresolvedError extends DomainError {
   }
 }
 
+/**
+ * K3.1: the same refusal, for the case where retrying can never work.
+ *
+ * `resolveByPhone` returns null both when customer-service is unreachable — a blip, and
+ * "coba lagi" is the right advice — and when `INTERNAL_SERVICE_KEY` is simply not set, which
+ * is a deployment that will answer identically for as long as it stands. The counter fails
+ * CLOSED for a named buyer, so the cashier was handed "coba lagi" against a wall: they
+ * retried, it failed, they retried, and nothing anywhere said the key was missing.
+ *
+ * Separate error, separate message, and it names the fix — because the person reading it is
+ * standing at a till with a customer waiting, and the only thing they can actually do is
+ * clear the phone number and sell it unnamed while somebody else fixes the deployment.
+ */
+export class CounterBuyerDirectoryUnconfiguredError extends DomainError {
+  readonly code = 'ORDER_COUNTER_DIRECTORY_UNCONFIGURED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Depot ini belum bisa mencari pembeli lewat nomor (kunci layanan internal belum diatur). ' +
+        'Mencoba lagi tidak akan berhasil — kosongkan nomornya untuk jual tanpa nama, lalu laporkan ke admin.',
+    );
+  }
+}
+
 /** A voucher lives in one buyer's wallet — an anonymous counter sale has none to spend. */
 export class AnonymousVoucherNotAllowedError extends DomainError {
   readonly code = 'ORDER_ANONYMOUS_VOUCHER_FORBIDDEN';

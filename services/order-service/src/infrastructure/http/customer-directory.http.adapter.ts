@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { CounterBuyerDirectoryUnconfiguredError } from '../../domain/errors';
 import { OrderConfigService } from '../../config/order-config.service';
 import { CustomerDirectoryPort } from '../../application/ports/customer-directory.port';
 import { DeliveryAddressSnapshot } from '../../application/ports/order.repository';
@@ -83,9 +84,27 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
     }
   }
 
+  /**
+   * K3.1: null means "could not reach it", and it must not also mean "there is nothing to
+   * reach".
+   *
+   * Both used to return null. The counter fails CLOSED for a named buyer, so the cashier was
+   * handed "nomor pembeli belum bisa dicek sekarang — coba lagi" against a wall: with no
+   * `INTERNAL_SERVICE_KEY` the answer is identical for as long as that deployment stands.
+   * They retried, it failed, they retried, and nothing anywhere said the key was missing.
+   *
+   * Thrown from HERE, not from the caller, because this is the only layer that knows: the
+   * key belongs to this adapter, and a fake or in-process directory needs no key at all — a
+   * guard in the service would refuse work the port could perfectly well do. The first
+   * attempt at this fix put it in the service and ten tests said so.
+   *
+   * Note the asymmetry with the rest of this class, which is deliberate: the other methods
+   * fail OPEN, so an absent key correctly yields null there. This one is the caller's only
+   * source of a buyer id it must have.
+   */
   async resolveByPhone(phone: string, fullName: string | null, depotId: string): Promise<string | null> {
     const key = this.config.internalServiceKey;
-    if (!key) return null;
+    if (!key) throw new CounterBuyerDirectoryUnconfiguredError();
     const url = `${this.config.customerServiceUrl}/api/v1/customers/internal/resolve-by-phone`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CustomerDirectoryHttpAdapter.TIMEOUT_MS);
