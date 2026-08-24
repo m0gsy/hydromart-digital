@@ -228,6 +228,13 @@ model ProofOfDelivery {
   latitude      Float
   longitude     Float
   note          String?
+  /// K2.8: the courier's answer to the seal check the screen has always asked for.
+  ///
+  /// Three states, and the third is load-bearing: true = asked, intact; false = asked, not
+  /// intact; NULL = never asked. NULL covers every proof captured before this column and
+  /// every proof from an older APK still in somebody's hand — defaulting those to true would
+  /// manufacture an attestation nobody made, which is the opposite of what a dispute needs.
+  sealIntact    Boolean?
   capturedAt    DateTime @default(now())
 
   @@map("proofs_of_delivery")
