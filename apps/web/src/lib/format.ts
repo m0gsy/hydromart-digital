@@ -7,8 +7,29 @@ import { BUSINESS_TZ } from './wib';
 // a non-breaking space) that makes the output awkward to assert on.
 const rupiah = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 
+/**
+ * K2.10: the same formatter, except a fraction is no longer thrown away.
+ *
+ * `maximumFractionDigits: 0` rounds silently, so 20000.5 rendered as "Rp 20.001" and
+ * 20000.4 as "Rp 20.000" — both perfectly plausible screens. Money in this system is whole
+ * rupiah: every amount is a Decimal(12,2) that Postgres rounds to an integer, so a
+ * fraction reaching a screen means the client computed it and the stored order will not
+ * agree. Rounding it away hid exactly the case worth seeing, and it surfaced later as a
+ * total that differed from the receipt by one rupiah with nothing to explain it.
+ *
+ * Two decimals only when there IS a fraction, so every honest amount renders exactly as
+ * before and no screen changes. A non-finite amount is shown as an em dash rather than
+ * "Rp NaN": both are wrong, but one of them does not look like a price.
+ */
+const rupiahFractional = new Intl.NumberFormat('id-ID', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 /** Format a number of Rupiah, e.g. 20000 -> "Rp 20.000". */
 export function formatIDR(amount: number): string {
+  if (!Number.isFinite(amount)) return '—';
+  if (!Number.isInteger(amount)) return `Rp ${rupiahFractional.format(amount)}`;
   return `Rp ${rupiah.format(amount)}`;
 }
 

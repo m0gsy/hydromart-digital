@@ -23,7 +23,15 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOT = 'apps/web/src';
+// Read from disk rather than listed: a service added later is inside the gate on the day it
+// is added, which a hand-kept list would not have been.
+const ROOTS = [
+  'apps/web/src',
+  ...readdirSync('services', { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => join('services', d.name, 'src'))
+    .filter((dir) => existsSync(dir)),
+];
 const ALLOWLIST = 'scripts/money-literal-allowlist.json';
 
 /** Names that mean "this is money, a rate or a points balance" in this codebase. */
@@ -60,11 +68,24 @@ const RULES = [
   },
 ];
 
-function tsxFiles(dir, out = []) {
+/**
+ * K2.11: `.ts` as well as `.tsx`, and every service, not only the web client.
+ *
+ * This gate only ever read .tsx under apps/web/src. So the pricing module, the membership
+ * module, the formatter, every dictionary — all `.ts` — and all eighteen services were
+ * outside it, which is a money gate that cannot see the money code. Widening it found 19
+ * occurrences the narrow version could not reach.
+ *
+ * Worth writing down, because it corrects the plan that asked for this: the pricing,
+ * membership and format modules came back CLEAN. Every finding is either a rupiah amount
+ * written into copy (17, in the dictionaries) or a Swagger example in a DTO (2). No service
+ * does arithmetic against a money literal.
+ */
+function sourceFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, entry.name);
-    if (entry.isDirectory()) tsxFiles(p, out);
-    else if (entry.name.endsWith('.tsx')) out.push(p);
+    if (entry.isDirectory()) sourceFiles(p, out);
+    else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts')) out.push(p);
   }
   return out;
 }
@@ -83,7 +104,7 @@ const withoutComments = (text) =>
     .replace(/(^|[^:])\/\/[^\n]*/g, (m, head) => head + ' '.repeat(m.length - head.length));
 
 const findings = [];
-for (const file of tsxFiles(ROOT)) {
+for (const file of ROOTS.flatMap((r) => sourceFiles(r))) {
   const text = withoutComments(readFileSync(file, 'utf8'));
   for (const rule of RULES) {
     for (const m of text.matchAll(rule.re)) {
@@ -122,7 +143,7 @@ if (failures.length > 0) {
 
 const stale = [...allowed].filter((id) => !findings.some((f) => f.id === id));
 console.log(
-  `Money literal check OK — ${findings.length} allowlisted occurrence(s) across ${tsxFiles(ROOT).length} .tsx file(s).`,
+  `Money literal check OK — ${findings.length} allowlisted occurrence(s) across ${ROOTS.flatMap((r) => sourceFiles(r)).length} source file(s) in ${ROOTS.length} root(s).`,
 );
 if (stale.length > 0) {
   console.log('Allowlist entries that no longer exist — run with --update to drop them:');
