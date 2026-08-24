@@ -21,6 +21,8 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useAuth } from '@/lib/auth-context';
+import { formatIDR } from '@/lib/format';
+import { useLoyaltyRules } from '@/lib/loyalty-rules';
 
 /**
  * The CS number belongs to the customer's own depot, read at runtime.
@@ -36,7 +38,15 @@ import { useAuth } from '@/lib/auth-context';
  * its phone all land in the same place: the contact row does not render. A card that
  * plainly offers nothing beats one that offers a call to nobody.
  */
-function useDepotContact(): { name: string; contactPhone: string | null } | null {
+/**
+ * Returns the depot id as well as the contact row: the FAQ quotes this depot's earn rate,
+ * and this hook is already the one place that resolves which depot the reader belongs to.
+ * A second `profile.me` read for the same answer is a second answer waiting to disagree.
+ */
+function useDepot(): {
+  depotId: string | null;
+  contact: { name: string; contactPhone: string | null } | null;
+} {
   const { customer } = useAuth();
   const profile = useAsync<{ favoriteDepotId: string | null } | null>(
     () => (customer ? api.get(endpoints.profile.me, true) : Promise.resolve(null)),
@@ -47,7 +57,7 @@ function useDepotContact(): { name: string; contactPhone: string | null } | null
     () => (depotId ? api.get(endpoints.depots.contact(depotId), true) : Promise.resolve(null)),
     [depotId],
   );
-  return contact.data ?? null;
+  return { depotId, contact: contact.data ?? null };
 }
 
 const TOPIC_ICONS: Record<string, Icon> = {
@@ -61,10 +71,22 @@ export default function HelpPage() {
   const { t, locale } = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<number | null>(null);
-  const phone = useDepotContact()?.contactPhone ?? null;
+  const { depotId, contact } = useDepot();
+  const phone = contact?.contactPhone ?? null;
+  // The points answer states the earn rate, which is a per-depot setting — it used to be
+  // the literal "Rp 1.000". Substituted once, so the search below matches what is read.
+  const earnRate = useLoyaltyRules(depotId).data?.earnRateRupiah ?? null;
 
   // FAQ is structured (array), so `t()` can't fetch it — pick the fragment by locale.
-  const faq = (locale === 'en' ? helpEN : helpID).faq as readonly { q: string; a: string }[];
+  const source = (locale === 'en' ? helpEN : helpID).faq as readonly { q: string; a: string }[];
+  const faq = useMemo(
+    () =>
+      source.map((row) => ({
+        ...row,
+        a: row.a.replace('{amount}', earnRate == null ? '—' : formatIDR(earnRate)),
+      })),
+    [source, earnRate],
+  );
   const topics = ['delivery', 'payment', 'gallon', 'account'] as const;
 
   const q = query.trim().toLowerCase();

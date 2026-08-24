@@ -28,7 +28,7 @@ export const help = {
     },
     {
       q: 'What are points & membership tiers?',
-      a: 'You earn 1 point per Rp 1,000 spent. Points redeem for vouchers/gifts, and your total points raise your tier (Silver → Gold → Platinum) for bigger discounts.',
+      a: 'You earn 1 point per {amount} spent. Points redeem for vouchers/gifts, and your total points raise your tier (Silver → Gold → Platinum) for bigger discounts.',
     },
   ],
 };

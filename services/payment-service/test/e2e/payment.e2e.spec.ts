@@ -83,6 +83,20 @@ describe('Payment HTTP flows (e2e)', () => {
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
 
+  /*
+   * The HQ refunds queue says "Di atas Rp 100rb butuh persetujuan HQ" as a literal, and
+   * the threshold behind it is REFUND_HQ_THRESHOLD — an env var an operator can raise
+   * without any screen noticing. The subtitle of the queue is exactly the sentence that
+   * must not drift from the rule that fills the queue.
+   */
+  it('publishes the refund approval threshold the HQ queue states', async () => {
+    const res = await request(server())
+      .get('/api/v1/payments/refunds/rules')
+      .set({ Authorization: `Bearer ${financeToken}` })
+      .expect(200);
+    expect(res.body).toEqual({ hqApprovalThresholdIdr: 100000 });
+  });
+
   it('requires authentication to initiate a payment', async () => {
     await request(server())
       .post('/api/v1/payments')

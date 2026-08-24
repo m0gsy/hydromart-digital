@@ -28,7 +28,7 @@ export const help = {
     },
     {
       q: 'Apa itu poin & tier membership?',
-      a: 'Kamu dapat 1 poin tiap belanja Rp 1.000. Poin bisa ditukar voucher/hadiah, dan total poin menaikkan tier (Silver → Gold → Platinum) untuk diskon lebih besar.',
+      a: 'Kamu dapat 1 poin tiap belanja {amount}. Poin bisa ditukar voucher/hadiah, dan total poin menaikkan tier (Silver → Gold → Platinum) untuk diskon lebih besar.',
     },
   ],
 };

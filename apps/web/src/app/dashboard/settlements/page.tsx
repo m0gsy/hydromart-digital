@@ -47,6 +47,21 @@ function useDriverNames(): (id: string) => string {
   }, [drivers.data, t]);
 }
 
+/**
+ * The surplus above which the server refuses a verify without a note (C1).
+ *
+ * The label used to say "Rp5.000" as a literal beside a rule enforced from a constant in
+ * delivery-service — two places holding one number, and this is the one nobody would
+ * remember to change. `getCached` keeps it to one request no matter how many rows.
+ */
+function useSurplusThreshold(): number | null {
+  const rules = useAsync<{ surplusNoteThresholdIdr: number }>(
+    () => api.getCached(endpoints.settlements.rules, true),
+    [],
+  );
+  return rules.data?.surplusNoteThresholdIdr ?? null;
+}
+
 function SettlementRow({
   s,
   onDone,
@@ -62,6 +77,7 @@ function SettlementRow({
   const [charge, setCharge] = useState(true);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const surplusThreshold = useSurplusThreshold();
 
   const pending = s.status === 'SUBMITTED';
   const shortfall = s.variance < 0;
@@ -155,7 +171,12 @@ function SettlementRow({
                   })}
                 </label>
               )}
-              <Field label={t('opsFix.settlements.note')} htmlFor={`note-${s.id}`}>
+              <Field
+                label={t('opsFix.settlements.note', {
+                  amount: surplusThreshold == null ? '—' : formatIDR(surplusThreshold),
+                })}
+                htmlFor={`note-${s.id}`}
+              >
                 <Input id={`note-${s.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.settlements.notePlaceholder')} />
               </Field>
               {error && <p className="text-sm font-medium text-[color:var(--danger)]">{error}</p>}

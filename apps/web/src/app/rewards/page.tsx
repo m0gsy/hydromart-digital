@@ -29,6 +29,7 @@ import { formatDateTime, formatIDR } from '@/lib/format';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { tierProgress } from '@/lib/loyalty';
+import { useLoyaltyRules } from '@/lib/loyalty-rules';
 import { useAsync } from '@/lib/use-async';
 import type {
   LoyaltyAccount,
@@ -480,8 +481,14 @@ function MyRedemptions({
 
 /* ============================ How points work ============================ */
 
-function HowPointsWork() {
+/**
+ * `depotId` scopes the earn rate: it is a per-depot setting, and this card used to state
+ * "1 poin setiap Rp 1.000" as a literal — the number a depot that changed its rate would
+ * still be reading back to its own customers.
+ */
+function HowPointsWork({ depotId }: { depotId: string | null }) {
   const { t } = useT();
+  const earnRate = useLoyaltyRules(depotId).data?.earnRateRupiah ?? null;
   const rules = [
     { icon: ShoppingBag, key: 'earn' },
     { icon: ArrowsClockwise, key: 'reorder' },
@@ -497,7 +504,12 @@ function HowPointsWork() {
           </span>
           <div>
             <div className="text-[13.5px] font-bold">{t(`profile.rewards.how.${key}.title`)}</div>
-            <div className="mt-0.5 text-xs leading-snug text-muted">{t(`profile.rewards.how.${key}.body`)}</div>
+            <div className="mt-0.5 text-xs leading-snug text-muted">
+              {/* Only the earn row carries a number; the rate is dashed until it is read. */}
+              {t(`profile.rewards.how.${key}.body`, {
+                amount: earnRate == null ? '—' : formatIDR(earnRate),
+              })}
+            </div>
           </div>
         </div>
       ))}
@@ -749,7 +761,7 @@ function RewardsInner() {
           }}
           anchorRef={catalogRef}
         />
-        <HowPointsWork />
+        <HowPointsWork depotId={depotId} />
       </div>
 
       <div className={tab === 'riwayat' ? 'lg:block' : 'hidden lg:block'}>

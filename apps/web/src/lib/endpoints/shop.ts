@@ -209,6 +209,11 @@ loyalty: {
     `/loyalty/api/v1/loyalty/tiers${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   me: (depotId?: string | null) =>
     `/loyalty/api/v1/loyalty/me${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+  // The earning rules a screen states in prose (earn rate, point expiry). Public and
+  // depot-scoped: three screens used to say "1 poin per Rp 1.000" as a literal while the
+  // rate itself is a per-depot setting an operator can change.
+  rules: (depotId?: string | null) =>
+    `/loyalty/api/v1/loyalty/rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   // Read any customer's loyalty account (staff — HEAD_OFFICE/MARKETING/SUPER_ADMIN).
   byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
   // Signed manual points correction (MANAGER/MARKETING/SUPER_ADMIN). The reason is

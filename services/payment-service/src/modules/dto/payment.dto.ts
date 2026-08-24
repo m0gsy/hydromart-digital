@@ -276,3 +276,15 @@ export class RefundCountsQueryDto {
   @Max(100)
   minRefunds!: number;
 }
+
+/**
+ * The refund rule the HQ queue states in its own subtitle.
+ *
+ * `REFUND_HQ_THRESHOLD` is an env var: an operator can raise it and no screen notices.
+ * The subtitle of the queue is precisely the sentence that must not drift from the rule
+ * that decides what lands in the queue, so it reads the number instead of asserting it.
+ */
+export class RefundRulesDto {
+  @ApiProperty({ description: 'Refunds above this amount need HQ approval first.' })
+  hqApprovalThresholdIdr!: number;
+}

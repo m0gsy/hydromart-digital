@@ -56,6 +56,9 @@ refunds: {
     const qs = p.toString();
     return `/payments/api/v1/payments/refunds/queue${qs ? `?${qs}` : ''}`;
   },
+  // The HQ-approval threshold the queue's own subtitle states. REFUND_HQ_THRESHOLD is an
+  // env var: an operator can raise it, and the sentence must move with it.
+  rules: '/payments/api/v1/payments/refunds/rules',
   approve: (id: string) => `/payments/api/v1/payments/${id}/refund/approve`,
   reject: (id: string) => `/payments/api/v1/payments/${id}/refund/reject`,
 },
@@ -121,6 +124,9 @@ settlements: {
     if (q.status) p.set('status', q.status);
     return `/deliveries/api/v1/settlements?${p}`;
   },
+  // The surplus-note threshold the cashier's note states. Read rather than restated: the
+  // rule that refuses the deposit and the sentence describing it are one number.
+  rules: '/deliveries/api/v1/settlements/rules',
   verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
   dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
 },

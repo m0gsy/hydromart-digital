@@ -68,7 +68,7 @@ export const profile: typeof base = {
     },
     how: {
       title: 'How points work',
-      earn: { title: 'Shop, earn points', body: '1 point per Rp 1,000 spent.' },
+      earn: { title: 'Shop, earn points', body: '1 point per {amount} spent.' },
       reorder: { title: 'Reorder regularly', body: 'Bonus points for weekly subscriptions.' },
       refer: { title: 'Invite friends', body: '+50 points per friend’s first order.' },
       expiry: 'Points expire after 12 months of inactivity.',

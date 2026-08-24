@@ -8,12 +8,14 @@ import { Badge, Card, Chip, ErrorState, Money, Skeleton } from '@/components/ui'
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Page, RefundQueueItem } from '@/lib/types';
 
 // Design 14a — Persetujuan refund. Real payment-service track: cross-depot refunds above
-// the HQ threshold (Rp 100k) awaiting approval. Depot & order-number enrichment is not
+// the HQ threshold awaiting approval. That threshold is read, not written here: it is
+// REFUND_HQ_THRESHOLD, and the queue's own subtitle is the sentence that must move with it. Depot & order-number enrichment is not
 // owned by payment-service (residual gap noted below); amount/method/reason/decision are real.
 function hoursAgo(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000));
@@ -23,6 +25,9 @@ export default function HqRefundsPage() {
   const { t } = useT();
   const { toast } = useToast();
   const queue = useAsync<Page<RefundQueueItem>>(() => api.get(endpoints.refunds.queue({ limit: 100 }), true));
+  const rules = useAsync<{ hqApprovalThresholdIdr: number }>(
+    () => api.getCached(endpoints.refunds.rules, true),
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function decide(r: RefundQueueItem, approved: boolean) {
@@ -52,7 +57,13 @@ export default function HqRefundsPage() {
       <HqPageHeader
         icon={Receipt}
         title={t('hq.refunds.title')}
-        subtitle={t('hq.refunds.subtitle')}
+        // The threshold is REFUND_HQ_THRESHOLD, an env var — the subtitle said "Rp 100rb"
+        // as a literal, so raising it left this screen quoting the old rule at HQ.
+        subtitle={
+          rules.data
+            ? t('hq.refunds.subtitle', { amount: formatIDR(rules.data.hqApprovalThresholdIdr) })
+            : undefined
+        }
         action={
           <>
             <Badge tone="warning">{t('hq.refunds.count', { n: items.length })}</Badge>
