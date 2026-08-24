@@ -6,8 +6,8 @@ import { ArrowLeft, CalendarCheck } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { ApiError } from '@/lib/api';
+import { runOrQueue } from '@/lib/offline-queue';
 import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -33,11 +33,17 @@ function Reschedule() {
     setBusy(true);
     setError(null);
     try {
-      await api.patch(
-        endpoints.deliveries.driver.reschedule(id),
-        { rescheduledFor: new Date(when).toISOString(), slot: slot || undefined, note: note || undefined },
-        true,
-      );
+      // K2.9: the customer has already agreed to the new time on the doorstep. Losing the
+      // call loses the agreement, and the courier is gone by the time anyone notices.
+      await runOrQueue({
+        kind: 'deliveryReschedule',
+        payload: {
+          deliveryId: id,
+          rescheduledFor: new Date(when).toISOString(),
+          slot: slot || undefined,
+          note: note || undefined,
+        },
+      });
       router.replace('/driver');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.reschedule.error'));

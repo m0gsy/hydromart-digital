@@ -6,10 +6,18 @@ import { endpoints } from './endpoints';
 import { getSession } from './session-store';
 
 /**
- * Offline capture queue for the three field surfaces that must not lose work when the
- * signal drops: the HR face punch, the courier shift check-in, and proof of delivery.
+ * Offline capture queue for the field surfaces that must not lose work when the signal
+ * drops: the HR face punch, the courier shift check-in, proof of delivery — and, since K2.9,
+ * every remaining courier action that changes something the courier cannot redo.
  *
- * Only these three enqueue — a queue behind every call would replay reads and stale writes.
+ * K2.9: proof of delivery was the ONLY courier action in here, which meant a courier in a
+ * dead spot could queue the evidence that they delivered and not the CASH they had just been
+ * handed. COD confirmation, the empty-gallon return (a deposit refund), marking a delivery
+ * failed and rescheduling it all called the API directly, so the signal dropping lost them.
+ * The money one is the worst of the four: the customer has paid, the courier is holding the
+ * notes, and nothing anywhere records it.
+ *
+ * Only these enqueue — a queue behind every call would replay reads and stale writes.
  * Each job carries the device capture time; the server clamps it (it can never be later than
  * the sync, nor older than the depot's offline window) and, for a punch, sends a late sync to
  * HR for approval. A job rejected on business grounds is kept with its message and never
@@ -24,7 +32,14 @@ import { getSession } from './session-store';
 const DB_NAME = 'hm.offline';
 const STORE = 'jobs';
 
-export type JobKind = 'hrPunch' | 'shiftCheckIn' | 'pod';
+export type JobKind =
+  | 'hrPunch'
+  | 'shiftCheckIn'
+  | 'pod'
+  | 'codConfirm'
+  | 'gallonReturn'
+  | 'deliveryFail'
+  | 'deliveryReschedule';
 
 export interface HrPunchPayload {
   mode: 'in' | 'out';
@@ -51,10 +66,49 @@ export interface PodPayload {
   note?: string;
 }
 
+/**
+ * K2.9: the cash a courier has already taken.
+ *
+ * `capturedAt` travels with it and payment-service clamps it onto `paidAt`, because a COD
+ * collected at 16:00 and synced at 19:00 belongs to the 16:00 shift. Without that the money
+ * would land in whichever shift happened to be open when the signal came back, and shift
+ * close would come out short in one drawer and over in another.
+ */
+export interface CodConfirmPayload {
+  paymentId: string;
+  cashReceived: number;
+}
+
+/** A deposit refund the courier has already handed over in empties. */
+export interface GallonReturnPayload {
+  depotId: string;
+  orderId: string;
+  customerId?: string;
+  quantity: number;
+  condition: string;
+  note?: string;
+}
+
+export interface DeliveryFailPayload {
+  deliveryId: string;
+  reason: string;
+}
+
+export interface DeliveryReschedulePayload {
+  deliveryId: string;
+  rescheduledFor: string;
+  slot?: string;
+  note?: string;
+}
+
 export type Job =
   | { kind: 'hrPunch'; payload: HrPunchPayload }
   | { kind: 'shiftCheckIn'; payload: ShiftCheckInPayload }
-  | { kind: 'pod'; payload: PodPayload };
+  | { kind: 'pod'; payload: PodPayload }
+  | { kind: 'codConfirm'; payload: CodConfirmPayload }
+  | { kind: 'gallonReturn'; payload: GallonReturnPayload }
+  | { kind: 'deliveryFail'; payload: DeliveryFailPayload }
+  | { kind: 'deliveryReschedule'; payload: DeliveryReschedulePayload };
 
 export type QueuedJob = Job & {
   id: string;
@@ -215,6 +269,45 @@ async function run(job: Job, capturedAt: string): Promise<unknown> {
   }
   if (job.kind === 'shiftCheckIn') {
     return api.post(endpoints.deliveries.shifts.checkIn, { ...job.payload, capturedAt }, true);
+  }
+  // K2.9. The cash first: this is the one where the customer has already paid.
+  if (job.kind === 'codConfirm') {
+    const { paymentId, cashReceived } = job.payload;
+    return api.post(endpoints.payments.confirm(paymentId), { cashReceived, capturedAt }, true);
+  }
+  /*
+   * No `capturedAt` here, and the reason is worth stating rather than leaving as an
+   * inconsistency next to the COD job above.
+   *
+   * The global pipe runs `forbidNonWhitelisted`, so a field a DTO does not declare is a 400.
+   * COD earns the field because `paidAt` already exists and decides which cashier's shift
+   * the notes belong to — get that wrong and one drawer is short while another is over. A
+   * gallon return has no such column and no shift dimension; giving it one is a schema
+   * decision, not a queueing one. Recorded at sync time, which is late but true, instead of
+   * lost entirely — which is what happened before.
+   */
+  if (job.kind === 'gallonReturn') {
+    return api.post(endpoints.deliveries.gallonReturns.create, job.payload, true);
+  }
+  /*
+   * PATCH, not POST — the service declares both of these that way, and posting to them
+   * returns 404, which `isRetryable` would read as a refusal and throw at the courier.
+   *
+   * And NO `capturedAt` on these two, unlike the money jobs above. The global pipe runs
+   * `forbidNonWhitelisted`, so a field a DTO does not declare is a 400 — and declaring one
+   * these services would then ignore is a field that lies. What the two money jobs need it
+   * for (which shift the cash belongs to, when the deposit moved) has no equivalent here:
+   * the status history records when the state changed, and for a queued job that IS the
+   * sync. If that ever needs to be the doorstep time instead, it is a DTO plus a clamp in
+   * delivery-service, not a change here.
+   */
+  if (job.kind === 'deliveryFail') {
+    const { deliveryId, reason } = job.payload;
+    return api.patch(endpoints.deliveries.driver.fail(deliveryId), { reason }, true);
+  }
+  if (job.kind === 'deliveryReschedule') {
+    const { deliveryId, ...rest } = job.payload;
+    return api.patch(endpoints.deliveries.driver.reschedule(deliveryId), rest, true);
   }
   const p = job.payload;
   const photoUrl = await uploadDataUrl(p.photo, 'photo.jpg', 'image/jpeg');

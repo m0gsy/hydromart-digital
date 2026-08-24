@@ -6,8 +6,8 @@ import { ArrowLeft, XCircle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { ApiError } from '@/lib/api';
+import { runOrQueue } from '@/lib/offline-queue';
 import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -33,7 +33,9 @@ function Fail() {
     setBusy(true);
     setError(null);
     try {
-      await api.patch(endpoints.deliveries.driver.fail(id), { reason: value }, true);
+      // K2.9: a failed delivery is a state the courier cannot re-derive later — they have
+      // already left. Queued rather than lost when the signal drops.
+      await runOrQueue({ kind: 'deliveryFail', payload: { deliveryId: id, reason: value } });
       router.replace('/driver');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.deliveryFail.error'));

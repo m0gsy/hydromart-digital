@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle, Coins } from '@phosphor-icons/react';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { runOrQueue } from '@/lib/offline-queue';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -34,6 +35,9 @@ function Pay() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Payment | null>(null);
+  // K2.9: queued, not done. The change owed cannot be computed from a server response that
+  // has not happened yet, so the courier is told plainly rather than shown a Rp 0 change.
+  const [queued, setQueued] = useState(false);
 
   const amount = load.data?.cod?.amount ?? 0;
   const received = Number(cash) || 0;
@@ -52,8 +56,18 @@ function Pay() {
     setBusy(true);
     setError(null);
     try {
-      const paid = await api.post<Payment>(endpoints.payments.confirm(cod.id), { cashReceived: received }, true);
-      setDone(paid);
+      // K2.9: through the offline queue, not straight at the API. The customer has already
+      // handed over the notes — losing this call because the signal dropped means the
+      // courier is carrying cash the system has no record of.
+      const out = await runOrQueue<Payment>({
+        kind: 'codConfirm',
+        payload: { paymentId: cod.id, cashReceived: received },
+      });
+      if (out.outcome === 'queued') {
+        setQueued(true);
+        return;
+      }
+      setDone(out.result);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.pay.confirmError'));
     } finally {
@@ -73,7 +87,16 @@ function Pay() {
         </div>
       </header>
 
-      {done ? (
+      {queued ? (
+        <Card className="flex flex-col items-center gap-2 p-6 text-center">
+          <CheckCircle size={44} weight="fill" className="text-amber-500" />
+          <div className="text-base font-extrabold">{t('driver.pay.queuedTitle')}</div>
+          <div className="text-sm text-[color:var(--muted)]">{t('driver.pay.queuedBody')}</div>
+          <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>
+            {t('driver.pay.doneNext')}
+          </Button>
+        </Card>
+      ) : done ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-green-600" />
           <div className="text-base font-extrabold">{t('driver.pay.doneTitle')}</div>

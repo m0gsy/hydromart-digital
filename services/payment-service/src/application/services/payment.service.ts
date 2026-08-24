@@ -98,6 +98,25 @@ export type RefundQueueRow = PaymentRecord & { orderNumber: string | null };
 @Injectable()
 export class PaymentService {
   /**
+   * K2.9: how far back a queued COD may claim to have been collected.
+   *
+   * Matches the offline queue's own retention on the device — past that the job is dropped
+   * there, so a `capturedAt` older than this did not come from a job that was waiting, it
+   * came from a clock that is wrong.
+   */
+  private static readonly OFFLINE_CAPTURE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+  /** Clamp a claimed capture time into [now - window, now]; anything else yields now. */
+  private static settledAt(capturedAt?: Date): Date {
+    const now = new Date();
+    if (!capturedAt || Number.isNaN(capturedAt.getTime())) return now;
+    const ms = capturedAt.getTime();
+    if (ms > now.getTime()) return now;
+    if (now.getTime() - ms > PaymentService.OFFLINE_CAPTURE_WINDOW_MS) return now;
+    return capturedAt;
+  }
+
+  /**
    * K2.2: rows per sweep tick. The backlog on a stack that never had this sweep is
    * unbounded by definition, so the first run must not try to walk all of it in one
    * request. Hourly at 500 clears a five-figure backlog in a day and steady state never
@@ -273,10 +292,34 @@ export class PaymentService {
     return this.cashierShift.openShiftId(input.depotId, input.authorization);
   }
 
-  async confirm(id: string, changedBy: string, cashReceived?: number): Promise<PaymentRecord> {
+  /**
+   * K2.9: `capturedAt` is when the courier actually took the notes, not when the phone
+   * managed to say so.
+   *
+   * COD confirmation now goes through the offline capture queue, because a courier in a
+   * dead spot could previously queue the PROOF that they delivered and not the CASH they
+   * had just been handed. That makes the sync time wrong for the one thing that reads
+   * `paidAt`: shift close sums a depot's PAID cash over the shift WINDOW, so money taken at
+   * 16:00 and synced at 19:00 would be booked to whichever drawer happened to be open at
+   * 19:00 — one cashier short, another over, for money neither of them touched.
+   *
+   * Clamped, not trusted, the same rule the other offline jobs already follow: never later
+   * than now (a device clock running fast must not book cash into the future) and never
+   * older than the queue's own retention window (anything past that is a stale device, not
+   * a late sync). Outside those, the sync time stands.
+   */
+  async confirm(
+    id: string,
+    changedBy: string,
+    cashReceived?: number,
+    capturedAt?: Date,
+  ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     this.assertTransition(payment.status, PaymentStatus.PAID);
-    const patch: PaymentStatusPatch = { status: PaymentStatus.PAID, paidAt: new Date() };
+    const patch: PaymentStatusPatch = {
+      status: PaymentStatus.PAID,
+      paidAt: PaymentService.settledAt(capturedAt),
+    };
     if (cashReceived != null) {
       const received = money(cashReceived);
       const change = computeChange(payment.amount, received);

@@ -13,6 +13,10 @@ export const courierFix = {
     hrPunch: 'Face attendance',
     shiftCheckIn: 'Start shift',
     pod: 'Proof of delivery',
+    codConfirm: 'Cash received',
+    gallonReturn: 'Empty gallon return',
+    deliveryFail: 'Delivery failed',
+    deliveryReschedule: 'Reschedule',
   },
   deliveryStatus: {
     ASSIGNED: 'Assigned',

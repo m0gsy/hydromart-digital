@@ -21,6 +21,12 @@ const LABELS: Record<QueuedJob['kind'], string> = {
   hrPunch: 'courierFix.offlineQueue.hrPunch',
   shiftCheckIn: 'courierFix.offlineQueue.shiftCheckIn',
   pod: 'courierFix.offlineQueue.pod',
+  // K2.9. `codConfirm` first on purpose when the queue is read aloud to a courier: it is
+  // the only one of these where money has already changed hands.
+  codConfirm: 'courierFix.offlineQueue.codConfirm',
+  gallonReturn: 'courierFix.offlineQueue.gallonReturn',
+  deliveryFail: 'courierFix.offlineQueue.deliveryFail',
+  deliveryReschedule: 'courierFix.offlineQueue.deliveryReschedule',
 };
 
 /**
