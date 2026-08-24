@@ -92,8 +92,12 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
+  // K2.6: `{{stage}}` names the moment. The same order raises this twice — once when the
+  // sale is PROMISED at checkout, once when it is FULFILLED with nothing deducted — and
+  // without saying which, the second reads as a duplicate of the first and gets ignored.
+  // The first is the one an operator can still act on.
   [NotificationEvent.STOCK_UNTRACKED]:
-    '⚠️ Pesanan {{order}} di depot {{depot}} memuat {{count}} produk yang belum punya baris stok. Penjualannya tetap jalan, tapi stoknya TIDAK berkurang. Mohon buatkan baris stoknya.',
+    '⚠️ {{stage}}: pesanan {{order}} di depot {{depot}} memuat {{count}} produk yang belum punya baris stok. Penjualannya tetap jalan, tapi stoknya TIDAK berkurang. Mohon buatkan baris stoknya.',
   [NotificationEvent.METER_VARIANCE]:
     '💧 Selisih meteran air depot {{depot}} tanggal {{date}}: {{variance}} liter (± {{gallons}} galon) dibanding penjualan tercatat. Mohon dicek.',
   [NotificationEvent.COURIER_INCIDENT]:
