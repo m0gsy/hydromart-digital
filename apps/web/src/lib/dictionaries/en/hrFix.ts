@@ -1347,6 +1347,8 @@ export const hrFix = {
   },
   imports: {
     resellers: "Import resellers / agents",
+    resellersBody:
+      "A phone with no account yet is pre-registered first, then listed as an agen of this depot. An agen already on the registry is UPDATED from this file — discount, target and flat gallon price. The join date is left alone.",
     staff: "Bulk staff import",
     deductions: "Import deductions",
     allowances: "Import allowances",

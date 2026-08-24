@@ -11,6 +11,10 @@ const COLUMNS: ImportColumn[] = [
   { key: 'phone', required: true, example: '081234567890', text: true, parse: phoneCell },
   { key: 'discountPct', required: true, example: '5', parse: intCell },
   { key: 'monthlyTargetQty', required: true, example: '100', parse: intCell },
+  // J11: the SOP flat price. Optional — a network that prices its agen by percentage
+  // leaves the column blank — but until now it could not be set from a sheet at all, so a
+  // depot bulk-loading a hundred agen had to open a hundred forms to price them.
+  { key: 'flatGallonPriceIdr', example: '17000', parse: intCell },
   { key: 'joinDate', required: true, example: '2026-01-01' },
   { key: 'note', example: '' },
 ];
@@ -28,7 +32,7 @@ export default function ImportResellersPage() {
   return (
     <CsvImport
       title="hrFix.imports.resellers"
-      description="Nomor yang belum punya akun akan didaftarkan lebih dulu, lalu terdaftar sebagai reseller depot ini dengan persen diskonnya."
+      description={t('hrFix.imports.resellersBody')}
       columns={COLUMNS}
       endpoint={endpoints.resellers.import}
       templateName="reseller"
