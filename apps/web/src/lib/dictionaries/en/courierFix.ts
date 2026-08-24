@@ -55,7 +55,6 @@ export const courierFix = {
     tierTarget: 'Bonus {amount} · {n} deliveries to go',
     tierLocked: 'Bonus {amount} · locked',
     tierTargetBadge: 'Target',
-    peakHint: 'Peak hours 5–7 PM · +Rp 3,000 per delivery. Chase your target!',
     loadError: 'Failed to load goal. Try again.',
   },
   podSuccess: {
