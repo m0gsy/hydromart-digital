@@ -507,6 +507,38 @@ export class InventoryService {
         );
       }
     }
+    /*
+     * K2.6 — the warning moves to the moment the promise is made.
+     *
+     * A product the depot has no stock line for is pushed onto `skipped` and the checkout
+     * goes through, which is right: a customer's order must not fail because paperwork is
+     * missing. What was wrong is that nobody was told until `consumeForOrder` fired the
+     * alert at completion — hours later, with the goods already gone and nothing left for
+     * the operator to decide. The information existed here the whole time.
+     *
+     * Guarded, like the completion one: the hold is already written and a warning must
+     * never roll back a customer's checkout. It is a consequence of the sale, not a
+     * condition of it.
+     */
+    if (skipped.length > 0) {
+      try {
+        const depot = await this.depots.findById(depotId, false);
+        await this.untrackedSaleAlert.emit(
+          {
+            depotId,
+            depotName: depot?.name ?? depotId,
+            orderId,
+            productIds: skipped,
+            stage: 'CHECKOUT',
+          },
+          authorization,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Untracked-sale alert for order ${orderId} at checkout failed: ${(error as Error).message}`,
+        );
+      }
+    }
     return { orderId, depotId, reserved, skipped };
   }
 
@@ -637,7 +669,7 @@ export class InventoryService {
       // partly happened. The warning is a consequence of the sale, never a condition.
       try {
         await this.untrackedSaleAlert.emit(
-          { depotId, depotName: depot.name, orderId, productIds: skipped },
+          { depotId, depotName: depot.name, orderId, productIds: skipped, stage: 'COMPLETION' },
           authorization,
         );
       } catch (error) {

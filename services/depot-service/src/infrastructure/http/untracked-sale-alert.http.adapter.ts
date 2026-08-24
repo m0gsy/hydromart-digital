@@ -41,6 +41,9 @@ export class UntrackedSaleAlertHttpAdapter implements UntrackedSaleAlertPort {
             depot: alert.depotName,
             order: alert.orderId,
             count: String(alert.productIds.length),
+            // K2.6: the words, not the enum. This lands in a WhatsApp message an operator
+            // reads on a phone, and 'COMPLETION' means nothing to them.
+            stage: alert.stage === 'CHECKOUT' ? 'Saat pesanan masuk' : 'Saat pesanan selesai',
           },
         }),
         signal: controller.signal,

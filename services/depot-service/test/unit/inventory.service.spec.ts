@@ -586,7 +586,63 @@ describe('InventoryService', () => {
         depotId,
         orderId: ORDER,
         productIds: [UNSTOCKED],
+        stage: 'COMPLETION',
       });
+    });
+
+    /*
+     * K2.6 — the warning arrives when the sale is PROMISED, not hours later.
+     *
+     * `reserveForOrder` already knew: it pushes a product with no stock line onto `skipped`
+     * and lets the checkout through, which is right — a customer's order must not fail
+     * because paperwork is missing. What was wrong is that the only alert fired from
+     * `consumeForOrder`, at completion, with the goods already gone and nothing left for
+     * the operator to decide.
+     */
+    it('warns at checkout, when the sale is promised and still fixable', async () => {
+      await produkLine(PRODUCT_ID, 100);
+      const result = await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [
+          { productId: PRODUCT_ID, quantity: 2 },
+          { productId: UNSTOCKED, quantity: 3 },
+        ],
+        ACTOR,
+      );
+      expect(result.reserved).toEqual([PRODUCT_ID]);
+      expect(result.skipped).toEqual([UNSTOCKED]);
+      expect(untracked.emitted).toHaveLength(1);
+      expect(untracked.emitted[0]).toMatchObject({
+        orderId: ORDER,
+        productIds: [UNSTOCKED],
+        // Named, because the same order raises this twice and the second would otherwise
+        // read as a duplicate of the first. The first is the actionable one.
+        stage: 'CHECKOUT',
+      });
+    });
+
+    it('a reservation with every product stocked stays quiet', async () => {
+      await produkLine(PRODUCT_ID, 100);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR);
+      expect(untracked.emitted).toHaveLength(0);
+    });
+
+    // Same contract as the completion alert: a failed warning must not fail the checkout.
+    it('holds the stock even when the checkout alert throws', async () => {
+      untracked.throws = true;
+      await produkLine(PRODUCT_ID, 10);
+      const result = await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [
+          { productId: PRODUCT_ID, quantity: 4 },
+          { productId: UNSTOCKED, quantity: 1 },
+        ],
+        ACTOR,
+      );
+      expect(result.reserved).toEqual([PRODUCT_ID]);
+      expect(result.skipped).toEqual([UNSTOCKED]);
     });
 
     it('stays quiet when every product had a line', async () => {

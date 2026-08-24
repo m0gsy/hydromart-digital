@@ -105,6 +105,7 @@ describe('UntrackedSaleAlertHttpAdapter', () => {
     depotName: 'Depot Pusat',
     orderId: 'o-9',
     productIds: ['p1', 'p2'],
+    stage: 'COMPLETION',
   });
 
   it.each([['alertPhone'], ['crmServiceUrl'], ['internalServiceKey']])(
@@ -234,7 +235,7 @@ describe('an outbound call that hangs is aborted and still settles', () => {
       'untracked-sale.emit',
       () =>
         new UntrackedSaleAlertHttpAdapter(makeConfig()).emit(
-          { depotId: 'd1', depotName: 'D', orderId: 'o1', productIds: ['p1'] },
+          { depotId: 'd1', depotName: 'D', orderId: 'o1', productIds: ['p1'], stage: 'CHECKOUT' },
           '',
         ),
     ],
