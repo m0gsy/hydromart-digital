@@ -137,6 +137,13 @@ export default function (data) {
       JSON.stringify({ productId, quantity: 1 }),
       { headers },
     );
+    // A 500 here has twice now been an internal 429 in disguise: order-service reads the
+    // catalog over HTTP, product-service throttles it, and the adapter turns any non-ok
+    // status into a bare Error the global filter renders as INTERNAL_ERROR. So the body
+    // below says "An unexpected error occurred." and names nothing. Before blaming the
+    // cart, open the uploaded order.log and grep `responded 429` — that is where the
+    // answer has been both times.
+    //
     // Latch on the FIRST FAILURE, not the first request — the first request is the one that
     // works. Exactly three lines per VU succeed (the opening iteration) and everything after
     // is refused, so a diagnostic keyed to `__ITER === 0` printed nothing at all and cost a

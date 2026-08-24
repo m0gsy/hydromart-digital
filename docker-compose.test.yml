@@ -21,8 +21,17 @@ x-shared: &shared
   #
   # Test stack only. Production keeps its edge limit, and the limiter has its own spec with
   # its own numbers.
-  RATE_LIMIT_MAX: 10000
-  RATE_LIMIT_BURST_MAX: 10000
+  # Raised again on 24 Aug, and this is the THIRD time the same bucket has been the answer.
+  # 10000 is generous for a browser suite and nowhere near enough for k6: one add-to-cart
+  # fans out to several product reads, so 10 VUs for 60s put well over 20k requests through
+  # product-service — from ONE address, so one bucket. It answered 429, and the load run
+  # spent its whole hour measuring the limiter while reporting `checkout_success 60.85%`
+  # and never once printing the word "rate".
+  #
+  # Sized so no test run can approach it. What is under test here is the app; the limiter
+  # has its own spec with its own numbers, and production keeps its edge limit untouched.
+  RATE_LIMIT_MAX: 1000000
+  RATE_LIMIT_BURST_MAX: 1000000
 
 x-svc: &svc
   restart: "no"
