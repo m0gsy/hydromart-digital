@@ -1026,7 +1026,12 @@ export const hrFix = {
     payTargetUnreadable: "Tujuan pembayaran depot tidak terbaca — muat ulang halaman sebelum menerima QRIS/transfer.",
     noPayTarget: "Depot ini belum mengatur tujuan pembayaran untuk metode itu.",
     phoneFirst: "Isi nomor HP pembeli dulu — voucher menempel pada akun.",
-    orderSavedNoPayment: "Pesanan tersimpan, pembayaran belum tercatat — selesaikan dari antrian pesanan.",
+    orderSavedNoPayment: "Pesanan tersimpan, pembayaran belum tercatat — catat sekarang sebelum pembeli pergi.",
+    // K3.2: diucapkan di layar konter, bukan di toast. Uangnya ada di tangan kasir sekarang.
+    unpaidTitle: "Pembayaran belum tercatat",
+    unpaidBody: "Penjualan {order} sudah tersimpan, tapi pembayarannya belum tercatat. Uangnya ada di laci Anda — catat sekarang, selagi pembeli masih di sini.",
+    retryPayment: "Coba lagi catat pembayaran",
+    paymentSettled: "Pembayaran {order} tercatat.",
     receiptBlocked: "Struk tidak bisa dibuka — izinkan popup, lalu tekan \"Cetak ulang struk\".",
     cash: "Tunai",
   },

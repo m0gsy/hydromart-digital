@@ -36,12 +36,26 @@ import type {
   InventoryItem,
   Order,
   Page,
+  Payment,
   Product,
   ResolvedPrice,
 } from '@/lib/types';
 
 /** What a buyer can settle with at the counter. All three are confirmed by the cashier. */
 type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
+
+/**
+ * K3.2: a sale that is recorded but not paid for, kept on screen until it is.
+ *
+ * `paymentId` is what makes the retry idempotent: once initiate has answered, the retry
+ * only confirms — it never asks for a second row against the same order.
+ */
+type Unpaid = {
+  order: Order;
+  method: CounterMethod;
+  cashReceived: number;
+  paymentId: string | null;
+};
 
 /**
  * Counter sale: the customer is standing at the depot, pays cash, takes the galon.
@@ -109,6 +123,8 @@ function WalkIn({ depotId }: { depotId: string }) {
     cash?: { cashReceived: number; change: number };
     method: CounterMethod;
   } | null>(null);
+  /** K3.2: the sale whose money is in the drawer but not yet in the ledger. */
+  const [unpaid, setUnpaid] = useState<Unpaid | null>(null);
 
   // What this depot can actually hand over. Read FIRST, because it is also the list of
   // products the till is allowed to name (see `catalog` below).
@@ -303,6 +319,78 @@ function WalkIn({ depotId }: { depotId: string }) {
     TRANSFER: !!bankAccount,
   };
 
+  /**
+   * K3.2: record the money for a sale that is already booked. Safe to call twice.
+   *
+   * Mutates `u.paymentId` as it learns it, so a throw still leaves the caller holding
+   * whatever the failed attempt got as far as — that is what lets the retry skip a leg it
+   * has already completed.
+   *
+   * Two ways initiate can be a no-op on retry, and they need different handling: it may
+   * have answered (we kept the id), or it may have landed with its answer lost on the wire
+   * (the server refuses the second one with PAYMENT_ALREADY_EXISTS, and the row it refuses
+   * for is exactly the row to confirm). Confirming the existing row is what stops a retry
+   * from booking the same money twice.
+   */
+  async function settle(u: Unpaid): Promise<void> {
+    if (!u.paymentId) {
+      try {
+        const payment = await api.post<{ id: string }>(
+          endpoints.payments.initiateStaff,
+          {
+            orderId: u.order.id,
+            method: u.method,
+            amount: u.order.total,
+            customerId: u.order.customerId,
+            // Names the drawer this money lands in. Without it the payment is depot-less and
+            // the cashier's shift close would count this sale as never having happened.
+            depotId,
+          },
+          true,
+        );
+        u.paymentId = payment.id;
+      } catch (e) {
+        if (!(e instanceof ApiError && e.code === 'PAYMENT_ALREADY_EXISTS')) throw e;
+        const existing = await api.get<Page<Payment>>(
+          endpoints.payments.forOrderStaff(u.order.id),
+          true,
+        );
+        const pending = existing.items.find((p) => p.status === 'PENDING');
+        // No pending row behind the refusal means the payment is already PAID — someone
+        // else settled it. Rethrowing here would tell the cashier to keep trying; the
+        // caller treats a clean return as settled, which is what actually happened.
+        if (!pending) return;
+        u.paymentId = pending.id;
+      }
+    }
+    // Only a cash payment has change to work out. Sending cashReceived on a QRIS or
+    // transfer would record a handover that never happened.
+    await api.post(
+      endpoints.payments.confirm(u.paymentId),
+      u.method === 'CASH' ? { cashReceived: u.cashReceived } : undefined,
+      true,
+    );
+  }
+
+  /** The cashier pressing "coba lagi" on a sale whose money is still in their hand. */
+  async function retrySettle() {
+    if (!unpaid) return;
+    setBusy(true);
+    // A copy, so a leg that succeeded before the next one failed is not lost to React
+    // reusing the same object identity.
+    const attempt: Unpaid = { ...unpaid };
+    try {
+      await settle(attempt);
+      setUnpaid(null);
+      toast(t('hrFix.walkIn.paymentSettled', { order: attempt.order.orderNumber }));
+    } catch (e) {
+      setUnpaid(attempt);
+      toast(e instanceof ApiError ? e.message : t('hrFix.walkIn.orderSavedNoPayment'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
     // C12: never sell against a total the server did not give. The old guard compared cash
@@ -375,30 +463,14 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
 
     // The sale is recorded and the goods are gone; a payment hiccup must not lose the
-    // receipt, so the struk prints either way and the cashier settles from the order queue.
+    // receipt, so the struk prints either way — and K3.2 keeps the unsettled payment on
+    // this screen, where the cashier is still holding the money, instead of in a toast.
+    const attempt: Unpaid = { order, method, cashReceived, paymentId: null };
     try {
-      const payment = await api.post<{ id: string }>(
-        endpoints.payments.initiateStaff,
-        {
-          orderId: order.id,
-          method,
-          amount: order.total,
-          customerId: order.customerId,
-          // Names the drawer this money lands in. Without it the payment is depot-less and
-          // the cashier's shift close would count this sale as never having happened.
-          depotId,
-        },
-        true,
-      );
-      // Only a cash payment has change to work out. Sending cashReceived on a QRIS or
-      // transfer would record a handover that never happened.
-      await api.post(
-        endpoints.payments.confirm(payment.id),
-        method === 'CASH' ? { cashReceived } : undefined,
-        true,
-      );
+      await settle(attempt);
       toast(t('opsFix.walkIn.saleSaved', { order: order.orderNumber }));
     } catch {
+      setUnpaid(attempt);
       toast(t('hrFix.walkIn.orderSavedNoPayment'), 'error');
     }
 
@@ -442,6 +514,8 @@ function WalkIn({ depotId }: { depotId: string }) {
       await api.post(endpoints.orders.voidWalkIn(target.id), { reason: voidReason.trim() }, true);
       toast(t('opsFix.walkIn.saleVoided', { order: target.orderNumber }));
       if (lastSale?.order.id === target.id) setLastSale(null);
+      // K3.2: a voided sale has no payment to chase — the reversal already covers it.
+      if (unpaid?.order.id === target.id) setUnpaid(null);
       setVoiding(null);
       setVoidReason('');
       // Stock came back, so what the counter may sell changed with it.
@@ -474,6 +548,34 @@ function WalkIn({ depotId }: { depotId: string }) {
       <SectionHeader title={t('opsFix.walkIn.title')} subtitle={t('opsFix.walkIn.subtitle')} />
 
       <CashierShiftBar depotId={depotId} onChange={(s) => setShiftOpen(!!s)} />
+
+      {/*
+        K3.2: an unrecorded payment is not a notification, it is a job. The toast that used
+        to carry this scrolled away in seconds and left an order that is already terminal,
+        appears in no outstanding-payment queue, and turns up at shift close as a cash
+        difference nobody can explain. It stays here, above the till, until it is settled —
+        the buyer is still at the counter and the money is still in the drawer, which is the
+        best chance this payment will ever have of being recorded correctly.
+      */}
+      {unpaid && (
+        <Card className="space-y-3 border-red-300 bg-red-50 p-4">
+          <div>
+            <p className="font-semibold text-red-700">{t('hrFix.walkIn.unpaidTitle')}</p>
+            <p className="text-sm text-red-700">
+              {t('hrFix.walkIn.unpaidBody', { order: unpaid.order.orderNumber })}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-bold tabular-nums">
+              <Money amount={unpaid.order.total} />
+            </p>
+            <Button onClick={() => void retrySettle()} disabled={busy}>
+              <MoneyIcon size={18} className="mr-1" />
+              {t('hrFix.walkIn.retryPayment')}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {lastSale && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">

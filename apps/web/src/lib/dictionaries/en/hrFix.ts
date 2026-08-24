@@ -1014,7 +1014,12 @@ export const hrFix = {
     payTargetUnreadable: "The depot's payment details could not be read — reload the page before accepting QRIS or a transfer.",
     noPayTarget: "This depot has not set up payment details for that method.",
     phoneFirst: "Enter the buyer's phone number first — a voucher belongs to an account.",
-    orderSavedNoPayment: "The order is saved but the payment is not recorded — finish it from the order queue.",
+    orderSavedNoPayment: "The order is saved but the payment is not recorded — record it before the buyer leaves.",
+    // K3.2: said on the till, not in a toast. The cashier is holding the money right now.
+    unpaidTitle: "Payment not recorded yet",
+    unpaidBody: "Sale {order} is saved, but its payment was not recorded. The money is in your drawer — record it now, while the buyer is still here.",
+    retryPayment: "Try recording it again",
+    paymentSettled: "Payment for {order} is recorded.",
     receiptBlocked: "The receipt could not open — allow pop-ups, then press \"Reprint receipt\".",
     cash: "Cash",
   },
