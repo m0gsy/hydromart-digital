@@ -977,6 +977,16 @@ describe('PaymentReversalHttpAdapter', () => {
   const reversal = (over: Partial<Record<string, unknown>> = {}) =>
     new PaymentReversalHttpAdapter(makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }));
 
+  // K2.3: same shape, different endpoint — and the endpoint is the whole difference.
+  it('cancelForOrder posts to the cancellation endpoint, not the void one', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await reversal().cancelForOrder('order-1', 'Dibatalkan pelanggan');
+    const [url, sent] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string>; body: string }];
+    expect(url).toBe('http://payment:3005/api/v1/payments/internal/cancel-for-order');
+    expect(sent.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(sent.body)).toEqual({ orderId: 'order-1', reason: 'Dibatalkan pelanggan' });
+  });
+
   it('posts the order and reason with the internal key', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await reversal().voidForOrder('order-1', 'Salah ukuran');

@@ -871,11 +871,19 @@ export class FakeCashierShift implements CashierShiftPort {
 
 export class FakePaymentReversal implements PaymentReversalPort {
   calls: { orderId: string; reason: string }[] = [];
+  /** K2.3: recorded apart from `calls` — a cancellation is not a counter void. */
+  cancels: { orderId: string; reason: string }[] = [];
   /** When set, voidForOrder throws it — payment-service down while a void is in flight. */
   error: Error | null = null;
+  /** When set, cancelForOrder throws it — the same, for a cancellation in flight. */
+  cancelError: Error | null = null;
   async voidForOrder(orderId: string, reason: string): Promise<void> {
     if (this.error) throw this.error;
     this.calls.push({ orderId, reason });
+  }
+  async cancelForOrder(orderId: string, reason: string): Promise<void> {
+    if (this.cancelError) throw this.cancelError;
+    this.cancels.push({ orderId, reason });
   }
 }
 

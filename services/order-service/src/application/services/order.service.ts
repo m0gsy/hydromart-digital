@@ -96,6 +96,20 @@ import { OutboxService } from './outbox.service';
  * `discount` is the layer only the server knows — tier, agen price, voucher — which is
  * exactly what the cashier screen could never compute for itself.
  */
+/**
+ * K2.3 / J7 — one abandoned-order sweep round.
+ *
+ * `cancelled` alone could not tell "nothing was stale" from "everything stale failed to
+ * settle its payment", and `scripts/scheduler/sweep.sh` wrote the scheduler heartbeat for
+ * both. `ok` is false only when the round failed at something and cancelled nothing.
+ */
+export interface AbandonedSweepResult {
+  cancelled: number;
+  /** Stale orders left LIVE because their payment could not be settled. */
+  failed: number;
+  ok: boolean;
+}
+
 export interface CounterBasketQuote {
   items: CreateOrderItemData[];
   subtotal: number;
@@ -1399,6 +1413,15 @@ export class OrderService {
     if (!isCancellable(order.status) || hasBeenDispatched(order.history)) {
       throw new OrderNotCancellableError(order.status);
     }
+    // K2.3: the money leg, and it goes FIRST. Cancellation never reached payment-service at
+    // all — the order flipped to CANCELLED, the stock came back, and the customer's screen
+    // showed a red panel explaining the refund rule. A paragraph, not a refund.
+    //
+    // Before the status write, and failing closed, because the alternative states are not
+    // equally bad: an order that refused to cancel can be cancelled again in a minute, while
+    // an order recorded as cancelled whose money is still held is a customer who paid for
+    // nothing and a depot holding revenue it does not have.
+    await this.paymentReversal.cancelForOrder(order.id, reason ?? 'Order cancelled by customer');
     const cancelled = await this.orders.applyStatus(
       order.id,
       order.status,
@@ -1431,7 +1454,7 @@ export class OrderService {
     changedBy: string,
     authorization = '',
     olderThanMinutes?: number,
-  ): Promise<{ cancelled: number }> {
+  ): Promise<AbandonedSweepResult> {
     const minutes = olderThanMinutes ?? this.config.abandonMinutes;
     const now = Date.now();
     const sweeps: { statuses: OrderStatus[]; before: Date; note: string }[] = [
@@ -1447,6 +1470,7 @@ export class OrderService {
       },
     ];
     let cancelledCount = 0;
+    let failedCount = 0;
     for (const sweep of sweeps) {
       const stale = await this.orders.findStaleIn(
         sweep.statuses,
@@ -1455,6 +1479,20 @@ export class OrderService {
         this.config.subscriptionSweepExempt,
       );
       for (const order of stale) {
+        try {
+          // K2.3: same rule as the customer path — the money leg first, and if it cannot be
+          // settled the order stays LIVE rather than becoming a cancellation with the
+          // customer's money still held. It will be stale again on the next tick.
+          await this.paymentReversal.cancelForOrder(order.id, sweep.note);
+        } catch (error) {
+          // J7: counted, not swallowed. A round that could settle nothing must not answer
+          // with the same body as a round with nothing stale.
+          failedCount += 1;
+          this.logger.warn(
+            `Abandoned order ${order.id} left live: payment could not be settled (${(error as Error).message})`,
+          );
+          continue;
+        }
         const cancelled = await this.orders.applyStatus(
           order.id,
           order.status,
@@ -1466,7 +1504,11 @@ export class OrderService {
         cancelledCount += 1;
       }
     }
-    return { cancelled: cancelledCount };
+    return {
+      cancelled: cancelledCount,
+      failed: failedCount,
+      ok: failedCount === 0 || cancelledCount > 0,
+    };
   }
 
   /**
@@ -1838,6 +1880,12 @@ export class OrderService {
     const order = await this.getAny(orderId);
     if (!canTransition(order.status, to)) {
       throw new InvalidStatusTransitionError(order.status, to);
+    }
+    // K2.3: staff and delivery-service cancel through here, and this path skipped the money
+    // exactly as the customer path did — it released the stock and left the payment alone.
+    // Before the write and failing closed, same reasoning as `cancel()`.
+    if (to === OrderStatus.CANCELLED) {
+      await this.paymentReversal.cancelForOrder(order.id, note ?? 'Order cancelled');
     }
     const updated = await this.orders.applyStatus(
       order.id,

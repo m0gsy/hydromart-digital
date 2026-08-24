@@ -26,7 +26,7 @@ import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, R
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
-import { OrderService } from '../application/services/order.service';
+import { AbandonedSweepResult, OrderService } from '../application/services/order.service';
 import { OutboxService, OutboxSweepResult } from '../application/services/outbox.service';
 import {
   OrderRecord,
@@ -304,7 +304,7 @@ export class OrderController {
     @CurrentUser() user: AuthenticatedUser,
     @Headers('authorization') authorization?: string,
     @Query('olderThanMinutes') olderThanMinutes?: string,
-  ): Promise<{ cancelled: number }> {
+  ): Promise<AbandonedSweepResult> {
     const minutes = olderThanMinutes ? Number(olderThanMinutes) : undefined;
     return this.orders.expireAbandoned(
       user.sub,
@@ -333,7 +333,7 @@ export class OrderController {
   @ApiOperation({
     summary: 'Auto-cancel unconfirmed abandoned orders, releasing their stock (scheduler sweep)',
   })
-  expireAbandonedInternal(): Promise<{ cancelled: number }> {
+  expireAbandonedInternal(): Promise<AbandonedSweepResult> {
     return this.orders.expireAbandoned('system:scheduler');
   }
 

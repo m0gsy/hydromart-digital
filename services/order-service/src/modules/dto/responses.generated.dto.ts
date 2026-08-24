@@ -934,6 +934,17 @@ export class RatingByDepotResponseDto {
 export class ExpireAbandoned2ResponseDto {
   @ApiProperty({ type: Number })
   cancelled!: number;
+  @ApiProperty({
+    type: Number,
+    description: 'Stale orders left live because their payment could not be settled (K2.3).',
+  })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'J7: false when the round failed at something and cancelled nothing. sweep.sh withholds the scheduler heartbeat on false.',
+  })
+  ok!: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

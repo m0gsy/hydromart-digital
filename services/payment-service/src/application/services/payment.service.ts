@@ -453,6 +453,37 @@ export class PaymentService {
   }
 
   /**
+   * K2.3 — a cancelled order gives the money back, instead of a sentence saying it will.
+   *
+   * Cancellation never reached this service at all. The order flipped to CANCELLED, the
+   * stock came back, and the customer's screen showed a red panel explaining the refund
+   * rule — a paragraph, not a refund. A payment left PENDING stayed live and locked the
+   * order out of every other method (K2.2); a payment left PAID stayed revenue the depot
+   * no longer had.
+   *
+   * Deliberately NOT `voidForOrder`. That one settles straight to REFUNDED with no
+   * approval because a cashier is handing cash across the counter there and then. A
+   * delivery cancellation has no counter and no cashier, so it goes through `refund`,
+   * which is what applies the HQ approval threshold (14a) — a high-value refund parks for
+   * a human exactly as it does everywhere else.
+   */
+  async cancelForOrder(
+    orderId: string,
+    reason: string,
+    changedBy: string,
+  ): Promise<PaymentRecord | null> {
+    const active = await this.payments.findActiveByOrder(orderId);
+    // No active payment: the order was placed and the money leg never landed. Nothing owed.
+    if (!active) return null;
+    // Nothing was ever collected, so there is nothing to hand back — but the row must stop
+    // being active, or it goes on blocking the order it belongs to.
+    if (active.status === PaymentStatus.PENDING) {
+      return this.fail(active.id, changedBy);
+    }
+    return this.refund(active.id, changedBy, reason);
+  }
+
+  /**
    * What a depot's drawer should hold for a window: its PAID cash, by settlement time.
    * The cashier's shift close is measured against this, so it is deliberately the same
    * question `cashCollected` answers for a courier — asked by depot instead of by order.

@@ -101,6 +101,7 @@ describe('OrderService', () => {
   let cartService: CartService;
   let service: OrderService;
   let outbox: OutboxService;
+  let reversal: FakePaymentReversal;
   const customer = randomUUID();
   // Held rather than passed inline: the express tests need to change what the depot has
   // configured, which is a property of the config, not of the service.
@@ -128,6 +129,7 @@ describe('OrderService', () => {
     cartService = buildCartService(cart, catalog, pricing, resellerDiscount, config);
     outbox = buildOutbox(orders);
     config = buildTestConfig();
+    reversal = new FakePaymentReversal();
     service = new OrderService(
       orders,
       cart,
@@ -149,7 +151,7 @@ describe('OrderService', () => {
       franchiseRevenue,
       gallonIssue,
       new FakeCashierShift(),
-      new FakePaymentReversal(),
+      reversal,
       outbox,
     );
   });
@@ -159,6 +161,86 @@ describe('OrderService', () => {
     await cartService.setItem(customer, p.id, quantity, false);
     return p.id;
   };
+
+  /*
+   * K2.3 — a cancelled order gives the money back, instead of a sentence saying it will.
+   *
+   * Cancellation never reached payment-service on ANY of its three paths: the customer's
+   * own cancel, staff/delivery-service through `changeStatus`, and the abandoned-order
+   * sweep. All three released the stock and left the payment exactly where it was — so a
+   * PENDING row went on blocking every other payment method for that order, a PAID row
+   * stayed revenue the depot no longer had, and the staff screen showed a red panel
+   * explaining the refund rule. A paragraph, not a refund.
+   *
+   * The call goes BEFORE the status write and fails closed, because the two failure states
+   * are not equally bad: an order that refused to cancel can be cancelled again in a
+   * minute, while an order recorded as cancelled whose money is still held is a customer
+   * who paid for nothing.
+   */
+  describe('cancellation settles the payment (K2.3)', () => {
+    const placeOrder = async (): Promise<string> => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      return order.id;
+    };
+
+    it('settles the money leg when the customer cancels', async () => {
+      const id = await placeOrder();
+      const cancelled = await service.cancel(customer, id, 'ganti hari');
+      expect(cancelled.status).toBe(OrderStatus.CANCELLED);
+      expect(reversal.cancels).toEqual([{ orderId: id, reason: 'ganti hari' }]);
+      // Not a counter void — the two are different endpoints for a reason.
+      expect(reversal.calls).toHaveLength(0);
+    });
+
+    it('refuses to cancel at all when the money cannot be settled', async () => {
+      const id = await placeOrder();
+      reversal.cancelError = new Error('payment-service unreachable');
+      await expect(service.cancel(customer, id, 'ganti hari')).rejects.toThrow();
+      // The order is still live. Cancelled-and-unrefunded is the one state that must not
+      // exist, and this is what keeps it from existing.
+      expect((await service.getForCustomer(customer, id)).status).not.toBe(OrderStatus.CANCELLED);
+    });
+
+    it('settles it for a staff or delivery-service cancellation too', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CANCELLED, 'staff-1', 'stok habis');
+      expect(reversal.cancels).toEqual([{ orderId: id, reason: 'stok habis' }]);
+    });
+
+    it('leaves other transitions alone', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CONFIRMED, 'staff-1');
+      expect(reversal.cancels).toHaveLength(0);
+    });
+
+    it('the abandoned sweep leaves an order LIVE when its payment cannot be settled', async () => {
+      const id = await placeOrder();
+      orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
+      reversal.cancelError = new Error('payment-service unreachable');
+
+      // J7: nothing cancelled and something failed — the scheduler must not read this as a
+      // quiet round, because sweep.sh writes its heartbeat off exactly this field.
+      expect(await service.expireAbandoned('system:scheduler')).toEqual({
+        cancelled: 0,
+        failed: 1,
+        ok: false,
+      });
+      expect((await service.getForCustomer(customer, id)).status).not.toBe(OrderStatus.CANCELLED);
+    });
+
+    it('the abandoned sweep cancels and settles when the money leg answers', async () => {
+      const id = await placeOrder();
+      orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
+      expect(await service.expireAbandoned('system:scheduler')).toEqual({
+        cancelled: 1,
+        failed: 0,
+        ok: true,
+      });
+      expect(reversal.cancels.map((c) => c.orderId)).toEqual([id]);
+    });
+  });
+
 
   // The reconciliation reads litres off the ORDER LINE, not the live catalog. If the
   // snapshot ever stops being written, every meter comparison silently reports the

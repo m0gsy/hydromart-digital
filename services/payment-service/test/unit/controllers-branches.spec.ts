@@ -28,6 +28,7 @@ describe('PaymentController', () => {
     depotCashCollected: jest.fn(),
     voidForOrder: jest.fn(),
     expireStalePending: jest.fn(),
+    cancelForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
     getForCustomer: jest.fn(),
     confirm: jest.fn(),
@@ -198,6 +199,14 @@ describe('PaymentController', () => {
 
   // The actor is the service, not a person: a counter void must not need a MANAGER at the
   // depot, and `refundIssue` rightly excludes whoever took the cash.
+  // K2.3: a separate route from void-for-order, and attributed the same way — the caller
+  // is a service, not a person holding a token.
+  it('cancelForOrder is attributed to order-service, not a token holder', async () => {
+    svc.cancelForOrder.mockResolvedValue(null);
+    await controller.cancelForOrder({ orderId: 'order-9', reason: 'Dibatalkan' } as never);
+    expect(svc.cancelForOrder).toHaveBeenCalledWith('order-9', 'Dibatalkan', 'order-service');
+  });
+
   it('voidForOrder is attributed to order-service, not a token holder', async () => {
     await controller.voidForOrder({ orderId: 'order-9', reason: 'Salah ukuran' } as never);
     expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');

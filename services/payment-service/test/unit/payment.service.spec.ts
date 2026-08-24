@@ -701,6 +701,45 @@ describe('PaymentService', () => {
     });
   });
 
+  /*
+   * K2.3 — the cancellation counterpart of voidForOrder, and deliberately NOT the same
+   * call. A counter void settles straight to REFUNDED because a cashier is handing cash
+   * across the counter there and then; a delivery cancellation has no till, so it goes
+   * through `refund` and the HQ approval threshold applies exactly as it does elsewhere.
+   */
+  describe('cancelForOrder (K2.3)', () => {
+    it('fails an unsettled payment, so it stops blocking its own order', async () => {
+      const orderId = randomUUID();
+      await initiate(PaymentMethod.TRANSFER, 45000, orderId);
+
+      const settled = await service.cancelForOrder(orderId, 'Dibatalkan pelanggan', 'order-service');
+
+      expect(settled?.status).toBe(PaymentStatus.FAILED);
+      expect(settled?.refundedAmount).toBeNull();
+      // The whole point: the order can be paid again.
+      await expect(initiate(PaymentMethod.CASH, 45000, orderId)).resolves.toMatchObject({
+        status: PaymentStatus.PENDING,
+      });
+    });
+
+    it('refunds a settled one through the normal path, approval threshold and all', async () => {
+      const orderId = randomUUID();
+      const payment = await initiate(PaymentMethod.CASH, 45000, orderId);
+      await service.confirm(payment.id, 'cashier-1', 50000);
+
+      const settled = await service.cancelForOrder(orderId, 'Dibatalkan', 'order-service');
+
+      expect(settled?.refundedAmount).toBe(45000);
+      // Under the threshold here, so it settles — but through `refund`, which is what makes
+      // a high-value one park for HQ instead of moving money unattended.
+      expect(settled?.status).toBe(PaymentStatus.REFUNDED);
+    });
+
+    it('reports null when the order never had an active payment', async () => {
+      expect(await service.cancelForOrder(randomUUID(), 'Batal', 'order-service')).toBeNull();
+    });
+  });
+
   describe('voidForOrder', () => {
     it('refunds a settled counter sale straight through, never via the approval queue', async () => {
       const orderId = randomUUID();

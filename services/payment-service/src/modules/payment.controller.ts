@@ -130,6 +130,28 @@ export class PaymentController {
     return this.payments.expireStalePending(new Date());
   }
 
+  /**
+   * K2.3: a cancelled order's money leg. Internal-key only — order-service is the caller.
+   *
+   * Separate from `void-for-order` on purpose: a counter void hands cash back at the till
+   * and must not park for approval, while a delivery cancellation has no till and goes
+   * through the normal refund path, HQ threshold and all.
+   *
+   * And separate from `expire-pending` above, which reaches the same PENDING row by AGE
+   * rather than by decision: a cancellation settles it now, the sweep settles the ones
+   * nobody ever cancelled.
+   */
+  @ApiOkResponse({ type: PaymentResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/cancel-for-order')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Settle a cancelled order's payment (internal service auth)" })
+  cancelForOrder(@Body() dto: VoidForOrderDto): Promise<PaymentRecord | null> {
+    return this.payments.cancelForOrder(dto.orderId, dto.reason, 'order-service');
+  }
+
   // Shift close asks this: how much cash should be in THIS depot's drawer right now.
   // Internal-key only — depot-service is the caller, and the answer decides whether a
   // cashier is short. Declared before ':id' so the static segment wins.
