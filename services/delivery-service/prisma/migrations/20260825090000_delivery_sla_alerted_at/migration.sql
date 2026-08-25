@@ -1,0 +1,34 @@
+-- J8: the SLA finally gets a memory.
+--
+-- `ReportService.sla()` has always been able to say that 12% of yesterday's deliveries
+-- blew the window. It said it the next morning, to a dashboard, about deliveries that
+-- were long since finished. Nothing ever looked at a delivery WHILE it was late and
+-- still rescuable — there is no timer, no alert, and no ops notification anywhere in
+-- delivery-service. The number was real and it called nobody.
+--
+-- The sweep that fixes that needs exactly one thing the schema does not have: somewhere
+-- to record that a breach was already reported. Without it, a ten-minute cron re-reports
+-- the same late delivery every ten minutes until it arrives, and an ops channel that
+-- cries the same wolf six times an hour is a channel people mute.
+--
+-- NULLABLE and it means two different things, deliberately:
+--
+--   NULL       never reported. Covers both "still inside its window" and "breached, but
+--              the alert has not got through to crm yet" — the sweep re-reads the second
+--              kind on every tick, which is what makes a crm outage delay a breach report
+--              rather than lose it.
+--   timestamp  reported to ops at this moment; the sweep skips this row from now on.
+--
+-- Every delivery that exists today is NULL, and that is correct rather than convenient:
+-- none of them was ever reported, because there was nothing to report with.
+--
+
+-- No index ships with this. The sweep filters on `status` first, which is already
+-- indexed, and in-flight deliveries are a shrinking minority of a book that is mostly
+-- DELIVERED — the other two predicates are a recheck over that handful. It could not
+-- ship here anyway: an index cannot be pre-built CONCURRENTLY on a column that does not
+-- exist yet, so a composite ([status, slaAlertedAt, assignedAt]) has to be its own
+-- release, and only if measurement asks for one.
+
+-- AlterTable
+ALTER TABLE "deliveries" ADD COLUMN "slaAlertedAt" TIMESTAMP(3);

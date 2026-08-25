@@ -19,6 +19,7 @@ import {
   DepotSlaStats,
   ProofRecord,
   ReportRange,
+  SlaCandidate,
   SlaStats,
 } from '../../application/ports/delivery.repository';
 import { StaleDeliveryStatusError } from '../../domain/errors';
@@ -520,5 +521,24 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         sumMinutes: Number(r.summinutes ?? 0),
       };
     });
+  }
+
+  async findUnalertedInFlight(assignedBefore: Date, limit: number): Promise<SlaCandidate[]> {
+    return this.prisma.delivery.findMany({
+      where: {
+        status: { in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY] },
+        slaAlertedAt: null,
+        assignedAt: { lt: assignedBefore },
+      },
+      // Oldest first: when a backlog is bigger than one batch, the most overdue
+      // deliveries are the ones that get called in rather than the ones that fit.
+      orderBy: { assignedAt: 'asc' },
+      take: limit,
+      select: { id: true, orderNumber: true, depotId: true, assignedAt: true },
+    });
+  }
+
+  async markSlaAlerted(id: string, at: Date): Promise<void> {
+    await this.prisma.delivery.update({ where: { id }, data: { slaAlertedAt: at } });
   }
 }

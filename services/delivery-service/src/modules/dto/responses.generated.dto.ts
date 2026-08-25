@@ -373,6 +373,18 @@ export class PurgeExpired2ResponseDto {
   deleted!: number;
 }
 
+/** J8 SLA sweep outcome. `ok` is the J7 flag: false = tried and delivered nothing. */
+export class SlaSweepResponseDto {
+  @ApiProperty({ type: Boolean })
+  ok!: boolean;
+  @ApiProperty({ type: Number })
+  checked!: number;
+  @ApiProperty({ type: Number })
+  breached!: number;
+  @ApiProperty({ type: Number })
+  alerted!: number;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class Schema3ResponseDto {
   @ApiProperty({ type: [SettingDefResponseDto] })

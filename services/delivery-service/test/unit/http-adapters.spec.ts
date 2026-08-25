@@ -177,6 +177,42 @@ describe('OpsNotifierHttpAdapter', () => {
       new OpsNotifierHttpAdapter(makeConfig()).incidentReported(alert),
     ).resolves.toBeUndefined();
   });
+
+  // J8. Same channel, but this one has to answer whether it landed — the sweep decides
+  // whether to stamp the delivery on that answer, and a wrong `true` loses the breach.
+  const breach = { orderNumber: 'HM-9', minutes: 200, thresholdMinutes: 120, depotId: 'dep-1' };
+
+  it('POSTs a DELIVERY_SLA_BREACHED and reports success', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await expect(new OpsNotifierHttpAdapter(makeConfig()).slaBreached(breach)).resolves.toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.event).toBe('DELIVERY_SLA_BREACHED');
+    expect(body.depotId).toBe('dep-1');
+    expect(body.vars).toMatchObject({ order: 'HM-9', minutes: '200', threshold: '120', over: '80' });
+  });
+
+  it('omits depotId when the delivery was never attributed to one', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new OpsNotifierHttpAdapter(makeConfig()).slaBreached({ ...breach, depotId: null });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('depotId');
+  });
+
+  it('reports SUCCESS when alerting is switched off, so the sweep stops retrying', async () => {
+    await expect(
+      new OpsNotifierHttpAdapter(makeConfig({ opsAlertPhone: '' })).slaBreached(breach),
+    ).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports FAILURE on non-2xx so the breach is swept again', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(new OpsNotifierHttpAdapter(makeConfig()).slaBreached(breach)).resolves.toBe(false);
+  });
+
+  it('reports FAILURE when crm-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(new OpsNotifierHttpAdapter(makeConfig()).slaBreached(breach)).resolves.toBe(false);
+  });
 });
 
 describe('CashCollectionHttpAdapter', () => {

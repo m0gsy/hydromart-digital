@@ -38,6 +38,11 @@ export enum NotificationEvent {
   // water-meter reading diverges from the litres its recorded sales account for.
   // Tokens: {{depot}}, {{date}}, {{variance}}, {{gallons}}. Recipient is the ops number.
   METER_VARIANCE = 'METER_VARIANCE',
+  // Operational (not customer-facing): fired by delivery-service's SLA sweep when a
+  // delivery is STILL ON THE ROAD past its depot's window — the one ops event about
+  // something that has not finished going wrong yet. Tokens: {{order}}, {{minutes}},
+  // {{threshold}}, {{over}}. Recipient is the ops number (depot staff when known).
+  DELIVERY_SLA_BREACHED = 'DELIVERY_SLA_BREACHED',
   // Operational (not customer-facing): fired by delivery-service when a courier
   // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
   // {{category}}, {{note}}. Recipient is the ops number.
@@ -100,6 +105,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     '⚠️ {{stage}}: pesanan {{order}} di depot {{depot}} memuat {{count}} produk yang belum punya baris stok. Penjualannya tetap jalan, tapi stoknya TIDAK berkurang. Mohon buatkan baris stoknya.',
   [NotificationEvent.METER_VARIANCE]:
     '💧 Selisih meteran air depot {{depot}} tanggal {{date}}: {{variance}} liter (± {{gallons}} galon) dibanding penjualan tercatat. Mohon dicek.',
+  [NotificationEvent.DELIVERY_SLA_BREACHED]:
+    '⏰ Pesanan {{order}} sudah {{minutes}} menit di jalan — lewat batas SLA {{threshold}} menit ({{over}} menit terlambat). Mohon dicek kurirnya.',
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
   [NotificationEvent.DEPOT_SALES_UPDATE]:

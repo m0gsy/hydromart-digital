@@ -21,6 +21,7 @@ import {
   DepotSlaStats,
   ProofRecord,
   ReportRange,
+  SlaCandidate,
   SlaStats,
 } from '../../src/application/ports/delivery.repository';
 import { ContactMethod, ContactState } from '../../src/domain/no-show';
@@ -46,7 +47,7 @@ import {
   IncidentRecord,
   IncidentRepository,
 } from '../../src/application/ports/incident.repository';
-import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
+import { OpsIncidentAlert, OpsNotifierPort, OpsSlaBreachAlert } from '../../src/application/ports/ops-notifier.port';
 import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
 import { RatingPort, RatingSummary } from '../../src/application/ports/rating.port';
 import {
@@ -92,8 +93,13 @@ const ACTIVE: DeliveryStatus[] = [
   DeliveryStatus.ON_DELIVERY,
 ];
 
+/** J8: the states a delivery is still on the road in — the ones an SLA can still be blown by. */
+const IN_FLIGHT: DeliveryStatus[] = [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY];
+
 export class InMemoryDeliveryRepository implements DeliveryRepository {
   rows: DeliveryRecord[] = [];
+  /** J8: stands in for the `slaAlertedAt` column. */
+  slaAlerted = new Map<string, Date>();
   attempts: { deliveryId: string; driverId: string; method: ContactMethod; note: string | null; createdAt: Date }[] = [];
 
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
@@ -406,6 +412,23 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     }
     return [...byDepot.values()];
   }
+
+  async findUnalertedInFlight(assignedBefore: Date, limit: number): Promise<SlaCandidate[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          IN_FLIGHT.includes(r.status) &&
+          !this.slaAlerted.has(r.id) &&
+          r.assignedAt.getTime() < assignedBefore.getTime(),
+      )
+      .sort((a, b) => a.assignedAt.getTime() - b.assignedAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ id: r.id, orderNumber: r.orderNumber, depotId: r.depotId, assignedAt: r.assignedAt }));
+  }
+
+  async markSlaAlerted(id: string, at: Date): Promise<void> {
+    this.slaAlerted.set(id, at);
+  }
 }
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
@@ -494,13 +517,22 @@ export class InMemoryIncidentRepository implements IncidentRepository {
 
 export class FakeOpsNotifier implements OpsNotifierPort {
   alerts: OpsIncidentAlert[] = [];
+  slaAlerts: OpsSlaBreachAlert[] = [];
   throwOnAlert = false;
+  /** J8: crm reachable but refusing — the alert did not land, and the port says so. */
+  slaAlertFails = false;
 
   async incidentReported(alert: OpsIncidentAlert): Promise<void> {
     if (this.throwOnAlert) {
       throw new Error('crm down');
     }
     this.alerts.push(alert);
+  }
+
+  async slaBreached(alert: OpsSlaBreachAlert): Promise<boolean> {
+    if (this.slaAlertFails) return false;
+    this.slaAlerts.push(alert);
+    return true;
   }
 }
 

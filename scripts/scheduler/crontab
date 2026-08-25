@@ -48,6 +48,13 @@
 # out-of-stock. Hourly is enough: the threshold is measured in minutes-to-hours, and the
 # sweep re-reads whatever is stale each time rather than tracking a cursor.
 5 * * * * sh /scripts/sweep.sh orders/internal/expire-abandoned
+# J8: call someone about a delivery that is late RIGHT NOW. The SLA has always been a
+# percentage in a report — computed the next morning, about deliveries long since over.
+# Every 10 minutes because the point is the window while the order is still rescuable;
+# hourly would mean an average half-hour of silence on top of an already-blown SLA. The
+# sweep alerts each delivery once (it stamps `slaAlertedAt`), so the cadence costs
+# nothing in repeat messages. It reports; it does not reassign anyone's work.
+*/10 * * * * sh /scripts/sweep.sh deliveries/internal/sla-sweep delivery:3006
 # Retention enforcement (M23-21): runs the policy for every dataset that has an executor
 # — including proof-of-delivery, which used to sweep itself at 03:15 off a separate
 # per-depot window. One owner for the rule now. Datasets with no executor are logged as

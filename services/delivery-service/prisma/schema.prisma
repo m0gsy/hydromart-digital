@@ -161,6 +161,13 @@ model Delivery {
   rescheduleSlot String?
   rescheduleNote String?
 
+  /// J8: when this delivery's SLA breach was reported to ops. Null = never reported,
+  /// which is both "still inside the window" and "breached but the alert has not got
+  /// through yet" — the sweep re-reads the second kind every tick, on purpose. Stamped
+  /// only after the alert lands, so an unreachable crm delays a breach instead of
+  /// swallowing it.
+  slaAlertedAt DateTime?
+
   proof           ProofOfDelivery?
   history         DeliveryStatusHistory[]
   contactAttempts ContactAttempt[]
@@ -176,6 +183,12 @@ model Delivery {
   @@index([depotId, deliveredAt])
   // The customer feed read: this person's deliveries, newest first.
   @@index([customerId, createdAt(sort: Desc)])
+  // J8's sweep (in-flight + unalerted + oldest first) rides the `status` index above:
+  // in-flight is a shrinking minority of a book that is mostly DELIVERED, and the two
+  // remaining predicates are a recheck over that handful. A composite
+  // ([status, slaAlertedAt, assignedAt]) is the upgrade if that stops being true — it
+  // has to be its own release anyway, since an index cannot be pre-built concurrently
+  // on a column that does not exist yet (H-39).
   @@map("deliveries")
 }
 
