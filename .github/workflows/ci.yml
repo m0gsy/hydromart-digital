@@ -212,6 +212,13 @@ jobs:
       - name: Host crontab block self-check
         run: bash scripts/install-host-cron.test.sh
 
+      # N13/N14. Both watch something that fails SILENTLY on a live box: a certificate
+      # whose automatic renewal quietly stopped, and container logs the host never got a
+      # cap for. A check that cannot go red would be the same failure class again, so both
+      # are pinned by their own self-check.
+      - name: Ops watch scripts self-check
+        run: bash scripts/check-ops-scripts.test.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check

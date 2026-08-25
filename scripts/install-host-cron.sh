@@ -59,6 +59,15 @@ CRON_TZ=$CRON_TZ_VALUE
 
 # Converge anything that stopped between deploys, and record why it stopped.
 */5 * * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
+
+# N13 — TLS expiry. Renewal is automatic, which is exactly why nobody watches it: the
+# failure is not a loud renewal error, it is renewal quietly stopping and every browser
+# refusing the site three weeks later. Weekly is enough for a 21-day window.
+15 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-tls-expiry.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
+# N14 — container log caps. `ops/docker-daemon.json` is a file somebody has to copy to the
+# host by hand; nothing ever checked that they did, and the default is unbounded.
+45 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-log-retention.sh >> /var/log/hydromart-ops-checks.log 2>&1
 $END
 EOF
 }
@@ -85,7 +94,7 @@ esac
 # Log files must exist and be writable by this user before cron first appends to them —
 # a redirect into an unwritable path fails the job silently, which is the failure mode
 # this whole script exists to stop.
-for f in hydromart-backup hydromart-restore-drill hydromart-watchdog; do
+for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks; do
   if [ ! -w "/var/log/$f.log" ]; then
     sudo -n touch "/var/log/$f.log" 2>/dev/null && sudo -n chown "$(id -u):$(id -g)" "/var/log/$f.log" 2>/dev/null || {
       echo "!! /var/log/$f.log is not writable and passwordless sudo is unavailable." >&2

@@ -152,3 +152,67 @@ groups:
       # RedisDown lived here until Q-9 removed Redis. An alert whose metric no longer
       # exists never fires and never resolves — it just sits in the rules file looking
       # like coverage. If Redis ever comes back, so does this, next to its exporter.
+
+  # N12 — twelve infrastructure alerts and zero business ones. Everything above fires when
+  # a PROCESS is unwell; nothing fired when the processes were all healthy and the business
+  # had stopped. The two are not the same outage, and the second is the one customers feel.
+  #
+  # Built on the metrics that already exist (the http histogram carries method+route), so
+  # this needs no new instrumentation in any service. That also bounds what can be asserted:
+  # these say "orders stopped being created", not "orders are wrong".
+  - name: hydromart-business
+    rules:
+      - alert: NoOrdersCreated
+        # Checkout is the one route whose silence is never normal during opening hours. The
+        # window is deliberately long: a depot town at 03:00 has no orders and that is not
+        # an incident, so this is scoped by an hour-of-day guard rather than a shorter window.
+        expr: |
+          sum(increase(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[2h])) == 0
+            and on() (hour() >= 2 < 13)
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: 'No order has been created in 2 hours'
+          description: >-
+            Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
+            = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
+            check the customer app can reach the gateway, and that a depot is open.
+
+      - alert: CheckoutFailing
+        # Not the 5% all-traffic rate above: a checkout that fails 5% of the time is an
+        # outage even while the service's overall error rate looks fine, because everything
+        # else it serves is reads.
+        expr: |
+          sum(rate(http_request_duration_seconds_count{route=~".*/orders", method="POST", status=~"5.."}[10m]))
+            / sum(rate(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[10m]))
+            > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Checkout is failing for {{ $value | humanizePercentage }} of attempts'
+          description: 'POST /orders has been answering 5xx for more than 5% of attempts over 10m.'
+
+      - alert: PaymentConfirmFailing
+        # The money leg. A sale that records and never settles is the defect that shows up
+        # as a cash variance days later, in a shift nobody can reconstruct.
+        expr: |
+          sum(rate(http_request_duration_seconds_count{route=~".*/payments/.*/confirm", status=~"5.."}[10m])) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Payment confirmation is erroring'
+          description: 'POST /payments/:id/confirm has been returning 5xx for 5m. Sales may be recorded with the money leg unsettled.'
+
+      - alert: SchedulerSweepsSilent
+        # The scheduler has its own healthcheck, but a container that is UP and sweeping
+        # nothing looks identical from outside. Its sweeps go through the gateway, so their
+        # absence is visible here.
+        expr: |
+          sum(increase(http_request_duration_seconds_count{route=~".*/internal/.*"}[1h])) == 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: 'No internal sweep has run in an hour'
+          description: >-
+            The scheduler fires internal sweeps every few minutes; an hour of silence means
+            it is up but doing nothing, which is how a dead flow used to look green.
