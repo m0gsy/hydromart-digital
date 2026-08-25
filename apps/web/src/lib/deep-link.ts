@@ -72,6 +72,24 @@ export const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
 const PRUNED = (process.env.NEXT_PUBLIC_MOBILE_PRUNED ?? '').split(',').filter(Boolean);
 
 /**
+ * J2. The top-level segments this binary actually carries, written by
+ * `scripts/build-mobile.mjs` from the app tree AFTER the prune ran. Empty on the web build,
+ * which serves everything.
+ *
+ * `PRUNED` answers "did this build drop that screen?" and nothing else. The version-skew
+ * failure is the opposite one: a route the WEB has that this APK never had, because the APK
+ * was built before it existed. Nobody pruned it — there was nothing to prune — so the
+ * resolver waved it through, the router pushed at it, and an exported build has no file to
+ * serve. A blank screen with no navigation left on it, from a link nobody here controls: a
+ * notification sent after the release, a WhatsApp message, a saved bookmark.
+ *
+ * Segments, not full routes, because that is the shape the skew takes — a whole new area of
+ * the app appearing. A new sub-page under an area this build already serves is rarer and is
+ * deliberately not claimed here; over-claiming would send a working link home.
+ */
+const SEGMENTS = (process.env.NEXT_PUBLIC_MOBILE_SEGMENTS ?? '').split(',').filter(Boolean);
+
+/**
  * Does THIS binary serve `path`? Exported because in-app navigation needs the same answer a
  * deep link does: the Ops binary drops the whole `/hq` subtree, and every console screen used
  * to send an expired session to `/hq/login` — a route that is not in that bundle. Sign-out and
@@ -82,12 +100,21 @@ export function isServedHere(path: string): boolean {
   return servedHere(path, PRUNED);
 }
 
-function servedHere(path: string, pruned: string[]): boolean {
-  return !pruned.some((entry) =>
-    entry.endsWith('/*')
-      ? path === entry.slice(0, -2) || path.startsWith(entry.slice(0, -1))
-      : path === entry,
-  );
+function servedHere(path: string, pruned: string[], segments: string[] = SEGMENTS): boolean {
+  if (
+    pruned.some((entry) =>
+      entry.endsWith('/*')
+        ? path === entry.slice(0, -2) || path.startsWith(entry.slice(0, -1))
+        : path === entry,
+    )
+  ) {
+    return false;
+  }
+  // J2. An empty list means "this build knows everything" — the web build, and every
+  // caller written before the segments were emitted. Home is always served.
+  if (segments.length === 0) return true;
+  const first = path.split('/')[1];
+  return !first || segments.includes(first);
 }
 
 /**
@@ -103,14 +130,18 @@ function servedHere(path: string, pruned: string[]): boolean {
  * Every source of these is outside our control: a phone with both apps installed, a
  * notification sent before a release, a link pasted into WhatsApp.
  */
-export function resolveDeepLink(raw: string, pruned: string[] = PRUNED): string | null {
+export function resolveDeepLink(
+  raw: string,
+  pruned: string[] = PRUNED,
+  segments: string[] = SEGMENTS,
+): string | null {
   const target = pathAndQuery(raw);
   if (target === null) return null;
 
   const [path, query] = splitQuery(target);
   // Checked before the rewrite rather than after, and identical either way: turning a
   // segment into `?id=` never moves a route out of the folder it was pruned with.
-  if (!servedHere(path, pruned)) return '/';
+  if (!servedHere(path, pruned, segments)) return '/';
   const unchanged = query ? `${path}?${query}` : path;
   const parent = DYNAMIC_PARENTS.find((p) => path.startsWith(`${p}/`));
   if (!parent) return unchanged;

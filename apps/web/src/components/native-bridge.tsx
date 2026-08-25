@@ -64,6 +64,11 @@ export function NativeBridge() {
   // Read by the back handler, which is registered once and must never see a stale copy of
   // this. A ref rather than the state value for exactly that reason.
   const blockedRef = useRef(false);
+  // J4. Whether `minimumVersionBlock()` has answered yet, and the one link waiting on that
+  // answer. Refs because both are read by listeners registered once, outside React's
+  // render cycle — a state value would be a stale copy there.
+  const decidedRef = useRef(false);
+  const heldRef = useRef<string | null>(null);
   const router = useRouter();
 
   // The native safe-area values do not survive a navigation in an exported build — see
@@ -99,17 +104,43 @@ export function NativeBridge() {
       return offBack;
     }
 
+    /*
+     * J4. A link that arrives before the version verdict is HELD, not thrown away.
+     *
+     * `minimumVersionBlock()` is a network round trip, and every listener below is wired
+     * while it is still in flight. So a blocked app used to do all of this anyway: push at
+     * the deep link, land on it UNDERNEATH the blocking overlay, and — worse — set
+     * `launchHandled`, which burns the launch URL for the whole process. The person updates,
+     * comes back, and the link that started the whole thing is simply gone.
+     *
+     * Undecided and blocked are both "not now": the URL goes in `held` and is only spent
+     * once the verdict says this build may serve it.
+     */
+    const open = (raw: string | undefined) => {
+      if (!raw) return;
+      if (blockedRef.current || !decidedRef.current) {
+        heldRef.current = raw;
+        return;
+      }
+      const path = resolveDeepLink(raw);
+      if (!path) return;
+      // Set HERE and not at the ask, so a blocked run leaves the launch URL unspent and the
+      // next mount can still act on it.
+      launchHandled = true;
+      router.push(path);
+    };
+
     void minimumVersionBlock().then((found) => {
+      decidedRef.current = true;
       if (found) {
         blockedRef.current = true;
         setBlock(found);
+        return;
       }
+      const held = heldRef.current;
+      heldRef.current = null;
+      if (held) open(held);
     });
-
-    const open = (raw: string | undefined) => {
-      const path = raw ? resolveDeepLink(raw) : null;
-      if (path) router.push(path);
-    };
 
     // F3b, the two ways a route arrives from outside the app. An App Link is Android
     // handing over a verified `https://` URL it decided belongs to this app; the other is
@@ -131,7 +162,6 @@ export function NativeBridge() {
     // the flag, a remount would drag the user back to a page they had navigated away
     // from.
     if (!launchHandled) {
-      launchHandled = true;
       void askPlugin<{ url?: string }>('App', 'getLaunchUrl').then((launch) => open(launch?.url));
     }
 

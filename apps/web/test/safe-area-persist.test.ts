@@ -66,18 +66,52 @@ describe('persistSafeAreaInsets', () => {
     expect(sessionStorage.getItem(KEY)).toBeNull();
   });
 
-  it('re-checks once, because the plugin writes its values a tick after the document exists', () => {
+  /*
+   * J5. This used to be two shots inside a 400 ms window, which is a guess about the
+   * ordering — and the wrong kind. A cold start, a slow device or a WebView still warming
+   * up writes its insets later than that, nothing looks again, and the app bar sits under
+   * the status bar for the whole session. `style.setProperty` on `documentElement` is
+   * exactly what the plugin does, so that is what is watched.
+   */
+  it('records insets the plugin writes LONG after the 400ms window', async () => {
     persistSafeAreaInsets();
-    sessionStorage.setItem(KEY, JSON.stringify({ top: '44px' }));
-    vi.advanceTimersByTime(400);
-    expect(document.documentElement.style.getPropertyValue('--safe-area-inset-top')).toBe('44px');
+
+    // Two seconds later — five times the old window.
+    setInset('top', '44px');
+    await Promise.resolve();
+
+    expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({ top: '44px' });
   });
 
-  it('the disposer cancels that re-check — an uncancellable timer crashed the whole suite', () => {
+  it('stops watching once there is an answer', async () => {
+    setInset('top', '44px');
+    persistSafeAreaInsets();
+
+    // A later write is somebody else's business; this module has what it came for.
+    sessionStorage.setItem(KEY, JSON.stringify({ marker: 'untouched' }));
+    setInset('top', '48px');
+    await Promise.resolve();
+
+    expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({ marker: 'untouched' });
+  });
+
+  it('the disposer stops it — an uncancellable timer crashed the whole suite', async () => {
     const dispose = persistSafeAreaInsets();
     dispose();
-    sessionStorage.setItem(KEY, JSON.stringify({ top: '44px' }));
-    vi.advanceTimersByTime(400);
-    expect(document.documentElement.style.getPropertyValue('--safe-area-inset-top')).toBe('');
+
+    setInset('top', '44px');
+    await Promise.resolve();
+
+    expect(sessionStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('gives up after its deadline rather than watching a document forever', () => {
+    persistSafeAreaInsets();
+    vi.advanceTimersByTime(10_000);
+
+    // Nothing is asserted about the DOM here; what matters is that the watcher is gone,
+    // which the next write proves by not being recorded.
+    setInset('top', '44px');
+    expect(sessionStorage.getItem(KEY)).toBeNull();
   });
 });
