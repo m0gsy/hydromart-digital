@@ -101,12 +101,12 @@ export function CashierShiftBar({
     }
   }
 
-  if (shift.loading) return <Skeleton className="h-24" />;
+  if (shift.loading) return <Skeleton className="h-24" testId="cashier-shift-bar" />;
 
   const current = shift.data;
 
   return (
-    <Card className="space-y-3 p-4">
+    <Card className="space-y-3 p-4" testId="cashier-shift-bar">
       {settled && !current && (
         <div className="rounded-xl border border-app p-3 text-sm">
           <p className="font-semibold">{t('hrFix.cashierShift.closed')}</p>

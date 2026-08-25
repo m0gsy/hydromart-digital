@@ -97,6 +97,43 @@ afterEach(() => vi.clearAllMocks());
 
 const payButton = () => screen.getByRole('button', { name: /simpan|bayar|cetak|memeriksa shift|checking the shift/i });
 
+/*
+ * The other half of K3.3, and the half the e2e caught: once the read ANSWERS with an open
+ * shift, the button has to come back. Everything above asserts the waiting state, so a
+ * gate that never opens passed all of it.
+ */
+describe('K3.3 · the pay button once the shift has answered', () => {
+  const OPEN_SHIFT = {
+    id: 'shift-1',
+    depotId: 'depot-1',
+    cashierName: 'Kasir Satu',
+    openingFloat: 200000,
+    openedAt: '2026-08-25T01:00:00.000Z',
+    status: 'OPEN',
+  };
+
+  it('enables itself when a shift is already open at this till', async () => {
+    get.mockImplementation(async (path: string) => {
+      const p = String(path);
+      if (p.includes('shift')) return OPEN_SHIFT;
+      if (p.includes('/inventory')) {
+        return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
+      }
+      if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
+      if (p.includes('/products/batch')) return [PRODUCT];
+      if (p.includes('/products')) return { items: [PRODUCT], total: 1, page: 1, limit: 100 };
+      return [];
+    });
+    render(<WalkInPage />, { wrapper });
+    const plus = await screen.findAllByRole('button', { name: /increase quantity/i });
+    await userEvent.click(plus[0]!);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /simpan & cetak struk/i })).toBeEnabled(),
+    );
+  });
+});
+
 describe('K3.3 · the pay button and a shift nobody has answered for yet', () => {
   /** Puts one line in the basket, so the button is not disabled for an unrelated reason. */
   async function ringUpOne() {

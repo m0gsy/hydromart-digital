@@ -974,6 +974,9 @@ function WalkIn({ depotId }: { depotId: string }) {
             read had not landed. Waiting and saying so is the same protection with an
             explanation attached.
           */
+          // A name-based locator cannot find a button whose label changes with the state
+          // being diagnosed — which is exactly what K3.3 made this label do.
+          data-testid="counter-pay"
           disabled={busy || lines.length === 0 || shiftOpen !== true || total === null}
         >
           <Printer size={18} className="mr-1" />

@@ -166,7 +166,29 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
       r.request().method() === 'POST',
     { timeout: 20_000 },
   );
-  await page.getByRole('button', { name: /Simpan & cetak struk/i }).click();
+  /*
+   * K3.3 made this button wait for the shift bar to answer, and the first thing that
+   * change did was fail here — with a locator that never resolved and nothing saying what
+   * the button actually said. A name-based locator that misses reports "test ended", which
+   * is indistinguishable from a hundred other causes.
+   *
+   * So: wait for the pay button by its stable test id, and if it is still disabled when the
+   * time runs out, say what it says and what the shift bar says next to it. Whoever reads
+   * the next failure should not have to guess between "no shift", "shift for another
+   * cashier", and "the read never answered".
+   */
+  const payButton = page.getByTestId('counter-pay');
+  try {
+    await expect(payButton).toBeEnabled({ timeout: 20_000 });
+  } catch {
+    const label = (await payButton.textContent().catch(() => null))?.trim();
+    const bar = (await page.getByTestId('cashier-shift-bar').textContent().catch(() => null))?.trim();
+    throw new Error(
+      `the pay button never enabled. Button says: ${JSON.stringify(label)}. ` +
+        `Shift bar says: ${JSON.stringify(bar)}.`,
+    );
+  }
+  await payButton.click();
 
   // Anything other than 2xx here is a defect, not an environment gap: the depot, its stock
   // and the price were all read from this same running stack moments ago.
