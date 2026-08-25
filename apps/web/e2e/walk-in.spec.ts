@@ -27,6 +27,20 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     depotCalls.push(`${res.request().method()} ${res.status()} n=${count} ${res.url()}`);
   });
 
+  /*
+   * Every cashier-shift call this run makes, in order. The first diagnostic pass proved the
+   * bar says "Belum ada shift terbuka" at pay time even though a shift was opened and
+   * confirmed on screen moments earlier — so the question is now WHICH depot each call
+   * named and what the server answered, and that cannot be guessed from the DOM.
+   */
+  const shiftCalls: string[] = [];
+  page.on('response', (r) => {
+    const url = r.url();
+    if (!url.includes('/cashier-shifts')) return;
+    const body = r.request().postData();
+    shiftCalls.push(`${r.request().method()} ${url} -> ${r.status()}${body ? ` body=${body}` : ''}`);
+  });
+
   await page.goto('/dashboard/walk-in');
 
   // The screen needs a depot: the operator's own, or the switcher's for roles that are not
@@ -185,7 +199,11 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     const bar = (await page.getByTestId('cashier-shift-bar').textContent().catch(() => null))?.trim();
     throw new Error(
       `the pay button never enabled. Button says: ${JSON.stringify(label)}. ` +
-        `Shift bar says: ${JSON.stringify(bar)}.`,
+        `Shift bar says: ${JSON.stringify(bar)}.
+` +
+        `Shift calls this run:
+  ${shiftCalls.join('
+  ') || '(none)'}`,
     );
   }
   await payButton.click();
