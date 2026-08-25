@@ -226,6 +226,59 @@ for (const key of ['cache-from', 'cache-to']) {
   }
 }
 
+/*
+ * M4 — every workspace with tests is in exactly one shard.
+ *
+ * The coverage gate used to be `npm run test:cov` at the root, which walks `--workspaces`
+ * and therefore could not miss one. Sharding it across a matrix trades that for a hand-kept
+ * list, and a workspace nobody adds to a shard is a workspace whose tests never run again —
+ * reported as a green tick, which is the exact failure this file exists to prevent.
+ *
+ * Read from the filesystem, not restated: a workspace is in scope iff its package.json has
+ * a `test:cov` script, which is what the root script keyed off too. Listing one twice is
+ * also an error — a duplicate is runner minutes spent proving the same thing while the list
+ * looks longer than it is.
+ */
+const ciDoc = yaml.load(readFileSync(join(DIR, 'ci.yml'), 'utf8'));
+const shards = ciDoc?.jobs?.test?.strategy?.matrix?.include ?? [];
+if (shards.length === 0) {
+  problems.push(`${join(DIR, 'ci.yml')}: job \`test\` declares no shards — nothing runs the coverage gate`);
+} else {
+  const ROOT = join(DIR, '..', '..');
+  const expected = new Set();
+  for (const group of ['services', 'apps', 'packages']) {
+    for (const dir of readdirSync(join(ROOT, group))) {
+      const manifest = join(ROOT, group, dir, 'package.json');
+      let pkg;
+      try {
+        pkg = JSON.parse(readFileSync(manifest, 'utf8'));
+      } catch {
+        continue; // not a workspace directory
+      }
+      if (pkg?.scripts?.['test:cov']) expected.add(pkg.name);
+    }
+  }
+  const listed = [];
+  for (const shard of shards) listed.push(...String(shard.workspaces ?? '').split(/\s+/).filter(Boolean));
+  const seen = new Set();
+  for (const name of listed) {
+    if (seen.has(name)) {
+      problems.push(`${join(DIR, 'ci.yml')}: \`${name}\` is in more than one \`test\` shard`);
+    }
+    seen.add(name);
+    if (!expected.has(name)) {
+      problems.push(`${join(DIR, 'ci.yml')}: \`${name}\` is sharded but has no \`test:cov\` script`);
+    }
+  }
+  for (const name of expected) {
+    if (!seen.has(name)) {
+      problems.push(
+        `${join(DIR, 'ci.yml')}: \`${name}\` has a \`test:cov\` script but is in no \`test\` shard — its tests never run`,
+      );
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('Workflow files that would fail silently:');
   for (const p of problems) console.error(`  - ${p}`);

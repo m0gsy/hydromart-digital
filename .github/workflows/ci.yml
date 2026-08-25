@@ -75,39 +75,9 @@ jobs:
           echo "docker=$affected" >> "$GITHUB_OUTPUT"
           echo "base=$BASE affected=$affected"
 
-  verify:
+  gate:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # These are only for the unit/e2e gate. The e2e specs call
-    # ConfigModule.forRoot({ validationSchema }), which validates process.env
-    # (their `load` block feeds the app, but Joi still checks env). Dummy-but-
-    # valid values only — NOT real secrets. Deliberately NOT at workflow scope:
-    # the integration job's flow.mjs signs test JWTs from these and must instead
-    # use its own defaults that match docker-compose.test.yml, or auth breaks.
-    env:
-      JWT_ACCESS_SECRET: ci-jwt-access-secret-that-is-long-enough-0123456789
-      JWT_REFRESH_SECRET: ci-jwt-refresh-secret-that-is-long-enough-0123456789
-      OTP_PEPPER: ci-otp-pepper-value
-      PAYMENT_WEBHOOK_SECRET: ci-payment-webhook-secret-16plus
-      WHATSAPP_API_BASE_URL: https://wa.example.com
-      WHATSAPP_API_TOKEN: ci-whatsapp-token
-      SMS_API_BASE_URL: https://sms.example.com
-      SMS_API_TOKEN: ci-sms-token
-      AUTH_SERVICE_URL: https://auth.example.com
-      CUSTOMER_SERVICE_URL: https://customer.example.com
-      PRODUCT_SERVICE_URL: https://product.example.com
-      ORDER_SERVICE_URL: https://order.example.com
-      PAYMENT_SERVICE_URL: https://payment.example.com
-      DELIVERY_SERVICE_URL: https://delivery.example.com
-      DEPOT_SERVICE_URL: https://depot.example.com
-      LOYALTY_SERVICE_URL: https://loyalty.example.com
-      PROMO_SERVICE_URL: https://promo.example.com
-      REFERRAL_SERVICE_URL: https://referral.example.com
-      CRM_SERVICE_URL: https://crm.example.com
-      RECOMMENDATION_SERVICE_URL: https://recommendation.example.com
-      FORECAST_SERVICE_URL: https://forecast.example.com
-      DASHBOARD_SERVICE_URL: https://dashboard.example.com
-      HR_SERVICE_URL: https://hr.example.com
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
@@ -136,18 +106,18 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
-          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
-          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
-          # even when no schema moved. A prefix restore is safe here precisely because the
-          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
-          # directory with its schema hash AND the installed CLI version, so a client
-          # restored from an older lockfile regenerates if either changed and is skipped only
-          # if both still match.
           restore-keys: |
             prisma-${{ runner.os }}-
 
       - name: Install
         run: npm ci
+
+      # One source for the unit-gate environment, shared by `gate`, `test` and `visual`.
+      # It used to be an inline `env:` block on the single `verify` job; three inline copies
+      # that must stay identical is how drift starts. See scripts/ci-test-env.sh for why it
+      # is NOT at workflow scope (it would break the integration job's JWTs).
+      - name: Unit-gate env
+        run: bash scripts/ci-test-env.sh >> "$GITHUB_ENV"
 
       # Fails on any high/critical vuln in production deps that isn't in the
       # reviewed allowlist (scripts/audit-gate.mjs). Reads the installed lockfile
@@ -390,18 +360,136 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Runs jest with --coverage so the per-service coverageThreshold gates fail CI on
-      # a coverage regression (QG-1). Thresholds are a ratchet floor at current levels
-      # on the money-critical services; raise them toward 90% as tests are added.
-      - name: Test (with coverage gate)
-        run: npm run test:cov
-
       - name: Build
         run: npm run build
 
+  # M4 — the coverage gate, one shard per group instead of 21 workspaces in a row.
+  #
+  # Measured on run 32835498469: `Test (with coverage gate)` was 506s of a 1312s `verify`,
+  # the single largest step in the job, and every workspace waited for the one before it.
+  # Per-workspace, from the same log: web 136s, then depot 33, hr 29, order 27, delivery 25,
+  # auth 23, customer 22, admin 21, crm 18, payment 18, payout 18, product 17, promo 17,
+  # forecast 16, loyalty 15, referral 15, recommendation 12, dashboard 11, gateway 8,
+  # access 3, platform ~15.
+  #
+  # web is a shard of its own because it is 27% of the total on its own and it is the only
+  # vitest workspace; the rest are balanced to ~115-140s each so no shard is the long pole.
+  # Each shard runs the workspace's OWN `test:cov`, so its own coverageThreshold still gates
+  # it — nothing was loosened to make this faster.
+  #
+  # The shard lists are checked against the workspaces that actually have a `test:cov`
+  # script (check-workflows.mjs). A new service that nobody adds to a shard would otherwise
+  # be a workspace whose tests never run again, behind a green tick.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: web
+            workspaces: '@hydromart/web'
+          - shard: services-a
+            workspaces: >-
+              @hydromart/depot-service @hydromart/hr-service @hydromart/order-service
+              @hydromart/delivery-service @hydromart/auth-service
+          - shard: services-b
+            workspaces: >-
+              @hydromart/customer-service @hydromart/admin-service @hydromart/crm-service
+              @hydromart/payment-service @hydromart/payout-service @hydromart/product-service
+          - shard: services-c
+            workspaces: >-
+              @hydromart/promo-service @hydromart/forecast-service @hydromart/loyalty-service
+              @hydromart/referral-service @hydromart/recommendation-service
+              @hydromart/dashboard-service @hydromart/gateway-service
+          - shard: packages
+            workspaces: '@hydromart/platform @hydromart/access'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Pin npm to the version in package.json
+        run: |
+          want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+          [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
+          npm --version
+
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+          restore-keys: |
+            prisma-${{ runner.os }}-
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit-gate env
+        run: bash scripts/ci-test-env.sh >> "$GITHUB_ENV"
+
+      # Sequential inside the shard, and the loop is the point: `npm run test:cov
+      # --workspace a --workspace b` stops at the first failure, so a second broken
+      # workspace in the same shard is invisible until the first is fixed. This runs all of
+      # them and fails at the end with the full list.
+      - name: Test (with coverage gate) — ${{ matrix.shard }}
+        run: |
+          failed=""
+          for ws in ${{ matrix.workspaces }}; do
+            echo "::group::$ws"
+            npm run test:cov --workspace "$ws" || failed="$failed $ws"
+            echo "::endgroup::"
+          done
+          [ -z "$failed" ] || { echo "coverage gate failed:$failed" >&2; exit 1; }
+
+  # M5 — the browser half, off the critical path.
+  #
+  # Two mobile exports, a Playwright install and two Playwright sweeps sat at the end of
+  # `verify`, so `integration` and `e2e` waited for them. Measured on run 32835498469:
+  # `Nothing overflows at 320px` 190s, ops export 70s, customer export 45s, exported-paths
+  # 33s — 338s of a 1312s job, none of which any later job needs.
+  #
+  # It does NOT need `npm run build`: `build:mobile` runs its own export, which is what
+  # every step here reads.
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Pin npm to the version in package.json
+        run: |
+          want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+          [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
+          npm --version
+
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+          restore-keys: |
+            prisma-${{ runner.os }}-
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit-gate env
+        run: bash scripts/ci-test-env.sh >> "$GITHUB_ENV"
+
       # The Android binaries ship these pages as FILES inside the APK — there is no server
-      # to ask for `/orders/[id]`. Two whole classes of breakage are invisible to the build
-      # above and cost a white screen on a courier's phone:
+      # to ask for `/orders/[id]`. Two whole classes of breakage are invisible to
+      # `npm run build` (which runs in `gate`, not here — these exports are their own build)
+      # and cost a white screen on a courier's phone:
       #   - a page that reaches for useSearchParams() without a <Suspense> boundary fails
       #     `output: 'export'` outright, and
       #   - a missing trailingSlash writes `products.html` where the device looks for
@@ -487,6 +575,35 @@ jobs:
           node scripts/export-width-sweep.mjs customer
           node scripts/export-width-sweep.mjs ops
 
+  # The name branch protection knows, kept deliberately.
+  #
+  # `verify` was one 22-minute job; it is now three that run at once. Renaming the required
+  # check would have meant editing branch protection in the same change that restructures
+  # the jobs — and a required check that no longer exists is not enforced, it is absent,
+  # which GitHub reports as nothing at all. So `verify` stays, as the thing that fails when
+  # any of the three does.
+  #
+  # `if: always()` is what makes it able to go red: without it a failed `gate` skips this
+  # job, and GitHub reports a skipped job as successful.
+  verify:
+    needs: [gate, test, visual]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every half of the unit gate passed
+        run: |
+          gate='${{ needs.gate.result }}'
+          test='${{ needs.test.result }}'
+          visual='${{ needs.visual.result }}'
+          echo "gate=$gate test=$test visual=$visual"
+          bad=""
+          [ "$gate" = success ] || bad="$bad gate"
+          # A matrix job's result is success only when every leg succeeded.
+          [ "$test" = success ] || bad="$bad test"
+          [ "$visual" = success ] || bad="$bad visual"
+          [ -z "$bad" ] || { echo "unit gate failed:$bad" >&2; exit 1; }
+
   # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
   # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
   # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
@@ -538,13 +655,6 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
-          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
-          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
-          # even when no schema moved. A prefix restore is safe here precisely because the
-          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
-          # directory with its schema hash AND the installed CLI version, so a client
-          # restored from an older lockfile regenerates if either changed and is skipped only
-          # if both still match.
           restore-keys: |
             prisma-${{ runner.os }}-
 
@@ -553,7 +663,6 @@ jobs:
 
       # Pre-start infra and wait until Postgres accepts connections (initdb creates all 13
       # databases) so the runner's db:migrate doesn't race a cold Postgres in CI.
-      #
       # M6b proposed deleting this as a duplicate — run.mjs opens with the same
       # `up -d postgres`. MEASURED and rejected: this step takes EIGHT SECONDS (run
       # 32835498469, 10:56:17 -> 10:56:25) against 16m30s for the step below it, the second
@@ -624,13 +733,6 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
-          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
-          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
-          # even when no schema moved. A prefix restore is safe here precisely because the
-          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
-          # directory with its schema hash AND the installed CLI version, so a client
-          # restored from an older lockfile regenerates if either changed and is skipped only
-          # if both still match.
           restore-keys: |
             prisma-${{ runner.os }}-
 
