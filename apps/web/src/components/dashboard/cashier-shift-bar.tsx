@@ -134,7 +134,7 @@ export function CashierShiftBar({
         // shift is not an absent shift, and the till is the thing being counted.
         <LoadError onRetry={shift.reload} />
       ) : !current ? (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="cashier-shift-none">
           <div>
             <p className="font-semibold">{t('hrFix.cashierShift.noneOpen')}</p>
             <p className="text-sm text-muted">
@@ -156,7 +156,7 @@ export function CashierShiftBar({
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="cashier-shift-open">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-semibold">Shift terbuka — {current.cashierName}</p>
