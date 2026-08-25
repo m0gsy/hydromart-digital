@@ -354,6 +354,14 @@ jobs:
       - name: Env contract (read ⊆ validated)
         run: node scripts/check-env-contract.mjs
 
+      # D2, and the same defect as B4 before it: an event a service SENDS must be an event
+      # crm can RECEIVE. `@IsEnum` answers 400, the sending adapter downgrades that to a
+      # warning, and the caller catches — so an undeliverable notification is silent all the
+      # way down. It shipped twice; the enum's own comment about the first time did not stop
+      # the second.
+      - name: Notification events (sent ⊆ deliverable)
+        run: node scripts/check-notification-events.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

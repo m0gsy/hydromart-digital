@@ -338,7 +338,10 @@ export class SubscriptionService {
         sub.phone,
         { name: sub.recipientName, product: sub.productName, reason },
         sub.customerId,
-        '',
+        // D2: a paused subscription is a thing to act on, so the row has to open the screen
+        // that can resume it. Empty meant the notification arrived as text with nothing to
+        // tap — the O1b shape, on the one message whose whole purpose is to be acted on.
+        '/subscriptions',
       )
       .catch(() => false);
   }
