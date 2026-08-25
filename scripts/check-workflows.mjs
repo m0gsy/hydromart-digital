@@ -168,6 +168,40 @@ if (!compose.includes(`${DSN}:`)) {
 if (!imagesText.includes(`${DSN}=`)) {
   problems.push(`${join(DIR, 'images.yml')}: does not pass ${DSN} to the published web image`);
 }
+/*
+ * The other half of N2, and the reason its first half was green for so long.
+ *
+ * The checks above assert that the release workflows MENTION the build arg. They do, and the
+ * artefacts were still blind: `SENTRY_DSN_WEB` and `SENTRY_DSN_MOBILE` were never created as
+ * repository variables, so `${{ vars.* }}` resolved to an empty string and every published
+ * image and APK inlined nothing. A mention is not a value, and a check that reads the file
+ * cannot see a value that only exists at run time.
+ *
+ * What it CAN pin is that the workflow refuses to publish without one. So each release path
+ * has to carry a step that fails on an empty DSN, and this asserts the step is there — read
+ * from the parsed `env` and `run` of a real step, not from the raw text, because the comment
+ * explaining the guard also contains its name.
+ */
+for (const [file, variable] of [
+  ['images.yml', 'SENTRY_DSN_WEB'],
+  ['mobile.yml', 'SENTRY_DSN_MOBILE'],
+]) {
+  const doc = yaml.load(readFileSync(join(DIR, file), 'utf8'));
+  const guards = Object.values(doc?.jobs ?? {}).flatMap((job) =>
+    (job?.steps ?? []).filter((step) => {
+      const env = Object.values(step?.env ?? {}).join(' ');
+      const body = String(step?.run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
+      return env.includes(variable) && /test\s+-n\s+"\$DSN"/.test(body);
+    }),
+  );
+  if (guards.length === 0) {
+    problems.push(
+      `${join(DIR, file)}: nothing refuses to publish when ${variable} is empty — ` +
+        `NEXT_PUBLIC_SENTRY_DSN is inlined at build time, so the artefact would ship blind`,
+    );
+  }
+}
+
 const exportSteps = (mobileText.match(/npm run build:mobile/g) ?? []).length;
 const mobileDsn = (mobileText.match(new RegExp(`${DSN}:`, 'g')) ?? []).length;
 if (exportSteps > 0 && mobileDsn === 0) {

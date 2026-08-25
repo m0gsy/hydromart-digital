@@ -82,6 +82,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # N2/N3: an artefact that cannot report its own errors must not be published.
+      #
+      # `NEXT_PUBLIC_*` is INLINED at build time, and `SentryInit` does not even download the
+      # SDK when the DSN is blank — so a published binary with an empty DSN is permanently
+      # blind, and nothing about it looks wrong. That is not a hypothetical: MEASURED
+      # 2026-08-25, `gh variable list` returns exactly three variables (MOBILE_API_URL,
+      # MOBILE_WEB_HOST, PUBLIC_API_URL). SENTRY_DSN_WEB is NOT among them, so every image and every
+      # APK this repo has ever published inlined an empty string here.
+      #
+      # check-workflows.mjs asserts this workflow MENTIONS the build arg, and it does — which
+      # is why the N2 gate has been green the whole time. A mention is not a value. This step
+      # is the half that can actually go red.
+      #
+      # Guarded in the release path only. A local or bare-IP build legitimately has no DSN;
+      # what must never happen is PUBLISHING one.
+      - name: Client error reporting is configured
+        env:
+          DSN: ${{ vars.SENTRY_DSN_WEB }}
+        run: |
+          test -n "$DSN" || {
+            echo "SENTRY_DSN_WEB is unset, so NEXT_PUBLIC_SENTRY_DSN would be baked in EMPTY and this" >&2
+            echo "artefact would ship with no error reporting at all (audit N2)." >&2
+            echo "" >&2
+            echo "Create it under Settings -> Secrets and variables -> Actions -> Variables:" >&2
+            echo "  SENTRY_DSN_WEB = https://<key>@<org>.ingest.sentry.io/<project-id>" >&2
+            exit 1
+          }
+          echo "SENTRY_DSN_WEB is set."
+
       - name: Resolve tags
         id: meta
         run: |
