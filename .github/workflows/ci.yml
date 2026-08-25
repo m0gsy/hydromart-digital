@@ -648,10 +648,17 @@ jobs:
           COMPOSE_BAKE=true docker compose \
             -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml \
             up -d --build --wait --wait-timeout 300
-          for i in $(seq 1 45); do
-            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
-            sleep 2
-          done
+          # M7: the 45x2s poll that used to follow this is gone. `--wait` already blocks
+          # until every healthchecked service is healthy, so the loop measured a condition
+          # that was true before its first iteration — and it could not fail either: its
+          # last command is `sleep`, so a gateway that never answered still exited 0 and the
+          # seed step got the 504 instead. One decisive curl replaces it: it costs one
+          # request when everything is fine, and says WHICH thing was not up when it isn't.
+          curl -fsS http://localhost:8080/health >/dev/null || {
+            echo "the stack reported healthy but the gateway does not answer /health:"
+            docker compose -f docker-compose.yml -f docker-compose.test.yml ps
+            exit 1
+          }
 
       - name: Seed catalog + staff
         run: node scripts/seed.mjs
