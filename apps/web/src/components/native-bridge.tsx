@@ -334,6 +334,7 @@ function BlockingScreen({ block }: { block: Block }) {
         }}
         style={{ color: '#0c97ac', fontSize: '14px', fontWeight: 600 }}
       >
+        {/* i18n-ok: same reason as the heading — no LocaleProvider above this screen. */}
         Buka lewat browser
       </a>
       {block.onRetry && (
@@ -350,6 +351,7 @@ function BlockingScreen({ block }: { block: Block }) {
             fontWeight: 600,
           }}
         >
+          {/* i18n-ok: same reason as the heading — no LocaleProvider above this screen. */}
           Coba lagi
         </button>
       )}
