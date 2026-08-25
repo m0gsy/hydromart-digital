@@ -22,6 +22,29 @@ export default function GlobalError({
   // the only channel there is).
   useEffect(() => {
     console.error('[global-error]', error);
+    /*
+     * N3: Play Vitals is blind to this class of failure. It reports native process crashes
+     * and ANRs; a TypeError in a React tree is neither — it renders THIS screen, on a build
+     * with no WebView debugging and no console in logcat. So the one place that holds the
+     * error has to be the place that reports it.
+     *
+     * Reported here rather than relying on `SentryInit`: this boundary catches a failure in
+     * the ROOT layout, which is where that component lives — it may never have run, so the
+     * client is initialised on the spot if nobody did it first. DSN-gated exactly like the
+     * normal path: no DSN, no SDK download, nothing sent.
+     */
+    const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+    if (!dsn) return;
+    void import('@sentry/nextjs')
+      .then((Sentry) => {
+        if (!Sentry.getClient()) {
+          Sentry.init({ dsn, environment: process.env.NEXT_PUBLIC_SENTRY_ENV, tracesSampleRate: 0 });
+        }
+        Sentry.captureException(error, { tags: { boundary: 'global-error' } });
+      })
+      .catch(() => {
+        // A reporter that cannot load must not replace the screen the user is looking at.
+      });
   }, [error]);
 
   // `digest` is a production build's stable fingerprint for the error; `message` is minified

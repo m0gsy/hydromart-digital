@@ -96,11 +96,41 @@ export class GatewayConfigService {
    * an env edit and a container restart — no rebuild, no Play review, no waiting for
    * users to update. Which is the entire point of having it.
    */
-  get mobile(): { minVersionCode: number; updateMessage: string } {
+  mobileFor(packageId?: string): { minVersionCode: number; updateMessage: string } {
+    const fallback = Number(this.config.get<string>('MOBILE_MIN_VERSION_CODE', '0'));
     return {
-      minVersionCode: Number(this.config.get<string>('MOBILE_MIN_VERSION_CODE', '0')),
+      minVersionCode: this.floorFor(packageId) ?? fallback,
       updateMessage: this.config.get<string>('MOBILE_UPDATE_MESSAGE', '').trim(),
     };
+  }
+
+  /**
+   * N5: the floor for ONE package.
+   *
+   * There are two binaries — the customer app and the depot/courier app — built from the
+   * same run, so they carry the SAME versionCode series. The switch was one global integer
+   * and the endpoint threw the request away, so raising the floor to stop a broken customer
+   * release also killed every courier mid-delivery and every cashier mid-shift. A kill
+   * switch that cannot be aimed is one nobody dares to pull.
+   *
+   * Shape: `MOBILE_MIN_VERSION_CODE_BY_ID="id.hydromart.app=1200,id.hydromart.ops=0"`.
+   * Anything unparseable is ignored rather than fatal — this endpoint is on the path of
+   * every app launch, and a typo in an env var must not stop the app from starting.
+   */
+  private floorFor(packageId?: string): number | null {
+    if (!packageId) return null;
+    for (const entry of this.config.get<string>('MOBILE_MIN_VERSION_CODE_BY_ID', '').split(',')) {
+      const [id, value] = entry.split('=');
+      if (id?.trim() !== packageId) continue;
+      const floor = Number(value?.trim());
+      return Number.isFinite(floor) ? floor : null;
+    }
+    return null;
+  }
+
+  /** Back-compat for callers with no package to name: the global floor. */
+  get mobile(): { minVersionCode: number; updateMessage: string } {
+    return this.mobileFor();
   }
 
   get corsOrigins(): string[] {

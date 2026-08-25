@@ -40,6 +40,12 @@ interface Block {
   message: string;
   /** Play Store package the button sends the user to. */
   target: string;
+  /**
+   * N6: re-run the check. Only the version gate sets this — a WebView too old for the app
+   * does not become new enough by asking again, but a floor that has not propagated to
+   * this device's Play listing yet is exactly the case that resolves on a second look.
+   */
+  onRetry?: () => void;
 }
 
 // NativeBridge is mounted OUTSIDE LocaleProvider in layout.tsx, deliberately — this screen
@@ -130,11 +136,22 @@ export function NativeBridge() {
       router.push(path);
     };
 
+    const recheck = () => {
+      void minimumVersionBlock().then((still) => {
+        // N6: only a clear answer releases the screen. An unreachable gateway answers null
+        // for its own reasons, and the version gate fails open everywhere else too — a
+        // device that is genuinely below the floor gets the screen back on next launch.
+        if (still) return;
+        blockedRef.current = false;
+        setBlock(null);
+      });
+    };
+
     void minimumVersionBlock().then((found) => {
       decidedRef.current = true;
       if (found) {
         blockedRef.current = true;
-        setBlock(found);
+        setBlock({ ...found, onRetry: recheck });
         return;
       }
       const held = heldRef.current;
@@ -201,7 +218,11 @@ async function minimumVersionBlock(): Promise<Block | null> {
   if (!info?.id || !Number.isFinite(installed)) return null;
 
   const config = await api
-    .get<{ minVersionCode?: number; updateMessage?: string }>('/mobile-config')
+    // N5: name the binary. One floor for both packages meant raising it to stop a broken
+    // customer release also stopped every courier mid-delivery.
+    .get<{ minVersionCode?: number; updateMessage?: string }>(
+      `/mobile-config?id=${encodeURIComponent(info.id)}`,
+    )
     .catch(() => null);
   const minimum = Number(config?.minVersionCode);
   if (!Number.isFinite(minimum) || installed >= minimum) return null;
@@ -281,8 +302,6 @@ function BlockingScreen({ block }: { block: Block }) {
       <p style={{ margin: 0, maxWidth: '360px' }}>{block.message}</p>
       <button
         type="button"
-        // ponytail: `market://` goes straight to the Play app. A device without Play
-        // cannot have installed this app from Play either, so there is no fallback here.
         onClick={() => openExternal(`market://details?id=${block.target}`)}
         style={{
           padding: '12px 20px',
@@ -296,6 +315,44 @@ function BlockingScreen({ block }: { block: Block }) {
       >
         Buka Play Store
       </button>
+      {/*
+        N6: this screen used to be a dead end with exactly one exit that assumes the update
+        is already there to install. The reasons a device actually lands here are staged
+        rollout, regional propagation and a stale Play cache — in all three the new version
+        exists and this phone cannot see it yet, and the written justification for having no
+        fallback answered a different case (sideloading).
+
+        So: a web Play link for when the Play app cannot resolve `market://`, and a re-check
+        that costs one request. Without the re-check the only way off this screen is to kill
+        the app and hope, because the version gate runs once at launch.
+      */}
+      <a
+        href={`https://play.google.com/store/apps/details?id=${block.target}`}
+        onClick={(event) => {
+          event.preventDefault();
+          openExternal(`https://play.google.com/store/apps/details?id=${block.target}`);
+        }}
+        style={{ color: '#0c97ac', fontSize: '14px', fontWeight: 600 }}
+      >
+        Buka lewat browser
+      </a>
+      {block.onRetry && (
+        <button
+          type="button"
+          onClick={block.onRetry}
+          style={{
+            padding: '10px 18px',
+            borderRadius: '999px',
+            border: '1px solid #d0d5dd',
+            background: 'transparent',
+            color: '#101828',
+            fontSize: '15px',
+            fontWeight: 600,
+          }}
+        >
+          Coba lagi
+        </button>
+      )}
     </div>
   );
 }

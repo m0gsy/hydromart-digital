@@ -67,6 +67,11 @@ export const envValidationSchema = Joi.object({
   // that a build with a broken checkout or a leaked token can be shut off in minutes
   // instead of waiting for everybody to update on their own.
   MOBILE_MIN_VERSION_CODE: Joi.number().integer().min(0).default(0),
+  // N5: per-package floors, `id=code` comma-separated. The customer app and the ops app
+  // are built from the same run and share a versionCode series, so one global integer
+  // could not stop a broken customer release without stopping every courier too.
+  // Free-form on purpose: a typo must cost the aiming, not every app launch.
+  MOBILE_MIN_VERSION_CODE_BY_ID: Joi.string().allow('').default(''),
   // Shown on the blocking screen. Blank falls back to the copy in the app, which is the
   // only string available if the gateway is unreachable anyway.
   MOBILE_UPDATE_MESSAGE: Joi.string().allow('').default(''),

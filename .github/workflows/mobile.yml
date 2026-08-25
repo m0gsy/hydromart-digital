@@ -13,8 +13,9 @@ name: Mobile release
 #
 #   git tag mobile-v1.4.2 && git push origin mobile-v1.4.2
 #
-# The versionCode is the run number, not the tag: Play refuses a versionCode it has
-# already seen, and a re-run of the same tag has to produce a higher one.
+# The versionCode is derived from the run number, not the tag: Play refuses a versionCode
+# it has already seen, and a re-run of the same tag has to produce a higher one. It is
+# `run_number * 100 + run_attempt`, because run_number does NOT move on a Re-run (N7).
 #
 # Required secrets:
 #   ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (.jks)
@@ -208,6 +209,11 @@ jobs:
       - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+          # N2: the APK is a FROZEN export — whatever is inlined here is what the binary
+          # reports with for its whole life on a device. No DSN means no reporter at all,
+          # which is the state every shipped build has been in.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_MOBILE }}
+          NEXT_PUBLIC_SENTRY_ENV: ${{ vars.SENTRY_ENVIRONMENT || 'production' }}
         run: |
           npm run build:mobile --workspace @hydromart/web -- customer
           npm run build:mobile --workspace @hydromart/web -- ops
@@ -354,17 +360,31 @@ jobs:
         id: version
         # versionCode must rise on every upload Play accepts, and the run number is the
         # only counter here that never goes backwards — a tag can be deleted and re-pushed.
+        #
+        # N7: the run number alone was NOT enough. `run_number` does not move on a Re-run —
+        # only `run_attempt` does — and a re-run is the most natural response to a publish
+        # that failed after the bundle built. That rebuild produced a byte-different AAB
+        # carrying a versionCode Play had already seen, and Play rejects it with no way
+        # forward but a new tag. Multiplying by 100 leaves room for 99 attempts of one run
+        # while staying strictly above every code published under the old scheme.
         run: |
           NAME="${{ github.event.inputs.version_name }}"
           if [ -z "$NAME" ]; then NAME="${GITHUB_REF_NAME#mobile-v}"; fi
+          ATTEMPT="${{ github.run_attempt }}"
+          test "$ATTEMPT" -le 99 || { echo "run_attempt $ATTEMPT exceeds the 99 this scheme reserves; tag a new release instead"; exit 1; }
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "code=$(( ${{ github.run_number }} * 100 + ATTEMPT ))" >> "$GITHUB_OUTPUT"
 
       # Both exports first, on the Node version the repo pins. They land in separate
       # directories, so having both at once costs nothing.
       - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+          # N2: the APK is a FROZEN export — whatever is inlined here is what the binary
+          # reports with for its whole life on a device. No DSN means no reporter at all,
+          # which is the state every shipped build has been in.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_MOBILE }}
+          NEXT_PUBLIC_SENTRY_ENV: ${{ vars.SENTRY_ENVIRONMENT || 'production' }}
         run: |
           npm run build:mobile --workspace @hydromart/web -- customer
           npm run build:mobile --workspace @hydromart/web -- ops
