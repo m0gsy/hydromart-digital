@@ -24,6 +24,7 @@ const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
 let emit: ((payload: unknown) => void) | null = null;
+const schedule = vi.fn(async () => {});
 
 function installBridge() {
   emit = null;
@@ -37,12 +38,14 @@ function installBridge() {
           return { remove: () => {} };
         },
       },
+      LocalNotifications: { schedule },
     },
   };
 }
 
 beforeEach(() => {
   push.mockClear();
+  schedule.mockClear();
   installBridge();
 });
 
@@ -97,5 +100,53 @@ describe('a push that arrives with the app open', () => {
     const [target] = push.mock.calls[0] as [string];
     expect(target.startsWith('/'), `navigated to ${target}`).toBe(true);
     expect(target).not.toContain('evil.example.com');
+  });
+});
+
+/**
+ * O4. The toast was the ONLY surface for a push that arrives with the app open, and it is
+ * dismissed after 3.2 seconds — the same duration as the "added to cart" pill, for "your
+ * order is on its way". The message that would have been in the tray had the app been
+ * closed was never in the tray at all.
+ */
+describe('a push that arrives with the app open, in the tray', () => {
+  it('posts the same message as a real notification, on the channel FCM uses', async () => {
+    await mounted();
+    emit?.({
+      title: 'Pesanan diterima',
+      body: 'Kurir sedang menuju lokasi',
+      data: { url: 'https://hydromart.id/orders/detail/?id=ord_9' },
+    });
+
+    await vi.waitFor(() => expect(schedule).toHaveBeenCalled());
+    const [{ notifications }] = schedule.mock.calls[0] as unknown as [
+      { notifications: Record<string, unknown>[] },
+    ];
+    expect(notifications[0]).toMatchObject({
+      title: 'Pesanan diterima',
+      body: 'Kurir sedang menuju lokasi',
+      // The channel `ensureChannel()` creates. A second channel would be a mute the user
+      // believed they had set and had not.
+      channelId: 'hydromart_orders',
+    });
+    // The destination rides along so the tap has somewhere to go — under `extra`, which is
+    // where a LOCAL notification carries it.
+    expect(notifications[0]!.extra).toMatchObject({ url: '/orders/detail?id=ord_9' });
+    // An int32, and different per message: Android REPLACES a notification posted with an
+    // id it already has, so a courier with three tasks would see one.
+    expect(Number.isInteger(notifications[0]!.id)).toBe(true);
+    expect(notifications[0]!.id as number).toBeLessThan(2_147_483_647);
+  });
+
+  // A build without the plugin (an older APK, the web) must keep the old behaviour rather
+  // than throw on a bridge that is not there.
+  it('still shows the toast when there is no local-notification plugin', async () => {
+    delete (window as unknown as { Capacitor: { Plugins: Record<string, unknown> } }).Capacitor
+      .Plugins.LocalNotifications;
+    await mounted();
+    emit?.({ title: 'Pesanan diterima', body: 'Kurir sedang menuju lokasi' });
+
+    expect(await screen.findByText(/Pesanan diterima/)).toBeInTheDocument();
+    expect(schedule).not.toHaveBeenCalled();
   });
 });

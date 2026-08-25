@@ -1,5 +1,26 @@
 import { CAPABILITIES, STAFF_IMPORT_ROLES, can } from './index';
 
+/*
+ * O7. Depositing a shift's COD cash was a hard `@Roles(STAFF_DEPOT)` in delivery-service,
+ * so the two halves of one money flow were governed in two different places and only the
+ * verifying half could be changed from the roles screen. Same people as before; the point
+ * is that the list is now a row.
+ */
+describe('courierDeposit (O7)', () => {
+  it('starts as exactly what the hard guard allowed', () => {
+    expect(CAPABILITIES.courierDeposit).toEqual(['STAFF_DEPOT']);
+    expect(can('courierDeposit', 'STAFF_DEPOT')).toBe(true);
+  });
+
+  it('does not hand depositing to the people who verify it', () => {
+    // Whoever counts the money must not be whoever declares how much there was — the
+    // two capabilities exist separately for that reason, and widening one must not
+    // quietly widen the other.
+    expect(can('courierDeposit', 'KEPALA_DEPOT')).toBe(false);
+    expect(can('courierSettle', 'STAFF_DEPOT')).toBe(false);
+  });
+});
+
 describe('CAPABILITIES', () => {
   it('grants a capability only to its listed roles', () => {
     expect(can('inventoryWrite', 'KEPALA_DEPOT')).toBe(true);

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       `allowBackup` is false, against the scaffold default. Auto Backup copies app data to
@@ -256,4 +257,19 @@
     <!-- F3b: unlocking the stored session. androidx.biometric declares it too; stated
          here so the audit reads it from our own manifest rather than from a transitive. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!--
+      O4. @capacitor/local-notifications contributes SCHEDULE_EXACT_ALARM through its AAR,
+      and Play treats that one as restricted: it asks for a declaration form and an
+      "alarms are the core function" justification. Ours are not scheduled at all — the
+      only thing this app posts is a notification for a push that has ALREADY arrived,
+      immediately, on the same channel FCM uses. An exact alarm is a capability we do not
+      use and could not justify, so it is removed from the merged manifest rather than
+      declared.
+
+      If a future feature genuinely needs to schedule something at an exact wall-clock
+      time, this line is the thing to delete — and the Play declaration is then owed.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" tools:node="remove" />
 </manifest>

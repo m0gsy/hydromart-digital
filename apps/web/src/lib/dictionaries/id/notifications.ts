@@ -1,6 +1,8 @@
 // Notifikasi inbox (spec 5h): feed event-triggered dari crm-service.
 export const notifications = {
   title: 'Notifikasi',
+  // O4: dibacakan pembaca layar sebagai ganti judul biasa saat ada yang belum dibaca.
+  unreadAria: 'Notifikasi ({n} belum dibaca)',
   markRead: 'Tandai dibaca',
   emptyTitle: 'Tidak ada notifikasi',
   emptyBody: 'Update pesanan & promo akan tampil di sini.',

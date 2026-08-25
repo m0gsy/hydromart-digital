@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { SettlementService } from '../application/services/settlement.service';
 import { SettlementRecord } from '../application/ports/settlement.repository';
@@ -11,7 +11,16 @@ import { SettlementResponseDto } from './dto/responses.generated.dto';
 /** Courier-facing COD settlement: deposit a shift's cash, read own history (design 2d/9a). */
 @ApiTags('Driver Settlement')
 @ApiBearerAuth()
-@Roles(Role.STAFF_DEPOT)
+/*
+ * O7. `@Roles(STAFF_DEPOT)` — a hard guard, not a capability — meant "who may deposit" was
+ * the one half of this flow that could not be administered from the roles screen, while
+ * "who may verify" (`courierSettle`) always could. Same list of people as before; the
+ * difference is that it is now a row somebody can change.
+ *
+ * Every route below is still scoped to `user.sub`, so widening the capability widens who
+ * may deposit THEIR OWN shift, never who may read another courier's.
+ */
+@Can('courierDeposit')
 @Controller({ path: 'driver/settlement', version: '1' })
 export class DriverSettlementController {
   constructor(private readonly settlements: SettlementService) {}

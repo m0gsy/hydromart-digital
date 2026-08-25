@@ -258,6 +258,7 @@ export const hq = {
       paymentRead: 'Lihat pembayaran pesanan',
       courierPayout: 'Dompet & klaim kurir',
       courierSettle: 'Setoran COD kurir',
+      courierDeposit: 'Setor COD sendiri (kurir)',
       courierReturn: 'Retur galon di pelanggan',
       expenseApprove: 'Setujui klaim biaya',
       depotBroadcast: 'Broadcast ke kurir',

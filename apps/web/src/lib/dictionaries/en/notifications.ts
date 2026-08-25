@@ -1,6 +1,8 @@
 // Notifications inbox (spec 5h). Mirrors id/notifications.ts.
 export const notifications = {
   title: 'Notifications',
+  // O4: read out instead of the plain title when something is waiting.
+  unreadAria: 'Notifications ({n} unread)',
   markRead: 'Mark read',
   emptyTitle: 'No notifications',
   emptyBody: 'Order updates & promos will show up here.',

@@ -255,6 +255,7 @@ export const hq = {
       paymentRead: 'View order payments',
       courierPayout: 'Courier wallet & claims',
       courierSettle: 'Courier COD deposit',
+      courierDeposit: 'Deposit own COD cash (courier)',
       courierReturn: 'Doorstep gallon returns',
       expenseApprove: 'Approve expense claims',
       depotBroadcast: 'Broadcast to couriers',

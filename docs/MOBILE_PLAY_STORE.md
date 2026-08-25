@@ -129,6 +129,18 @@ ini**, dan pemeriksanya satu perintah pada AAB yang sudah dibangun:
 unzip -l app-release.aab | grep '\.so$'   # kosong = tidak ada pustaka native sama sekali
 ```
 
+#### O4 — satu izin yang DIBUANG, bukan dideklarasikan
+
+`@capacitor/local-notifications` menyumbang `SCHEDULE_EXACT_ALARM` lewat AAR-nya. Play
+memperlakukan izin itu sebagai terbatas: ia meminta formulir deklarasi dan justifikasi
+"alarm adalah fungsi inti aplikasi". Milik kita bukan alarm sama sekali — yang diposting
+hanya notifikasi untuk push yang SUDAH tiba, seketika, di channel yang sama dengan FCM.
+
+Jadi izinnya dihapus dari manifes gabungan (`tools:node="remove"`), bukan dideklarasikan.
+Kapabilitas yang tidak dipakai dan tidak bisa dijustifikasi tidak boleh ikut terkirim.
+Kalau suatu saat ada fitur yang benar-benar perlu menjadwalkan sesuatu pada waktu dinding
+yang persis, baris itulah yang dihapus — dan formulir Play-nya jadi utang saat itu juga.
+
 Satu lagi yang hanya terlihat di manifest hasil merge:
 `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, dibawa androidx.core. Izin
 tingkat signature yang aplikasi berikan **hanya kepada dirinya sendiri**, supaya broadcast

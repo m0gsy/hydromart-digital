@@ -207,6 +207,17 @@ export const CAPABILITIES = {
   // delivery-service — the depot cashier verifies a courier's end-of-shift COD deposit
   // and decides whether a shortfall is charged to the courier.
   courierSettle: ['KEPALA_DEPOT', 'MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  /*
+   * O7 — delivery-service, the OTHER side of the same money: who may DEPOSIT a shift's COD
+   * cash. It was a hard `@Roles(STAFF_DEPOT)`, so unlike the verifying side above it could
+   * not be changed from the roles screen at all: the two halves of one flow were governed
+   * in two different places, and only one of them was administrable.
+   *
+   * The list starts as exactly what the hard guard allowed, so nothing changes on the day
+   * this ships. What changes is that it CAN change — a depot that wants its head to be able
+   * to deposit on behalf of a courier who has gone home is now a row, not a release.
+   */
+  courierDeposit: ['STAFF_DEPOT'],
   // payout-service — decide a courier expense claim above the auto-approve threshold.
   expenseApprove: ['MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // crm-service — depot -> courier in-app announcements (not customer campaigns).
