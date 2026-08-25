@@ -16,11 +16,11 @@ export class NotificationPrismaRepository implements NotificationPreferenceRepos
   }
 
   async upsert(record: NotificationPreferenceRecord): Promise<NotificationPreferenceRecord> {
-    const { push, email, whatsapp, categories } = record;
+    const { push, email, whatsapp, categories, locale } = record;
     const row = await this.prisma.notificationPreference.upsert({
       where: { customerId: record.customerId },
-      create: { customerId: record.customerId, push, email, whatsapp, categories },
-      update: { push, email, whatsapp, categories },
+      create: { customerId: record.customerId, push, email, whatsapp, categories, locale },
+      update: { push, email, whatsapp, categories, locale },
     });
     return toRecord(row);
   }
@@ -32,6 +32,7 @@ function toRecord(row: {
   email: boolean;
   whatsapp: boolean;
   categories: unknown;
+  locale: string;
 }): NotificationPreferenceRecord {
   return {
     customerId: row.customerId,
@@ -42,5 +43,6 @@ function toRecord(row: {
       row.categories && typeof row.categories === 'object'
         ? (row.categories as Record<string, boolean>)
         : {},
+    locale: row.locale,
   };
 }

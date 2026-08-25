@@ -33,6 +33,7 @@ describe('NotificationService', () => {
       email: true,
       whatsapp: true,
       categories: {},
+      locale: 'id',
     });
   });
 
@@ -48,6 +49,19 @@ describe('NotificationService', () => {
     const updated = await service.update(CUST, { categories: { reminder: false } });
     // Both mutes survive — one toggle must not wipe the rest.
     expect(updated.categories).toEqual({ promo: false, reminder: false });
+  });
+
+  // K5.3: the language the SENDER reads. crm renders WhatsApp and push server-side and has
+  // no browser to ask, so a choice that stays in localStorage reaches nobody.
+  it('persists the message language and leaves the channels alone', async () => {
+    const updated = await service.update(CUST, { locale: 'en' });
+    expect(updated).toMatchObject({ locale: 'en', push: true, whatsapp: true });
+    expect(await service.get(CUST)).toMatchObject({ locale: 'en' });
+  });
+
+  it('keeps the stored language when an unrelated toggle is patched', async () => {
+    await service.update(CUST, { locale: 'en' });
+    expect(await service.update(CUST, { push: false })).toMatchObject({ locale: 'en' });
   });
 
   it('a later category patch overrides the same key', async () => {

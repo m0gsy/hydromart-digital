@@ -54,7 +54,7 @@ import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
-import { useT } from '@/lib/locale-context';
+import { LOCALE_STORAGE_KEY, useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
@@ -429,7 +429,7 @@ function ConsentBody() {
 
 /* ---------- Preferences (sheet body): notifications + language + theme ---------- */
 function PrefsBody() {
-  const { t, locale, toggle } = useT();
+  const { t, locale, setLocale } = useT();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<NotificationPreferences>(() =>
@@ -496,6 +496,41 @@ function PrefsBody() {
    * migration. Absent means ON, which is the same "never asked is not a refusal" rule the
    * rest of the system runs on.
    */
+  /**
+   * K5.3: the language switch, finally saved somewhere the sender can read.
+   *
+   * It has always written localStorage and nothing else, so a customer reading the app in
+   * English still got every order update in Indonesian: WhatsApp and push are rendered
+   * server-side by crm-service, which has no browser to ask. This is the only screen a
+   * customer sets their own language on, so it is the one that writes the row — the staff
+   * consoles have the same switch and no row of their own to write to.
+   */
+  async function changeLocale(next: 'id' | 'en') {
+    if (next === locale) return;
+    setLocale(next); // the UI follows immediately; the row is what may fail
+    if (!prefs) return;
+    const before = prefs;
+    setLocal({ ...prefs, locale: next });
+    try {
+      await api.patch(endpoints.preferences.notifications, { locale: next }, true);
+    } catch {
+      setLocal(before);
+      toast(t('account.prefs.saveError'), 'error');
+    }
+  }
+
+  /*
+   * A device that has never been told which language to use adopts the stored one — the
+   * choice belongs to the person, not to the phone they made it on. Only when this browser
+   * has no answer of its own: a switch flipped here must not be undone by the server's
+   * older copy on the next paint.
+   */
+  useEffect(() => {
+    if (!data) return;
+    if (localStorage.getItem(LOCALE_STORAGE_KEY)) return;
+    if (data.locale === 'en' || data.locale === 'id') setLocale(data.locale);
+  }, [data, setLocale]);
+
   const marketingOn = prefs?.categories?.marketing !== false;
 
   async function toggleMarketing(value: boolean) {
@@ -556,7 +591,7 @@ function PrefsBody() {
         trailing={
           <Segmented
             value={locale}
-            onChange={() => toggle()}
+            onChange={(next) => void changeLocale(next as 'id' | 'en')}
             className="uppercase"
             options={[
               { value: 'id', label: 'id' },

@@ -1,7 +1,13 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { destinationFor, storedDestinationFor } from '../../domain/notification-destination';
-import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
+import {
+  MessageLocale,
+  NotificationEvent,
+  OPS_EVENTS,
+  renderMessage,
+  templateFor,
+} from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
 import {
   NotificationRecord,
@@ -67,6 +73,29 @@ export class NotificationService {
   }
 
   /**
+   * K5.3: the language to write this message in.
+   *
+   * Unlike `pushAllowedFor`, this one is awaited BEFORE the row is written, and that is a
+   * deliberate exception to F1's "no round trip in front of every write". The push
+   * preference only gates a side-effect that happens afterwards; the language decides the
+   * TEXT that goes into the row, and the inbox keeps that text forever. Rendering first and
+   * asking later would mean storing Indonesian and pushing English.
+   *
+   * Only for customer-addressed events: an ops alert is addressed to a depot's number, not
+   * to an account, and has no customer whose language could be read. Fails open to
+   * Indonesian, the product default, on any failure at all.
+   */
+  private async localeFor(customerId: string | null, event: NotificationEvent): Promise<MessageLocale> {
+    if (!customerId || !this.prefs || OPS_EVENTS.includes(event)) return 'id';
+    try {
+      return await this.prefs.localeFor(customerId);
+    } catch (e) {
+      this.logger.warn(`locale unreadable, writing Indonesian: ${(e as Error).message}`);
+      return 'id';
+    }
+  }
+
+  /**
    * F8. An operational alert has no customer, so it had no push: `notify()` skips the send
    * when `customerId` is null, and every ops event passes null because it is addressed to a
    * phone number rather than to an account. Stock low, stock untracked, a meter variance,
@@ -109,7 +138,7 @@ export class NotificationService {
     customerId: string | null = null,
     depotId: string | null = null,
   ): Promise<NotificationRecord> {
-    const message = renderMessage(templateFor(event), vars);
+    const message = renderMessage(templateFor(event, await this.localeFor(customerId, event)), vars);
     /*
      * The row first, the transport after — the reverse of how this used to read.
      *

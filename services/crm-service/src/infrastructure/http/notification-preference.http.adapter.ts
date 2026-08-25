@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { NotificationPreferencePort } from '../../application/ports/notification-preference.port';
+import { MessageLocale } from '../../domain/notification-event';
 import { CrmConfigService } from '../../config/crm-config.service';
 
 /**
@@ -28,6 +29,16 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
     return (await this.read(customerId, 'push')).push !== false;
   }
 
+  /**
+   * K5.3. The same row the push toggle lives on, so this is the same request — no second
+   * endpoint and no second copy of the customer's language. Falls back to Indonesian on an
+   * outage, a missing column, or any value that is not a language crm holds templates for.
+   */
+  async localeFor(customerId: string): Promise<MessageLocale> {
+    const locale = (await this.read(customerId, 'locale')).locale;
+    return locale === 'en' || locale === 'id' ? locale : 'id';
+  }
+
   async marketingAllowed(customerId: string): Promise<boolean> {
     const body = await this.read(customerId, 'marketing');
     const categories = (body.categories ?? {}) as Record<string, unknown>;
@@ -35,7 +46,10 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
     return categories.marketing !== false;
   }
 
-  private async read(customerId: string, what: string): Promise<{ push?: unknown; categories?: unknown }> {
+  private async read(
+    customerId: string,
+    what: string,
+  ): Promise<{ push?: unknown; categories?: unknown; locale?: unknown }> {
     const base = this.config.customerServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) {
@@ -53,7 +67,7 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
         this.logger.warn(`${what} preference lookup responded ${res.status}; assuming allowed`);
         return {};
       }
-      return (await res.json()) as { push?: unknown; categories?: unknown };
+      return (await res.json()) as { push?: unknown; categories?: unknown; locale?: unknown };
     } catch (error) {
       this.logger.warn(`${what} preference lookup failed: ${(error as Error).message}; assuming allowed`);
       return {};

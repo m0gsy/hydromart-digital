@@ -6,7 +6,13 @@ import { id, type Dictionary } from './dictionaries/id';
 
 export type Locale = 'id' | 'en';
 
-const STORAGE_KEY = 'hydromart.locale';
+/**
+ * Where this browser's own answer lives. Exported because `/account` has to tell a device
+ * that has never been asked (adopt the customer's stored choice) from one that has (leave
+ * it alone — a switch flipped here must not lose to the server's older copy).
+ */
+export const LOCALE_STORAGE_KEY = 'hydromart.locale';
+const STORAGE_KEY = LOCALE_STORAGE_KEY;
 
 export type TVars = Record<string, string | number>;
 

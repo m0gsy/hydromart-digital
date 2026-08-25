@@ -27,6 +27,8 @@ export class NotificationPreferenceResponseDto {
   whatsapp!: boolean;
   @ApiProperty({ type: Object })
   categories!: unknown;
+  @ApiProperty({ type: String })
+  locale!: string;
 }
 
 /** Mirrors `Reseller` exactly — generated for audit D-6, no field added or removed. */

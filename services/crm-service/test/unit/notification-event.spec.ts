@@ -82,7 +82,7 @@ describe('B4/B6 — the two events the emitters were already sending or owed', (
   });
 
   it.each(['DELIVERY_RESCHEDULED', 'ORDER_DRIVER_ASSIGNED'])('%s has copy', (name) => {
-    const template = NOTIFICATION_TEMPLATES[name as NotificationEvent];
+    const template = NOTIFICATION_TEMPLATES.id[name as NotificationEvent];
     expect(template).toBeTruthy();
     expect(template).not.toBe('{{message}}');
   });
@@ -90,5 +90,33 @@ describe('B4/B6 — the two events the emitters were already sending or owed', (
   it('both are customer-facing, so neither belongs in the ops feed', () => {
     expect(OPS_EVENTS).not.toContain(NotificationEvent.DELIVERY_RESCHEDULED);
     expect(OPS_EVENTS).not.toContain(NotificationEvent.ORDER_DRIVER_ASSIGNED);
+  });
+});
+
+/**
+ * K5.3. Two tables, and the compiler already refuses a `Record` with a member missing — so
+ * what is left to check is the part types cannot see: that the English copy says the same
+ * thing with the same tokens. A translation that quietly drops `{{orderNumber}}` renders a
+ * message about no order in particular.
+ */
+describe('K5.3 · the English table', () => {
+  const tokens = (template: string) => [...template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
+
+  it.each(Object.values(NotificationEvent))('%s carries the same tokens in both languages', (event) => {
+    expect(tokens(templateFor(event, 'en'))).toEqual(tokens(templateFor(event, 'id')));
+  });
+
+  it('is actually a different language, not a copy of the Indonesian one', () => {
+    expect(templateFor(NotificationEvent.ORDER_RECEIVED, 'en')).not.toBe(
+      templateFor(NotificationEvent.ORDER_RECEIVED, 'id'),
+    );
+  });
+
+  // The locale crosses a service boundary as a plain string. Anything that is not a
+  // language we hold must cost the reader their preference, never the message.
+  it('falls back to Indonesian for a language it does not hold', () => {
+    expect(templateFor(NotificationEvent.ORDER_RECEIVED, 'jv' as 'id')).toBe(
+      templateFor(NotificationEvent.ORDER_RECEIVED, 'id'),
+    );
   });
 });
