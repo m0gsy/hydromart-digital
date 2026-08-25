@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { IsDefined, IsNotEmpty, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 import { SavedSegmentRecord } from '../../application/ports/saved-segment.repository';
 import { CampaignSegmentDto } from './campaign.dto';
@@ -15,6 +15,9 @@ export class SaveSegmentDto {
   // The SAME validated shape a campaign takes. A saved segment that could hold conditions
   // no campaign accepts would be a definition nobody can send to.
   @ApiProperty({ type: CampaignSegmentDto })
+  // @ValidateNested() alone passes a body that has no conditions at all; @IsDefined() is what
+  // turns that into a 400 instead of saving `undefined` as the audience.
+  @IsDefined()
   @ValidateNested()
   @Type(() => CampaignSegmentDto)
   conditions!: CampaignSegmentDto;
