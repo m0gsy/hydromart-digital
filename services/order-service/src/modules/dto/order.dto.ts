@@ -21,6 +21,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsDefined,
 } from 'class-validator';
 
 import { OrderStatus } from '../../domain/order-status';
@@ -300,6 +301,25 @@ export class CreateSubscriptionDto {
   firstDeliveryAt!: string;
 
   @ApiProperty({ type: DeliveryAddressDto })
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress!: DeliveryAddressDto;
+}
+
+/**
+ * K1.9: move a standing plan to a different address.
+ *
+ * The whole snapshot, not an address-book id: the plan holds its own copy on purpose, so
+ * that editing an address book entry cannot silently re-route a standing order or change
+ * which depot prices it (D7). Sending the same shape the create route takes keeps those
+ * two facts identical rather than nearly identical.
+ */
+export class ChangeSubscriptionAddressDto {
+  @ApiProperty({ type: DeliveryAddressDto })
+  // `@ValidateNested()` alone passes an ABSENT object — it validates what is there, and
+  // nothing is there. The route then reads `.recipientName` off undefined and answers 500
+  // to a request that is simply malformed. `@IsDefined()` is what makes it a 400.
+  @IsDefined()
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;

@@ -344,6 +344,12 @@ export interface Subscription {
    */
   latitude: number | null;
   longitude: number | null;
+  /**
+   * K1.9: the rest of that same snapshot. The card could say a plan was unroutable and
+   * still could not say WHERE it was going, which is the first thing anybody asks before
+   * moving it.
+   */
+  addressLine: string;
   createdAt: string;
   updatedAt: string;
 }

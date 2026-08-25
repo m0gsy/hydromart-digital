@@ -65,6 +65,15 @@ export interface SubscriptionRepository {
   findDue(now: Date, limit?: number): Promise<SubscriptionRecord[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
   /**
+   * K1.9: move a plan to a different saved address.
+   *
+   * The address is a SNAPSHOT and stays one — the plan holds its own copy so that editing
+   * an address book entry cannot silently re-route a standing order, and so the depot the
+   * sweep prices against (D7) cannot move under it. This is the deliberate move, made by
+   * the customer, and it is the only way the snapshot changes after creation.
+   */
+  setDeliveryAddress(id: string, address: DeliveryAddressSnapshot): Promise<SubscriptionRecord>;
+  /**
    * D4: resume, which is a status change AND a schedule move in one write.
    *
    * Two writes would leave a window where the plan is ACTIVE holding a due date in the

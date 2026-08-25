@@ -60,6 +60,7 @@ import { canViewDashboard, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
+import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
 import type {
   Customer,
@@ -316,6 +317,26 @@ function PrivacyDataBody() {
               <span>
                 <span className="block font-semibold">{t(`account.privacyData.type.${row.type}`)}</span>
                 <span className="block text-xs text-muted">{formatDateTime(row.requestedAt)}</span>
+                {/*
+                  K1.6. The copy above now promises 3x24 hours, and a promise printed on one
+                  screen and measured on none is the shape this codebase keeps finding. The
+                  date the customer is owed an answer by is on their own row.
+                */}
+                {row.status === 'PENDING' && (
+                  <span
+                    className={`block text-xs ${
+                      pdpOverdue(row.requestedAt, row.status)
+                        ? 'font-semibold text-[color:var(--danger)]'
+                        : 'text-muted'
+                    }`}
+                  >
+                    {pdpOverdue(row.requestedAt, row.status)
+                      ? t('account.privacyData.overdue')
+                      : t('account.privacyData.deadline', {
+                          date: formatDateTime(pdpDeadline(row.requestedAt).toISOString()),
+                        })}
+                  </span>
+                )}
                 {row.status === 'REJECTED' && row.reason && (
                   <span className="block text-xs text-[color:var(--danger)]">{row.reason}</span>
                 )}

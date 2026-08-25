@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
+import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -113,6 +114,26 @@ export default function HqPdpPage() {
                     {t('hq.pdp.requestedAt')}{' '}
                     {formatDateTime(row.requestedAt)}
                   </div>
+                  {/*
+                    K1.6. The customer is now told they get an answer within 3x24 hours. This
+                    is the screen where somebody can still make that true, so it is the screen
+                    that has to say when the clock runs out — and say it loudly once it has.
+                  */}
+                  {row.status === 'PENDING' && (
+                    <div
+                      className={`mt-0.5 text-xs ${
+                        pdpOverdue(row.requestedAt, row.status)
+                          ? 'font-semibold text-[color:var(--danger)]'
+                          : 'text-[color:var(--text-muted)]'
+                      }`}
+                    >
+                      {pdpOverdue(row.requestedAt, row.status)
+                        ? t('hq.pdp.overdue')
+                        : t('hq.pdp.dueBy', {
+                            date: formatDateTime(pdpDeadline(row.requestedAt).toISOString()),
+                          })}
+                    </div>
+                  )}
                   {row.reason && (
                     <div className="mt-1 text-xs text-[color:var(--text-muted)]">
                       {t('hq.pdp.reason')}: {row.reason}

@@ -57,7 +57,9 @@ export const id = {
     },
     privacyData: {
       title: 'Data pribadi saya',
-      body: 'Kamu berhak meminta salinan data yang kami simpan, atau meminta akun dihapus. Setiap permintaan ditinjau kantor pusat dulu.',
+      body: 'Kamu berhak meminta salinan data yang kami simpan, atau meminta akun dihapus. Setiap permintaan ditinjau kantor pusat dulu, paling lambat 3x24 jam sejak dikirim (UU PDP No. 27/2022).',
+      deadline: 'Dijawab paling lambat {date}',
+      overdue: 'Lewat batas 3x24 jam',
       requestExport: 'Minta salinan data',
       requestDelete: 'Minta hapus akun',
       deleteConfirm: 'Akun dan identitasmu dihapus permanen setelah disetujui. Riwayat pembayaran tetap disimpan tanpa identitas karena kewajiban pajak. Lanjutkan?',

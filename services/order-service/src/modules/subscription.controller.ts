@@ -17,6 +17,7 @@ import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, R
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
 import {
+  ChangeSubscriptionAddressDto,
   CreateSubscriptionDto,
   CreateSubscriptionForCustomerDto,
   DepotScopeQueryDto,
@@ -117,6 +118,35 @@ export class SubscriptionController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubscriptionRecord> {
     return this.subscriptions.cancel(user.sub, id);
+  }
+
+  /**
+   * K1.9. A plan used to be locked to whichever address was primary when it was made: no
+   * picker at signup, no way to change it afterwards, and switching your primary address
+   * did not move it. Somebody who moved house could only cancel and start again.
+   */
+  @ApiOkResponse({ type: SubscriptionResponseDto })
+  @Roles(Role.CUSTOMER)
+  @Post(':id/address')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Move a subscription to a different delivery address (K1.9)' })
+  changeAddress(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangeSubscriptionAddressDto,
+  ): Promise<SubscriptionRecord> {
+    const a = dto.deliveryAddress;
+    return this.subscriptions.changeAddress(user.sub, id, {
+      recipientName: a.recipientName,
+      phone: a.phone,
+      addressLine: a.addressLine,
+      city: a.city,
+      province: a.province,
+      postalCode: a.postalCode ?? null,
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      notes: a.notes ?? null,
+    });
   }
 
   /**
