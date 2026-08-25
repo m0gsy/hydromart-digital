@@ -54,7 +54,7 @@ import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
-import { LOCALE_STORAGE_KEY, useT } from '@/lib/locale-context';
+import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
@@ -520,16 +520,12 @@ function PrefsBody() {
   }
 
   /*
-   * A device that has never been told which language to use adopts the stored one — the
-   * choice belongs to the person, not to the phone they made it on. Only when this browser
-   * has no answer of its own: a switch flipped here must not be undone by the server's
-   * older copy on the next paint.
+   * The adoption that used to live here — "a device that has never been asked takes the
+   * person's stored language" — moved to `<LocaleSync/>` in the root layout. It was correct
+   * and it only ever ran on THIS screen, so a second device that opened the app anywhere
+   * else stayed Indonesian while its owner's order updates arrived in English. One owner,
+   * mounted app-wide, same semantics.
    */
-  useEffect(() => {
-    if (!data) return;
-    if (localStorage.getItem(LOCALE_STORAGE_KEY)) return;
-    if (data.locale === 'en' || data.locale === 'id') setLocale(data.locale);
-  }, [data, setLocale]);
 
   const marketingOn = prefs?.categories?.marketing !== false;
 
