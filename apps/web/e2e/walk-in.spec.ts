@@ -198,12 +198,12 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     const label = (await payButton.textContent().catch(() => null))?.trim();
     const bar = (await page.getByTestId('cashier-shift-bar').textContent().catch(() => null))?.trim();
     throw new Error(
-      `the pay button never enabled. Button says: ${JSON.stringify(label)}. ` +
-        `Shift bar says: ${JSON.stringify(bar)}.
-` +
-        `Shift calls this run:
-  ${shiftCalls.join('
-  ') || '(none)'}`,
+      [
+        `the pay button never enabled. Button says: ${JSON.stringify(label)}.`,
+        `Shift bar says: ${JSON.stringify(bar)}.`,
+        'Shift calls this run:',
+        ...(shiftCalls.length > 0 ? shiftCalls : ['(none)']),
+      ].join('\n'),
     );
   }
   await payButton.click();
