@@ -1350,7 +1350,12 @@ describe('ReportService empty and absent shapes', () => {
         },
       ],
     };
-    const svc = stub({ ordersForDepot: async () => [bought] });
+    // J12: both reads answer the same rows — this order is at the home depot, so the
+    // agen's total and the depot's share are the same number.
+    const svc = stub({
+      ordersForDepot: async () => [bought],
+      ordersForCustomers: async () => [bought],
+    });
     const out = await svc.resellerRollup('d1', '2026-05', ['reseller-1', 'reseller-2']);
     // The order still counts (orderCount 1) but contributes 0 gallons: neither line
     // is flagged isGallon, and "Galon 19L" sold by the botol is not a gallon.
@@ -1361,6 +1366,55 @@ describe('ReportService empty and absent shapes', () => {
       prevVolumeQty: 0,
       orderCount: 0,
       lastOrderAt: null,
+    });
+  });
+
+  /*
+   * J12 · an agen's own volume vanished when they ordered from another depot.
+   *
+   * The rollup read `ordersForDepot(homeDepot)`, so gallons an agen took from a sibling
+   * depot — a stock-out at home, a delivery closer to a customer of theirs — simply were
+   * not there. The screen then measured that truncated number against `monthlyTargetQty`,
+   * which is the agen's target and not the depot's, and told them they were under.
+   *
+   * Attainment now counts every delivered gallon they took, wherever it was fulfilled.
+   * The home depot's own share is reported ALONGSIDE it rather than instead of it — the
+   * depot still needs to know what it sold, and no number that used to be there is gone.
+   */
+  it('counts an agen gallons from every depot, and still reports the home share', async () => {
+    const line = (quantity: number) => [
+      {
+        productId: 'p1',
+        productName: 'Air Galon 19L',
+        unit: 'galon',
+        volumeMl: 19000,
+        isGallon: true,
+        quantity,
+      },
+    ];
+    const order = (id: string, depotId: string, quantity: number) => ({
+      id,
+      customerId: 'reseller-1',
+      depotId,
+      status: OrderStatus.DELIVERED,
+      total: 100000,
+      createdAt: new Date('2026-05-10T00:00:00.000Z'),
+      items: line(quantity),
+    });
+    // 30 at home, 20 somewhere else. Their target is 50 — they hit it exactly, and the old
+    // rollup said 30.
+    const all = [order('o1', 'd1', 30), order('o2', 'd2', 20)];
+    const svc = stub({
+      ordersForDepot: async (depotId: string) => all.filter((o) => o.depotId === depotId),
+      ordersForCustomers: async () => all,
+    });
+
+    const out = await svc.resellerRollup('d1', '2026-05', ['reseller-1']);
+    expect(out.rows[0]).toMatchObject({
+      customerId: 'reseller-1',
+      volumeQty: 50,
+      volumeAtDepotQty: 30,
+      orderCount: 2,
     });
   });
 });

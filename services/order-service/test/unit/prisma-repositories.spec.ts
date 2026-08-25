@@ -1288,6 +1288,45 @@ describe('OrderPrismaRepository', () => {
     await expect(repo.ordersForDepot('depot-1', {})).rejects.toThrow(ReportRangeTooLargeError);
   });
 
+  /*
+   * J12 · the same read, keyed by customer instead of depot.
+   *
+   * It exists because an agen's attainment is about the agen: gallons they took from a
+   * sibling depot are still gallons they took, and `ordersForDepot` made those vanish.
+   * A wider predicate must not come with a weaker bound, so it carries the identical
+   * page size and report ceiling.
+   */
+  it('reads a named customer set across every depot, bounded like the depot read', async () => {
+    order.findMany.mockResolvedValue([orderRow()]);
+    await repo.ordersForCustomers(['c1', 'c2'], {
+      from: new Date('2026-01-01'),
+      to: new Date('2026-02-01'),
+    });
+    expect(order.findMany).toHaveBeenCalledWith({
+      where: {
+        customerId: { in: ['c1', 'c2'] },
+        createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') },
+      },
+      include: expect.any(Object),
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 500,
+    });
+    // No depotId anywhere in the predicate: that omission IS the fix.
+    expect(order.findMany.mock.calls[0][0].where.depotId).toBeUndefined();
+  });
+
+  it('asks the database nothing for an empty customer set', async () => {
+    order.findMany.mockClear();
+    await expect(repo.ordersForCustomers([], {})).resolves.toEqual([]);
+    expect(order.findMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses a customer window bigger than the report ceiling', async () => {
+    const full = Array.from({ length: 500 }, (_, i) => ({ ...orderRow(), id: `o-${i}` }));
+    order.findMany.mockResolvedValue(full);
+    await expect(repo.ordersForCustomers(['c1'], {})).rejects.toThrow(ReportRangeTooLargeError);
+  });
+
   it('estimates a segment size from raw rows (default 0)', async () => {
     $queryRaw.mockResolvedValue([{ count: BigInt(7) }]);
     expect(

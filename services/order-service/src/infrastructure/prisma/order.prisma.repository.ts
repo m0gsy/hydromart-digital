@@ -933,6 +933,41 @@ export class OrderPrismaRepository implements OrderRepository {
    * page rather than the result set, and a hard ceiling that REFUSES instead of quietly
    * returning a partial month.
    */
+  async ordersForCustomers(customerIds: string[], range: ReportRange): Promise<OrderRecord[]> {
+    // An empty set would make `in: []` match nothing, but asking the database that at all
+    // is a round trip for an answer the caller already has.
+    if (customerIds.length === 0) return [];
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    const where = {
+      customerId: { in: customerIds },
+      ...(range.from || range.to ? { createdAt } : {}),
+    };
+
+    const rows = await readAllPages(
+      ({ take, cursor }) =>
+        this.prisma.order.findMany({
+          where,
+          include: INCLUDE_NO_HISTORY,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      // The same ceiling `ordersForDepot` carries. A wider predicate must not come with a
+      // weaker bound — that is how a report query becomes an unbounded scan by accident.
+      {
+        pageSize: REPORT_PAGE_SIZE,
+        max: MAX_REPORT_ORDERS,
+        onOverflow: () => {
+          throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
+        },
+      },
+    );
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),

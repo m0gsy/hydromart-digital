@@ -242,7 +242,17 @@ export interface DepotWeeklyReport {
 /** One reseller's monthly rollup (design: reseller achievement). All figures are gallons. */
 export interface ResellerRollupRow {
   customerId: string;
+  /**
+   * J12: every delivered gallon this agen took, wherever it was fulfilled.
+   *
+   * This used to be the home depot's share only, and was then measured against
+   * `monthlyTargetQty` — which is the AGEN's target, not the depot's. An agen who bought
+   * from a sibling depot because home was out of stock had that volume disappear from
+   * their own attainment and was told they were under.
+   */
   volumeQty: number;
+  /** The home depot's own share of the above. The depot still needs to know what it sold. */
+  volumeAtDepotQty: number;
   prevVolumeQty: number;
   orderCount: number;
   lastOrderAt: string | null;
@@ -969,13 +979,25 @@ export class ReportService {
     const to = addLocalMonths(from, 1, tz);
     const prevFrom = addLocalMonths(from, -1, tz);
 
-    const [thisRows, prevRows] = await Promise.all([
+    /*
+     * J12: read by CUSTOMER, not by depot. The agen set is already bounded — it is the
+     * depot's own registry, passed in — so this is the same shape of query with a
+     * different, equally bounded predicate. `ordersForDepot` is still read for the home
+     * share, because losing that number to fix the other one would just move the lie.
+     */
+    const [thisRows, prevRows, homeRows] = await Promise.all([
+      this.orders.ordersForCustomers(customerIds, { from, to }),
+      this.orders.ordersForCustomers(customerIds, { from: prevFrom, to: from }),
       this.orders.ordersForDepot(depotId, { from, to }),
-      this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
     ]);
 
     const delivered = (rows: typeof thisRows) =>
       rows.filter((o) => wanted.has(o.customerId) && isDelivered(o.status));
+
+    const homeVol = new Map<string, number>();
+    for (const o of delivered(homeRows)) {
+      homeVol.set(o.customerId, (homeVol.get(o.customerId) ?? 0) + gallonQty(o));
+    }
 
     const prevVol = new Map<string, number>();
     for (const o of delivered(prevRows)) {
@@ -999,6 +1021,7 @@ export class ReportService {
       return {
         customerId,
         volumeQty: a?.volumeQty ?? 0,
+        volumeAtDepotQty: homeVol.get(customerId) ?? 0,
         prevVolumeQty: prevVol.get(customerId) ?? 0,
         orderCount: a?.orderCount ?? 0,
         lastOrderAt: a?.lastOrderAt ? a.lastOrderAt.toISOString() : null,

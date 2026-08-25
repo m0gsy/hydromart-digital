@@ -22,7 +22,10 @@ export interface Reseller {
 
 export interface ResellerRollupRow {
   customerId: string;
+  /** J12: delivered gallons at ANY depot — what actually counts toward their target. */
   volumeQty: number;
+  /** The home depot's own share of the above. */
+  volumeAtDepotQty: number;
   prevVolumeQty: number;
   orderCount: number;
   lastOrderAt: string | null;
