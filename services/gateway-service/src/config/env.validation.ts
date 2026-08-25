@@ -20,6 +20,15 @@ export const envValidationSchema = Joi.object({
   PAYOUT_SERVICE_URL: Joi.string().uri().required(),
   ADMIN_SERVICE_URL: Joi.string().uri().required(),
   HR_SERVICE_URL: Joi.string().uri().required(),
+  // L3-SEC-1. The gateway is a proxy and still verifies nothing for authorisation — every
+  // service does that for itself. This is read for ONE purpose: deciding whether a caller
+  // may name its own rate-limit bucket, which before this was granted to any byte string
+  // in an Authorization header.
+  //
+  // Optional on purpose. Required would mean a deployment that forgot it does not boot;
+  // absent, every caller simply falls back to their IP bucket — coarser than intended, and
+  // never bypassable. Availability is the thing to fail open on here, not the ceiling.
+  JWT_ACCESS_SECRET: Joi.string().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   // Per client per minute (see the `trust proxy` note in gateway.setup.ts — before that

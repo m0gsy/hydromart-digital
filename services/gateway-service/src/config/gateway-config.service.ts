@@ -141,6 +141,17 @@ export class GatewayConfigService {
       .filter((o) => o.length > 0);
     return [...new Set([...configured, ...NATIVE_ORIGINS])];
   }
+  /**
+   * The access-token signing secret, or '' when this deployment did not set one.
+   *
+   * Only `rateLimitKey` reads it, and only to tell an issued token from an invented one
+   * (L3-SEC-1). Empty means no credential is verifiable, so every caller is charged to
+   * their address.
+   */
+  get accessTokenSecret(): string {
+    return this.config.get<string>('JWT_ACCESS_SECRET', '');
+  }
+
   get rateLimit(): {
     ttlSeconds: number;
     limit: number;
