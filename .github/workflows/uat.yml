@@ -17,6 +17,15 @@ on:
   schedule:
     - cron: '0 20 1 * *' # 03:00 WIB on the 1st of the month
 
+# M19. This job boots an eighteen-image stack and holds a runner for up to ninety minutes.
+# With no group, a manual dispatch on top of the monthly schedule ran two of them at once —
+# two stacks, two seeds, two harness runs, and two sets of results with no way to tell which
+# one the artifact came from. The run is report-only and nothing downstream consumes it, so
+# a newer request supersedes an older one rather than queueing behind it.
+concurrency:
+  group: uat-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
   CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
@@ -55,9 +64,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      # M17b. COMPOSE_BAKE alone was the trap: it routes the build through buildx, which is
+      # only half the sentence — the cache keys buildx honours come from
+      # docker-compose.cache.yml, and run.mjs layers that file on ONLY when
+      # COMPOSE_EXTRA_FILES names it. Setting the first without the second built all
+      # eighteen images from scratch, monthly, while the cache CI had just filled sat unread.
       - name: Boot the stack
         env:
           COMPOSE_BAKE: 'true'
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
         run: node test/integration/run.mjs --keep --boot-only
 
       - name: Seed catalog + staff

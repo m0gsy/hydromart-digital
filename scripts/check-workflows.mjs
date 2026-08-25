@@ -65,6 +65,56 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   }
 
   /*
+   * M19/M20 — every workflow serialises against itself.
+   *
+   * `uat.yml` and `load.yml` each boot a whole eighteen-image stack and hold a runner for
+   * ninety minutes, and neither had a `concurrency` block: a manual dispatch on top of the
+   * scheduled run gave two of them at once. `registry-check.yml` gave two SSH sessions
+   * probing the same production box. Nothing reported any of it, because a duplicate run
+   * looks exactly like a run.
+   */
+  if (!('concurrency' in doc)) {
+    problems.push(
+      `${path}: no \`concurrency\` group — a dispatch on top of a scheduled run gives two of it at once`,
+    );
+  }
+
+  /*
+   * M17b — bake without cache keys is still a cold build.
+   *
+   * COMPOSE_BAKE only routes the build through buildx. The keys buildx then honours live in
+   * docker-compose.cache.yml, which run.mjs layers on ONLY when COMPOSE_EXTRA_FILES names
+   * it. Both scheduled stacks set the first and not the second, so each one built all
+   * eighteen images from scratch while the cache `integration` had just filled sat unread —
+   * and the plan's own note that these two "already set COMPOSE_BAKE" is what made it look
+   * done.
+   *
+   * Read STRUCTURALLY, per step, not by grepping the file. The first version of this check
+   * tested the raw text for `COMPOSE_EXTRA_FILES`, which the comment three lines above the
+   * fix already contains — so it went green on a file with the variable deleted. Same defect
+   * as the one it was written to catch: a gate that cannot go red. `run` bodies are stripped
+   * of `#` comments for the same reason.
+   */
+  const uncommented = (run) => String(run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
+  const envOf = (...scopes) => Object.assign({}, ...scopes.map((s) => s?.env ?? {}));
+  for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+    for (const step of job?.steps ?? []) {
+      const env = envOf(doc, job, step);
+      const body = uncommented(step?.run);
+      if (!('COMPOSE_BAKE' in env) && !/COMPOSE_BAKE=/.test(body)) continue;
+      const OVERLAY = 'docker-compose.cache.yml';
+      const reached =
+        String(env.COMPOSE_EXTRA_FILES ?? '').includes(OVERLAY) || body.includes(OVERLAY);
+      if (!reached) {
+        problems.push(
+          `${path}: job \`${jobName}\` step \`${step.name ?? step.uses ?? '(unnamed)'}\` turns on ` +
+            `COMPOSE_BAKE but never reaches ${OVERLAY} — buildx with no cache keys builds cold anyway`,
+        );
+      }
+    }
+  }
+
+  /*
    * A `choice` input whose options do not match the branches the script implements. Read
    * from the shell `case` labels in the same file: the workflow that dispatches on a mode
    * writes `mode)` for each one it handles, so the two lists are checkable against each
