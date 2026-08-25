@@ -17,6 +17,20 @@ import { getSession } from './session-store';
  * The money one is the worst of the four: the customer has paid, the courier is holding the
  * notes, and nothing anywhere records it.
  *
+ * K3.3, decided 25 Aug 2026 and written here because this is where the next person will
+ * come to add it: the COUNTER SALE deliberately does NOT join this list, and the reason is
+ * not that it would be hard. Adding a `counterSale` kind is small.
+ *
+ * A counter sale hands the galon over NOW, against a price, a stock level and an open
+ * shift that the server has not confirmed. If the queue drains later and the server
+ * refuses — the voucher is not valid, the stock is gone, the shift was closed — the goods
+ * have already left the depot and somebody has to eat it. Who that is, and whether a
+ * cashier may sell at a price nothing has confirmed, is a business decision. It was put to
+ * the owner and the answer was no: the till stays online-only.
+ *
+ * So this is closed, not pending. Reopening it means getting that answer changed first,
+ * not writing the job kind.
+ *
  * Only these enqueue — a queue behind every call would replay reads and stale writes.
  * Each job carries the device capture time; the server clamps it (it can never be later than
  * the sync, nor older than the depot's offline window) and, for a punch, sends a late sync to
