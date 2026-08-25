@@ -8,6 +8,7 @@ import { profile } from './id/profile';
 import { auth } from './id/auth';
 import { help } from './id/help';
 import { notifications } from './id/notifications';
+import { agen } from './id/agen';
 import { onboarding } from './id/onboarding';
 import { review } from './id/review';
 import { subscriptions } from './id/subscriptions';
@@ -188,6 +189,7 @@ export const id = {
   auth,
   help,
   notifications,
+  agen,
   onboarding,
   review,
   subscriptions,

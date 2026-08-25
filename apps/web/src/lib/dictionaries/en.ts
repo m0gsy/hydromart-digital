@@ -6,6 +6,7 @@ import { profile } from './en/profile';
 import { auth } from './en/auth';
 import { help } from './en/help';
 import { notifications } from './en/notifications';
+import { agen } from './en/agen';
 import { onboarding } from './en/onboarding';
 import { review } from './en/review';
 import { subscriptions } from './en/subscriptions';
@@ -174,6 +175,7 @@ export const en: Dictionary = {
   auth,
   help,
   notifications,
+  agen,
   onboarding,
   review,
   subscriptions,

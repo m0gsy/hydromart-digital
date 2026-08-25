@@ -269,8 +269,16 @@ resellers: {
   uploadPhoto: (customerId: string) => `/customers/api/v1/resellers/${customerId}/photo`,
   /** K4.2 — who changed this agen's terms, when, and what is still scheduled. */
   priceChanges: (customerId: string) => `/customers/api/v1/resellers/${customerId}/price-changes`,
-  // A4 removed the web's caller for `/resellers/me`: the checkout screen used it to
-  // re-derive the agen rule for itself, which is precisely the third copy A9 named. The
-  // route is alive and order-service still reads it — the browser no longer needs to.
+  /**
+   * K4.1 — the agen's own status screen, and DISPLAY ONLY.
+   *
+   * A4 removed the previous caller on purpose: checkout used this to re-derive the agen
+   * rule in the browser, the third copy of a pricing decision that belongs to
+   * order-service. That must not come back. Showing a person their own terms is a
+   * different thing: nothing on `/agen` feeds a price and no total is computed from it.
+   *
+   * If a checkout or cart file ever imports this again, that is the A4 defect returning.
+   */
+  me: '/customers/api/v1/resellers/me',
 },
 } as const;

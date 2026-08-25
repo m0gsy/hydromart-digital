@@ -29,6 +29,7 @@ import {
   SignOut,
   SlidersHorizontal,
   Storefront,
+  Tag,
   Translate,
   TrashSimple,
 } from '@phosphor-icons/react';
@@ -757,6 +758,14 @@ export default function AccountPage() {
      * moved here for exactly this reason; this one was missed.
      */
     { href: '/waralaba', label: t('franchise.navLabel'), icon: Storefront },
+    /*
+     * K4.1. There was nothing on the agen side: an agen had no way to see whether they
+     * were still active or at what price, and the only trace was a badge on checkout that
+     * vanished exactly when the read failed — i.e. exactly when the price was wrong. The
+     * row is offered to every shopping account rather than gated on being one, because the
+     * screen answers "you are not an agen, and here is what one is" too.
+     */
+    { href: '/agen', label: t('agen.accountRow'), icon: Tag },
   ];
   const links = [
     ...(showOps ? [] : shopLinks),
