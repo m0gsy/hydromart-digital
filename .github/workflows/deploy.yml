@@ -62,6 +62,43 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     steps:
+      # M11 — Images and Deploy both fire on the same CI completion, in parallel, with
+      # nothing between them. In registry mode the box PULLS what Images publishes, so a
+      # deploy that overtakes its own images fails the pull, rolls back cleanly, and stops:
+      # nothing retriggers it, so the release simply does not happen and the run before it
+      # stays live. This is the ordering that was missing, and it is why M10 must not ship
+      # before it.
+      #
+      # A wait, not a `needs`: workflows cannot depend on each other, and Images is SKIPPED
+      # for a commit that touches no Dockerfile. Skipped must keep deploying (there is
+      # nothing new to pull); only a real failure may stop it.
+      - name: Wait for this commit's images
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          for attempt in $(seq 1 60); do
+            read -r status conclusion <<<"$(gh run list --workflow Images --commit "$SHA"               --json status,conclusion --jq '.[0] | "\(.status // "none") \(.conclusion // "none")"' 2>/dev/null || echo "none none")"
+            case "$status" in
+              none)
+                echo "no Images run for $SHA (skipped for this commit) — continuing"
+                exit 0 ;;
+              completed)
+                if [ "$conclusion" = "success" ] || [ "$conclusion" = "skipped" ]; then
+                  echo "images for $SHA: $conclusion — continuing"
+                  exit 0
+                fi
+                echo "!! images for $SHA concluded '$conclusion'; refusing to deploy a release whose images were never published"
+                exit 1 ;;
+              *)
+                echo "images for $SHA are $status (attempt $attempt/60) — waiting"
+                sleep 20 ;;
+            esac
+          done
+          echo "!! images for $SHA did not finish within 20 minutes"
+          exit 1
+
       - name: Resolve command
         id: cmd
         run: |
