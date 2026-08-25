@@ -82,6 +82,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # N2/N3: this image would ship with no error reporting, and it says so loudly.
+      #
+      # `NEXT_PUBLIC_*` is INLINED at build time, and `SentryInit` does not even download the
+      # SDK when the DSN is blank — so a published binary with an empty DSN is permanently
+      # blind, and nothing about it looks wrong. MEASURED 2026-08-25: `gh variable list`
+      # returns exactly three variables (MOBILE_API_URL, MOBILE_WEB_HOST, PUBLIC_API_URL).
+      # SENTRY_DSN_WEB is NOT among them, so every image this repo has ever published inlined
+      # an empty string here.
+      #
+      # A WARNING and not a failure, and the reason is one line in the workflow next door:
+      # `deploy.yml`'s M11 step runs `gh run list --workflow Images` and refuses to deploy
+      # unless this run concluded `success` or `skipped` —
+      #
+      #     "refusing to deploy a release whose images were never published"
+      #
+      # so failing here does not stop a blind image, it stops EVERY DEPLOY. Whether shipping
+      # blind is worth halting releases over is a decision for whoever owns the release, not a
+      # side effect of adding a check. `mobile.yml` DOES fail hard on the same condition,
+      # because nothing keys on that workflow and refusing to publish a blind APK costs
+      # nothing but the APK.
+      #
+      # To make it blocking once SENTRY_DSN_WEB exists, this becomes `exit 1` in place of the
+      # `::warning::` — one line, and check-workflows.mjs accepts either.
+      - name: Client error reporting is configured
+        env:
+          DSN: ${{ vars.SENTRY_DSN_WEB }}
+        run: |
+          if [ -n "$DSN" ]; then
+            echo "SENTRY_DSN_WEB is set."
+          else
+            echo "::warning title=Image ships blind::SENTRY_DSN_WEB is unset, so NEXT_PUBLIC_SENTRY_DSN is inlined EMPTY and this image has no error reporting at all (audit N2). Create it under Settings -> Secrets and variables -> Actions -> Variables: SENTRY_DSN_WEB = https://<key>@<org>.ingest.sentry.io/<project-id>"
+          fi
+
       - name: Resolve tags
         id: meta
         run: |

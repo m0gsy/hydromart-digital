@@ -168,6 +168,51 @@ if (!compose.includes(`${DSN}:`)) {
 if (!imagesText.includes(`${DSN}=`)) {
   problems.push(`${join(DIR, 'images.yml')}: does not pass ${DSN} to the published web image`);
 }
+/*
+ * The other half of N2, and the reason its first half was green for so long.
+ *
+ * The checks above assert that the release workflows MENTION the build arg. They do, and the
+ * artefacts were still blind: `SENTRY_DSN_WEB` and `SENTRY_DSN_MOBILE` were never created as
+ * repository variables, so `${{ vars.* }}` resolved to an empty string and every published
+ * image and APK inlined nothing. A mention is not a value, and a check that reads the file
+ * cannot see a value that only exists at run time.
+ *
+ * What it CAN pin is that each release path still LOOKS at the DSN and says something when it
+ * is empty. Read from the parsed `env` and `run` of a real step, not from the raw text,
+ * because the comment explaining the guard also contains its name.
+ *
+ * Deliberately asymmetric, and the asymmetry is the point:
+ *
+ *   mobile.yml  must FAIL. Nothing keys on that workflow, so refusing to publish a blind APK
+ *               costs the APK and nothing else.
+ *   images.yml  may warn instead. `deploy.yml`'s M11 step refuses to deploy unless the Images
+ *               run concluded success or skipped, so a hard failure there stops every deploy
+ *               rather than one image. Turning it blocking is a release decision; `exit 1`
+ *               satisfies this check too, so making it blocking needs no change here.
+ */
+for (const [file, variable, mustFail] of [
+  ['images.yml', 'SENTRY_DSN_WEB', false],
+  ['mobile.yml', 'SENTRY_DSN_MOBILE', true],
+]) {
+  const doc = yaml.load(readFileSync(join(DIR, file), 'utf8'));
+  const guards = Object.values(doc?.jobs ?? {}).flatMap((job) =>
+    (job?.steps ?? []).filter((step) => {
+      const env = Object.values(step?.env ?? {}).join(' ');
+      const body = String(step?.run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
+      if (!env.includes(variable)) return false;
+      const looks = /\$DSN/.test(body);
+      const reacts = mustFail ? /exit\s+1/.test(body) : /exit\s+1|::warning/.test(body);
+      return looks && reacts;
+    }),
+  );
+  if (guards.length === 0) {
+    problems.push(
+      `${join(DIR, file)}: nothing ${mustFail ? 'refuses to publish' : 'reports'} when ${variable} is empty — ` +
+        `NEXT_PUBLIC_SENTRY_DSN is inlined at build time, so the artefact would ship blind`,
+    );
+  }
+}
+
 const exportSteps = (mobileText.match(/npm run build:mobile/g) ?? []).length;
 const mobileDsn = (mobileText.match(new RegExp(`${DSN}:`, 'g')) ?? []).length;
 if (exportSteps > 0 && mobileDsn === 0) {
