@@ -21,6 +21,14 @@ on:
         description: 'Duration per scenario'
         default: '60s'
 
+# M20. Same shape as uat.yml: a whole stack, a long runner hold, and no group at all, so a
+# dispatch during the Sunday-night run gave two load tests racing each other. Two k6 runs
+# against two stacks also make the p95 number meaningless, which is the only thing this
+# workflow exists to produce. Newer request wins; nothing downstream reads the older one.
+concurrency:
+  group: load-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
   CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
@@ -67,9 +75,13 @@ jobs:
 
       # Same orchestrator the integration job uses, with --keep so the stack survives the
       # run: booting it a second way is how the two drift apart.
+      # M17b — see uat.yml: COMPOSE_BAKE routes the build through buildx, COMPOSE_EXTRA_FILES
+      # is what gives buildx keys to honour. One without the other is a cold build wearing
+      # the word "bake".
       - name: Boot the stack
         env:
           COMPOSE_BAKE: 'true'
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
         run: node test/integration/run.mjs --keep --boot-only
 
       # A shelf the run cannot empty.

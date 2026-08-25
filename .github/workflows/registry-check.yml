@@ -20,6 +20,15 @@ on:
         description: 'Which service image to probe'
         default: 'auth'
 
+# M19/M20 apply here for a different reason: this workflow SSHes into the production box.
+# Two runs meant two sessions pulling images onto the same disk at the same time — the disk
+# Postgres writes to, which is the whole reason rebuild-stale.sh runs in serial batches.
+# Unlike uat/load, an in-flight run is NOT cancelled: killing a session mid-pull leaves the
+# box holding a partial layer. The second run queues.
+concurrency:
+  group: registry-check-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   probe:
     runs-on: ubuntu-latest
