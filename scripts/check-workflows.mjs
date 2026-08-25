@@ -177,26 +177,37 @@ if (!imagesText.includes(`${DSN}=`)) {
  * image and APK inlined nothing. A mention is not a value, and a check that reads the file
  * cannot see a value that only exists at run time.
  *
- * What it CAN pin is that the workflow refuses to publish without one. So each release path
- * has to carry a step that fails on an empty DSN, and this asserts the step is there — read
- * from the parsed `env` and `run` of a real step, not from the raw text, because the comment
- * explaining the guard also contains its name.
+ * What it CAN pin is that each release path still LOOKS at the DSN and says something when it
+ * is empty. Read from the parsed `env` and `run` of a real step, not from the raw text,
+ * because the comment explaining the guard also contains its name.
+ *
+ * Deliberately asymmetric, and the asymmetry is the point:
+ *
+ *   mobile.yml  must FAIL. Nothing keys on that workflow, so refusing to publish a blind APK
+ *               costs the APK and nothing else.
+ *   images.yml  may warn instead. `deploy.yml`'s M11 step refuses to deploy unless the Images
+ *               run concluded success or skipped, so a hard failure there stops every deploy
+ *               rather than one image. Turning it blocking is a release decision; `exit 1`
+ *               satisfies this check too, so making it blocking needs no change here.
  */
-for (const [file, variable] of [
-  ['images.yml', 'SENTRY_DSN_WEB'],
-  ['mobile.yml', 'SENTRY_DSN_MOBILE'],
+for (const [file, variable, mustFail] of [
+  ['images.yml', 'SENTRY_DSN_WEB', false],
+  ['mobile.yml', 'SENTRY_DSN_MOBILE', true],
 ]) {
   const doc = yaml.load(readFileSync(join(DIR, file), 'utf8'));
   const guards = Object.values(doc?.jobs ?? {}).flatMap((job) =>
     (job?.steps ?? []).filter((step) => {
       const env = Object.values(step?.env ?? {}).join(' ');
       const body = String(step?.run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
-      return env.includes(variable) && /test\s+-n\s+"\$DSN"/.test(body);
+      if (!env.includes(variable)) return false;
+      const looks = /\$DSN/.test(body);
+      const reacts = mustFail ? /exit\s+1/.test(body) : /exit\s+1|::warning/.test(body);
+      return looks && reacts;
     }),
   );
   if (guards.length === 0) {
     problems.push(
-      `${join(DIR, file)}: nothing refuses to publish when ${variable} is empty — ` +
+      `${join(DIR, file)}: nothing ${mustFail ? 'refuses to publish' : 'reports'} when ${variable} is empty — ` +
         `NEXT_PUBLIC_SENTRY_DSN is inlined at build time, so the artefact would ship blind`,
     );
   }
