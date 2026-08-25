@@ -19,6 +19,12 @@ on:
       service:
         description: 'Which service image to probe'
         default: 'auth'
+      mode:
+        description: 'pull = probe the registry; diagnose = read-only questions about the box (M10/M15/M16)'
+        required: false
+        type: choice
+        default: pull
+        options: [pull, diagnose]
 
 # M19/M20 apply here for a different reason: this workflow SSHes into the production box.
 # Two runs meant two sessions pulling images onto the same disk at the same time — the disk
@@ -45,7 +51,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 10m
-          envs: IMAGE_PREFIX,IMAGE_TAG,PROBE_SERVICE
+          envs: IMAGE_PREFIX,IMAGE_TAG,PROBE_SERVICE,PROBE_MODE
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -57,9 +63,13 @@ jobs:
             # So fetch just this script from main. Nothing else in the tree is touched, and
             # deploy.sh's `git reset --hard` puts it back in step on the next release.
             git fetch --quiet origin main
-            git checkout origin/main -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh
-            bash scripts/check-registry-pull.sh
+            git checkout origin/main -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh
+            case "${PROBE_MODE:-pull}" in
+              diagnose) bash scripts/ask-the-box.sh ;;
+              *)        bash scripts/check-registry-pull.sh ;;
+            esac
         env:
           IMAGE_PREFIX: ${{ github.event.inputs.image_prefix }}
           IMAGE_TAG: ${{ github.event.inputs.image_tag }}
           PROBE_SERVICE: ${{ github.event.inputs.service }}
+          PROBE_MODE: ${{ github.event.inputs.mode }}
