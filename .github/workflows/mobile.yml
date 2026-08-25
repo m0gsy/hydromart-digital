@@ -132,7 +132,15 @@ jobs:
             -PhydromartLinkPrefix9=/referral \
             -PhydromartLinkPrefix10=/subscriptions \
             -PhydromartLinkPrefix11=/waralaba \
-            -PhydromartLinkPrefix12=/help
+            -PhydromartLinkPrefix12=/help \
+            -PhydromartLinkPrefix13=/notifications \
+            -PhydromartLinkPrefix14=/addresses \
+            -PhydromartLinkPrefix15=/favorites \
+            -PhydromartLinkPrefix16=/login \
+            -PhydromartLinkPrefix17=/register \
+            -PhydromartLinkPrefix18=/kebijakan-privasi \
+            -PhydromartLinkPrefix19=/hapus-akun \
+            -PhydromartLinkExact=/
 
       - name: Permissions are the ones we justified
         working-directory: mobile
@@ -234,7 +242,15 @@ jobs:
             -PhydromartLinkPrefix9=/referral \
             -PhydromartLinkPrefix10=/subscriptions \
             -PhydromartLinkPrefix11=/waralaba \
-            -PhydromartLinkPrefix12=/help
+            -PhydromartLinkPrefix12=/help \
+            -PhydromartLinkPrefix13=/notifications \
+            -PhydromartLinkPrefix14=/addresses \
+            -PhydromartLinkPrefix15=/favorites \
+            -PhydromartLinkPrefix16=/login \
+            -PhydromartLinkPrefix17=/register \
+            -PhydromartLinkPrefix18=/kebijakan-privasi \
+            -PhydromartLinkPrefix19=/hapus-akun \
+            -PhydromartLinkExact=/
           mv app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/hydromart-customer-debug.apk"
 
       - name: Ops — sync
@@ -392,6 +408,14 @@ jobs:
             -PhydromartLinkPrefix10=/subscriptions \
             -PhydromartLinkPrefix11=/waralaba \
             -PhydromartLinkPrefix12=/help \
+            -PhydromartLinkPrefix13=/notifications \
+            -PhydromartLinkPrefix14=/addresses \
+            -PhydromartLinkPrefix15=/favorites \
+            -PhydromartLinkPrefix16=/login \
+            -PhydromartLinkPrefix17=/register \
+            -PhydromartLinkPrefix18=/kebijakan-privasi \
+            -PhydromartLinkPrefix19=/hapus-akun \
+            -PhydromartLinkExact=/ \
             -PhydromartVersionCode=${{ steps.version.outputs.code }} \
             -PhydromartVersionName=${{ steps.version.outputs.name }}
 

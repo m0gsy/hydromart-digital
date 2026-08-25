@@ -38,7 +38,7 @@ def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
 def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart.id'
 def hydromartLinkPrefix = project.findProperty('hydromartLinkPrefix') ?: '/'
 /**
- * Up to twelve claimed path prefixes. Ops needs two (`/driver`, `/m`); the customer build
+ * Up to twenty claimed path prefixes. Ops needs two (`/driver`, `/m`); the customer build
  * needs one per shop surface, because claiming `/` claimed the ops surfaces too and left
  * Android with two verified apps for one link. An unset slot repeats the first, and Android
  * collapses the duplicate — so a binary that wants one claim still writes one.
@@ -54,6 +54,21 @@ def hydromartLinkPrefix9 = project.findProperty('hydromartLinkPrefix9') ?: hydro
 def hydromartLinkPrefix10 = project.findProperty('hydromartLinkPrefix10') ?: hydromartLinkPrefix
 def hydromartLinkPrefix11 = project.findProperty('hydromartLinkPrefix11') ?: hydromartLinkPrefix
 def hydromartLinkPrefix12 = project.findProperty('hydromartLinkPrefix12') ?: hydromartLinkPrefix
+def hydromartLinkPrefix13 = project.findProperty('hydromartLinkPrefix13') ?: hydromartLinkPrefix
+def hydromartLinkPrefix14 = project.findProperty('hydromartLinkPrefix14') ?: hydromartLinkPrefix
+def hydromartLinkPrefix15 = project.findProperty('hydromartLinkPrefix15') ?: hydromartLinkPrefix
+def hydromartLinkPrefix16 = project.findProperty('hydromartLinkPrefix16') ?: hydromartLinkPrefix
+def hydromartLinkPrefix17 = project.findProperty('hydromartLinkPrefix17') ?: hydromartLinkPrefix
+def hydromartLinkPrefix18 = project.findProperty('hydromartLinkPrefix18') ?: hydromartLinkPrefix
+def hydromartLinkPrefix19 = project.findProperty('hydromartLinkPrefix19') ?: hydromartLinkPrefix
+def hydromartLinkPrefix20 = project.findProperty('hydromartLinkPrefix20') ?: hydromartLinkPrefix
+/**
+ * J3. The home page, claimed as an EXACT path rather than a prefix — `pathPrefix="/"`
+ * would claim `/driver` and `/m` too and put two verified apps on one link. Defaults to
+ * this binary's first prefix, a path it already claims, so only a build that asks for it
+ * ends up owning the root document.
+ */
+def hydromartLinkExact = project.findProperty('hydromartLinkExact') ?: hydromartLinkPrefix
 def hydromartKeystore = rootProject.file('upload.jks')
 
 android {
@@ -87,6 +102,15 @@ android {
             linkPrefix10: hydromartLinkPrefix10,
             linkPrefix11: hydromartLinkPrefix11,
             linkPrefix12: hydromartLinkPrefix12,
+            linkPrefix13: hydromartLinkPrefix13,
+            linkPrefix14: hydromartLinkPrefix14,
+            linkPrefix15: hydromartLinkPrefix15,
+            linkPrefix16: hydromartLinkPrefix16,
+            linkPrefix17: hydromartLinkPrefix17,
+            linkPrefix18: hydromartLinkPrefix18,
+            linkPrefix19: hydromartLinkPrefix19,
+            linkPrefix20: hydromartLinkPrefix20,
+            linkExact: hydromartLinkExact,
         ]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
