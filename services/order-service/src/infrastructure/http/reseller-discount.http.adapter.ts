@@ -4,6 +4,7 @@ import { OrderConfigService } from '../../config/order-config.service';
 import {
   ResellerDiscount,
   ResellerDiscountPort,
+  ResellerLookup,
 } from '../../application/ports/reseller-discount.port';
 
 /**
@@ -12,9 +13,10 @@ import {
  * Two reads, two failure directions on purpose (A5/A6):
  *
  * - `get` (checkout) forwards the customer's own bearer to `/resellers/me` and fails OPEN —
- *   ordering water must not depend on customer-service being up. It now reports WHY it
- *   answered nothing, so the caller can mark the order (A5): "charged full price" and
- *   "charged full price because a read failed" used to be indistinguishable.
+ *   ordering water must not depend on customer-service being up. It reports WHY it
+ *   answered nothing (`ResellerLookup.unavailable`) and the caller marks the order (A5):
+ *   "charged full price" and "charged full price because a read failed" used to be
+ *   indistinguishable, and this comment used to claim otherwise.
  * - `getFor` (counter) reads the internal route on the shared key and fails CLOSED. It used
  *   to forward the CASHIER's bearer to `/resellers/:id`, and `resellerView` lists neither
  *   KEPALA_DEPOT nor STAFF_DEPOT — measured: both 403 — so the catch-all below turned every
@@ -27,15 +29,18 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async get(authorization: string): Promise<ResellerDiscount | null> {
-    if (!authorization) return null;
+  async get(authorization: string): Promise<ResellerLookup> {
+    // No token is not an outage: an anonymous checkout has no agen pricing to read, and
+    // marking the order would accuse customer-service of being down when nobody asked it.
+    if (!authorization) return { reseller: null, unavailable: false };
     try {
-      return await this.read('/api/v1/resellers/me', { authorization });
+      return { reseller: await this.read('/api/v1/resellers/me', { authorization }), unavailable: false };
     } catch (error) {
-      // A5: fail open, but never silently. The caller marks the order so a full-price
-      // charge that came from an outage is distinguishable from one that was correct.
+      // A5: fail open, but never silently — and now the caller can actually act on it.
+      // `read` returns null for a 404 ("not an agen"), so reaching this catch means the
+      // read genuinely failed, which is the one case worth writing on the order.
       this.logger.error(`Reseller pricing unavailable at checkout: ${(error as Error).message}`);
-      return null;
+      return { reseller: null, unavailable: true };
     }
   }
 

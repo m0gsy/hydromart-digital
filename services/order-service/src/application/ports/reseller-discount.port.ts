@@ -25,14 +25,30 @@ export interface ResellerDiscount {
  *
  * The two reads deliberately fail in OPPOSITE directions (A5/A6).
  */
+/**
+ * A5. The shape that lets the caller tell the two apart, exactly like `MembershipRate`.
+ *
+ * `get` returning a bare `null` meant two different things — "customer-service says this
+ * person is not an agen" (404) and "the read failed" (timeout, 5xx, network) — and the
+ * caller had nothing to branch on. So the order carried no trace either way, and the
+ * question "kenapa harga saya penuh" had no answer anywhere in the system. The comments on
+ * the adapter and on this port both already claimed the caller marks the order; it did not.
+ */
+export interface ResellerLookup {
+  /** The pricing, or null when this customer simply is not an agen. */
+  reseller: ResellerDiscount | null;
+  /** True when the read failed. `reseller` is then null by fallback, not by fact. */
+  unavailable: boolean;
+}
+
 export interface ResellerDiscountPort {
   /**
    * Checkout, on the customer's own token. Still fails OPEN — a customer-service outage
-   * must not stop anyone from ordering water — but the caller records that it happened
+   * must not stop anyone from ordering water — and the caller now records that it happened
    * (A5), because "charged full price" and "charged full price because a read failed" used
    * to be the same silent outcome.
    */
-  get(authorization: string): Promise<ResellerDiscount | null>;
+  get(authorization: string): Promise<ResellerLookup>;
   /**
    * The same pricing for a NAMED buyer at a counter, read over the internal key.
    *

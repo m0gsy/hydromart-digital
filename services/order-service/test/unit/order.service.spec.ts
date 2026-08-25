@@ -295,6 +295,43 @@ describe('OrderService', () => {
       ]);
     });
 
+    /*
+     * A5. Same shape as the two above, and the reason it needed writing: `get()` used to
+     * return a bare `null` for BOTH "customer-service says this person is not an agen" and
+     * "the read failed", so the caller had nothing to branch on and the order carried no
+     * trace either way. The adapter's own comment and the port's comment both already
+     * claimed the caller marked the order — for as long as the files existed. A comment is
+     * not a behaviour, and nothing went red while the behaviour was missing.
+     */
+    it('marks an order charged retail because the agen read failed', async () => {
+      await addToCart(20000, 2);
+      resellerDiscount.unavailableOnCheckoutRead = true;
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      // Fail OPEN on the price — nobody is stopped from buying water — and loud on the record.
+      expect(order.id).toBeTruthy();
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Harga agen tidak dihitung: customer-service tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
+    // The distinction the whole item is about: "not an agen" is not an outage. Stamping it
+    // would send somebody hunting a customer-service incident that never happened.
+    it('says nothing when customer-service answered that the buyer is not an agen', async () => {
+      await addToCart(20000, 1);
+      resellerDiscount.result = null;
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([]);
+    });
+
     // The other half: a customer whose tier is genuinely worth nothing is not an outage,
     // and stamping every REGULAR checkout would bury the note that matters.
     it('says nothing when loyalty answered that the tier is worth nothing', async () => {

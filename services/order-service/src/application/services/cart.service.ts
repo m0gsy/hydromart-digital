@@ -161,7 +161,15 @@ export class CartService {
         : Promise.resolve({ prices: new Map<string, DepotPrice>(), unavailable: false }),
       // Fail-open and quiet: a cart is a preview, and an agen whose status could not be
       // read still sees list price — which is what they saw before this existed.
-      authorization ? this.reseller.get(authorization).catch(() => null) : Promise.resolve(null),
+      // A5: the cart preview only needs the pricing, not the reason — there is no order yet
+      // to write a note on. `?? null` collapses both "not an agen" and "could not read" back
+      // to no agen price, which is the same fail-open the preview always had.
+      authorization
+        ? this.reseller
+            .get(authorization)
+            .then((r) => r.reseller)
+            .catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     // Stale lines (product delisted) are surfaced as unavailable rather than priced, so
