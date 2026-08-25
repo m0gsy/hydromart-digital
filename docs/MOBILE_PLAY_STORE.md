@@ -104,6 +104,31 @@ ini — semuanya dibawa masuk oleh Firebase Cloud Messaging lewat manifest AAR-n
 memunculkan dialog apa pun ke pengguna, tapi tetap terdaftar di skrip audit supaya
 kemunculannya adalah keputusan, bukan kejutan.
 
+#### N11 — dua deklarasi yang tidak punya pemilik, sekarang punya
+
+**`FOREGROUND_SERVICE`.** Diketahui masuk lewat AAR milik FCM dan sudah ada di allowlist
+audit, tapi belum pernah dijawab: apakah kehadirannya memicu formulir deklarasi Play?
+Jawabannya **tidak**, dan alasannya bisa diperiksa: formulir "Foreground service
+permissions" hanya diminta Play untuk izin bertipe `FOREGROUND_SERVICE_*` (mis.
+`FOREGROUND_SERVICE_LOCATION`), yang berasal dari Android 14 dan **tidak** ada di manifes
+gabungan kita — dan hanya bila aplikasi benar-benar menjalankan foreground service.
+Repo ini tidak punya satu pun `Service`; FCM di sini hanya menerima pesan `notification`
+tampilan, yang ditangani sistem tanpa service milik aplikasi. Bila itu berubah — misalnya
+pelacakan kurir dipindah ke foreground service — deklarasinya WAJIB diisi dan barisnya
+harus kembali ke sini sebagai keputusan baru.
+
+**Halaman 16 KB (Android 15+).** Repo bungkam soal ini, jadi dicatat sekarang: syaratnya
+berlaku untuk **pustaka native (`.so`)**, dan aplikasi ini tidak mengirim satu pun kode
+native miliknya sendiri — tidak ada `ndk`, tidak ada `abiFilters`, tidak ada modul NDK di
+`build.gradle`. Yang bisa membawa `.so` adalah plugin pihak ketiga; hari ini tidak ada yang
+melakukannya. `compileSdk`/`targetSdk` sudah 36, jadi ambang Play-nya terpenuhi. Yang harus
+dijaga adalah aturannya, bukan angkanya: **plugin baru yang membawa `.so` mengubah jawaban
+ini**, dan pemeriksanya satu perintah pada AAB yang sudah dibangun:
+
+```bash
+unzip -l app-release.aab | grep '\.so$'   # kosong = tidak ada pustaka native sama sekali
+```
+
 Satu lagi yang hanya terlihat di manifest hasil merge:
 `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, dibawa androidx.core. Izin
 tingkat signature yang aplikasi berikan **hanya kepada dirinya sendiri**, supaya broadcast
@@ -468,8 +493,67 @@ dua puluh menit build — dan jauh lebih murah daripada menarik rilis dari track
 punya penguji di dalamnya.
 
 AAB tiap tag ada sebagai artifact di run-nya (`hydromart-aab-<versi>`), bertahan 30 hari.
-`versionCode` diambil dari nomor run, bukan dari tag — Play menolak `versionCode` yang
-pernah ia lihat, dan menjalankan ulang tag yang sama harus menghasilkan angka lebih tinggi.
+`versionCode` **diturunkan** dari nomor run, bukan dari tag: `run_number * 100 +
+run_attempt` (N7). Nomor run saja tidak cukup — ia **tidak naik saat Re-run**, dan Re-run
+adalah respons paling wajar ketika publish gagal setelah bundle-nya sukses; rebuild itu
+menghasilkan AAB dengan `versionCode` yang sudah pernah dilihat Play, dan Play menolaknya
+tanpa jalan keluar selain tag baru.
+
+## 9. Cara memperlambat rilis, dan cara menghentikannya (N8)
+
+Sampai N8, rilis punya satu kecepatan — semua orang sekaligus — dan satu tuas berhenti,
+yaitu gerbang versi. Sekarang workflow `mobile.yml` menerima tiga input, dan **default-nya
+persis perilaku lama** (`internal` / `completed` / tanpa fraksi):
+
+| Input | Arti |
+| --- | --- |
+| `track` | `internal`, `alpha`, `beta`, `production` |
+| `rollout_status` | `completed` = semua sekaligus · `inProgress` = bertahap · `draft` · `halted` |
+| `user_fraction` | porsi pengguna, mis. `0.1`. Hanya dipakai bila `rollout_status: inProgress` |
+
+**Yang diukur, bukan diasumsikan:** track `internal` **mengabaikan** `userFraction` — Play
+hanya melakukan rollout bertahap pada `production`, `beta`, dan `alpha`. Selama rilis masih
+di internal testing, satu-satunya rem yang nyata adalah gerbang versi. Jadi urutan yang
+benar untuk rilis pertama ke publik adalah: `production` + `inProgress` + `user_fraction:
+0.1`, naikkan bertahap, dan **baru** `completed`.
+
+### Menghentikan rilis yang sudah jalan
+
+Tiga tuas, dari yang paling cepat:
+
+1. **Halt rollout** — jalankan workflow dengan `rollout_status: halted` pada track yang
+   sama. Menghentikan penyebaran ke pengguna baru; yang sudah menerima tetap memilikinya.
+2. **Gerbang versi (N5)** — `MOBILE_MIN_VERSION_CODE_BY_ID` di VPS, lalu restart gateway.
+   Ini yang menghentikan build yang sudah TERPASANG, dan sejak N5 ia bisa diarahkan ke satu
+   paket saja: menaikkan lantai aplikasi pelanggan tidak lagi mematikan kurir di tengah
+   antar. Berlaku dalam hitungan menit, tanpa rebuild dan tanpa review.
+3. **Rilis perbaikan** — tag baru, `versionCode` naik sendiri.
+
+**MTTR yang dinyatakan** (sebelumnya tidak pernah dinyatakan sama sekali): halt ≤ 15 menit
+sejak keputusan; gerbang versi ≤ 15 menit; rilis perbaikan ≤ 2 jam ke internal, dan
+bergantung review Play untuk track publik. Angka-angka ini adalah janji operasional, bukan
+pengukuran — yang pertama menguji salah satunya harus memperbaruinya dengan angka nyata.
+
+## 10. Binari mana yang masih terpasang di lapangan (N9)
+
+Aplikasi ini **tidak** membungkus web yang bergerak: `cap sync` menyalin ekspor statis beku
+ke dalam APK, jadi deploy web tidak mengubah UI binari yang sudah terpasang. Risikonya
+adalah skew API terhadap binari di lapangan — dan tidak ada satu pun catatan tentang versi
+mana yang masih hidup. Lantai kompatibilitas adalah tebakan, dan menghapus endpoint adalah
+tebakan di atas tebakan.
+
+Sejak N9 setiap permintaan dari binari membawa `X-App-Id` dan `X-App-Version`, dan
+`enableMetrics` menghitungnya sebagai `client_app_requests_total{app,version}` — bounded
+oleh konstruksi (dua paket, satu label per build yang masih terpasang; peramban tidak
+mengirim keduanya). Sebelum menghapus atau mengubah endpoint:
+
+```promql
+sum by (app, version) (increase(client_app_requests_total[7d]))
+```
+
+Versi terendah yang masih muncul di situ adalah lantai kompatibilitasnya. Kalau kosong,
+jawabannya bukan "tidak ada yang terpasang" — jawabannya "belum ada binari yang mengirim
+header ini", yaitu setiap build sebelum N9.
 
 Setelah kedua app ada di Play, listing terisi, dan rilis pertama lolos review **dengan
 tangan**, isi secret opsional `PLAY_SERVICE_ACCOUNT_JSON` (isi berkas kunci service account

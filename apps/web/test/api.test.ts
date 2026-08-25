@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, primeAppHeaders } from '@/lib/api';
 
 function mockFetch(status: number, body: unknown) {
   return vi.fn(async (_url?: string, _init?: RequestInit) =>
@@ -159,5 +159,40 @@ describe('E3 · a request with a missing path segment never leaves the client', 
     vi.stubGlobal('fetch', fetchMock);
     await expect(api.get('/auth/api/v1/staff?depotId=')).resolves.toEqual({ items: [] });
     expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+/*
+ * N9. The APK carries a FROZEN export, so a phone keeps the UI it was installed with until
+ * somebody updates it. The risk that leaves is API skew against binaries in the field —
+ * and nothing recorded which ones those are, so the compatibility floor was a guess.
+ */
+describe('every request says which binary is talking', () => {
+  afterEach(() => primeAppHeaders(null));
+
+  it('tags the request with the package and its build', async () => {
+    primeAppHeaders({ id: 'id.hydromart.app', build: '1204' });
+    const fetchMock = mockFetch(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.get('/anything');
+
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-App-Id']).toBe('id.hydromart.app');
+    expect(headers['X-App-Version']).toBe('1204');
+  });
+
+  // On the web there is no package and no build, and a header that identifies nothing is
+  // just a byte on every request plus a series nobody can read.
+  it('sends neither header when there is no binary to name', async () => {
+    primeAppHeaders(null);
+    const fetchMock = mockFetch(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.get('/anything');
+
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-App-Id']).toBeUndefined();
+    expect(headers['X-App-Version']).toBeUndefined();
   });
 });

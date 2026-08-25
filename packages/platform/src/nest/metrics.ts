@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
-import { collectDefaultMetrics, Registry, Histogram } from 'prom-client';
+import { collectDefaultMetrics, Counter, Registry, Histogram } from 'prom-client';
 
 /**
  * One-call Prometheus wiring for a Nest/Express service. Adds:
@@ -29,6 +29,26 @@ export function enableMetrics(app: INestApplication, serviceName: string): void 
     registers: [registry],
   });
 
+  /*
+   * N9: which binaries are actually out there.
+   *
+   * The APK carries a FROZEN export — `cap sync` copies it in — so a phone keeps the UI it
+   * was installed with until somebody updates. The real risk is API skew against binaries
+   * in the field, and nothing recorded which ones those are: the compatibility floor was a
+   * guess, and retiring an endpoint was a guess on top of it. The client sends its package
+   * and build; this counts them.
+   *
+   * Cardinality is bounded by construction: two packages, one label per build that is still
+   * installed somewhere, and the labels are dropped entirely for browser traffic (which
+   * sends neither header).
+   */
+  const clientApp = new Counter({
+    name: 'client_app_requests_total',
+    help: 'Requests by installed app package and build (mobile only; browsers send neither header)',
+    labelNames: ['app', 'version'],
+    registers: [registry],
+  });
+
   const http = app.getHttpAdapter().getInstance();
 
   http.get('/metrics', async (_req: Request, res: Response) => {
@@ -38,6 +58,13 @@ export function enableMetrics(app: INestApplication, serviceName: string): void 
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path === '/metrics') return next();
+    const appId = req.headers?.['x-app-id'];
+    const appVersion = req.headers?.['x-app-version'];
+    // Both, or neither: a version with no package cannot be attributed, and a package with
+    // no version is the thing this counter exists to answer.
+    if (typeof appId === 'string' && typeof appVersion === 'string' && /^[\w.-]{1,64}$/.test(appId) && /^\d{1,12}$/.test(appVersion)) {
+      clientApp.inc({ app: appId, version: appVersion });
+    }
     const end = httpDuration.startTimer({ method: req.method });
     res.on('finish', () => {
       // req.route?.path is the templated path once Express has matched; fall back
