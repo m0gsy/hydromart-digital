@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useT } from '@/lib/locale-context';
 import { LockKey, LockKeyOpen } from '@phosphor-icons/react';
 
@@ -39,6 +39,21 @@ export function CashierShiftBar({
     () => api.get(endpoints.cashierShifts.current(depotId), true),
     [depotId],
   );
+
+  /*
+   * K3.3. `onChange` used to fire only when THIS component opened or closed a shift, never
+   * when it merely READ one. So a cashier arriving at a till whose shift was opened
+   * earlier — the ordinary case, every morning after the first sale — left the page
+   * believing the shift status was still unknown.
+   *
+   * That was survivable while "unknown" was treated as "probably open". It is not
+   * survivable now that the pay button waits for a real answer: without this the button
+   * would never enable for anybody who did not open their shift in this very tab.
+   */
+  const reported = shift.data;
+  useEffect(() => {
+    if (!shift.loading && !shift.error) onChange?.(reported ?? null);
+  }, [reported, shift.loading, shift.error, onChange]);
 
   async function refresh(next: CashierShift | null) {
     onChange?.(next);

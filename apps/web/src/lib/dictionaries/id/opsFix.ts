@@ -399,6 +399,7 @@ export const opsFix = {
     stillShort: 'Masih kurang',
     cashShort: 'Kurang {amount}.',
     exactCash: 'Uang pas',
+    checkingShift: "Memeriksa shift…",
     openShiftFirst: 'Buka shift dulu',
     saveAndPrint: 'Simpan & cetak struk',
     paidAndPrint: 'Pembayaran diterima & cetak struk',
