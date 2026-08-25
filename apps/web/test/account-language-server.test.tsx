@@ -51,6 +51,7 @@ import { LOCALE_STORAGE_KEY, LocaleProvider } from '@/lib/locale-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { ToastProvider } from '@/components/toast';
 import AccountPage from '@/app/account/page';
+import { LocaleSync } from '@/components/locale-sync';
 
 beforeEach(() => {
   localStorage.clear();
@@ -74,6 +75,14 @@ async function openPrefs() {
     <LocaleProvider>
       <ThemeProvider>
         <ToastProvider>
+          {/*
+            K5.3: the adoption used to live inside AccountPage and therefore ran on this one
+            screen only — a second device that opened the app anywhere else stayed
+            Indonesian while its owner's order updates arrived in English. It moved to
+            <LocaleSync/> in the root layout. Mounted here so this file keeps testing the
+            same promise it always did, now against its real owner.
+          */}
+          <LocaleSync />
           <AccountPage />
         </ToastProvider>
       </ThemeProvider>
