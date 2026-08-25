@@ -150,3 +150,38 @@ model ResellerProfile {
   @@index([homeDepotId])
   @@map("reseller_profiles")
 }
+
+/// K4.2: every change to what an agen pays, and when it takes effect.
+///
+/// Deactivation and a new price used to be a bare UPDATE: instant, unsigned, unannounced.
+/// Nobody could answer "who dropped this agen to 0%" a week later, and the agen found out
+/// standing at a till. This table is the answer to both halves — it is the audit trail AND
+/// the schedule, because a scheduled change is just a row that has not been applied yet.
+///
+///   appliedAt = null   scheduled; `effectiveAt` is in the future and the sweep will apply it
+///   appliedAt set      applied at that moment; the row is history
+///
+/// One row per FIELD changed, not per request: "discount 10 → 5 and deactivated" is two
+/// facts, and a history that merges them cannot answer either question cleanly. Values are
+/// TEXT so a boolean, a percent and a rupiah amount share one shape.
+model ResellerPriceChange {
+  id          String   @id @default(uuid()) @db.Uuid
+  customerId  String   @db.Uuid
+  /// The staff account that made the change. Never null: an unattributed money change is
+  /// the thing this table exists to stop.
+  changedBy   String   @db.Uuid
+  /// discountPct | flatGallonPriceIdr | active
+  field       String
+  oldValue    String
+  newValue    String
+  /// When it takes (or took) effect. Equal to createdAt for an immediate change.
+  effectiveAt DateTime
+  /// Null while scheduled. Set the moment the profile row actually moved.
+  appliedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([customerId, createdAt(sort: Desc)])
+  /// The sweep's read: everything due and not yet applied.
+  @@index([appliedAt, effectiveAt])
+  @@map("reseller_price_changes")
+}

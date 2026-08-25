@@ -55,6 +55,11 @@
 # sweep alerts each delivery once (it stamps `slaAlertedAt`), so the cadence costs
 # nothing in repeat messages. It reports; it does not reassign anyone's work.
 */10 * * * * sh /scripts/sweep.sh deliveries/internal/sla-sweep delivery:3006
+# K4.2: apply agen price/status changes that were scheduled for a date that has arrived.
+# Hourly, and on the hour: the console only lets staff pick a DATE, so anything finer
+# would be precision the feature does not have. A change scheduled for today lands within
+# the hour, the agen is told, and nobody has to be at a desk for it.
+0 * * * * sh /scripts/sweep.sh customers/internal/resellers/apply-scheduled customer:3002
 # Retention enforcement (M23-21): runs the policy for every dataset that has an executor
 # — including proof-of-delivery, which used to sweep itself at 03:15 off a separate
 # per-depot window. One owner for the rule now. Datasets with no executor are logged as

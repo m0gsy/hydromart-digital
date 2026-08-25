@@ -67,21 +67,21 @@ describe('DepotCrmService follow-up list', () => {
 describe('ResellerService.findMy', () => {
   it('hands back the caller own reseller row', async () => {
     const row = { id: 'c1', discountPct: 5 };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity());
+    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
     expect(await svc.findMy('c1')).toBe(row);
   });
 
   // Not an error: most customers are simply not resellers, and the wallet screen
   // asks unconditionally.
   it('returns null for a customer who is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity());
+    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
     expect(await svc.findMy('c9')).toBeNull();
   });
 });
 
 describe('ResellerService.get', () => {
   it('404s for an id that is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity());
+    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
     await expect(svc.get({ sub: 'staff' } as never, 'c9')).rejects.toThrow();
   });
 
@@ -92,6 +92,7 @@ describe('ResellerService.get', () => {
       { findById: async () => ({ id: 'c1', homeDepotId: 'depot-other' }) } as never,
       {} as never,
       fakeIdentity(),
+      { priceChanged: async () => true } as never,
     );
     await expect(
       svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1'),
@@ -100,7 +101,7 @@ describe('ResellerService.get', () => {
 
   it('returns the row for a caller inside the right depot', async () => {
     const row = { id: 'c1', homeDepotId: 'depot-mine' };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity());
+    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
     expect(await svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1')).toBe(
       row,
     );

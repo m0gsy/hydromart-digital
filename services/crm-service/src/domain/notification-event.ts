@@ -58,6 +58,14 @@ export enum NotificationEvent {
   POINTS_EARNED = 'POINTS_EARNED',
   // Rewards/referral: fired when a voucher is granted. Tokens: {{name}}, {{code}}, {{description}}.
   VOUCHER_GRANTED = 'VOUCHER_GRANTED',
+  // K4.2, agen-facing. What a reseller pays used to change with no trail, no date and no
+  // message — they found out at the till, arguing with a cashier who was reading the
+  // correct new price. Fired by customer-service on an immediate change AND by its
+  // scheduled-change sweep. Tokens: {{name}}, {{terms}}.
+  RESELLER_PRICE_CHANGED = 'RESELLER_PRICE_CHANGED',
+  // The same moment, but the answer is "you are no longer an agen" — a deactivation reads
+  // nothing like a new rate and must not be dressed as one. Tokens: {{name}}.
+  RESELLER_DEACTIVATED = 'RESELLER_DEACTIVATED',
   // Retention nudge: "time to refill". Token: {{name}}.
   REORDER_REMINDER = 'REORDER_REMINDER',
   // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
@@ -117,6 +125,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Mantap, {{name}}! Kamu dapat +{{points}} poin dari pesanan {{orderNumber}}. Kumpulkan poin untuk tukar voucher & naik tier di aplikasi.',
   [NotificationEvent.VOUCHER_GRANTED]:
     'Ada voucher baru untukmu, {{name}}! Kode {{code}} — {{description}}. Pakai saat checkout sebelum masa berlaku habis 🎟️',
+  [NotificationEvent.RESELLER_PRICE_CHANGED]:
+    'Halo {{name}}, harga agen kamu diperbarui: {{terms}}. Berlaku mulai sekarang — cek detailnya di aplikasi sebelum belanja berikutnya.',
+  [NotificationEvent.RESELLER_DEACTIVATED]:
+    'Halo {{name}}, status agen kamu dinonaktifkan, jadi pembelian berikutnya memakai harga umum. Hubungi depot bila ini tidak sesuai.',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
   [NotificationEvent.LEAVE_SUBMITTED]:

@@ -26,6 +26,7 @@ import { ResellerPrismaRepository } from '../infrastructure/prisma/reseller.pris
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
+import { ResellerNotificationHttpAdapter } from '../infrastructure/http/reseller-notification.http.adapter';
 import { OrderCrmHttpAdapter } from '../infrastructure/http/order-crm.http.adapter';
 import { DepotLedgerHttpAdapter } from '../infrastructure/http/depot-ledger.http.adapter';
 import { DepotProfileHttpAdapter } from '../infrastructure/http/depot-profile.http.adapter';
@@ -66,6 +67,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.FavoriteRepository, useClass: FavoritePrismaRepository },
   { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
   { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },
+  { provide: CUSTOMER_TOKENS.ResellerNotification, useClass: ResellerNotificationHttpAdapter },
   { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
   {
     provide: CUSTOMER_TOKENS.Storage,

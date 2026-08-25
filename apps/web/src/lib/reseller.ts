@@ -85,3 +85,20 @@ export function evaluateReseller(input: {
 
   return { attainmentPct, status, growthPct, pasif };
 }
+
+/**
+ * K4.2. One recorded change to what an agen pays. `appliedAt === null` is a change that
+ * has not happened yet — the history list and the schedule are the same list, and the
+ * screen distinguishes them by this field alone.
+ */
+export interface ResellerPriceChange {
+  id: string;
+  customerId: string;
+  changedBy: string;
+  field: 'discountPct' | 'flatGallonPriceIdr' | 'active';
+  oldValue: string;
+  newValue: string;
+  effectiveAt: string;
+  appliedAt: string | null;
+  createdAt: string;
+}

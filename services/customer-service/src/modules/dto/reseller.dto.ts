@@ -35,6 +35,16 @@ export class UpdateResellerDto {
   @IsOptional() @IsInt() @Min(0) @Max(10_000_000) flatGallonPriceIdr?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() active?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) note?: string;
+  /**
+   * K4.2. When the price/status change should take effect. A moment in the future
+   * SCHEDULES it — the profile is left alone and a sweep applies it on the day. Omitted
+   * or in the past means now, which is the behaviour every caller had before.
+   *
+   * Only the priced fields (discountPct, flatGallonPriceIdr, active) can be scheduled; a
+   * date with none of them changing is rejected rather than silently doing nothing.
+   */
+  @ApiPropertyOptional({ example: '2026-09-01T00:00:00.000Z' })
+  @IsOptional() @IsISO8601() effectiveAt?: string;
 }
 
 export class ListResellerQueryDto {

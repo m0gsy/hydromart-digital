@@ -15,6 +15,19 @@ const row: Reseller = {
   updatedAt: new Date('2026-01-01'),
 };
 
+/** K4.2: `field` comes back from Postgres as TEXT; the repo narrows it. */
+const change = {
+  id: 'ch-1',
+  customerId: 'c1',
+  changedBy: 'staff-1',
+  field: 'discountPct',
+  oldValue: '10',
+  newValue: '5',
+  effectiveAt: new Date('2026-09-01'),
+  appliedAt: null as Date | null,
+  createdAt: new Date('2026-08-25'),
+};
+
 function prismaMock() {
   return {
     resellerProfile: {
@@ -22,6 +35,11 @@ function prismaMock() {
       findUnique: jest.fn().mockResolvedValue(row),
       create: jest.fn().mockResolvedValue(row),
       update: jest.fn().mockResolvedValue(row),
+    },
+    resellerPriceChange: {
+      create: jest.fn().mockResolvedValue({ ...change }),
+      findMany: jest.fn().mockResolvedValue([{ ...change }]),
+      update: jest.fn().mockResolvedValue({ ...change }),
     },
   };
 }
@@ -115,6 +133,68 @@ describe('ResellerPrismaRepository', () => {
     expect(prisma.resellerProfile.update).toHaveBeenCalledWith({
       where: { customerId: 'c1' },
       data: { monthlyTargetQty: 200 },
+    });
+  });
+});
+
+describe('ResellerPrismaRepository price changes (K4.2)', () => {
+  it('recordPriceChange appends a row and narrows the TEXT field', async () => {
+    const prisma = prismaMock();
+    const repo = new ResellerPrismaRepository(prisma as never);
+
+    const out = await repo.recordPriceChange({
+      customerId: 'c1',
+      changedBy: 'staff-1',
+      field: 'discountPct',
+      oldValue: '10',
+      newValue: '5',
+      effectiveAt: new Date('2026-09-01'),
+      appliedAt: null,
+    });
+
+    expect(prisma.resellerPriceChange.create).toHaveBeenCalledTimes(1);
+    expect(out.field).toBe('discountPct');
+  });
+
+  it('listPriceChanges reads this agen newest first, bounded', async () => {
+    const prisma = prismaMock();
+    const repo = new ResellerPrismaRepository(prisma as never);
+
+    await repo.listPriceChanges('c1', 50);
+
+    expect(prisma.resellerPriceChange.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'c1' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  });
+
+  // Oldest first matters: two changes to the same field must land in the order they were
+  // scheduled, not in whichever order the page size happened to produce.
+  it('findDuePriceChanges asks for unapplied changes whose moment has passed, oldest first', async () => {
+    const prisma = prismaMock();
+    const repo = new ResellerPrismaRepository(prisma as never);
+    const now = new Date('2026-09-01T01:00:00.000Z');
+
+    await repo.findDuePriceChanges(now, 500);
+
+    expect(prisma.resellerPriceChange.findMany).toHaveBeenCalledWith({
+      where: { appliedAt: null, effectiveAt: { lte: now } },
+      orderBy: { effectiveAt: 'asc' },
+      take: 500,
+    });
+  });
+
+  it('markPriceChangeApplied stamps exactly the one row', async () => {
+    const prisma = prismaMock();
+    const repo = new ResellerPrismaRepository(prisma as never);
+    const at = new Date('2026-09-01T01:00:00.000Z');
+
+    await repo.markPriceChangeApplied('ch-1', at);
+
+    expect(prisma.resellerPriceChange.update).toHaveBeenCalledWith({
+      where: { id: 'ch-1' },
+      data: { appliedAt: at },
     });
   });
 });

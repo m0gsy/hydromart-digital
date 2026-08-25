@@ -263,6 +263,8 @@ resellers: {
   detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
   /** SOP §7 — multipart upload of the agen's registration photo; returns the updated row. */
   uploadPhoto: (customerId: string) => `/customers/api/v1/resellers/${customerId}/photo`,
+  /** K4.2 — who changed this agen's terms, when, and what is still scheduled. */
+  priceChanges: (customerId: string) => `/customers/api/v1/resellers/${customerId}/price-changes`,
   // A4 removed the web's caller for `/resellers/me`: the checkout screen used it to
   // re-derive the agen rule for itself, which is precisely the third copy A9 named. The
   // route is alive and order-service still reads it — the browser no longer needs to.

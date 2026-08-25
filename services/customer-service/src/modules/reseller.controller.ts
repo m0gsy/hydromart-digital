@@ -41,12 +41,17 @@ import { StoragePort } from '../application/ports/storage.port';
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService, ResellerView } from '../application/services/reseller.service';
 import {
+  NothingToScheduleError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../domain/errors';
 import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './dto/reseller.dto';
 import { ImportResellersDto } from './dto/customer-import.dto';
-import { ImportResponseDto, ResellerResponseDto } from './dto/responses.generated.dto';
+import {
+  ImportResponseDto,
+  ResellerPriceChangeResponseDto,
+  ResellerResponseDto,
+} from './dto/responses.generated.dto';
 
 // Multipart agen photo (SOP §7). Minimal file shape avoids a hard @types/multer dep —
 // same trick depot-service's QRIS upload uses.
@@ -176,16 +181,44 @@ export class ResellerController {
     }
   }
 
+  /**
+   * K4.2. `effectiveAt` in the future schedules the price/status half instead of applying
+   * it: the row comes back unchanged, and the agen keeps today's terms until the date they
+   * were told about. Everything else on the patch is still instant.
+   */
   @Patch(':customerId')
   @Can('resellerAdmin')
-  @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active)' })
+  @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active), optionally from a date' })
   async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('customerId', ParseUUIDPipe) customerId: string,
     @Body() dto: UpdateResellerDto,
   ) {
+    const { effectiveAt, ...patch } = dto;
     try {
-      return await this.resellers.update(user, customerId, dto);
+      return await this.resellers.update(
+        user,
+        customerId,
+        patch,
+        effectiveAt ? new Date(effectiveAt) : undefined,
+      );
+    } catch (e) {
+      if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
+      if (e instanceof NothingToScheduleError) throw new BadRequestException(e.message);
+      throw e;
+    }
+  }
+
+  /** K4.2: who changed this agen's terms, when, and what is still coming. */
+  @ApiOkResponse({ type: ResellerPriceChangeResponseDto, isArray: true })
+  @Get(':customerId/price-changes')
+  @ApiOperation({ summary: "One agen's price/status change history, newest first" })
+  async priceChanges(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+  ) {
+    try {
+      return await this.resellers.priceHistory(user, customerId);
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;
