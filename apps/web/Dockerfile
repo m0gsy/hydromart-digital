@@ -34,9 +34,9 @@ ENV NEXT_PUBLIC_SENTRY_ENV=$NEXT_PUBLIC_SENTRY_ENV
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/access/package.json ./packages/access/
 COPY apps/web/package.json ./apps/web/
-# Access source must land BEFORE `npm ci` — @hydromart/access has a `prepare`
-# (tsc) that npm runs during install, and it needs its tsconfig + source present.
-COPY packages/access ./packages/access
+# M14: `prepare` on @hydromart/access calls this, and `npm ci` runs `prepare`, so it has
+# to land above the install.
+COPY scripts/build-shared-if-source.mjs ./scripts/
 # BuildKit cache mount: every image bakes the whole monorepo, so a cold rebuild used to
 # be N x a full `npm ci` download from Indonesia. The mount keeps the npm cache on the
 # builder between images and between runs; it never lands in a layer, so images stay the
@@ -51,6 +51,11 @@ COPY packages/access ./packages/access
 # the last line of defence for whichever batch does have to fetch.
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --include-workspace-root --prefer-offline \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
+# M14. The access source used to sit ABOVE `npm ci` — because `prepare` compiles it and
+# needed it there — so one line in @hydromart/access invalidated the install layer here
+# too. `prepare` now compiles only when the source is present, so the install runs without
+# it and the source arrives here, immediately above the build that consumes it.
+COPY packages/access ./packages/access
 RUN npm run build -w @hydromart/access
 COPY apps/web ./apps/web
 RUN npm run build -w @hydromart/web

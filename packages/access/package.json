@@ -2,7 +2,7 @@
   "name": "@hydromart/access",
   "version": "0.1.0",
   "private": true,
-  "description": "Single source of truth for Hydromart RBAC capabilities — shared by the Nest guards and the web console",
+  "description": "Single source of truth for Hydromart RBAC capabilities \u2014 shared by the Nest guards and the web console",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -11,19 +11,40 @@
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage",
-    "prepare": "tsc -p tsconfig.json"
+    "prepare": "node ../../scripts/build-shared-if-source.mjs access"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": ".",
-    "roots": ["<rootDir>/src"],
+    "roots": [
+      "<rootDir>/src"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
-    "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.spec.json" }] },
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.spec.json"
+        }
+      ]
+    },
     "testEnvironment": "node",
-    "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.spec.ts"],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.spec.ts"
+    ],
     "coverageDirectory": "./coverage",
     "coverageThreshold": {
-      "global": { "statements": 98, "branches": 98, "functions": 98, "lines": 98 }
+      "global": {
+        "statements": 98,
+        "branches": 98,
+        "functions": 98,
+        "lines": 98
+      }
     }
   },
   "devDependencies": {

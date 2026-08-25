@@ -12,8 +12,9 @@ COPY tsconfig.base.json ./
 # when the schema hash and CLI version already match what is on disk. It must land
 # BEFORE `npm ci`, which is what runs postinstall.
 COPY scripts/prisma-generate-if-stale.mjs ./scripts/
-COPY packages/platform ./packages/platform
-COPY packages/access ./packages/access
+# M14: `prepare` on the shared packages calls this, and `npm ci` runs `prepare` — so it
+# has to be here, above the install, exactly like the postinstall helper on the line up.
+COPY scripts/build-shared-if-source.mjs ./scripts/
 # BuildKit cache mount: every image bakes the whole monorepo, so a cold rebuild used to
 # be N x a full `npm ci` download from Indonesia. The mount keeps the npm cache on the
 # builder between images and between runs; it never lands in a layer, so images stay the
@@ -28,6 +29,21 @@ COPY packages/access ./packages/access
 # the last line of defence for whichever batch does have to fetch.
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --include-workspace-root --prefer-offline \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
+# M14. Everything above this line depends only on the lockfile and the package.json
+# files, so it survives a change to packages/ and to this service's own source. `npm ci`
+# used to sit BELOW `COPY packages/*`, so one line in @hydromart/platform invalidated it in
+# all nineteen images, and a deploy touching packages/ took ~39 minutes.
+#
+# What made the move possible is `prepare` learning about the case, not a flag:
+# `npm ci --ignore-scripts` was tried first and npm ran `prepare` anyway, dying on
+# `TS5058 ... '../access/tsconfig.json'` (measured 2026-08-25). So `prepare` now compiles
+# only when the source is present, and here it is not — the source arrives next, and the
+# same `tsc` runs explicitly below.
+#
+# access first: platform imports it, and .dockerignore strips **/dist so nothing is prebuilt.
+COPY packages/access ./packages/access
+COPY packages/platform ./packages/platform
+RUN npm run build --workspace @hydromart/access && npm run build --workspace @hydromart/platform
 COPY services/gateway-service ./services/gateway-service
 # CI-8: @hydromart/access and @hydromart/platform are ALREADY compiled at this point —
 # `npm ci` runs their `prepare` scripts. Rebuilding them here compiled access three
