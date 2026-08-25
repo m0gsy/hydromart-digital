@@ -71,4 +71,7 @@ export const envValidationSchema = Joi.object({
   // S2: the depot CRM card's churn band. Blank = the card renders "—", which is what it
   // did unconditionally before — never LOW, which is a claim nobody measured.
   FORECAST_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // K4.2 agen price-change notice. Blank = the change still applies and is still audited;
+  // only the message to the agen is dropped, which is the fail-open half of that feature.
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
 });

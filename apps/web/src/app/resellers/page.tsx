@@ -3,22 +3,16 @@
 import { useMemo, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
-import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
-import { RemoteImage } from '@/components/remote-image';
+import { Button, Card, ErrorState, Field, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
-import { api, ApiError, uploadFile } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { mediaUrl } from '@/lib/format';
 import { canManageResellers, canViewResellers, isHq } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import {
-  evaluateReseller,
-  RESELLER_STATUS_LABEL,
-  type Reseller,
-  type ResellerRollupRow,
-} from '@/lib/reseller';
+import { type Reseller, type ResellerRollupRow } from '@/lib/reseller';
 import type { Customer, DepotAdmin, Page } from '@/lib/types';
+import { ResellerRow } from './reseller-row';
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -136,174 +130,6 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
 // activate/deactivate row actions. Mirrors the inline-edit idiom from
 // apps/web/src/app/addresses/page.tsx (openEdit/save/cancel local state) but keeps the
 // form inline in the row rather than a Sheet — the edited fields are just two inputs.
-function ResellerRow({
-  reseller: r,
-  roll,
-  name,
-  onChanged,
-}: {
-  reseller: Reseller;
-  roll: ResellerRollupRow | undefined;
-  name: string | undefined;
-  onChanged: () => void;
-}) {
-  const { t } = useT();
-  const { toast: notify } = useToast();
-  const [editing, setEditing] = useState(false);
-  const [target, setTarget] = useState(String(r.monthlyTargetQty));
-  const [discount, setDiscount] = useState(String(r.discountPct));
-  const [flatPrice, setFlatPrice] = useState(String(r.flatGallonPriceIdr));
-  const [note, setNote] = useState(r.note ?? '');
-  const [saving, setSaving] = useState(false);
-  const [toggling, setToggling] = useState(false);
-
-  const m = evaluateReseller({
-    volumeQty: roll?.volumeQty ?? 0,
-    prevVolumeQty: roll?.prevVolumeQty ?? 0,
-    monthlyTargetQty: r.monthlyTargetQty,
-    lastOrderAt: roll?.lastOrderAt ?? null,
-  });
-
-  function openEdit() {
-    setTarget(String(r.monthlyTargetQty));
-    setDiscount(String(r.discountPct));
-    setFlatPrice(String(r.flatGallonPriceIdr));
-    setNote(r.note ?? '');
-    setEditing(true);
-  }
-
-  async function saveEdit() {
-    if (!(Number(target) >= 0)) {
-      notify(t('hrFix.resellers.targetNumber'), 'error');
-      return;
-    }
-    if (!(Number(discount) >= 0 && Number(discount) <= 100)) {
-      notify(t('hrFix.resellers.discountRange'), 'error');
-      return;
-    }
-    if (!(Number(flatPrice) >= 0)) {
-      notify(t('hrFix.resellers.flatNumber'), 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.patch(
-        endpoints.resellers.detail(r.customerId),
-        {
-          monthlyTargetQty: Number(target),
-          discountPct: Number(discount),
-          flatGallonPriceIdr: Number(flatPrice),
-          note: note.trim() || null,
-        },
-        true,
-      );
-      notify(t('hrFix.resellers.updated'));
-      setEditing(false);
-      onChanged();
-    } catch (err) {
-      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.updateFailed'), 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggleActive() {
-    setToggling(true);
-    try {
-      await api.patch(endpoints.resellers.detail(r.customerId), { active: !r.active }, true);
-      notify(r.active ? t('hrFix.resellers.deactivated') : t('hrFix.resellers.reactivated'));
-      onChanged();
-    } catch (err) {
-      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.statusFailed'), 'error');
-    } finally {
-      setToggling(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <div className="p-4 text-sm">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={t('hrFix.resellers.monthlyTarget')}>
-            <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} />
-          </Field>
-          <Field label={t('hrFix.resellers.discountShort')}>
-            <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-          </Field>
-          <Field label={t('hrFix.resellers.flatPriceShort')} hint={t('hrFix.resellers.flatPriceShortHint')}>
-            <Input type="number" value={flatPrice} onChange={(e) => setFlatPrice(e.target.value)} />
-          </Field>
-          <Field label={t('hrFix.resellers.noteOpt')}>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </Field>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <Button type="button" loading={saving} onClick={saveEdit}>
-            {t('hrFix.resellers.save2')}
-          </Button>
-          <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(false)}>
-            {t('hrFix.resellers.cancel2')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`flex items-center justify-between gap-4 p-4 text-sm ${r.active ? '' : 'opacity-60'}`}>
-      <ResellerPhoto reseller={r} onChanged={onChanged} />
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold">{name ?? r.customerId}</div>
-        <div className="text-muted">
-          {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
-          {/*
-            J12: attainment counts every depot they took gallons from, because the target is
-            theirs. The home depot's share is named only when the two differ — otherwise the
-            line would carry a number that says nothing.
-          */}
-          {roll != null && roll.volumeAtDepotQty !== roll.volumeQty && (
-            <> ({t('hrFix.resellers.atThisDepot', { n: roll.volumeAtDepotQty })})</>
-          )}
-          {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
-          {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
-          {r.flatGallonPriceIdr > 0 ? (
-            <> · Rp{r.flatGallonPriceIdr.toLocaleString('id-ID')}/galon</>
-          ) : (
-            r.discountPct > 0 && <> · diskon {r.discountPct}%</>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {!r.active && <Badge tone="neutral">{t('hrFix.resellers.inactive')}</Badge>}
-        {r.active && m.pasif && <Badge tone="danger">{t('hrFix.resellers.dormant')}</Badge>}
-        <Badge
-          tone={
-            m.status === 'lampaui' || m.status === 'tercapai'
-              ? 'success'
-              : m.status === 'no-target'
-                ? 'neutral'
-                : 'danger'
-          }
-        >
-          {RESELLER_STATUS_LABEL[m.status]}
-        </Badge>
-        <Button type="button" variant="secondary" onClick={openEdit} className="px-3 py-1.5 text-xs">
-          {t('hrFix.resellers.edit2')}
-        </Button>
-        <Button
-          type="button"
-          variant={r.active ? 'danger' : 'secondary'}
-          loading={toggling}
-          onClick={toggleActive}
-          className="px-3 py-1.5 text-xs"
-        >
-          {r.active ? t('hrFix.resellers.deactivate') : t('hrFix.resellers.activate')}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // Reseller (agen) achievement console — joins the reseller registry (target) with the
 // order-service rollup (actual volume/growth) for one depot + month. HQ picks the depot
 // via a select; a depot manager is pinned to their own (customer.assignedDepotId).
@@ -420,61 +246,5 @@ export default function ResellersPage() {
         </Card>
       )}
     </div>
-  );
-}
-
-// SOP §7: the agen's registration photo. Thumbnail doubles as the picker — the row has
-// no space for a separate button, and there is only ever one photo.
-const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-
-function ResellerPhoto({ reseller: r, onChanged }: { reseller: Reseller; onChanged: () => void }) {
-  const { t } = useT();
-  const { toast: notify } = useToast();
-  const [busy, setBusy] = useState(false);
-
-  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-picking the same file
-    if (!file) return;
-    if (file.size > PHOTO_MAX_BYTES) {
-      notify(t('hrFix.resellers.photoTooBig'), 'error');
-      return;
-    }
-    setBusy(true);
-    try {
-      await uploadFile(endpoints.resellers.uploadPhoto(r.customerId), file);
-      notify(t('hrFix.resellers.photoSaved'));
-      onChanged();
-    } catch (err) {
-      notify(err instanceof ApiError ? err.message : t('hrFix.resellers.photoFailed'), 'error');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <label
-      className={`relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-app bg-[color:var(--surface-muted)] text-[10px] font-semibold text-muted ${
-        busy ? 'opacity-60' : ''
-      }`}
-      title={r.photoUrl ? t('hrFix.resellers.replacePhoto') : t('hrFix.resellers.uploadPhoto')}
-    >
-      <RemoteImage
-        src={mediaUrl(r.photoUrl)}
-        alt="Foto agen"
-        width={48}
-        height={48}
-        className="h-full w-full object-cover"
-        fallback={<span>{t('hrFix.resellers.photo')}</span>}
-      />
-      <input
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="sr-only"
-        disabled={busy}
-        onChange={pick}
-        aria-label={`Foto agen ${r.customerId}`}
-      />
-    </label>
   );
 }

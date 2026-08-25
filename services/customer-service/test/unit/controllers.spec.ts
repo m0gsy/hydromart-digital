@@ -173,7 +173,7 @@ describe('InternalController', () => {
   const svc = { listCustomerIdsByDepot: jest.fn(), getCrmDashboard: jest.fn() };
   const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
   const imports = { resolveByPhone: jest.fn() };
-  const resellers = { pricingFor: jest.fn() };
+  const resellers = { pricingFor: jest.fn(), applyScheduled: jest.fn() };
   const c = new InternalController(svc as never, imports as never, resellers as never, pdp as never);
 
   /*
@@ -199,6 +199,18 @@ describe('InternalController', () => {
       homeDepotId: 'd-home',
     });
     expect(resellers.pricingFor).toHaveBeenCalledWith('c1');
+  });
+
+  /**
+   * K4.2. The scheduler is the caller here, and it reads the `ok` field off this body to
+   * decide whether the round was alive (J7). Passing it straight through is the point.
+   */
+  it('hands the scheduled-change sweep result through untouched, ok flag included', async () => {
+    const sweep = { ok: false, due: 3, applied: 0 };
+    resellers.applyScheduled.mockResolvedValue(sweep);
+
+    await expect(c.applyScheduledResellerChanges()).resolves.toEqual(sweep);
+    expect(resellers.applyScheduled).toHaveBeenCalledWith();
   });
 
   /**

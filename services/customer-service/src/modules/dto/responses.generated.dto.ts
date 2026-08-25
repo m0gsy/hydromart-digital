@@ -247,3 +247,35 @@ export class ResolveByPhoneResponseDto {
   @ApiProperty({ enum: ['created', 'pending', 'active'] })
   status!: 'created' | 'pending' | 'active';
 }
+
+/** K4.2 scheduled agen price-change sweep. `ok` is the J7 flag: work found, none applied. */
+export class ScheduledResellerSweepResponseDto {
+  @ApiProperty({ type: Boolean })
+  ok!: boolean;
+  @ApiProperty({ type: Number })
+  due!: number;
+  @ApiProperty({ type: Number })
+  applied!: number;
+}
+
+/** K4.2 one recorded change to what an agen pays. `appliedAt` null = still scheduled. */
+export class ResellerPriceChangeResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  customerId!: string;
+  @ApiProperty({ type: String })
+  changedBy!: string;
+  @ApiProperty({ type: String, enum: ['discountPct', 'flatGallonPriceIdr', 'active'] })
+  field!: string;
+  @ApiProperty({ type: String })
+  oldValue!: string;
+  @ApiProperty({ type: String })
+  newValue!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  effectiveAt!: Date;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  appliedAt!: Date | null;
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+}

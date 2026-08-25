@@ -95,6 +95,14 @@ describe('CustomerConfigService', () => {
     expect(c.authServiceUrl).toBe('http://auth');
   });
 
+  // K4.2: blank means the agen price notice is dropped; the change still applies and is
+  // still audited, so this getter must not be allowed to turn whitespace into a URL.
+  it('crmServiceUrl is trimmed and blank by default', () => {
+    expect(makeConfig({ CRM_SERVICE_URL: '  http://crm:3012 ' }).crmServiceUrl).toBe('http://crm:3012');
+    expect(makeConfig({ CRM_SERVICE_URL: '   ' }).crmServiceUrl).toBe('');
+    expect(makeConfig({}).crmServiceUrl).toBe('');
+  });
+
   it('birthdayRewardPoints/internalServiceKey read their keys', () => {
     const c = makeConfig({ INTERNAL_SERVICE_KEY: 'secret' }, { BIRTHDAY_REWARD_POINTS: '250' });
     expect(c.birthdayRewardPoints).toBe(250);

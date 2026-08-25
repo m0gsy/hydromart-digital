@@ -18,7 +18,7 @@ import { PdpRepository } from '../application/ports/pdp.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
-import { ResellerService } from '../application/services/reseller.service';
+import { ResellerService, ScheduledSweepResult } from '../application/services/reseller.service';
 import { CrmDashboardDto, CrmDepotDashboardDto } from './dto/depot-crm.dto';
 import { ClaimFavoriteDepotDto, PdpCustomerDto, ResolveByPhoneDto } from './dto/pdp.dto';
 import {
@@ -27,6 +27,7 @@ import {
   CustomerIdsByDepot2ResponseDto,
   InternalResellerPricingResponseDto,
   ResolveByPhoneResponseDto,
+  ScheduledResellerSweepResponseDto,
 } from './dto/responses.generated.dto';
 
 /**
@@ -135,6 +136,19 @@ export class InternalController {
       flatGallonPriceIdr: r.flatGallonPriceIdr,
       homeDepotId: r.homeDepotId,
     };
+  }
+
+  /**
+   * K4.2. Applies agen price changes that were scheduled for a date that has now arrived.
+   * Driven by the scheduler — the whole point of a date is that nobody has to be present
+   * for it. `ok` is false only when there was work and none of it landed (J7).
+   */
+  @ApiOkResponse({ type: ScheduledResellerSweepResponseDto })
+  @Post('internal/resellers/apply-scheduled')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Apply due scheduled agen price changes (internal, scheduler)' })
+  applyScheduledResellerChanges(): Promise<ScheduledSweepResult> {
+    return this.resellers.applyScheduled();
   }
 
   @ApiOkResponse({ type: CustomerIdsByDepot2ResponseDto })

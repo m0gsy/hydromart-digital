@@ -53,6 +53,8 @@ depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXIS
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")
 depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_issues_orderId_key" ON "gallon_issues"("orderId")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
+customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_customerId_createdAt_idx" ON "reseller_price_changes"("customerId", "createdAt" DESC)
+customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")
 crm|notifications_event_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_event_createdAt_idx" ON "notifications"("event", "createdAt")
 crm|campaigns_scheduledFor_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_scheduledFor_idx" ON "campaigns"("scheduledFor") WHERE "scheduledFor" IS NOT NULL
 admin|scheduled_reports_enabled_nextRunAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "scheduled_reports_enabled_nextRunAt_idx" ON "scheduled_reports"("enabled", "nextRunAt")

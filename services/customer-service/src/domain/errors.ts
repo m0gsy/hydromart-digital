@@ -71,3 +71,18 @@ export class ResellerExistsError extends DomainError {
   }
 }
 
+
+/**
+ * K4.2: a future `effectiveAt` was given but nothing about the agen's price changed.
+ *
+ * Accepting it would write nothing and answer 200, and staff would go away believing a
+ * change is scheduled for a date on which nothing will happen. The one silence this
+ * feature exists to end, reintroduced by the feature itself.
+ */
+export class NothingToScheduleError extends DomainError {
+  readonly code = 'CUSTOMER_RESELLER_NOTHING_TO_SCHEDULE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Tanggal berlaku diisi tapi tidak ada perubahan harga atau status agen yang dijadwalkan');
+  }
+}

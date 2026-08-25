@@ -62,6 +62,13 @@ export class CustomerConfigService {
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').trim();
   }
+  /**
+   * crm-service, for the agen price-change notice (K4.2). Blank = the change still
+   * applies and is still recorded; only the message to the agen is dropped.
+   */
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '').trim();
+  }
   /** forecast-service, for the depot CRM card's churn band (S2). Blank = the card says "—". */
   get forecastServiceUrl(): string {
     return this.config.get<string>('FORECAST_SERVICE_URL', '').trim();

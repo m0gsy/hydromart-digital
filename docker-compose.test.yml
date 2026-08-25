@@ -91,6 +91,10 @@ services:
       # S2: the depot CRM card's churn band. Blank = the card renders "—" rather than LOW,
       # which is the one answer a manager acts on by doing nothing.
       FORECAST_SERVICE_URL: http://forecast:3014
+      # K4.2: the agen price-change notice. Blank would still apply and still audit the
+      # change — only the message to the agen would be dropped, which is the exact silence
+      # this feature exists to end.
+      CRM_SERVICE_URL: http://crm:3012
       # Agen registration-photo storage (SOP §7). Required to boot under NODE_ENV=production.
       STORAGE_PUBLIC_BASE_URL: http://storage.test/resellers
     healthcheck:

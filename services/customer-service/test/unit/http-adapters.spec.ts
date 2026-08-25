@@ -3,6 +3,7 @@ import { LoyaltyRewardHttpAdapter } from '../../src/infrastructure/http/loyalty-
 import { OrderCrmHttpAdapter } from '../../src/infrastructure/http/order-crm.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { IdentityHttpAdapter } from '../../src/infrastructure/http/identity.http.adapter';
+import { ResellerNotificationHttpAdapter } from '../../src/infrastructure/http/reseller-notification.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, x-internal-key header, config
 // guards, res.ok branch) against a mocked global.fetch. Unlike the fail-open adapters
@@ -292,5 +293,103 @@ describe('IdentityHttpAdapter.getCustomerNames', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).ids).toHaveLength(200);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).ids).toEqual(['c200']);
+  });
+});
+
+describe('ResellerNotificationHttpAdapter (K4.2)', () => {
+  const notice = { customerId: 'c1', terms: 'diskon 5%', active: true };
+  /** The phone lives on the account, so the adapter looks it up rather than copying it. */
+  const identity = (phone: string | null, fullName = 'Budi') =>
+    ({
+      getCustomerNames: jest.fn().mockResolvedValue(new Map([['c1', { fullName, phone }]])),
+      preRegisterCustomer: jest.fn(),
+    }) as never;
+
+  const config = (over: Partial<Record<string, unknown>> = {}) =>
+    makeConfig({ crmServiceUrl: 'http://crm:3012', ...over });
+
+  it('sends a RESELLER_PRICE_CHANGED to the number on the account', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+
+    const sent = await new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged(
+      notice,
+    );
+
+    expect(sent).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toMatchObject({
+      event: 'RESELLER_PRICE_CHANGED',
+      phone: '62811',
+      customerId: 'c1',
+      vars: { name: 'Budi', terms: 'diskon 5%' },
+    });
+  });
+
+  // A deactivation is not a new rate, and the copy for one reads nothing like the other.
+  it('sends RESELLER_DEACTIVATED when the agen was switched off', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+
+    await new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged({
+      ...notice,
+      active: false,
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).event).toBe('RESELLER_DEACTIVATED');
+  });
+
+  it('sends an empty name rather than the word undefined when the account has none', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+
+    await new ResellerNotificationHttpAdapter(
+      config(),
+      identity('62811', null as unknown as string),
+    ).priceChanged(notice);
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).vars.name).toBe('');
+  });
+
+  it('skips when crm is not configured, without asking auth-service for anything', async () => {
+    const id = identity('62811');
+    await expect(
+      new ResellerNotificationHttpAdapter(config({ crmServiceUrl: '' }), id).priceChanged(notice),
+    ).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips without the internal key', async () => {
+    await expect(
+      new ResellerNotificationHttpAdapter(config({ internalServiceKey: '' }), identity('62811'))
+        .priceChanged(notice),
+    ).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips an agen with no phone on file, and says so', async () => {
+    await expect(
+      new ResellerNotificationHttpAdapter(config(), identity(null)).priceChanged(notice),
+    ).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips an agen auth-service has never heard of', async () => {
+    const missing = { getCustomerNames: async () => new Map(), preRegisterCustomer: jest.fn() } as never;
+    await expect(
+      new ResellerNotificationHttpAdapter(config(), missing).priceChanged(notice),
+    ).resolves.toBe(false);
+  });
+
+  // Fail-open: a depot decision about its own pricing must not be blocked by messaging.
+  it('reports false on a crm error rather than throwing into the price change', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(
+      new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged(notice),
+    ).resolves.toBe(false);
+  });
+
+  it('reports false when crm is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged(notice),
+    ).resolves.toBe(false);
   });
 });

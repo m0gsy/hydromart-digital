@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import {
   CreateResellerData,
+  PricedField,
+  RecordPriceChangeData,
   Reseller,
+  ResellerPriceChange,
   ResellerRepository,
   UpdateResellerData,
 } from '../../application/ports/reseller.repository';
@@ -44,4 +47,38 @@ export class ResellerPrismaRepository implements ResellerRepository {
   update(customerId: string, patch: UpdateResellerData): Promise<Reseller> {
     return this.prisma.resellerProfile.update({ where: { customerId }, data: patch });
   }
+
+  async recordPriceChange(data: RecordPriceChangeData): Promise<ResellerPriceChange> {
+    const row = await this.prisma.resellerPriceChange.create({ data });
+    return toChange(row);
+  }
+
+  async listPriceChanges(customerId: string, limit: number): Promise<ResellerPriceChange[]> {
+    const rows = await this.prisma.resellerPriceChange.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map(toChange);
+  }
+
+  async findDuePriceChanges(now: Date, limit: number): Promise<ResellerPriceChange[]> {
+    const rows = await this.prisma.resellerPriceChange.findMany({
+      where: { appliedAt: null, effectiveAt: { lte: now } },
+      // Oldest first: two scheduled changes to the same field must land in the order they
+      // were scheduled, or the agen ends up on whichever one the page size happened to hit.
+      orderBy: { effectiveAt: 'asc' },
+      take: limit,
+    });
+    return rows.map(toChange);
+  }
+
+  async markPriceChangeApplied(id: string, at: Date): Promise<void> {
+    await this.prisma.resellerPriceChange.update({ where: { id }, data: { appliedAt: at } });
+  }
+}
+
+/** `field` is TEXT in the database (three values sharing one column pair, K4.2). */
+function toChange(row: { field: string } & Omit<ResellerPriceChange, 'field'>): ResellerPriceChange {
+  return { ...row, field: row.field as PricedField };
 }

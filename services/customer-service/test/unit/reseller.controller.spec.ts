@@ -13,6 +13,7 @@ import { ResellerSelfController } from '../../src/modules/reseller-self.controll
 import { ResellerService } from '../../src/application/services/reseller.service';
 import { Reseller } from '../../src/application/ports/reseller.repository';
 import {
+  NothingToScheduleError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../../src/domain/errors';
@@ -34,8 +35,16 @@ const row: Reseller = {
   updatedAt: new Date('2026-01-01'),
 };
 
-function makeService(): jest.Mocked<Pick<ResellerService, 'list' | 'get' | 'register' | 'update'>> {
-  return { list: jest.fn(), get: jest.fn(), register: jest.fn(), update: jest.fn() };
+function makeService(): jest.Mocked<
+  Pick<ResellerService, 'list' | 'get' | 'register' | 'update' | 'priceHistory'>
+> {
+  return {
+    list: jest.fn(),
+    get: jest.fn(),
+    register: jest.fn(),
+    update: jest.fn(),
+    priceHistory: jest.fn(),
+  };
 }
 
 const importsMock = { importResellers: jest.fn() };
@@ -264,5 +273,74 @@ describe('ResellerController.import', () => {
     await controllerWith(makeService()).import(user, { depotId: 'd1', rows } as never);
 
     expect(importsMock.importResellers).toHaveBeenCalledWith(user, 'd1', rows);
+  });
+});
+
+describe('ResellerController price changes (K4.2)', () => {
+  it('passes a future effectiveAt through as a Date, separated from the patch', async () => {
+    const svc = makeService();
+    svc.update.mockResolvedValue(row);
+
+    await controllerWith(svc).update(user, 'c1', {
+      discountPct: 5,
+      effectiveAt: '2026-09-01T00:00:00.000Z',
+    });
+
+    expect(svc.update).toHaveBeenCalledWith(
+      user,
+      'c1',
+      // `effectiveAt` must NOT reach the patch — it is not a column on the reseller row.
+      { discountPct: 5 },
+      new Date('2026-09-01T00:00:00.000Z'),
+    );
+  });
+
+  it('passes undefined when no date was given, which means now', async () => {
+    const svc = makeService();
+    svc.update.mockResolvedValue(row);
+
+    await controllerWith(svc).update(user, 'c1', { discountPct: 5 });
+
+    expect(svc.update).toHaveBeenCalledWith(user, 'c1', { discountPct: 5 }, undefined);
+  });
+
+  it('answers 400 when a date was given with nothing to schedule behind it', async () => {
+    const svc = makeService();
+    svc.update.mockRejectedValue(new NothingToScheduleError());
+
+    await expect(
+      controllerWith(svc).update(user, 'c1', { note: 'x', effectiveAt: '2026-09-01T00:00:00.000Z' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rethrows anything that is neither a missing reseller nor an empty schedule', async () => {
+    const svc = makeService();
+    svc.update.mockRejectedValue(new Error('db down'));
+
+    await expect(controllerWith(svc).update(user, 'c1', { discountPct: 5 })).rejects.toThrow('db down');
+  });
+
+  it('hands back the change history', async () => {
+    const svc = makeService();
+    svc.priceHistory.mockResolvedValue([]);
+
+    await expect(controllerWith(svc).priceChanges(user, 'c1')).resolves.toEqual([]);
+    expect(svc.priceHistory).toHaveBeenCalledWith(user, 'c1');
+  });
+
+  it('answers 404 for the history of a reseller that does not exist', async () => {
+    const svc = makeService();
+    svc.priceHistory.mockRejectedValue(new ResellerNotFoundError());
+
+    await expect(controllerWith(svc).priceChanges(user, 'c1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('rethrows a non-domain failure from the history read', async () => {
+    const svc = makeService();
+    svc.priceHistory.mockRejectedValue(new Error('db down'));
+
+    await expect(controllerWith(svc).priceChanges(user, 'c1')).rejects.toThrow('db down');
   });
 });
