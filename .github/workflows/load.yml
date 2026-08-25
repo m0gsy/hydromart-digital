@@ -86,7 +86,8 @@ jobs:
 
       # A shelf the run cannot empty.
       #
-      # This workflow has never once been green, and the reason was not k6, the stack or
+      # This workflow had never once been green when the shelf below was sized, and the
+      # reason was not k6, the stack or
       # the runner: 10 VUs place ~970 orders in 60 seconds against a seed of 200 units per
       # product. Stock ran out in the opening seconds, checkout started answering
       # ORDER_INSUFFICIENT_STOCK, and a failed checkout leaves the server-side cart
@@ -95,6 +96,10 @@ jobs:
       # threshold and the job still failed on `checkout_success 41%`, which is a stock
       # number wearing a latency job's clothes. An always-red gate reports a regression no
       # better than an always-green one.
+      #
+      # It has been green once since: run 32686490758, 2026-08-24. That single run is the
+      # only latency measurement this workflow has ever produced, and M22 is what it is
+      # used for — see the threshold note in scripts/load/dashboards.k6.js.
       #
       # Sized off the ceiling rather than the measurement: VUS x DURATION cannot approach
       # this even if the stack gets much faster.
