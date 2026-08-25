@@ -22,8 +22,34 @@
 //   PERIOD            performance period, YYYY-MM (current month)
 //   VUS               virtual users               (5)
 //   DURATION          test duration               (30s)
-//   FRANCHISE_P95_MS  p95 threshold, ms           (2000)
-//   PERFORMANCE_P95_MS p95 threshold, ms          (3000)
+//   FRANCHISE_P95_MS  p95 threshold, ms           (500)
+//   PERFORMANCE_P95_MS p95 threshold, ms          (600)
+//
+// M22 — where those two numbers come from, because until now they came from nowhere.
+//
+// The plan defended these thresholds as "calibrated to this runner, not to be re-baselined
+// casually". They were never calibrated to any runner: 2000 and 3000 were picked by hand
+// when the file was written, and this workflow had no green run to calibrate against.
+//
+// It has one now. Run 32686490758, 2026-08-24 — the only green Load run in the workflow's
+// history (eleven of the twelve before it were red on seeded stock and token minting, not
+// on latency):
+//
+//   franchise_dashboard_latency    p95 = 125.95ms   against 2000  -> 16x headroom
+//   performance_dashboard_latency  p95 = 148.57ms   against 3000  -> 20x headroom
+//
+// A threshold twenty times above the measurement is not a threshold. The batched
+// dashboards could regress TEN-fold — the exact S-1/S-6 fan-out coming back, 126ms to
+// 1.26s — and this job would still report success. That is the failure mode the plan calls
+// a gate that cannot go red, written into the one workflow whose entire purpose is to
+// notice a regression.
+//
+// So: rewritten, not deleted, and honestly. 500/600 is ~4x the single observation — tight
+// enough that a real fan-out regression trips it, loose enough that one slow runner does
+// not. It is PROVISIONAL on n=1. The Phase M rule is three runs before concluding, so
+// after three green runs, set each threshold from the worst of the three and say so here.
+// The checkout ceiling (1500 vs an observed 564ms, 2.7x) is left alone: that headroom is
+// already in gate range.
 //
 // Read-only: neither endpoint writes, so this is safe to point at a staging copy of prod.
 //
@@ -44,8 +70,10 @@ const BASE = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const TOKEN = (__ENV.TOKEN || '').trim();
 const VUS = Math.max(1, Number(__ENV.VUS || 5));
 const DURATION = __ENV.DURATION || '30s';
-const FRANCHISE_P95 = Number(__ENV.FRANCHISE_P95_MS || 2000);
-const PERFORMANCE_P95 = Number(__ENV.PERFORMANCE_P95_MS || 3000);
+// M22: ~4x the one green run's p95 (125.95ms / 148.57ms), not the 16-20x headroom these
+// carried before. Provisional on n=1 — see the header.
+const FRANCHISE_P95 = Number(__ENV.FRANCHISE_P95_MS || 500);
+const PERFORMANCE_P95 = Number(__ENV.PERFORMANCE_P95_MS || 600);
 
 const now = new Date();
 const PERIOD =
