@@ -42,6 +42,44 @@ const UPLOAD_KEY_SHA256 =
 /** Both binaries must be claimed. An entry that is simply absent is the quietest failure of all. */
 const REQUIRED_PACKAGES = ['id.hydromart.app', 'id.hydromart.ops'];
 
+/**
+ * K5.6 — what each of these six strings actually IS.
+ *
+ * The file held six 95-character hex strings and no record anywhere of which key each one
+ * belonged to. That matters more than tidiness: the whole class of bug this gate exists
+ * for is "the wrong certificate is in here", and you cannot spot a wrong certificate in a
+ * list where every entry is anonymous. Two of the three ways to get it wrong have already
+ * happened once each, and neither was visible from the file.
+ *
+ * All six are PLAY APP SIGNING certificates. Play holds three per app side by side — a
+ * classical one, a post-quantum one, and the one it prints in its own Digital Asset Links
+ * snippet — and verification may check any of them, which is why all three are listed and
+ * why a count that differs between the two apps is a bug (see the count check below).
+ *
+ * The two kinds that must NEVER appear, and why each is worse than it looks:
+ *
+ *   upload key   Play re-signs every AAB, so no install a user can get carries it. Listing
+ *                it hands the domain claim to whoever holds `upload.jks` — us, not Google
+ *                — and buys nothing. Measured from the AAB and confirmed in Play Console
+ *                (`20ee86a7`); asserted absent below.
+ *   debug key    `~/.android/debug.keystore`, one per developer machine. Anything signed
+ *                with it would be treated by Android as the real app for this domain, and
+ *                a debug build's WebView has none of a release build's assumptions.
+ *
+ * Because a fingerprint carries no evidence of which key it came from, the rule here is
+ * the registry itself: every value in the file must be named, and adding a seventh means
+ * writing down what it is. That is the record the file could not hold — assetlinks.json is
+ * JSON and JSON has no comments, which is exactly how six anonymous strings accumulated.
+ */
+const FINGERPRINT_REGISTRY = new Map([
+  ['07:3A:F8:6A:38:2C:1C:25:2C:D3:17:B9:35:97:27:48:BB:BB:10:40:27:68:3C:F1:03:08:78:4B:2C:3A:DD:94', 'id.hydromart.app · Play App Signing'],
+  ['9A:CC:7C:3F:1C:74:E7:69:E5:2C:4F:1F:CD:71:92:25:F7:AC:FB:33:18:B8:EE:D9:2D:F7:15:84:BB:FE:5B:E1', 'id.hydromart.app · Play App Signing'],
+  ['48:71:38:C8:FA:E3:3B:58:32:98:B4:BB:BD:4A:5D:CE:FA:3A:81:23:26:84:69:F9:81:15:B2:EC:3B:26:31:FA', 'id.hydromart.app · Play App Signing'],
+  ['A8:2A:BA:36:F4:20:9D:21:8A:DB:81:E4:D2:45:B1:E8:12:BA:3B:CD:99:80:08:06:2B:27:48:3A:4A:85:33:31', 'id.hydromart.ops · Play App Signing'],
+  ['9B:51:65:96:0A:72:7B:89:55:E2:FB:F9:E2:52:A5:ED:91:0C:6E:34:CD:EF:50:B9:E5:A0:B9:45:A8:8F:35:20', 'id.hydromart.ops · Play App Signing'],
+  ['4F:8D:E8:16:A6:51:EB:E7:B9:06:3A:5F:5D:38:35:46:35:20:B7:31:5B:3C:46:83:33:31:3D:D2:60:9E:38:28', 'id.hydromart.ops · Play App Signing'],
+]);
+
 /** 32 uppercase hex pairs, colon-separated. One missing colon fails exactly like a wrong key. */
 const FINGERPRINT = /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/;
 
@@ -77,6 +115,19 @@ for (const statement of statements) {
       problems.push(
         `${pkg}: lists the UPLOAD key — Play re-signs every AAB, so this is never the certificate a user's install carries`,
       );
+      continue;
+    }
+    // K5.6: an unnamed fingerprint is the state this whole file was in. Whoever adds one
+    // has to say what it is, which is the only moment anybody can still tell.
+    const known = FINGERPRINT_REGISTRY.get(print);
+    if (!known) {
+      problems.push(
+        `${pkg}: ${print} is not named in FINGERPRINT_REGISTRY — say which key it is (Play App Signing / upload / debug) before adding it`,
+      );
+    } else if (!known.startsWith(pkg)) {
+      // Both apps' certificates live in one registry, so a value pasted under the wrong
+      // package_name is caught here rather than by Android silently declining to verify.
+      problems.push(`${pkg}: ${print} is registered as "${known}" — it belongs to the other binary`);
     }
   }
 

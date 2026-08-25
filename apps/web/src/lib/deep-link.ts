@@ -53,8 +53,13 @@ export const DYNAMIC_PARENTS = [
   '/orders',
 ];
 
-/** Segments that are pages in their own right, not ids, under a dynamic parent. */
-const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
+/**
+ * Segments that are pages in their own right, not ids, under a dynamic parent.
+ *
+ * Exported for K5.5: `public/sw.js` has to apply the same rewrite and cannot import a TS
+ * module, so `sw-deep-link-parity.test.ts` reads both lists and fails if they disagree.
+ */
+export const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
 
 /**
  * Routes this binary does not carry, written by `scripts/build-mobile.mjs` from the very

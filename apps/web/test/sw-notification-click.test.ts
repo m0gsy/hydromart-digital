@@ -111,4 +111,41 @@ describe('F9 — a notification opens what it is about', () => {
 
     expect(sw.opened).toEqual(['/rewards']);
   });
+
+  /*
+   * K5.5. The rewrite exists in this file now; this is the case that says the CLICK uses
+   * it. A notification carrying the pre-F1 shape — one already delivered to somebody's
+   * phone before the routes changed — has to open the order, not a file that is gone.
+   */
+  it('opens the rewritten route for a notification sent before the routes changed', async () => {
+    const event = clickWith('/orders/abc-123');
+    sw.handlers.get('notificationclick')!(event);
+    await event.settled();
+
+    expect(sw.opened).toEqual(['/orders/detail?id=abc-123']);
+  });
+
+  it('leaves a destination that is already current exactly as it is', async () => {
+    const event = clickWith('/orders/detail?id=abc-123');
+    sw.handlers.get('notificationclick')!(event);
+    await event.settled();
+
+    expect(sw.opened).toEqual(['/orders/detail?id=abc-123']);
+  });
+
+  // The rewritten destination is also what the tab-matching rules above compare against,
+  // so a tab already showing the order is reused rather than a second one opened.
+  it('reuses a tab already showing the order a stale notification points at', async () => {
+    sw.clients.push({ url: 'https://app.test/orders/detail?id=abc-123', focused: false, navigated: null });
+    const event = clickWith('/orders/abc-123');
+    sw.handlers.get('notificationclick')!(event);
+    await event.settled();
+
+    expect(sw.clients[0]!.focused).toBe(true);
+    // Focused, NOT re-navigated: without the rewrite the destination is `/orders/abc-123`,
+    // that tab does not match it, and the click falls through to the navigate branch —
+    // which also ends up focused, which is why this assertion is the one that discriminates.
+    expect(sw.clients[0]!.navigated).toBeNull();
+    expect(sw.opened).toEqual([]);
+  });
 });

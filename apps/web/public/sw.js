@@ -20,6 +20,80 @@ self.addEventListener('push', (event) => {
 });
 
 /*
+ * K5.5 — the rewrite the rest of the app has and this file did not.
+ *
+ * F1 replaced every dynamic segment with a query parameter so the app could be exported
+ * as plain files: `/orders/[id]` became `/orders/detail?id=`. `lib/deep-link.ts` rewrites
+ * the old shape for the two NATIVE tap handlers, and it exists precisely because links in
+ * the old shape are still in the world — notifications already sitting on phones, WhatsApp
+ * messages, bookmarks. This file, the tap handler for every browser and installed PWA, did
+ * not rewrite anything. Same payload, two behaviours: the native tap landed on the order,
+ * the browser tap landed on a route that no longer exists.
+ *
+ * A service worker cannot import a TypeScript module, so these two lists are a second
+ * copy of `DYNAMIC_PARENTS` and `NOT_AN_ID`. `test/sw-deep-link-parity.test.ts` reads both
+ * sides and fails if they disagree — by list AND by behaviour over a generated table — so
+ * the copy cannot drift the way an unwatched copy would.
+ *
+ * No pruning here, and that is deliberate rather than an omission: pruning is what the
+ * mobile binaries do to their own route table, and this file only ever runs in a browser
+ * serving the whole site.
+ */
+const DYNAMIC_PARENTS = [
+  '/dashboard/purchase-orders',
+  '/dashboard/approvals',
+  '/dashboard/customers',
+  '/m/manager/approvals',
+  '/driver/deliveries',
+  '/hq/applications',
+  '/hr/me/payroll',
+  '/hr/employees',
+  '/hr/payroll',
+  '/hq/access',
+  '/hq/depots',
+  '/hq/orders',
+  '/products',
+  '/orders',
+];
+const NOT_AN_ID = ['detail', 'new', 'import', 'settings'];
+
+function safeDecode(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch (e) {
+    return segment;
+  }
+}
+
+/**
+ * Rewrite a stale path shape into the route this build actually serves. Anything that is
+ * not one of those shapes comes back untouched, which is the answer for every destination
+ * crm-service builds today.
+ */
+function rewriteLegacyPath(raw) {
+  const q = raw.indexOf('?');
+  const path = q === -1 ? raw : raw.slice(0, q);
+  const query = q === -1 ? '' : raw.slice(q + 1);
+  let parent = null;
+  for (const p of DYNAMIC_PARENTS) {
+    if (path.indexOf(p + '/') === 0) {
+      parent = p;
+      break;
+    }
+  }
+  if (parent === null) return raw;
+
+  const rest = path.slice(parent.length + 1).split('/');
+  const id = rest[0];
+  if (!id || NOT_AN_ID.indexOf(id) !== -1) return raw;
+
+  const child = rest.slice(1).join('/');
+  const suffix = child ? '/' + child : '';
+  const extra = query ? '&' + query : '';
+  return parent + '/detail' + suffix + '?id=' + encodeURIComponent(safeDecode(id)) + extra;
+}
+
+/*
  * F9. This matched an open window with `client.url.includes(url)` and focused whatever it
  * found. `includes` is a substring test over the WHOLE url, so:
  *
@@ -42,7 +116,11 @@ self.addEventListener('push', (event) => {
  */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/';
+  // K5.5: rewritten at CLICK rather than at push, on purpose — the notifications that
+  // carry a stale shape are the ones already delivered to somebody's phone, and those
+  // never pass through the push handler again.
+  const raw = (event.notification.data && event.notification.data.url) || '/';
+  const url = rewriteLegacyPath(raw);
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       const target = new URL(url, self.location.origin);

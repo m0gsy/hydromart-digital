@@ -35,9 +35,21 @@
               F3b, App Links. `autoVerify` makes Android fetch
               https://${webHost}/.well-known/assetlinks.json at install time and, if this
               app's signing certificate is listed there, open these links directly instead
-              of offering a browser. Caddy serves that file (see Caddyfile); the
-              fingerprint in it is the PLAY APP SIGNING certificate, not the upload key —
-              Play re-signs every AAB, so the upload key's fingerprint verifies nothing.
+              of offering a browser.
+
+              K5.6: that file is `apps/web/public/.well-known/assetlinks.json`, served by
+              the Next app out of `public/` like any other static asset. This comment used
+              to send the reader to the Caddyfile, which says nothing about it — Caddy
+              reverse-proxies the whole site to `web:3000` and has no `/.well-known` rule
+              at all, so anyone who went looking there found nothing and had no way to tell
+              whether that meant "not served" or "wrong file".
+
+              The fingerprints in it are PLAY APP SIGNING certificates — all three per app,
+              because Play holds a classical and a post-quantum one side by side and may
+              present either. Never the upload key: Play re-signs every AAB, so the upload
+              key's fingerprint verifies nothing and listing it hands the domain claim to
+              whoever holds `upload.jks`. `scripts/check-assetlinks.mjs` names every
+              fingerprint and refuses one nobody has identified.
 
               Both binaries are installed together on staff phones, so they must not both
               claim the same paths or Android asks the user which app to open every time.
@@ -55,7 +67,7 @@
                     android:host="${webHost}"
                     android:pathPrefix="${linkPrefix}" />
                 <!--
-                  Eleven more claimed prefixes, because one was not enough for either build.
+                  Nineteen more claimed prefixes, because one was not enough for either build.
                   Ops claimed `/driver` alone, so every manager approval link — the whole
                   `/m/manager/*` console shipped inside that same binary — opened in a
                   browser and never in the app. And the customer build claimed `/`, which
@@ -64,6 +76,14 @@
                   Naming the surfaces each binary actually SERVES is what removes that.
                   Unused slots default to the first prefix, and a duplicate `<data>` is
                   something Android collapses — so a build that needs one claim writes one.
+
+                  J3 raised the count from twelve to twenty. Twelve was never an Android
+                  limit — Android does not cap `<data>` elements — it was the number of
+                  placeholders this file happened to declare, and the customer build had
+                  used all of them. `/notifications`, `/addresses`, `/favorites`, `/login`,
+                  `/register` and the two pages Play requires (`/kebijakan-privasi`,
+                  `/hapus-akun`) were opening in a browser for want of a slot, so nothing
+                  had to be given up to claim them; the list just had to get longer.
                 -->
                 <data
                     android:scheme="https"
@@ -109,6 +129,53 @@
                     android:scheme="https"
                     android:host="${webHost}"
                     android:pathPrefix="${linkPrefix12}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix13}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix14}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix15}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix16}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix17}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix18}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix19}" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix20}" />
+                <!--
+                  J3, and the one claim that cannot be a prefix. The home page is a single
+                  document, and `pathPrefix="/"` claims the entire site with it — including
+                  `/driver` and `/m`, which is exactly the collision the enumeration above
+                  exists to avoid. `android:path` is an EXACT match, so this claims the root
+                  document and nothing under it.
+
+                  A placeholder rather than a literal `/` because both binaries share this
+                  file: the ops build points it at a path it already claims by prefix, which
+                  Android collapses, so only the customer build ends up owning the home page.
+                -->
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:path="${linkExact}" />
             </intent-filter>
 
         </activity>
