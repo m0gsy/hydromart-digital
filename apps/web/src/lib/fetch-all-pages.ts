@@ -25,8 +25,17 @@ export const PAGE_SIZE = 200;
 export const MAX_ITEMS = 5000;
 
 export class TooManyPagesError extends Error {
+  /*
+   * Deliberately NOT translated, and deliberately not user copy.
+   *
+   * 5,000 products is far past any real depot catalogue, so a reader who sees this has hit
+   * the ceiling — and the answer to that is a search box on the screen that hit it, not an
+   * Indonesian sentence telling a cashier to cope. Keeping it technical also keeps the i18n
+   * gate honest: it looks for Indonesian copy outside the dictionaries, and it was right to
+   * flag the first version of this line, which had some.
+   */
   constructor(total: number) {
-    super(`Daftar terlalu panjang untuk dibaca sekaligus (${total} baris). Gunakan pencarian.`);
+    super(`Catalogue too large to read in full (${total} rows); add search to this screen.`);
     this.name = 'TooManyPagesError';
   }
 }
