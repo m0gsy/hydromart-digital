@@ -102,8 +102,14 @@ jobs:
             ${{ steps.meta.outputs.image }}:latest
           # Layer cache lives in the Actions cache, not on the production disk. This is the
           # cache the VPS never had — every build there was cold (CI-1, PR 9).
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          #
+          # M18: the scope prefix is NOT decoration. `integration` and `e2e` build the same
+          # Dockerfiles through docker-compose.cache.yml, which writes `hydromart-<service>`.
+          # This job used to write `<service>` — the same layers under two names, so a publish
+          # right after a green CI still built cold. check-workflows.mjs compares the two files
+          # now, so a rename on either side goes red instead of silently splitting the cache.
+          cache-from: type=gha,scope=hydromart-${{ matrix.service }}
+          cache-to: type=gha,scope=hydromart-${{ matrix.service }},mode=max
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.PUBLIC_API_URL }}
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.SENTRY_DSN_WEB }}

@@ -129,6 +129,53 @@ if (!/run_attempt/.test(mobileText)) {
   );
 }
 
+/*
+ * M18 — one Dockerfile, two cache namespaces.
+ *
+ * `images.yml` published every image with `scope=<service>` while the CI build overlay
+ * (`docker-compose.cache.yml`) writes and reads `scope=hydromart-<service>`. Same context,
+ * same Dockerfile, same layers — two disjoint GHA cache keys. The publish could never reuse
+ * what `integration` had just warmed, and neither side was wrong on its own, which is exactly
+ * why nothing reported it. Compared here rather than restated, so a rename on either side
+ * goes red instead of quietly splitting the cache again.
+ */
+const cacheOverlay = yaml.load(
+  readFileSync(join(DIR, '..', '..', 'docker-compose.cache.yml'), 'utf8'),
+);
+const imagesDoc = yaml.load(imagesText);
+const overlayScope = new Map();
+for (const [svc, spec] of Object.entries(cacheOverlay?.services ?? {})) {
+  for (const entry of spec?.build?.cache_from ?? []) {
+    const found = /scope=([^,\s]+)/.exec(String(entry));
+    if (found) overlayScope.set(svc, found[1]);
+  }
+}
+const MATRIX_SVC = '${{ matrix.service }}';
+for (const key of ['cache-from', 'cache-to']) {
+  // `${{ matrix.service }}` contains spaces, so the scope runs to the next comma or newline,
+  // not to the next space — `\S+` captured `${{` and nothing else.
+  const expr = new RegExp(`${key}:\\s*type=gha,(?:mode=max,)?scope=([^,\\n]+)`)
+    .exec(imagesText)?.[1]
+    ?.trim();
+  if (!expr) {
+    problems.push(`${join(DIR, 'images.yml')}: no \`${key}\` gha scope — every published build is cold`);
+    continue;
+  }
+  for (const entry of imagesDoc?.jobs?.build?.strategy?.matrix?.include ?? []) {
+    const want = overlayScope.get(entry.service);
+    // `admin` and `web` are published but not built by the CI test compose, so there is no
+    // overlay scope for them to agree with. Nothing to compare is not a failure.
+    if (!want) continue;
+    const got = expr.replace(MATRIX_SVC, entry.service);
+    if (got !== want) {
+      problems.push(
+        `${join(DIR, 'images.yml')}: \`${key}\` puts \`${entry.service}\` in scope \`${got}\`, ` +
+          `docker-compose.cache.yml uses \`${want}\` — the published build cannot reuse the layers CI just built`,
+      );
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('Workflow files that would fail silently:');
   for (const p of problems) console.error(`  - ${p}`);
