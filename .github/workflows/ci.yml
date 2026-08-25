@@ -645,16 +645,28 @@ jobs:
           # sockets under the burst (ECONNRESET/ETIMEDOUT). Batched, the first three
           # populate the cache and the rest hit it warm. The service list comes from the
           # compose config so a new service cannot quietly slip out of the batching.
-          docker compose -f docker-compose.yml -f docker-compose.test.yml config --format json \
+          #
+          # M1: the batching stays, the SECOND pass goes.
+          #
+          # This built everything twice: once here without the cache overlay, and again
+          # immediately below through `up --build` WITH it. So the first pass could not
+          # reuse a single layer the `integration` job had already published, and the
+          # second pass re-checked seventeen images that had just been built. The
+          # batching itself was never the waste — it is what stops a seventeen-wide
+          # build from colliding in npm's cacache and having its sockets cut. So the
+          # overlay moves, not the batching.
+          docker compose \
+            -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml \
+            config --format json \
             | jq -r '.services | to_entries[] | select(.value.build) | .key' \
-            | xargs -n3 docker compose -f docker-compose.yml -f docker-compose.test.yml build
+            | COMPOSE_BAKE=true xargs -n3 docker compose \
+                -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml build
           # --wait blocks until every healthchecked service is healthy — the gateway
           # /health alone can be up while product-service isn't, which 504'd the seed.
-          # Audit CI-1: the same cache overlay `integration` writes to, so this second boot
-          # pulls layers instead of rebuilding ~18 images cold.
-          COMPOSE_BAKE=true docker compose \
+          # No `--build`: everything above is already built, from the same overlay.
+          docker compose \
             -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml \
-            up -d --build --wait --wait-timeout 300
+            up -d --wait --wait-timeout 300
           # M7: the 45x2s poll that used to follow this is gone. `--wait` already blocks
           # until every healthchecked service is healthy, so the loop measured a condition
           # that was true before its first iteration — and it could not fail either: its
