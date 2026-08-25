@@ -15,7 +15,11 @@ describe('ResellerDiscountHttpAdapter', () => {
       json: async () => ({ active: true, discountPct: 10, flatGallonPriceIdr: 5000 }),
     }) as never;
     const out = await new ResellerDiscountHttpAdapter(config).get('Bearer t');
-    expect(out).toEqual({ active: true, discountPct: 10, flatGallonPriceIdr: 5000, homeDepotId: null });
+    // A5: the pricing now arrives wrapped, so the caller can tell a 404 from an outage.
+    expect(out).toEqual({
+      reseller: { active: true, discountPct: 10, flatGallonPriceIdr: 5000, homeDepotId: null },
+      unavailable: false,
+    });
   });
 
   /*
@@ -77,27 +81,39 @@ describe('ResellerDiscountHttpAdapter', () => {
     ]) {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body }) as never;
       expect(await new ResellerDiscountHttpAdapter(config).get('Bearer t')).toEqual({
-        active: true,
-        discountPct: 10,
-        flatGallonPriceIdr: 0,
-      homeDepotId: null,
+        reseller: { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: null },
+        unavailable: false,
       });
     }
   });
 
-  it('fails open to null on 404', async () => {
+  it('answers "not an agen" on 404 — and does NOT call it an outage', async () => {
+    // A5: this is the distinction the whole item is about. A 404 is customer-service
+    // answering; marking the order here would send someone hunting an incident that never
+    // happened.
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 }) as never;
-    expect(await new ResellerDiscountHttpAdapter(config).get('Bearer t')).toBeNull();
+    expect(await new ResellerDiscountHttpAdapter(config).get('Bearer t')).toEqual({
+      reseller: null,
+      unavailable: false,
+    });
   });
 
-  it('fails open to null on network error', async () => {
+  it('still fails OPEN on a network error, but says it was unavailable', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('down')) as never;
-    expect(await new ResellerDiscountHttpAdapter(config).get('Bearer t')).toBeNull();
+    expect(await new ResellerDiscountHttpAdapter(config).get('Bearer t')).toEqual({
+      reseller: null,
+      unavailable: true,
+    });
   });
 
-  it('returns null when no authorization is supplied', async () => {
+  it('asks nothing, and blames nothing, when there is no token', async () => {
+    // An anonymous checkout has no agen pricing to read. `unavailable: true` here would
+    // accuse customer-service of being down for a question nobody asked it.
     global.fetch = jest.fn() as never;
-    expect(await new ResellerDiscountHttpAdapter(config).get('')).toBeNull();
+    expect(await new ResellerDiscountHttpAdapter(config).get('')).toEqual({
+      reseller: null,
+      unavailable: false,
+    });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });

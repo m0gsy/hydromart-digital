@@ -396,11 +396,16 @@ export class OrderService {
     // wait out seven upstream calls end to end.
     const [
       { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback },
-      reseller,
+      resellerLookup,
     ] = await Promise.all([
       this.priceLines(depot.id, lines),
       this.resellerDiscount.get(authorization),
     ]);
+    // A5: `unavailable` is the half that used to be thrown away. The price still falls back
+    // to retail — a customer-service outage must not stop anyone ordering water — but the
+    // order now says that is what happened.
+    const reseller = resellerLookup.reseller;
+    const resellerUnavailable = resellerLookup.unavailable;
 
     if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
@@ -547,6 +552,7 @@ export class OrderService {
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (membershipUnavailable) await this.markMembershipUnavailable(order);
+    if (resellerUnavailable) await this.markResellerUnavailable(order);
     /*
      * §I: the depot they just bought from becomes their depot, if they had none. Until now
      * `favoriteDepotId` was written only by a depot's Excel import and by a `PATCH /profile`
@@ -697,6 +703,34 @@ export class OrderService {
    * No alert: unlike catalog pricing this does not change what the depot is owed, and the
    * loyalty adapter already logs the outage itself.
    */
+  /**
+   * A5. An agen charged retail because the read failed, said out loud on the order.
+   *
+   * Same shape and same reasoning as `markMembershipUnavailable` next door: fail open on the
+   * price, fail loud on the record. Without it the two outcomes an agen can get — "you are
+   * not an agen today" and "we could not find out whether you are" — are the same silent
+   * full-price charge, and a complaint that arrives a week later has nothing to read.
+   *
+   * No alert, for the same reason as membership: it does not change what the depot is owed,
+   * and the adapter already logs the outage at `error`.
+   */
+  private async markResellerUnavailable(order: {
+    id: string;
+    status: OrderStatus;
+    orderNumber: string;
+  }): Promise<void> {
+    try {
+      await this.orders.appendNote(
+        order.id,
+        order.status,
+        'order-service',
+        'Harga agen tidak dihitung: customer-service tidak terjangkau saat checkout',
+      );
+    } catch (err) {
+      this.logger.warn(`Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`);
+    }
+  }
+
   private async markMembershipUnavailable(order: {
     id: string;
     status: OrderStatus;

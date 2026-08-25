@@ -323,14 +323,22 @@ describe('coordination adapters short-circuit when disabled', () => {
 });
 
 describe('edge-case parsing branches', () => {
-  it('reseller-discount throws->fails-open to null on a 500', async () => {
+  it('reseller-discount fails open on a 500, and reports it as unavailable (A5)', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toBeNull();
+    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toEqual({
+      reseller: null,
+      unavailable: true,
+    });
   });
 
-  it('reseller-discount returns null when discountPct is not a finite number', async () => {
+  it('reseller-discount answers "no pricing" for an unparseable body, not "unavailable"', async () => {
+    // The endpoint answered; the body was nonsense. That is not an outage, so the order
+    // must not be stamped with one.
     fetchMock.mockResolvedValue(res({ ok: true, body: { active: true, discountPct: 'x' } }));
-    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toBeNull();
+    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toEqual({
+      reseller: null,
+      unavailable: false,
+    });
   });
 
   it('promo.quote falls back to a generic reject message when the body has none', async () => {

@@ -67,6 +67,7 @@ import { ForecastCoordinationPort } from '../../src/application/ports/forecast-c
 import { MembershipPort, MembershipRate } from '../../src/application/ports/membership.port';
 import {
   ResellerDiscount,
+  ResellerLookup,
   ResellerDiscountPort,
 } from '../../src/application/ports/reseller-discount.port';
 import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
@@ -1137,8 +1138,11 @@ export class FakeResellerDiscount implements ResellerDiscountPort {
   throwOnCounterRead = false;
   /** Counter sales resolve by buyer id; recorded so a test can prove WHOSE status was read. */
   readonly byCustomerCalls: string[] = [];
-  async get(_authorization: string): Promise<ResellerDiscount | null> {
-    return this.result;
+  /** A5: set to make the checkout read fail open AND be recorded on the order. */
+  unavailableOnCheckoutRead = false;
+  async get(_authorization: string): Promise<ResellerLookup> {
+    if (this.unavailableOnCheckoutRead) return { reseller: null, unavailable: true };
+    return { reseller: this.result, unavailable: false };
   }
   async getFor(customerId: string): Promise<ResellerDiscount | null> {
     this.byCustomerCalls.push(customerId);
