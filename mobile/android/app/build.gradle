@@ -35,7 +35,15 @@ def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
  * `hydromartLinkPrefix` keeps the two binaries from both claiming the same URLs on a
  * staff phone that has both. See the intent-filter comment in AndroidManifest.xml.
  */
-def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart.id'
+// L2.6: the fallback is the RELEASE path's safety net, not a placeholder. mobile.yml's
+// AAB steps pass -PhydromartWebHost='${{ vars.MOBILE_WEB_HOST }}', and Groovy's `?:`
+// treats the empty string an unset variable produces as falsy — so an unset repo
+// variable lands HERE. It used to land on `hydromart.id`, which answers 200 at its root
+// and 404 at /.well-known/assetlinks.json, so App Links could never verify and nothing
+// reported it (verification fails open). Measured 2026-08-25: hydromart-digital.com
+// serves the file, and its two statements match apps/web/public/.well-known/
+// assetlinks.json exactly — id.hydromart.app and id.hydromart.ops, three fingerprints each.
+def hydromartWebHost = project.findProperty('hydromartWebHost') ?: 'hydromart-digital.com'
 def hydromartLinkPrefix = project.findProperty('hydromartLinkPrefix') ?: '/'
 /**
  * Up to twenty claimed path prefixes. Ops needs two (`/driver`, `/m`); the customer build

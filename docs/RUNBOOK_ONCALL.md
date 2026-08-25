@@ -56,9 +56,9 @@ menghapus barisnya tidak membuatnya hijau, karena tiga peran di bawah wajib ada.
 
 | Peran                   | Nama     | Kontak (WhatsApp/telepon atau email) | Jam                         | Janji waktu jawab |
 | ----------------------- | -------- | ------------------------------------ | --------------------------- | ----------------- |
-| Primer                  | ISI-NAMA | ISI-KONTAK                           | 24/7                        | 15 menit          |
+| Primer                  | Wahyu Aldi | lwahyualdi@gmail.com               | 24/7                        | 15 menit          |
 | Sekunder                | ISI-NAMA | ISI-KONTAK                           | eskalasi ketika primer diam | 30 menit          |
-| Bisnis (depot/keuangan) | ISI-NAMA | ISI-KONTAK                           | jam kerja 09:00-20:00 WIB   | 2 jam             |
+| Bisnis (depot/keuangan) | Wahyu Aldi | lwahyualdi@gmail.com               | jam kerja 09:00-20:00 WIB   | 2 jam             |
 
 <!-- ROTA:END -->
 
