@@ -19,6 +19,12 @@ auth: {
   updateProfile: '/auth/api/v1/auth/me',
   // Multipart avatar-photo upload (self); returns the updated customer.
   uploadAvatar: '/auth/api/v1/auth/me/avatar',
+  // K1.4, the two halves of changing the login identity. `requestPhoneChange` sends a code
+  // to the NEW number; `confirmPhoneChange` spends it and moves the account. The confirm
+  // body carries only the code — the destination is read off the stored challenge, so a
+  // proof of one number can never move the account onto another.
+  requestPhoneChange: '/auth/api/v1/auth/me/phone',
+  confirmPhoneChange: '/auth/api/v1/auth/me/phone/confirm',
   // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
   customerLookup: (phone: string) =>
     `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,

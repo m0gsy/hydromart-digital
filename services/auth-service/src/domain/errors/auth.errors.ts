@@ -204,3 +204,33 @@ export class ConsentNotWithdrawableError extends DomainError {
     );
   }
 }
+
+/**
+ * K1.4: confirm was called with no outstanding phone-change challenge — never requested,
+ * already spent, or expired and swept.
+ *
+ * Deliberately distinct from `OtpInvalidError`. There is nothing to hide here: the caller
+ * is already authenticated as this account, so "you have no pending change" tells them
+ * only about themselves, and collapsing it into "wrong code" would leave somebody typing
+ * a code that could never have worked.
+ */
+export class NoPendingPhoneChangeError extends DomainError {
+  readonly code = 'AUTH_NO_PENDING_PHONE_CHANGE';
+  readonly status = HTTP.BAD_REQUEST;
+  constructor() {
+    super('Tidak ada permintaan ganti nomor yang menunggu. Mulai lagi dari awal.');
+  }
+}
+
+/**
+ * K1.4: the new number is the one already on the account. Not an error of state — an
+ * error of intent, and answering 200 would send a code to a number that is already theirs
+ * and then "change" nothing.
+ */
+export class PhoneUnchangedError extends DomainError {
+  readonly code = 'AUTH_PHONE_UNCHANGED';
+  readonly status = HTTP.BAD_REQUEST;
+  constructor() {
+    super('Nomor itu sudah menjadi nomor akun ini.');
+  }
+}

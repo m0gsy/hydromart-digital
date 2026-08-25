@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
+import { PhoneChangeService } from '../../application/services/phone-change.service';
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -13,6 +14,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { ConfirmPhoneChangeDto, RequestPhoneChangeDto } from './dto/change-phone.dto';
 import {
   ImportStaffDto,
   InviteStaffDto,
@@ -23,6 +25,7 @@ import {
 } from './dto/staff.dto';
 import {
   MessageResponseDto,
+  OtpChallengeResponseDto,
   PublicCustomerDto,
   SessionInfoDto,
 } from './dto/responses.dto';
@@ -38,6 +41,7 @@ export class AccountController {
     // Deleting a staff account runs the same anonymisation the PDP queue does; the trigger
     // differs, the machinery must not.
     private readonly dataSubject: DataSubjectService,
+    private readonly phoneChange: PhoneChangeService,
   ) {}
 
   @Get('auth/me')
@@ -59,6 +63,42 @@ export class AccountController {
       fullName: dto.fullName,
       email: dto.email,
     });
+    return PublicCustomerDto.from(profile);
+  }
+
+  /**
+   * K1.4, step one. Sends a code to the number the caller wants to move to. Nothing about
+   * the account changes here — an unconfirmed request leaves only an audit row, which is
+   * what a failed hijack attempt should leave.
+   */
+  @Post('auth/me/phone')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send a verification code to a new phone number (K1.4)' })
+  @ApiOkResponse({ type: OtpChallengeResponseDto })
+  async requestPhoneChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestPhoneChangeDto,
+    @Req() req: Request,
+  ): Promise<OtpChallengeResponseDto> {
+    const challenge = await this.phoneChange.request(user.sub, dto.phone, getRequestContext(req));
+    return OtpChallengeResponseDto.from(challenge);
+  }
+
+  /**
+   * K1.4, step two. Spends the code and moves the account onto the number that code was
+   * delivered to — read off the stored challenge, never off this request. Every session is
+   * revoked on success, including this one, so the caller signs in again on the new number.
+   */
+  @Post('auth/me/phone/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm the code and move the account to the new number (K1.4)' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async confirmPhoneChange(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ConfirmPhoneChangeDto,
+    @Req() req: Request,
+  ): Promise<PublicCustomerDto> {
+    const profile = await this.phoneChange.confirm(user.sub, dto.code, getRequestContext(req));
     return PublicCustomerDto.from(profile);
   }
 

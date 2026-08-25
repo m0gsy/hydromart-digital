@@ -36,10 +36,22 @@ export class OtpService {
   /**
    * Issue (or re-issue) an OTP challenge for a customer and deliver it. Enforces
    * the resend cooldown and invalidates any previously outstanding code.
+   *
+   * K1.4: `deliverTo` sends the code somewhere other than the account's own number, and
+   * records where. That is a phone CHANGE and nothing else — a code proving control of a
+   * number the account does not own yet. It is recorded rather than merely used because
+   * the confirm step has to read the destination back from the challenge; asking the
+   * client for it again would let a code delivered to one number move the account onto
+   * another.
    */
-  async issue(customer: Customer, purpose: OtpPurpose): Promise<OtpChallengeResult> {
+  async issue(
+    customer: Customer,
+    purpose: OtpPurpose,
+    deliverTo?: string,
+  ): Promise<OtpChallengeResult> {
     const policy = this.config.otpPolicy;
     const now = this.clock.now();
+    const destination = deliverTo ?? customer.phone;
 
     const existing = await this.otpTokens.findActive(customer.id, purpose);
     if (existing) {
@@ -51,12 +63,18 @@ export class OtpService {
       await this.otpTokens.consumeAllForPurpose(customer.id, purpose, now);
     }
 
-    const fixed = this.fixedCodeFor(customer.phone);
+    const fixed = this.fixedCodeFor(destination);
     const code = fixed ?? this.crypto.generateNumericCode(policy.length);
     const codeHash = await this.crypto.hashSecret(code);
     const expiresAt = new Date(now.getTime() + policy.ttlSeconds * 1000);
 
-    await this.otpTokens.create({ customerId: customer.id, purpose, codeHash, expiresAt });
+    await this.otpTokens.create({
+      customerId: customer.id,
+      purpose,
+      codeHash,
+      expiresAt,
+      targetPhone: deliverTo ?? null,
+    });
 
     // A reviewer number is not sent its code: whoever uses it already has it from the Play
     // Console listing, so delivery buys nothing and costs something. The demo numbers are
@@ -66,7 +84,7 @@ export class OtpService {
     if (!fixed) {
       try {
         await this.delivery.send({
-          phone: customer.phone,
+          phone: destination,
           code,
           purpose,
           ttlSeconds: policy.ttlSeconds,
@@ -77,7 +95,7 @@ export class OtpService {
         // the client as a 500 — an unreachable SMS gateway is an outage the caller can only
         // respond to if it is named.
         this.logger.error(
-          `OTP delivery failed for ${OtpService.maskPhone(customer.phone)}: ${
+          `OTP delivery failed for ${OtpService.maskPhone(destination)}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -86,7 +104,7 @@ export class OtpService {
     }
 
     return {
-      phoneMasked: OtpService.maskPhone(customer.phone),
+      phoneMasked: OtpService.maskPhone(destination),
       expiresInSeconds: policy.ttlSeconds,
       resendCooldownSeconds: policy.resendCooldownSeconds,
     };

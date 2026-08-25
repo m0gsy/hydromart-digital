@@ -241,6 +241,7 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
       customerId: data.customerId,
       purpose: data.purpose,
       codeHash: data.codeHash,
+      targetPhone: data.targetPhone ?? null,
       expiresAt: data.expiresAt,
       attempts: 0,
       consumedAt: null,

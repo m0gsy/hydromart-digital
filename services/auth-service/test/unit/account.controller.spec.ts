@@ -4,6 +4,12 @@ import { AccountController } from '../../src/modules/auth/account.controller';
 import { AccountService } from '../../src/application/services/account.service';
 import { Role } from '../../src/domain/customer/role.enum';
 
+/** K1.4: the controller takes a PhoneChangeService; these specs exercise other routes. */
+function phoneChangeStub() {
+  return { request: jest.fn(), confirm: jest.fn() } as never;
+}
+
+
 describe('AccountController.listStaff depot-manager scope', () => {
   const ownDepot = '11111111-1111-4111-8111-111111111111';
   const otherDepot = '22222222-2222-4222-8222-222222222222';
@@ -19,7 +25,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
     listStaff: jest.fn(),
   };
-  const controller = new AccountController(account as never, {} as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -110,7 +116,7 @@ describe('AccountController.listDrivers depot scope', () => {
     resolveScopedDepot: (u: never, d?: string) =>
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
   };
-  const controller = new AccountController(account as never, {} as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -168,7 +174,7 @@ describe('AccountController.listDrivers depot scope', () => {
 
 describe('AccountController.importStaff', () => {
   const account = { importStaff: jest.fn() };
-  const controller = new AccountController(account as never, {} as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
 
   it('hands the rows to the service and returns the summary untouched', async () => {
     const summary = { created: 1, updated: 0, skipped: 0, failed: 0, results: [{ row: 1, status: 'created' }] };
@@ -182,7 +188,7 @@ describe('AccountController.importStaff', () => {
 
 describe('AccountController.lookupByIds', () => {
   const account = { lookupByIds: jest.fn() };
-  const controller = new AccountController(account as never, {} as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -199,5 +205,57 @@ describe('AccountController.lookupByIds', () => {
     account.lookupByIds.mockResolvedValue([]);
     await controller.lookupByIds(undefined);
     expect(account.lookupByIds).toHaveBeenCalledWith(['']);
+  });
+});
+
+/**
+ * K1.4. The controller's whole job on these two routes is to keep the request body and the
+ * proved destination apart. The confirm DTO carries no phone, and this is where that stops
+ * being an accident of the DTO.
+ */
+describe('AccountController phone change (K1.4)', () => {
+  const phoneChange = { request: jest.fn(), confirm: jest.fn() };
+  const controller = new AccountController(
+    {} as never,
+    {} as never,
+    {} as never,
+    phoneChange as never,
+  );
+  const user = { sub: 'cust-1' } as never;
+  const req = { ip: '127.0.0.1', headers: { 'user-agent': 'jest' } } as never;
+
+  beforeEach(() => {
+    phoneChange.request.mockReset();
+    phoneChange.confirm.mockReset();
+  });
+
+  it('passes the new number and the request context to the request step', async () => {
+    phoneChange.request.mockResolvedValue({
+      phoneMasked: '+6289***210',
+      expiresInSeconds: 300,
+      resendCooldownSeconds: 60,
+    });
+
+    const out = await controller.requestPhoneChange(user, { phone: '089876543210' }, req);
+
+    expect(out.phoneMasked).toBe('+6289***210');
+    expect(phoneChange.request).toHaveBeenCalledWith(
+      'cust-1',
+      '089876543210',
+      expect.objectContaining({ userAgent: 'jest' }),
+    );
+  });
+
+  it('hands the confirm step the code and NOTHING that could name a destination', async () => {
+    phoneChange.confirm.mockResolvedValue({ id: 'cust-1', phone: '+6289876543210', role: 'CUSTOMER' });
+
+    const out = await controller.confirmPhoneChange(user, { code: '123456' }, req);
+
+    expect(out.phone).toBe('+6289876543210');
+    expect(phoneChange.confirm).toHaveBeenCalledWith(
+      'cust-1',
+      '123456',
+      expect.objectContaining({ userAgent: 'jest' }),
+    );
   });
 });

@@ -62,6 +62,9 @@ enum CustomerStatus {
 enum OtpPurpose {
   REGISTRATION
   LOGIN
+  /// K1.4: proving control of a NEW number before it becomes the login identity.
+  /// The only purpose whose code is delivered somewhere other than `customer.phone`.
+  PHONE_CHANGE
 }
 
 /// An identity. In the auth context a "Customer" is any human principal; role
@@ -107,6 +110,14 @@ model OtpToken {
   purpose    OtpPurpose
   /// bcrypt hash of the numeric code — never the plaintext code.
   codeHash   String
+  /// K1.4: where this code was SENT, when that is not the account's current number.
+  /// Null for every other purpose, which is every challenge before this column existed.
+  ///
+  /// It is also the answer the confirm step reads. Taking the new number from the request
+  /// body instead would mean a code proving control of one number could move the account
+  /// onto a different one — the code proves control of whatever it was delivered to, and
+  /// this is the only record of where that was.
+  targetPhone String?
   expiresAt  DateTime
   attempts   Int        @default(0)
   consumedAt DateTime?
