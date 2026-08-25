@@ -219,6 +219,11 @@ jobs:
       - name: Ops watch scripts self-check
         run: bash scripts/check-ops-scripts.test.sh
 
+      # M13: the between-batches GC used to prune the BUILD cache, throwing away exactly the
+      # layers the next batch of three images needed. Invisible except as a 39-minute deploy.
+      - name: docker-gc self-check
+        run: bash scripts/docker-gc.test.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check
