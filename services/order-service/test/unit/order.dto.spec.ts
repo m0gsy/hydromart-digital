@@ -9,6 +9,7 @@ import { validate } from 'class-validator';
 
 import {
   ChangeSubscriptionAddressDto,
+  CheckoutDto,
   CounterQuoteDto,
   CreateSubscriptionDto,
   ListOrdersQueryDto,
@@ -250,5 +251,30 @@ describe('ChangeSubscriptionAddressDto', () => {
 
   it('refuses a payload with no address at all', async () => {
     expect(await validate(dto(undefined))).toHaveLength(1);
+  });
+});
+
+// K1.9: @ValidateNested() alone says nothing about a nested object that isn't there — an
+// absent body field passes validation and reaches the service as `undefined`, which is a 500
+// for a request that was only ever the wrong shape. @IsDefined() is what makes it a 400.
+describe('required nested objects reject an absent body field', () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+
+  const errorsFor = async (cls: new () => object, body: Record<string, unknown>) =>
+    (await validate(plainToInstance(cls, body))).map((e) => e.property);
+
+  it('CreateSubscriptionDto rejects a body with no deliveryAddress', async () => {
+    expect(
+      await errorsFor(CreateSubscriptionDto, {
+        productId: id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+      }),
+    ).toContain('deliveryAddress');
+  });
+
+  it('CheckoutDto rejects a body with no deliveryAddress', async () => {
+    expect(await errorsFor(CheckoutDto, {})).toContain('deliveryAddress');
   });
 });

@@ -1,5 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
 
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+
 import { SavedSegmentService } from '../../src/application/services/saved-segment.service';
 import { SavedSegmentPrismaRepository } from '../../src/infrastructure/prisma/saved-segment.prisma.repository';
 import { SavedSegmentController } from '../../src/modules/saved-segment.controller';
@@ -146,5 +149,14 @@ describe('SavedSegmentController', () => {
   it('delegates the delete', async () => {
     await controller.remove('seg-1');
     expect(segments.remove).toHaveBeenCalledWith('seg-1');
+  });
+});
+
+// K1.9 (same shape): @ValidateNested() alone lets a body with no `conditions` through, and the
+// controller then saves `undefined` as the audience definition — a 500 for a malformed request.
+describe('SaveSegmentDto', () => {
+  it('rejects a body with no conditions instead of saving undefined', async () => {
+    const errors = await validate(plainToInstance(SaveSegmentDto, { name: 'Berisiko' }));
+    expect(errors.map((e) => e.property)).toContain('conditions');
   });
 });

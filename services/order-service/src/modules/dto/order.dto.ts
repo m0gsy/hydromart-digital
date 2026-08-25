@@ -7,6 +7,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsDefined,
   IsEnum,
   IsIn,
   IsInt,
@@ -21,7 +22,6 @@ import {
   MaxLength,
   Min,
   ValidateNested,
-  IsDefined,
 } from 'class-validator';
 
 import { OrderStatus } from '../../domain/order-status';
@@ -83,6 +83,10 @@ export class DeliveryAddressDto {
 
 export class CheckoutDto {
   @ApiProperty({ type: DeliveryAddressDto })
+  // @ValidateNested() says nothing about a field that is absent: without @IsDefined() a body
+  // with no address validates clean and reaches the service as `undefined` — a 500 for a
+  // request that was only ever the wrong shape.
+  @IsDefined()
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
@@ -301,6 +305,10 @@ export class CreateSubscriptionDto {
   firstDeliveryAt!: string;
 
   @ApiProperty({ type: DeliveryAddressDto })
+  // @ValidateNested() says nothing about a field that is absent: without @IsDefined() a body
+  // with no address validates clean and reaches the service as `undefined` — a 500 for a
+  // request that was only ever the wrong shape.
+  @IsDefined()
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
