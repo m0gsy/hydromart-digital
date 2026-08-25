@@ -638,7 +638,21 @@ export default function AccountPage() {
          * customer in the CATALOGUE — the one screen they had just navigated away from.
          * Every other sign-in door in the app already carries `?next=`; this one did not.
          */
-        action={<LinkButton href={`/login?next=${encodeURIComponent('/account')}`}>{t('nav.signIn')}</LinkButton>}
+        action={
+          <div className="flex flex-col items-center gap-2">
+            <LinkButton href={`/login?next=${encodeURIComponent('/account')}`}>{t('nav.signIn')}</LinkButton>
+            {/*
+              H5 (absorbed by K1.5). `/help` is linked from exactly two places: this screen,
+              which a guest never gets past, and the footer, which is `hidden ... sm:block`.
+              So on a phone, a person who is not signed in has no route to the help page at
+              all — and the help page is where the depot's number is. The one audience most
+              likely to need it was the one audience that could not reach it.
+            */}
+            <LinkButton href="/help" variant="secondary">
+              {t('help.title')}
+            </LinkButton>
+          </div>
+        }
       >
         {t('account.guestBody')}
       </CenterState>

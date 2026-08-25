@@ -14,6 +14,8 @@ export interface SupportTicketRecord {
   customerRef: string;
   customerPhone: string;
   orderRef: string | null;
+  /** K1.5: the account that raised it, or null for one staff typed at the counter. */
+  customerId: string | null;
   priority: TicketPriority;
   status: TicketStatus;
   assigneeId: string | null;
@@ -39,6 +41,12 @@ export interface CreateSupportTicketData {
   customerRef: string;
   customerPhone: string;
   orderRef?: string | null;
+  /**
+   * K1.5: the account that raised this, when one did. Null for a ticket staff typed at the
+   * counter — `customerRef` is free text precisely because that person often has no
+   * account. This is what lets somebody who DOES have one see their own again.
+   */
+  customerId?: string | null;
   priority?: TicketPriority;
   /** The complaint itself — a ticket with no first message is a subject line. */
   body: string;
@@ -49,6 +57,13 @@ export interface SupportTicketRepository {
   create(data: CreateSupportTicketData): Promise<SupportTicketRecord>;
   /** Tickets (newest-first), optionally filtered, each with its message thread. */
   list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]>;
+  /**
+   * K1.5: one customer's OWN tickets, newest first, with their threads.
+   *
+   * Scoped by `customerId` and nothing else. Matching on phone number would hand somebody
+   * every complaint ever filed from a number they now hold.
+   */
+  listForCustomer(customerId: string, limit: number): Promise<SupportTicketRecord[]>;
   findById(id: string): Promise<SupportTicketRecord | null>;
   /** Append a STAFF reply. Returns the refreshed ticket, or null when unknown. */
   addStaffMessage(id: string, body: string): Promise<SupportTicketRecord | null>;

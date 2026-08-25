@@ -283,6 +283,14 @@ model SupportTicket {
   customerRef String
   customerPhone String
   orderRef    String?
+  /// K1.5: the account that raised this, when one did.
+  ///
+  /// Null for a ticket staff opened at the counter — `customerRef` is free text precisely
+  /// because the person complaining there very often has no account, and refusing to
+  /// record a complaint for want of an id is how a complaint stops existing. This column
+  /// is what lets somebody who DOES have an account see their own again afterwards; a
+  /// complaint you cannot follow up on is the same silence with an extra step.
+  customerId  String?
   priority    TicketPriority   @default(MEDIUM)
   status      TicketStatus     @default(OPEN)
   assigneeId  String?
@@ -291,6 +299,11 @@ model SupportTicket {
 
   @@index([status])
   @@index([priority])
+  /// K1.5's read (one customer's own tickets) has no index of its own: this is a
+  /// complaint queue, not a ledger — a few hundred rows at most — and an index cannot be
+  /// pre-built CONCURRENTLY on a column that does not exist yet (H-39), so it could not
+  /// ship in the same release as the column anyway. [customerId, createdAt] is the upgrade
+  /// if the queue ever grows enough for measurement to ask for it.
   @@map("support_tickets")
 }
 

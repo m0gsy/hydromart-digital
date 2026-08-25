@@ -58,6 +58,7 @@ import {
 import { ExportLogsController } from './export-logs.controller';
 import { ScheduledReportsController } from './scheduled-reports.controller';
 import { SupportTicketsController } from './support-tickets.controller';
+import { CustomerSupportController } from './customer-support.controller';
 import { FraudFlagsController } from './fraud-flags.controller';
 import { IncidentsController } from './incidents.controller';
 import { SlaPolicyController } from './sla-policy.controller';
@@ -136,6 +137,7 @@ const providers: Provider[] = [
     ExportLogsController,
     ScheduledReportsController,
     SupportTicketsController,
+    CustomerSupportController,
     FraudFlagsController,
     IncidentsController,
     SlaPolicyController,

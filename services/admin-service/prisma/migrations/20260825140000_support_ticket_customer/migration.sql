@@ -1,0 +1,32 @@
+-- K1.5: a complaint a customer can actually make, and follow.
+--
+-- The support-ticket table has existed since design 15a, and every verb on it belonged to
+-- staff: `/hq/tickets` lists, replies, assigns and resolves, and the only way a row ever
+-- got there was an operator typing one at the counter. There is no customer-side complaint
+-- or dispute path anywhere in the app. The help page is the nearest thing, and it is an
+-- FAQ accordion plus — only when the depot has filled in a contact number — a WhatsApp
+-- button. A depot that has not filled that in leaves the customer on a page with nothing
+-- on it that reaches a person.
+--
+-- One nullable column is what the customer half needs:
+--
+--   NULL       staff opened it at the counter. `customerRef` is free text for exactly
+--              that reason — the person complaining there very often has no account, and
+--              refusing to record a complaint for want of an id is how a complaint stops
+--              existing. Nothing about those rows changes.
+--   set        the account that raised it, so that account can see it again with whatever
+--              staff replied. A complaint you cannot follow up on is the same silence with
+--              an extra step in front of it.
+--
+-- Nothing backfills. Every ticket that exists today was typed by staff about somebody
+-- whose account nobody recorded, and guessing which account each belonged to — by phone
+-- number, by name — would be attaching one person's complaint to another person's login.
+--
+-- No index ships with this, and not only because one cannot be pre-built CONCURRENTLY on a
+-- column that does not exist yet (H-39). This is a complaint queue rather than a ledger —
+-- a few hundred rows at most — and a sequential scan over that is cheaper than the write
+-- cost of an index nobody has measured a need for. [customerId, createdAt] is the upgrade
+-- if it ever grows.
+
+-- AlterTable
+ALTER TABLE "support_tickets" ADD COLUMN "customerId" TEXT;
