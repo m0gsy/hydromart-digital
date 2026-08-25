@@ -11,8 +11,7 @@
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage",
-    "_prepare_note": "Builds access FIRST: this package imports it, .dockerignore strips **/dist so nothing is prebuilt in an image, and npm gives no ordering guarantee between two workspaces' prepare scripts. Without this, `npm ci` fails with TS2307 on @hydromart/access — which blocked every image rebuild.",
-    "prepare": "tsc -p ../access/tsconfig.json && tsc -p tsconfig.json"
+    "prepare": "node ../../scripts/build-shared-if-source.mjs platform"
   },
   "jest": {
     "moduleFileExtensions": [
