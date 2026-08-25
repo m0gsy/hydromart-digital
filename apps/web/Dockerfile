@@ -20,6 +20,15 @@ RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "ERROR: build arg NEXT_PUBLIC_API_UR
 # not a broken deployment, so it defaults instead of failing the build.
 ARG NEXT_PUBLIC_APP_VERSION=dev
 ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
+# N2: the client error reporter is inlined at build time like everything NEXT_PUBLIC_*,
+# and nothing ever passed it — so `SentryInit` read an undefined DSN, returned early, and
+# never downloaded the SDK in ANY artefact we ship. The server half has been reporting 5xx
+# all along, which is exactly why nobody noticed that everything a user actually sees was
+# invisible. Optional, and empty means OFF: no DSN, no SDK in the bundle, nothing sent.
+ARG NEXT_PUBLIC_SENTRY_DSN=
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_SENTRY_ENV=production
+ENV NEXT_PUBLIC_SENTRY_ENV=$NEXT_PUBLIC_SENTRY_ENV
 # Install against the root lockfile (workspaces), then build the shared RBAC
 # package (roles.ts imports @hydromart/access) and only @hydromart/web.
 COPY package.json package-lock.json tsconfig.base.json ./

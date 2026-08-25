@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  * @vitest-environment-options { "url": "https://localhost/" }
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NativeBridge } from '@/components/native-bridge';
@@ -137,6 +137,40 @@ describe('minimum version gate', () => {
     expect(
       await screen.findByText(/Perbarui lewat Play Store untuk melanjutkan/i),
     ).toBeInTheDocument();
+  });
+
+  /*
+   * N5. The floor is per package now, because both binaries are built from the same run
+   * and share a versionCode series — one global integer could only stop both at once.
+   */
+  it('asks about THIS package, not about mobile in general', async () => {
+    render(<NativeBridge />);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    const url = String((fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]![0]);
+    expect(url).toContain('/mobile-config?id=id.hydromart.app');
+  });
+
+  /*
+   * N6. This screen was a dead end: one `market://` button, and back exits the app. The
+   * reasons a device actually lands here — staged rollout, regional propagation, a stale
+   * Play cache — are all cases where the update exists and this phone cannot see it yet.
+   */
+  it('offers a web Play link as well as the Play app', async () => {
+    mobileConfig = { minVersionCode: 20, updateMessage: '' };
+    render(<NativeBridge />);
+    await screen.findByRole('heading', { name: /usang/i });
+    expect(screen.getByText(/Buka lewat browser/i)).toBeInTheDocument();
+  });
+
+  it('lets the screen release itself once the floor no longer blocks this build', async () => {
+    mobileConfig = { minVersionCode: 20, updateMessage: '' };
+    const { container } = render(<NativeBridge />);
+    await screen.findByRole('heading', { name: /usang/i });
+
+    // The floor was lowered (or this device finally sees the current answer).
+    mobileConfig = { minVersionCode: 0, updateMessage: '' };
+    fireEvent.click(screen.getByRole('button', { name: /Coba lagi/i }));
+    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   /**

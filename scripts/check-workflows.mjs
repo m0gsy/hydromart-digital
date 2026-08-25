@@ -92,6 +92,43 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   }
 }
 
+/*
+ * N2/N7 — two build-time facts that are invisible until a release is already in the wild.
+ *
+ * N2: every NEXT_PUBLIC_* value is INLINED at build time, so a client error reporter that
+ * is not passed to the build does not exist in the artefact, no matter how correct the
+ * component is. It was correct, and no image and no APK ever carried it.
+ *
+ * N7: `run_number` does not move on a Re-run, and a re-run is the ordinary response to a
+ * publish that failed after the bundle built — Play then rejects the identical versionCode.
+ * Checked here rather than in a comment because the comment used to claim the opposite.
+ */
+const DSN = 'NEXT_PUBLIC_SENTRY_DSN';
+const mobileText = readFileSync(join(DIR, 'mobile.yml'), 'utf8');
+const imagesText = readFileSync(join(DIR, 'images.yml'), 'utf8');
+const dockerfile = readFileSync(join(DIR, '..', '..', 'apps', 'web', 'Dockerfile'), 'utf8');
+const compose = readFileSync(join(DIR, '..', '..', 'docker-compose.prod.yml'), 'utf8');
+
+if (!dockerfile.includes(`ARG ${DSN}`)) {
+  problems.push(`apps/web/Dockerfile: no \`ARG ${DSN}\` — the web image ships without a client error reporter`);
+}
+if (!compose.includes(`${DSN}:`)) {
+  problems.push(`docker-compose.prod.yml: does not pass ${DSN} to the web build`);
+}
+if (!imagesText.includes(`${DSN}=`)) {
+  problems.push(`${join(DIR, 'images.yml')}: does not pass ${DSN} to the published web image`);
+}
+const exportSteps = (mobileText.match(/npm run build:mobile/g) ?? []).length;
+const mobileDsn = (mobileText.match(new RegExp(`${DSN}:`, 'g')) ?? []).length;
+if (exportSteps > 0 && mobileDsn === 0) {
+  problems.push(`${join(DIR, 'mobile.yml')}: exports the binaries without ${DSN} — every shipped APK is blind`);
+}
+if (!/run_attempt/.test(mobileText)) {
+  problems.push(
+    `${join(DIR, 'mobile.yml')}: versionCode ignores \`run_attempt\`, so a Re-run rebuilds a code Play has already seen`,
+  );
+}
+
 if (problems.length > 0) {
   console.error('Workflow files that would fail silently:');
   for (const p of problems) console.error(`  - ${p}`);

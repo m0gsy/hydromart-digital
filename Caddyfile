@@ -36,7 +36,7 @@ www.{$WEB_DOMAIN} {
 	# img-src allows any https origin because product photos, avatars and proof-of-
 	# delivery come from object storage whose host is deployment-specific; blob:/data:
 	# are the camera capture and the QR/canvas renders.
-	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' https://{$API_DOMAIN}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' https://{$API_DOMAIN} {$SENTRY_INGEST_ORIGIN:https://*.ingest.sentry.io}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 	encode zstd gzip
 	reverse_proxy web:3000
 }

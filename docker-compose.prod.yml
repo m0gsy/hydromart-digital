@@ -652,6 +652,11 @@ services:
       # off until a shipped build has to be stopped — at which point this and a restart
       # are the whole procedure. No rebuild, no Play review.
       MOBILE_MIN_VERSION_CODE: ${MOBILE_MIN_VERSION_CODE:-0}
+      # N5: per-package floors — `id.hydromart.app=1200,id.hydromart.ops=0`. Both binaries
+      # come out of the same run and share a versionCode series, so the single floor above
+      # could only ever stop BOTH: every courier mid-delivery and every cashier mid-shift
+      # went down with a broken customer release. Empty = the global floor, as before.
+      MOBILE_MIN_VERSION_CODE_BY_ID: ${MOBILE_MIN_VERSION_CODE_BY_ID:-}
       MOBILE_UPDATE_MESSAGE: ${MOBILE_UPDATE_MESSAGE:-}
     # H-19: bound to loopback by DEFAULT so only Caddy can reach it. Two reasons this is
     # not optional any more: the gateway is the single public ingress, and gateway.setup.ts
@@ -684,6 +689,10 @@ services:
         # Cosmetic: what the account screen reports as "Versi". Defaults rather than
         # failing the build — a missing version costs a support question, not a deploy.
         NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-${IMAGE_TAG:-dev}}
+        # N2: frozen into the bundle like the two above. Empty = the reporter is off and
+        # the SDK is not even downloaded, so leaving it unset changes nothing.
+        NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}
+        NEXT_PUBLIC_SENTRY_ENV: ${SENTRY_ENVIRONMENT:-production}
     restart: unless-stopped
     depends_on:
       - gateway

@@ -78,3 +78,46 @@ describe('global-error hides the splash', () => {
     expect(() => render(<GlobalError error={new Error('boom')} reset={() => {}} />)).not.toThrow();
   });
 });
+
+/**
+ * N3. Play Vitals reports native process crashes and ANRs. A TypeError in a React tree is
+ * neither: it renders THIS screen, on a build with no WebView debugging and no console in
+ * logcat — so the whole class of failure a user actually meets was invisible in production.
+ * The boundary that holds the error is the only thing that can report it, and it cannot
+ * lean on `SentryInit`: that component lives in the root layout, which is what just failed.
+ */
+describe('global-error reports the crash nothing else can see', () => {
+  const captureException = vi.fn();
+  const init = vi.fn();
+  let client: unknown = null;
+
+  beforeEach(() => {
+    captureException.mockClear();
+    init.mockClear();
+    client = null;
+    vi.doMock('@sentry/nextjs', () => ({
+      captureException,
+      init,
+      getClient: () => client,
+    }));
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@sentry/nextjs');
+    delete process.env.NEXT_PUBLIC_SENTRY_DSN;
+  });
+
+  it('sends nothing at all when no DSN was built in', async () => {
+    render(<GlobalError error={new Error('boom')} reset={() => {}} />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('initialises on the spot and reports, because the layout never ran', async () => {
+    process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://k@example.ingest.sentry.io/1';
+    render(<GlobalError error={new Error('boom')} reset={() => {}} />);
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalled());
+    expect(init).toHaveBeenCalled();
+    expect(captureException.mock.calls[0]![1]).toMatchObject({ tags: { boundary: 'global-error' } });
+  });
+});

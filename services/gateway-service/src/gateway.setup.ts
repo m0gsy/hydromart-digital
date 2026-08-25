@@ -202,8 +202,13 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
    * `check-endpoint-contracts.mjs` fails any path with no owning service, and adding an
    * allowlist file to hold one string is more machinery than the literal it replaces.
    */
-  instance.get('/mobile-config', (_req, res) => {
-    res.json(config.mobile);
+  instance.get('/mobile-config', (req, res) => {
+    // N5: `?id=` names WHICH binary is asking. Absent (older builds in the field) answers
+    // the global floor, exactly as before — the gate ships in a binary that cannot be
+    // changed later, so the endpoint has to keep answering the version of the question
+    // those builds know how to ask.
+    const id = typeof req.query.id === 'string' ? req.query.id : undefined;
+    res.json(config.mobileFor(id));
   });
 
   // SEC-4: BFF session lifecycle (login-verify/refresh/logout) — owns httpOnly cookies.

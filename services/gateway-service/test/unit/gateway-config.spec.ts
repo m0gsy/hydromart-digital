@@ -118,6 +118,44 @@ describe('GatewayConfigService', () => {
     expect(svc.mobile).toEqual({ minVersionCode: 42, updateMessage: 'Perbarui.' });
   });
 
+  /*
+   * N5. Two binaries are built from the same run and carry the SAME versionCode series, so
+   * one global floor could not tell them apart: raising it to stop a broken customer
+   * release also stopped every courier mid-delivery and every cashier mid-shift. A kill
+   * switch nobody dares pull is not a kill switch.
+   */
+  it('answers a per-package floor when one is configured', () => {
+    const svc = new GatewayConfigService(
+      makeConfig({
+        ...BASE,
+        MOBILE_MIN_VERSION_CODE: '10',
+        MOBILE_MIN_VERSION_CODE_BY_ID: 'id.hydromart.app=1200, id.hydromart.ops=0',
+      }),
+    );
+    expect(svc.mobileFor('id.hydromart.app').minVersionCode).toBe(1200);
+    // The ops app is explicitly NOT blocked by the customer app's floor.
+    expect(svc.mobileFor('id.hydromart.ops').minVersionCode).toBe(0);
+  });
+
+  it('falls back to the global floor for a package nobody named', () => {
+    const svc = new GatewayConfigService(
+      makeConfig({ ...BASE, MOBILE_MIN_VERSION_CODE: '10', MOBILE_MIN_VERSION_CODE_BY_ID: 'id.hydromart.app=1200' }),
+    );
+    expect(svc.mobileFor('id.hydromart.ops').minVersionCode).toBe(10);
+    // And for a build old enough not to send an id at all — the gate ships inside a binary
+    // that cannot be changed later, so the old question must keep working.
+    expect(svc.mobileFor().minVersionCode).toBe(10);
+  });
+
+  // This endpoint is on the path of every app launch. A typo must cost the aiming, not
+  // the launch.
+  it('ignores an unparseable entry instead of failing the launch', () => {
+    const svc = new GatewayConfigService(
+      makeConfig({ ...BASE, MOBILE_MIN_VERSION_CODE: '7', MOBILE_MIN_VERSION_CODE_BY_ID: 'id.hydromart.app=abc' }),
+    );
+    expect(svc.mobileFor('id.hydromart.app').minVersionCode).toBe(7);
+  });
+
   it('maps every segment to its upstream and strips trailing slashes', () => {
     const map = new GatewayConfigService(makeConfig(BASE)).upstreams();
     expect(map.auth).toBe('http://auth:1'); // trailing slash stripped

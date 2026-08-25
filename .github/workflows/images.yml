@@ -106,3 +106,5 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.PUBLIC_API_URL }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.SENTRY_DSN_WEB }}
+            NEXT_PUBLIC_SENTRY_ENV=${{ vars.SENTRY_ENVIRONMENT || 'production' }}
