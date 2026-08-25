@@ -453,6 +453,19 @@ jobs:
           npm run test:export:customer --workspace @hydromart/web
           npm run test:export:ops --workspace @hydromart/web
 
+      # J6. The 320px floor was held up by a comment and eleven measured fixes, and by
+      # nothing that ran again. `export-width-sweep.mjs` was written for that sweep, exits
+      # non-zero on a finding, and had never run in CI once — so the twelfth regression was
+      # going to be found the same way the first eleven were: by a person, on a phone.
+      #
+      # It costs almost nothing here: both exports are already built two steps up and the
+      # browser is already installed and cached. 320 is the narrowest width in its list and
+      # the one the floor is about; the other four come with it.
+      - name: Nothing overflows at 320px
+        run: |
+          node scripts/export-width-sweep.mjs customer
+          node scripts/export-width-sweep.mjs ops
+
   # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
   # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
   # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.

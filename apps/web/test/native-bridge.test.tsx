@@ -246,24 +246,31 @@ describe('hardware back button', () => {
 });
 
 describe('deep links and notification taps', () => {
-  it('opens the page an App Link names, rewritten to the route this build has', () => {
+  /*
+   * J4. Every listener below is wired while `GET /mobile-config` is still in flight, so a
+   * link that arrives in that window is HELD until the verdict says this build may serve
+   * it. These assertions are therefore `waitFor` rather than synchronous: the push happens
+   * when the answer lands, not when the listener fires.
+   */
+  it('opens the page an App Link names, rewritten to the route this build has', async () => {
     render(<NativeBridge />);
     listeners.appUrlOpen?.({ url: 'https://hydromart.example/orders/o-1' });
-    expect(push).toHaveBeenCalledWith('/orders/detail?id=o-1');
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/orders/detail?id=o-1'));
   });
 
-  it('opens the destination a tapped notification carries', () => {
+  it('opens the destination a tapped notification carries', async () => {
     render(<NativeBridge />);
     listeners.pushNotificationActionPerformed?.({
       notification: { data: { url: '/orders/detail?id=o-7' } },
     });
-    expect(push).toHaveBeenCalledWith('/orders/detail?id=o-7');
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/orders/detail?id=o-7'));
   });
 
-  it('ignores a notification with no destination and a link to another origin', () => {
+  it('ignores a notification with no destination and a link to another origin', async () => {
     render(<NativeBridge />);
     listeners.pushNotificationActionPerformed?.({ notification: {} });
     listeners.appUrlOpen?.({ url: '//evil.example/orders/1' });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -284,6 +291,54 @@ describe('deep links and notification taps', () => {
     unmount();
     expect(removed).toContain('appUrlOpen');
     expect(removed).toContain('pushNotificationActionPerformed');
+  });
+});
+
+/**
+ * J4 — a blocked app used to burn the link that opened it.
+ *
+ * `minimumVersionBlock()` is a network round trip, and every listener is wired while it is
+ * in flight. So a build below the minimum did all of this anyway: pushed at the deep link,
+ * landed on it UNDERNEATH the blocking overlay, and set the module-level `launchHandled`,
+ * which spends the launch URL for the whole process. The person updates, comes back, and
+ * the link that started the whole thing is simply gone.
+ */
+describe('a link that arrives before the version verdict (J4)', () => {
+  it('does not navigate under the blocking screen', async () => {
+    mobileConfig = { minVersionCode: 20, updateMessage: 'Perbarui dulu.' };
+    render(<NativeBridge />);
+
+    listeners.appUrlOpen?.({ url: 'https://hydromart.example/orders/o-1' });
+    await screen.findByRole('heading', { name: /usang/i });
+
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('does not spend the launch URL, so the next mount can still act on it', async () => {
+    vi.resetModules();
+    const { NativeBridge: Fresh } = await import('@/components/native-bridge');
+    launchUrl = { url: 'https://hydromart.example/products/p-3' };
+    mobileConfig = { minVersionCode: 20, updateMessage: 'Perbarui dulu.' };
+
+    const blocked = render(<Fresh />);
+    await screen.findByRole('heading', { name: /usang/i });
+    expect(push).not.toHaveBeenCalled();
+    blocked.unmount();
+
+    // The update landed; the same process mounts again and the link is still there.
+    mobileConfig = { minVersionCode: 0, updateMessage: '' };
+    render(<Fresh />);
+
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/products/detail?id=p-3'));
+  });
+
+  it('follows a link held during the check once the verdict clears it', async () => {
+    render(<NativeBridge />);
+
+    // Fired synchronously, i.e. before `GET /mobile-config` can possibly have answered.
+    listeners.appUrlOpen?.({ url: 'https://hydromart.example/orders/o-9' });
+
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/orders/detail?id=o-9'));
   });
 });
 

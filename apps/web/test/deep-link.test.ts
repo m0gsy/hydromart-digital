@@ -152,3 +152,59 @@ describe('DYNAMIC_PARENTS mirrors the app tree', () => {
     expect(resolveDeepLink('/dashboard/promotions/promo-1')).toBe('/dashboard/promotions/promo-1');
   });
 });
+
+/**
+ * J2 — the version skew nothing looked at.
+ *
+ * `PRUNED` answers "did this build drop that screen?", and that is the only question the
+ * resolver could ask. The opposite one is the one that breaks: a route the WEB has and
+ * this APK never had, because the APK was built first. Nobody pruned it — there was
+ * nothing to prune — so the link was waved through, the router pushed at it, and an
+ * exported build has no file to serve. A blank screen with no navigation left on it, from
+ * a link nobody here controls.
+ */
+describe('resolveDeepLink · a route this binary never shipped (J2)', () => {
+  // What an older customer APK would carry.
+  const SHIPPED = ['products', 'orders', 'cart', 'account', 'notifications'];
+
+  it('sends a link to a whole new area of the app home instead of at a missing file', () => {
+    expect(resolveDeepLink('/langganan-baru/detail?id=1', [], SHIPPED)).toBe('/');
+  });
+
+  it('still serves the areas it does carry', () => {
+    expect(resolveDeepLink('/products/p-1', [], SHIPPED)).toBe('/products/detail?id=p-1');
+    expect(resolveDeepLink('/notifications', [], SHIPPED)).toBe('/notifications');
+  });
+
+  it('always serves home itself', () => {
+    expect(resolveDeepLink('/', [], SHIPPED)).toBe('/');
+  });
+
+  /*
+   * The two rules are independent and both still apply: `PRUNED` is about a screen this
+   * build deliberately dropped, the segment list about one it never had.
+   */
+  it('keeps refusing a pruned subtree even when its segment is present', () => {
+    expect(resolveDeepLink('/orders/o-1', ['/orders/*'], SHIPPED)).toBe('/');
+  });
+
+  /*
+   * The web build emits no segment list, and so does every caller written before this
+   * existed. An empty list must mean "serves everything" — the opposite default would send
+   * every deep link on the website to the home page.
+   */
+  it('an empty list means this build knows everything', () => {
+    expect(resolveDeepLink('/anything/at/all', [], [])).toBe('/anything/at/all');
+  });
+
+  /*
+   * Deliberately NOT claimed: a new sub-page under an area this build already serves.
+   * Over-claiming would send a working link home, which is worse than the blank screen for
+   * a rarer shape.
+   */
+  it('does not guess about a sub-page under an area it does carry', () => {
+    expect(resolveDeepLink('/account/brand-new-screen', [], SHIPPED)).toBe(
+      '/account/brand-new-screen',
+    );
+  });
+});

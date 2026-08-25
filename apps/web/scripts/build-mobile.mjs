@@ -123,6 +123,31 @@ function prunedRoutes(paths) {
   return paths.map((p) => (p.endsWith('.tsx') ? `/${dirname(p)}` : `/${p}/*`));
 }
 
+/**
+ * J2 — the other half of the same question, and the half nothing answered.
+ *
+ * `prunedRoutes` names what this binary DROPPED. That covers a link to a screen this build
+ * deliberately left out, and covers nothing else. The failure it cannot see is the opposite
+ * one: a route the web has and this APK never had, because the APK was built before it
+ * existed. Nobody pruned it — there was nothing to prune — so the resolver waves it
+ * through, the router pushes at it, and an exported build has no file to serve. Blank
+ * screen, no navigation left on it, and every source of such a link is outside our control:
+ * a notification, a WhatsApp message, a link somebody saved.
+ *
+ * Top-level segments only, and that is the whole trick. It is one short string (a few
+ * hundred bytes in an env var), it needs no maintenance, and it answers exactly the
+ * question that goes wrong across a version skew — a whole new area of the app appearing.
+ * A new SUB-page under an area this build already serves is a different and much rarer
+ * shape, and is not claimed here.
+ */
+function servedSegments(app = APP) {
+  return readdirSync(app, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('_') && !e.name.startsWith('.'))
+    // Route groups `(name)` are not URL segments; their children are, one level down.
+    .flatMap((e) => (/^\(.+\)$/.test(e.name) ? servedSegments(join(app, e.name)) : [e.name]))
+    .sort();
+}
+
 /** Total bytes under `dir`, so the size claim in a PR description is measured, not guessed. */
 function sizeOf(dir) {
   let total = 0;
@@ -259,6 +284,9 @@ try {
       MOBILE_BUILD: '1',
       MOBILE_OUT_DIR: relative(WEB, outDir),
       NEXT_PUBLIC_MOBILE_PRUNED: prunedRoutes(pruned).join(','),
+      // J2. Computed AFTER the prune has stashed its folders, so it lists what this binary
+      // actually carries rather than what the repo contains.
+      NEXT_PUBLIC_MOBILE_SEGMENTS: servedSegments().join(','),
     },
   });
   ok = true;
