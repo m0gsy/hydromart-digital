@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowsClockwise,
   Bell,
@@ -74,6 +74,34 @@ function Feed() {
   useEffect(() => {
     setLastSeen(localStorage.getItem(LAST_SEEN_KEY) ?? '');
   }, []);
+
+  /*
+   * O4: opening the inbox IS reading it.
+   *
+   * `markNotificationsSeen` documented itself as "called by the inbox when it renders" and
+   * was not — its only caller was the `Tandai dibaca` button below. So the nav badge sat at
+   * 9+ through every visit to the screen it points at, and only a button nobody is told
+   * about could clear it. Measured in a browser against the live stack: thirty rows
+   * rendered, `lastSeen` still null, bell still "(30 belum dibaca)"; one click and both
+   * cleared in the same tick. The mechanism was fine, the trigger was missing.
+   *
+   * Two details that are the whole design:
+   *
+   * `!data` guard — stamped only AFTER the feed arrives. Stamping on mount would mark
+   * unseen news as seen whenever the read failed, which is the one direction that loses
+   * information a person needed.
+   *
+   * It deliberately does NOT touch `lastSeen` state. Rows highlight against the same
+   * timestamp (`n.createdAt > lastSeen` below — tint plus a dot), so moving the state would
+   * clear the badge and erase the highlight on exactly the rows the visit was for. The
+   * stored key moves for the NEXT visit; the mount-time snapshot keeps rendering this one.
+   */
+  const stamped = useRef(false);
+  useEffect(() => {
+    if (stamped.current || !data) return;
+    stamped.current = true;
+    markNotificationsSeen();
+  }, [data]);
 
   const hasUnread = useMemo(
     () => (data ?? []).some((n) => n.createdAt > lastSeen),
