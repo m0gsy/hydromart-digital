@@ -833,6 +833,15 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
+    # N12: without --web.external-url Alertmanager builds notification links from the
+    # CONTAINER's hostname — `http://<container-id>:9093/#/alerts` — which Discord refuses
+    # outright (400) and no human could open anyway. That is why `title_link` in
+    # ops/alertmanager.yml has been deliberately empty. Set ALERTMANAGER_EXTERNAL_URL to a
+    # reachable address (an SSH-tunnelled localhost is fine) and the links become real.
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093}
     mem_limit: 128m
     cpus: 0.25
     volumes:

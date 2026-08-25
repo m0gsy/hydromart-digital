@@ -37,8 +37,12 @@ receivers:
         # also unopenable by anyone, being an address that only exists inside the compose
         # network. Proven by bisecting the captured payload field by field against the
         # real webhook: with title_link the post is refused, without it, accepted.
-        # Set --web.external-url on the container and this can point somewhere real.
-        title_link: ''
+        # N12: the container now runs with --web.external-url (docker-compose.prod.yml),
+        # so this can finally carry a link a person can open. It is still built from the
+        # variable rather than hardcoded, and an operator who leaves the default gets
+        # localhost:9093 — right for an SSH tunnel, useless in a group chat. That is a
+        # deliberate default: a wrong-but-plausible public URL would be worse.
+        title_link: '{{ template "__alertmanagerURL" . }}'
         title: '{{ .CommonLabels.severity | toUpper }}: {{ .CommonAnnotations.summary }}'
         text: >-
           {{ range .Alerts }}{{ .Annotations.description }}
