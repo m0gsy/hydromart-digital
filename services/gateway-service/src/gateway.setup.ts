@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { INestApplication } from '@nestjs/common';
 import type { Express, Request, RequestHandler } from 'express';
@@ -20,27 +20,93 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * not to a person. Eight couriers behind one depot router or one 4G hotspot share a
  * single NAT address and therefore a single counter — and `offline-queue.ts` makes them
  * all flush at the same instant when signal returns, so the burst is not hypothetical.
- * Keying on the caller's own credential gives each of them their own budget. Web gains
- * the same fix for free: two staff on one office line stop sharing a counter.
+ * Keying on the caller's own identity gives each of them their own budget. Web gains the
+ * same fix for free: two staff on one office line stop sharing a counter.
+ *
+ * L3-SEC-1 — and this is the part that was wrong. The key came from the raw credential:
+ *
+ *     if (credential) return `t:${sha256(credential)}`;
+ *
+ * "Anonymous traffic has neither and keeps the IP bucket" was true only of a caller that
+ * sends no header. `Authorization: Bearer <anything>` is also anonymous, and it chose its
+ * own bucket. Measured against the running gateway, one address, one read endpoint:
+ *
+ *     no header, IP bucket already spent   ->   0 of 60 passed
+ *     junk bearer, rotated per request     ->  28 of 60 passed
+ *
+ * So an address that was fully rate-limited got its service back by attaching a token
+ * nobody issued. A ceiling anyone can opt out of is not a ceiling. The e2e suite passed
+ * throughout, because it asserted this behaviour on purpose with the literal identities
+ * `courier-a` and `courier-b` — the defect was written down as the specification.
+ *
+ * Now the identity has to be one we can PROVE we issued: HS256 verified against
+ * `JWT_ACCESS_SECRET`, then keyed on the `sub` claim. Three consequences worth naming:
+ *
+ *  - An unverifiable credential is treated exactly like no credential — the IP bucket.
+ *    That is the pre-J5 answer, and it is the safe direction to be wrong in.
+ *  - `sub` rather than the token bytes also fixes the note the old comment left behind:
+ *    the access token rotates on refresh, so keying on it handed out a fresh budget every
+ *    ~15 minutes. One person is now one bucket across refreshes.
+ *  - No secret configured means no credential is verifiable, so every caller falls back to
+ *    their address. The gateway still boots and still limits, just coarsely; it never
+ *    degrades to bypassable.
  *
  * Deliberately reads BOTH transports, because this middleware runs ahead of the
  * cookie -> Authorization translation further down: the browser sends the httpOnly
- * access cookie, the native shell will send the header. Anonymous traffic (login,
- * catalogue browsing) has neither and keeps the IP bucket, which is the right answer
- * there — an unauthenticated flood has no identity to charge.
+ * access cookie, the native shell sends the header.
  *
- * Hashed rather than stored raw so the limiter's key set never holds a usable token.
- *
- * ponytail: the access token rotates on refresh, so a bucket resets every ~15 min.
- * Harmless (refresh is itself limited, and reuse detection revokes a family that spams
- * it); key on the JWT `sub` claim instead if that ever proves too generous.
+ * The `sub` is a user id, not a credential, so it is used as-is; the old hash existed to
+ * keep a usable token out of the limiter's key set and there is no longer a token in it.
  */
-export function rateLimitKey(req: Request): string {
+export function rateLimitKey(req: Request, secret = ''): string {
   const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
-  if (credential) {
-    return `t:${createHash('sha256').update(credential).digest('base64url').slice(0, 22)}`;
+  if (credential && secret) {
+    const sub = verifiedSubject(credential, secret);
+    if (sub) return `u:${sub}`;
   }
   return `i:${req.ip ?? 'unknown'}`;
+}
+
+/**
+ * The `sub` of a token this deployment can prove it signed, or null for anything else.
+ *
+ * Not a full authorisation check and not a substitute for one — each service still
+ * verifies for itself. This answers one question: may this caller be trusted to NAME its
+ * own rate-limit bucket? Only a signature we can recompute can answer yes.
+ *
+ * `alg` is required to be HS256 rather than read from the token. Trusting the token's own
+ * `alg` is the classic JWT forgery: `none` makes every signature valid, and naming an
+ * asymmetric algorithm invites the verifier to check a public key as if it were a secret.
+ */
+function verifiedSubject(credential: string, secret: string): string | null {
+  const token = credential.startsWith('Bearer ') ? credential.slice(7).trim() : credential.trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [head, body, sig] = parts;
+
+  let header: { alg?: unknown };
+  let payload: { sub?: unknown; exp?: unknown };
+  try {
+    header = JSON.parse(Buffer.from(head, 'base64url').toString('utf8'));
+    payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (header?.alg !== 'HS256') return null;
+
+  const expected = createHmac('sha256', secret).update(`${head}.${body}`).digest();
+  const given = Buffer.from(sig, 'base64url');
+  // timingSafeEqual THROWS on a length mismatch, and a wrong-length signature is the
+  // commonest malformed input there is — so the length is checked first, not caught after.
+  if (given.length !== expected.length) return null;
+  if (!timingSafeEqual(given, expected)) return null;
+
+  // An expired token is authentic, so it cannot be forged — but honouring it forever would
+  // let one harvested token keep minting a private bucket long after it stopped being a
+  // login. `exp` is seconds since the epoch (RFC 7519 §4.1.4).
+  if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return null;
+
+  return typeof payload?.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
 }
 
 /**
@@ -164,7 +230,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     tokenBucket({
       capacity: config.rateLimit.burstLimit,
       refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
-      keyGenerator: rateLimitKey,
+      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret),
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
     }),
   );

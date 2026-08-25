@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
 
@@ -25,6 +27,11 @@ import { configureGateway } from '../../src/gateway.setup';
 // only safe because the gateway port is bound to loopback (H-19, same PR). If the port were
 // reachable directly, a client could spoof this header and mint itself a fresh bucket.
 
+// L3-SEC-1: the identity the gateway will accept is one signed with THIS secret. The suite
+// signs its own tokens with it, so "an issued token" and "an invented string" are two
+// genuinely different inputs here rather than two spellings of the same thing.
+const JWT_ACCESS_SECRET = 'e2e-gateway-access-secret-long-enough-0123456789';
+
 const LIMIT = 3;
 // Deliberately BELOW the general limit: the OTP tier has to bite first, or it is not a
 // tier at all — it is a second copy of the number it sits underneath.
@@ -51,6 +58,7 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     echo = await startEcho();
     const testEnv: Record<string, string> = {
       NODE_ENV: 'test',
+      JWT_ACCESS_SECRET,
       GATEWAY_PORT: '8080',
       // This suite asserts the behaviour of a gateway BEHIND a proxy, so it has to say so
       // now: trusting an X-Forwarded-For hop is conditional on one actually existing.
@@ -138,14 +146,38 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     await get('198.51.100.7').expect(429);
   });
 
-  // J5: `trust proxy` only splits buckets by ADDRESS. Eight couriers behind one depot
-  // router or one 4G hotspot still share one address — and the offline queue flushes
-  // them all in the same instant when signal returns. These two pin that an identified
-  // caller is charged to themselves, on both transports, since the limiter runs ahead
-  // of the cookie -> bearer translation and so has to read each one itself.
-  it('gives two bearer clients behind ONE address their own budgets', async () => {
+  /*
+   * J5 + L3-SEC-1, and the second is why these two changed.
+   *
+   * `trust proxy` only splits buckets by ADDRESS. Eight couriers behind one depot router or
+   * one 4G hotspot still share one address, and the offline queue flushes them all in the
+   * same instant when signal returns — so an identified caller must be charged to
+   * themselves, on both transports, since the limiter runs ahead of the cookie -> bearer
+   * translation and has to read each one itself.
+   *
+   * These tests used to prove that with the literal identities `courier-a` and `courier-b`
+   * — two strings nobody signed. That passed, and it was the bypass written down as a
+   * specification: if an arbitrary string is an identity, then an address whose budget is
+   * spent buys a new one by making one up. Measured against the running gateway before the
+   * fix: 0 of 60 requests passed with no header, 28 of 60 with a junk bearer rotated per
+   * request, same address.
+   *
+   * So the identity is now a token signed with the same secret the app boots with, and the
+   * third test below is the regression: invented ones must NOT escape the address bucket.
+   */
+  const signed = (sub: string) => {
+    const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const head = b64({ alg: 'HS256', typ: 'JWT' });
+    const body = b64({ sub, exp: Math.floor(Date.now() / 1000) + 3600 });
+    const sig = createHmac('sha256', JWT_ACCESS_SECRET)
+      .update(`${head}.${body}`)
+      .digest('base64url');
+    return `${head}.${body}.${sig}`;
+  };
+
+  it('gives two verified bearer clients behind ONE address their own budgets', async () => {
     const nat = '192.0.2.50';
-    const asUser = (token: string) => get(nat).set('authorization', `Bearer ${token}`);
+    const asUser = (sub: string) => get(nat).set('authorization', `Bearer ${signed(sub)}`);
 
     for (let i = 0; i < LIMIT; i += 1) {
       await asUser('courier-a').expect(200);
@@ -157,7 +189,7 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
 
   it('reads the session cookie as an identity too, not just the header', async () => {
     const office = '192.0.2.51';
-    const asUser = (at: string) => get(office).set('cookie', `hm_at=${at}`);
+    const asUser = (sub: string) => get(office).set('cookie', `hm_at=${signed(sub)}`);
 
     for (let i = 0; i < LIMIT; i += 1) {
       await asUser('staff-a').expect(200);
@@ -165,6 +197,19 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     await asUser('staff-a').expect(429);
 
     await asUser('staff-b').expect(200);
+  });
+
+  it('does NOT let an invented bearer escape the address bucket (L3-SEC-1)', async () => {
+    // The reported bypass, as a test. One address, a different unsigned token every
+    // request: every one of them must be charged to the address, so the ceiling still
+    // arrives. Before the fix each rotation minted a private bucket and this never 429'd.
+    const attacker = '192.0.2.99';
+    for (let i = 0; i < LIMIT; i += 1) {
+      await get(attacker).set('authorization', `Bearer invented-${i}`).expect(200);
+    }
+    await get(attacker).set('authorization', 'Bearer invented-final').expect(429);
+    // And with no header at all, from the same spent address.
+    await get(attacker).expect(429);
   });
 
   it('still falls back to the address when the caller is anonymous', async () => {
