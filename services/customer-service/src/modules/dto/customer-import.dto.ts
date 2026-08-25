@@ -75,6 +75,17 @@ export class ImportResellerRowDto {
   @Min(0)
   monthlyTargetQty!: number;
 
+  /**
+   * J11: the SOP flat price per gallon. Same bounds as the single-agen form, so a sheet
+   * cannot set a price the form would refuse.
+   */
+  @ApiPropertyOptional({ minimum: 0, maximum: 10_000_000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10_000_000)
+  flatGallonPriceIdr?: number;
+
   @ApiProperty({ example: '2026-01-01' })
   @IsISO8601()
   joinDate!: string;

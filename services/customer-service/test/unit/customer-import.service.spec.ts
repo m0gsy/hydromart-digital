@@ -255,9 +255,22 @@ describe('CustomerImportService.importResellers', () => {
     });
   });
 
-  it('skips a phone already on the reseller registry', async () => {
+  /*
+   * J11 · a correction re-import used to do nothing at all.
+   *
+   * An existing reseller made `register` throw ResellerExistsError, and that error was the
+   * skip predicate — so the row was counted "skipped" and the sheet's numbers were thrown
+   * away. Bulk import is how a depot onboards its agen; the second file anybody sends is a
+   * correction, and this is a money path: `discountPct` and `flatGallonPriceIdr` are what
+   * the agen is charged at the till.
+   *
+   * Existing rows are UPDATED now, and reported as `updated` — a status the summary has
+   * always carried and this importer never produced.
+   */
+  it('updates an agen already on the registry instead of throwing the sheet away', async () => {
     const resellers = {
       register: jest.fn().mockRejectedValue(new ResellerExistsError()),
+      update: jest.fn().mockResolvedValue({ customerId: 'cust-1' }),
     };
     const svc = new CustomerImportService(
       new FakeIdentity(),
@@ -266,10 +279,60 @@ describe('CustomerImportService.importResellers', () => {
       resellers as never,
     );
 
+    const summary = await svc.importResellers(hq, DEPOT_A, [
+      { ...RESELLER, discountPct: 9, monthlyTargetQty: 250, flatGallonPriceIdr: 17000 },
+    ]);
+
+    expect(summary).toMatchObject({ created: 0, updated: 1, skipped: 0, failed: 0 });
+    expect(resellers.update).toHaveBeenCalledWith(hq, 'cust-1', {
+      homeDepotId: DEPOT_A,
+      monthlyTargetQty: 250,
+      discountPct: 9,
+      flatGallonPriceIdr: 17000,
+      note: undefined,
+    });
+  });
+
+  /*
+   * The SOP flat price is the whole reason an agen sheet exists, and it was the one field
+   * the importer could not set — a depot could bulk-load a hundred agen and then have to
+   * open a hundred forms to price them.
+   */
+  it('sets the SOP flat gallon price on a new agen', async () => {
+    const resellers = { register: jest.fn().mockResolvedValue({ customerId: 'cust-1' }) };
+    const svc = new CustomerImportService(
+      new FakeIdentity(),
+      makeProfiles() as never,
+      {} as never,
+      resellers as never,
+    );
+
+    await svc.importResellers(hq, DEPOT_A, [{ ...RESELLER, flatGallonPriceIdr: 16500 }]);
+
+    expect(resellers.register).toHaveBeenCalledWith(
+      hq,
+      expect.objectContaining({ flatGallonPriceIdr: 16500 }),
+    );
+  });
+
+  it('still fails the row when the update itself fails', async () => {
+    const resellers = {
+      register: jest.fn().mockRejectedValue(new ResellerExistsError()),
+      update: jest.fn().mockRejectedValue(new Error('depot pindah ditolak')),
+    };
+    const svc = new CustomerImportService(
+      new FakeIdentity(),
+      makeProfiles() as never,
+      {} as never,
+      resellers as never,
+    );
+
+    // Not "skipped": the sheet asked for a change and the change did not happen.
     await expect(svc.importResellers(hq, DEPOT_A, [RESELLER])).resolves.toMatchObject({
       created: 0,
-      skipped: 1,
-      failed: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 1,
     });
   });
 

@@ -25,6 +25,12 @@ export interface ImportResellerRow {
   phone: string;
   discountPct: number;
   monthlyTargetQty: number;
+  /**
+   * J11: the SOP flat price per gallon. Optional because not every network prices its agen
+   * that way — but it was missing entirely, so a depot could bulk-load a hundred agen and
+   * then had to open a hundred forms to price them.
+   */
+  flatGallonPriceIdr?: number;
   joinDate: string;
   note?: string;
 }
@@ -141,17 +147,42 @@ export class CustomerImportService {
         // A reseller hangs off a customer identity, so resolve (or pre-register) the
         // phone first — same claim-it-yourself rule as a plain customer import.
         const { customerId } = await this.identity.preRegisterCustomer(row.phone, row.fullName);
-        const reseller = await this.resellers.register(user, {
-          customerId,
-          homeDepotId,
-          monthlyTargetQty: row.monthlyTargetQty,
-          discountPct: row.discountPct,
-          joinDate: new Date(row.joinDate),
-          note: row.note,
-        });
-        return { status: 'created', id: reseller.customerId };
+        try {
+          const reseller = await this.resellers.register(user, {
+            customerId,
+            homeDepotId,
+            monthlyTargetQty: row.monthlyTargetQty,
+            discountPct: row.discountPct,
+            flatGallonPriceIdr: row.flatGallonPriceIdr,
+            joinDate: new Date(row.joinDate),
+            note: row.note,
+          });
+          return { status: 'created', id: reseller.customerId };
+        } catch (err) {
+          /**
+           * J11: an agen already on the registry is a CORRECTION, not a duplicate.
+           *
+           * This used to classify ResellerExistsError as "skipped" and throw the row away.
+           * Bulk import is how a depot onboards its agen, so the second file anybody sends
+           * is a correction — and this is a money path: `discountPct` and
+           * `flatGallonPriceIdr` are what the agen is charged at the till. A re-import that
+           * reports "skipped" and changes nothing is the worst possible answer, because it
+           * looks like it worked.
+           *
+           * `joinDate` is deliberately NOT re-written: when they joined is a fact about the
+           * past, and a sheet re-typed months later should not be able to move it.
+           */
+          if (!(err instanceof ResellerExistsError)) throw err;
+          const updated = await this.resellers.update(user, customerId, {
+            homeDepotId,
+            monthlyTargetQty: row.monthlyTargetQty,
+            discountPct: row.discountPct,
+            flatGallonPriceIdr: row.flatGallonPriceIdr,
+            note: row.note,
+          });
+          return { status: 'updated', id: updated.customerId };
+        }
       },
-      (err) => err instanceof ResellerExistsError,
     );
   }
 }
