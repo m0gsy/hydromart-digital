@@ -21,6 +21,7 @@ import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type {
@@ -89,11 +90,15 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
   const [error, setError] = useState<string | null>(null);
 
   // D10: the depot's catalogue, so the operator picks a product the engine can deliver.
-  const catalog = useAsync<Page<Product>>(
+  const catalog = useAsync<Product[]>(
     () =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
       open
-        ? api.get<Page<Product>>(endpoints.products.browse({ limit: 100 }))
-        : Promise.resolve({ items: [], total: 0, page: 1, limit: 100 }),
+        ? fetchAllPages<Product>(({ page, limit }) =>
+            api.get<Page<Product>>(endpoints.products.browse({ page, limit })),
+          )
+        : Promise.resolve([]),
     [open],
   );
 
@@ -115,7 +120,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
   async function submit() {
     const qty = Number(quantity);
     const picked = (customers.data ?? []).find((c) => c.id === customerId);
-    const product = (catalog.data?.items ?? []).find((p) => p.id === productId);
+    const product = (catalog.data ?? []).find((p) => p.id === productId);
     if (!picked || !product || !firstDeliveryAt || !Number.isFinite(qty) || qty < 1) {
       setError(t('hrFix.depotSubscriptions.help'));
       return;
@@ -191,7 +196,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             className="h-11 w-full rounded-xl border border-app bg-transparent px-3 text-sm"
           >
             <option value="">{t('opsFix.subs.productPlaceholder')}</option>
-            {(catalog.data?.items ?? []).map((p) => (
+            {(catalog.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
