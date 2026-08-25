@@ -65,6 +65,11 @@ CRON_TZ=$CRON_TZ_VALUE
 # refusing the site three weeks later. Weekly is enough for a 21-day window.
 15 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-tls-expiry.sh >> /var/log/hydromart-ops-checks.log 2>&1
 
+# L1.3 — the rollbacks are RUN, not merely present. check-rollbacks.sh proves the file
+# exists; this proves it works, against a throwaway copy of the live database with real
+# rows in it. Monday, after the restore drill, on the newest migrations of every service.
+30 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/rollback-drill.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
 # N14 — container log caps. `ops/docker-daemon.json` is a file somebody has to copy to the
 # host by hand; nothing ever checked that they did, and the default is unbounded.
 45 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-log-retention.sh >> /var/log/hydromart-ops-checks.log 2>&1
