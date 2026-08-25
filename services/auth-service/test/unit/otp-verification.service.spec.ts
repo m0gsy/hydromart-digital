@@ -20,8 +20,12 @@ import {
 
 class FakeCustomerNotification {
   readonly welcomed: { phone: string; name: string }[] = [];
+  readonly phoneChanges: { oldPhone: string; newPhoneMasked: string; name: string }[] = [];
   async sendWelcome(phone: string, name: string): Promise<void> {
     this.welcomed.push({ phone, name });
+  }
+  async sendPhoneChanged(oldPhone: string, newPhoneMasked: string, name: string): Promise<void> {
+    this.phoneChanges.push({ oldPhone, newPhoneMasked, name });
   }
 }
 

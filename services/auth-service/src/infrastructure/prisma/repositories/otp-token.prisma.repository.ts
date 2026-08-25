@@ -14,6 +14,7 @@ interface OtpTokenRow {
   customerId: string;
   purpose: string;
   codeHash: string;
+  targetPhone: string | null;
   expiresAt: Date;
   attempts: number;
   consumedAt: Date | null;
@@ -30,6 +31,7 @@ export class OtpTokenPrismaRepository implements OtpTokenRepository {
       customerId: row.customerId,
       purpose: toDomainOtpPurpose(row.purpose as never),
       codeHash: row.codeHash,
+      targetPhone: row.targetPhone,
       expiresAt: row.expiresAt,
       attempts: row.attempts,
       consumedAt: row.consumedAt,
@@ -43,6 +45,7 @@ export class OtpTokenPrismaRepository implements OtpTokenRepository {
         customerId: data.customerId,
         purpose: toPrismaOtpPurpose(data.purpose),
         codeHash: data.codeHash,
+        targetPhone: data.targetPhone ?? null,
         expiresAt: data.expiresAt,
       },
     });

@@ -17,6 +17,12 @@ import { Role } from '../../src/domain/customer/role.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { PublicCustomer } from '../../src/application/results';
 
+/** K1.4: the controller takes a PhoneChangeService; these specs exercise other routes. */
+function phoneChangeStub() {
+  return { request: jest.fn(), confirm: jest.fn() } as never;
+}
+
+
 const publicCustomer = (overrides: Partial<PublicCustomer> = {}): PublicCustomer => ({
   id: 'cust-1',
   phone: '+6281234567890',
@@ -55,7 +61,7 @@ describe('AccountController delegation', () => {
     logoutAll: jest.fn(),
   };
   const tokens = { logout: jest.fn() };
-  const controller = new AccountController(account as never, tokens as never, { deleteStaffAccount: jest.fn() } as never);
+  const controller = new AccountController(account as never, tokens as never, { deleteStaffAccount: jest.fn() } as never, phoneChangeStub());
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' };
 
   beforeEach(() => jest.clearAllMocks());

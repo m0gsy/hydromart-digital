@@ -16,6 +16,18 @@ export class CustomerNotificationHttpAdapter implements CustomerNotificationPort
   constructor(private readonly config: AuthConfigService) {}
 
   async sendWelcome(phone: string, name: string): Promise<void> {
+    await this.send('CUSTOMER_REGISTERED', phone, { name });
+  }
+
+  /**
+   * K1.4. Goes to the number that has just stopped being the login identity — the only
+   * warning a stolen phone change produces.
+   */
+  async sendPhoneChanged(oldPhone: string, newPhoneMasked: string, name: string): Promise<void> {
+    await this.send('PHONE_CHANGED', oldPhone, { name, newPhone: newPhoneMasked });
+  }
+
+  private async send(event: string, phone: string, vars: Record<string, string>): Promise<void> {
     const { crmUrl, internalKey } = this.config.customerNotifications;
     if (!crmUrl || !internalKey) {
       return; // feature disabled in this environment
@@ -27,19 +39,15 @@ export class CustomerNotificationHttpAdapter implements CustomerNotificationPort
       const response = await fetch(`${crmUrl}/api/v1/notifications/internal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
-        body: JSON.stringify({
-          event: 'CUSTOMER_REGISTERED',
-          phone,
-          vars: { name },
-        }),
+        body: JSON.stringify({ event, phone, vars }),
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
 
       if (!response.ok) {
-        this.logger.warn(`Welcome notification rejected (${response.status}) for ${phone}`);
+        this.logger.warn(`${event} notification rejected (${response.status}) for ${phone}`);
       }
     } catch (error) {
-      this.logger.warn(`Welcome notification failed for ${phone}: ${(error as Error).message}`);
+      this.logger.warn(`${event} notification failed for ${phone}: ${(error as Error).message}`);
     }
   }
 }

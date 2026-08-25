@@ -9,6 +9,7 @@ import { DepotScopeGuard, RolesGuard } from '@hydromart/platform';
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AUTH_TOKENS } from '../../application/tokens';
 import { AccountService } from '../../application/services/account.service';
+import { PhoneChangeService } from '../../application/services/phone-change.service';
 import { AuditService } from '../../application/services/audit.service';
 import { ConsentService } from '../../application/services/consent.service';
 import { AccessMatrixService } from '../../application/services/access-matrix.service';
@@ -114,6 +115,7 @@ const applicationServices: Provider[] = [
   OtpVerificationService,
   TokenService,
   AccountService,
+  PhoneChangeService,
   AuditService,
   DataSubjectService,
   ConsentService,

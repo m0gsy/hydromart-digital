@@ -54,6 +54,11 @@ export enum NotificationEvent {
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
   CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
+  // K1.4, security. Fired by auth-service AFTER a phone number change succeeds, and sent
+  // to the OLD number — the one that has just stopped being the login identity. It is the
+  // only warning a stolen phone change produces: nothing else about one is visible to the
+  // person losing the account. Tokens: {{name}}, {{newPhone}} (masked).
+  PHONE_CHANGED = 'PHONE_CHANGED',
   // Loyalty: fired by order-service on completion. Tokens: {{name}}, {{points}}, {{orderNumber}}.
   POINTS_EARNED = 'POINTS_EARNED',
   // Rewards/referral: fired when a voucher is granted. Tokens: {{name}}, {{code}}, {{description}}.
@@ -121,6 +126,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Laporan penjualan {{slot}} depot {{depot}} : {{gallons}} Galon',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
+  [NotificationEvent.PHONE_CHANGED]:
+    'Halo {{name}}, nomor akun Hydromart kamu baru saja diganti ke {{newPhone}}. Mulai sekarang kode masuk dikirim ke nomor itu. Bukan kamu yang melakukannya? Segera hubungi depot.',
   [NotificationEvent.POINTS_EARNED]:
     'Mantap, {{name}}! Kamu dapat +{{points}} poin dari pesanan {{orderNumber}}. Kumpulkan poin untuk tukar voucher & naik tier di aplikasi.',
   [NotificationEvent.VOUCHER_GRANTED]:

@@ -46,6 +46,11 @@ export enum AuditAction {
   TOKEN_REUSE_DETECTED = 'auth.token.reuse_detected',
   LOGOUT = 'auth.logout',
   LOGOUT_ALL = 'auth.logout_all',
+  // K1.4. Two entries, not one: the request is what a hijack attempt looks like when it
+  // fails, and it is the only trace of one. Both record the destination MASKED — this
+  // table is read by staff, and a phone number is the identity itself.
+  PHONE_CHANGE_REQUESTED = 'auth.phone.change_requested',
+  PHONE_CHANGED = 'auth.phone.changed',
 }
 
 /**

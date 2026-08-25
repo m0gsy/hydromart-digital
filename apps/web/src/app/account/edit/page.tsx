@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Customer } from '@/lib/types';
+import { ChangePhone } from './change-phone';
 
 // Max avatar upload — mirrors the auth-service limit (rejects client-side first).
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -181,6 +182,13 @@ function EditProfileInner() {
             placeholder={t('hrFix.accountEdit.emailHint')}
           />
         </Field>
+        {/*
+          K1.4. Outside the profile form on purpose: this is not a field that gets saved
+          with the others. It is its own two-step flow that ends by signing the person out,
+          and putting it inside a form whose submit button says "Simpan" would mean one
+          button doing two very different things to an account.
+        */}
+        <ChangePhone currentPhone={customer.phone} />
         <Field label={t('account.profileCard.birthdate')} htmlFor="edit-birthdate" hint={t('account.profileCard.birthdateHint')}>
           <Input
             id="edit-birthdate"
