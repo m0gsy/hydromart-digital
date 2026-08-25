@@ -580,13 +580,18 @@ jobs:
           node scripts/export-width-sweep.mjs customer
           node scripts/export-width-sweep.mjs ops
 
-  # The name branch protection knows, kept deliberately.
+  # One name that means "the unit gate passed", kept deliberately.
   #
-  # `verify` was one 22-minute job; it is now three that run at once. Renaming the required
-  # check would have meant editing branch protection in the same change that restructures
-  # the jobs — and a required check that no longer exists is not enforced, it is absent,
-  # which GitHub reports as nothing at all. So `verify` stays, as the thing that fails when
-  # any of the three does.
+  # `verify` was one 22-minute job; it is now three that run at once, and something has to
+  # be the single answer for all three. `integration` and `e2e` hang off it by name.
+  #
+  # It was kept for a second reason that turned out to be FALSE, and the correction is worth
+  # more than the reason: this was written as "the name branch protection knows". MEASURED —
+  # `GET /repos/.../branches/main/protection` answers 404, "Branch not protected". There are
+  # no required status checks on main at all, so nothing mechanically stops a red PR being
+  # merged; every green tick this repo relies on is enforced by whoever is pressing merge.
+  # That is a decision for the repo owner, not something to slip into a CI refactor, so it
+  # is written down here and nowhere else changed.
   #
   # `if: always()` is what makes it able to go red: without it a failed `gate` skips this
   # job, and GitHub reports a skipped job as successful.
