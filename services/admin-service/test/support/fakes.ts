@@ -365,6 +365,7 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
     customerRef: 'Ibu Rina',
     customerPhone: '0812-0000-0001',
     orderRef: 'ORD-0231',
+    customerId: null,
     priority: TicketPriority.MEDIUM,
     status: TicketStatus.OPEN,
     assigneeId: null,
@@ -377,6 +378,14 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
 export class InMemorySupportTicketRepository implements SupportTicketRepository {
   rows: SupportTicketRecord[] = [];
 
+  /** K1.5: scoped by customerId and nothing else — never by phone number. */
+  async listForCustomer(customerId: string, limit: number): Promise<SupportTicketRecord[]> {
+    return this.rows
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
   async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
     const id = randomUUID();
     const row: SupportTicketRecord = {
@@ -385,6 +394,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
       customerRef: data.customerRef,
       customerPhone: data.customerPhone,
       orderRef: data.orderRef ?? null,
+      customerId: data.customerId ?? null,
       priority: data.priority ?? TicketPriority.MEDIUM,
       status: TicketStatus.OPEN,
       assigneeId: null,

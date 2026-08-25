@@ -65,6 +65,39 @@ export class CreateTicketDto {
   body!: string;
 }
 
+/**
+ * K1.5: what a signed-in customer sends when they complain.
+ *
+ * Deliberately NOT the staff shape. `customerRef` and `customerPhone` come from the token
+ * — somebody who can type their own contact details can type somebody else's, and this
+ * queue is answered by phoning whoever is on the row. `priority` is not offered either:
+ * everyone's own problem is urgent, so a self-selected one sorts nothing, and staff triage
+ * it from the console. `forbidNonWhitelisted` on the global pipe turns any of them into a
+ * 400 rather than a field that is quietly ignored.
+ */
+export class RaiseComplaintDto {
+  @ApiProperty({ example: 'Galon bocor saat diterima' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  subject!: string;
+
+  @ApiPropertyOptional({
+    example: 'HM-260816-001',
+    description: 'The order this is about, when it is about one.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  orderRef?: string;
+
+  @ApiProperty({ description: 'The complaint itself — becomes the first message.' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  body!: string;
+}
+
 export class ReplyTicketDto {
   @ApiProperty({ example: 'We have re-dispatched your order.' })
   @IsString()

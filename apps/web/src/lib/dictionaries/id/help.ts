@@ -1,5 +1,25 @@
 // Bantuan (spec 10c): topik, FAQ (accordion), kontak CS.
 export const help = {
+  complaints: {
+    title: "Komplain saya",
+    cta: "Ajukan komplain",
+    guest: "Masuk dulu untuk mengajukan komplain, supaya kami bisa membalasmu.",
+    subject: "Ringkasan masalah",
+    subjectHint: "Misal: galon bocor saat diterima",
+    orderRef: "Nomor pesanan (opsional)",
+    orderRefHint: "Isi kalau komplainnya tentang satu pesanan",
+    body: "Ceritakan yang terjadi",
+    send: "Kirim komplain",
+    sent: "Komplain terkirim. Kami menghubungimu lewat nomor akunmu.",
+    sendError: "Gagal mengirim komplain.",
+    subjectRequired: "Isi ringkasan masalahnya dulu.",
+    bodyRequired: "Ceritakan dulu yang terjadi.",
+    cancel: "Batal",
+    empty: "Belum ada komplain.",
+    reply: "Balasan Hydromart",
+    status: { OPEN: "Menunggu ditangani", ASSIGNED: "Sedang ditangani", RESOLVED: "Selesai" },
+  },
+
   title: 'Bantuan',
   searchPlaceholder: 'Cari bantuan…',
   topicsTitle: 'Topik',

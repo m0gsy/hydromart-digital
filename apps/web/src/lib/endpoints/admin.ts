@@ -74,6 +74,14 @@ admin: {
     assign: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/assign`,
     resolve: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/resolve`,
   },
+  // K1.5 — the CUSTOMER's own end of that same queue. A separate path, not two more routes
+  // on the staff one: that controller carries `@Can('hqConsole')` for every route in it and
+  // a `GET :id` that would shadow anything added beside it. GET lists this customer's own
+  // complaints; POST raises one. Contact details come from the token, never the body.
+  support: {
+    mine: '/admin/api/v1/support/tickets',
+    raise: '/admin/api/v1/support/tickets',
+  },
   // Fraud & risk flags (15b) — HEAD_OFFICE + SUPER_ADMIN read; review / block / clear.
   fraud: {
     list: (q: { level?: string; status?: string } = {}) => {

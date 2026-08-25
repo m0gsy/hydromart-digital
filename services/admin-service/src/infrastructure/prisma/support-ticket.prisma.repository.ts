@@ -32,6 +32,7 @@ interface SupportTicketRow {
   customerRef: string;
   customerPhone: string;
   orderRef: string | null;
+  customerId: string | null;
   priority: string;
   status: string;
   assigneeId: string | null;
@@ -71,6 +72,17 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  /** K1.5: this customer's own tickets, scoped by id and nothing else. */
+  async listForCustomer(customerId: string, limit: number): Promise<SupportTicketRecord[]> {
+    const rows = await this.prisma.supportTicket.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { messages: THREAD_TAIL },
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
     // One transaction: a ticket that exists without its complaint is a subject line, and
     // the thread view would render it as an empty conversation nobody can answer.
@@ -80,6 +92,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
         customerRef: data.customerRef,
         customerPhone: data.customerPhone,
         orderRef: data.orderRef ?? null,
+        customerId: data.customerId ?? null,
         ...(data.priority ? { priority: data.priority } : {}),
         messages: { create: { authorType: TicketAuthorType.CUSTOMER, body: data.body } },
       },

@@ -1,5 +1,25 @@
 // Help (spec 10c): topics, FAQ (accordion), CS contact. Mirrors id/help.ts.
 export const help = {
+  complaints: {
+    title: "My complaints",
+    cta: "Raise a complaint",
+    guest: "Sign in first so we can reply to you.",
+    subject: "What went wrong",
+    subjectHint: "For example: the gallon was leaking on arrival",
+    orderRef: "Order number (optional)",
+    orderRefHint: "Fill this in if the complaint is about one order",
+    body: "Tell us what happened",
+    send: "Send the complaint",
+    sent: "Complaint sent. We will contact you on your account number.",
+    sendError: "Could not send the complaint.",
+    subjectRequired: "Say what went wrong first.",
+    bodyRequired: "Tell us what happened first.",
+    cancel: "Cancel",
+    empty: "No complaints yet.",
+    reply: "Hydromart replied",
+    status: { OPEN: "Awaiting handling", ASSIGNED: "Being handled", RESOLVED: "Resolved" },
+  },
+
   title: 'Help',
   searchPlaceholder: 'Search help…',
   topicsTitle: 'Topics',

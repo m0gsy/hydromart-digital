@@ -16,6 +16,7 @@ import type { Icon } from '@phosphor-icons/react';
 import { useT } from '@/lib/locale-context';
 import { help as helpID } from '@/lib/dictionaries/id/help';
 import { help as helpEN } from '@/lib/dictionaries/en/help';
+import { Complaints } from './complaints';
 import { ExternalLink } from '@/components/external-link';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -177,6 +178,14 @@ export default function HelpPage() {
           })}
         </div>
       )}
+
+      {/*
+        K1.5. Above the contact block and NOT conditional on it: the WhatsApp button below
+        appears only when the depot has filled in a contact number, and a depot that has
+        not left this page as an FAQ accordion and nothing else. This is the path that does
+        not depend on somebody having filled in a field.
+      */}
+      <Complaints />
 
       {/* CS contact — only when the customer's depot has a real number to call. */}
       {phone && (
