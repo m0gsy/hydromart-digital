@@ -381,6 +381,11 @@ jobs:
   # script (check-workflows.mjs). A new service that nobody adds to a shard would otherwise
   # be a workspace whose tests never run again, behind a green tick.
   test:
+    # Named by the shard alone. Without this the check-run name is the job name plus EVERY
+    # matrix value, so each leg arrives in the PR list as `test (services-a,
+    # @hydromart/depot-service @hydromart/hr-service ...)` — truncated, unreadable, and
+    # different every time the shard's contents change.
+    name: test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
