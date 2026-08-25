@@ -1,6 +1,6 @@
 import { NotificationService } from '../../src/application/services/notification.service';
 import { PushService } from '../../src/application/services/push.service';
-import { NotificationEvent } from '../../src/domain/notification-event';
+import { MessageLocale, NotificationEvent } from '../../src/domain/notification-event';
 import { NotificationStatus } from '../../src/domain/notification-status';
 import { InMemoryNotificationRepository } from '../support/fakes';
 
@@ -183,6 +183,14 @@ describe('NotificationService · F1 push preference', () => {
     // F1b lives on the same port; `notify` never consults it (the broadcast gate does).
     async marketingAllowed(): Promise<boolean> {
       return true;
+    }
+    public locale: MessageLocale = 'id';
+    public localeAsked: string[] = [];
+    public localeFails = false;
+    async localeFor(customerId: string): Promise<MessageLocale> {
+      this.localeAsked.push(customerId);
+      if (this.localeFails) throw new Error('customer-service unreachable');
+      return this.locale;
     }
   }
 
@@ -498,5 +506,83 @@ describe('ops feed is scoped to the reader depot', () => {
     );
     const customerRow = repo.records.find((r) => r.event === NotificationEvent.ORDER_CONFIRMED);
     expect(customerRow?.depotId).toBeNull();
+  });
+});
+
+/**
+ * K5.3 · the language a customer chose has to reach the sender.
+ *
+ * The choice only ever lived in one browser's localStorage, and WhatsApp and push are
+ * rendered here — so somebody reading the app in English got every order update in
+ * Indonesian. These assert the render, not the column: the row stores the text forever.
+ */
+describe('NotificationService · K5.3 recipient language', () => {
+  class FakePrefs {
+    public locale: MessageLocale = 'id';
+    public localeFails = false;
+    public localeAsked: string[] = [];
+    async pushAllowed(): Promise<boolean> {
+      return true;
+    }
+    async marketingAllowed(): Promise<boolean> {
+      return true;
+    }
+    async localeFor(customerId: string): Promise<MessageLocale> {
+      this.localeAsked.push(customerId);
+      if (this.localeFails) throw new Error('customer-service unreachable');
+      return this.locale;
+    }
+  }
+
+  let repo: InMemoryNotificationRepository;
+  let prefs: FakePrefs;
+  let service: NotificationService;
+
+  beforeEach(() => {
+    repo = new InMemoryNotificationRepository();
+    prefs = new FakePrefs();
+    service = new NotificationService(repo, new FakePush() as unknown as PushService, prefs);
+  });
+
+  it('writes the stored row in the customer’s own language', async () => {
+    prefs.locale = 'en';
+    const record = await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '08123',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    expect(record.message).toContain('Order HM-1 is confirmed');
+    expect(prefs.localeAsked).toEqual(['cust-1']);
+  });
+
+  it('writes Indonesian for a customer who never changed it', async () => {
+    const record = await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '08123',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    expect(record.message).toContain('sudah kami konfirmasi');
+  });
+
+  // An ops alert is addressed to a depot's number, not to an account — there is no
+  // customer whose language could be read, and no round trip worth making.
+  it('never asks for an operational alert', async () => {
+    await service.notify(NotificationEvent.STOCK_LOW, '08123', { depot: 'D1' }, null, 'depot-1');
+    expect(prefs.localeAsked).toEqual([]);
+  });
+
+  // Fails OPEN, to the product default: an unreadable preference costs a reader their
+  // language, never the message.
+  it('falls back to Indonesian when the directory is unreachable', async () => {
+    prefs.localeFails = true;
+    const record = await service.notify(
+      NotificationEvent.ORDER_CONFIRMED,
+      '08123',
+      { name: 'Budi', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    expect(record.message).toContain('sudah kami konfirmasi');
   });
 });

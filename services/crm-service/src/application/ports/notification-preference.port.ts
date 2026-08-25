@@ -1,3 +1,5 @@
+import { MessageLocale } from '../../domain/notification-event';
+
 /**
  * F1: whether a customer still wants push at all.
  *
@@ -18,6 +20,15 @@
  */
 export interface NotificationPreferencePort {
   pushAllowed(customerId: string): Promise<boolean>;
+  /**
+   * K5.3: which language to write this customer's messages in.
+   *
+   * Same directory, same reason it is not kept here: customer-service owns the profile, and
+   * a second copy would drift the first time somebody switched language. Also FAILS OPEN,
+   * to Indonesian — an unreadable preference costs a reader their language, never the
+   * message. Anything that is not a language we hold is treated the same way.
+   */
+  localeFor(customerId: string): Promise<MessageLocale>;
   /**
    * F1b: whether this customer still accepts promotional messages.
    *

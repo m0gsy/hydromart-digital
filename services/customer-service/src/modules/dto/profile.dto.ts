@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
@@ -71,6 +72,17 @@ export class UpdateNotificationsDto {
   @IsOptional()
   @IsObject()
   categories?: Record<string, boolean>;
+
+  /**
+   * K5.3: which language to WRITE this customer's notifications in.
+   *
+   * Whitelisted rather than free text: it selects a template table, and an unknown value
+   * would either fall back silently forever or index into nothing.
+   */
+  @ApiPropertyOptional({ enum: ['id', 'en'], example: 'en' })
+  @IsOptional()
+  @IsIn(['id', 'en'])
+  locale?: string;
 }
 
 export class DirectoryQueryDto {

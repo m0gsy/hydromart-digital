@@ -121,6 +121,10 @@ model NotificationPreference {
   /// Per-app fine-grained category mutes (design 7b courier toggles). Keyed map of
   /// category id → enabled, e.g. { "tasks": true, "promo": false }. Empty = all on.
   categories Json     @default("{}")
+  /// K5.3: the language this customer reads ('id' | 'en'). Messages are rendered by
+  /// crm-service, which has no browser to ask — without this column the app could be in
+  /// English while every order update arrived in Indonesian.
+  locale     String   @default("id")
   updatedAt  DateTime @updatedAt
 
   @@map("notification_preferences")

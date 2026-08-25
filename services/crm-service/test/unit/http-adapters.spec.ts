@@ -191,6 +191,30 @@ describe('NotificationPreferenceHttpAdapter', () => {
     await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
   });
 
+  /*
+   * K5.3. Same row, same request — the language rides along with the push preference
+   * rather than opening a second endpoint or keeping a second copy of it here. It fails
+   * open the same way, to Indonesian: an unreadable preference must cost a reader their
+   * language, never the message.
+   */
+  it('returns the stored language', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerId: 'c1', locale: 'en' } }));
+    await expect(adapter().localeFor('c1')).resolves.toBe('en');
+  });
+
+  it.each([
+    ['a language crm holds no templates for', { locale: 'jv' }],
+    ['a row written before the column existed', { push: true }],
+  ])('falls back to Indonesian for %s', async (_case, body) => {
+    fetchMock.mockResolvedValue(res({ body }));
+    await expect(adapter().localeFor('c1')).resolves.toBe('id');
+  });
+
+  it('falls back to Indonesian when customer-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().localeFor('c1')).resolves.toBe('id');
+  });
+
   it('sends the internal key and the customer id, on customer-service', async () => {
     fetchMock.mockResolvedValue(res({ body: { push: true } }));
     await adapter().pushAllowed('c 1');

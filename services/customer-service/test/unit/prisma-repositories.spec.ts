@@ -265,6 +265,8 @@ describe('NotificationPrismaRepository', () => {
     email: false,
     whatsapp: true,
     categories: { orders: true },
+    // K5.3: the language the sender writes this customer's messages in.
+    locale: 'en',
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -302,8 +304,9 @@ describe('NotificationPrismaRepository', () => {
         email: false,
         whatsapp: true,
         categories: { orders: true },
+        locale: 'en',
       },
-      update: { push: true, email: false, whatsapp: true, categories: { orders: true } },
+      update: { push: true, email: false, whatsapp: true, categories: { orders: true }, locale: 'en' },
     });
   });
 });

@@ -573,6 +573,13 @@ export interface NotificationPreferences {
   whatsapp: boolean;
   /** Per-app fine-grained category mutes (design 7b). Empty = all on. */
   categories: Record<string, boolean>;
+  /**
+   * K5.3: the language this customer's messages are written in ('id' | 'en').
+   *
+   * The app's own language lives in this browser; this is the copy the SERVER reads, because
+   * WhatsApp and push are rendered by crm-service and it has no browser to ask.
+   */
+  locale: string;
 }
 
 /**

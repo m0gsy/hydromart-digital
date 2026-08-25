@@ -87,9 +87,23 @@ export enum NotificationEvent {
   BROADCAST = 'BROADCAST',
 }
 
-// WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
-// order events; {{depot}}, {{item}}, {{quantity}}, {{minimum}} for STOCK_LOW.
-export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
+/**
+ * K5.3: which language a message is written in.
+ *
+ * Not the app's locale — that one lives in a browser's localStorage and the sender has no
+ * browser. This is the copy customer-service stores on the customer's notification row, and
+ * it is the only thing that tells a server-rendered WhatsApp or push which table to read.
+ */
+export type MessageLocale = 'id' | 'en';
+
+// Message templates. Tokens: {{name}}, {{orderNumber}} for order events; {{depot}},
+// {{item}}, {{quantity}}, {{minimum}} for STOCK_LOW.
+//
+// Both tables are a FULL `Record<NotificationEvent, string>` on purpose: a new event breaks
+// the build until it has been written in both languages. A `Partial` with a fallback would
+// compile, and the first customer reading English would get one Indonesian message nobody
+// noticed. Writing every template twice is the price of that; it was accepted knowingly.
+const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.ORDER_RECEIVED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami terima dan sedang menunggu konfirmasi. Kami segera memprosesnya untukmu 💧',
   [NotificationEvent.DEPOT_ORDER_INCOMING]:
@@ -168,8 +182,78 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.HR_ANNOUNCEMENT,
 ];
 
-export function templateFor(event: NotificationEvent): string {
-  return NOTIFICATION_TEMPLATES[event];
+
+// English. Same tokens, same order, same meaning — including the operational ones, which go
+// to a depot's own number: a depot run in English gets its alerts in English too.
+const TEMPLATES_EN: Record<NotificationEvent, string> = {
+  [NotificationEvent.ORDER_RECEIVED]:
+    'Hi {{name}}! We have your order {{orderNumber}} and it is waiting for confirmation. We will get it moving shortly 💧',
+  [NotificationEvent.DEPOT_ORDER_INCOMING]:
+    'New order in: {{orderNumber}} · {{total}}. Open the queue to process it.',
+  [NotificationEvent.ORDER_CONFIRMED]:
+    'Hi {{name}}! Order {{orderNumber}} is confirmed and we are preparing it. Thank you for ordering from Hydromart 💧',
+  [NotificationEvent.ORDER_ON_DELIVERY]:
+    'Good news, {{name}}! Order {{orderNumber}} is on its way to you. Please have your empty gallons ready if there is an exchange.',
+  [NotificationEvent.ORDER_DELIVERED]:
+    'Order {{orderNumber}} has arrived. Enjoy your clean water from Hydromart, {{name}}! 💧',
+  [NotificationEvent.ORDER_COMPLETED]:
+    'Thank you, {{name}}! Order {{orderNumber}} is complete. Your loyalty points have been added — check your balance in the app.',
+  [NotificationEvent.ORDER_DRIVER_ASSIGNED]:
+    'Hi {{name}}! Order {{orderNumber}} has been picked up by our courier and leaves shortly. From now on it can no longer be cancelled from the app — please contact the depot if anything changes.',
+  [NotificationEvent.DELIVERY_RESCHEDULED]:
+    'Hi, delivery of order {{orderNumber}} has been rescheduled to {{rescheduledFor}} {{slot}}. {{note}} Sorry for the inconvenience.',
+  [NotificationEvent.ORDER_CANCELLED]:
+    'Hi {{name}}, order {{orderNumber}} has been cancelled. If you already paid, the money is returned through your payment method. Contact us if you need help.',
+  [NotificationEvent.STOCK_LOW]:
+    '⚠️ Stock running low at depot {{depot}}: {{item}} down to {{quantity}} (minimum {{minimum}}). Please restock soon.',
+  [NotificationEvent.STOCK_UNTRACKED]:
+    '⚠️ {{stage}}: order {{order}} at depot {{depot}} contains {{count}} product(s) with no stock line. The sale still goes through, but the stock is NOT deducted. Please create the stock line.',
+  [NotificationEvent.METER_VARIANCE]:
+    '💧 Water meter variance at depot {{depot}} on {{date}}: {{variance}} litres (± {{gallons}} gallons) against recorded sales. Please check.',
+  [NotificationEvent.DELIVERY_SLA_BREACHED]:
+    '⏰ Order {{order}} has been on the road {{minutes}} minutes — past the {{threshold}} minute SLA ({{over}} minutes late). Please check on the courier.',
+  [NotificationEvent.COURIER_INCIDENT]:
+    '🚨 {{severity}} incident reported by a courier — {{category}}: {{note}}. Please follow up immediately.',
+  [NotificationEvent.DEPOT_SALES_UPDATE]:
+    '{{slot}} sales report for depot {{depot}} : {{gallons}} gallons',
+  [NotificationEvent.CUSTOMER_REGISTERED]:
+    'Welcome to Hydromart, {{name}}! 💧 Your account is active. Order clean water any time from the app. Thank you for joining!',
+  [NotificationEvent.PHONE_CHANGED]:
+    'Hi {{name}}, the phone number on your Hydromart account was just changed to {{newPhone}}. Sign-in codes now go to that number. Not you? Contact your depot immediately.',
+  [NotificationEvent.POINTS_EARNED]:
+    'Nice one, {{name}}! You earned +{{points}} points from order {{orderNumber}}. Collect points for vouchers and a higher tier in the app.',
+  [NotificationEvent.VOUCHER_GRANTED]:
+    'A new voucher for you, {{name}}! Code {{code}} — {{description}}. Use it at checkout before it expires 🎟️',
+  [NotificationEvent.RESELLER_PRICE_CHANGED]:
+    'Hi {{name}}, your reseller price has been updated: {{terms}}. Effective now — check the details in the app before your next purchase.',
+  [NotificationEvent.RESELLER_DEACTIVATED]:
+    'Hi {{name}}, your reseller status has been deactivated, so your next purchases use standard pricing. Contact your depot if this is not right.',
+  [NotificationEvent.REORDER_REMINDER]:
+    'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
+  [NotificationEvent.LEAVE_SUBMITTED]:
+    '{{type}} leave request from {{name}} ({{from}} to {{to}}) is waiting for your approval.',
+  [NotificationEvent.LEAVE_APPROVED]:
+    'Hi {{name}}, your {{type}} leave from {{from}} to {{to}} has been APPROVED. Enjoy the break!',
+  [NotificationEvent.LEAVE_REJECTED]:
+    'Hi {{name}}, your {{type}} leave from {{from}} to {{to}} was DECLINED. Reason: {{reason}}. Please talk to HR if you need to.',
+  [NotificationEvent.HR_ANNOUNCEMENT]: '📢 {{title}}\n{{body}}',
+  [NotificationEvent.BROADCAST]: '{{message}}',
+};
+
+export const NOTIFICATION_TEMPLATES: Record<MessageLocale, Record<NotificationEvent, string>> = {
+  id: TEMPLATES_ID,
+  en: TEMPLATES_EN,
+};
+
+/**
+ * The template for one event in one language.
+ *
+ * Defaults to Indonesian, and falls back to it for anything that is not a language we
+ * actually hold: the locale arrives from another service's column, and an unknown string
+ * must cost the reader their preferred language, never the message itself.
+ */
+export function templateFor(event: NotificationEvent, locale: MessageLocale = 'id'): string {
+  return (NOTIFICATION_TEMPLATES[locale] ?? TEMPLATES_ID)[event];
 }
 
 /** Pure, side-effect free. Replaces every {{key}} present in `vars`; unknown tokens are
