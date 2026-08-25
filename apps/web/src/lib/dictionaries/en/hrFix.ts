@@ -1430,6 +1430,9 @@ export const hrFix = {
     title: "Depot operator",
   },
   receipt: {
+    subtitle: "Order receipt",
+    cashier: "Cashier",
+    shift: "Shift",
     title: "Receipt",
     discount: "Discount",
     cash: "Cash",

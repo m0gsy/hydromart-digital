@@ -101,6 +101,12 @@ beforeEach(() => {
   patch.mockReset().mockResolvedValue({});
   get.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
+    // K3.3: the pay button now waits for the shift read instead of assuming a shift is
+    // open while it is in flight. These cases are about what happens AFTER the cashier
+    // presses Bayar, so the shift has to answer.
+    if (p.includes('shift')) {
+      return { id: 's-1', depotId: 'depot-1', cashierId: 's1', cashierName: 'Rina', status: 'OPEN', openingFloat: 0, openedAt: '2026-08-25T08:00:00.000Z', closedAt: null, countedCash: null, expectedCash: null, variance: null, note: null };
+    }
     if (p.includes('/inventory')) {
       return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
     }

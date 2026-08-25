@@ -3,6 +3,30 @@ import { statusLabel } from './order-status';
 import { printDocument } from './platform';
 import type { Order } from './types';
 
+/**
+ * K3.4 — who actually sold this.
+ *
+ * The struk said "HYDROMART" and nothing else: not which depot, not which cashier, not
+ * which shift. A customer coming back with a complaint held a piece of paper that named no
+ * outlet, and a shift-close dispute had no way to tie a printed receipt to the till that
+ * printed it — the two questions the paper exists to answer.
+ *
+ * Every field is optional because two callers print this. The counter knows all four; the
+ * order-detail screen prints a delivered order, which has a depot but no cashier and no
+ * shift, and printing empty labels there would be worse than printing nothing.
+ *
+ * Non-PPN, decided: no NPWP line and no tax row. This is a commercial receipt, not a faktur
+ * pajak. If a depot is ever registered as PKP that is a different document with different
+ * legal requirements, not an extra line on this one.
+ */
+export interface ReceiptOutlet {
+  depotName?: string | null;
+  depotCity?: string | null;
+  cashierName?: string | null;
+  /** The shift this sale was rung up in — what ties a paper receipt to a till count. */
+  shiftId?: string | null;
+}
+
 // Escape user/API text before inlining into the print HTML.
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
@@ -29,6 +53,7 @@ export function printReceipt(
   i18n: { t: (key: string) => string; locale: string },
   cash?: { cashReceived: number; change: number },
   method?: string,
+  outlet?: ReceiptOutlet,
 ): boolean {
   const { t, locale } = i18n;
   const rows = order.items
@@ -49,6 +74,27 @@ export function printReceipt(
   // it was paid at all — and a QRIS sale looks identical to an unpaid one.
   const methodRow = method ? `<tr><td>${esc(t('hrFix.receipt.method'))}</td><td class="r">${esc(method)}</td></tr>` : '';
 
+  /*
+   * K3.4. Each line appears only when the caller actually knows it — an empty "Kasir:" is
+   * a worse answer than no line, because it reads as a till that recorded nobody.
+   *
+   * The shift id is shortened: it is there so a paper receipt can be matched to a shift
+   * close, and eight characters do that while staying readable off thermal paper.
+   */
+  const outletLines = [
+    outlet?.depotName
+      ? `<div class="muted">${esc(outlet.depotName)}${outlet.depotCity ? ` · ${esc(outlet.depotCity)}` : ''}</div>`
+      : '',
+    outlet?.cashierName
+      ? `<div class="muted">${esc(t('hrFix.receipt.cashier'))}: ${esc(outlet.cashierName)}</div>`
+      : '',
+    outlet?.shiftId
+      ? `<div class="muted">${esc(t('hrFix.receipt.shift'))}: ${esc(outlet.shiftId.slice(0, 8))}</div>`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
+
   const html = `<!doctype html><html lang="${esc(locale)}"><head><meta charset="utf-8">
 <title>${esc(t('hrFix.receipt.title'))} ${esc(order.orderNumber)}</title>
 <style>
@@ -61,7 +107,8 @@ export function printReceipt(
   small{color:#64757c}
 </style></head><body>
 <h1>HYDROMART</h1>
-<div class="muted">Struk pesanan · ${esc(order.orderNumber)}</div>
+${outletLines}
+<div class="muted">${esc(t('hrFix.receipt.subtitle'))} · ${esc(order.orderNumber)}</div>
 <div class="muted">${formatDateTime(order.createdAt)} · ${esc(statusLabel(order.status))}</div>
 <div class="muted" style="margin-top:8px">
   ${esc(order.recipientName)} · ${esc(order.phone)}<br>

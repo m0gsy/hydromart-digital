@@ -398,6 +398,7 @@ export const opsFix = {
     stillShort: 'Still short',
     cashShort: '{amount} short.',
     exactCash: 'Exact cash',
+    checkingShift: "Checking the shift…",
     openShiftFirst: 'Open a shift first',
     saveAndPrint: 'Save & print receipt',
     paidAndPrint: 'Payment received & print receipt',

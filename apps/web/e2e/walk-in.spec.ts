@@ -27,6 +27,20 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     depotCalls.push(`${res.request().method()} ${res.status()} n=${count} ${res.url()}`);
   });
 
+  /*
+   * Every cashier-shift call this run makes, in order. The first diagnostic pass proved the
+   * bar says "Belum ada shift terbuka" at pay time even though a shift was opened and
+   * confirmed on screen moments earlier — so the question is now WHICH depot each call
+   * named and what the server answered, and that cannot be guessed from the DOM.
+   */
+  const shiftCalls: string[] = [];
+  page.on('response', (r) => {
+    const url = r.url();
+    if (!url.includes('/cashier-shifts')) return;
+    const body = r.request().postData();
+    shiftCalls.push(`${r.request().method()} ${url} -> ${r.status()}${body ? ` body=${body}` : ''}`);
+  });
+
   await page.goto('/dashboard/walk-in');
 
   // The screen needs a depot: the operator's own, or the switcher's for roles that are not
@@ -71,8 +85,17 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
 
   // No shift, no sale — the server refuses the counter outright. Opening one is part of the
   // flow now, so the test walks it rather than seeding around it.
-  const openShift = page.getByRole('button', { name: /Buka shift/i });
-  const shiftOpen = page.getByText(/Shift terbuka/i);
+  /*
+   * By state, not by prose. `getByText(/Shift terbuka/i)` ALSO matches the empty state,
+   * whose copy is "Belum ada shift terbuka" — so this test believed a shift was open
+   * every time the bar said the opposite, skipped opening one, and sold from a till with
+   * nobody on it. Proven from CI: the whole run made exactly ONE cashier-shift call, a
+   * GET, and never a POST. The pay button waiting for a real answer (K3.3) is what
+   * finally made a four-year-old lie in this test visible.
+   */
+  const shiftNone = page.getByTestId('cashier-shift-none');
+  const shiftOpen = page.getByTestId('cashier-shift-open');
+  const openShift = shiftNone.getByRole('button', { name: /Buka shift/i });
   /*
    * Decide only once the counter has SETTLED into one of its two states.
    *
@@ -85,9 +108,9 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
    * Waiting for either state first removes the coin flip. It does not prove this was the
    * only race here, which is why the sale failure below now names the depot on both legs.
    */
-  await expect(openShift.or(shiftOpen).first()).toBeVisible({ timeout: 30_000 });
+  await expect(shiftNone.or(shiftOpen).first()).toBeVisible({ timeout: 30_000 });
   let shiftDepot = '(shift was already open; this run did not open it)';
-  if (await openShift.isVisible().catch(() => false)) {
+  if (await shiftNone.isVisible().catch(() => false)) {
     await page.getByLabel(/Uang kembalian awal/i).fill('200000');
     const opened = page.waitForResponse(
       (r) =>
@@ -110,7 +133,7 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
       true,
     );
   }
-  await expect(page.getByText(/Shift terbuka/i)).toBeVisible({ timeout: 15_000 });
+  await expect(shiftOpen).toBeVisible({ timeout: 15_000 });
 
   // No products seeded for this depot → nothing to sell; that's an environment gap.
   // 30s, not 10: the depot switcher resolves the depot and THEN fetches its inventory, two round
@@ -166,7 +189,33 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
       r.request().method() === 'POST',
     { timeout: 20_000 },
   );
-  await page.getByRole('button', { name: /Simpan & cetak struk/i }).click();
+  /*
+   * K3.3 made this button wait for the shift bar to answer, and the first thing that
+   * change did was fail here — with a locator that never resolved and nothing saying what
+   * the button actually said. A name-based locator that misses reports "test ended", which
+   * is indistinguishable from a hundred other causes.
+   *
+   * So: wait for the pay button by its stable test id, and if it is still disabled when the
+   * time runs out, say what it says and what the shift bar says next to it. Whoever reads
+   * the next failure should not have to guess between "no shift", "shift for another
+   * cashier", and "the read never answered".
+   */
+  const payButton = page.getByTestId('counter-pay');
+  try {
+    await expect(payButton).toBeEnabled({ timeout: 20_000 });
+  } catch {
+    const label = (await payButton.textContent().catch(() => null))?.trim();
+    const bar = (await page.getByTestId('cashier-shift-bar').textContent().catch(() => null))?.trim();
+    throw new Error(
+      [
+        `the pay button never enabled. Button says: ${JSON.stringify(label)}.`,
+        `Shift bar says: ${JSON.stringify(bar)}.`,
+        'Shift calls this run:',
+        ...(shiftCalls.length > 0 ? shiftCalls : ['(none)']),
+      ].join('\n'),
+    );
+  }
+  await payButton.click();
 
   // Anything other than 2xx here is a defect, not an environment gap: the depot, its stock
   // and the price were all read from this same running stack moments ago.

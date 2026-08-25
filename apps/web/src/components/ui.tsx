@@ -123,14 +123,18 @@ export function Card({
   className,
   children,
   elevated = true,
+  testId,
 }: {
   className?: string;
   children: ReactNode;
   elevated?: boolean;
+  /** For the rare element a test must find by identity rather than by its changing text. */
+  testId?: string;
 }) {
   return (
     <div
       className={cx('surface rounded-2xl border border-app', elevated && 'shadow-card', className)}
+      data-testid={testId}
     >
       {children}
     </div>
@@ -407,9 +411,12 @@ export function Spinner({ size = 20 }: { size?: number }) {
 }
 
 /* ---------- State blocks ---------- */
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({ className, testId }: { className?: string; testId?: string }) {
   return (
-    <div className={cx('animate-pulse rounded-lg bg-[color:var(--surface-muted)]', className)} />
+    <div
+      className={cx('animate-pulse rounded-lg bg-[color:var(--surface-muted)]', className)}
+      data-testid={testId}
+    />
   );
 }
 

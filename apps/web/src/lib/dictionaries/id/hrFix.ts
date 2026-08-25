@@ -1445,6 +1445,9 @@ export const hrFix = {
     title: "Operator depot",
   },
   receipt: {
+    subtitle: "Struk pesanan",
+    cashier: "Kasir",
+    shift: "Shift",
     title: "Struk",
     discount: "Diskon",
     cash: "Tunai",

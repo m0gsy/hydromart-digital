@@ -39,6 +39,7 @@ import type {
   Payment,
   Product,
   ResolvedPrice,
+  CashierShift,
 } from '@/lib/types';
 
 /** What a buyer can settle with at the counter. All three are confirmed by the cashier. */
@@ -77,6 +78,9 @@ const NOTES = [50000, 100000, 150000, 200000];
 
 function WalkIn({ depotId }: { depotId: string }) {
   const { t, locale } = useT();
+  // K3.4: the depot record behind `depotId`, for the outlet line on the struk.
+  const { depots } = useDepot();
+  const depot = depots.find((d) => d.id === depotId) ?? null;
   const { toast } = useToast();
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
@@ -112,7 +116,23 @@ function WalkIn({ depotId }: { depotId: string }) {
   // Mirrors the server's own rule: no open shift, no counter sale. Undefined until the bar
   // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
   // and the server refuses anyway if there really is no shift.
-  const [shiftOpen, setShiftOpen] = useState<boolean | undefined>(undefined);
+  /*
+   * K3.4: the whole shift, not just whether one is open. The struk has to name the till
+   * that printed it — a customer coming back with a complaint used to hold a piece of
+   * paper that named no outlet, no cashier and no shift.
+   */
+  const [shift, setShift] = useState<CashierShift | null | undefined>(undefined);
+  const shiftOpen = shift === undefined ? undefined : shift !== null;
+  /**
+   * K3.4: who sold this, for the struk. Built at print time rather than stored, so a
+   * receipt reprinted after the shift closed still names the shift it was rung up in.
+   */
+  const outlet = () => ({
+    depotName: depot?.name ?? null,
+    depotCity: depot?.city ?? null,
+    cashierName: shift?.cashierName ?? null,
+    shiftId: shift?.id ?? null,
+  });
   /** C6: WHICH sale is being voided — not merely "the void sheet is open". */
   const [voiding, setVoiding] = useState<Order | null>(null);
   const [voidReason, setVoidReason] = useState('');
@@ -481,7 +501,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     // are both wrong until this lands. One cashier is enough to make them wrong — this is
     // not about a second till.
     stockReloadRef.current();
-    if (!printReceipt(order, { t, locale }, receipt, method)) {
+    if (!printReceipt(order, { t, locale }, receipt, method, outlet())) {
       toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
     setQty({});
@@ -547,7 +567,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader title={t('opsFix.walkIn.title')} subtitle={t('opsFix.walkIn.subtitle')} />
 
-      <CashierShiftBar depotId={depotId} onChange={(s) => setShiftOpen(!!s)} />
+      <CashierShiftBar depotId={depotId} onChange={(s) => setShift(s)} />
 
       {/*
         K3.2: an unrecorded payment is not a notification, it is a job. The toast that used
@@ -586,7 +606,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="ghost"
-              onClick={() => printReceipt(lastSale.order, { t, locale }, lastSale.cash, lastSale.method)}
+              onClick={() => printReceipt(lastSale.order, { t, locale }, lastSale.cash, lastSale.method, outlet())}
             >
               <Printer size={18} className="mr-1" />
               {t('opsFix.walkIn.reprint')}
@@ -946,14 +966,27 @@ function WalkIn({ depotId }: { depotId: string }) {
         <Button
           className="w-full"
           onClick={() => void submit()}
-          disabled={busy || lines.length === 0 || shiftOpen === false || total === null}
+          /*
+            K3.3. `shiftOpen === undefined` — the bar has not answered yet — used to leave
+            this ENABLED, defended as "a slow check never blocks a queue of buyers, and the
+            server refuses anyway". The server does refuse, so nothing was sold twice; what
+            the cashier got was a refusal with no reason, in front of the buyer, because a
+            read had not landed. Waiting and saying so is the same protection with an
+            explanation attached.
+          */
+          // A name-based locator cannot find a button whose label changes with the state
+          // being diagnosed — which is exactly what K3.3 made this label do.
+          data-testid="counter-pay"
+          disabled={busy || lines.length === 0 || shiftOpen !== true || total === null}
         >
           <Printer size={18} className="mr-1" />
-          {shiftOpen === false
-            ? t('opsFix.walkIn.openShiftFirst')
-            : method === 'CASH'
-              ? t('opsFix.walkIn.saveAndPrint')
-              : t('opsFix.walkIn.paidAndPrint')}
+          {shiftOpen === undefined
+            ? t('opsFix.walkIn.checkingShift')
+            : shiftOpen === false
+              ? t('opsFix.walkIn.openShiftFirst')
+              : method === 'CASH'
+                ? t('opsFix.walkIn.saveAndPrint')
+                : t('opsFix.walkIn.paidAndPrint')}
         </Button>
       </Card>
     </div>

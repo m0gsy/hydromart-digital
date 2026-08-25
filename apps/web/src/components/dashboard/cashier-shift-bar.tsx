@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useT } from '@/lib/locale-context';
 import { LockKey, LockKeyOpen } from '@phosphor-icons/react';
 
@@ -39,6 +39,21 @@ export function CashierShiftBar({
     () => api.get(endpoints.cashierShifts.current(depotId), true),
     [depotId],
   );
+
+  /*
+   * K3.3. `onChange` used to fire only when THIS component opened or closed a shift, never
+   * when it merely READ one. So a cashier arriving at a till whose shift was opened
+   * earlier — the ordinary case, every morning after the first sale — left the page
+   * believing the shift status was still unknown.
+   *
+   * That was survivable while "unknown" was treated as "probably open". It is not
+   * survivable now that the pay button waits for a real answer: without this the button
+   * would never enable for anybody who did not open their shift in this very tab.
+   */
+  const reported = shift.data;
+  useEffect(() => {
+    if (!shift.loading && !shift.error) onChange?.(reported ?? null);
+  }, [reported, shift.loading, shift.error, onChange]);
 
   async function refresh(next: CashierShift | null) {
     onChange?.(next);
@@ -86,12 +101,12 @@ export function CashierShiftBar({
     }
   }
 
-  if (shift.loading) return <Skeleton className="h-24" />;
+  if (shift.loading) return <Skeleton className="h-24" testId="cashier-shift-bar" />;
 
   const current = shift.data;
 
   return (
-    <Card className="space-y-3 p-4">
+    <Card className="space-y-3 p-4" testId="cashier-shift-bar">
       {settled && !current && (
         <div className="rounded-xl border border-app p-3 text-sm">
           <p className="font-semibold">{t('hrFix.cashierShift.closed')}</p>
@@ -119,7 +134,7 @@ export function CashierShiftBar({
         // shift is not an absent shift, and the till is the thing being counted.
         <LoadError onRetry={shift.reload} />
       ) : !current ? (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="cashier-shift-none">
           <div>
             <p className="font-semibold">{t('hrFix.cashierShift.noneOpen')}</p>
             <p className="text-sm text-muted">
@@ -141,7 +156,7 @@ export function CashierShiftBar({
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="cashier-shift-open">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-semibold">Shift terbuka — {current.cashierName}</p>
