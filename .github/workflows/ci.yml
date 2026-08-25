@@ -537,11 +537,32 @@ jobs:
       #
       # The cache is keyed on the Playwright version, because that is what decides which
       # browser build is fetched.
+      # M3. The comment above was right about what the key SHOULD be and the key did not do
+      # it: `hashFiles('package-lock.json')` changes when ANY of the 21 workspaces bumps ANY
+      # dependency, so the cache missed constantly and the ~8-minute browser download ran
+      # again — with no `restore-keys`, there was not even a stale cache to fall back on.
+      #
+      # The resolved version out of the lockfile is the honest key: it moves only when
+      # Playwright itself moves, which is exactly what decides which browser build is
+      # fetched. `^1.49.1` in package.json is a RANGE and would not do — the installed
+      # version is what matters, and today that is 1.61.1.
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          v="$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")"
+          [ -n "$v" ] || { echo "could not read the resolved @playwright/test version" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "resolved @playwright/test = $v"
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          # A miss on the exact version still starts from the newest browser cache this
+          # runner has, so `playwright install` verifies and tops up rather than downloading
+          # from cold. This is the half M3 named and M9b already did for the Prisma cache.
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install Playwright browser
         timeout-minutes: 8
@@ -893,11 +914,32 @@ jobs:
       #
       # The cache is keyed on the Playwright version, because that is what decides which
       # browser build is fetched.
+      # M3. The comment above was right about what the key SHOULD be and the key did not do
+      # it: `hashFiles('package-lock.json')` changes when ANY of the 21 workspaces bumps ANY
+      # dependency, so the cache missed constantly and the ~8-minute browser download ran
+      # again — with no `restore-keys`, there was not even a stale cache to fall back on.
+      #
+      # The resolved version out of the lockfile is the honest key: it moves only when
+      # Playwright itself moves, which is exactly what decides which browser build is
+      # fetched. `^1.49.1` in package.json is a RANGE and would not do — the installed
+      # version is what matters, and today that is 1.61.1.
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          v="$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")"
+          [ -n "$v" ] || { echo "could not read the resolved @playwright/test version" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "resolved @playwright/test = $v"
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          # A miss on the exact version still starts from the newest browser cache this
+          # runner has, so `playwright install` verifies and tops up rather than downloading
+          # from cold. This is the half M3 named and M9b already did for the Prisma cache.
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install Playwright browser
         timeout-minutes: 8
