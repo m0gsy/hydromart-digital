@@ -669,6 +669,20 @@ jobs:
           node scripts/seed-demo-depot.mjs
           node scripts/seed-demo-depot.mjs
 
+      # M8: `.next/cache` is what makes a second Next build incremental — without it every
+      # e2e run compiles the whole app from cold, and this is the one build on the critical
+      # path that nothing was caching. Keyed on the lockfile + the source it compiles, with
+      # a restore-key so a source change reuses the previous build's cache instead of
+      # throwing it away: a partially warm cache is most of the saving.
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            next-${{ runner.os }}-
+
       - name: Build + serve web
         run: |
           npm run build --workspace @hydromart/web
