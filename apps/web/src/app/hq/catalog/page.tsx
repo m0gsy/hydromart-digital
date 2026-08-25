@@ -12,8 +12,9 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { slugify } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { Category, Page, Product } from '@/lib/types';
+import type { Category, Product } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -376,12 +377,16 @@ export default function HqCatalogPage() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   // The admin list, not the shop's: it keeps deactivated products visible so the
   // "tidak tersedia" row below is reachable and the editor can switch one back on.
-  const catalog = useAsync<Page<Product>>(() =>
-    api.get(endpoints.products.browseAll({ limit: 100 }), true),
+  const catalog = useAsync<Product[]>(() =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
+    fetchAllPages<Product>(({ page, limit }) =>
+      api.get(endpoints.products.browseAll({ page, limit }), true),
+    ),
   );
   const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories));
 
-  const products = catalog.data?.items ?? [];
+  const products = catalog.data ?? [];
 
   return (
     <div className="flex flex-col gap-6">

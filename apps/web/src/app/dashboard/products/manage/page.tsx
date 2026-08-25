@@ -24,8 +24,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { Category, Page, Product } from '@/lib/types';
+import type { Category, Product } from '@/lib/types';
 
 const selectClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600';
@@ -289,13 +290,21 @@ function ProductItem({
 function ProductsManageBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
-  const products = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 }), true), []);
+  const products = useAsync<Product[]>(
+    () =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit }), true),
+      ),
+    [],
+  );
   // Same public list the shop's category pills are built from, so the two can't disagree.
   const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories), []);
   const [creating, setCreating] = useState(false);
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
-  const items = products.data?.items ?? [];
+  const items = products.data ?? [];
   const activeCount = items.filter((p) => p.active).length;
 
   return (

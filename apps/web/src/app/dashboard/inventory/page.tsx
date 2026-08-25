@@ -24,6 +24,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
 import type {
   DepotStockMovement,
@@ -799,8 +800,13 @@ function InventoryBody() {
 
   // The catalog, to spot products this depot never opened a line for. Those still sell —
   // the sale just never touches stock — so the operator is shown exactly which ones.
-  const catalog = useAsync<Page<Product>>(
-    () => api.get(endpoints.products.browse({ limit: 100 })),
+  const catalog = useAsync<Product[]>(
+    () =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit })),
+      ),
     [],
   );
 
@@ -830,7 +836,7 @@ function InventoryBody() {
     [scopedId, pricedIds.join(',')],
   );
   const byProduct = new Map((resolved.data ?? []).map((r) => [r.productId, r]));
-  const catalogById = new Map((catalog.data?.items ?? []).map((p) => [p.id, p]));
+  const catalogById = new Map((catalog.data ?? []).map((p) => [p.id, p]));
 
   function priceOf(item: InventoryItem): { effective: number; source: string } | undefined {
     if (!item.productId) return undefined;
@@ -852,7 +858,7 @@ function InventoryBody() {
   // Active catalog products with no line here. They are sellable and untracked: the order
   // goes through, the ledger never moves. depot-service also alerts on the sale itself.
   const tracked = new Set(all.map((i) => i.productId).filter(Boolean));
-  const untracked = (catalog.data?.items ?? []).filter((p) => !tracked.has(p.id));
+  const untracked = (catalog.data ?? []).filter((p) => !tracked.has(p.id));
 
   // Toggle a row's inline detail; re-clicking the same mode/receipt collapses it.
   function openRow(id: string, mode: ActionMode, receipt: boolean) {

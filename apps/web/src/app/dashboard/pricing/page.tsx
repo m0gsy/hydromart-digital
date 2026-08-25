@@ -24,8 +24,9 @@ import { useDepot } from '@/lib/depot-context';
 import { useT, type TVars } from '@/lib/locale-context';
 import { canManagePricing } from '@/lib/roles';
 import { EMPTY_RULE_FORM, computeEffective, toRulePayload, type RuleForm } from '@/lib/pricing';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { Page, PricingRule, Product, ResolvedPrice } from '@/lib/types';
+import type { PricingRule, Product, ResolvedPrice } from '@/lib/types';
 
 // Indonesian day abbreviations — consistent with the mobile operator app.
 
@@ -334,11 +335,16 @@ const adjustNote = (r: ResolvedPrice): string => {
  */
 function EffectivePreview({ depotId }: { depotId: string }) {
   const { t } = useT();
-  const catalog = useAsync<Page<Product>>(
-    () => api.get(endpoints.products.browse({ limit: 100 })),
+  const catalog = useAsync<Product[]>(
+    () =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit })),
+      ),
     [depotId],
   );
-  const ids = (catalog.data?.items ?? []).map((p) => p.id);
+  const ids = (catalog.data ?? []).map((p) => p.id);
   const resolved = useAsync<ResolvedPrice[]>(
     () => (ids.length ? api.get(endpoints.inventory.prices(depotId, ids)) : Promise.resolve([])),
     [depotId, ids.join(',')],
@@ -346,7 +352,7 @@ function EffectivePreview({ depotId }: { depotId: string }) {
 
   if (catalog.loading) return <Skeleton className="h-48 w-full" />;
   if (catalog.error) return <ErrorState message={catalog.error} onRetry={catalog.reload} />;
-  const products = catalog.data?.items ?? [];
+  const products = catalog.data ?? [];
   if (products.length === 0)
     return <p className="text-sm text-muted">{t('dashboard.pricing.noProducts')}</p>;
 

@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { InventoryItem, InventoryItemType, Page, Product } from '@/lib/types';
+import type { InventoryItem, InventoryItemType, Product } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -45,7 +46,13 @@ export function NewLineForm({
   onCancel: () => void;
 }) {
   const { t } = useT();
-  const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 })), []);
+  const catalog = useAsync<Product[]>(
+    () =>
+      // K3.5: every page, not the first hundred. See lib/fetch-all-pages.ts — a
+      // truncated catalogue is a wrong screen that looks right.
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit })),
+      ), []);
   const [itemType, setItemType] = useState<InventoryItemType>('PRODUK');
   const [productId, setProductId] = useState(preselectProductId ?? '');
   const [label, setLabel] = useState('');
@@ -57,7 +64,7 @@ export function NewLineForm({
   const [error, setError] = useState<string | null>(null);
 
   const taken = new Set(existing.map((i) => i.productId).filter(Boolean));
-  const options = (catalog.data?.items ?? []).filter(
+  const options = (catalog.data ?? []).filter(
     (p) => !taken.has(p.id) || p.id === preselectProductId,
   );
   const isProduk = itemType === 'PRODUK';
