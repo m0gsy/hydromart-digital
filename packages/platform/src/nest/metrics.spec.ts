@@ -76,6 +76,60 @@ describe('enableMetrics', () => {
     expect(end.mock.calls[0][0] as string).toContain('route="/nope"');
   });
 
+  /*
+   * N9. Nothing recorded which binaries are installed out there, so the compatibility floor
+   * — the oldest build an API change must not break — was a guess. The client tags every
+   * request with its package and build; this is the only place that turns them into a
+   * number somebody can read.
+   */
+  it('counts requests by the installed package and build', async () => {
+    const { app, routes, middleware } = fakeApp();
+    enableMetrics(app, 'gateway-service');
+
+    middleware[0](
+      {
+        path: '/api/v1/orders',
+        method: 'GET',
+        headers: { 'x-app-id': 'id.hydromart.app', 'x-app-version': '1204' },
+      } as unknown as Request,
+      { on: jest.fn(), statusCode: 200 } as unknown as Response,
+      jest.fn() as unknown as NextFunction,
+    );
+
+    const end = jest.fn();
+    await routes.get('/metrics')!({} as Request, { set: jest.fn(), end } as unknown as Response);
+    const payload = end.mock.calls[0][0] as string;
+    // The registry stamps `service` on every series, so this asserts the labels it adds,
+    // not the whole line.
+    expect(payload).toContain('client_app_requests_total{app="id.hydromart.app",version="1204"');
+    expect(payload).toMatch(/client_app_requests_total\{[^}]*\} 1/);
+  });
+
+  /*
+   * A label pair is a series that lives forever. Browser traffic sends neither header, and
+   * a spoofed one must not be able to mint series — hence the shape check rather than trust.
+   */
+  it.each([
+    ['a browser sending neither header', {}],
+    ['a version with no package', { 'x-app-version': '1204' }],
+    ['a package with no version', { 'x-app-id': 'id.hydromart.app' }],
+    ['a version that is not a number', { 'x-app-id': 'id.hydromart.app', 'x-app-version': 'latest' }],
+    ['a package id with room for anything', { 'x-app-id': 'a b"c', 'x-app-version': '1' }],
+  ])('records nothing for %s', async (_case, headers) => {
+    const { app, routes, middleware } = fakeApp();
+    enableMetrics(app, 'gateway-service');
+
+    middleware[0](
+      { path: '/api/v1/orders', method: 'GET', headers } as unknown as Request,
+      { on: jest.fn(), statusCode: 200 } as unknown as Response,
+      jest.fn() as unknown as NextFunction,
+    );
+
+    const end = jest.fn();
+    await routes.get('/metrics')!({} as Request, { set: jest.fn(), end } as unknown as Response);
+    expect(end.mock.calls[0][0] as string).not.toContain('client_app_requests_total{');
+  });
+
   // Scraping must not appear in its own histogram, or the series grows every 15s
   // with a data point nobody wants.
   it('skips the scrape endpoint itself', () => {

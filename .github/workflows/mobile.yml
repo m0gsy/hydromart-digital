@@ -52,6 +52,25 @@ on:
         description: 'versionName shown in the Play listing (e.g. 1.4.2)'
         required: false
         default: '0.0.0-dev'
+      # N8: the release had exactly one speed — everybody at once — and exactly one way to
+      # stop it, the version gate. These three are the ordinary levers, and the defaults
+      # reproduce today's behaviour byte for byte.
+      track:
+        description: 'Play track to publish to'
+        required: false
+        type: choice
+        default: internal
+        options: [internal, alpha, beta, production]
+      rollout_status:
+        description: 'completed = everybody on the track at once; inProgress = staged (needs a fraction)'
+        required: false
+        type: choice
+        default: completed
+        options: [completed, inProgress, draft, halted]
+      user_fraction:
+        description: 'Share of users for a staged rollout, e.g. 0.1. IGNORED unless rollout_status is inProgress, and IGNORED by the internal track.'
+        required: false
+        default: ''
 
 concurrency:
   group: mobile-release-${{ github.ref }}
@@ -520,8 +539,9 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: id.hydromart.app
           releaseFiles: hydromart-customer.aab
-          track: internal
-          status: completed
+          track: ${{ github.event.inputs.track || 'internal' }}
+          status: ${{ github.event.inputs.rollout_status || 'completed' }}
+          userFraction: ${{ github.event.inputs.rollout_status == 'inProgress' && github.event.inputs.user_fraction || '' }}
 
       - name: Hydromart Ops — internal track
         if: steps.gate.outputs.ready == 'true'
@@ -530,5 +550,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: id.hydromart.ops
           releaseFiles: hydromart-ops.aab
-          track: internal
-          status: completed
+          track: ${{ github.event.inputs.track || 'internal' }}
+          status: ${{ github.event.inputs.rollout_status || 'completed' }}
+          userFraction: ${{ github.event.inputs.rollout_status == 'inProgress' && github.event.inputs.user_fraction || '' }}

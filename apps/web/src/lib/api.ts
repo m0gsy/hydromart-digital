@@ -1,5 +1,6 @@
 'use client';
 
+import { askPlugin } from './capacitor';
 import { endpoints } from './endpoints';
 import { translate } from './locale-context';
 import { isNativeShell } from './platform';
@@ -226,7 +227,7 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
     throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
   }
   const { method = 'GET', body } = options;
-  const headers: Record<string, string> = { ...authHeader(), ...options.headers };
+  const headers: Record<string, string> = { ...authHeader(), ...appHeaders(), ...options.headers };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   const res = await fetchWithTimeout(
@@ -271,6 +272,34 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
 }
 
 /** Authenticated request with transparent refresh-and-retry on 401. */
+/*
+ * N9: which binary is talking, and which build of it.
+ *
+ * The app does not wrap a moving web app — `cap sync` copies a FROZEN export into the
+ * APK, so a phone keeps whatever UI it was installed with until somebody updates it. The
+ * real risk is therefore API skew against binaries in the field, and nothing anywhere
+ * recorded which versions those are: the compatibility floor was a guess, and dropping an
+ * endpoint was a guess about a guess.
+ *
+ * Two headers, filled once per process from the App plugin and empty on the web. Cheap
+ * enough to send on every request, and the gateway turns them into one bounded counter.
+ */
+let appTag: Record<string, string> | null = null;
+
+export function primeAppHeaders(info: { id?: string; build?: string } | null): void {
+  appTag = info?.id && info?.build ? { 'X-App-Id': info.id, 'X-App-Version': info.build } : {};
+}
+
+function appHeaders(): Record<string, string> {
+  if (appTag === null) {
+    // Kick the async read off once; until it lands, requests simply go out untagged. A
+    // header that identifies the build must never delay the request that carries it.
+    appTag = {};
+    void askPlugin<{ id?: string; build?: string }>('App', 'getInfo').then(primeAppHeaders);
+  }
+  return appTag;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   // F3b: nothing that needs a bearer may go out before the Keystore has been read.
   //
