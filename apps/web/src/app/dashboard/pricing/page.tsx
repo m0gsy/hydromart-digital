@@ -26,7 +26,7 @@ import { canManagePricing } from '@/lib/roles';
 import { EMPTY_RULE_FORM, computeEffective, toRulePayload, type RuleForm } from '@/lib/pricing';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { Page, PricingRule, Product, ResolvedPrice } from '@/lib/types';
+import type { PricingRule, Product, ResolvedPrice } from '@/lib/types';
 
 // Indonesian day abbreviations — consistent with the mobile operator app.
 

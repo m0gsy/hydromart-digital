@@ -8,7 +8,7 @@ import { endpoints } from '@/lib/endpoints';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { InventoryItem, InventoryItemType, Page, Product } from '@/lib/types';
+import type { InventoryItem, InventoryItemType, Product } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
