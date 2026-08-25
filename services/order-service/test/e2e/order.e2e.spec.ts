@@ -311,13 +311,17 @@ describe('Order HTTP flows (e2e)', () => {
       expect.objectContaining({ productId, sku: 'AIR-19L', unit: 'Galon 19L' }),
     ]);
     expect('nextCursor' in page.body).toBe(true);
-  // Twelve sequential round-trips through a whole Nest app — a cart write, a checkout, a
-  // seven-step status walk, then three feed reads. Jest's default 5s is the budget for a
-  // unit test, and this one exceeded it on a loaded runner: `thrown: "Exceeded timeout of
-  // 5000 ms"`, on a PR whose diff was two CI shell scripts. A gate that goes red at random
-  // is the same defect M23 closes from the other side — a check that does not mean what it
-  // says. The number is the work, not a nudge: nothing here waits on a clock.
-  }, 30_000);
+  // The 30s budget every test in this workspace now gets lives in package.json's jest
+  // block, not here. It used to be this one argument on this one test — and the very next
+  // spec in the file, nine sequential round-trips with no override, went red the same way
+  // two days later on a PR that touched only web pages and an Android manifest. Patching
+  // the test the report named left every sibling on the 5s default.
+  //
+  // Why 30s and not "a nudge": these specs drive a whole Nest app over supertest, a dozen
+  // sequential HTTP round-trips per test. Jest's default 5s is a unit-test budget. Nothing
+  // in here waits on a clock, so the number bounds real work, and the job's own
+  // `timeout-minutes` is what still catches a genuine hang.
+  });
 
   it('batch-reads existing order values with internal auth and validates 1-500 unique UUIDs', async () => {
     await request(server())

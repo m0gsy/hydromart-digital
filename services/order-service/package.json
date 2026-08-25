@@ -94,6 +94,7 @@
         "lines": 98
       }
     },
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testTimeout": 30000
   }
 }
