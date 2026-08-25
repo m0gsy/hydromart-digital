@@ -71,6 +71,18 @@ export enum NotificationEvent {
   // The same moment, but the answer is "you are no longer an agen" — a deactivation reads
   // nothing like a new rate and must not be dressed as one. Tokens: {{name}}.
   RESELLER_DEACTIVATED = 'RESELLER_DEACTIVATED',
+  // D2, and the SECOND time this exact defect shipped. order-service has been emitting
+  // 'SUBSCRIPTION_PAUSED' since the failure-counter landed — a standing order that stopped
+  // arriving after three consecutive failures — and it was never a member here. So `@IsEnum`
+  // answered 400, the sending adapter turned the refusal into a `logger.warn` and returned
+  // false, and the caller's `.catch(() => false)` swallowed that. The pause was durable; the
+  // only thing the customer would have noticed was water that stopped coming.
+  //
+  // Read the B4 comment fifty lines up: same failure, same two services, same silence. That
+  // is why this PR also adds scripts/check-notification-events.mjs — a comment did not stop
+  // it happening twice.
+  // Tokens: {{name}}, {{product}}, {{reason}}.
+  SUBSCRIPTION_PAUSED = 'SUBSCRIPTION_PAUSED',
   // Retention nudge: "time to refill". Token: {{name}}.
   REORDER_REMINDER = 'REORDER_REMINDER',
   // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
@@ -150,6 +162,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}, harga agen kamu diperbarui: {{terms}}. Berlaku mulai sekarang — cek detailnya di aplikasi sebelum belanja berikutnya.',
   [NotificationEvent.RESELLER_DEACTIVATED]:
     'Halo {{name}}, status agen kamu dinonaktifkan, jadi pembelian berikutnya memakai harga umum. Hubungi depot bila ini tidak sesuai.',
+  [NotificationEvent.SUBSCRIPTION_PAUSED]:
+    'Halo {{name}}! Langganan {{product}} kami jeda dulu karena {{reason}}. Tidak ada tagihan selama dijeda — buka Langganan untuk melanjutkan kapan saja.',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
   [NotificationEvent.LEAVE_SUBMITTED]:
@@ -228,6 +242,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}, your reseller price has been updated: {{terms}}. Effective now — check the details in the app before your next purchase.',
   [NotificationEvent.RESELLER_DEACTIVATED]:
     'Hi {{name}}, your reseller status has been deactivated, so your next purchases use standard pricing. Contact your depot if this is not right.',
+  [NotificationEvent.SUBSCRIPTION_PAUSED]:
+    'Hi {{name}}! Your {{product}} subscription is paused because {{reason}}. Nothing is charged while it is paused — open Subscriptions to resume whenever you like.',
   [NotificationEvent.REORDER_REMINDER]:
     'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
   [NotificationEvent.LEAVE_SUBMITTED]:
