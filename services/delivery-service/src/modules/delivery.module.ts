@@ -9,6 +9,7 @@ import { DELIVERY_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { DeliveryService } from '../application/services/delivery.service';
 import { ReportService } from '../application/services/report.service';
+import { SlaAlertService } from '../application/services/sla-alert.service';
 import { ShiftService } from '../application/services/shift.service';
 import { IncidentService } from '../application/services/incident.service';
 import { SettlementService } from '../application/services/settlement.service';
@@ -45,6 +46,7 @@ import { CommissionController } from './commission.controller';
 import { ReportController } from './report.controller';
 import { UploadController } from './upload.controller';
 import { RetentionController } from './retention.controller';
+import { SlaAlertController } from './sla-alert.controller';
 import { SettingsController } from './settings.controller';
 
 const providers: Provider[] = [
@@ -58,6 +60,7 @@ const providers: Provider[] = [
   DeliveryConfigService,
   DeliveryService,
   ReportService,
+  SlaAlertService,
   ShiftService,
   IncidentService,
   SettlementService,
@@ -105,6 +108,7 @@ const providers: Provider[] = [
     ReportController,
     UploadController,
     RetentionController,
+    SlaAlertController,
     SettingsController,
   ],
   providers,

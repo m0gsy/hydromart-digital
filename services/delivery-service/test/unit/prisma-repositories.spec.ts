@@ -518,6 +518,36 @@ describe('DeliveryPrismaRepository', () => {
     $queryRaw.mockResolvedValue([]);
     expect(await repo.slaStatsByDepot({}, 45)).toEqual([]);
   });
+
+  // J8. The sweep's query is the only thing standing between a ten-minute cron and a
+  // sequential scan of the whole delivery book, so its shape is asserted rather than
+  // assumed: in-flight only, never-alerted only, oldest first, bounded.
+  it('findUnalertedInFlight asks for in-flight, unalerted deliveries, oldest first', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    const before = new Date('2026-08-25T09:45:00.000Z');
+
+    await repo.findUnalertedInFlight(before, 200);
+
+    expect(delivery.findMany).toHaveBeenCalledWith({
+      where: {
+        status: { in: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] },
+        slaAlertedAt: null,
+        assignedAt: { lt: before },
+      },
+      orderBy: { assignedAt: 'asc' },
+      take: 200,
+      select: { id: true, orderNumber: true, depotId: true, assignedAt: true },
+    });
+  });
+
+  it('markSlaAlerted stamps the one delivery it was given', async () => {
+    delivery.update.mockResolvedValue({});
+    const at = new Date('2026-08-25T10:00:00.000Z');
+
+    await repo.markSlaAlerted('del-1', at);
+
+    expect(delivery.update).toHaveBeenCalledWith({ where: { id: 'del-1' }, data: { slaAlertedAt: at } });
+  });
 });
 
 describe('IncidentPrismaRepository', () => {

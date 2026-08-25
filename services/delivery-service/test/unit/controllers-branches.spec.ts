@@ -10,6 +10,7 @@ import { DriverSettlementController } from '../../src/modules/driver-settlement.
 import { DriverShiftController } from '../../src/modules/driver-shift.controller';
 import { HealthController } from '../../src/modules/health.controller';
 import { RetentionController } from '../../src/modules/retention.controller';
+import { SlaAlertController } from '../../src/modules/sla-alert.controller';
 import { SettlementController } from '../../src/modules/settlement.controller';
 import { ShiftController } from '../../src/modules/shift.controller';
 import { ReportController } from '../../src/modules/report.controller';
@@ -359,5 +360,17 @@ describe('ReportController delegation', () => {
   it('delegates slaByDepot with an empty range', () => {
     void controller.slaByDepot({} as never);
     expect(reports.slaByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+  });
+});
+
+describe('SlaAlertController', () => {
+  it('hands the scheduler whatever the sweep decided, ok flag included', async () => {
+    const sweep = { ok: false, checked: 4, breached: 2, alerted: 0 };
+    const sla = { sweep: jest.fn().mockResolvedValue(sweep) };
+
+    // J7: the controller must not launder a dead round into a bare 200 — the body IS
+    // the verdict, and sweep.sh greps this exact `ok` field.
+    await expect(new SlaAlertController(sla as never).sweep()).resolves.toEqual(sweep);
+    expect(sla.sweep).toHaveBeenCalledWith();
   });
 });

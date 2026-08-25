@@ -73,6 +73,18 @@ export interface DeliveryRecord {
   updatedAt: Date;
 }
 
+/**
+ * J8. The four fields a breach decision needs, and nothing else — the full DeliveryRecord
+ * drags the proof and the whole status history along for a row the sweep only reads a
+ * timestamp off (audit Q-13, same reason `DeliveryPingState` exists).
+ */
+export interface SlaCandidate {
+  id: string;
+  orderNumber: string;
+  depotId: string | null;
+  assignedAt: Date;
+}
+
 export interface CreateDeliveryData {
   orderId: string;
   orderNumber: string;
@@ -301,4 +313,20 @@ export interface DeliveryRepository {
    * (dashboard-service) — one row per depot that has ≥1 delivered order.
    */
   slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]>;
+  /**
+   * J8. Deliveries still on the road (ASSIGNED/PICKED_UP/ON_DELIVERY) that were assigned
+   * before `assignedBefore` and have not had their breach reported yet.
+   *
+   * `assignedBefore` is a COARSE filter — the SLA window is per-depot, so this cannot
+   * decide a breach, only narrow the set the caller has to look at. The caller applies
+   * that depot's own threshold. Bounded by `limit`: a sweep must not be able to load an
+   * unbounded backlog into memory the first time it runs against a real book.
+   */
+  findUnalertedInFlight(assignedBefore: Date, limit: number): Promise<SlaCandidate[]>;
+  /**
+   * J8. Stamp `slaAlertedAt` so the next sweep skips this delivery. Only ever called
+   * after the alert actually reached ops, which is what makes the sweep retry rather
+   * than lose a breach when crm is down.
+   */
+  markSlaAlerted(id: string, at: Date): Promise<void>;
 }

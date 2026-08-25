@@ -17,4 +17,22 @@ export interface OpsIncidentAlert {
  *  delivered incident is already stored, so a failed alert only logs. */
 export interface OpsNotifierPort {
   incidentReported(alert: OpsIncidentAlert): Promise<void>;
+  /**
+   * J8. Fail-open like the incident alert, but it reports WHETHER it got through:
+   * the sweep only marks a delivery alerted once it did, so an unreachable crm means
+   * the next tick tries the same delivery again instead of losing the breach quietly.
+   */
+  slaBreached(alert: OpsSlaBreachAlert): Promise<boolean>;
+}
+
+/**
+ * J8. One in-flight delivery that has now been on the road longer than its depot's SLA.
+ * `minutes` is how long, `thresholdMinutes` the window it blew — both carried so the
+ * message can say by how much rather than only that it happened.
+ */
+export interface OpsSlaBreachAlert {
+  orderNumber: string;
+  minutes: number;
+  thresholdMinutes: number;
+  depotId: string | null;
 }
