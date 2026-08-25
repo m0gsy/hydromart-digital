@@ -317,7 +317,35 @@ if health_ok; then
     log "!! the host crontab has no watchdog line — nothing converges a container that"
     log "   stops between deploys. Fix: bash scripts/install-host-cron.sh"
     alert "host crontab has no watchdog line"
-  elif [ -z "$HOST_CRON" ]; then
+  fi
+  # MEASURED 2026-08-25 by `scripts/ask-the-box.sh`: the installer schedules SIX jobs and the
+  # box's crontab had THREE. Missing were check-tls-expiry.sh, check-log-retention.sh and
+  # rollback-drill.sh — the three weekly safety scripts added in #323. They were in the repo,
+  # they were in the installer, and they had never once run.
+  #
+  # The probe above could not see that, and that is the actual defect: it asks two questions
+  # (does the crontab still execute .env, is the watchdog line there) and answers "fine" to
+  # everything else. So every cron job added after the watchdog inherited a deploy that
+  # reported health while the job did not exist. A check that passes when its subject is
+  # absent is the shape this repo keeps finding.
+  #
+  # The expected list is DERIVED from the installer rather than restated here, so the next
+  # job added to it is covered without anyone remembering to update this.
+  if [ -n "$HOST_CRON" ] && [ -f scripts/install-host-cron.sh ]; then
+    CRON_MISSING=""
+    for want in $(grep -oE 'bash scripts/[a-z-]+\.sh' scripts/install-host-cron.sh |
+                    sed 's|bash scripts/||' | sort -u |
+                    grep -v '^install-host-cron\.sh$'); do
+      printf '%s' "$HOST_CRON" | grep -q "scripts/$want" || CRON_MISSING="$CRON_MISSING $want"
+    done
+    if [ -n "$CRON_MISSING" ]; then
+      log "!! the host crontab is missing jobs the installer schedules:$CRON_MISSING"
+      log "   These do not run at all — a weekly check that was never installed looks exactly"
+      log "   like a weekly check that keeps passing. Fix: bash scripts/install-host-cron.sh"
+      alert "host crontab missing scheduled jobs:$CRON_MISSING"
+    fi
+  fi
+  if [ -z "$HOST_CRON" ]; then
     # An empty read is not a clean crontab. Saying so beats reporting silence as health.
     log "!! 'crontab -l' returned nothing, so this probe asked nothing. Check the deploy"
     log "   user's crontab access before reading the absence of findings as good news."
