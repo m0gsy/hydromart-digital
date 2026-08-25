@@ -136,6 +136,15 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
+          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
+          # even when no schema moved. A prefix restore is safe here precisely because the
+          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
+          # directory with its schema hash AND the installed CLI version, so a client
+          # restored from an older lockfile regenerates if either changed and is skipped only
+          # if both still match.
+          restore-keys: |
+            prisma-${{ runner.os }}-
 
       - name: Install
         run: npm ci
@@ -529,12 +538,29 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
+          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
+          # even when no schema moved. A prefix restore is safe here precisely because the
+          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
+          # directory with its schema hash AND the installed CLI version, so a client
+          # restored from an older lockfile regenerates if either changed and is skipped only
+          # if both still match.
+          restore-keys: |
+            prisma-${{ runner.os }}-
 
       - name: Install
         run: npm ci
 
       # Pre-start infra and wait until Postgres accepts connections (initdb creates all 13
       # databases) so the runner's db:migrate doesn't race a cold Postgres in CI.
+      #
+      # M6b proposed deleting this as a duplicate — run.mjs opens with the same
+      # `up -d postgres`. MEASURED and rejected: this step takes EIGHT SECONDS (run
+      # 32835498469, 10:56:17 -> 10:56:25) against 16m30s for the step below it, the second
+      # `up -d postgres` is a no-op on an already-running container, and the wait itself is
+      # not duplicated work — it has to happen somewhere. Delete this and it happens inside
+      # run.mjs's retry loop instead, which pays for it with a whole FAILED `db:migrate`
+      # plus a 5s sleep. The item trades eight seconds for something slower.
       - name: Start infra + wait for Postgres
         run: |
           docker compose up -d postgres
@@ -598,6 +624,15 @@ jobs:
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+          # M9b. The exact key carries `package-lock.json`, so ANY dependency bump in any of
+          # the 21 workspaces threw away all sixteen generated clients — in all three jobs —
+          # even when no schema moved. A prefix restore is safe here precisely because the
+          # skip is not trusting the cache: prisma-generate-if-stale.mjs stamps each output
+          # directory with its schema hash AND the installed CLI version, so a client
+          # restored from an older lockfile regenerates if either changed and is skipped only
+          # if both still match.
+          restore-keys: |
+            prisma-${{ runner.os }}-
 
       - name: Install
         run: npm ci
