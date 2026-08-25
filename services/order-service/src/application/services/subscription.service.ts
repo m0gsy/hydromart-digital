@@ -209,6 +209,31 @@ export class SubscriptionService {
   }
 
   /**
+   * K1.9 — a plan was locked to whichever address happened to be primary when it was made.
+   *
+   * There was no picker at signup, no way to change it afterwards, and switching your
+   * primary address did not move it. Somebody who moved house had exactly one option: cancel
+   * the plan and start a new one, losing its schedule.
+   *
+   * Moving it is a WRITE the customer makes, never a side effect of editing the address
+   * book. The plan holds its own snapshot on purpose — the sweep prices against the depot
+   * that snapshot routes to (D7), so an address edit that silently re-routed a standing
+   * order would also silently change what it costs.
+   *
+   * A cancelled plan is not moved: nothing will ever be delivered against it, and letting
+   * the address change would put a dead row in the customer's list looking alive.
+   */
+  async changeAddress(
+    customerId: string,
+    id: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<SubscriptionRecord> {
+    const sub = await this.owned(customerId, id);
+    if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
+    return this.subs.setDeliveryAddress(id, address);
+  }
+
+  /**
    * Fulfilment sweep (spec 7b): place an order for every ACTIVE subscription whose
    * next delivery is due, then advance its schedule. Admin/internal-triggered, mirroring
    * expireAbandoned — this repo has no cron daemon, so an ops scheduler calls this.

@@ -43,6 +43,19 @@ function Panel() {
     () => addresses.data?.find((a) => a.isPrimary) ?? addresses.data?.[0] ?? null,
     [addresses.data],
   );
+  /*
+   * K1.9. The plan used to be locked to whichever address happened to be primary: no
+   * picker here, no way to change it afterwards, and switching your primary address did
+   * not move it. Somebody who moved house could only cancel and start again.
+   *
+   * `null` means "not chosen yet", which falls through to primary — so the default is
+   * exactly what it always was and only a deliberate pick changes it.
+   */
+  const [addressId, setAddressId] = useState<string | null>(null);
+  const chosenAddress = useMemo(
+    () => addresses.data?.find((a) => a.id === addressId) ?? primaryAddress,
+    [addresses.data, addressId, primaryAddress],
+  );
 
   /**
    * D7: the saving is quoted against the depot that will actually be CHARGED — the one the
@@ -60,17 +73,17 @@ function Panel() {
    */
   const nearby = useAsync<NearbyDepot[]>(
     () =>
-      primaryAddress?.latitude != null && primaryAddress?.longitude != null
+      chosenAddress?.latitude != null && chosenAddress?.longitude != null
         ? api.get(
             endpoints.depots.nearby({
-              lat: primaryAddress.latitude,
-              lng: primaryAddress.longitude,
+              lat: chosenAddress.latitude,
+              lng: chosenAddress.longitude,
               limit: 1,
             }),
             true,
           )
         : Promise.resolve([]),
-    [primaryAddress?.latitude, primaryAddress?.longitude],
+    [chosenAddress?.latitude, chosenAddress?.longitude],
   );
   const depotId = nearby.data?.[0]?.id ?? null;
   const discount = useAsync<{ rate: number }>(
@@ -98,11 +111,11 @@ function Panel() {
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    if (!productId || !primaryAddress) return;
+    if (!productId || !chosenAddress) return;
     setSaving(true);
     setError(null);
     try {
-      const a = primaryAddress;
+      const a = chosenAddress;
       await api.post(
         endpoints.subscriptions.create,
         {
@@ -130,6 +143,42 @@ function Panel() {
       setError(err instanceof ApiError ? err.message : copy.createError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  /**
+   * K1.9. Moving a standing plan to another saved address.
+   *
+   * A write the customer makes, never a side effect of editing the address book: the plan
+   * holds its own snapshot on purpose, because the sweep prices against the depot that
+   * snapshot routes to (D7). An address edit that silently re-routed a standing order
+   * would also silently change what it costs.
+   */
+  async function moveAddress(id: string, next: Address) {
+    setBusyId(id);
+    try {
+      await api.post(
+        endpoints.subscriptions.address(id),
+        {
+          deliveryAddress: {
+            recipientName: next.recipientName,
+            phone: next.phone,
+            addressLine: next.addressLine,
+            city: next.city,
+            province: next.province,
+            postalCode: next.postalCode,
+            latitude: next.latitude,
+            longitude: next.longitude,
+          },
+        },
+        true,
+      );
+      toast(copy.addressMoved, 'success');
+      subs.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : copy.addressMoveError, 'error');
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -249,11 +298,23 @@ function Panel() {
             /* "Belum ada alamat" sends a shopper who HAS one off to add a duplicate, and the
                submit button stays disabled either way. Say the read failed. */
             <LoadError onRetry={addresses.reload} className="rounded-[14px] border border-app px-3.5 py-3" />
-          ) : primaryAddress ? (
-            <div className="rounded-[14px] border border-app px-3.5 py-3 text-[12.5px]">
-              <div className="font-extrabold text-muted">{copy.deliverTo}</div>
-              <div className="mt-0.5 truncate">{primaryAddress.label} · {primaryAddress.addressLine}</div>
-            </div>
+          ) : chosenAddress ? (
+            /* K1.9. A select rather than a read-only line: one saved address is still one
+               option, and a select with one option reads honestly as "this one". */
+            <Field label={copy.deliverTo} htmlFor="sub-address" hint={copy.addressIsSnapshot}>
+              <select
+                id="sub-address"
+                value={chosenAddress.id}
+                onChange={(e) => setAddressId(e.target.value)}
+                className="h-12 w-full rounded-[14px] border-[1.5px] border-app surface px-3.5 text-sm outline-none focus:border-brand-600"
+              >
+                {(addresses.data ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label} · {a.addressLine}
+                  </option>
+                ))}
+              </select>
+            </Field>
           ) : (
             <div className="flex flex-col items-start gap-2 rounded-[14px] border border-app px-3.5 py-3">
               <p className="text-[12.5px] text-muted">{copy.noAddress}</p>
@@ -261,15 +322,28 @@ function Panel() {
             </div>
           )}
 
-          {discountPct > 0 && (
-            <div className="flex items-center gap-2 rounded-[12px] bg-brand-50 px-3.5 py-2.5 text-[12px] font-bold text-brand-800">
-              <Percent size={15} weight="fill" />
-              {copy.discountNote.replace('{pct}', String(discountPct))}
+          {/*
+            K1.10. `?? 0` made three different states look like one: the discount is genuinely
+            zero, the read failed, and no depot could be resolved all rendered as an absent
+            banner — which a shopper reads as "this depot gives no discount". Two of those
+            three are wrong, and the wrong one costs the customer the reason they are on this
+            screen. The failure now says so, and says the discount still applies.
+          */}
+          {discount.error ? (
+            <div className="rounded-[12px] border border-app px-3.5 py-2.5 text-[12px] text-muted">
+              {copy.discountUnknown}
             </div>
+          ) : (
+            discountPct > 0 && (
+              <div className="flex items-center gap-2 rounded-[12px] bg-brand-50 px-3.5 py-2.5 text-[12px] font-bold text-brand-800">
+                <Percent size={15} weight="fill" />
+                {copy.discountNote.replace('{pct}', String(discountPct))}
+              </div>
+            )
           )}
 
           {error && <p className="text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
-          <Button type="submit" loading={saving} disabled={!productId || !primaryAddress}>
+          <Button type="submit" loading={saving} disabled={!productId || !chosenAddress}>
             {copy.start}
           </Button>
         </form>
@@ -334,6 +408,38 @@ function Panel() {
                           {t('customerFix.subscriptionUnroutable')}
                         </div>
                       )}
+                    {/*
+                      K1.9. The plan's own address, and the only place it can be changed.
+                      Shown even for one saved address, because the line is also the answer
+                      to "where is this going?" — which nothing on this card used to say.
+                    */}
+                    {s.status !== 'CANCELLED' && (addresses.data ?? []).length > 0 && (
+                      <div className="mt-2">
+                        <label className="text-[11px] font-extrabold uppercase tracking-wide text-muted" htmlFor={`sub-addr-${s.id}`}>
+                          {copy.deliverTo}
+                        </label>
+                        <select
+                          id={`sub-addr-${s.id}`}
+                          value={(addresses.data ?? []).find((a) => a.addressLine === s.addressLine)?.id ?? ''}
+                          disabled={busyId === s.id}
+                          onChange={(e) => {
+                            const next = (addresses.data ?? []).find((a) => a.id === e.target.value);
+                            if (next) void moveAddress(s.id, next);
+                          }}
+                          className="mt-1 h-11 w-full rounded-[12px] border-[1.5px] border-app surface px-3 text-[12.5px] outline-none focus:border-brand-600"
+                        >
+                          {/* The plan's saved line may not match any current address book
+                              entry — it is a snapshot, and the entry can have been edited or
+                              deleted since. Naming it keeps the select honest. */}
+                          <option value="">{s.addressLine}</option>
+                          {(addresses.data ?? []).map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.label} · {a.addressLine}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {s.status !== 'CANCELLED' && (
                       <div className="mt-3 flex gap-2.5">
                         {s.status === 'ACTIVE' ? (

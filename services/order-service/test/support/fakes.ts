@@ -720,6 +720,13 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
+  /** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
+  async setDeliveryAddress(id: string, address: DeliveryAddressSnapshot): Promise<SubscriptionRecord> {
+    const r = this.rows.find((x) => x.id === id)!;
+    Object.assign(r, address);
+    r.updatedAt = nextDate();
+    return structuredClone(r);
+  }
   /** D4: status and schedule in one write, mirroring the real repository. */
   async resume(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;

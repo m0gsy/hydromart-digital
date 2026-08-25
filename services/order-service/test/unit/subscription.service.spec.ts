@@ -729,4 +729,77 @@ describe('SubscriptionService', () => {
       ok: false,
     });
   });
+
+  /**
+   * K1.9. A plan was locked to whichever address was primary when it was made: no picker
+   * at signup, no way to change it afterwards, and switching your primary address did not
+   * move it. Somebody who moved house could only cancel and start again, losing the
+   * schedule.
+   */
+  describe('changing the delivery address', () => {
+    const moved: DeliveryAddressSnapshot = {
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Asia Afrika 55',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: '40112',
+      latitude: -6.92,
+      longitude: 107.61,
+      notes: 'pagar hijau',
+    };
+
+    const start = async () => {
+      const p = seedProduct();
+      return service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+        address,
+      });
+    };
+
+    it('moves the plan onto the new address', async () => {
+      const sub = await start();
+
+      const out = await service.changeAddress(customer, sub.id, moved);
+
+      expect(out).toMatchObject({
+        addressLine: 'Jl. Asia Afrika 55',
+        latitude: -6.92,
+        longitude: 107.61,
+        notes: 'pagar hijau',
+      });
+    });
+
+    it('leaves the schedule and the status exactly where they were', async () => {
+      const sub = await start();
+
+      const out = await service.changeAddress(customer, sub.id, moved);
+
+      expect(out.nextDeliveryAt).toEqual(sub.nextDeliveryAt);
+      expect(out.status).toBe(sub.status);
+      expect(out.quantity).toBe(sub.quantity);
+    });
+
+    it('refuses somebody else plan', async () => {
+      const sub = await start();
+
+      await expect(service.changeAddress(randomUUID(), sub.id, moved)).rejects.toBeInstanceOf(
+        SubscriptionNotFoundError,
+      );
+    });
+
+    // Nothing will ever be delivered against a cancelled plan; letting its address change
+    // would leave a dead row in the customer's list looking alive.
+    it('refuses a cancelled plan', async () => {
+      const sub = await start();
+      await service.cancel(customer, sub.id);
+
+      await expect(service.changeAddress(customer, sub.id, moved)).rejects.toBeInstanceOf(
+        SubscriptionNotActionableError,
+      );
+    });
+  });
 });

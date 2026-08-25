@@ -1343,6 +1343,8 @@ export const hq = {
     status: { PENDING: 'Pending', COMPLETED: 'Done', REJECTED: 'Rejected' },
     customer: 'Customer',
     requestedAt: 'Requested',
+    dueBy: 'Answer due {date}',
+    overdue: 'PAST the 3x24-hour limit',
     reason: 'Reason',
     approve: 'Approve',
     reject: 'Reject',

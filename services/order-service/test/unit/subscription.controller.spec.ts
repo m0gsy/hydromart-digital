@@ -14,6 +14,7 @@ function makeService(): Mocked {
     processDue: jest.fn().mockResolvedValue({ placed: 2 }),
     createForCustomer: jest.fn().mockResolvedValue({ id: 'sub-1' }),
     discountRate: jest.fn().mockReturnValue(0.08),
+    changeAddress: jest.fn().mockResolvedValue({ id: 's1', addressLine: 'Jl. Baru 1' }),
   } as unknown as Mocked;
 }
 
@@ -142,5 +143,66 @@ describe('SubscriptionController', () => {
     await expect(controller.processDue()).resolves.toEqual({ placed: 2 });
     expect(service.processDue).toHaveBeenCalledTimes(1);
     expect(service.processDue.mock.calls[0][0]).toBeInstanceOf(Date);
+  });
+});
+
+/**
+ * K1.9. The route maps a DTO whose optional fields are `undefined` onto a snapshot whose
+ * are `null` — the same mapping the create route does, and the same reason: a column that
+ * is absent and a column that is unknown must not become the same thing downstream.
+ */
+describe('SubscriptionController.changeAddress', () => {
+  const user = { sub: 'c1' } as never;
+
+  it('passes the full snapshot through, with the optional fields nulled', async () => {
+    const service = makeService();
+    const controller = new SubscriptionController(service as never);
+
+    await controller.changeAddress(user, 's1', {
+      deliveryAddress: {
+        recipientName: 'Budi',
+        phone: '081234567890',
+        addressLine: 'Jl. Baru 1',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+      },
+    } as never);
+
+    expect(service.changeAddress).toHaveBeenCalledWith('c1', 's1', {
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Baru 1',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: null,
+      longitude: null,
+      notes: null,
+    });
+  });
+
+  it('keeps the optional fields when they ARE given', async () => {
+    const service = makeService();
+    const controller = new SubscriptionController(service as never);
+
+    await controller.changeAddress(user, 's1', {
+      deliveryAddress: {
+        recipientName: 'Budi',
+        phone: '081234567890',
+        addressLine: 'Jl. Baru 1',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+        postalCode: '40112',
+        latitude: -6.92,
+        longitude: 107.61,
+        notes: 'pagar hijau',
+      },
+    } as never);
+
+    expect(service.changeAddress).toHaveBeenCalledWith(
+      'c1',
+      's1',
+      expect.objectContaining({ postalCode: '40112', latitude: -6.92, notes: 'pagar hijau' }),
+    );
   });
 });

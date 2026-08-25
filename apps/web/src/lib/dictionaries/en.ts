@@ -56,7 +56,9 @@ export const en: Dictionary = {
     },
     privacyData: {
       title: 'My personal data',
-      body: 'You may ask for a copy of the data we hold, or ask for your account to be deleted. Head office reviews every request first.',
+      body: 'You may ask for a copy of the data we hold, or ask for your account to be deleted. Head office reviews every request first, within 3x24 hours of it being sent (UU PDP No. 27/2022).',
+      deadline: 'Answered by {date} at the latest',
+      overdue: 'Past the 3x24-hour limit',
       requestExport: 'Request a data copy',
       requestDelete: 'Request account deletion',
       deleteConfirm: 'Your account and identity are permanently removed once approved. Payment history is kept without your identity because tax law requires it. Continue?',

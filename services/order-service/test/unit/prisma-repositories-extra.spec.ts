@@ -209,3 +209,66 @@ describe('VoucherRejectedError', () => {
     expect(new VoucherRejectedError('custom').message).toBe('custom');
   });
 });
+
+/** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
+describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
+  const subscription = { update: jest.fn() };
+  const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
+
+  it('writes every field of the snapshot and nothing else', async () => {
+    subscription.update.mockResolvedValue({
+      id: 's1',
+      customerId: 'c1',
+      productId: 'p1',
+      productName: 'Galon',
+      unit: 'galon',
+      quantity: 1,
+      frequency: 'WEEKLY',
+      status: 'ACTIVE',
+      nextDeliveryAt: new Date('2026-09-01'),
+      failureCount: 0,
+      lastFailureAt: null,
+      lastFailure: null,
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Baru 1',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: '40112',
+      latitude: -6.92,
+      longitude: 107.61,
+      notes: null,
+      createdAt: new Date('2026-08-01'),
+      updatedAt: new Date('2026-08-25'),
+    });
+
+    const out = await repo.setDeliveryAddress('s1', {
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Baru 1',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: '40112',
+      latitude: -6.92,
+      longitude: 107.61,
+      notes: null,
+    });
+
+    expect(subscription.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: {
+        recipientName: 'Budi',
+        phone: '081234567890',
+        addressLine: 'Jl. Baru 1',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+        postalCode: '40112',
+        latitude: -6.92,
+        longitude: 107.61,
+        notes: null,
+      },
+    });
+    // The schedule and the status are not in that payload, and the mapped row proves it.
+    expect(out).toMatchObject({ status: 'ACTIVE', addressLine: 'Jl. Baru 1' });
+  });
+});

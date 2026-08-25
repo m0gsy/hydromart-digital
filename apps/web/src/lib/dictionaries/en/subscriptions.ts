@@ -18,6 +18,12 @@ export const subscriptions = {
   },
   firstDelivery: 'First delivery',
   deliverTo: 'Deliver to',
+  changeAddress: 'Change address',
+  pickAddress: 'Choose a delivery address',
+  addressMoved: 'The subscription address has been updated.',
+  addressMoveError: 'Could not move the subscription address.',
+  addressIsSnapshot: 'A subscription keeps its own address, so changing your primary address does not move it.',
+  discountUnknown: 'This depot subscription discount could not be read. It is still applied at delivery.',
   noAddress: 'Add an address first to start a subscription.',
   addAddress: 'Add address',
   // {pct} = the chosen depot's subscription discount (a per-depot setting), not a fixed number.

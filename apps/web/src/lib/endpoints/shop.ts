@@ -130,6 +130,10 @@ subscriptions: {
   pause: (id: string) => `/orders/api/v1/subscriptions/${id}/pause`,
   resume: (id: string) => `/orders/api/v1/subscriptions/${id}/resume`,
   cancel: (id: string) => `/orders/api/v1/subscriptions/${id}/cancel`,
+  // K1.9 — move a standing plan to a different saved address. Sends the whole snapshot,
+  // not an address-book id: the plan keeps its own copy so an address edit cannot silently
+  // re-route a standing order or change which depot prices it (D7).
+  address: (id: string) => `/orders/api/v1/subscriptions/${id}/address`,
   // The saving quoted on the signup panel. Per-depot like every other money rate, so
   // the note matches what the sweep actually charges at that depot; omitted = global.
   discount: (depotId?: string | null) =>

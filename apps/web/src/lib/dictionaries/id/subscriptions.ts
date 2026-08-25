@@ -18,6 +18,12 @@ export const subscriptions = {
   },
   firstDelivery: 'Pengiriman pertama',
   deliverTo: 'Antar ke',
+  changeAddress: 'Ganti alamat',
+  pickAddress: 'Pilih alamat pengiriman',
+  addressMoved: 'Alamat langganan diperbarui.',
+  addressMoveError: 'Gagal memindahkan alamat langganan.',
+  addressIsSnapshot: 'Langganan menyimpan alamatnya sendiri, jadi mengubah alamat utama tidak memindahkannya.',
+  discountUnknown: 'Diskon langganan depot ini belum bisa dibaca. Angkanya tetap dihitung saat pengiriman.',
   noAddress: 'Tambah alamat dulu untuk mulai langganan.',
   addAddress: 'Tambah alamat',
   // {pct} = diskon langganan depot terpilih (setting per-depot), bukan angka tetap.

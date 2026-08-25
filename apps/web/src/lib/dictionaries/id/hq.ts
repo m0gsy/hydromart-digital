@@ -1347,6 +1347,8 @@ export const hq = {
     status: { PENDING: 'Menunggu', COMPLETED: 'Selesai', REJECTED: 'Ditolak' },
     customer: 'Pelanggan',
     requestedAt: 'Diminta',
+    dueBy: 'Batas jawab {date}',
+    overdue: 'LEWAT BATAS 3x24 jam',
     reason: 'Alasan',
     approve: 'Setujui',
     reject: 'Tolak',

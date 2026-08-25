@@ -8,6 +8,7 @@ import { SaveMeterReadingDto } from '../../src/modules/dto/meter-reading.dto';
 import { validate } from 'class-validator';
 
 import {
+  ChangeSubscriptionAddressDto,
   CounterQuoteDto,
   CreateSubscriptionDto,
   ListOrdersQueryDto,
@@ -215,5 +216,39 @@ describe('ListOrdersQueryDto · isWalkIn', () => {
 
   it('accepts a real boolean too, for callers that send JSON', () => {
     expect(parse({ isWalkIn: true }).isWalkIn).toBe(true);
+  });
+});
+
+/**
+ * K1.9. The move takes the whole snapshot, not an address-book id — the plan keeps its own
+ * copy so that editing the address book cannot silently re-route a standing order or change
+ * which depot prices it (D7). The nested validation is what stops a half-filled one landing.
+ */
+describe('ChangeSubscriptionAddressDto', () => {
+  const dto = (deliveryAddress: unknown) =>
+    plainToInstance(ChangeSubscriptionAddressDto, { deliveryAddress });
+
+  it('accepts a complete address', async () => {
+    const errors = await validate(
+      dto({
+        recipientName: 'Budi',
+        phone: '081234567890',
+        addressLine: 'Jl. Baru 1',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+      }),
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('refuses one missing its street line rather than moving a plan to nowhere', async () => {
+    const errors = await validate(
+      dto({ recipientName: 'Budi', phone: '081234567890', city: 'Bandung', province: 'Jawa Barat' }),
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('refuses a payload with no address at all', async () => {
+    expect(await validate(dto(undefined))).toHaveLength(1);
   });
 });

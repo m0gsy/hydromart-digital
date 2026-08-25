@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { DeliveryAddressSnapshot } from '../../application/ports/order.repository';
 import {
   CreateSubscriptionData,
   SubscriptionFrequency,
@@ -132,6 +133,28 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
 
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
     const row = await this.prisma.subscription.update({ where: { id }, data: { status } });
+    return this.toRecord(row);
+  }
+
+  /** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
+  async setDeliveryAddress(
+    id: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<SubscriptionRecord> {
+    const row = await this.prisma.subscription.update({
+      where: { id },
+      data: {
+        recipientName: address.recipientName,
+        phone: address.phone,
+        addressLine: address.addressLine,
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        latitude: address.latitude,
+        longitude: address.longitude,
+        notes: address.notes,
+      },
+    });
     return this.toRecord(row);
   }
 
