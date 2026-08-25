@@ -30,10 +30,11 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { LAST_SEEN_KEY, markNotificationsSeen } from '@/lib/unread';
 import { useAsync } from '@/lib/use-async';
 import type { Notification, NotificationEvent } from '@/lib/types';
 
-const LAST_SEEN_KEY = 'hydromart.notifications.lastSeen';
+// O4: the key now lives beside the badge that reads it, so the two cannot drift.
 
 // Event → icon + tint (spec 5h colour language: success for fulfilment, danger
 // for cancel, brand for the rest).
@@ -81,7 +82,9 @@ function Feed() {
 
   function markAllRead() {
     const now = new Date().toISOString();
-    localStorage.setItem(LAST_SEEN_KEY, now);
+    // O4: through the shared helper, so the badge in the nav clears in the same tick
+    // instead of waiting for a reload — `storage` events only reach OTHER tabs.
+    markNotificationsSeen(now);
     setLastSeen(now);
   }
 

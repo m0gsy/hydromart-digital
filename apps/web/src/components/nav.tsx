@@ -9,11 +9,15 @@ import { BrandMark } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
+import { useUnreadCount } from '@/lib/unread';
 import { formatIDR } from '@/lib/format';
 import { canViewDashboard, isStaff } from '@/lib/roles';
 
 export function Nav() {
   const { customer, ready } = useAuth();
+  // O4: only for a signed-in customer — the inbox route is `@Roles(CUSTOMER)`, so asking
+  // as staff would be a 403 on every page load for a badge that must never appear.
+  const unread = useUnreadCount(ready && customer != null && !isStaff(customer.role));
   const { count, cart } = useCart();
   const { t } = useT();
   const pathname = usePathname();
@@ -90,10 +94,26 @@ export function Nav() {
           {ready && customer && (
             <Link
               href="/notifications"
-              aria-label={t('notifications.title')}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-transform hover:scale-[1.04]"
+              aria-label={
+                unread > 0 ? t('notifications.unreadAria', { n: unread }) : t('notifications.title')
+              }
+              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-transform hover:scale-[1.04]"
             >
               <Bell size={18} weight="fill" />
+              {/*
+                O4: the count, not just a dot. "Something arrived" and "nine things arrived
+                while you were out" are different messages, and the second is the one that
+                makes somebody open the screen. Capped at 9+ so the badge cannot grow wider
+                than the button it sits on.
+              */}
+              {unread > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-[10px] font-extrabold leading-[18px] text-white"
+                >
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </Link>
           )}
 

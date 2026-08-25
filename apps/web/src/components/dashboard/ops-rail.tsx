@@ -58,6 +58,7 @@ import { isServedHere } from '@/lib/deep-link';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
+import { useOpsUnreadCount } from '@/lib/unread';
 import {
   canManageDepots,
   canRecordWalkInSale,
@@ -362,6 +363,9 @@ export function OpsRail() {
   const { t, locale, setLocale } = useT();
   const pathname = usePathname();
   const role = customer?.role;
+  // O4: only for roles that can see the ops feed at all — asking as anyone else is a 403
+  // on every page load for a badge that must never appear.
+  const opsUnread = useOpsUnreadCount(canViewOpsNotifications(role));
 
   const isActive = (href: string) =>
     href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
@@ -395,6 +399,16 @@ export function OpsRail() {
                   >
                     <Ic size={18} weight="fill" className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'} />
                     <span className="flex-1">{t(`ops.nav.${item.labelKey}`)}</span>
+                    {/*
+                      O4: the ops half of the unread badge. An operational alert has always
+                      had a screen and never had a way of announcing itself — low stock and
+                      a courier incident sat in a feed until somebody happened to open it.
+                    */}
+                    {item.labelKey === 'notifications' && opsUnread > 0 && (
+                      <span className="min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-extrabold leading-[18px] text-white">
+                        {opsUnread > 9 ? '9+' : opsUnread}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

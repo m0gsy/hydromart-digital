@@ -173,6 +173,21 @@ export function NativeBridge() {
       (event: { notification?: { data?: { url?: string } } }) =>
         open(event?.notification?.data?.url),
     );
+    /*
+     * O4. A push that arrives while the app is OPEN is now re-posted as a real OS
+     * notification (`push-foreground.tsx`), and that notification is tapped like any
+     * other — but it is a LOCAL one, so it arrives on a different plugin's event with the
+     * destination under `extra` rather than `data`. Without this the newly-visible
+     * notification would open the app to wherever it already was: a notification that
+     * looks like every other one and does nothing when tapped.
+     */
+    const offLocalTap = onPluginEvent(
+      'LocalNotifications',
+      'localNotificationActionPerformed',
+      (event: { notification?: { extra?: { url?: string } } }) =>
+        open(event?.notification?.extra?.url),
+    );
+
     // A link that started the app from cold may have been delivered before this listener
     // existed, so the launch URL is asked for as well. `launchHandled` because
     // `getLaunchUrl()` keeps answering with it for the whole process lifetime — without
@@ -185,6 +200,7 @@ export function NativeBridge() {
     return () => {
       offLink();
       offTap();
+      offLocalTap();
       offBack();
     };
   }, [router]);
