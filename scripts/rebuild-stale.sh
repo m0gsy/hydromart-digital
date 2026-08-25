@@ -79,7 +79,10 @@ flush() {
   echo ">> starting: ${batch[*]}"
   $COMPOSE up -d "${batch[@]}"
   echo ">> reclaiming orphaned layers"
-  bash scripts/docker-gc.sh
+  # M13: images only. Pruning the build cache here throws away exactly the layers the next
+  # batch needs — nineteen services share a base image, an `npm ci` layer and a `packages/`
+  # build — so every batch after the first rebuilt what the batch before it had just built.
+  bash scripts/docker-gc.sh --images-only
   batch=()
 }
 
@@ -89,6 +92,10 @@ for svc in "${SERVICES[@]}"; do
   if [ "$((i % BATCH))" -eq 0 ]; then flush; fi
 done
 flush  # remaining tail
+
+# The build cache is trimmed ONCE, after every batch is built and started (M13).
+echo ">> trimming build cache"
+bash scripts/docker-gc.sh
 
 echo "rebuild-stale: done"
 df -h / | awk 'NR==2{print "  disk: "$4" free ("$5" used)"}'
