@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
 import { canSend } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
@@ -173,6 +173,27 @@ export class CampaignService {
    * sends cannot both pass the check and broadcast twice. The actual sending is done by
    * processSending() from the scheduler, against the recipient rows as the queue.
    */
+  /**
+   * A depot sending the campaign IT created (OPS-04).
+   *
+   * The depot broadcast screen used to POST the draft route and stop there. Nothing sent,
+   * nothing failed, the form cleared — 320 customers counted on the button and none of them
+   * messaged. It could not simply call `send`: that route carries `campaignWrite`, the
+   * head-office right to blast the whole network, which a depot manager does not hold.
+   *
+   * Ownership is the account that created it. A campaign carries no depot of its own (the
+   * depot is baked into the recipient list at creation), so `createdBy` is the honest check
+   * — and it is stricter than a depot check anyway.
+   */
+  async sendOwn(id: string, actorId: string): Promise<CampaignRecord> {
+    const campaign = await this.repo.findById(id);
+    if (!campaign) throw new CampaignNotFoundError();
+    if (campaign.createdBy !== actorId) {
+      throw new ForbiddenException('Kampanye ini bukan milik akun Anda.');
+    }
+    return this.send(id);
+  }
+
   async send(id: string): Promise<CampaignRecord> {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();

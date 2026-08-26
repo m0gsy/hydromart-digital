@@ -27,6 +27,10 @@ export const customerFix = {
   checkout: {
     agentPrice: "Agent price Rp{amount}/gallon",
     catalogPricing: "Estimated prices — the depot's own prices apply when the order is placed",
+    // SF-02 — see the Indonesian side.
+    depotLookupFailed:
+      "We could not work out which depot will deliver, so the prices and delivery fee here are catalog prices, not the depot's. Try again before ordering.",
+    retryDepotLookup: "Try again",
     resellerDiscount: "Reseller price −{pct}%",
     defaultAddressLabel: "Address",
   },

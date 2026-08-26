@@ -27,11 +27,19 @@ export function ProductCard({
   product,
   memberRate = 0,
   badge,
+  depotPrice,
 }: {
   product: Product;
   memberRate?: number;
   badge?: string;
+  /**
+   * PG-03 — what the shopper's own depot charges, when the grid was able to ask. Undefined
+   * means the catalogue price is what is shown, and the grid says so above the cards rather
+   * than each card pretending to be the depot's.
+   */
+  depotPrice?: number;
 }) {
+  const shelfPrice = depotPrice ?? product.basePrice;
   const router = useRouter();
   const { customer } = useAuth();
   const { bump, apply } = useCart();
@@ -95,9 +103,11 @@ export function ProductCard({
             button will not fit 104px, the button drops to its own line rather than leaving. */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
-            <Money amount={product.basePrice} className="text-[17px] font-extrabold tracking-[-0.01em]" />
+            {/* PG-03: the depot's price when the shelf could ask for one, the catalogue
+                price otherwise — and the caller labels the grid when it is the latter. */}
+            <Money amount={shelfPrice} className="text-[17px] font-extrabold tracking-[-0.01em]" />
             {memberRate > 0 && (
-              <MemberPrice amount={memberPrice(product.basePrice, memberRate)} className="px-[9px] py-0.5 text-[11.5px]" />
+              <MemberPrice amount={memberPrice(shelfPrice, memberRate)} className="px-[9px] py-0.5 text-[11.5px]" />
             )}
           </div>
           <button

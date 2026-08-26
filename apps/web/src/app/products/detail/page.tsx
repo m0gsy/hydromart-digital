@@ -26,6 +26,7 @@ import { useLocation } from '@/lib/location-context';
 import { cartDepotId } from '@/lib/location-store';
 import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
+import { useDepotPrices } from '@/lib/depot-price';
 import { memberPrice, useMemberRate } from '@/lib/member';
 import { useRecommendationPhotos } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
@@ -79,6 +80,10 @@ export default function ProductDetailPage() {
 
   // Frequently-bought-together — fed by the related-products source. No price on
   // Recommendation, so the mini-cards show name + unit only (never fabricated).
+  // PG-03: the shelf price for this product at the shopper's depot.
+  const shelf = useDepotPrices(product ? [product.id] : []);
+  const shelfPrice = (product && shelf.prices.get(product.id)) ?? product?.basePrice ?? 0;
+
   const { data: related } = useAsync<Recommendation[]>(
     () => api.get<Recommendation[]>(endpoints.recommendations.related(id)),
     [id],
@@ -218,13 +223,17 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
+            {/* PG-03: the depot's price, from the same function the cart is billed by. When
+                the depot could not be asked this is the catalogue price and it says so —
+                it used to print the catalogue price either way, and the cart then charged
+                something else. */}
             <div className="flex items-baseline gap-3">
-              <Money
-                amount={product.basePrice}
-                className="text-[30px] font-extrabold tracking-tight"
-              />
-              {rate > 0 && <MemberPrice amount={memberPrice(product.basePrice, rate)} />}
+              <Money amount={shelfPrice} className="text-[30px] font-extrabold tracking-tight" />
+              {rate > 0 && <MemberPrice amount={memberPrice(shelfPrice, rate)} />}
             </div>
+            {shelf.basis === 'CATALOG' && (
+              <p className="text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
+            )}
 
             {/* member note — signed-in members only, names the tier */}
             {customer && account && account.discountRate > 0 && (
@@ -305,7 +314,7 @@ export default function ProductDetailPage() {
                 ) : (
                   <>
                     <ShoppingCartSimple size={19} weight="fill" /> {t('shop.pdp.addToCart')}{' '}
-                    <Money amount={qty * product.basePrice} />
+                    <Money amount={qty * shelfPrice} />
                   </>
                 )}
               </Button>

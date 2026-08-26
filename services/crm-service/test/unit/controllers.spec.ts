@@ -251,6 +251,19 @@ describe('CampaignController', () => {
     ...over,
   });
 
+  /*
+   * OPS-04 — the depot's own send. The depot broadcast screen drafted a campaign here and
+   * never sent it, because sending lived behind `campaignWrite` (head office). This route is
+   * the same send, bounded to the campaign the caller created.
+   */
+  it('sends the campaign the caller created, and passes who is asking', async () => {
+    const campaigns = { sendOwn: jest.fn().mockResolvedValue(record({ status: CampaignStatus.SENDING })) };
+    const controller = new CampaignController(campaigns as never);
+    const out = await controller.sendOwn('camp-1', user);
+    expect(campaigns.sendOwn).toHaveBeenCalledWith('camp-1', 'user-1');
+    expect(out.status).toBe(CampaignStatus.SENDING);
+  });
+
   it('creates a campaign, forwarding the caller token', async () => {
     const campaigns = { create: jest.fn().mockResolvedValue(record()) };
     const controller = new CampaignController(campaigns as never);

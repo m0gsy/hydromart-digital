@@ -212,13 +212,29 @@ function CheckoutInner() {
     longitude: null,
   });
 
-  // Advisory delivery-fee preview: when the selected address carries coords, look up the
-  // nearest depot to show an estimated ongkir. Fail-soft — errors are ignored and no fee is
-  // added; this is display-only and never sent to the API or used in placeOrder.
-  // A3: ten candidates, not one. Service radii differ per depot, so the nearest depot is
-  // not always the one that covers the point — asking for a single row made an out-of-range
-  // depot the only answer and hid every in-range one behind it.
-  const { data: nearbyDepots, loading: nearbyLoading } = useAsync<NearbyDepot[]>(
+  /*
+   * The depots that could fulfil this address.
+   *
+   * SF-02 — the comment that stood here said this was "display-only and never sent to the
+   * API or used in placeOrder". That stopped being true when A1 made the CART price itself
+   * against the fulfilling depot: this answer now decides the price of every line, the
+   * ongkir, the payment methods offered, and the depot the order is placed at.
+   *
+   * Which is why its FAILURE is no longer swallowed. When this read 502s the page used to
+   * look completely normal — no error, no warning — while the cart fell back to catalog
+   * prices and the customer read a total the depot would not charge. The error is surfaced
+   * below, next to the money, with a retry.
+   *
+   * A3: ten candidates, not one. Service radii differ per depot, so the nearest depot is
+   * not always the one that covers the point — asking for a single row made an out-of-range
+   * depot the only answer and hid every in-range one behind it.
+   */
+  const {
+    data: nearbyDepots,
+    loading: nearbyLoading,
+    error: nearbyError,
+    reload: reloadNearby,
+  } = useAsync<NearbyDepot[]>(
     () =>
       coords.latitude != null && coords.longitude != null
         ? api.get(
@@ -1304,6 +1320,21 @@ function CheckoutInner() {
             <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
               {t('order.checkout.outOfServiceArea')}
             </p>
+          )}
+          {/* SF-02: the depot lookup failed, so nothing on this screen is the depot's price. */}
+          {nearbyError && (
+            <div className="flex flex-col gap-1" role="alert">
+              <p className="text-xs font-medium text-[color:var(--danger)]">
+                {t('customerFix.checkout.depotLookupFailed')}
+              </p>
+              <button
+                type="button"
+                onClick={reloadNearby}
+                className="self-start text-xs font-bold text-brand-700 underline"
+              >
+                {t('customerFix.checkout.retryDepotLookup')}
+              </button>
+            </div>
           )}
         </Card>
       </div>

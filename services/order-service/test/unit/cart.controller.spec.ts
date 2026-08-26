@@ -9,6 +9,7 @@ function makeService(): Mocked {
     setItem: jest.fn().mockResolvedValue({ items: ['x'] }),
     removeItem: jest.fn().mockResolvedValue({ items: [] }),
     clear: jest.fn().mockResolvedValue(undefined),
+    shelfPrices: jest.fn().mockResolvedValue({ basis: 'DEPOT', prices: [] }),
   } as unknown as Mocked;
 }
 
@@ -21,6 +22,28 @@ describe('CartController', () => {
   beforeEach(() => {
     service = makeService();
     controller = new CartController(service as unknown as CartService);
+  });
+
+  /*
+   * PG-03 — the shelf price route. Public, because a guest browsing the catalogue sees
+   * prices before they have an account, and it answers from the same pricing the cart is
+   * billed by rather than from arithmetic in the browser.
+   */
+  it('shelf-prices: splits the id list and passes the depot through', async () => {
+    await controller.shelfPrices('p1, p2 ,,p3', 'depot-1');
+    expect(service.shelfPrices).toHaveBeenCalledWith('depot-1', ['p1', 'p2', 'p3']);
+  });
+
+  it('shelf-prices: no depot and no ids is a CATALOG answer, not an error', async () => {
+    await controller.shelfPrices(undefined, undefined);
+    expect(service.shelfPrices).toHaveBeenCalledWith(null, []);
+  });
+
+  // A caller asking for a thousand products is a bug in the caller, not a query to run.
+  it('shelf-prices: caps the list at one page of a catalogue', async () => {
+    const many = Array.from({ length: 150 }, (_, i) => `p${i}`);
+    await controller.shelfPrices(many.join(','));
+    expect(service.shelfPrices.mock.calls[0][1]).toHaveLength(100);
   });
 
   it('view: returns the caller cart', async () => {

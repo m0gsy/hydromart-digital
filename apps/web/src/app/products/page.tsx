@@ -11,6 +11,7 @@ import { Button, CenterState, ErrorState, Input, Skeleton } from '@/components/u
 import { api } from '@/lib/api';
 import { useT } from '@/lib/locale-context';
 import { useLocation } from '@/lib/location-context';
+import { useDepotPrices } from '@/lib/depot-price';
 import { useMemberRate } from '@/lib/member';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -132,6 +133,9 @@ function ProductsCatalog() {
     [fresh, loaded.byPage],
   );
 
+  // PG-03: one call for the whole grid, at the depot behind the shopper's delivery location.
+  const shelf = useDepotPrices(items.map((p) => p.id));
+
   // Skeletons until the first page of *these* filters has landed — `loading` alone is also
   // true while page 2 is in flight, and swapping the grid out for skeletons then would
   // throw away exactly what the reader was looking at.
@@ -239,9 +243,20 @@ function ProductsCatalog() {
         </div>
       ) : (
         <>
+          {/* PG-03: the grid used to print catalogue prices while the cart billed the
+              depot's. When the depot could not be asked, the prices below ARE catalogue
+              prices and the shopper is told so, once, above the grid. */}
+          {shelf.basis === 'CATALOG' && (
+            <p className="pt-4 text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
+          )}
           <div className="grid grid-cols-2 gap-4 pb-2 pt-6 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((product) => (
-              <ProductCard key={product.id} product={product} memberRate={memberRate} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                memberRate={memberRate}
+                depotPrice={shelf.prices.get(product.id)}
+              />
             ))}
           </div>
           {/* One button instead of numbered pages: numbers on a phone are 38px targets in a

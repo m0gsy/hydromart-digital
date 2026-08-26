@@ -105,7 +105,12 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
       if (toCustomers) {
         // A customer blast is a WhatsApp campaign, not a courier notice. The depot's own
         // conditions ride along; the server pins the depot again from the guarded field.
-        await api.post(
+        //
+        // OPS-04: creating it is a DRAFT — the route's own summary says so — and this
+        // screen used to stop right there. The form cleared, no error appeared, and none of
+        // the customers the button had just counted were messaged. Sending is the second
+        // call, and it is the one that matters.
+        const draft = await api.post<{ id: string; recipients?: unknown[] }>(
           endpoints.crm.createDepotCampaign,
           {
             depotId,
@@ -117,6 +122,7 @@ ${body.trim()}`,
           },
           true,
         );
+        await api.post(endpoints.crm.sendDepotCampaign(draft.id), undefined, true);
       } else {
         await api.post(endpoints.broadcasts.create, { depotId, level, title: title.trim(), body: body.trim() }, true);
       }

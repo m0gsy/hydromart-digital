@@ -224,6 +224,12 @@ export const insight = {
     // Campaign with its per-recipient delivery report (status/error/sentAt).
     campaign: (id: string) => `/crm/api/v1/campaigns/${id}`,
     sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,
+    /**
+     * OPS-04: the depot's own send. `sendCampaign` above needs `campaignWrite` (head
+     * office); a depot manager holds `depotCampaign`, so the depot screen posted the draft
+     * and never sent it — no error, no message, nothing.
+     */
+    sendDepotCampaign: (id: string) => `/crm/api/v1/campaigns/depot/${id}/send`,
   },
 
   // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).
