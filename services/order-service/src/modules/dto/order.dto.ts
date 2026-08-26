@@ -543,6 +543,17 @@ export class CounterQuoteDto {
   customerId?: string;
 
   @ApiPropertyOptional({ example: 'HEMAT10', description: 'Rejected here rather than at Bayar.' })
+  /**
+   * C11: the buyer asked for it to be delivered. Optional — absent quotes a pick-up, exactly
+   * as before. Present makes the quote include the ongkir, so the number on the till is the
+   * number the sale will charge.
+   */
+  @ApiPropertyOptional({ type: DeliveryAddressDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress?: DeliveryAddressDto;
+
   @IsOptional()
   @IsString()
   @MaxLength(40)
@@ -578,6 +589,17 @@ export class CounterQuoteResponseDto {
   @ApiProperty({ example: 45000, description: 'What the buyer pays. The cash guard and the change both use this.' })
   totalIdr!: number;
 
+  /**
+   * C11: the ongkir already inside `totalIdr`, 0 for a pick-up.
+   *
+   * Its own line because a cashier taking cash has to be able to say what the extra is for —
+   * and because the quote and the sale must agree on it to the rupiah. They used to differ
+   * by exactly this number: the sale charged `subtotal + ongkir - diskon` and the quote
+   * answered `subtotal - diskon`.
+   */
+  @ApiProperty({ example: 5000, description: 'Delivery fee included in the total, in rupiah.' })
+  shippingIdr!: number;
+
   @ApiProperty({ example: false, description: 'The agen band priced this basket.' })
   agen!: boolean;
 
@@ -590,11 +612,13 @@ export class CounterQuoteResponseDto {
     total: number;
     agen: boolean;
     catalogFallback: string | null;
+    shippingFee: number;
   }): CounterQuoteResponseDto {
     return {
       subtotalIdr: quote.subtotal,
       discountIdr: quote.discount,
       totalIdr: quote.total,
+      shippingIdr: quote.shippingFee,
       agen: quote.agen,
       catalogFallback: quote.catalogFallback,
     };

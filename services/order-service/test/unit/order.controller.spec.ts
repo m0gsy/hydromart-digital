@@ -27,6 +27,7 @@ function makeService(): Mocked {
       subtotal: 60000,
       discount: 15000,
       total: 45000,
+      shippingFee: 0,
       agen: true,
       catalogFallback: null,
       items: [],
@@ -167,6 +168,8 @@ describe('OrderController', () => {
       subtotalIdr: 60000,
       discountIdr: 15000,
       totalIdr: 45000,
+      // C11: a pick-up quotes zero ongkir, and says so rather than omitting it.
+      shippingIdr: 0,
       agen: true,
       catalogFallback: null,
     });
@@ -176,6 +179,8 @@ describe('OrderController', () => {
       [{ productId: 'p1', quantity: 3 }],
       'HEMAT10',
       'Bearer t',
+      // C11: pick-up unless the cashier sent an address.
+      false,
     );
   });
 
@@ -188,6 +193,7 @@ describe('OrderController', () => {
       [{ productId: 'p1', quantity: 1 }],
       null,
       'Bearer t',
+      false,
     );
   });
 

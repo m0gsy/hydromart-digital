@@ -87,6 +87,20 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
+  /*
+   * C11: the buyer came to the counter and asked for it to be delivered.
+   *
+   * Presence of an address is the whole signal, server-side and here — no new mode and no
+   * second route. The fields are only collected when the toggle is on, because the sale DTO
+   * requires all four and a cashier typing them for every pick-up would stop using the till.
+   */
+  const [deliver, setDeliver] = useState(false);
+  const [addrName, setAddrName] = useState('');
+  const [addrPhone, setAddrPhone] = useState('');
+  const [addrLine, setAddrLine] = useState('');
+  const [addrCity, setAddrCity] = useState('');
+  const [addrProvince, setAddrProvince] = useState('');
+  const [addrNotes, setAddrNotes] = useState('');
   /**
    * C12: the buyer, once the cashier has DELIBERATELY looked them up.
    *
@@ -297,6 +311,26 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
   }
 
+  /*
+   * Complete or nothing. A half-filled address quotes an ongkir the sale would then refuse
+   * with a 400, which at a till means the cashier has already told someone a price.
+   * `recipientName`/`phone` fall back to the buyer fields above so the common case is three
+   * boxes, not five.
+   */
+  const deliveryAddress =
+    deliver && addrLine.trim() && addrCity.trim() && addrProvince.trim()
+      ? {
+          recipientName: (addrName.trim() || name.trim() || t('opsFix.walkIn.deliverRecipientFallback')).slice(0, 120),
+          phone: (addrPhone.trim() || phone.trim()).slice(0, 20),
+          addressLine: addrLine.trim().slice(0, 255),
+          city: addrCity.trim().slice(0, 100),
+          province: addrProvince.trim().slice(0, 100),
+          notes: addrNotes.trim() ? addrNotes.trim().slice(0, 255) : undefined,
+        }
+      : null;
+  // The phone is required by the sale DTO too, so an address without one is not sendable.
+  const deliveryReady = deliveryAddress !== null && deliveryAddress.phone.length > 0;
+
   const quote = useAsync<CounterQuote | null>(
     () =>
       lines.length === 0
@@ -308,10 +342,21 @@ function WalkIn({ depotId }: { depotId: string }) {
               lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
               customerId: buyerId ?? undefined,
               voucherCode: voucher.trim() || undefined,
+              // C11: the quote has to know, or the till shows a pick-up total and charges a
+              // delivery one — they differ by exactly the ongkir.
+              deliveryAddress: deliveryReady ? deliveryAddress : undefined,
             },
             true,
           ),
-    [depotId, lines.map((l) => `${l.product.id}:${l.quantity}`).join(','), buyerId, voucher.trim()],
+    [
+      depotId,
+      lines.map((l) => `${l.product.id}:${l.quantity}`).join(','),
+      buyerId,
+      voucher.trim(),
+      // Re-quote when delivery is switched on or off, and when the address first becomes
+      // complete — the fee is per galon, so it moves with the basket as well.
+      deliveryReady,
+    ],
   );
 
   // No silent fall back to shelf prices: a total the server did not agree to is exactly the
@@ -455,6 +500,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           // C12: the buyer the cashier identified, so the sale prices exactly as the quote did.
           customerId: buyerId ?? undefined,
           voucherCode: voucher.trim().toUpperCase() || undefined,
+          // C11: the same object the quote was priced from, so the sale cannot be a
+          // different journey than the one the buyer was quoted.
+          deliveryAddress: deliveryReady ? deliveryAddress : undefined,
         },
         true,
         { 'Idempotency-Key': attemptKey.current },
@@ -509,6 +557,15 @@ function WalkIn({ depotId }: { depotId: string }) {
     setPhone('');
     setCash('');
     setVoucher('');
+    // C11: including the address, or the next buyer's pick-up quietly becomes a delivery to
+    // the previous buyer's house.
+    setDeliver(false);
+    setAddrName('');
+    setAddrPhone('');
+    setAddrLine('');
+    setAddrCity('');
+    setAddrProvince('');
+    setAddrNotes('');
     setBusy(false);
   }
 
@@ -800,6 +857,84 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
         </div>
 
+        {/*
+          C11: the counter can take a delivery. The server half has been able to since #231 —
+          DTO, kill switch, and a fee threaded so the quote and the sale agree — and there
+          was no way for an operator to say so, which made all of it unreachable.
+
+          Behind a toggle, and the fields only appear when it is on: the sale DTO requires
+          recipient, phone, address, city and province, and a cashier made to type five boxes
+          for every pick-up would go back to writing on paper.
+        */}
+        <div className="rounded-xl border border-app p-3">
+          <label className="flex cursor-pointer items-center justify-between gap-3">
+            <span className="text-sm font-bold">{t('opsFix.walkIn.deliverToggle')}</span>
+            <input
+              type="checkbox"
+              className="h-5 w-9 cursor-pointer accent-brand-600"
+              checked={deliver}
+              onChange={(e) => setDeliver(e.target.checked)}
+            />
+          </label>
+          <p className="mt-1 text-[11.5px] leading-snug text-muted">
+            {t('opsFix.walkIn.deliverHint')}
+          </p>
+
+          {deliver && (
+            <div className="mt-3 flex flex-col gap-2.5">
+              <Input
+                id="wi-addr-line"
+                value={addrLine}
+                onChange={(e) => setAddrLine(e.target.value)}
+                placeholder={t('opsFix.walkIn.deliverAddressPlaceholder')}
+              />
+              <div className="grid grid-cols-2 gap-2.5">
+                <Input
+                  id="wi-addr-city"
+                  value={addrCity}
+                  onChange={(e) => setAddrCity(e.target.value)}
+                  placeholder={t('opsFix.walkIn.deliverCityPlaceholder')}
+                />
+                <Input
+                  id="wi-addr-province"
+                  value={addrProvince}
+                  onChange={(e) => setAddrProvince(e.target.value)}
+                  placeholder={t('opsFix.walkIn.deliverProvincePlaceholder')}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Input
+                  id="wi-addr-name"
+                  value={addrName}
+                  onChange={(e) => setAddrName(e.target.value)}
+                  placeholder={t('opsFix.walkIn.deliverRecipientPlaceholder')}
+                />
+                <Input
+                  id="wi-addr-phone"
+                  value={addrPhone}
+                  onChange={(e) => setAddrPhone(e.target.value)}
+                  placeholder={t('opsFix.walkIn.deliverPhonePlaceholder')}
+                />
+              </div>
+              {/* Patokan: the landmark a courier actually navigates by. */}
+              <Input
+                id="wi-addr-notes"
+                value={addrNotes}
+                onChange={(e) => setAddrNotes(e.target.value)}
+                placeholder={t('opsFix.walkIn.deliverNotesPlaceholder')}
+              />
+              {!deliveryReady && (
+                // Said out loud rather than left to a disabled button with no reason: the
+                // quote below is still a PICK-UP total until this is complete, and a cashier
+                // reading it would otherwise quote the wrong number.
+                <p className="text-[11.5px] font-semibold leading-snug text-[color:var(--danger)]">
+                  {t('opsFix.walkIn.deliverIncomplete')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         <Field
           label={t('opsFix.walkIn.voucher')}
           htmlFor="wi-voucher"
@@ -833,6 +968,13 @@ function WalkIn({ depotId }: { depotId: string }) {
             <span className="tabular-nums text-[color:var(--success)]">
               −<Money amount={quote.data?.discountIdr ?? 0} />
             </span>
+          </div>
+        )}
+
+        {(quote.data?.shippingIdr ?? 0) > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted">{t('opsFix.walkIn.shipping')}</span>
+            <span className="tabular-nums"><Money amount={quote.data?.shippingIdr ?? 0} /></span>
           </div>
         )}
 

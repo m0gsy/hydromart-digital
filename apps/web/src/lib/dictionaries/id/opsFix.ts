@@ -352,6 +352,18 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Layar kasir, sebelumnya seluruhnya hardcoded.
   walkIn: {
+    deliverToggle: 'Antar ke alamat pembeli',
+    deliverHint: 'Ongkir dihitung per galon dan sudah masuk ke total di bawah.',
+    deliverAddressPlaceholder: 'Alamat lengkap',
+    deliverCityPlaceholder: 'Kota',
+    deliverProvincePlaceholder: 'Provinsi',
+    deliverRecipientPlaceholder: 'Nama penerima',
+    deliverPhonePlaceholder: 'Nomor yang bisa dihubungi kurir',
+    deliverNotesPlaceholder: 'Patokan (opsional)',
+    deliverIncomplete: 'Alamat dan nomor belum lengkap — total di bawah masih harga ambil sendiri.',
+    deliverRecipientFallback: 'Pembeli konter',
+    shipping: 'Ongkir',
+
     saleSaved: "Penjualan {order} tersimpan.",
     saleVoided: "Penjualan {order} dibatalkan.",
     reload: "Muat ulang",
