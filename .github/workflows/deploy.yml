@@ -25,7 +25,7 @@ on:
         type: choice
         default: deploy
         options:
-          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy, install-cron, explain-queries, otp-inspect]
+          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy, install-cron, explain-queries]
       sha:
         description: "rollback target SHA (blank = previous good)"
         required: false
@@ -140,7 +140,6 @@ jobs:
             # credentials are secrets, so only whether they are set and how long they are is
             # printed, never their value. Also asks the RUNNING container, because a .env
             # edited after the last `up -d` has not reached the process yet.
-            otp-inspect) echo "run=bash -c 'echo CHANNEL_ENV=\$(sed -n s/^OTP_DELIVERY_CHANNEL=//p .env | head -1); for k in ZENZIVA_USERKEY ZENZIVA_PASSKEY SMS_API_TOKEN SMS_API_BASE_URL; do v=\$(sed -n \"s/^\$k=//p\" .env | head -1); if [ -z \"\$v\" ]; then echo \"\$k=NOT_SET\"; else echo \"\$k=SET_\${#v}_chars\"; fi; done; c=\$(docker ps --filter name=auth --format {{.Names}} | head -1); echo CONTAINER=\$c; docker exec \$c printenv OTP_DELIVERY_CHANNEL 2>/dev/null | sed s/^/CHANNEL_RUNNING=/; docker exec \$c sh -c \"for k in ZENZIVA_USERKEY ZENZIVA_PASSKEY; do eval v=\\$\\$k; if [ -z \\\"\\$v\\\" ]; then echo RUNNING_\\$k=NOT_SET; else echo RUNNING_\\$k=SET; fi; done\" 2>/dev/null'" >> "$GITHUB_OUTPUT" ;;
             # Writes: applies the KEY=VALUE lines held in the ENV_SET_BLOCK repo secret to
             # the live .env and recreates the services named in `services`.
             #
