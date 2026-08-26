@@ -104,8 +104,18 @@ ZENZIVA_USERKEY=selfcheck-not-a-real-userkey
 ZENZIVA_PASSKEY=selfcheck-not-a-real-passkey
 STORAGE_DRIVER=s3
 HR_STORAGE_S3_SECRET_ACCESS_KEY=selfcheck-not-a-real-secret
-WEB_DOMAIN=hydromart.id
 ENV
+
+# The host the APK claims, read out of the build instead of written here a second time.
+# 8635c7a1 — the commit titled "L2.6 host App Links yang benar" — corrected build.gradle to
+# hydromart-digital.com and left this fixture on the old hydromart.id. From then on the
+# "good" path was judged BLOCKED for a host mismatch, so the fetch below never ran: the one
+# half of L2.6 that can tell verified from unverified was dead, and the self-check had been
+# red ever since. A fixture that names the host twice drifts once.
+CLAIMED_HOST="$(sed -n "s/.*hydromartWebHost *= *project\.findProperty([^)]*) *?: *'\([^']*\)'.*/\1/p" \
+  mobile/android/app/build.gradle | head -1)"
+[ -n "$CLAIMED_HOST" ] || bad 'cannot read hydromartWebHost out of mobile/android/app/build.gradle'
+echo "WEB_DOMAIN=$CLAIMED_HOST" >> "$TMP/good.env"
 
 # ---------------------------------------------------------------- L2.1, OTP
 

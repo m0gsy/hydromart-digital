@@ -35,6 +35,18 @@ const SECTION_TITLE = 'Rotasi dan eskalasi';
 // missing any of them is not a rota, so a row cannot be deleted to make this check pass.
 const REQUIRED_ROLES = ['primer', 'sekunder', 'bisnis'];
 
+/**
+ * The one honest answer available to a rota with nobody to escalate TO.
+ *
+ * It is a written sentence rather than a blank, because a blank is indistinguishable from
+ * "nobody has filled this in yet" — which is the exact state this gate exists to refuse. A
+ * declaration can be read back, dated by git, and argued with; an empty cell cannot. It is
+ * accepted for `sekunder` ONLY, it is reported every run rather than passing quietly, and
+ * every placeholder this file already knew about stays refused.
+ */
+const NO_SECONDARY = 'tidakadarisikoditerima';
+const NOTICES = [];
+
 const PLACEHOLDER_WORDS = new Set([
   'isi',
   'isinama',
@@ -212,6 +224,7 @@ export function checkText(text) {
     return findings;
   }
 
+  NOTICES.length = 0;
   const byRole = new Map();
   for (const cells of rows) {
     const label = bare(cells[0]) || '(tanpa peran)';
@@ -222,6 +235,18 @@ export function checkText(text) {
       continue;
     }
     const [role, name, contact, hours, promise] = cells;
+    const key = REQUIRED_ROLES.find((r) => token(role).startsWith(r));
+
+    // Declared-absent secondary: skip the four cell checks, which would all fire on a
+    // sentence, and carry the row forward so the "peran hilang" check below stays satisfied.
+    if (key === 'sekunder' && token(name) === NO_SECONDARY) {
+      NOTICES.push(
+        'sekunder: TIDAK ADA, tertulis sebagai keputusan. Tidak ada eskalasi — kalau primer ' +
+          'tidak menjawab, tidak ada apa pun yang terjadi sampai ia membuka alertnya sendiri.',
+      );
+      byRole.set('sekunder', { label, name: '', minutes: null });
+      continue;
+    }
 
     const nm = nameProblem(name);
     if (nm) findings.push(`baris "${label}": kolom Nama ${nm}`);
@@ -235,7 +260,6 @@ export function checkText(text) {
       );
     }
 
-    const key = REQUIRED_ROLES.find((r) => token(role).startsWith(r));
     // `name` is carried forward only when it is a real name: with placeholders in every row
     // the same-person cross-check below would otherwise fire on ISI-NAMA == ISI-NAMA and add
     // a seventh finding that tells the reader nothing they were not already told.
@@ -281,6 +305,9 @@ function runFile(path, verbose = false) {
     return 1;
   }
   const findings = checkText(text);
+  // Printed before the verdict, and printed whether the verdict is green or red: an accepted
+  // gap that only shows up in a passing run nobody reads is a gap nobody accepted.
+  if (verbose) for (const n of NOTICES) console.error(`  ! ${n}`);
   if (findings.length === 0) {
     if (verbose) console.log(`check-oncall-rota: rota di ${path} berisi orang, bukan placeholder.`);
     return 0;
@@ -327,6 +354,26 @@ function selfTest() {
   let fails = 0;
   const cases = [
     ['rota terisi lolos', doc({ rows: FILLED }), null],
+    // A rota with nobody to escalate to is a real state, and the only thing worse than
+    // recording it is faking a second name so the gate goes quiet. Accepted for `sekunder`,
+    // and the run says so out loud rather than passing silently.
+    [
+      'sekunder yang dinyatakan TIDAK ADA diterima',
+      doc({
+        rows: [FILLED[0], '| Sekunder | TIDAK ADA — risiko diterima | — | — | — |', FILLED[2]],
+      }),
+      null,
+    ],
+    // ...and it is not a skeleton key. The primary is the person the alert reaches first;
+    // declaring THAT away would leave a rota with nobody in it at all, which is the state
+    // this gate exists to refuse.
+    [
+      'deklarasi itu tidak berlaku untuk primer',
+      doc({
+        rows: ['| Primer | TIDAK ADA — risiko diterima | — | — | — |', ...FILLED.slice(1)],
+      }),
+      'Primer',
+    ],
     [
       'placeholder ISI-NAMA ditolak',
       doc({ rows: ['| Primer | ISI-NAMA | ISI-KONTAK | 24/7 | 15 menit |', ...FILLED.slice(1)] }),

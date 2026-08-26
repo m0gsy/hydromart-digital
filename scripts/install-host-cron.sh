@@ -79,6 +79,14 @@ CRON_TZ=$CRON_TZ_VALUE
 # many deploys, because converge never touches a container whose definition is unchanged,
 # and the alerts it was missing were the two the on-call runbook calls customer-visible.
 0 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-config-drift.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
+# L1.7 — query plans, read on the data volume that actually exists. Scheduled rather than
+# left to whoever remembers, because its answer CHANGES on its own: on 2026-08-26 the
+# largest table held 136 rows and every plan was a sequential scan over almost nothing. The
+# script prints NOT A MEASUREMENT below EVIDENCE_FLOOR, so these weekly runs stay honestly
+# useless until real traffic arrives — and then start reporting the plans that matter,
+# without anybody having had to diarise it. Read-only: EXPLAIN, never EXPLAIN ANALYZE.
+15 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/explain-hot-queries.sh >> /var/log/hydromart-ops-checks.log 2>&1
 $END
 EOF
 }
