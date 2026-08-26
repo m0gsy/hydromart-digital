@@ -72,7 +72,7 @@ export default defineConfig({
        *
        * The same source, the same config, measured on both:
        *
-       *              laptop (Node 25)   CI (Node 20)
+       *              laptop (Node 25)   CI (Node 22)
        *   statements   74.9% of 9478     75.5% of 8453
        *   functions    56.2% of  801     51.3% of  850
        *

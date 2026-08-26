@@ -4,15 +4,9 @@
 # and an upgrade path, and it is deleted the moment upstream ships a fix. This list
 # is the triage record, not a mute button. Anything not listed here still fails CI.
 #
-# What this gate scans is `node:20-alpine` — an image we consume and do not build.
+# What this gate scans is `node:22-alpine` — an image we consume and do not build.
 # We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
 # the affected component. Both are noted per entry.
-
-# openssl heap use-after-free in PKCS7_verify(). Alpine has published 3.5.7-r0;
-# the node:20-alpine tag has not been rebuilt against it yet. Not reachable from
-# this codebase — no service calls PKCS7_verify, and TLS is terminated by Caddy in
-# its own image, not by these containers. Delete this line once the base tag moves.
-CVE-2026-45447
 
 # openssl DoS via unbounded memory growth. Alpine has published 3.5.8-r0; NO published
 # node base tag carries it yet — measured 2026-08-26 by reading the package out of each
@@ -22,13 +16,6 @@ CVE-2026-45447
 # TLS — Caddy does, in its own image. Delete this line once any base we can move to ships
 # 3.5.8-r0 or later.
 CVE-2026-14456
-
-# NOTE, from the same measurement: node:22-alpine and node:24-alpine already carry
-# 3.5.7-r0, which is the fix for CVE-2026-45447 above. That entry's stated delete condition
-# — "once the base tag moves" — has been met by a DIFFERENT tag, not by node:20-alpine
-# moving. Removing it is a Node major bump across 19 Dockerfiles, which is a decision and
-# not a CI repair, and it is overdue for a second reason: Node 20 left support in April
-# 2026. Written down here so the next person reads a stale reason as stale.
 
 # Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
 # in that class lives in npm's OWN bundle inside the base image

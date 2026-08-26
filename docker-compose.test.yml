@@ -174,7 +174,7 @@ services:
   # Payment-provider stub: makes online charges succeed so the signed-webhook
   # PAID path is reachable in the integration test (no build, mounts the script).
   gateway-stub:
-    image: node:20-alpine
+    image: node:22-alpine
     restart: "no"
     volumes:
       - ./test/integration/gateway-stub.mjs:/stub.mjs:ro

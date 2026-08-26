@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for the Hydromart recommendation-service (deploys to Cloud Run).
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -64,7 +64,7 @@ RUN npm prune --omit=dev \
   && rm -rf node_modules/prisma node_modules/.bin/prisma node_modules/@types node_modules/typescript \
   && mkdir -p /app/services/recommendation-service/node_modules
 
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app

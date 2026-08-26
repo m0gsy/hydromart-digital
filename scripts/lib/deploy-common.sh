@@ -40,9 +40,34 @@ registry_mode() { [ -n "${IMAGE_PREFIX:-}" ]; }
 # `up -d` would otherwise ask for `:local`, which does not exist in the registry, and a
 # recovery would fail exactly when it is needed. HEAD is the deployed commit (deploy.sh
 # resets the tree before it converges), so it is always the right answer here.
-if [ -n "${IMAGE_PREFIX:-}" ] && [ -z "${IMAGE_TAG:-}" ]; then
+if [ -n "${IMAGE_PREFIX:-}" ]; then
+  # Unconditionally, not `[ -z "$IMAGE_TAG" ]` as this once read. load-env.sh exports every
+  # key in .env, and persist_image_tag() below now writes IMAGE_TAG there — so the old guard
+  # would see it already set and defer to it forever. A .env that fell out of step (a deploy
+  # that died between the reset and the write, a hand edit) would then pin the whole stack to
+  # a commit nobody chose, silently, including the watchdog's recovery.
+  #
+  # HEAD is the tree the caller is standing on, so it is the honest default. Anything that
+  # legitimately needs a DIFFERENT tag — pull_images(), rollback.sh — exports it explicitly
+  # after this file is sourced, and a later export wins.
   export IMAGE_TAG="$(git rev-parse HEAD 2>/dev/null || echo local)"
 fi
+
+# Write the deployed tag into .env, the one place a bare `docker compose` looks.
+#
+# Without this, registry mode breaks every manual compose command in DEPLOY.md and in the
+# on-call runbook: `${IMAGE_TAG:-local}` resolves to `ghcr.io/...:local`, which does not
+# exist, so `up -d --force-recreate <svc>` — the documented fix for a container running a
+# stale config — fails at the moment somebody reaches for it. Found by turning registry mode
+# on and reading what compose actually resolved, not by reasoning about it.
+persist_image_tag() {
+  local tag="$1" env_file=".env"
+  [ -f "$env_file" ] || return 0
+  local tmp="${env_file}.tag.$$"
+  { grep -v '^IMAGE_TAG=' "$env_file"; echo "IMAGE_TAG=$tag"; } > "$tmp" || { rm -f "$tmp"; return 1; }
+  # Same inode, so the file keeps its permissions and any bind mount of it stays valid.
+  cat "$tmp" > "$env_file" && rm -f "$tmp"
+}
 
 # One writer at a time on this compose project.
 #
