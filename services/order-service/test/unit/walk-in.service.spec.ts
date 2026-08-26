@@ -359,6 +359,13 @@ describe('OrderService.walkInSale', () => {
           deliveryAddress: ADDRESS,
         }),
       ).rejects.toBeInstanceOf(CounterDeliveryUnavailableError);
+
+      // C11: and the QUOTE refuses identically. A cashier who can get a delivery quote but
+      // not a delivery sale has been told the depot offers something it does not — with a
+      // customer standing in front of them.
+      await expect(
+        svc.quoteCounterBasket(null, DEPOT, [{ productId: p.id, quantity: 1 }], null, '', true),
+      ).rejects.toBeInstanceOf(CounterDeliveryUnavailableError);
     });
 
     /**
@@ -425,6 +432,25 @@ describe('OrderService.walkInSale', () => {
 
   describe('C12 · counter quote', () => {
     const BUYER = '99999999-9999-4999-8999-999999999999';
+    // C11: `counterShippingFee` reads the depot's own fee, so this block needs the depot on
+    // the directory too — the delivery describe above seeds its own and scopes it there.
+    beforeEach(() => {
+      depots.depots = [
+        { id: DEPOT, lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      ];
+    });
+    // C11: its own copy — the delivery describe above scopes its ADDRESS to itself.
+    const DELIVER_TO = {
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Merdeka 10',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: null,
+    };
 
     it('quotes the same total the sale then charges', async () => {
       const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
@@ -436,6 +462,33 @@ describe('OrderService.walkInSale', () => {
       expect(quote.total).toBe(order.total);
       expect(quote.subtotal).toBe(order.subtotal);
       expect(quote.discount).toBe(order.discount);
+    });
+
+    it('quotes a DELIVERY at the same total the delivery sale then charges', async () => {
+      // C11, and the reason the quote route had to change at all: `priceCounterBasket`
+      // answered `subtotal - diskon` while the sale wrote `subtotal + ongkir - diskon`, so
+      // the two disagreed by exactly the ongkir the moment anything sent an address.
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 3 }];
+
+      const quote = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines,
+        deliveryAddress: DELIVER_TO,
+      });
+
+      expect(quote.shippingFee).toBeGreaterThan(0);
+      expect(quote.shippingFee).toBe(order.deliveryFee);
+      expect(quote.total).toBe(order.total);
+    });
+
+    it('quotes a pick-up with no ongkir when no address was given', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const quote = await service.quoteCounterBasket(
+        null, DEPOT, [{ productId: product.id, quantity: 2 }], null,
+      );
+      expect(quote.shippingFee).toBe(0);
     });
 
     it('sells nothing: no stock held, no order written', async () => {

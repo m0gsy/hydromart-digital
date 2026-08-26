@@ -67,4 +67,36 @@ describe('CartService', () => {
     await service.clear(customer);
     expect((await service.view(customer)).items).toHaveLength(0);
   });
+
+  // A5: the preview unwraps the lookup and throws the REASON away — there is no order yet to
+  // write a note on, so "not an agen" and "could not read" collapse back to the same
+  // no-agen-price the preview always had. Exercised with a token, because without one the
+  // service never calls the port at all.
+  it('prices a preview for a signed-in caller without caring why there is no agen price', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    await service.setItem(customer, p.id, 1, false);
+
+    const view = await service.view(customer, null, 'Bearer t');
+
+    expect(view.items).toHaveLength(1);
+    expect(view.reseller).toBeNull();
+  });
+
+  // A5, the other half: the preview must survive customer-service being down. It fails open
+  // to no agen price — there is no order yet to write a note on — and the basket still
+  // prices, because nobody should be stopped from seeing their cart by a pricing outage.
+  it('still shows the basket when the agen read throws', async () => {
+    const dead = {
+      get: () => Promise.reject(new Error('customer-service down')),
+      getFor: () => Promise.resolve(null),
+    };
+    const svc = buildCartService(cart, catalog, undefined, dead as never);
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    await svc.setItem(customer, p.id, 2, false);
+
+    const view = await svc.view(customer, null, 'Bearer t');
+
+    expect(view.items).toHaveLength(1);
+    expect(view.reseller).toBeNull();
+  });
 });
