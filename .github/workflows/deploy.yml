@@ -25,7 +25,7 @@ on:
         type: choice
         default: deploy
         options:
-          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy]
+          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy, install-cron, explain-queries]
       sha:
         description: "rollback target SHA (blank = previous good)"
         required: false
@@ -124,6 +124,22 @@ jobs:
             # BOX and nowhere else — so it is a button here rather than a chore someone
             # remembers. Runs per bucket, and FAILS if the bucket still lists afterwards.
             storage-policy) echo "run=bash scripts/storage-policy.sh" >> "$GITHUB_OUTPUT" ;;
+            # MEASURED 2026-08-25: the installer schedules SIX jobs and the box's crontab had
+            # THREE. check-tls-expiry.sh, check-log-retention.sh and rollback-drill.sh — all
+            # added in #323 — had never once run. The installer is idempotent and rewrites the
+            # whole hydromart block, so this is safe to press twice; what it is NOT is
+            # something anybody remembers to do after adding a cron job. Hence a button.
+            install-cron) echo "run=bash scripts/install-host-cron.sh" >> "$GITHUB_OUTPUT" ;;
+            # L1.7: query plans measured on PRODUCTION volume, not on an empty database — an
+            # earlier audit was fooled by exactly that. Read-only: EXPLAIN, no ANALYZE that
+            # writes, no schema touched.
+            explain-queries) echo "run=bash scripts/explain-hot-queries.sh" >> "$GITHUB_OUTPUT" ;;
+            # L2.1/E7 asked on the box instead of inferred from `.env.production.example`,
+            # which is a TEMPLATE — reading it as production is how this item was reported
+            # wrong. Read-only. The channel is an ordinary setting and is printed; the
+            # credentials are secrets, so only whether they are set and how long they are is
+            # printed, never their value. Also asks the RUNNING container, because a .env
+            # edited after the last `up -d` has not reached the process yet.
             # Writes: applies the KEY=VALUE lines held in the ENV_SET_BLOCK repo secret to
             # the live .env and recreates the services named in `services`.
             #

@@ -151,7 +151,6 @@ function CheckoutInner() {
   const { data: methodsAvailable } = useAsync<Record<string, boolean>>(() =>
     api.getCached(endpoints.payments.methods),
   );
-  const payMethods = offeredMethods(methodsAvailable ?? null);
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -266,6 +265,13 @@ function CheckoutInner() {
   // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
   // here rather than per line.
   const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
+
+  /*
+   * L2.3: the method list is the platform's answer narrowed by THIS depot's. Derived here
+   * rather than beside the fetch above because `depot` is only known at this point, and a
+   * transfer to a depot with no account is a button that can only end in an unpayable order.
+   */
+  const payMethods = offeredMethods(methodsAvailable ?? null, depot);
 
   /*
    * A3. This address has a map pin and no depot's radius covers it. The server will refuse
