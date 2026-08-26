@@ -6,6 +6,7 @@ import { LeaveBalance, LeaveRequest, LeaveStatus } from '../../../prisma/generat
 
 import {
   LeaveDecision,
+  LeaveListRow,
   LeaveListFilter,
   LeaveRepository,
   LeaveRequestWrite,
@@ -29,7 +30,7 @@ export class LeavePrismaRepository implements LeaveRepository {
     return this.prisma.leaveRequest.update({ where: { id }, data: decision });
   }
 
-  async list(filter: LeaveListFilter): Promise<{ rows: LeaveRequest[]; total: number }> {
+  async list(filter: LeaveListFilter): Promise<{ rows: LeaveListRow[]; total: number }> {
     const where = {
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
       ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
@@ -38,13 +39,21 @@ export class LeavePrismaRepository implements LeaveRepository {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.leaveRequest.findMany({
         where,
+        // PG-06: whose leave this is. One join on a relation this row already has.
+        include: { employee: { select: { fullName: true } } },
         orderBy: { createdAt: 'desc' },
         skip: filter.skip,
         take: filter.take,
       }),
       this.prisma.leaveRequest.count({ where }),
     ]);
-    return { rows, total };
+    return {
+      rows: rows.map(({ employee, ...leave }) => ({
+        ...leave,
+        employeeName: employee?.fullName ?? null,
+      })),
+      total,
+    };
   }
 
   listBlocking(employeeId: string, statuses: LeaveStatus[]): Promise<LeaveRequest[]> {

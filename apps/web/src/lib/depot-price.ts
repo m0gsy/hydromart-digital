@@ -56,12 +56,13 @@ export function useDepotPrices(productIds: string[]): DepotPrices {
     [depotId, key],
   );
 
-  // No answer at all is CATALOG too: the caller labels what it shows rather than passing a
-  // catalogue price off as the depot's.
-  if (!data) return { prices: new Map(), basis: 'CATALOG' };
+  // No answer, or an answer in a shape this does not recognise, is CATALOG: the caller
+  // labels what it shows rather than passing a catalogue price off as the depot's. Shape-
+  // checked rather than trusted because a price screen must not be a screen that can crash.
+  if (!data || !Array.isArray(data.prices)) return { prices: new Map(), basis: 'CATALOG' };
   return {
     prices: new Map(data.prices.map((row) => [row.productId, row.unitPrice])),
-    basis: data.basis,
+    basis: data.basis === 'DEPOT' ? 'DEPOT' : 'CATALOG',
   };
 }
 

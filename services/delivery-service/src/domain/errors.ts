@@ -226,3 +226,18 @@ export class DepotLookupError extends DomainError {
     super('Could not verify the depot location. Please try again.');
   }
 }
+
+/**
+ * DB-2 — a report window that holds more rows than a single request should carry.
+ *
+ * Answered instead of truncating: the team report used to take whatever 500 rows the
+ * middleware bound let through and publish them as a month's totals. "Narrow the range" is a
+ * worse answer for the reader and the only honest one.
+ */
+export class ReportRangeTooLargeError extends DomainError {
+  readonly code = 'DELIVERY_REPORT_RANGE_TOO_LARGE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(max: number) {
+    super(`Rentang laporan ini melebihi ${max} pengantaran. Persempit rentang tanggalnya.`);
+  }
+}

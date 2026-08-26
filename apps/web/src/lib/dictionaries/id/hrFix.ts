@@ -966,6 +966,8 @@ export const hrFix = {
     deductsQuota: " (potong kuota)",
   },
   payroll: {
+    // PG-01: karyawannya sudah dianonimkan retensi — namanya memang tidak ada lagi.
+    unnamedEmployee: 'Karyawan tanpa nama (data sudah dianonimkan)',
     title: "Payroll",
     period: "Periode",
     generate: "Generate",

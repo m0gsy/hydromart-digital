@@ -46,6 +46,7 @@ import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
   PayrollRepository,
+  PayrollWithEmployee,
   PayrollWithItems,
 } from '../ports/payroll.repository';
 import { EmployeeService } from './employee.service';
@@ -468,8 +469,12 @@ export class PayrollService {
     return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
   }
 
-  async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
-    return this.load(user, id);
+  async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithEmployee> {
+    const payroll = await this.load(user, id);
+    // PG-01: `load` already reads the owning employee for the depot check and used to throw
+    // the answer away, leaving a slip that named nobody.
+    const employee = await this.employees.getById(user, payroll.employeeId);
+    return { ...payroll, employeeName: employee.fullName ?? null };
   }
 
   /**

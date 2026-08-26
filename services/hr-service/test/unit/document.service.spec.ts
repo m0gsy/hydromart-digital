@@ -301,6 +301,32 @@ describe('DocumentService.download (SEC-01)', () => {
     await expect(svc.download(hr, 'doc-x')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  // The row's own mime type is what the upload SNIFFED from the bytes, so it wins over
+  // whatever the bucket was told at write time — and when neither exists the answer is the
+  // generic type, never a guess that would make a browser render somebody's KTP as HTML.
+  it('prefers the sniffed type, falls back to the bucket, then to octet-stream', async () => {
+    const { svc } = make({
+      storage: { getObject: async () => ({ body: PDF, contentType: 'text/html' }) },
+    });
+    const doc = await svc.upload(hr, INPUT, file({ buffer: PDF, mimetype: 'application/pdf' }));
+    await expect(svc.download(hr, doc.id)).resolves.toMatchObject({
+      contentType: 'application/pdf',
+    });
+
+    const row = (svc['repo'] as FakeRepo).rows[0] as { mimeType: string | null };
+    row.mimeType = null;
+    await expect(svc.download(hr, doc.id)).resolves.toMatchObject({ contentType: 'text/html' });
+
+    const { svc: bare } = make({
+      storage: { getObject: async () => ({ body: PDF, contentType: null }) },
+    });
+    const bareDoc = await bare.upload(hr, INPUT, file({ buffer: PDF, mimetype: 'application/pdf' }));
+    ((bare['repo'] as FakeRepo).rows[0] as { mimeType: string | null }).mimeType = null;
+    await expect(bare.download(hr, bareDoc.id)).resolves.toMatchObject({
+      contentType: 'application/octet-stream',
+    });
+  });
+
   it('never hands a storage URL to a caller', async () => {
     const { svc } = make();
     const doc = await svc.upload(hr, INPUT, file());

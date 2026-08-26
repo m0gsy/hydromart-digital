@@ -35,6 +35,9 @@ export default function HqCustomersPage() {
   const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
   const [grantBusy, setGrantBusy] = useState(false);
+  // DEFECT-01: "could not be read" is not "zero". Kept apart so the screen can say which.
+  const [summaryFailed, setSummaryFailed] = useState(false);
+  const [loyaltyFailed, setLoyaltyFailed] = useState(false);
 
   async function lookup() {
     if (!phone.trim()) return;
@@ -46,16 +49,29 @@ export default function HqCustomersPage() {
     try {
       const c = await api.get<Customer>(endpoints.auth.customerLookup(phone.trim()), true);
       setCustomer(c);
-      // Best-effort: a customer with no orders (or no loyalty account) still shows the profile.
+      /*
+       * DEFECT-01 — best-effort, but never silently.
+       *
+       * Both reads used to swallow their failure and leave `null`, which the screen rendered
+       * as "Rp 0 · 0 pesanan" and "belum ada akun loyalty". Order-service being slow (the
+       * 15-second client timeout) therefore looked exactly like a customer who had never
+       * ordered — in front of the HQ staffer deciding whether to compensate them.
+       *
+       * A failed read is now its own state, and the screen says so with a retry.
+       */
+      setSummaryFailed(false);
+      setLoyaltyFailed(false);
       try {
         setSummary(await api.get<CustomerSummary>(endpoints.reports.customer(c.id), true));
       } catch {
         setSummary(null);
+        setSummaryFailed(true);
       }
       try {
         setLoyalty(await api.get<LoyaltyAccount>(endpoints.loyalty.byCustomer(c.id), true));
       } catch {
         setLoyalty(null);
+        setLoyaltyFailed(true);
       }
     } catch (err) {
       setError(err instanceof ApiError && err.status === 404 ? t('hq.customers.notFound') : (err as ApiError).message);
@@ -141,14 +157,25 @@ export default function HqCustomersPage() {
               <div>
                 <dt className="text-xs text-muted">{t('hq.customers.ltv')}</dt>
                 <dd className="font-semibold">
-                  <Money amount={summary?.revenue ?? 0} />
+                  {summaryFailed ? '—' : <Money amount={summary?.revenue ?? 0} />}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">{t('hq.customers.orderCount')}</dt>
-                <dd className="font-semibold tabular-nums">{summary?.orderCount ?? 0}</dd>
+                <dd className="font-semibold tabular-nums">
+                  {summaryFailed ? '—' : (summary?.orderCount ?? 0)}
+                </dd>
               </div>
             </dl>
+            {/* DEFECT-01: an unreadable history reads as "no history" unless it says this. */}
+            {summaryFailed && (
+              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                {t('hqFix.customers.historyUnavailable')}{' '}
+                <button type="button" onClick={lookup} className="font-bold underline">
+                  {t('hqFix.customers.retry')}
+                </button>
+              </p>
+            )}
             <div className="flex flex-wrap gap-2 border-t border-app pt-3">
               <Button variant="secondary" onClick={() => setGranting(true)}>
                 {t('hq.customers.givePoints')}
@@ -185,7 +212,11 @@ export default function HqCustomersPage() {
                   </div>
                 </dl>
               ) : (
-                <p className="text-sm text-muted">{t('hq.customers.loyaltyNone')}</p>
+                <p className="text-sm text-muted">
+                  {loyaltyFailed
+                    ? t('hqFix.customers.loyaltyUnavailable')
+                    : t('hq.customers.loyaltyNone')}
+                </p>
               )}
             </Card>
             <Card className="flex flex-col gap-2 p-5">
@@ -203,7 +234,11 @@ export default function HqCustomersPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted">{t('hq.customers.noOrders')}</p>
+                <p className="text-sm text-muted">
+                  {summaryFailed
+                    ? t('hqFix.customers.historyUnavailable')
+                    : t('hq.customers.noOrders')}
+                </p>
               )}
             </Card>
           </div>

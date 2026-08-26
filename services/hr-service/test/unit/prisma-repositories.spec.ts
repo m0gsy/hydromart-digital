@@ -253,9 +253,11 @@ describe('LeavePrismaRepository', () => {
     const repo = new LeavePrismaRepository(asService(p));
     await expect(
       repo.list({ employeeId: 'e1', depotIds: ['d1'], status: 'PENDING_HR', skip: 0, take: 20 }),
-    ).resolves.toEqual({ rows, total: 1 });
+    ).resolves.toEqual({ rows: rows.map((r) => ({ ...r, employeeName: null })), total: 1 });
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', depotId: { in: ['d1'] }, status: 'PENDING_HR' },
+      // PG-06: whose leave each row is.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 20,
@@ -270,6 +272,7 @@ describe('LeavePrismaRepository', () => {
     await new LeavePrismaRepository(asService(p)).list({ skip: 0, take: 20 });
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
       where: {},
+      include: { employee: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 20,
@@ -2182,6 +2185,53 @@ describe('PayrollPrismaRepository', () => {
     });
   });
 
+  /*
+   * PG-01 — the approval queue with nobody's name on it.
+   *
+   * A payroll row carries `employeeId` and nothing a human reads, so forty draft payslips
+   * for one month were forty identical-looking rows, and HR approved and marked them paid
+   * without ever seeing whose wage each was. The name comes from the employee relation the
+   * DEPOT FILTER on this same query already joins on — so the queue costs what it always
+   * did and the rows stop being indistinguishable.
+   */
+  it('leave list joins the employee name too (PG-06)', async () => {
+    const p = makePrisma();
+    m(p, 'leaveRequest').findMany.mockResolvedValue([
+      { id: 'lv1', employeeId: 'e1', employee: { fullName: 'Budi Santoso' } },
+    ]);
+    m(p, 'leaveRequest').count.mockResolvedValue(1);
+    const repo = new LeavePrismaRepository(asService(p));
+
+    const out = await repo.list({ skip: 0, take: 20 });
+
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ include: { employee: { select: { fullName: true } } } }),
+    );
+    expect(out.rows).toEqual([{ id: 'lv1', employeeId: 'e1', employeeName: 'Budi Santoso' }]);
+  });
+
+  it('list joins the employee name onto every row', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').findMany.mockResolvedValue([
+      { id: 'pr1', employeeId: 'e1', employee: { fullName: 'Sari Wulandari' } },
+      { id: 'pr2', employeeId: 'e2', employee: null },
+    ]);
+    m(p, 'payroll').count.mockResolvedValue(2);
+    const repo = new PayrollPrismaRepository(asService(p));
+
+    const out = await repo.list({ skip: 0, take: 30 });
+
+    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ include: { employee: { select: { fullName: true } } } }),
+    );
+    expect(out.rows).toEqual([
+      { id: 'pr1', employeeId: 'e1', employeeName: 'Sari Wulandari' },
+      // An anonymised employee (retention) has no name left — null, never a blank row that
+      // reads as somebody.
+      { id: 'pr2', employeeId: 'e2', employeeName: null },
+    ]);
+  });
+
   it('create splits items into nested create', async () => {
     const p = makePrisma();
     const out = sentinel();
@@ -2369,7 +2419,7 @@ describe('PayrollPrismaRepository', () => {
         skip: 0,
         take: 10,
       }),
-    ).resolves.toEqual({ rows, total: 1 });
+    ).resolves.toEqual({ rows: rows.map((r) => ({ ...r, employeeName: null })), total: 1 });
     // D1: the depot lives on the owning employee, so the scope is a relation filter.
     const where = {
       periodMonth: '2026-07',
@@ -2379,6 +2429,8 @@ describe('PayrollPrismaRepository', () => {
     };
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where,
+      // PG-01: whose wage each row is, off the relation the depot filter already joins.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 10,
@@ -2394,6 +2446,7 @@ describe('PayrollPrismaRepository', () => {
     await repo.list({ skip: 0, take: 10 });
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: {},
+      include: { employee: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 10,

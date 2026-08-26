@@ -952,6 +952,8 @@ export const hrFix = {
     deductsQuota: " (uses quota)",
   },
   payroll: {
+    // PG-01 — the employee record was anonymised by retention; there is no name left.
+    unnamedEmployee: 'Unnamed employee (record anonymised)',
     title: "Payroll",
     period: "Period",
     generate: "Generate",

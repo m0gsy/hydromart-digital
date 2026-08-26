@@ -73,8 +73,14 @@ function PayrollInner() {
           {data.rows.map((p) => (
             <Link key={p.id} href={`/hr/payroll/detail?id=${p.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
               <div>
-                <p className="font-semibold tabular-nums">{p.periodMonth}</p>
-                <p className="text-xs text-muted">{p.presentDays} hari hadir · dibuat {fmtDate(p.createdAt)}</p>
+                {/* PG-01: whose wage this is, first — the row above it said only the period
+                    and the status, so a month of drafts was a wall of identical rows. */}
+                <p className="font-semibold">
+                  {p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                </p>
+                <p className="text-xs text-muted">
+                  {p.periodMonth} · {p.presentDays} hari hadir · dibuat {fmtDate(p.createdAt)}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <Money amount={Number(p.net)} className="font-bold" />

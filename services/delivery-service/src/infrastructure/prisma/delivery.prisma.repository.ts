@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere, nextCursor, pageArgs } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -22,7 +22,15 @@ import {
   SlaCandidate,
   SlaStats,
 } from '../../application/ports/delivery.repository';
-import { StaleDeliveryStatusError } from '../../domain/errors';
+import { ReportRangeTooLargeError, StaleDeliveryStatusError } from '../../domain/errors';
+
+/**
+ * DB-2 bounds for the depot team report. The page is the middleware's own cap, so a normal
+ * month is one query; the ceiling is a year of a busy depot, past which the report refuses
+ * rather than answering with a slice of itself.
+ */
+const COURIER_ACTIVITY_PAGE = 500;
+const MAX_COURIER_ACTIVITY_ROWS = 20_000;
 import { PrismaService } from './prisma.service';
 
 /**
@@ -290,19 +298,49 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     from: Date,
     to: Date,
   ): Promise<DepotCourierActivity[]> {
-    const rows = await this.prisma.delivery.findMany({
-      where: {
-        depotId,
-        OR: [{ deliveredAt: { gte: from, lt: to } }, { failedAt: { gte: from, lt: to } }],
+    /*
+     * DB-2 — this query had no `take` and no `orderBy`.
+     *
+     * Every PrismaService installs a middleware that caps a bound-less `findMany` at 500
+     * rows (platform/query-bounds.ts). A depot doing 25 deliveries a day passes that on day
+     * 20, so from then on the monthly team report was built from an ARBITRARY 500 of the
+     * month's deliveries — arbitrary because nothing ordered them — and published the
+     * courier ranking and SLA percentages computed off that slice as the month's figures.
+     * The only trace was one warning line in a container log.
+     *
+     * Reports own their bound (that is what the middleware's own comment says), so this
+     * pages by keyset until the window is exhausted and REFUSES a window too large to hold
+     * rather than answering with part of it — the same rule the depot operational report
+     * already follows.
+     */
+    const rows = await readAllPages(
+      ({ take, cursor }) =>
+        this.prisma.delivery.findMany({
+          where: {
+            depotId,
+            OR: [{ deliveredAt: { gte: from, lt: to } }, { failedAt: { gte: from, lt: to } }],
+          },
+          select: {
+            id: true,
+            driverId: true,
+            orderId: true,
+            assignedAt: true,
+            deliveredAt: true,
+            failedAt: true,
+          },
+          orderBy: [{ id: 'asc' }],
+          take,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      {
+        pageSize: COURIER_ACTIVITY_PAGE,
+        max: MAX_COURIER_ACTIVITY_ROWS,
+        onOverflow: (): never => {
+          throw new ReportRangeTooLargeError(MAX_COURIER_ACTIVITY_ROWS);
+        },
       },
-      select: {
-        driverId: true,
-        orderId: true,
-        assignedAt: true,
-        deliveredAt: true,
-        failedAt: true,
-      },
-    });
+    );
+
     const grouped = new Map<string, DepotCourierActivity>();
     for (const row of rows) {
       const activity = grouped.get(row.driverId) ?? {

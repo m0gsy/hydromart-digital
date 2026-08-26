@@ -53,9 +53,11 @@ export default function PayrollDetailPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
+      {/* PG-01: the slip named nobody, and the Approve / Mark paid buttons below act on
+          real money. The name is the title now; the period is the subtitle it always was. */}
       <SectionHeader
-        title={t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })}
-        subtitle={t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}
+        title={p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+        subtitle={`${t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })} · ${t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}`}
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={downloadSlip}>{t('hrFix.payrollDetail.downloadPdf')}</Button>

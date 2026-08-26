@@ -67,9 +67,10 @@ class FakePayrollRepo implements PayrollRepository {
     return this.repaid;
   }
   lastListFilter?: Parameters<PayrollRepository['list']>[0];
+  rows: Payroll[] = [];
   async list(filter: Parameters<PayrollRepository['list']>[0]) {
     this.lastListFilter = filter;
-    return { rows: [] as Payroll[], total: 0 };
+    return { rows: this.rows as (Payroll & { employeeName: string | null })[], total: this.rows.length };
   }
 }
 
@@ -679,6 +680,38 @@ describe('PayrollService.list depot scoping (D1)', () => {
     await expect(svc.list(manager(['dA']), { ...page, depotId: 'dB' })).rejects.toThrow(
       ForbiddenException,
     );
+  });
+
+  /*
+   * PG-01 — forty draft payslips with nobody's name on them.
+   *
+   * A payroll row carries `employeeId` and nothing else a person can read, so the queue was
+   * forty rows of the same period and the same status, and the DETAIL screen behind each one
+   * said "Slip Gaji 2026-08 · 22 hari hadir · Rp 4.150.000" with no name either. HR approved
+   * and marked paid without ever seeing whose wage it was, and could not check afterwards.
+   *
+   * The depot check on the detail already LOADS the owning employee and threw the answer
+   * away; the list gets the same answer in one batch read.
+   */
+  // The list half of PG-01 is a JOIN, so it is proved where the join is written:
+  // test/unit/prisma-repositories.spec.ts. This is the detail half.
+  // An employee anonymised by retention has no name left. Null, never a blank that reads
+  // as somebody — the money rows survive the scrub on purpose (they are audit evidence).
+  it('says the name is gone rather than printing an empty one', async () => {
+    const { repo, svc } = build({ employee: { id: 'e1', fullName: null as never } });
+    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+    await expect(svc.getById(manager(['dA']), 'p1')).resolves.toMatchObject({
+      employeeName: null,
+    });
+  });
+
+  it('names the person on the payslip itself', async () => {
+    const { repo, svc } = build({ employee: { id: 'e1', fullName: 'Sari Wulandari' } });
+    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+
+    const slip = await svc.getById(manager(['dA']), 'p1');
+
+    expect(slip.employeeName).toBe('Sari Wulandari');
   });
 
   it('leaves an HQ caller unscoped', async () => {
