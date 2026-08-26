@@ -226,6 +226,13 @@ hr: {
   employeeDocuments: (employeeId: string) =>
     `/employee-documents/api/v1/employee-documents?employeeId=${encodeURIComponent(employeeId)}`,
   uploadEmployeeDocument: '/employee-documents/api/v1/employee-documents',
+  /**
+   * SEC-01: the document's bytes, behind the session. The list used to carry a permanent
+   * unsigned storage URL and the screen linked straight to it — a KTP scan anybody who
+   * had ever seen the link could open forever, signed out.
+   */
+  employeeDocumentFile: (id: string) =>
+    `/employee-documents/api/v1/employee-documents/${encodeURIComponent(id)}/file`,
   assets: (
     q: {
       depotId?: string;

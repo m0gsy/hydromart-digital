@@ -14,27 +14,30 @@ describe('ExpenseApprovalController', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('list maps provided depot + status filters', async () => {
-    await controller.list({
-      depotId: 'd1',
-      status: 'PENDING',
-      page: 2,
-      limit: 30,
-    } as ExpenseQueryDto);
-    expect(expenses.searchForDepot).toHaveBeenCalledWith('d1', 'PENDING', 2, 30);
+    await controller.list(
+      {
+        depotId: 'd1',
+        status: 'PENDING',
+        page: 2,
+        limit: 30,
+      } as ExpenseQueryDto,
+      user,
+    );
+    expect(expenses.searchForDepot).toHaveBeenCalledWith('d1', 'PENDING', 2, 30, user);
   });
 
   it('list falls back to null for omitted depot + status', async () => {
-    await controller.list({ page: 1, limit: 20 } as ExpenseQueryDto);
-    expect(expenses.searchForDepot).toHaveBeenCalledWith(null, null, 1, 20);
+    await controller.list({ page: 1, limit: 20 } as ExpenseQueryDto, user);
+    expect(expenses.searchForDepot).toHaveBeenCalledWith(null, null, 1, 20, user);
   });
 
   it('approve delegates id + reviewer sub + note', async () => {
     await controller.approve('claim-1', user, { note: 'ok' } as ReviewExpenseDto);
-    expect(expenses.approve).toHaveBeenCalledWith('claim-1', 'reviewer-1', 'ok');
+    expect(expenses.approve).toHaveBeenCalledWith('claim-1', 'reviewer-1', 'ok', user);
   });
 
   it('reject delegates id + reviewer sub + note', async () => {
     await controller.reject('claim-1', user, { note: 'no' } as ReviewExpenseDto);
-    expect(expenses.reject).toHaveBeenCalledWith('claim-1', 'reviewer-1', 'no');
+    expect(expenses.reject).toHaveBeenCalledWith('claim-1', 'reviewer-1', 'no', user);
   });
 });

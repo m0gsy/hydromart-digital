@@ -235,7 +235,8 @@ export interface EmployeeDocument {
   id: string;
   employeeId: string;
   type: EmployeeDocumentType;
-  fileUrl: string;
+  // SEC-01: no `fileUrl`. The server no longer hands out the storage address; the bytes
+  // come from `endpoints.hr.employeeDocumentFile(id)` with the session attached.
   mimeType: string;
   sizeBytes: number;
   version: number;

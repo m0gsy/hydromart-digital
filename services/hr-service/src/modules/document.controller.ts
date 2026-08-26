@@ -2,13 +2,17 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
@@ -17,12 +21,12 @@ import { UseGuards } from '@nestjs/common';
 
 import {
   DocumentService,
+  DocumentView,
   MAX_DOCUMENT_BYTES,
   UploadedDocumentFile,
 } from '../application/services/document.service';
 import { RetentionReportDto } from './dto/employee.dto';
 import { ListDocumentDto, UploadDocumentDto } from './dto/document.dto';
-import { EmployeeDocument } from '../../prisma/generated/client';
 import { EmployeeDocumentResponseDto, Purge2ResponseDto } from './dto/responses.generated.dto';
 
 /**
@@ -39,7 +43,7 @@ export class DocumentController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s documents (newest version of each type first)' })
-  list(@Query() q: ListDocumentDto, @CurrentUser() user: AuthenticatedUser): Promise<EmployeeDocument[]> {
+  list(@Query() q: ListDocumentDto, @CurrentUser() user: AuthenticatedUser): Promise<DocumentView[]> {
     return this.documents.list(user, q.employeeId);
   }
 
@@ -47,8 +51,34 @@ export class DocumentController {
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'One document, including a superseded version' })
-  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<EmployeeDocument> {
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<DocumentView> {
     return this.documents.get(user, id);
+  }
+
+  /**
+   * The file itself (SEC-01).
+   *
+   * It used to be an unsigned, permanent object-storage URL handed to the browser in
+   * `fileUrl`: a KTP scan or a payslip that anybody who had ever seen the link could open
+   * forever, signed out, from anywhere. The bytes come through here now, behind `hrView`
+   * and the owning employee's depot check, and are told not to be cached anywhere.
+   */
+  @Get(':id/file')
+  @Can('hrView')
+  @Header('Cache-Control', 'no-store, private')
+  @ApiOperation({ summary: 'Download the document file (authenticated; never cached)' })
+  async file(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { document, body, contentType } = await this.documents.download(user, id);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${document.type}-v${document.version}"`,
+    );
+    return new StreamableFile(body);
   }
 
   @ApiOkResponse({ type: EmployeeDocumentResponseDto })
@@ -63,7 +93,7 @@ export class DocumentController {
     // Typed locally rather than via Express.Multer.File: this is the whole surface the
     // service uses, and it keeps @types/multer out of the dependency list.
     @UploadedFile() file?: UploadedDocumentFile,
-  ): Promise<EmployeeDocument> {
+  ): Promise<DocumentView> {
     return this.documents.upload(user, dto, file);
   }
 

@@ -1,3 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
+
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import {
   InsufficientPointsError,
   RewardAlreadyCancelledError,
@@ -315,6 +319,53 @@ describe('RewardService', () => {
 
     it('reports an unknown redemption as missing', async () => {
       await expect(service.markUsed('nope')).rejects.toBeInstanceOf(RewardRedemptionNotFoundError);
+    });
+
+    /*
+     * AUTHZ-A6. Handing a reward over burns the customer's points and shuts the cancel
+     * window for good. It took an id and nothing else, so a depot head could burn a
+     * redemption a customer had left for collection at a DIFFERENT depot: the points are
+     * gone, the customer can no longer cancel, and the reward is still on the other depot's
+     * shelf.
+     */
+    it('refuses a redemption left for collection at another depot', async () => {
+      const { redemption } = await redeemOne();
+      const outsider = {
+        sub: 'kepala-lain',
+        role: Role.KEPALA_DEPOT,
+        depotId: OTHER_DEPOT,
+        depotIds: [OTHER_DEPOT],
+      } as unknown as AuthenticatedUser;
+
+      await expect(service.markUsed(redemption.id, outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      const insider = {
+        sub: 'kepala',
+        role: Role.KEPALA_DEPOT,
+        depotId: DEPOT,
+        depotIds: [DEPOT],
+      } as unknown as AuthenticatedUser;
+      await expect(service.markUsed(redemption.id, insider)).resolves.toMatchObject({
+        status: 'USED',
+      });
+    });
+
+    // A row from before collection depots were recorded shows in EVERY depot's queue on
+    // purpose (otherwise nobody could hand it over). That stays true.
+    it('still lets any depot hand over a legacy redemption with no depot', async () => {
+      const { redemption } = await redeemOne();
+      rewardRepo.redemptions.find((r) => r.id === redemption.id)!.depotId = null;
+      const anyDepot = {
+        sub: 'kepala-lain',
+        role: Role.KEPALA_DEPOT,
+        depotId: OTHER_DEPOT,
+        depotIds: [OTHER_DEPOT],
+      } as unknown as AuthenticatedUser;
+
+      await expect(service.markUsed(redemption.id, anyDepot)).resolves.toMatchObject({
+        status: 'USED',
+      });
     });
   });
 });

@@ -21,12 +21,17 @@ export class ExpenseApprovalController {
   @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
   @Get()
   @ApiOperation({ summary: 'Search courier expense claims by depot + status' })
-  list(@Query() query: ExpenseQueryDto): Promise<Page<ExpenseClaimRecord>> {
+  list(
+    @Query() query: ExpenseQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Page<ExpenseClaimRecord>> {
     return this.expenses.searchForDepot(
       query.depotId ?? null,
       query.status ?? null,
       query.page,
       query.limit,
+      // AUTHZ-A5: "all depots" means the reviewer's own depots when they have any.
+      user,
     );
   }
 
@@ -38,7 +43,7 @@ export class ExpenseApprovalController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ReviewExpenseDto,
   ): Promise<ExpenseClaimRecord> {
-    return this.expenses.approve(id, user.sub, dto.note);
+    return this.expenses.approve(id, user.sub, dto.note, user);
   }
 
   @ApiOkResponse({ type: ExpenseClaimResponseDto })
@@ -49,6 +54,6 @@ export class ExpenseApprovalController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ReviewExpenseDto,
   ): Promise<ExpenseClaimRecord> {
-    return this.expenses.reject(id, user.sub, dto.note);
+    return this.expenses.reject(id, user.sub, dto.note, user);
   }
 }

@@ -1,3 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
+
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import {
   ExpenseClaimNotFoundError,
   ExpenseClaimNotPendingError,
@@ -104,9 +108,11 @@ class FakeClaims implements ExpenseClaimRepository {
     const items = this.rows.filter((r) => r.courierId === courierId);
     return { items, total: items.length };
   }
-  async searchForDepot(depotId: string | null, status: string | null) {
+  async searchForDepot(depotIds: readonly string[] | null, status: string | null) {
     const items = this.rows.filter(
-      (r) => (!depotId || r.depotId === depotId) && (!status || r.status === status),
+      (r) =>
+        (!depotIds || (r.depotId !== null && depotIds.includes(r.depotId))) &&
+        (!status || r.status === status),
     );
     return { items, total: items.length };
   }
@@ -236,5 +242,69 @@ describe('ExpenseClaimService', () => {
     // Null filters return everything for the depot.
     const all = await service.searchForDepot(null, null, 1, 10);
     expect(all.total).toBe(2);
+  });
+
+  /*
+   * AUTHZ-A5. Approving a claim credits a courier's ledger — real money — and neither
+   * approve nor reject ever looked at which depot the claim came from. `expenseApprove` is
+   * held by depot leadership, so any of them could approve any depot's claims. The queue
+   * they read is the other half: with no `depotId` filter it answered with every depot's
+   * claims, which is where the ids come from.
+   */
+  describe('reviewing another depot claim', () => {
+    const outsider = {
+      sub: REVIEWER,
+      role: Role.KEPALA_DEPOT,
+      depotId: 'depot-lain',
+      depotIds: ['depot-lain'],
+    } as unknown as AuthenticatedUser;
+    const insider = {
+      sub: REVIEWER,
+      role: Role.KEPALA_DEPOT,
+      depotId: 'depot-1',
+      depotIds: ['depot-1'],
+    } as unknown as AuthenticatedUser;
+
+    const pendingClaim = async () => service.submit(COURIER, input(200_000));
+
+    it('refuses approve and reject, and moves no money', async () => {
+      const claim = await pendingClaim();
+      await expect(service.approve(claim.id, REVIEWER, 'ok', outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(service.reject(claim.id, REVIEWER, 'no', outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(ledger.entries).toHaveLength(0);
+      expect(claims.rows[0].status).toBe('PENDING');
+    });
+
+    it('still lets the claim own depot approve it', async () => {
+      const claim = await pendingClaim();
+      await expect(service.approve(claim.id, REVIEWER, 'ok', insider)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+      expect(ledger.entries).toHaveLength(1);
+    });
+
+    // An unfiltered queue is how a reviewer learns another depot's claim ids in the first
+    // place. Asked for "all depots", a depot-scoped reviewer gets their own.
+    it('narrows an unfiltered queue to the reviewer own depots', async () => {
+      await service.submit(COURIER, input(200_000));
+      await service.submit(COURIER, { ...input(200_000), depotId: 'depot-lain' });
+
+      const mine = await service.searchForDepot(null, null, 1, 20, insider);
+      expect(mine.items.map((c) => c.depotId)).toEqual(['depot-1']);
+
+      // ...and an unscoped reviewer (finance/HQ) still sees the network.
+      const all = await service.searchForDepot(null, null, 1, 20);
+      expect(all.items).toHaveLength(2);
+    });
+
+    it('refuses a depot filter that is not the reviewer own', async () => {
+      await expect(
+        service.searchForDepot('depot-lain', null, 1, 20, insider),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 });

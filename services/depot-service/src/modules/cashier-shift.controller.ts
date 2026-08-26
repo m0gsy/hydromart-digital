@@ -54,11 +54,17 @@ export class CashierShiftController {
     @Body() dto: CloseShiftDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CashierShift> {
-    return this.shifts.close(id, dto, {
-      id: user.sub,
-      // A cashier who walked out without closing still leaves a drawer to reconcile, so
-      // whoever runs the depot may close it for them. Nobody else may.
-      canCloseAnyShift: can('depotFinance', user.role),
-    });
+    return this.shifts.close(
+      id,
+      dto,
+      {
+        id: user.sub,
+        // A cashier who walked out without closing still leaves a drawer to reconcile, so
+        // whoever runs the depot may close it for them. Nobody else may.
+        canCloseAnyShift: can('depotFinance', user.role),
+      },
+      // ...and only at a depot that is theirs (AUTHZ-A4).
+      user,
+    );
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
@@ -40,6 +40,20 @@ export class S3StorageAdapter implements StoragePort {
       }),
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
+  }
+
+  /**
+   * SEC-01: the bytes come back through the service, which is what lets the caller be
+   * checked at all. Documents are capped at 5MB on upload, so buffering one is bounded —
+   * a streaming variant is the upgrade if anything bigger is ever stored here.
+   */
+  async getObject(key: string): Promise<{ body: Buffer; contentType: string | null }> {
+    const out = await this.client.send(
+      new GetObjectCommand({ Bucket: this.config.s3.bucket, Key: key }),
+    );
+    if (!out.Body) throw new Error(`Object ${key} has no body`);
+    const bytes = await out.Body.transformToByteArray();
+    return { body: Buffer.from(bytes), contentType: out.ContentType ?? null };
   }
 
   /** S3 DELETE is already idempotent — deleting a missing key returns 204. */

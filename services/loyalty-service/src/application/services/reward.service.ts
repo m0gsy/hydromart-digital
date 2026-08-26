@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
   InsufficientPointsError,
@@ -145,10 +146,26 @@ export class RewardService {
     };
   }
 
-  /** Staff confirms the reward was handed over. Closes the cancellation window. */
-  async markUsed(redemptionId: string): Promise<RewardRedemptionRecord> {
+  /**
+   * Staff confirms the reward was handed over. Closes the cancellation window.
+   *
+   * AUTHZ-A6: burning the points and shutting the cancel window took an id and nothing
+   * else, so a depot head could close out a reward a customer had left for collection
+   * somewhere else — points gone, cancel refused, reward still on the other shelf.
+   *
+   * A redemption with NO depot is exempt on purpose: those predate the collection-depot
+   * question and appear in every depot's queue precisely so somebody can hand them over.
+   * Denying them here would strand the customer instead of protecting them.
+   */
+  async markUsed(
+    redemptionId: string,
+    user?: AuthenticatedUser,
+  ): Promise<RewardRedemptionRecord> {
     const redemption = await this.rewards.findRedemption(redemptionId);
     if (!redemption) throw new RewardRedemptionNotFoundError();
+    if (redemption.depotId) {
+      assertDepotAccess(user, redemption.depotId);
+    }
     if (redemption.status === 'CANCELLED') throw new RewardAlreadyCancelledError();
     if (redemption.status === 'USED') return redemption; // idempotent
     return this.rewards.markUsed(redemption.id);

@@ -71,6 +71,7 @@ function fakeStorage(over: Partial<StoragePort> = {}) {
   const puts: StoragePutInput[] = [];
   const removed: string[] = [];
   const storage: StoragePort = {
+    getObject: async () => ({ body: PDF, contentType: 'application/pdf' }),
     put: async (input) => {
       puts.push(input);
       return {
@@ -257,3 +258,57 @@ describe('DocumentService.purgeRetentionEligible', () => {
     expect(removed).toEqual([]);
   });
 });
+
+/*
+ * SEC-01. A KTP scan, an employment contract and a payslip were handed to the client as
+ * `fileUrl` — a permanent, unsigned object-storage URL. Anyone who ever saw one keeps it
+ * forever, and no login is involved in opening it. The bytes now leave through hr-service,
+ * behind the same capability and the same depot check as the row itself, and the storage
+ * URL never reaches a client at all.
+ */
+describe('DocumentService.download (SEC-01)', () => {
+  it('serves the bytes through the same employee/depot check as the row', async () => {
+    const fetched: string[] = [];
+    const { svc, employees } = make({
+      storage: {
+        getObject: async (key: string) => {
+          fetched.push(key);
+          return { body: PDF, contentType: 'application/pdf' };
+        },
+      },
+    });
+    const doc = await svc.upload(hr, INPUT, file({ buffer: PDF, mimetype: 'application/pdf' }));
+
+    const out = await svc.download(hr, doc.id);
+    expect(out.body).toEqual(PDF);
+    expect(out.document.id).toBe(doc.id);
+    // The key never left the server — the row in the repo is where it still lives.
+    expect(fetched).toEqual([(svc['repo'] as FakeRepo).rows[0].fileKey]);
+    // The depot check is the employee lookup — same one `get` runs.
+    expect(employees.getById).toHaveBeenCalled();
+  });
+
+  it('refuses a caller the employee lookup refuses', async () => {
+    const { svc } = make({
+      employeeFound: false,
+      storage: { getObject: async () => ({ body: PDF, contentType: 'application/pdf' }) },
+    });
+    (svc['repo'] as FakeRepo).rows.push({
+      id: 'doc-x',
+      employeeId: 'emp-other',
+      fileKey: 'hr/documents/x.pdf',
+    } as never);
+    await expect(svc.download(hr, 'doc-x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('never hands a storage URL to a caller', async () => {
+    const { svc } = make();
+    const doc = await svc.upload(hr, INPUT, file());
+    const [listed] = await svc.list(hr, 'emp-1');
+
+    expect(await svc.get(hr, doc.id)).not.toHaveProperty('fileUrl');
+    expect(listed).not.toHaveProperty('fileUrl');
+    expect(JSON.stringify(listed)).not.toContain('https://cdn/');
+  });
+});
+

@@ -16,6 +16,9 @@ import { EmployeeService } from './employee.service';
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
+/** A document row minus the two fields that locate the file itself (SEC-01). */
+export type DocumentView = Omit<EmployeeDocument, 'fileUrl' | 'fileKey'>;
+
 export interface UploadedDocumentFile {
   buffer: Buffer;
   mimetype: string;
@@ -48,7 +51,7 @@ export class DocumentService {
     user: AuthenticatedUser,
     input: UploadDocumentInput,
     file: UploadedDocumentFile | undefined,
-  ): Promise<EmployeeDocument> {
+  ): Promise<DocumentView> {
     await this.employees.getById(user, input.employeeId); // 404 + depot check
     if (!file) throw new BadRequestException('File dokumen wajib diunggah');
 
@@ -99,19 +102,57 @@ export class DocumentService {
       expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
     });
     if (previous) await this.repo.markSuperseded(previous.id, created.id);
-    return created;
+    return DocumentService.toView(created);
   }
 
-  async list(user: AuthenticatedUser, employeeId: string): Promise<EmployeeDocument[]> {
+  async list(user: AuthenticatedUser, employeeId: string): Promise<DocumentView[]> {
     await this.employees.getById(user, employeeId);
-    return this.repo.listByEmployee(employeeId);
+    return (await this.repo.listByEmployee(employeeId)).map(DocumentService.toView);
   }
 
-  async get(user: AuthenticatedUser, id: string): Promise<EmployeeDocument> {
+  async get(user: AuthenticatedUser, id: string): Promise<DocumentView> {
+    return DocumentService.toView(await this.load(user, id));
+  }
+
+  /**
+   * The document's BYTES, for the authenticated file route (SEC-01).
+   *
+   * The row it belongs to decides who may read it — the same employee lookup, and so the
+   * same depot check, as `get`. Before this the file itself was reachable by URL alone: a
+   * KTP scan, a contract or a payslip sat at a permanent unsigned object-storage address
+   * that anybody who had ever seen it could open forever, from anywhere, signed out.
+   */
+  async download(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<{ document: EmployeeDocument; body: Buffer; contentType: string }> {
+    const document = await this.load(user, id);
+    const object = await this.storage.getObject(document.fileKey);
+    return {
+      document,
+      body: object.body,
+      // The stored row's mime type wins: it is what the upload SNIFFED from the bytes,
+      // rather than what the bucket was told at write time.
+      contentType: document.mimeType ?? object.contentType ?? 'application/octet-stream',
+    };
+  }
+
+  private async load(user: AuthenticatedUser, id: string): Promise<EmployeeDocument> {
     const document = await this.repo.findById(id);
     if (!document) throw new NotFoundException('Dokumen tidak ditemukan');
     await this.employees.getById(user, document.employeeId); // depot check
     return document;
+  }
+
+  /**
+   * What a client is allowed to know about a document. `fileUrl` and `fileKey` stay on the
+   * server: the first WAS the vulnerability (SEC-01), the second is how it is fetched.
+   */
+  private static toView(document: EmployeeDocument): DocumentView {
+    const view = { ...document } as Partial<EmployeeDocument>;
+    delete view.fileUrl;
+    delete view.fileKey;
+    return view as DocumentView;
   }
 
   /**

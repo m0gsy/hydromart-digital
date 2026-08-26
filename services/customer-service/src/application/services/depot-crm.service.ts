@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { haversineKm } from '@hydromart/platform';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
@@ -329,6 +329,20 @@ export class DepotCrmService {
     const primary = addressRecords.find((a) => a.isPrimary) ?? addressRecords[0] ?? null;
     const account = identities.get(customerId);
     const stat = stats.find((s) => s.customerId === customerId);
+    /*
+     * AUTHZ-A7. The depot in the URL is the caller's (DepotScopeGuard saw to that); the
+     * CUSTOMER was never checked at all, so this card answered for any id with a full name,
+     * phone number and complete address book — every place that person takes delivery — at
+     * a depot they have never dealt with. Ids are not secret: each depot's own directory
+     * prints them.
+     *
+     * Belonging is what the directory itself means by it, and both halves were already
+     * read above: this depot is their favourite, or they have ordered from it. Answered as
+     * NOT FOUND rather than forbidden — at this depot, that is simply true.
+     */
+    if (profile?.favoriteDepotId !== depotId && !stat) {
+      throw new NotFoundException('Pelanggan ini tidak terdaftar di depot ini.');
+    }
     const gallons = ledgerRows?.find((r) => r.customerId === customerId);
 
     return {

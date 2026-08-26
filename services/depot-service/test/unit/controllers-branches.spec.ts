@@ -144,16 +144,25 @@ describe('CashierShiftController', () => {
   // KEPALA_DEPOT deliberately does NOT get it: they stand at the same till, so letting
   // them settle a colleague's drawer would put the count and the cash in one pair of hands.
   it('grants close-anyone only to depot finance roles', async () => {
-    await c.close(ID, { countedCash: 1 } as never, { sub: 'u1', role: 'MANAGER' } as never);
-    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
-      id: 'u1',
-      canCloseAnyShift: true,
-    });
-    await c.close(ID, { countedCash: 1 } as never, { sub: 'u2', role: 'KEPALA_DEPOT' } as never);
-    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
-      id: 'u2',
-      canCloseAnyShift: false,
-    });
+    const manager = { sub: 'u1', role: 'MANAGER' } as never;
+    await c.close(ID, { countedCash: 1 } as never, manager);
+    // AUTHZ-A4: the caller rides along as a fourth argument so the service can refuse a
+    // shift at a depot that is not theirs — `canCloseAnyShift` says WHOSE drawer, not WHICH
+    // depot's, and only one of those two questions used to be asked.
+    expect(svc.close).toHaveBeenLastCalledWith(
+      ID,
+      { countedCash: 1 },
+      { id: 'u1', canCloseAnyShift: true },
+      manager,
+    );
+    const head = { sub: 'u2', role: 'KEPALA_DEPOT' } as never;
+    await c.close(ID, { countedCash: 1 } as never, head);
+    expect(svc.close).toHaveBeenLastCalledWith(
+      ID,
+      { countedCash: 1 },
+      { id: 'u2', canCloseAnyShift: false },
+      head,
+    );
   });
 });
 

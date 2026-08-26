@@ -3,10 +3,10 @@
 import { useRef, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
-import { ExternalLink } from '@/components/external-link';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, Field, LoadError, Skeleton } from '@/components/ui';
-import { ApiError, api, uploadFile } from '@/lib/api';
+import { ApiError, api, getBlob, uploadFile } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import {
   DOCUMENT_TYPES,
@@ -66,6 +66,21 @@ export function EmployeeDocuments({
     }
   }
 
+  /**
+   * SEC-01: the file arrives through the API with the session attached, instead of the
+   * screen linking to a permanent unsigned storage URL. Same download path as every other
+   * file in the app, so the native WebView writes it out rather than dropping it.
+   */
+  async function view(d: EmployeeDocument) {
+    setErr(null);
+    try {
+      const blob = await getBlob(endpoints.hr.employeeDocumentFile(d.id));
+      downloadBlob(`${d.type}-v${d.version}`, blob);
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? e2.message : t('hrFix.documents2.uploadFailed'));
+    }
+  }
+
   const rows = documents.data ?? [];
 
   return (
@@ -98,12 +113,13 @@ export function EmployeeDocuments({
                   {d.expiresAt ? ` · berlaku s/d ${fmtDate(d.expiresAt)}` : ''}
                 </p>
               </div>
-              <ExternalLink
-                href={d.fileUrl}
+              <button
+                type="button"
+                onClick={() => void view(d)}
                 className="shrink-0 text-sm font-semibold text-brand-700 hover:underline"
               >
                 {t('hrFix.documents.view2')}
-              </ExternalLink>
+              </button>
             </div>
           ))}
         </div>
