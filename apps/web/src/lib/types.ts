@@ -168,6 +168,9 @@ export interface NearbyDepot {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** L2.3: whether this depot can be paid that way — never where the money goes. */
+  acceptsTransfer?: boolean;
+  acceptsQris?: boolean;
   /** Great-circle km from the queried point, nearest first. */
   distanceKm: number;
   /** True when distanceKm <= serviceRadiusKm (depot delivers to the point). */
@@ -987,6 +990,13 @@ export interface Depot {
   id: string;
   code: string;
   name: string;
+  /*
+   * L2.3: served by `PublicDepotView`, same as `NearbyDepot`, so the same two booleans ride
+   * along. Optional because the admin depot form fills this shape from the full record,
+   * which answers the question with the details themselves instead.
+   */
+  acceptsTransfer?: boolean;
+  acceptsQris?: boolean;
   city: string;
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;

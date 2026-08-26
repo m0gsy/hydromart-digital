@@ -555,7 +555,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 </p>
               </div>
               <div className="flex flex-col gap-2">
-                {offeredMethods(methodsAvailable ?? null).map((m) => (
+                {offeredMethods(methodsAvailable ?? null, depot).map((m) => (
                   <RadioCard
                     key={m.value}
                     selected={payMethod === m.value}

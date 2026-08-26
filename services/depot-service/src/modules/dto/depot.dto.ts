@@ -231,6 +231,19 @@ export class PublicDepotView {
   @ApiProperty() operatingHours!: unknown;
   @ApiProperty({ type: [Object] }) holidays!: unknown[];
   @ApiProperty() active!: boolean;
+  /*
+   * L2.3 — whether this depot can be paid that way, WITHOUT saying where the money goes.
+   *
+   * Payment is direct-to-depot: a transfer lands in this depot's own account and a QRIS is
+   * this depot's own printed code, so "can I pay by transfer here" is a per-depot question
+   * that the platform-wide `GET /payments/methods` cannot answer. Checkout was answering it
+   * with a hardcoded yes, and production on 2026-08-26 had three active depots with neither.
+   *
+   * Booleans rather than the details themselves, deliberately: publishing the account
+   * number on this anonymous route is the exact leak the class note below records closing.
+   */
+  @ApiProperty() acceptsTransfer!: boolean;
+  @ApiProperty() acceptsQris!: boolean;
 
   static from(d: DepotRecord): PublicDepotView {
     return {
@@ -248,6 +261,9 @@ export class PublicDepotView {
       operatingHours: d.operatingHours,
       holidays: d.holidays,
       active: d.active,
+      // Trimmed: a field of spaces is not an account anyone can transfer to.
+      acceptsTransfer: (d.paymentBankAccountNumber ?? '').trim().length > 0,
+      acceptsQris: (d.paymentQrisImageUrl ?? '').trim().length > 0,
     };
   }
 }

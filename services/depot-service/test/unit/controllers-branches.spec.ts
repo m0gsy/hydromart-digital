@@ -867,6 +867,48 @@ describe('DepotController', () => {
     ]);
   });
 
+  /*
+   * L2.3 — the customer has to be told which methods this depot can actually take, and
+   * UAT-M11-09 (right below) is why they cannot simply be sent the account number to
+   * check for themselves. Two booleans answer the question and publish nothing: whether
+   * a transfer has anywhere to land, and whether there is a QRIS code to scan.
+   *
+   * Production on 2026-08-26: three active depots, none with either. Checkout offered
+   * both buttons to every customer anyway.
+   */
+  it('says whether the depot can take a transfer or a QRIS, without saying where', async () => {
+    svc.findNearby.mockResolvedValue([
+      {
+        id: DEPOT,
+        name: 'D',
+        paymentBankAccountNumber: '123',
+        paymentQrisImageUrl: null,
+        distanceKm: 1.2,
+        withinService: true,
+      },
+    ]);
+    const [near] = await c.nearby({ lat: 1, lng: 2 } as never);
+    expect(near.acceptsTransfer).toBe(true);
+    expect(near.acceptsQris).toBe(false);
+    expect(near).not.toHaveProperty('paymentBankAccountNumber');
+  });
+
+  it('treats a blank account as unable to take a transfer', async () => {
+    svc.findNearby.mockResolvedValue([
+      {
+        id: DEPOT,
+        name: 'D',
+        paymentBankAccountNumber: '   ',
+        paymentQrisImageUrl: 'https://cdn.example/q.png',
+        distanceKm: 1,
+        withinService: true,
+      },
+    ]);
+    const [near] = await c.nearby({ lat: 1, lng: 2 } as never);
+    expect(near.acceptsTransfer).toBe(false);
+    expect(near.acceptsQris).toBe(true);
+  });
+
   // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
   // depot's bank account to anonymous callers.
   it('keeps bank details and ownership out of the public browse/detail/nearby payloads', async () => {
