@@ -35,6 +35,15 @@ export interface DepotPrices {
   /** productId -> the depot's price. Empty when `basis` is CATALOG. */
   prices: Map<string, number>;
   basis: PriceBasis;
+  /**
+   * Whether a depot was known at all.
+   *
+   * Three states, not two: prices from the depot; prices we could not get FROM a known
+   * depot (say so — the bill will differ); and no depot chosen yet, where the catalogue
+   * price is simply what a shopper who has not said where they are gets, and labelling it
+   * would be noise on every first visit.
+   */
+  depotKnown: boolean;
 }
 
 /** The depot's price for each id, or CATALOG basis when it cannot be established. */
@@ -44,9 +53,16 @@ export function useDepotPrices(productIds: string[]): DepotPrices {
   // Sorted + joined so a re-render with the same ids in a different order is not a new read.
   const key = [...new Set(productIds)].sort().join(',');
 
+  /*
+   * No depot, no call. With none chosen the server can only answer with catalogue prices,
+   * which is exactly what `product.basePrice` already is — so asking costs the catalogue
+   * page a network request to be told what it already had. The Lighthouse ratchet caught
+   * that on the first run of this change (/products: 49 requests against a 48 ceiling),
+   * which is the ratchet doing its job.
+   */
   const { data } = useAsync<{ basis: PriceBasis; prices: ShelfPrice[] } | null>(
     () =>
-      key.length > 0
+      depotId && key.length > 0
         ? api
             .getCached<{ basis: PriceBasis; prices: ShelfPrice[] }>(
               endpoints.cart.shelfPrices(key.split(','), depotId),
@@ -59,10 +75,13 @@ export function useDepotPrices(productIds: string[]): DepotPrices {
   // No answer, or an answer in a shape this does not recognise, is CATALOG: the caller
   // labels what it shows rather than passing a catalogue price off as the depot's. Shape-
   // checked rather than trusted because a price screen must not be a screen that can crash.
-  if (!data || !Array.isArray(data.prices)) return { prices: new Map(), basis: 'CATALOG' };
+  if (!data || !Array.isArray(data.prices)) {
+    return { prices: new Map(), basis: 'CATALOG', depotKnown: Boolean(depotId) };
+  }
   return {
     prices: new Map(data.prices.map((row) => [row.productId, row.unitPrice])),
     basis: data.basis === 'DEPOT' ? 'DEPOT' : 'CATALOG',
+    depotKnown: true,
   };
 }
 

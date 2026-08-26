@@ -231,7 +231,7 @@ export default function ProductDetailPage() {
               <Money amount={shelfPrice} className="text-[30px] font-extrabold tracking-tight" />
               {rate > 0 && <MemberPrice amount={memberPrice(shelfPrice, rate)} />}
             </div>
-            {shelf.basis === 'CATALOG' && (
+            {shelf.basis === 'CATALOG' && shelf.depotKnown && (
               <p className="text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
             )}
 

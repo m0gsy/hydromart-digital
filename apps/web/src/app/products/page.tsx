@@ -246,7 +246,7 @@ function ProductsCatalog() {
           {/* PG-03: the grid used to print catalogue prices while the cart billed the
               depot's. When the depot could not be asked, the prices below ARE catalogue
               prices and the shopper is told so, once, above the grid. */}
-          {shelf.basis === 'CATALOG' && (
+          {shelf.basis === 'CATALOG' && shelf.depotKnown && (
             <p className="pt-4 text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
           )}
           <div className="grid grid-cols-2 gap-4 pb-2 pt-6 sm:grid-cols-3 lg:grid-cols-4">
