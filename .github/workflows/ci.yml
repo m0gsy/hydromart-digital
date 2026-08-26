@@ -329,6 +329,18 @@ jobs:
       - name: No machine-specific paths in CI code
         run: node scripts/check-hardcoded-paths.mjs
 
+      # The template is the only list an operator has, and eighteen compose variables were
+      # missing from it — four HR payroll defaults that deduct wages, the face-match
+      # thresholds that decide whether a punch is accepted, and a NEO credential nobody
+      # could know to ask for. Every one had a plausible default, so every one deployed and
+      # worked. Auditing the live box could not find them either: comparing a real .env
+      # against the template only ever sees keys somebody already set.
+      - name: Every compose variable is in the env template
+        run: node scripts/check-env-template.mjs
+
+      - name: Env template gate self-check
+        run: bash scripts/check-env-template.test.sh
+
       # Three services installed JwtAuthGuard globally and never DepotScopeGuard, and the
       # only test that would have said so lived inside promo-service and named
       # promo-service. One check about every service beats seventeen copies of one spec.
