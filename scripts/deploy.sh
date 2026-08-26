@@ -237,6 +237,32 @@ if ! git diff --quiet "$PREV_SHA" "$NEW_SHA" -- scripts/scheduler/ 2>/dev/null; 
   $COMPOSE restart scheduler || log "!! scheduler restart failed — new cron jobs are NOT live"
 fi
 
+# The same class of bug as the crontab above, and it hid for twenty days. Compose recreates
+# on a DEFINITION change; the CONTENT of a bind-mounted file is not part of one, so a
+# release that only edits ops/prometheus.yml or the Caddyfile leaves the container running
+# the copy it opened at boot. Prometheus served a pre-Q-9 ruleset from 5 August — 13 rules
+# where the repo had 16, and NoOrdersCreated and PaymentConfirmFailing, the only two alerts
+# the on-call runbook calls customer-visible, never loaded at all. Caddy shipped neither
+# HSTS nor CSP for twenty days, because they landed the day after its container started.
+#
+# A restart re-resolves the mount (check-config-drift.test.sh proves it), so the containers
+# nobody notices restarting are restarted here. Anything user-facing is named instead of
+# touched mid-deploy: an operator picks that moment, not a script.
+DRIFTED="$(bash scripts/check-config-drift.sh --list 2>/dev/null || true)"
+for stale in $DRIFTED; do
+  case "$stale" in
+    *prometheus*|*alertmanager*|*grafana*|*exporter*)
+      log "$stale is running a stale config file — restarting it"
+      docker restart "$stale" >/dev/null 2>&1 ||
+        log "!! $stale restart FAILED — it is still running the old config"
+      ;;
+    *)
+      log "!! $stale is running a stale config file, and this deploy did not fix it."
+      log "!!   docker restart $stale   — when a brief interruption is acceptable"
+      ;;
+  esac
+done
+
 if health_ok; then
   echo "$PREV_SHA" > "$STATE_DIR/prev-sha"   # one step back, for manual rollback
   echo "$NEW_SHA" > "$LAST_GOOD"
