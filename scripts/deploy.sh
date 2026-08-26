@@ -219,6 +219,11 @@ if registry_mode; then
     sleep 30
     image_wait=$((image_wait + 30))
   done
+  # The images for this commit exist and are local now, so record the tag where a bare
+  # `docker compose` can find it. Written AFTER the pull, never before: a tag in .env that
+  # names images nobody has is worse than no tag at all.
+  persist_image_tag "$NEW_SHA" ||
+    log '!! could not write IMAGE_TAG to .env — manual compose calls will ask for :local'
 elif [ "${SERVICES[0]:-}" = "--all" ]; then
   log "rebuilding ALL services"
   rebuild_or_rollback --all
