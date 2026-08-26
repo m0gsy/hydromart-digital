@@ -84,6 +84,19 @@ describe('Gateway internal-key strip (e2e)', () => {
     await new Promise<void>((resolve) => echo.server.close(() => resolve()));
   });
 
+  // The edge owns CSP and HSTS (Caddyfile, H-23). While helmet also sent its own, the live
+  // API host answered with TWO of each and the effective HSTS max-age was settled by header
+  // order rather than by a decision. Asserting their ABSENCE here is what keeps the two
+  // halves from drifting back into disagreeing with each other.
+  it('leaves CSP and HSTS to the edge instead of sending a second copy', async () => {
+    const res = await request(app.getHttpServer()).get('/health').expect(200);
+
+    expect(res.headers['content-security-policy']).toBeUndefined();
+    expect(res.headers['strict-transport-security']).toBeUndefined();
+    // ...while the rest of helmet is still on, so this is a narrowing, not a removal.
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('strips a client-injected x-internal-key but forwards other headers', async () => {
     const res = await request(app.getHttpServer())
       .get('/orders/api/v1/anything')

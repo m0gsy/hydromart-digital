@@ -54,11 +54,11 @@ menghapus barisnya tidak membuatnya hijau, karena tiga peran di bawah wajib ada.
 
 <!-- ROTA:BEGIN — dibaca scripts/check-oncall-rota.mjs; jangan hapus penanda ini -->
 
-| Peran                   | Nama     | Kontak (WhatsApp/telepon atau email) | Jam                         | Janji waktu jawab |
-| ----------------------- | -------- | ------------------------------------ | --------------------------- | ----------------- |
-| Primer                  | Wahyu Aldi | lwahyualdi@gmail.com               | 24/7                        | 15 menit          |
-| Sekunder                | ISI-NAMA | ISI-KONTAK                           | eskalasi ketika primer diam | 30 menit          |
-| Bisnis (depot/keuangan) | Wahyu Aldi | lwahyualdi@gmail.com               | jam kerja 09:00-20:00 WIB   | 2 jam             |
+| Peran                   | Nama       | Kontak (WhatsApp/telepon atau email) | Jam                         | Janji waktu jawab |
+| ----------------------- | ---------- | ------------------------------------ | --------------------------- | ----------------- |
+| Primer                  | Wahyu Aldi | lwahyualdi@gmail.com                 | 24/7                        | 15 menit          |
+| Sekunder                | ISI-NAMA   | ISI-KONTAK                           | eskalasi ketika primer diam | 30 menit          |
+| Bisnis (depot/keuangan) | Wahyu Aldi | lwahyualdi@gmail.com                 | jam kerja 09:00-20:00 WIB   | 2 jam             |
 
 <!-- ROTA:END -->
 
@@ -134,6 +134,37 @@ konfigurasi, bukan cacat:
    artinya "tidak ada warning" bukan bukti tidak ada masalah lambat.
 3. **Alert yang pulih memberi tahu.** `send_resolved: true`, jadi tidak perlu menunggu
    diam untuk menyimpulkan sudah beres — kalau pesan RESOLVED tidak datang, belum beres.
+
+## 6b. MTTR mobile — kenapa build buruk tidak bisa dihentikan seketika (N8)
+
+Bagian di atas menghitung berapa lama sampai ada yang **tahu**. Ini menghitung berapa lama
+sampai sesuatu bisa **dihentikan**, dan untuk mobile jawabannya berbeda dari yang orang duga.
+
+Ada dua tuas, dan tak satu pun menjangkau aplikasi yang sedang berjalan di tangan orang:
+
+| Tuas                                                                                   | Apa yang dihentikannya                  | Kapan menggigit                                            |
+| -------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------- |
+| `MOBILE_MIN_VERSION_CODE` (+ `_BY_ID` untuk membidik satu binary) lalu `up -d gateway` | pemakaian build yang sudah terpasang    | **peluncuran dingin berikutnya** pengguna itu              |
+| `rollout_status: halted` lewat `workflow_dispatch` di `mobile.yml`                     | pemasangan dan pembaruan BARU dari Play | segera, tapi tidak menyentuh satu pun yang sudah terpasang |
+
+Angka gate versi bukan tebakan, melainkan dibaca dari kodenya: `/mobile-config` dibaca
+**sekali per peluncuran, oleh shell, sebelum apa pun terjadi**
+(`services/gateway-service/src/gateway.setup.ts`). Jadi:
+
+- Keputusan manusia + suntingan `.env` + `up -d gateway` — hitungan menit, dan ini bagian
+  paling lambat.
+- Gateway naik lagi — hitungan detik.
+- Pengguna yang aplikasinya masih terbuka — **tidak terbatas.** Ia terus memakai build buruk
+  itu sampai ia menutup dan membuka lagi. Tidak ada push, tidak ada pemutusan paksa.
+
+Konsekuensinya satu, dan itu yang membuat N8 penting: **karena tidak ada yang bisa menarik
+kembali build yang sudah berjalan, satu-satunya kendali nyata adalah membatasi berapa banyak
+orang yang menerimanya sejak awal.** Itulah gunanya `rollout_status: inProgress` +
+`user_fraction` di `mobile.yml` — rilis bertahap bukan kemewahan proses di sini, melainkan
+pengganti tombol henti yang memang tidak bisa ada.
+
+Rilis ke `production` tanpa fraksi berarti menerima bahwa kesalahan apa pun di dalamnya akan
+berjalan di setiap telepon sampai tiap pemiliknya kebetulan membuka ulang aplikasinya.
 
 ## 7. Sebelum shift pertama: akses yang harus sudah ada
 

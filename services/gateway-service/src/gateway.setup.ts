@@ -182,7 +182,20 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     trustProxyHops(config.nodeEnv, process.env.PUBLIC_BIND, process.env.WEB_DOMAIN),
   );
 
-  app.use(helmet());
+  // H-23 continued. Caddy terminates TLS and is the only place that sees it, so the edge
+  // owns Content-Security-Policy and Strict-Transport-Security for this host (Caddyfile
+  // says so in as many words). helmet's defaults sent a SECOND copy of both, and the live
+  // API host was answering with two of each: two CSP headers — browsers enforce the
+  // intersection, so that one worked by accident — and two HSTS headers whose max-age
+  // disagreed, 31536000 from Caddy against 15552000 here. Which of those a browser obeys
+  // is decided by header order, not by anything anyone chose.
+  //
+  // The consequence is the one the Caddyfile already accepts for the web app: a bare-IP
+  // deploy with no `--profile tls` gets neither. HSTS asserts nothing without HTTPS to
+  // assert it over, and this host serves JSON — `/docs` is fail-closed in production — so
+  // there is no document for a policy to protect. Everything else helmet does (noSniff,
+  // referrer-policy, frameguard, and the rest) is untouched.
+  app.use(helmet({ contentSecurityPolicy: false, hsts: false }));
   app.enableCors({ origin: config.corsOrigins, credentials: true });
 
   // SEC-3: edge rate-limit at the single public ingress (per-IP), using the RATE_LIMIT_*
