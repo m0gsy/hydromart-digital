@@ -51,6 +51,44 @@ else
   echo "  no .env in $(pwd)"
 fi
 
+# L2.1/E7. Whether real customers can register at all, asked on the box rather than inferred
+# from `.env.production.example` — which is a TEMPLATE, and reading it as production is how
+# this item was reported wrong. The channel is an ordinary setting and is printed; the
+# credentials are secrets, so only whether they are set is printed, never their value.
+line "L2.1 — OTP delivery"
+if [ -f .env ]; then
+  chan="$(sed -n 's/^OTP_DELIVERY_CHANNEL=//p' .env | head -1)"
+  echo "  OTP_DELIVERY_CHANNEL : ${chan:-(not set — defaults to console)}"
+  for key in ZENZIVA_USERKEY ZENZIVA_PASSKEY SMS_API_TOKEN; do
+    val="$(sed -n "s/^${key}=//p" .env | head -1)"
+    if [ -z "$val" ]; then
+      echo "  ${key} : NOT SET"
+    else
+      echo "  ${key} : set (${#val} chars)"
+    fi
+  done
+  case "$chan" in
+    console|"") echo "  -> real customers CANNOT receive an OTP: the code prints it to the container log." ;;
+    *)          echo "  -> channel is '${chan}'. Credentials above decide whether it can actually send." ;;
+  esac
+fi
+
+# And what the RUNNING container has, which is the only thing that decides behaviour — a .env
+# edited after the last `up -d` has not reached the process yet.
+line "L2.1 — what the running auth container actually has"
+auth="$(docker ps --filter 'name=auth' --format '{{.Names}}' 2>/dev/null | head -1)"
+if [ -n "$auth" ]; then
+  docker exec "$auth" sh -c '
+    echo "  container            : ok"
+    echo "  OTP_DELIVERY_CHANNEL : ${OTP_DELIVERY_CHANNEL:-(unset)}"
+    for k in ZENZIVA_USERKEY ZENZIVA_PASSKEY; do
+      eval v=\$$k
+      if [ -z "$v" ]; then echo "  $k : NOT SET"; else echo "  $k : set (${#v} chars)"; fi
+    done' 2>/dev/null || echo "  (could not read the container environment)"
+else
+  echo "  no running container matching 'auth'"
+fi
+
 # M16. The blocking question, asked in the only place it has an answer. `compose config`
 # parses and resolves without touching a container, which is why it is safe to ask here.
 line "M16 — does compose error, or skip the scheduler?"
