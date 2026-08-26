@@ -54,13 +54,32 @@ menghapus barisnya tidak membuatnya hijau, karena tiga peran di bawah wajib ada.
 
 <!-- ROTA:BEGIN — dibaca scripts/check-oncall-rota.mjs; jangan hapus penanda ini -->
 
-| Peran                   | Nama       | Kontak (WhatsApp/telepon atau email) | Jam                         | Janji waktu jawab |
-| ----------------------- | ---------- | ------------------------------------ | --------------------------- | ----------------- |
-| Primer                  | Wahyu Aldi | lwahyualdi@gmail.com                 | 24/7                        | 15 menit          |
-| Sekunder                | ISI-NAMA   | ISI-KONTAK                           | eskalasi ketika primer diam | 30 menit          |
-| Bisnis (depot/keuangan) | Wahyu Aldi | lwahyualdi@gmail.com                 | jam kerja 09:00-20:00 WIB   | 2 jam             |
+| Peran                   | Nama                        | Kontak (WhatsApp/telepon atau email) | Jam                       | Janji waktu jawab |
+| ----------------------- | --------------------------- | ------------------------------------ | ------------------------- | ----------------- |
+| Primer                  | Wahyu Aldi                  | lwahyualdi@gmail.com                 | 24/7                      | 15 menit          |
+| Sekunder                | TIDAK ADA — risiko diterima | —                                    | —                         | —                 |
+| Bisnis (depot/keuangan) | Wahyu Aldi                  | lwahyualdi@gmail.com                 | jam kerja 09:00-20:00 WIB | 2 jam             |
 
 <!-- ROTA:END -->
+
+**Tidak ada sekunder, dan itu keputusan, bukan kolom yang belum diisi.** Hydromart
+dijalankan satu orang hari ini. Menuliskan nama kedua yang tidak ada — atau alamat email
+yang sama dengan primer — akan membuat gerbang di §8 hijau dan tidak mengubah apa pun pada
+pukul dua pagi, jadi yang tertulis adalah keadaan sebenarnya.
+
+Yang TIDAK tercakup, supaya tidak perlu ditemukan saat kejadian:
+
+- Janji 15 menit di baris Primer hanya berlaku selama primer bangun dan memegang telepon.
+  Tidak ada apa pun yang menjaganya. Kalau ia tidur, tidak ada yang terjadi.
+- Tidak ada eskalasi otomatis, tidak ada acknowledge, tidak ada panggilan telepon.
+  Satu-satunya hal yang terjadi pada alert yang tidak dijawab adalah `repeat_interval: 4h`
+  memposting ulang pesan yang sama. Empat jam, bukan lima belas menit.
+- Karena itu, `NoOrdersCreated` yang menyala pukul satu pagi realistisnya baru dilihat saat
+  primer bangun. Untuk alert bisnis — kaki uang — itulah jendela kerugian yang sebenarnya.
+
+Menutupnya butuh orang kedua yang punya kunci SSH-nya sendiri, keanggotaan grup `docker`,
+dan akses baca `.env` di host — yaitu seluruh rahasia platform (lihat §7). Itu keputusan
+kepercayaan, bukan keputusan teknis, dan tidak ada yang bisa mengambilnya selain pemilik.
 
 Kontak yang diterima hanya dua bentuk, karena hanya dua bentuk yang bisa membangunkan orang:
 nomor Indonesia (`+62…`, `08…`) atau email. Nama grup chat bukan kontak on-call — grup itu
