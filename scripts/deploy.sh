@@ -46,8 +46,20 @@ fi
 PREV_SHA="$(git rev-parse HEAD)"
 log "current HEAD $PREV_SHA"
 
-log "backing up databases first (rollback safety net)"
-bash scripts/backup-db.sh
+# M15. The dump used to run HERE, first thing after the stack lock, on EVERY deploy — before
+# this script has even fetched the new commit, so before it can possibly know whether the
+# release carries a migration. Most do not, and for those the dump buys nothing: rolling a
+# non-migrating deploy back is re-deploying the previous image against an unchanged schema.
+#
+# It has NOT been deleted, it has been moved to the one place it is the safety net for: just
+# above `migrate-prod.sh`, which is the only step in a deploy that can make the schema
+# unrollable. `pending_migrations` (line ~134 below) is where this script first knows the
+# answer, which is why the dump could not simply stay here and be made conditional.
+#
+# The invariant that must not break, stated so a later reader can check it: A DEPLOY THAT
+# APPLIES A MIGRATION STILL HOLDS A PRE-MIGRATION DUMP. `migrate-prod.sh` takes its own
+# backup unless told otherwise, and deploy passes `MIGRATE_SKIP_BACKUP=1` precisely because
+# it has just taken one itself — so the two halves have to move together, and they did.
 
 git fetch origin "$BRANCH"
 TIP_SHA="$(git rev-parse "origin/$BRANCH")"
@@ -158,6 +170,14 @@ if [ -n "$MIGRATIONS" ]; then
     fi
     log "applying them before any container starts on the new code"
     # The backup at the top of this script is minutes old — do not take a second one.
+    # M15: the pre-migration dump, taken here now rather than on every deploy. This is the
+    # step it protects — `MIGRATE_SKIP_BACKUP=1` below is only honest because of this line.
+    log "backing up databases before migrating (rollback safety net)"
+    if ! bash scripts/backup-db.sh; then
+      log "!! backup failed — refusing to migrate without one"
+      alert "deploy aborted: pre-migration backup failed"
+      exit 1
+    fi
     if ! MIGRATE_SKIP_BACKUP=1 bash scripts/migrate-prod.sh; then
       log "!! migration FAILED — restoring the tree to $PREV_SHA, running stack untouched"
       git reset --hard "$PREV_SHA"
