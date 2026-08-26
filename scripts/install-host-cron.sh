@@ -73,6 +73,12 @@ CRON_TZ=$CRON_TZ_VALUE
 # N14 — container log caps. `ops/docker-daemon.json` is a file somebody has to copy to the
 # host by hand; nothing ever checked that they did, and the default is unbounded.
 45 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-log-retention.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
+# Bind-mounted config a container is not actually running. deploy.sh checks this too, but
+# only when a deploy happens: Prometheus sat on a pre-Q-9 ruleset from 5 August through
+# many deploys, because converge never touches a container whose definition is unchanged,
+# and the alerts it was missing were the two the on-call runbook calls customer-visible.
+0 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-config-drift.sh >> /var/log/hydromart-ops-checks.log 2>&1
 $END
 EOF
 }
