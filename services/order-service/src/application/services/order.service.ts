@@ -120,6 +120,14 @@ export interface CounterBasketQuote {
   catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
   /** C12: the agen band is what priced this basket — the screen badges it. */
   agen: boolean;
+  /**
+   * C11: the ongkir this basket would be charged, 0 for a pick-up.
+   *
+   * `total` INCLUDES it, because the sale's total does (`subtotal + shippingFee - discount`)
+   * and a quote that says a different number than the till collects is the whole defect this
+   * item is about. The two used to disagree by exactly the delivery fee.
+   */
+  shippingFee: number;
 }
 
 export interface WalkInSaleInput {
@@ -1805,10 +1813,29 @@ export class OrderService {
     lines: { productId: string; quantity: number }[],
     voucherCode: string | null,
     authorization = '',
+    /**
+     * C11: the cashier ticked "antar". The quote has to know, because the fee is part of
+     * what the buyer is about to be asked for — quoting a pick-up total and then charging a
+     * delivery one is how a till loses the difference.
+     */
+    wantsDelivery = false,
   ): Promise<CounterBasketQuote> {
     if (lines.length === 0) throw new EmptyCartError();
     void authorization;
-    return this.priceCounterBasket(customerId ?? ANONYMOUS_CUSTOMER_ID, depotId, lines, voucherCode);
+    // Refused HERE as well as at the sale, and deliberately with the same error: a cashier
+    // who can get a delivery quote but not a delivery sale has been told the depot offers
+    // something it does not, with a customer standing in front of them.
+    if (wantsDelivery && !this.config.counterDelivery(depotId)) {
+      throw new CounterDeliveryUnavailableError();
+    }
+    const shippingFee = wantsDelivery ? await this.counterShippingFee(depotId, lines) : 0;
+    return this.priceCounterBasket(
+      customerId ?? ANONYMOUS_CUSTOMER_ID,
+      depotId,
+      lines,
+      voucherCode,
+      shippingFee,
+    );
   }
 
   /**
@@ -1885,7 +1912,11 @@ export class OrderService {
       items,
       subtotal,
       discount,
-      total: money(subtotal - discount),
+      // C11: the same arithmetic the sale does. `redeem` computes
+      // `money(subtotal + shippingFee - discount)` for the order it creates, and this used to
+      // leave the fee out — so a quoted counter delivery under-collected by exactly the ongkir.
+      total: money(subtotal + shippingFee - discount),
+      shippingFee,
       voucherCode,
       catalogFallback,
       agen,

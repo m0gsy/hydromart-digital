@@ -202,6 +202,8 @@ export class OrderController {
         dto.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
         dto.voucherCode ?? null,
         authorization,
+        // C11: presence is the whole signal, same as the sale route next door.
+        !!dto.deliveryAddress,
       ),
     );
   }
