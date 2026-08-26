@@ -119,8 +119,8 @@ if [ -n "$PG" ]; then
   # Whether the missing bank account is also a missing HQ cut depends on WHO owns the depot:
   # payout.service.ts:179 reads `(await schemes.currentForDepot(id))?.pct ?? 0`, so a WARALABA
   # depot with no scheme hands HQ nothing and says nothing about it.
-  q hydromart_depot "select type, count(*) from depots where active group by type order by type" |
-    sed "s/^/  active depots by type: /"
+  q hydromart_depot "select coalesce(\"ownershipType\"::text,chr(63)), count(*) from depots where active group by 1 order by 1" |
+    sed "s/^/  active depots by ownership: /" | grep . || echo "  active depots by ownership: QUERY RETURNED NOTHING (column wrong, or no rows)"
   echo "  real depots (fixtures excluded) still missing a payment destination:"
   q hydromart_depot "
     select code from depots
