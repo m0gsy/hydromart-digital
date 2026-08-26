@@ -179,6 +179,14 @@ jobs:
       - name: Affected-only filter self-check
         run: bash scripts/ci-affected.test.sh
 
+      # The `ci` job at the bottom of this file is the one branch protection should require,
+      # and it is the only check that can go red for a failed `integration` or `e2e` — both
+      # of which run AFTER `verify`, the check that was required instead. Its rule judges
+      # whether a SKIPPED heavy job was entitled to skip, so it is exactly the kind of check
+      # that passes for the wrong reason if nobody ever fires the red paths at it.
+      - name: CI conclusion self-check
+        run: bash scripts/ci-conclude.test.sh
+
       # Everything that reads the live .env goes through load-env.sh, because `. ./.env`
       # RUNS it: one secret pasted as a raw multi-line PEM aborted the deploy's migration
       # step and, joined by `&&` in the crontab, would silence the backup, the restore
@@ -645,7 +653,9 @@ jobs:
 
   # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
   # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
-  # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
+  # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs AFTER verify, not
+  # beside it — `needs: [verify, changes]` below — which is why `verify` going green says
+  # nothing whatsoever about this job. See the `ci` job at the bottom of this file.
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -988,3 +998,29 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  # The check branch protection should require, and the only one that can speak for the
+  # whole run. `verify` covers gate/test/visual and nothing else — `integration` and `e2e`
+  # both `needs: [verify, ...]`, so they have not started when it reports. Required contexts
+  # on main were verify/changes/image/sast/sbom/secrets, which left the two most end-to-end
+  # jobs in this repo gating nothing at all.
+  #
+  # It cannot be fixed by adding `e2e` to the required contexts: both jobs are conditional on
+  # `changes.outputs.docker`, and a required check that is SKIPPED leaves the PR waiting on a
+  # status that will never arrive. So the judgement lives here, in a job that always runs and
+  # decides whether a skip was earned — the rule and its self-check are in
+  # scripts/ci-conclude.sh, out of YAML so they can actually be tested.
+  ci:
+    needs: [changes, verify, integration, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conclude
+        run: |
+          bash scripts/ci-conclude.sh \
+            --docker '${{ needs.changes.outputs.docker }}' \
+            --verify '${{ needs.verify.result }}' \
+            --integration '${{ needs.integration.result }}' \
+            --e2e '${{ needs.e2e.result }}'
