@@ -29,11 +29,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/lib/deploy-common.sh
 . scripts/lib/backup-report.sh
+. scripts/lib/backup-dir.sh
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
 PG_IMAGE="${PG_IMAGE:-postgres:16-alpine}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/hydromart}"
+# CMP-02: the directory that HOLDS dumps, not the one this script hoped they were in.
+# backup-db.sh falls back to ~/backups whenever /var/backups needs root — which is every
+# box where the deploy user is not root — so the weekly drill was looking somewhere the
+# nightly job had never written, and failing for a reason that was not about the backups.
+BACKUP_DIR="${BACKUP_DIR:-$(hydromart_backup_dir)}"
 
 # Fire-and-forget alert to the shared webhook, mirroring error-alerter.ts's payload
 # ({text} for Slack, {content} for Discord — one URL works for either). No-op when
@@ -174,9 +179,107 @@ case "$MODE" in
       echo "Re-run with CONFIRM=RESTORE to proceed:  CONFIRM=RESTORE $0 --into-prod $DUMP" >&2
       exit 1
     fi
+
+    # CMP-01 — this branch used to be four lines and it printed "restore complete." whether
+    # anything had been restored or not.
+    #
+    # The scenario it fails in is the only scenario it exists for. At 03:00 a bad deploy or
+    # a mass delete has corrupted rows. The Postgres container and its volume are healthy,
+    # so every database still EXISTS. On-call runs this. `CREATE DATABASE` fails "already
+    # exists", every `COPY` into a populated table fails, and psql — which exits 0 unless
+    # told otherwise — lets the pipeline finish. The script printed success. The corrupt
+    # rows were still exactly where they were.
+    #
+    # Three things now stand between that and a green line:
+    #   1. a NON-EMPTY target is refused up front, because restoring on top of live data
+    #      is not a restore. DROP_EXISTING=YES drops the hydromart databases first, which
+    #      is what an operator actually means at 03:00.
+    #   2. every psql error is CAPTURED and counted. Roles are the one exception: a
+    #      cluster-wide dump recreates them and `role "x" already exists` is expected and
+    #      harmless, so it is filtered by name rather than by ignoring errors wholesale.
+    #   3. the result is COUNTED afterwards — databases, tables, and rows. A restore that
+    #      produced empty schemas and nothing else fails here rather than being reported.
+    echo "checking the target cluster in '$CONTAINER' ..."
+    EXISTING="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d postgres       -c "SELECT datname FROM pg_database WHERE datname LIKE 'hydromart%' ORDER BY datname;"       2>/dev/null | tr -d '\r' || true)"
+
+    if [ -n "$EXISTING" ]; then
+      if [ "${DROP_EXISTING:-}" != "YES" ]; then
+        echo "REFUSING: the target cluster already holds these databases:" >&2
+        echo "$EXISTING" | sed 's/^/    /' >&2
+        echo "" >&2
+        echo "  Restoring on top of them is not a restore: CREATE DATABASE and every COPY" >&2
+        echo "  would fail, and the data you are trying to replace would stay exactly where" >&2
+        echo "  it is. Drop them as part of the restore with:" >&2
+        echo "" >&2
+        echo "    CONFIRM=RESTORE DROP_EXISTING=YES $0 --into-prod $DUMP" >&2
+        exit 1
+      fi
+      echo "DROP_EXISTING=YES — dropping $(echo "$EXISTING" | wc -w) database(s) first ..."
+      for db in $EXISTING; do
+        docker exec "$CONTAINER" psql -qAX -U "$PG_USER" -d postgres           -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$db' AND pid <> pg_backend_pid();"           >/dev/null 2>&1 || true
+        docker exec "$CONTAINER" psql -qAX -U "$PG_USER" -d postgres           -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$db\";" >/dev/null
+        echo "  dropped $db"
+      done
+    fi
+
     echo "restoring $DUMP into PROD container '$CONTAINER' ..."
-    gunzip -c "$DUMP" | docker exec -i "$CONTAINER" psql -U "$PG_USER" -d postgres
-    echo "restore complete. Restart the app services so they reconnect."
+    ERRLOG="$(mktemp)"
+    trap 'rm -f "$ERRLOG"' EXIT
+    gunzip -c "$DUMP" | docker exec -i "$CONTAINER" psql -U "$PG_USER" -d postgres       >/dev/null 2>"$ERRLOG"
+
+    # `role "x" already exists` is the one expected error in a cluster-wide dump: the roles
+    # outlive the databases. Everything else is a statement that did NOT run.
+    REAL_ERRORS="$(grep -c '^ERROR:' "$ERRLOG" 2>/dev/null || true)"
+    BENIGN="$(grep -c '^ERROR:.*role .* already exists' "$ERRLOG" 2>/dev/null || true)"
+    REAL_ERRORS=$(( ${REAL_ERRORS:-0} - ${BENIGN:-0} ))
+    if [ "$REAL_ERRORS" -gt 0 ]; then
+      echo "" >&2
+      echo "ERROR: the restore reported $REAL_ERRORS error(s). NOTHING here is trustworthy:" >&2
+      grep '^ERROR:' "$ERRLOG" | grep -v 'role .* already exists' | head -20 | sed 's/^/    /' >&2
+      exit 1
+    fi
+
+    # What actually landed. Counted, per database, and printed — a restore is a claim about
+    # ROWS, and this is the only place that claim can be checked.
+    RESTORED="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d postgres       -c "SELECT datname FROM pg_database WHERE datname LIKE 'hydromart%' ORDER BY datname;"       2>/dev/null | tr -d '\r')"
+    if [ -z "$RESTORED" ]; then
+      echo "ERROR: no hydromart database exists after the restore — nothing was restored." >&2
+      exit 1
+    fi
+
+    TOTAL_ROWS=0
+    DB_COUNT=0
+    for db in $RESTORED; do
+      DB_COUNT=$((DB_COUNT + 1))
+      tables="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "$db"         -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"         2>/dev/null | tr -d '[:space:]')"
+      if [ "${tables:-0}" -lt 1 ]; then
+        echo "ERROR: $db restored with NO tables — the dump did not carry this database." >&2
+        exit 1
+      fi
+      # Rows, summed over every public table. Slower than reltuples and correct: an estimate
+      # is exactly the wrong instrument for the one moment somebody needs the truth.
+      rows="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "$db" -c "
+        SELECT COALESCE(sum(n), 0) FROM (
+          SELECT (xpath('/row/c/text()', query_to_xml(
+            format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name),
+            false, true, '')))[1]::text::bigint AS n
+          FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        ) t;" 2>/dev/null | tr -d '[:space:]')"
+      TOTAL_ROWS=$((TOTAL_ROWS + ${rows:-0}))
+      echo "  ✅ $db: ${tables} tables, ${rows:-0} rows"
+    done
+
+    if [ "$TOTAL_ROWS" -lt 1 ]; then
+      echo "ERROR: $DB_COUNT database(s) restored and ZERO rows in all of them." >&2
+      echo "       That is a schema, not a recovery. Check the dump: gunzip -c $DUMP | head" >&2
+      exit 1
+    fi
+
+    echo "restore verified: $DB_COUNT databases, $TOTAL_ROWS rows total, 0 errors."
+    echo "Restart the app services so they reconnect."
+    # Deliberately not reported to admin-service: `kind` there is BACKUP|DRILL, and a real
+    # recovery is neither. At 03:00 the operator is reading this output, not /hq/retention.
     ;;
 
   *)
