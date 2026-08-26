@@ -181,8 +181,10 @@ describe('AccountController.importStaff', () => {
     account.importStaff.mockResolvedValue(summary);
 
     const rows = [{ phone: '+628990005001', role: Role.HEAD_OFFICE }];
-    await expect(controller.importStaff({ rows } as never)).resolves.toBe(summary);
-    expect(account.importStaff).toHaveBeenCalledWith(rows);
+    const hq = { sub: 'hq-1', role: Role.HEAD_OFFICE } as never;
+    await expect(controller.importStaff({ rows } as never, hq)).resolves.toBe(summary);
+    // The caller's role rides along: the write path decides what they may grant (AUTHZ-1).
+    expect(account.importStaff).toHaveBeenCalledWith(rows, Role.HEAD_OFFICE);
   });
 });
 

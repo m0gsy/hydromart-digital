@@ -11,6 +11,7 @@ import {
   DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
+  RoleEscalationError,
   PhoneAlreadyRegisteredError,
   StaffDepotRequiredError,
 } from '../../domain/errors/auth.errors';
@@ -18,6 +19,7 @@ import {
 // two Role enums carry identical string values, so the cast is a type bridge, not a
 // second source of truth.
 import { ImportSummary, isDepotLocked, Role as PlatformRole, runImport } from '@hydromart/platform';
+import { canGrantRole } from '@hydromart/access';
 
 import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
@@ -274,8 +276,10 @@ export class AccountService {
     fullName?: string | null,
     depotId?: string | null,
     vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
+    grantedBy?: Role,
   ): Promise<PublicCustomer> {
-    return (await this.inviteStaffDetailed(rawPhone, role, fullName, depotId, vehicle)).staff;
+    return (await this.inviteStaffDetailed(rawPhone, role, fullName, depotId, vehicle, grantedBy))
+      .staff;
   }
 
   /**
@@ -291,9 +295,15 @@ export class AccountService {
     fullName?: string | null,
     depotId?: string | null,
     vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
+    grantedBy?: Role,
   ): Promise<{ staff: PublicCustomer; created: boolean }> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
+    }
+    // AUTHZ-1. Checked here, on the one write path both the console invite and the bulk
+    // import funnel through, so the spreadsheet cannot be the way around it.
+    if (!canGrantRole(grantedBy, role)) {
+      throw new RoleEscalationError(role);
     }
     // Depot-locked roles are unusable without a depot (see StaffDepotRequiredError).
     // Enforced here rather than in each DTO because the console invite and the hr-service
@@ -344,11 +354,18 @@ export class AccountService {
    * in between leaves an account with no employee — visible as such in the Fase 5
    * reconciliation rather than silently.
    */
-  async inviteStaffWithEmployee(input: InviteStaffInput): Promise<PublicCustomer> {
-    const staff = await this.inviteStaff(input.phone, input.role, input.fullName, input.depotId, {
-      vehicleType: input.vehicleType,
-      plateNumber: input.plateNumber,
-    });
+  async inviteStaffWithEmployee(
+    input: InviteStaffInput,
+    grantedBy?: Role,
+  ): Promise<PublicCustomer> {
+    const staff = await this.inviteStaff(
+      input.phone,
+      input.role,
+      input.fullName,
+      input.depotId,
+      { vehicleType: input.vehicleType, plateNumber: input.plateNumber },
+      grantedBy,
+    );
     /*
      * D-4: the skip is on the INPUT role here and on the STORED role at status and delete.
      * Re-inviting somebody who is already an employee AS a franchise owner therefore skipped
@@ -403,7 +420,7 @@ export class AccountService {
    * an account is promoted, not duplicated, and comes back as `updated` rather than
    * `created` so the summary tells the truth about what the second run actually did.
    */
-  async importStaff(rows: readonly ImportStaffRow[]): Promise<ImportSummary> {
+  async importStaff(rows: readonly ImportStaffRow[], grantedBy?: Role): Promise<ImportSummary> {
     // K-4, two phases. The accounts still go one at a time — each is its own write and its
     // own per-row verdict — but the employee half now leaves in ONE call instead of one per
     // row. A 500-row file used to make 500 sequential HTTP hops to hr-service inside a
@@ -418,6 +435,7 @@ export class AccountService {
         row.fullName,
         row.depotId,
         { vehicleType: row.vehicleType, plateNumber: row.plateNumber },
+        grantedBy,
       );
       // An owner is a business counterpart, not headcount — same skip as the single invite.
       if (row.role !== Role.FRANCHISE_OWNER) {

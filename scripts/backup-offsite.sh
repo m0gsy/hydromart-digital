@@ -96,21 +96,11 @@ command -v sha256sum >/dev/null 2>&1 || {
 sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 
 # --- 1. which artefact -------------------------------------------------------------------
-# The directory that actually HOLDS dumps, rather than the first one that is writable:
-# backup-db.sh falls back to $HOME/backups when /var/backups needs root, so guessing gets
-# this wrong on exactly the boxes where it matters. `ls -1t` is backup-db.sh's own ordering.
-default_backup_dir() {
-  local d
-  for d in /var/backups/hydromart "$HOME/backups"; do
-    if [ -d "$d" ] && ls -1 "$d"/hydromart-*.sql.gz >/dev/null 2>&1; then
-      echo "$d"
-      return 0
-    fi
-  done
-  # Name the canonical location, so the error below is actionable on a box with no dumps.
-  echo /var/backups/hydromart
-}
-BACKUP_DIR="${BACKUP_DIR:-$(default_backup_dir)}"
+# The directory that actually HOLDS dumps, rather than the first one that is writable —
+# now shared with restore-db.sh, which used to hardcode the other one (CMP-02).
+# shellcheck source=scripts/lib/backup-dir.sh
+. ./scripts/lib/backup-dir.sh
+BACKUP_DIR="${BACKUP_DIR:-$(hydromart_backup_dir)}"
 
 FILE="${1:-}"
 if [ -z "$FILE" ]; then

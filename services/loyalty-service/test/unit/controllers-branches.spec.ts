@@ -359,8 +359,10 @@ describe('RewardController (delegation)', () => {
   });
 
   it('markRedemptionUsed() maps the hand-over stamp (M14-03)', async () => {
-    const out = await ctrl.markRedemptionUsed('rd-1');
-    expect(rewards.markUsed).toHaveBeenCalledWith('rd-1');
+    const staff = { sub: 'staff-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
+    const out = await ctrl.markRedemptionUsed('rd-1', staff);
+    // AUTHZ-A6: the caller goes with it, so another depot's redemption cannot be burned.
+    expect(rewards.markUsed).toHaveBeenCalledWith('rd-1', staff);
     expect(out).toEqual({
       id: 'rd-1',
       rewardItemId: 'ri-1',

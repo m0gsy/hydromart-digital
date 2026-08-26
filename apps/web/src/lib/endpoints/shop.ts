@@ -63,6 +63,18 @@ products: {
 // quantity tap.
 cart: {
   view: (depotId?: string | null) => withDepot('/orders/api/v1/cart', depotId),
+  /**
+   * PG-03 — the SHELF price, for the catalogue grid and the product page.
+   *
+   * Both printed `product.basePrice` while this same service billed the cart at the depot's
+   * price: Rp20.000 on the shelf, Rp22.000 on the bill, wherever a depot ran a pricing rule.
+   * This answers from the function the bill is computed by, so the two cannot disagree.
+   */
+  shelfPrices: (productIds: string[], depotId?: string | null) => {
+    const p = new URLSearchParams({ productIds: productIds.join(',') });
+    if (depotId) p.set('depotId', depotId);
+    return `/orders/api/v1/cart/shelf-prices?${p.toString()}`;
+  },
   items: (depotId?: string | null) => withDepot('/orders/api/v1/cart/items', depotId),
   item: (productId: string, depotId?: string | null) =>
     withDepot(`/orders/api/v1/cart/items/${productId}`, depotId),

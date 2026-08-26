@@ -139,6 +139,33 @@ describe('WebhookDeliveryPrismaRepository', () => {
     expect(webhookDelivery.findMany.mock.calls[1][0].where).toBeUndefined();
   });
 
+  /*
+   * AUTHZ-3. One API key read — and could replay — every other partner's deliveries,
+   * payloads included, because nothing in the query mentioned who was asking. An endpoint
+   * now records the key it belongs to, and a partner sees exactly its own endpoints'
+   * deliveries. An endpoint with no owner belongs to no partner: invisible, not shared.
+   */
+  it('scopes a partner read to the endpoints its own key owns', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    webhookDelivery.findMany.mockResolvedValue([]);
+    await repo.listForPartner(25, 'delivery.delivered', 'key-1');
+    expect(webhookDelivery.findMany).toHaveBeenCalledWith({
+      where: { event: 'delivery.delivered', endpoint: { apiKeyId: 'key-1' } },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+  });
+
+  it('refuses to replay a delivery that belongs to another key', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    webhookDelivery.findFirst.mockResolvedValue(null);
+    await expect(repo.replay('d-1', NOW, 'key-1')).resolves.toBeNull();
+    expect(webhookDelivery.findFirst).toHaveBeenCalledWith({
+      where: { id: 'd-1', endpoint: { apiKeyId: 'key-1' } },
+    });
+    expect(webhookDelivery.update).not.toHaveBeenCalled();
+  });
+
   it('replays by resetting the attempt count, so a DEAD row gets a real second chance', async () => {
     const { repo, webhookDelivery } = makeRepo();
     webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1' });

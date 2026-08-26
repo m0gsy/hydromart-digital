@@ -48,5 +48,23 @@ www.{$WEB_DOMAIN} {
 	# script-src/style-src for Swagger UI or the page will render blank.
 	header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
 	encode zstd gzip
+
+	# BI-2 — /metrics is not for the internet.
+	#
+	# `enableMetrics` mounts GET /metrics OUTSIDE the api prefix and outside every guard,
+	# deliberately: Prometheus has no token and scrapes over the docker network. The gateway
+	# does the same, and the gateway is the one container this site proxies — so
+	# https://<API_DOMAIN>/metrics answered anybody with the platform's traffic: request
+	# counts by route and status (orders placed, payments confirmed, logins attempted, what
+	# is failing right now), plus install counts per app build and the process's own heap
+	# and event-loop figures.
+	#
+	# Blocked HERE rather than in the app: Prometheus reaches the containers directly on the
+	# internal network, so nothing legitimate crosses this proxy to get metrics. 404, not
+	# 403 — a refusal that names the path confirms it exists.
+	handle /metrics* {
+		respond 404
+	}
+
 	reverse_proxy gateway:8080
 }

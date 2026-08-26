@@ -136,9 +136,9 @@ describe('AccountController delegation', () => {
       monthlyRate: 4_500_000,
     };
 
-    await controller.inviteStaff(dto);
+    await controller.inviteStaff(dto, { sub: 'hq-1', role: 'HEAD_OFFICE' } as never);
 
-    expect(account.inviteStaffWithEmployee).toHaveBeenCalledWith(dto);
+    expect(account.inviteStaffWithEmployee).toHaveBeenCalledWith(dto, 'HEAD_OFFICE');
     expect(account.inviteStaff).not.toHaveBeenCalled();
   });
 

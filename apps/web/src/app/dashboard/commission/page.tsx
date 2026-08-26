@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import { Info, Lock, Wallet } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -75,7 +74,6 @@ function CourierRow({ c, name }: { c: CommissionCourier; name: string }) {
 function CommissionBody() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
-  const [paid, setPaid] = useState(false);
   const { from, to } = monthWindow();
 
   const data = useAsync<{ run: CommissionRun; names: Map<string, string> }>(async () => {
@@ -125,14 +123,21 @@ function CommissionBody() {
               <p className="text-sm font-medium text-on-brand/80">{t('hrFix.commission.periodTotal')}</p>
               <Money amount={run.totalIdr ?? 0} className="text-2xl font-bold" />
             </div>
-            <Button
-              variant="secondary"
-              className="shrink-0 text-brand-800"
-              onClick={() => setPaid(true)}
-              disabled={paid}
-            >
-              {paid ? t('hrFix.commission.paid') : t('hrFix.commission.payAll')}
-            </Button>
+            {/*
+              OPS-03: there was a "Bayar semua" button here whose entire implementation was
+              `onClick={() => setPaid(true)}`. No api.post existed anywhere in this file. A
+              manager pressed it at month end, the label changed to "Terbayar", nothing was
+              recorded anywhere, no courier was paid — and after a reload it read "Bayar
+              semua" again, so the same manager could not tell whether they had paid or not.
+
+              It is not a missing call, it is a screen that never had the power: commission
+              is credited to each courier's ledger as their deliveries complete
+              (`ledger/internal` in payout-service) and the courier withdraws it themselves.
+              This screen reports. Saying so is the honest control.
+            */}
+            <p className="max-w-[18rem] shrink-0 text-right text-xs text-on-brand/80">
+              {t('hrFix.commission.howPaid')}
+            </p>
           </Card>
 
           <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">

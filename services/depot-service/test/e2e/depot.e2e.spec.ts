@@ -135,8 +135,13 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const depotId = created.body.id;
     expect(created.body.deliveryFee).toBe(5000);
     // Depot staff are now locked to their own depot — bind tokens to the created depot.
+    // AUTHZ-A1: the by-id stock routes below check the LINE's depot against the caller's,
+    // so `operatorToken` (a KEPALA_DEPOT carrying no depot at all) can no longer touch
+    // them — which is the point: that token could previously adjust any depot's stock by
+    // id. The lifecycle runs as an operator who actually works at this depot.
     const oprAt = signStaff(Role.MANAGER, depotId);
     const mgrAt = signStaff(Role.MANAGER, depotId);
+    const headAt = signStaff(Role.KEPALA_DEPOT, depotId);
 
     // depot shows in public browse
     await request(server())
@@ -171,7 +176,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // operator adjusts stock below the minimum
     await request(server())
       .post(`/api/v1/inventory/${itemId}/adjust`)
-      .set(auth(operatorToken))
+      .set(auth(headAt))
       .send({ delta: -85, reason: 'sales' })
       .expect(201)
       .expect((r) => {
@@ -192,7 +197,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // opname reconciles to a counted quantity and records variance
     await request(server())
       .post(`/api/v1/inventory/${itemId}/opname`)
-      .set(auth(operatorToken))
+      .set(auth(headAt))
       .send({ countedQuantity: 12, reason: 'monthly' })
       .expect(201)
       .expect((r) => expect(r.body.quantity).toBe(12));
@@ -200,9 +205,28 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // movement history: RECEIPT + ADJUSTMENT + OPNAME
     await request(server())
       .get(`/api/v1/inventory/${itemId}/movements`)
-      .set(auth(operatorToken))
+      .set(auth(headAt))
       .expect(200)
       .expect((r) => expect(r.body).toHaveLength(3));
+
+    // AUTHZ-A1 over HTTP: a depot head from somewhere else knows the line id (the movement
+    // export prints it) and gets nothing — read or write.
+    const elsewhere = signStaff(Role.KEPALA_DEPOT, '99999999-9999-4999-8999-999999999999');
+    await request(server())
+      .get(`/api/v1/inventory/${itemId}`)
+      .set(auth(elsewhere))
+      .expect(403);
+    await request(server())
+      .post(`/api/v1/inventory/${itemId}/opname`)
+      .set(auth(elsewhere))
+      .send({ countedQuantity: 0, reason: 'bukan depot saya' })
+      .expect(403);
+    // ...and the stock is exactly where the depot's own count left it.
+    await request(server())
+      .get(`/api/v1/inventory/${itemId}`)
+      .set(auth(headAt))
+      .expect(200)
+      .expect((r) => expect(r.body.quantity).toBe(12));
   });
 
   it('deducts PRODUK stock on order completion (consume), needs internal key (SEC-2)', async () => {
@@ -259,7 +283,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
 
     await request(server())
       .get(`/api/v1/inventory/${itemId}`)
-      .set(auth(operatorToken))
+      .set(auth(oprAt))
       .expect(200)
       .expect((r) => expect(r.body.quantity).toBe(46));
   });

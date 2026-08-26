@@ -1044,12 +1044,19 @@ describe('OrderService', () => {
       service as unknown as {
         findOrderValues(
           ids: string[],
-        ): Promise<{ orderId: string; orderNumber: string; totalIdr: number }[]>;
+        ): Promise<
+          { orderId: string; orderNumber: string; totalIdr: number; depotId: string | null }[]
+        >;
       }
     ).findOrderValues([order.id, missingId]);
 
     expect(result).toEqual([
-      { orderId: order.id, orderNumber: order.orderNumber, totalIdr: order.total },
+      {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        totalIdr: order.total,
+        depotId: order.depotId ?? null,
+      },
     ]);
   });
 

@@ -47,8 +47,12 @@ export interface ExpenseClaimRepository {
     page: number,
     limit: number,
   ): Promise<{ items: ExpenseClaimRecord[]; total: number }>;
+  /**
+   * The approval queue. `depotIds` null = every depot (finance/HQ); a list = exactly those
+   * depots, which is how a depot-scoped reviewer is held to their own (AUTHZ-A5).
+   */
   searchForDepot(
-    depotId: string | null,
+    depotIds: readonly string[] | null,
     status: ExpenseClaimStatus | null,
     page: number,
     limit: number,

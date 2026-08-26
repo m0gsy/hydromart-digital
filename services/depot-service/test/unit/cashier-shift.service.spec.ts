@@ -1,3 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
+
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import { CashierShiftService } from '../../src/application/services/cashier-shift.service';
 import { CashierShift, CashierShiftStatus } from '../../src/domain/cashier-shift';
 import { CashDirection } from '../../src/domain/cashbook';
@@ -230,6 +234,42 @@ describe('CashierShiftService', () => {
         service.close(opened.id, { countedCash: 200_000 }, CASHIER),
       ).rejects.toBeInstanceOf(ShiftAlreadyClosedError);
     });
+  });
+
+  /*
+   * AUTHZ-A4: closing checked WHOSE shift it was and never WHICH DEPOT it was. `depotFinance`
+   * is what lets a manager close a drawer a cashier walked away from — and a manager holds it
+   * for their own depots. So a manager could close any depot's shift and post its counter
+   * takings into that depot's cashbook, in a category ("KONTER") that reads as ordinary.
+   */
+  it('refuses to close a shift at a depot the caller does not run', async () => {
+    const opened = await openShift();
+    const outsider = {
+      sub: 'manager-lain',
+      role: Role.MANAGER,
+      depotId: 'depot-lain',
+      depotIds: ['depot-lain'],
+    } as unknown as AuthenticatedUser;
+
+    await expect(
+      service.close(opened.id, { countedCash: 200_000 }, { ...CASHIER, canCloseAnyShift: true }, outsider),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(cashbook.entries).toHaveLength(0);
+    expect(shifts.rows[0].status).toBe(CashierShiftStatus.OPEN);
+  });
+
+  it('still closes for a manager of the shift own depot', async () => {
+    const opened = await openShift();
+    const insider = {
+      sub: 'manager',
+      role: Role.MANAGER,
+      depotId: DEPOT,
+      depotIds: [DEPOT],
+    } as unknown as AuthenticatedUser;
+
+    await expect(
+      service.close(opened.id, { countedCash: 200_000 }, { ...CASHIER, canCloseAnyShift: true }, insider),
+    ).resolves.toMatchObject({ status: CashierShiftStatus.CLOSED });
   });
 
   it('lists who is on the counter now plus the shifts already reconciled', async () => {

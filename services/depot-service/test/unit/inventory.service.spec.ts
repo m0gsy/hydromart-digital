@@ -1,3 +1,6 @@
+import { ForbiddenException } from '@nestjs/common';
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import { InventoryService } from '../../src/application/services/inventory.service';
 import { DepotService } from '../../src/application/services/depot.service';
 import { InventoryItemType, OwnershipType, StockMovementType } from '../../src/domain/inventory';
@@ -1129,6 +1132,54 @@ describe('InventoryService', () => {
       itemLabel: 'Galon 19L',
       itemType: InventoryItemType.GALON,
       type: StockMovementType.ADJUSTMENT,
+    });
+  });
+  // AUTHZ-A1: every by-id stock operation used to load the row by UUID alone. A depot head
+  // who knew another depot's line id (the movements export hands them out) could count it
+  // to zero, and the shrinkage landed on that depot's books. One check inside `require`,
+  // which all seven of these route through.
+  describe('by-id operations refuse a line that belongs to another depot', () => {
+    const outsider = {
+      sub: 'kepala-depot-lain',
+      role: Role.KEPALA_DEPOT,
+      depotId: '99999999-9999-9999-9999-999999999999',
+    } as AuthenticatedUser;
+
+    it('refuses read, write, and count for a foreign depot head', async () => {
+      const line = await inventory.createLine(depotId, raw(), ACTOR);
+
+      await expect(inventory.get(line.id, outsider)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(inventory.movements(line.id, outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(inventory.listReservations(line.id, outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(
+        inventory.updateMeta(line.id, { label: 'dirampas' }, outsider),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        inventory.adjust(line.id, -100, null, ACTOR, TOKEN, outsider),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        inventory.opname(line.id, 0, null, ACTOR, TOKEN, outsider),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(inventory.deleteLine(line.id, outsider)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      // and the stock is untouched by all of that
+      expect((await inventory.get(line.id)).quantity).toBe(100);
+    });
+
+    it('still serves the depot head the line belongs to', async () => {
+      const line = await inventory.createLine(depotId, raw(), ACTOR);
+      const insider = { sub: 'kepala', role: Role.KEPALA_DEPOT, depotId } as AuthenticatedUser;
+
+      await expect(inventory.get(line.id, insider)).resolves.toMatchObject({ quantity: 100 });
+      await expect(inventory.opname(line.id, 90, null, ACTOR, TOKEN, insider)).resolves.toMatchObject(
+        { quantity: 90 },
+      );
     });
   });
 });

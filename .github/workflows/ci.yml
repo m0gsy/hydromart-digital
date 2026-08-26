@@ -355,6 +355,39 @@ jobs:
       - name: Depot-scope guard registration
         run: node scripts/check-depot-scope-guards.mjs
 
+      # AUTHZ-A2 — the gate above asks whether the guard is INSTALLED, which was green every
+      # day while `requestedDepotId` returned the FIRST depot value it found and the handler
+      # read a different one. This proves that half of it can go red.
+      - name: Depot-scope guard semantics (AUTHZ-A2)
+        run: bash scripts/check-depot-scope-guards.test.sh
+
+      # PAR-20 — the direction nothing measured. check-endpoint-contracts walks client→server
+      # and sounds like it answers server→client; it cannot. This counts every declared route
+      # and fails when a new one has no screen, no adapter and no cron line behind it.
+      - name: Route parity (server → UI)
+        run: node scripts/check-route-parity.mjs
+
+      - name: Route parity gate can go red
+        run: bash scripts/check-route-parity.test.sh
+
+      # BI-2 — /metrics is mounted outside every guard on purpose (Prometheus has no token)
+      # and the public API hostname proxies the gateway, so it was answering the platform's
+      # traffic to anybody who asked.
+      - name: Metrics are not public (BI-2)
+        run: node scripts/check-public-metrics.mjs
+
+      - name: Public-metrics gate can go red
+        run: bash scripts/check-public-metrics.test.sh
+
+      # CMP-01 — the restore path printed "restore complete." whether anything had been
+      # restored or not. The docker cases skip without a daemon and say so; the refusals run
+      # everywhere.
+      - name: Restore drill (CMP-01)
+        run: bash scripts/restore-db.test.sh
+
+      - name: Backup freshness gate (CMP-04)
+        run: bash scripts/check-backup-freshness.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple

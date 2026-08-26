@@ -91,13 +91,13 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
   }
 
   async searchForDepot(
-    depotId: string | null,
+    depotIds: readonly string[] | null,
     status: ExpenseClaimStatus | null,
     page: number,
     limit: number,
   ): Promise<{ items: ExpenseClaimRecord[]; total: number }> {
     const where = {
-      ...(depotId ? { depotId } : {}),
+      ...(depotIds ? { depotId: { in: [...depotIds] } } : {}),
       ...(status ? { status } : {}),
     };
     const [rows, total] = await Promise.all([

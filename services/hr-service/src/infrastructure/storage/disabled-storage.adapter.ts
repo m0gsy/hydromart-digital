@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import { StoragePort, StoragePutResult } from '../../application/ports/storage.port';
 
@@ -8,6 +8,11 @@ import { StoragePort, StoragePutResult } from '../../application/ports/storage.p
 export class DisabledStorageAdapter implements StoragePort {
   async put(): Promise<StoragePutResult> {
     return { url: '', key: '' };
+  }
+
+  /** Nothing was ever stored, so there is nothing to read back — say so, never answer empty. */
+  async getObject(): Promise<{ body: Buffer; contentType: string | null }> {
+    throw new ServiceUnavailableException('Penyimpanan dokumen belum dikonfigurasi');
   }
 
   async remove(): Promise<void> {

@@ -22,6 +22,7 @@ function endpoint(over: Partial<WebhookRecord> = {}): WebhookRecord {
   return {
     id: 'ep-1',
     url: 'https://partner.example.com/hooks',
+    apiKeyId: null,
     events: ['delivery.delivered'],
     active: true,
     secret: 'partner-secret',
@@ -294,7 +295,7 @@ describe('WebhookDispatchService', () => {
     const { deliveries, endpoints } = makeRepos([]);
     const service = new WebhookDispatchService(deliveries, endpoints);
 
-    await expect(service.replay('d-1', NOW)).resolves.toMatchObject({ id: 'd-1' });
-    await expect(service.replay('nope', NOW)).rejects.toThrow('Delivery not found');
+    await expect(service.replay('d-1', undefined, NOW)).resolves.toMatchObject({ id: 'd-1' });
+    await expect(service.replay('nope', undefined, NOW)).rejects.toThrow('Delivery not found');
   });
 });

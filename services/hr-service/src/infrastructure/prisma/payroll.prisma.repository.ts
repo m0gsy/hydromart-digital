@@ -1,8 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { depotWhere } from '@hydromart/platform';
-import { Payroll, PayrollStatus } from '../../../prisma/generated/client';
+import { PayrollStatus } from '../../../prisma/generated/client';
 
 import {
+  PayrollListRow,
   PayrollRepository,
   PayrollWithItems,
   PayrollWrite,
@@ -169,7 +170,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
     depotIds?: readonly string[];
     skip: number;
     take: number;
-  }): Promise<{ rows: Payroll[]; total: number }> {
+  }): Promise<{ rows: PayrollListRow[]; total: number }> {
     const where = {
       ...(filter.periodMonth ? { periodMonth: filter.periodMonth } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
@@ -182,12 +183,22 @@ export class PayrollPrismaRepository implements PayrollRepository {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.payroll.findMany({
         where,
+        // PG-01: the name comes from the relation the depot filter above already joins on,
+        // so the queue costs the same query it always did and the rows stop being
+        // indistinguishable from each other.
+        include: { employee: { select: { fullName: true } } },
         orderBy: { createdAt: 'desc' },
         skip: filter.skip,
         take: filter.take,
       }),
       this.prisma.payroll.count({ where }),
     ]);
-    return { rows, total };
+    return {
+      rows: rows.map(({ employee, ...payroll }) => ({
+        ...payroll,
+        employeeName: employee?.fullName ?? null,
+      })),
+      total,
+    };
   }
 }

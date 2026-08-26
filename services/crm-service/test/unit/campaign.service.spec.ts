@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+
 import { randomUUID } from 'node:crypto';
 
 import { CampaignStatus } from '../../src/domain/campaign-status';
@@ -221,6 +223,38 @@ describe('CampaignService', () => {
       await expect(
         service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi'),
       ).rejects.toBeInstanceOf(NoRecipientsError);
+    });
+
+    /*
+     * OPS-04. The depot broadcast screen posted here and stopped. This route DRAFTS a
+     * campaign — its own summary says so — and sending is a second route the screen never
+     * called. The form cleared, no error appeared, the "Terkirim" column beside it did not
+     * move, and nothing reached the 320 customers the button had just counted.
+     *
+     * Sending it needed `campaignWrite`, which a depot manager does not hold and should not:
+     * that is the head-office right to blast the whole network. So the depot gets a send of
+     * its OWN campaign — the one it created, by the account that created it.
+     */
+    describe('sendOwn (OPS-04)', () => {
+      it('sends a campaign the caller created', async () => {
+        const draft = await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+        const sent = await service.sendOwn(draft.id, 'kd-1');
+        expect(sent.status).toBe('SENDING');
+      });
+
+      it('refuses a campaign somebody else created', async () => {
+        const draft = await service.createForDepot('kd-1', 'depot-mine', 'Promo', 'Hi');
+        await expect(service.sendOwn(draft.id, 'kd-lain')).rejects.toBeInstanceOf(
+          ForbiddenException,
+        );
+        expect((await service.get(draft.id)).status).toBe('DRAFT');
+      });
+
+      it('reports an unknown campaign as missing', async () => {
+        await expect(service.sendOwn('tidak-ada', 'kd-1')).rejects.toBeInstanceOf(
+          CampaignNotFoundError,
+        );
+      });
     });
   });
 

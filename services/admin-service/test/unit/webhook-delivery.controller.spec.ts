@@ -97,13 +97,31 @@ describe('WebhookDeliveryController (HQ)', () => {
 });
 
 describe('PartnerDeliveryController (API key)', () => {
-  it('lists and replays through the same service', async () => {
+  // AUTHZ-3: the partner routes answered "deliveries sent to you" with every partner's
+  // deliveries — payload included — and replayed any of them. The key that authenticated
+  // the request is the only thing that says whose data it is, so it goes to the service.
+  const req = (id = 'key-1') => ({ apiKey: { id } }) as never;
+
+  it('scopes the list and the replay to the calling key', async () => {
     const service = makeService();
     const controller = new PartnerDeliveryController(service);
 
-    await expect(controller.list({ limit: 50 })).resolves.toHaveLength(1);
+    await expect(controller.list({ limit: 50 }, req())).resolves.toHaveLength(1);
+    expect(service.list).toHaveBeenCalledWith(50, undefined, 'key-1');
+    await expect(controller.replay('d-1', req())).resolves.toMatchObject({ id: 'd-1' });
+    expect(service.replay).toHaveBeenCalledWith('d-1', 'key-1');
+  });
+});
+
+describe('WebhookDeliveryController (HQ) still sees every partner', () => {
+  it('passes no key, so nothing is scoped away from the platform owner', async () => {
+    const service = makeService();
+    const controller = new WebhookDeliveryController(service);
+
+    await controller.list({ limit: 50 });
     expect(service.list).toHaveBeenCalledWith(50, undefined);
-    await expect(controller.replay('d-1')).resolves.toMatchObject({ id: 'd-1' });
+    await controller.replay('d-1');
+    expect(service.replay).toHaveBeenCalledWith('d-1');
   });
 });
 

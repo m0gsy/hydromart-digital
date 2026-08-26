@@ -595,8 +595,10 @@ describe('ExpenseClaimPrismaRepository', () => {
   it('searches for a depot with both depotId and status filters', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
-    const result = await repo.searchForDepot('dep-1', 'PENDING' as never, 1, 50);
-    const where = { depotId: 'dep-1', status: 'PENDING' };
+    // AUTHZ-A5: the queue filters on a SET of depots now — one entry for a named depot,
+    // the reviewer's own depots when they asked for "all".
+    const result = await repo.searchForDepot(['dep-1'], 'PENDING' as never, 1, 50);
+    const where = { depotId: { in: ['dep-1'] }, status: 'PENDING' };
     expect(model.findMany).toHaveBeenCalledWith({
       where,
       orderBy: { createdAt: 'desc' },

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { CashierShift, expectedCash, variance } from '../../domain/cashier-shift';
 import { CashDirection } from '../../domain/cashbook';
@@ -86,9 +87,15 @@ export class CashierShiftService {
     shiftId: string,
     input: CloseShiftInput,
     cashier: { id: string; canCloseAnyShift: boolean },
+    user?: AuthenticatedUser,
   ): Promise<CashierShift> {
     const shift = await this.shifts.findById(shiftId);
     if (!shift) throw new ShiftNotFoundError();
+    // AUTHZ-A4: whose shift it is was checked, which DEPOT it belongs to was not. The
+    // manager who may close a drawer somebody walked away from holds that power for their
+    // own depots — otherwise the takings of any depot's counter could be settled, and
+    // posted to that depot's cashbook, from anywhere.
+    assertDepotAccess(user, shift.depotId);
     if (shift.closedAt) throw new ShiftAlreadyClosedError();
     // A manager may close a shift somebody walked away from; a cashier may only close
     // their own, or they could quietly settle a drawer that is not theirs.

@@ -139,7 +139,11 @@ export class RewardController {
   @ApiOperation({
     summary: 'Mark a redemption as handed over; closes the cancellation window (M14-03)',
   })
-  async markRedemptionUsed(@Param('id', ParseUUIDPipe) id: string): Promise<RedemptionDto> {
-    return RedemptionDto.from(await this.rewards.markUsed(id));
+  async markRedemptionUsed(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RedemptionDto> {
+    // ...at the depot the customer left it for (AUTHZ-A6).
+    return RedemptionDto.from(await this.rewards.markUsed(id, user));
   }
 }

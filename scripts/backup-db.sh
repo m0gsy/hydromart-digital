@@ -59,20 +59,43 @@ report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE")"
 # Offsite copy to NEO (optional but recommended — if the VPS disk/box dies the
 # local backups die with it). Enable by setting BACKUP_S3_BUCKET (+ creds) in the
 # cron env; unset = local-only. Uses a separate bucket/key from app uploads.
+OFFSITE_NOTE=""
 if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
   REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-  if S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}" \
+  # CMP-06 — a HALF-configured bucket used to end the run right here.
+  #
+  # `${BACKUP_S3_ACCESS_KEY_ID:?...}` under `set -u` aborts the script, and it aborted it
+  # AFTER a perfectly good dump had been written: the EXIT trap then reported BACKUP FAILED
+  # to the console (so /hq/retention showed a failure over a backup that exists), and the
+  # local retention prune below never ran — so the disk kept every dump ever taken, on the
+  # box whose disk filling up is one of the ways the database dies in the first place.
+  #
+  # A missing credential is now what it actually is: the OFFSITE COPY did not happen. The
+  # dump is real, retention still runs, and the gap is stated instead of thrown.
+  if [ -z "${BACKUP_S3_ACCESS_KEY_ID:-}" ] || [ -z "${BACKUP_S3_SECRET_ACCESS_KEY:-}" ]; then
+    echo "WARN: BACKUP_S3_BUCKET is set but BACKUP_S3_ACCESS_KEY_ID/SECRET are not —" >&2
+    echo "      the dump is local-only. Set both, or unset BACKUP_S3_BUCKET." >&2
+    OFFSITE_NOTE="offsite SKIPPED (no credentials)"
+  elif S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}" \
      S3_REGION="${BACKUP_S3_REGION:-jkt-1}" \
      S3_BUCKET="$BACKUP_S3_BUCKET" \
-     S3_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID:?set BACKUP_S3_ACCESS_KEY_ID}" \
-     S3_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY:?set BACKUP_S3_SECRET_ACCESS_KEY}" \
+     S3_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID:-}" \
+     S3_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY:-}" \
      node "$REPO_DIR/scripts/upload-to-s3.mjs" "$FILE" "db/$(basename "$FILE")"; then
     echo "offsite OK -> $BACKUP_S3_BUCKET/db/$(basename "$FILE")"
   else
     echo "WARN: offsite upload to NEO failed — kept local copy" >&2
+    OFFSITE_NOTE="offsite FAILED"
   fi
 fi
 
 # Local retention: keep the newest $KEEP, delete older. (NEO retention = set a
 # bucket lifecycle/expiry rule in the console; this script doesn't prune remote.)
 ls -1t "$BACKUP_DIR"/hydromart-*.sql.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs -r rm -f
+
+# The console said OK the moment the dump landed, and that is still true. When the offsite
+# copy did not happen, say so on the same card rather than letting "OK" mean more than it does
+# (CMP-06 — the run used to abort here instead, leaving a FAILED verdict over a good dump).
+if [ -n "$OFFSITE_NOTE" ]; then
+  report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE") — $OFFSITE_NOTE"
+fi

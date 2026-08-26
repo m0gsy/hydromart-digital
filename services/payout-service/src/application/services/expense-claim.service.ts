@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import {  AuthenticatedUser,  assertDepotAccess,  depotScopeIds,} from '@hydromart/platform';
 
 import {
   ExpenseClaimNotFoundError,
@@ -66,8 +67,13 @@ export class ExpenseClaimService {
   }
 
   /** Reviewer approves a pending claim: credit the courier ledger, then mark it approved. */
-  async approve(id: string, reviewerId: string, note?: string): Promise<ExpenseClaimRecord> {
-    const claim = await this.loadPending(id);
+  async approve(
+    id: string,
+    reviewerId: string,
+    note?: string,
+    reviewer?: AuthenticatedUser,
+  ): Promise<ExpenseClaimRecord> {
+    const claim = await this.loadPending(id, reviewer);
     const entry = await this.creditLedger(claim);
     return this.claims.markReviewed(id, {
       status: 'APPROVED',
@@ -78,8 +84,13 @@ export class ExpenseClaimService {
   }
 
   /** Reviewer rejects a pending claim: no ledger movement. */
-  async reject(id: string, reviewerId: string, note?: string): Promise<ExpenseClaimRecord> {
-    await this.loadPending(id);
+  async reject(
+    id: string,
+    reviewerId: string,
+    note?: string,
+    reviewer?: AuthenticatedUser,
+  ): Promise<ExpenseClaimRecord> {
+    await this.loadPending(id, reviewer);
     return this.claims.markReviewed(id, {
       status: 'REJECTED',
       reviewedBy: reviewerId,
@@ -97,20 +108,37 @@ export class ExpenseClaimService {
       .then(({ items, total }) => buildPage(items, total, page, limit));
   }
 
-  searchForDepot(
+  /**
+   * The approval queue. `reviewer` narrows it: asked for "all depots", a depot-scoped
+   * reviewer gets their own rather than the network's — the unfiltered queue is where the
+   * ids of other depots' claims came from in the first place (AUTHZ-A5). A named depot that
+   * is not theirs is refused outright, as everywhere else.
+   */
+  async searchForDepot(
     depotId: string | null,
     status: ExpenseClaimStatus | null,
     page: number,
     limit: number,
+    reviewer?: AuthenticatedUser,
   ): Promise<Page<ExpenseClaimRecord>> {
+    if (depotId) {
+      assertDepotAccess(reviewer, depotId);
+    }
+    const scope = depotId ? [depotId] : (depotScopeIds(reviewer) ?? null);
     return this.claims
-      .searchForDepot(depotId, status, page, limit)
+      .searchForDepot(scope, status, page, limit)
       .then(({ items, total }) => buildPage(items, total, page, limit));
   }
 
-  private async loadPending(id: string): Promise<ExpenseClaimRecord> {
+  private async loadPending(
+    id: string,
+    reviewer?: AuthenticatedUser,
+  ): Promise<ExpenseClaimRecord> {
     const claim = await this.claims.findById(id);
     if (!claim) throw new ExpenseClaimNotFoundError();
+    // AUTHZ-A5: approving credits a courier's ledger. Whose depot the claim came from was
+    // never asked, so any holder of `expenseApprove` could move money for any depot.
+    assertDepotAccess(reviewer, claim.depotId);
     if (claim.status !== 'PENDING') throw new ExpenseClaimNotPendingError();
     return claim;
   }

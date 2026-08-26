@@ -20,10 +20,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
 
 import { CartService, CartView } from '../application/services/cart.service';
-import { AddCartItemDto, SetCartItemQuantityDto } from './dto/cart.dto';
+import { AddCartItemDto, SetCartItemQuantityDto, ShelfPricesResponseDto } from './dto/cart.dto';
 import { CartResponseDto } from './dto/responses.generated.dto';
 
 /*
@@ -49,6 +49,30 @@ const DEPOT_QUERY = {
 @Controller({ path: 'cart', version: '1' })
 export class CartController {
   constructor(private readonly cart: CartService) {}
+
+  /**
+   * PG-03 — the shelf price, for the catalogue grid and the product page.
+   *
+   * Public, like the catalogue itself: a guest browsing sees prices before they have an
+   * account. It answers from the same `priceLines` the cart bills through, so the number on
+   * the shelf and the number on the bill cannot be produced by two different rules — which
+   * is what they were.
+   */
+  @ApiOkResponse({ type: ShelfPricesResponseDto })
+  @Public()
+  @Get('shelf-prices')
+  @ApiOperation({ summary: "Depot-resolved shelf prices for products (public, PG-03)" })
+  shelfPrices(
+    @Query('productIds') productIds?: string,
+    @Query('depotId') depotId?: string,
+  ): Promise<ShelfPricesResponseDto> {
+    const ids = (productIds ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 100); // one page of a catalogue; a longer list is a caller bug, not a query
+    return this.cart.shelfPrices(depotId ?? null, ids);
+  }
 
   @ApiOkResponse({ type: CartResponseDto })
   @ApiQuery(DEPOT_QUERY)

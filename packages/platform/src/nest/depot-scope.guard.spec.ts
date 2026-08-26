@@ -62,6 +62,92 @@ describe('DepotScopeGuard', () => {
     });
   });
 
+  // AUTHZ-A2: the guard used to stop at the FIRST depotId it found (query, then body, then
+  // params), so any `:depotId` route could be waved through by pinning an own-depot
+  // `?depotId=` next to it. Every value the request carries has to clear the check, because
+  // the handler is free to read any one of them.
+  describe('every depotId the request carries must clear the check', () => {
+    it('forbids an own-depot query pinned onto another depot route param', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { query: { depotId: DEPOT_A }, params: { depotId: DEPOT_B } },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('forbids an own-depot query pinned onto another depot body field', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { query: { depotId: DEPOT_A }, body: { depotId: DEPOT_B } },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('forbids an own-depot body field pinned onto another depot route param', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { body: { depotId: DEPOT_A }, params: { depotId: DEPOT_B } },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // express parses a repeated key into an array, which the old string-only read skipped
+    // entirely — so `?depotId=A&depotId=B` reached the handler unchecked.
+    it('checks every value of a repeated query key', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { query: { depotId: [DEPOT_A, DEPOT_B] } },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { query: { depotId: [DEPOT_A, DEPOT_A] } },
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it('still allows the same own depot repeated across all three sources', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          {
+            query: { depotId: DEPOT_A },
+            body: { depotId: DEPOT_A },
+            params: { depotId: DEPOT_A },
+          },
+        ),
+      ).resolves.toBe(true);
+    });
+
+    // `?depotIds=a,b` is the batch form the owner dashboard uses (inventory low-stock). The
+    // guard only knew the singular key, so the batch one was an unchecked selector.
+    it('checks the comma-separated depotIds batch key too', async () => {
+      await expect(
+        run(
+          { role: Role.KEPALA_DEPOT, depotId: DEPOT_A },
+          { query: { depotIds: `${DEPOT_A},${DEPOT_B}` } },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        run({ role: Role.KEPALA_DEPOT, depotId: DEPOT_A }, { query: { depotIds: DEPOT_A } }),
+      ).resolves.toBe(true);
+      await expect(
+        run({ role: Role.KEPALA_DEPOT, depotId: DEPOT_A }, { query: { depotIds: '' } }),
+      ).resolves.toBe(true);
+    });
+
+    it('ignores non-string depotId shapes rather than trusting them', async () => {
+      await expect(
+        run({ role: Role.KEPALA_DEPOT, depotId: DEPOT_A }, { body: { depotId: { id: DEPOT_B } } }),
+      ).resolves.toBe(true);
+    });
+  });
+
   describe('multi-depot roles resolve a set', () => {
     it('lets a supervisor reach any depot in their set and refuses the rest', async () => {
       configureDepotScope(async () => [DEPOT_A, DEPOT_B]);

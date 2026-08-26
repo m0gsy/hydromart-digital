@@ -126,6 +126,9 @@ model ApiKey {
 model WebhookEndpoint {
   id                 String   @id @default(uuid())
   url                String
+  /// The partner API key this endpoint belongs to (AUTHZ-3). Null = registered before
+  /// ownership was recorded: invisible to every partner key, visible to HQ.
+  apiKeyId           String?
   events             String[]
   active             Boolean  @default(true)
   secret             String?

@@ -21,6 +21,16 @@ export interface StoragePutResult {
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
   /**
+   * Read an object back by key (SEC-01).
+   *
+   * HR documents — KTP scans, contracts, payslips — used to be handed to the browser as a
+   * permanent unsigned URL, so anyone who ever saw one kept it for good and no login was
+   * involved in opening it. The bytes leave through hr-service instead, behind the same
+   * capability and depot check as the row. Throws when the object is gone or storage is
+   * not configured: an unreadable document must not look like an empty one.
+   */
+  getObject(key: string): Promise<{ body: Buffer; contentType: string | null }>;
+  /**
    * Remove an object by key. Needed by the document retention purge: deleting the row alone
    * would leave a KTP scan sitting in the bucket, which is not erasure in any sense UU 27/2022
    * would accept. Must be idempotent — a key that is already gone is a success, not an error.

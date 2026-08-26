@@ -28,6 +28,9 @@ export interface LeaveDecision {
   decisionNote?: string | null;
 }
 
+/** A queue row plus who it belongs to (PG-06). Null name = anonymised by retention. */
+export type LeaveListRow = LeaveRequest & { employeeName: string | null };
+
 export interface LeaveListFilter {
   employeeId?: string;
   depotIds?: readonly string[];
@@ -40,7 +43,14 @@ export interface LeaveRepository {
   create(data: LeaveRequestWrite): Promise<LeaveRequest>;
   findById(id: string): Promise<LeaveRequest | null>;
   decide(id: string, decision: LeaveDecision): Promise<LeaveRequest>;
-  list(filter: LeaveListFilter): Promise<{ rows: LeaveRequest[]; total: number }>;
+  /**
+   * PG-06 — the approval queue, with the name of the person asking on every row.
+   *
+   * It carried `employeeId` and nothing a human reads: type, dates, reason, and two buttons
+   * that grant or refuse somebody's leave. Same shape as PG-01 on the payroll queue, and the
+   * same fix — the row already joins to the employee for its depot.
+   */
+  list(filter: LeaveListFilter): Promise<{ rows: LeaveListRow[]; total: number }>;
   /** Requests that still hold days for this employee, to reject an overlapping application. */
   listBlocking(employeeId: string, statuses: LeaveStatus[]): Promise<LeaveRequest[]>;
   findBalance(employeeId: string, year: number): Promise<LeaveBalance | null>;

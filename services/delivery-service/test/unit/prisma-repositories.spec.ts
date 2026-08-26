@@ -309,6 +309,64 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
+  /*
+   * DB-2 — the report that read whatever 500 rows the database felt like returning.
+   *
+   * There was no `take` and no `orderBy` on this query. Every PrismaService installs a
+   * middleware that caps a bound-less `findMany` at 500 rows (query-bounds.ts), so a depot
+   * doing 25 deliveries a day passed the cap on day 20 — and from then on the monthly team
+   * report was built from an arbitrary 500 of the month's deliveries, with the courier
+   * ranking and the SLA percentages computed off that slice. The only trace was one line in
+   * a container log.
+   *
+   * It now pages by keyset until the window is exhausted, and REFUSES rather than truncating
+   * when a window is too big to hold — the same rule the depot operational report follows.
+   */
+  it('pages through the whole window rather than stopping at the middleware bound', async () => {
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+    const page = (n: number, offset: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `d-${offset + i}`,
+        driverId: 'drv-1',
+        orderId: `ord-${offset + i}`,
+        assignedAt: from,
+        deliveredAt: from,
+        failedAt: null,
+      }));
+    delivery.findMany
+      .mockResolvedValueOnce(page(500, 0))
+      .mockResolvedValueOnce(page(120, 500));
+
+    const out = await repo.depotCourierActivityInWindow('dep-1', from, to);
+
+    expect(out[0].delivered).toHaveLength(620);
+    expect(delivery.findMany).toHaveBeenCalledTimes(2);
+    // The second page continues AFTER the last row of the first — no re-reading, no gap.
+    expect(delivery.findMany.mock.calls[1][0]).toMatchObject({
+      cursor: { id: 'd-499' },
+      skip: 1,
+    });
+  });
+
+  it('refuses a window too large to hold rather than reporting part of it', async () => {
+    const from = new Date('2026-01-01');
+    const to = new Date('2027-01-01');
+    const page = Array.from({ length: 500 }, (_, i) => ({
+      id: `d-${i}`,
+      driverId: 'drv-1',
+      orderId: `ord-${i}`,
+      assignedAt: from,
+      deliveredAt: from,
+      failedAt: null,
+    }));
+    delivery.findMany.mockResolvedValue(page);
+
+    await expect(repo.depotCourierActivityInWindow('dep-1', from, to)).rejects.toThrow(
+      /rentang|range/i,
+    );
+  });
+
   it('depotCourierActivityInWindow groups delivered orders and failures by driver', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-02-01');
@@ -338,7 +396,14 @@ describe('DeliveryPrismaRepository', () => {
         depotId: 'dep-1',
         OR: [{ deliveredAt: { gte: from, lt: to } }, { failedAt: { gte: from, lt: to } }],
       },
+      // DB-2: deterministic order + an explicit page. Without both, the 500-row middleware
+      // bound handed this report an ARBITRARY 500 deliveries and it published them as the
+      // month's totals.
+      orderBy: [{ id: 'asc' }],
+      take: 500,
       select: {
+        // `id` is the keyset cursor the paging walks on (DB-2).
+        id: true,
         driverId: true,
         orderId: true,
         assignedAt: true,

@@ -966,6 +966,8 @@ export const hrFix = {
     deductsQuota: " (potong kuota)",
   },
   payroll: {
+    // PG-01: karyawannya sudah dianonimkan retensi — namanya memang tidak ada lagi.
+    unnamedEmployee: 'Karyawan tanpa nama (data sudah dianonimkan)',
     title: "Payroll",
     period: "Periode",
     generate: "Generate",
@@ -1101,8 +1103,12 @@ export const hrFix = {
     empty: "Belum ada komisi",
     managerOnly: "Khusus Manajer depot",
     settlementDiff: "· selisih setoran",
-    paid: "Terbayar",
-    payAll: "Bayar semua",
+    // OPS-03: "Bayar semua" dan "Terbayar" dihapus. Tombolnya hanya mengubah state lokal —
+    // tidak ada satu pun panggilan API di halaman itu — jadi label berubah, tidak ada yang
+    // tercatat, kurir tidak dibayar, dan setelah halaman dimuat ulang tombolnya kembali
+    // seperti semula. Komisi memang tidak dibayar dari layar ini.
+    howPaid:
+      'Komisi ini sudah masuk ke buku pembayaran tiap kurir begitu antarannya selesai. Kurir menariknya sendiri lewat menu Pendapatan di aplikasi mereka; tidak ada yang perlu ditekan di sini.',
   },
   expenseClaims: {
     viewReceipt: "Lihat struk",

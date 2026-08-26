@@ -57,6 +57,20 @@ CRON_TZ=$CRON_TZ_VALUE
 # the newest dump against the LIVE cluster and alerts loudly when it does not match.
 30 4 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
 
+# CMP-03 — get the dump OFF this box, and READ IT BACK. backup-db.sh's own S3 push fails
+# soft (a WARN in a log nobody reads) and nothing ever verifies the object afterwards;
+# backup-offsite.sh copies and then re-reads and compares SHA-256 — and it existed in this
+# repo for weeks with NOTHING calling it: not cron, not deploy, not CI. Twenty minutes after
+# the nightly dump, so it copies the file that job just wrote.
+20 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh >> /var/log/hydromart-backup.log 2>&1
+
+# CMP-04 — notice when the backups STOP. Every other job here reports an outcome; none of
+# them reports an absence, so a cron block that was never installed on a rebuilt box, or a
+# job that stopped being able to write, leaves /hq/retention showing the last OK forever.
+# This reads the age of the newest dump and of the last drill, and is loud when either is
+# too old. Daily, an hour after the offsite copy.
+0 5 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/check-backup-freshness.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
 # Converge anything that stopped between deploys, and record why it stopped.
 */5 * * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
 

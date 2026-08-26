@@ -266,6 +266,14 @@ export interface OrderValue {
   /** The human-readable HM-… number (§G-3): what every other console shows for an order. */
   orderNumber: string;
   totalIdr: number;
+  /**
+   * The depot the order belongs to, or null while it is still unassigned.
+   *
+   * payment-service reads it to answer "is this money mine to settle?" (AUTHZ-2). It cannot
+   * ask the payment row: `Payment.depotId` is the till of a counter sale and null for every
+   * delivery payment.
+   */
+  depotId: string | null;
 }
 
 /**

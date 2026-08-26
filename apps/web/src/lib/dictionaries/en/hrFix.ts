@@ -952,6 +952,8 @@ export const hrFix = {
     deductsQuota: " (uses quota)",
   },
   payroll: {
+    // PG-01 — the employee record was anonymised by retention; there is no name left.
+    unnamedEmployee: 'Unnamed employee (record anonymised)',
     title: "Payroll",
     period: "Period",
     generate: "Generate",
@@ -1087,8 +1089,9 @@ export const hrFix = {
     empty: "No commission yet",
     managerOnly: "Depot managers only",
     settlementDiff: "· settlement difference",
-    paid: "Paid",
-    payAll: "Pay all",
+    // OPS-03 — see the note on the Indonesian side. The button paid nobody.
+    howPaid:
+      "This commission is already in each courier's payment ledger, credited as their deliveries completed. Couriers withdraw it themselves from Earnings in their app; there is nothing to press here.",
   },
   expenseClaims: {
     viewReceipt: "View receipt",

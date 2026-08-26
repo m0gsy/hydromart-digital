@@ -571,10 +571,9 @@ export class EmployeeDocumentResponseDto {
   employeeId!: string;
   @ApiProperty({ enum: ['KTP', 'KK', 'CONTRACT', 'NPWP', 'CERTIFICATE', 'OTHER'] })
   type!: string;
-  @ApiProperty({ type: String })
-  fileUrl!: string;
-  @ApiProperty({ type: String })
-  fileKey!: string;
+  // SEC-01: `fileUrl` and `fileKey` are deliberately NOT here. They are where the file
+  // lives, the route serves the bytes instead, and this schema documents what a client
+  // actually receives — see DocumentView. Hand-edited for that reason.
   @ApiProperty({ type: String })
   mimeType!: string;
   @ApiProperty({ type: Number })

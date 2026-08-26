@@ -111,9 +111,15 @@ export default function LeaveQueuePage() {
             return (
               <div key={r.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
+                  {/* PG-06: whose leave this is. The row said the type, the dates and the
+                      reason, and offered Approve / Reject — with nothing naming the person
+                      whose leave was being decided. */}
+                  <span className="font-semibold">
+                    {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                  </span>
                   <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
                 </div>
+                <p className="text-sm font-medium">{t(LEAVE_TYPE_LABEL[r.type])}</p>
                 <p className="text-sm text-muted">
                   {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja
                 </p>

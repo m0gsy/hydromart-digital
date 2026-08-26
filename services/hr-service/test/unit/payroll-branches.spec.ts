@@ -92,7 +92,8 @@ class FakePayrollRepo implements PayrollRepository {
   }
   async list(filter: unknown) {
     this.lastListFilter = filter;
-    return { rows: [] as Payroll[], total: 0 };
+    // PG-01: rows carry the name of the person they pay.
+    return { rows: [] as (Payroll & { employeeName: string | null })[], total: 0 };
   }
   /** What earlier payslips actually took for each loan (D4). Empty = nothing collected yet. */
   repaid = new Map<string, number>();

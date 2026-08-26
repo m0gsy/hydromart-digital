@@ -217,10 +217,15 @@ export class AccountController {
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
-  async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
+  async inviteStaff(
+    @Body() dto: InviteStaffDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PublicCustomerDto> {
     // The console path: account AND employee record. See inviteStaffWithEmployee for why
     // the internal (hr-service) route deliberately does not come through here.
-    const staff = await this.account.inviteStaffWithEmployee(dto);
+    // The caller's own role goes with it: `staffAdmin` says who may invite, not what they
+    // may grant (AUTHZ-1).
+    const staff = await this.account.inviteStaffWithEmployee(dto, user.role as never);
     return PublicCustomerDto.from(staff);
   }
 
@@ -283,8 +288,11 @@ export class AccountController {
     description:
       'One row per account, validated exactly like the single invite. A row that fails stops only itself; a phone that already has an account is promoted and reported as updated.',
   })
-  async importStaff(@Body() dto: ImportStaffDto): Promise<ImportSummary> {
-    return this.account.importStaff(dto.rows);
+  async importStaff(
+    @Body() dto: ImportStaffDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ImportSummary> {
+    return this.account.importStaff(dto.rows, user.role as never);
   }
 
   @Get('sessions')

@@ -220,6 +220,47 @@ export class CartService {
     };
   }
 
+
+  /**
+   * The price a shopper should SEE for these products at this depot (PG-03).
+   *
+   * The catalogue grid and the product page printed `product.basePrice` while this service
+   * and checkout priced every line against the depot: Rp20.000 on the shelf, Rp22.000 on the
+   * bill, at any depot with a live pricing rule. Not staleness — a different rule.
+   *
+   * Deliberately the SAME `priceLines` the cart is billed through, at quantity 1, rather
+   * than arithmetic in the browser: a second implementation of the price is exactly how the
+   * two screens came to disagree. Wholesale bands are not applied here because a shelf price
+   * has no quantity yet; the cart applies them the moment there is one.
+   *
+   * Fails OPEN like the cart, and says which: `CATALOG` means nobody could tell us the
+   * depot's price, so the screen must label what it shows instead of passing it off.
+   */
+  async shelfPrices(
+    depotId: string | null,
+    productIds: string[],
+  ): Promise<{ basis: PricingBasis; prices: { productId: string; unitPrice: number }[] }> {
+    const ids = [...new Set(productIds.filter((id) => id.length > 0))];
+    if (ids.length === 0) return { basis: 'CATALOG', prices: [] };
+
+    const pricingDepotId = depotId && this.config.cartDepotPricing(depotId) ? depotId : null;
+    const rows = ids.map((productId) => ({ productId, quantity: 1 }) as CartItemRecord);
+    const [products, lookup] = await Promise.all([
+      this.resolveAll(rows),
+      pricingDepotId
+        ? this.depotPricing.getPrices(pricingDepotId, ids)
+        : Promise.resolve({ prices: new Map<string, DepotPrice>(), unavailable: false }),
+    ]);
+
+    const live = rows.filter((r) => products.get(r.productId)?.active === true);
+    const priced = priceLines(live, products, lookup.prices);
+
+    return {
+      basis: pricingDepotId && !lookup.unavailable ? 'DEPOT' : 'CATALOG',
+      prices: priced.items.map((i) => ({ productId: i.productId, unitPrice: i.unitPrice })),
+    };
+  }
+
   private async resolveAll(rows: CartItemRecord[]): Promise<Map<string, CatalogProduct>> {
     const entries = await Promise.all(
       rows.map(async (r) => [r.productId, await this.catalog.getProduct(r.productId)] as const),

@@ -29,4 +29,13 @@ export interface OrderCoordinationPort {
    * falls back to the short id. A refund decision must never be blocked by a decoration.
    */
   getOrderNumbers(orderIds: string[]): Promise<Map<string, string>>;
+  /**
+   * The depot an order belongs to, or null if it is unassigned, unknown, or order-service
+   * could not be reached (AUTHZ-2).
+   *
+   * Fails CLOSED at the caller, not here: `null` means "cannot prove this money is yours",
+   * and a depot-scoped caller is refused on it. Only asked when the caller IS depot-scoped,
+   * so the finance/HQ settlement path costs no extra round trip.
+   */
+  getOrderDepot(orderId: string): Promise<string | null>;
 }

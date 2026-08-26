@@ -69,14 +69,15 @@ export class DepotScopeGuard implements CanActivate {
       user.depotIds = [...new Set([...own, ...resolved])];
     }
 
-    const requested = DepotScopeGuard.requestedDepotId(request);
+    const requested = DepotScopeGuard.requestedDepotIds(request);
     // Endpoint carries no depot selector — nothing to enforce here (by-id rows are guarded
     // in-service, see class note).
-    if (!requested) {
+    if (requested.length === 0) {
       return true;
     }
 
-    if ((user.depotIds ?? []).includes(requested)) {
+    const allowed = user.depotIds ?? [];
+    if (requested.every((depotId) => allowed.includes(depotId))) {
       return true;
     }
     throw new ForbiddenException(
@@ -84,14 +85,34 @@ export class DepotScopeGuard implements CanActivate {
     );
   }
 
-  /** First depotId found across query, body, and route params (string values only). */
-  private static requestedDepotId(request: Request): string | null {
-    const q = request.query?.['depotId'];
-    if (typeof q === 'string' && q.length > 0) return q;
-    const b = (request.body as Record<string, unknown> | undefined)?.['depotId'];
-    if (typeof b === 'string' && b.length > 0) return b;
-    const p = request.params?.['depotId'];
-    if (typeof p === 'string' && p.length > 0) return p;
-    return null;
+  /**
+   * EVERY depotId the request carries, across query, body, and route params.
+   *
+   * Not the first one found: the guard cannot know which source the handler will read, so a
+   * request that names two different depots has to satisfy the check for both. Reading only
+   * the first (query before params) let any `:depotId` route be waved through by pinning an
+   * own-depot `?depotId=` next to it — AUTHZ-A2, and the five findings that were symptoms of
+   * it. Repeated query keys arrive as an array, so those count as separate values too, and
+   * `depotIds=a,b` (the owner dashboard's batch form) is a selector like any other.
+   */
+  private static requestedDepotIds(request: Request): string[] {
+    const found = new Set<string>();
+    const take = (value: unknown): void => {
+      if (typeof value === 'string') {
+        for (const part of value.split(',')) {
+          const id = part.trim();
+          if (id.length > 0) found.add(id);
+        }
+      } else if (Array.isArray(value)) {
+        for (const entry of value) take(entry);
+      }
+    };
+    const body = request.body as Record<string, unknown> | undefined;
+    for (const key of ['depotId', 'depotIds']) {
+      take(request.query?.[key]);
+      take(body?.[key]);
+      take(request.params?.[key]);
+    }
+    return [...found];
   }
 }

@@ -355,6 +355,9 @@ describe('Order HTTP flows (e2e)', () => {
         // §G-3: the number payment-service puts on the refund queue.
         orderNumber: order.body.orderNumber,
         totalIdr: order.body.total,
+        // AUTHZ-2: the depot payment-service scopes settlement on. Null here because
+        // nothing has assigned this order to a depot yet.
+        depotId: order.body.depotId ?? null,
       },
     ]);
 

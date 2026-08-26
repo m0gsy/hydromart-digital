@@ -144,16 +144,25 @@ describe('CashierShiftController', () => {
   // KEPALA_DEPOT deliberately does NOT get it: they stand at the same till, so letting
   // them settle a colleague's drawer would put the count and the cash in one pair of hands.
   it('grants close-anyone only to depot finance roles', async () => {
-    await c.close(ID, { countedCash: 1 } as never, { sub: 'u1', role: 'MANAGER' } as never);
-    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
-      id: 'u1',
-      canCloseAnyShift: true,
-    });
-    await c.close(ID, { countedCash: 1 } as never, { sub: 'u2', role: 'KEPALA_DEPOT' } as never);
-    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
-      id: 'u2',
-      canCloseAnyShift: false,
-    });
+    const manager = { sub: 'u1', role: 'MANAGER' } as never;
+    await c.close(ID, { countedCash: 1 } as never, manager);
+    // AUTHZ-A4: the caller rides along as a fourth argument so the service can refuse a
+    // shift at a depot that is not theirs — `canCloseAnyShift` says WHOSE drawer, not WHICH
+    // depot's, and only one of those two questions used to be asked.
+    expect(svc.close).toHaveBeenLastCalledWith(
+      ID,
+      { countedCash: 1 },
+      { id: 'u1', canCloseAnyShift: true },
+      manager,
+    );
+    const head = { sub: 'u2', role: 'KEPALA_DEPOT' } as never;
+    await c.close(ID, { countedCash: 1 } as never, head);
+    expect(svc.close).toHaveBeenLastCalledWith(
+      ID,
+      { countedCash: 1 },
+      { id: 'u2', canCloseAnyShift: false },
+      head,
+    );
   });
 });
 
@@ -1516,19 +1525,19 @@ describe('Inventory controllers', () => {
     expect(inventory.wastageSummary).toHaveBeenCalledWith(DEPOT, undefined, undefined);
     await itemC.wastage({ depotId: DEPOT, from: ISO, to: ISO } as never);
     expect(inventory.wastageSummary).toHaveBeenLastCalledWith(DEPOT, new Date(ISO), new Date(ISO));
-    await itemC.get(ID);
-    expect(inventory.get).toHaveBeenCalledWith(ID);
-    await itemC.update(ID, { label: 'x' } as never);
-    expect(inventory.updateMeta).toHaveBeenCalledWith(ID, { label: 'x' });
+    await itemC.get(ID, user);
+    expect(inventory.get).toHaveBeenCalledWith(ID, user);
+    await itemC.update(ID, { label: 'x' } as never, user);
+    expect(inventory.updateMeta).toHaveBeenCalledWith(ID, { label: 'x' }, user);
     await itemC.adjust(ID, { delta: 3 } as never, user, 'Bearer t');
-    expect(inventory.adjust).toHaveBeenCalledWith(ID, 3, null, 'user-1', 'Bearer t');
+    expect(inventory.adjust).toHaveBeenCalledWith(ID, 3, null, 'user-1', 'Bearer t', user);
     await itemC.adjust(ID, { delta: 3, reason: 'r' } as never, user, 'Bearer t');
-    expect(inventory.adjust).toHaveBeenLastCalledWith(ID, 3, 'r', 'user-1', 'Bearer t');
+    expect(inventory.adjust).toHaveBeenLastCalledWith(ID, 3, 'r', 'user-1', 'Bearer t', user);
     await itemC.opname(ID, { countedQuantity: 9 } as never, user, 'Bearer t');
-    expect(inventory.opname).toHaveBeenCalledWith(ID, 9, null, 'user-1', 'Bearer t');
+    expect(inventory.opname).toHaveBeenCalledWith(ID, 9, null, 'user-1', 'Bearer t', user);
     await itemC.opname(ID, { countedQuantity: 9, reason: 'r' } as never, user, 'Bearer t');
-    expect(inventory.opname).toHaveBeenLastCalledWith(ID, 9, 'r', 'user-1', 'Bearer t');
-    await itemC.movements(ID);
-    expect(inventory.movements).toHaveBeenCalledWith(ID);
+    expect(inventory.opname).toHaveBeenLastCalledWith(ID, 9, 'r', 'user-1', 'Bearer t', user);
+    await itemC.movements(ID, user);
+    expect(inventory.movements).toHaveBeenCalledWith(ID, user);
   });
 });

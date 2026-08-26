@@ -80,7 +80,14 @@ class FakeLeaveRepo implements LeaveRepository {
     if (filter.depotIds)
       rows = rows.filter((r) => !!r.depotId && filter.depotIds!.includes(r.depotId));
     if (filter.status) rows = rows.filter((r) => r.status === filter.status);
-    return { rows: rows.slice(filter.skip, filter.skip + filter.take), total: rows.length };
+    // PG-06: the real repository joins the name on; the fake carries the field so the
+    // types match what the queue actually receives.
+    return {
+      rows: rows
+        .slice(filter.skip, filter.skip + filter.take)
+        .map((r) => ({ ...r, employeeName: null })),
+      total: rows.length,
+    };
   }
   async listBlocking(employeeId: string, statuses: LeaveStatus[]): Promise<LeaveRequest[]> {
     return this.rows.filter((r) => r.employeeId === employeeId && statuses.includes(r.status));

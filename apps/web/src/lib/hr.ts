@@ -126,6 +126,12 @@ export interface PayrollItem {
 export interface Payroll {
   id: string;
   employeeId: string;
+  /**
+   * PG-01: whose wage this is. Null only for an employee whose record was anonymised by
+   * retention — never blank because nobody asked. The queue used to show `employeeId` and
+   * nothing else, so forty draft payslips were forty identical rows.
+   */
+  employeeName?: string | null;
   periodMonth: string;
   status: PayrollStatus;
   gross: string;
@@ -190,6 +196,8 @@ export type LeaveStatus = 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJEC
 export interface LeaveRequest {
   id: string;
   employeeId: string;
+  /** PG-06: whose leave this is. Null only when the record was anonymised by retention. */
+  employeeName?: string | null;
   depotId: string;
   type: LeaveType;
   startDate: string;
@@ -235,7 +243,8 @@ export interface EmployeeDocument {
   id: string;
   employeeId: string;
   type: EmployeeDocumentType;
-  fileUrl: string;
+  // SEC-01: no `fileUrl`. The server no longer hands out the storage address; the bytes
+  // come from `endpoints.hr.employeeDocumentFile(id)` with the session attached.
   mimeType: string;
   sizeBytes: number;
   version: number;

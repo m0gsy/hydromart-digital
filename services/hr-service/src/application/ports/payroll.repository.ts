@@ -28,6 +28,17 @@ export interface PayrollWrite {
 
 export type PayrollWithItems = Payroll & { items: PayrollItem[] };
 
+/**
+ * PG-01 — a payslip with the name of the person it pays on it.
+ *
+ * A payroll row carries `employeeId` and nothing a human reads, so the approval queue was
+ * forty rows of the same period and the same status, and the slip behind each one said
+ * "Slip Gaji 2026-08 · 22 hari hadir · Rp 4.150.000" and named nobody. HR approved and
+ * marked paid without ever seeing whose wage it was.
+ */
+export type PayrollWithEmployee = PayrollWithItems & { employeeName: string | null };
+export type PayrollListRow = Payroll & { employeeName: string | null };
+
 export interface PayrollRepository {
   findByEmployeeAndPeriod(
     employeeId: string,
@@ -94,5 +105,6 @@ export interface PayrollRepository {
     depotIds?: readonly string[];
     skip: number;
     take: number;
-  }): Promise<{ rows: Payroll[]; total: number }>;
+    // PG-01: rows carry the name of the person they pay — see PayrollListRow.
+  }): Promise<{ rows: PayrollListRow[]; total: number }>;
 }

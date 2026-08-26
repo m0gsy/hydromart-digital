@@ -5,6 +5,7 @@ const sendMock = jest.fn();
 const clientCtorArgs: unknown[] = [];
 const putCmdArgs: unknown[] = [];
 const deleteCmdArgs: unknown[] = [];
+const getCmdArgs: unknown[] = [];
 
 jest.mock(
   '@aws-sdk/client-s3',
@@ -23,6 +24,11 @@ jest.mock(
     DeleteObjectCommand: class {
       constructor(public input: unknown) {
         deleteCmdArgs.push(input);
+      }
+    },
+    GetObjectCommand: class {
+      constructor(public input: unknown) {
+        getCmdArgs.push(input);
       }
     },
   }),
@@ -51,6 +57,7 @@ beforeEach(() => {
   clientCtorArgs.length = 0;
   putCmdArgs.length = 0;
   deleteCmdArgs.length = 0;
+  getCmdArgs.length = 0;
 });
 
 describe('S3StorageAdapter', () => {
@@ -93,5 +100,45 @@ describe('S3StorageAdapter', () => {
     await adapter.remove('hr/documents/abc.pdf');
     expect(sendMock).toHaveBeenCalledTimes(1);
     expect(deleteCmdArgs[0]).toEqual({ Bucket: 'hr-bucket', Key: 'hr/documents/abc.pdf' });
+  });
+
+  /*
+   * SEC-01 — reading a document back through the service.
+   *
+   * HR documents used to be served straight from object storage by a permanent unsigned URL,
+   * so opening a KTP scan involved no session at all. The bytes now leave through hr-service,
+   * behind the capability and the depot check, which means this adapter has to be able to
+   * fetch them.
+   */
+  it('getObject() sends a GetObjectCommand and returns the bytes with their type', async () => {
+    sendMock.mockResolvedValue({
+      Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) },
+      ContentType: 'application/pdf',
+    });
+    const adapter = new S3StorageAdapter(makeConfig());
+
+    await expect(adapter.getObject('hr/documents/abc.pdf')).resolves.toEqual({
+      body: Buffer.from([1, 2, 3]),
+      contentType: 'application/pdf',
+    });
+    expect(getCmdArgs[0]).toEqual({ Bucket: 'hr-bucket', Key: 'hr/documents/abc.pdf' });
+  });
+
+  it('getObject() answers null for a type the bucket did not record', async () => {
+    sendMock.mockResolvedValue({
+      Body: { transformToByteArray: async () => new Uint8Array([9]) },
+    });
+    await expect(new S3StorageAdapter(makeConfig()).getObject('k')).resolves.toMatchObject({
+      contentType: null,
+    });
+  });
+
+  // An object that is gone must not come back as an empty document — a blank KTP scan is
+  // worse than an error, because it looks like a filed one.
+  it('getObject() throws when the object has no body at all', async () => {
+    sendMock.mockResolvedValue({});
+    await expect(new S3StorageAdapter(makeConfig()).getObject('missing')).rejects.toThrow(
+      /no body/i,
+    );
   });
 });

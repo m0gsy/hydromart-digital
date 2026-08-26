@@ -293,8 +293,11 @@ export class InventoryController {
   @Can('inventoryRead')
   @Get(':itemId/reservations')
   @ApiOperation({ summary: 'Active order holds on one stock line (what "dipesan" is)' })
-  reservations(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<ReservationRecord[]> {
-    return this.inventory.listReservations(itemId);
+  reservations(
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReservationRecord[]> {
+    return this.inventory.listReservations(itemId, user);
   }
 
   @ApiOkResponse({ description: 'No content.' })
@@ -304,16 +307,22 @@ export class InventoryController {
   @ApiOperation({
     summary: 'Delete an empty stock line that never sold anything (staff)',
   })
-  remove(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<void> {
-    return this.inventory.deleteLine(itemId);
+  remove(
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.inventory.deleteLine(itemId, user);
   }
 
   @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryRead')
   @Get(':itemId')
   @ApiOperation({ summary: 'Get a stock line by id (staff)' })
-  get(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<ItemView> {
-    return this.inventory.get(itemId);
+  get(
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ItemView> {
+    return this.inventory.get(itemId, user);
   }
 
   @ApiOkResponse({ type: ItemResponseDto })
@@ -323,8 +332,9 @@ export class InventoryController {
   update(
     @Param('itemId', ParseUUIDPipe) itemId: string,
     @Body() dto: UpdateInventoryItemDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ItemView> {
-    return this.inventory.updateMeta(itemId, dto);
+    return this.inventory.updateMeta(itemId, dto, user);
   }
 
   @ApiOkResponse({ type: ItemResponseDto })
@@ -337,7 +347,14 @@ export class InventoryController {
     @CurrentUser() user: AuthenticatedUser,
     @Headers('authorization') authorization: string,
   ): Promise<ItemView> {
-    return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub, authorization);
+    return this.inventory.adjust(
+      itemId,
+      dto.delta,
+      dto.reason ?? null,
+      user.sub,
+      authorization,
+      user,
+    );
   }
 
   @ApiOkResponse({ type: ItemResponseDto })
@@ -356,6 +373,7 @@ export class InventoryController {
       dto.reason ?? null,
       user.sub,
       authorization,
+      user,
     );
   }
 
@@ -363,7 +381,10 @@ export class InventoryController {
   @Can('inventoryRead')
   @Get(':itemId/movements')
   @ApiOperation({ summary: 'Stock movement history for a line (staff)' })
-  movements(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<StockMovementRecord[]> {
-    return this.inventory.movements(itemId);
+  movements(
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StockMovementRecord[]> {
+    return this.inventory.movements(itemId, user);
   }
 }

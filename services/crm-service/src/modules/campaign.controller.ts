@@ -108,6 +108,28 @@ export class CampaignController {
     return CampaignDto.from(await this.campaigns.get(id));
   }
 
+  /**
+   * OPS-04 — the depot half of sending.
+   *
+   * The depot broadcast screen created a DRAFT here and never sent it: sending lived on the
+   * route below, behind `campaignWrite`, which is head office's right to blast the network.
+   * So the screen said nothing and did nothing, and the "Terkirim" column beside it stayed
+   * where it was. This is the same send, bounded to the campaign the caller created.
+   *
+   * Declared BEFORE `:id/send` so the static `depot` segment cannot be captured by it.
+   */
+  @ApiOkResponse({ type: CampaignDto })
+  @Can('depotCampaign')
+  @Post('depot/:id/send')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: "Queue the depot's own draft campaign for broadcast (11a)" })
+  async sendOwn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CampaignDto> {
+    return CampaignDto.from(await this.campaigns.sendOwn(id, user.sub));
+  }
+
   @ApiOkResponse({ type: CampaignDto })
   @Can('campaignWrite')
   @Post(':id/send')

@@ -247,7 +247,7 @@ describe('PaymentController', () => {
     await controller.confirm(user, 'pay-1', { cashReceived: 50000 } as never);
     // K2.9: undefined, not a date — an online confirmation claims no capture time, and the
     // service reads that as "now".
-    expect(svc.confirm).toHaveBeenCalledWith('pay-1', 'user-1', 50000, undefined);
+    expect(svc.confirm).toHaveBeenCalledWith('pay-1', 'user-1', 50000, undefined, user);
   });
 
   // K2.9: an offline-queued COD carries the moment the courier took the notes. Parsed here,
@@ -262,17 +262,19 @@ describe('PaymentController', () => {
       'user-1',
       50000,
       new Date('2026-08-24T09:00:00.000Z'),
+      // AUTHZ-2: the caller rides along so the service can refuse another depot's money.
+      user,
     );
   });
 
   it('fail forwards id and actor', async () => {
     await controller.fail(user, 'pay-1');
-    expect(svc.fail).toHaveBeenCalledWith('pay-1', 'user-1');
+    expect(svc.fail).toHaveBeenCalledWith('pay-1', 'user-1', user);
   });
 
   it('refund forwards id, actor and reason', async () => {
     await controller.refund(user, 'pay-1', { reason: 'cancelled' } as never);
-    expect(svc.refund).toHaveBeenCalledWith('pay-1', 'user-1', 'cancelled');
+    expect(svc.refund).toHaveBeenCalledWith('pay-1', 'user-1', 'cancelled', user);
   });
 
   it('approveRefund forwards id and actor', async () => {
