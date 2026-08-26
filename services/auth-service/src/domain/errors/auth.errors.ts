@@ -67,6 +67,18 @@ export class StaffDepotRequiredError extends DomainError {
   }
 }
 
+/**
+ * AUTHZ-1: a caller tried to grant a role only a SUPER_ADMIN may hand out. 403 and not 400:
+ * the request is well formed, the caller is simply not entitled to the role they asked for.
+ */
+export class RoleEscalationError extends DomainError {
+  readonly code = 'AUTH_ROLE_ESCALATION';
+  readonly status = HTTP.FORBIDDEN;
+  constructor(role: string) {
+    super(`Hanya SUPER_ADMIN yang boleh memberikan peran ${role}.`);
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

@@ -1,4 +1,4 @@
-import { CAPABILITIES, STAFF_IMPORT_ROLES, can } from './index';
+import { CAPABILITIES, STAFF_IMPORT_ROLES, canGrantRole, can } from './index';
 
 /*
  * O7. Depositing a shift's COD cash was a hard `@Roles(STAFF_DEPOT)` in delivery-service,
@@ -142,5 +142,31 @@ describe('CAPABILITIES', () => {
     // Settling an individual payment is a depot/finance action and stays that way.
     expect(can('paymentSettle', 'HEAD_OFFICE')).toBe(false);
     expect(can('paymentSettle', 'DIREKTUR')).toBe(false);
+  });
+});
+
+/*
+ * AUTHZ-1. `staffAdmin` is who may invite; this is what they may grant. Head office holds
+ * the former, and the invite path used to refuse only CUSTOMER — so the same person could
+ * invite their own phone back as a superuser.
+ */
+describe('canGrantRole', () => {
+  it('keeps the superuser roles to a superuser', () => {
+    expect(canGrantRole('HEAD_OFFICE', 'SUPER_ADMIN')).toBe(false);
+    expect(canGrantRole('HEAD_OFFICE', 'DIREKTUR')).toBe(false);
+    expect(canGrantRole('SUPER_ADMIN', 'SUPER_ADMIN')).toBe(true);
+    expect(canGrantRole('SUPER_ADMIN', 'DIREKTUR')).toBe(true);
+  });
+
+  it('leaves every ordinary staff grant alone', () => {
+    expect(canGrantRole('HEAD_OFFICE', 'KEPALA_DEPOT')).toBe(true);
+    expect(canGrantRole('HEAD_OFFICE', 'FINANCE')).toBe(true);
+  });
+
+  // Fail closed: an internal call with no principal is not a superuser.
+  it('refuses an unknown actor', () => {
+    expect(canGrantRole(undefined, 'SUPER_ADMIN')).toBe(false);
+    expect(canGrantRole(null, 'DIREKTUR')).toBe(false);
+    expect(canGrantRole(undefined, 'STAFF_DEPOT')).toBe(true);
   });
 });

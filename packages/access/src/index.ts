@@ -505,6 +505,34 @@ export const HR_MANAGED_ROLES = [
 export type HrManagedRole = (typeof HR_MANAGED_ROLES)[number];
 
 /**
+ * Roles that only a SUPER_ADMIN may hand out (AUTHZ-1).
+ *
+ * `staffAdmin` — the power to invite staff — is held by HEAD_OFFICE as well, and the invite
+ * write path refused exactly one role: CUSTOMER. So head office could invite its own phone
+ * back as SUPER_ADMIN, which is a superuser holding every capability whether listed or not,
+ * and nothing in the request was invalid enough for anything to log a refusal.
+ *
+ * DIREKTUR is on the list for the same reason and not because it outranks head office in
+ * the org chart: it holds capabilities HEAD_OFFICE does not, so granting it is a way to
+ * acquire them. Granting a role that is genuinely below you stays untouched.
+ */
+export const SUPER_ADMIN_GRANT_ONLY_ROLES = [
+  'SUPER_ADMIN',
+  'DIREKTUR',
+] as const satisfies readonly Role[];
+
+/**
+ * Whether `actorRole` may grant `targetRole`. An unknown actor (an internal service call
+ * with no principal) is treated as not entitled — fail closed.
+ */
+export function canGrantRole(actorRole: Role | string | undefined | null, targetRole: Role | string): boolean {
+  if (!(SUPER_ADMIN_GRANT_ONLY_ROLES as readonly string[]).includes(targetRole)) {
+    return true;
+  }
+  return actorRole === 'SUPER_ADMIN';
+}
+
+/**
  * Every role that can be on the payroll — the whole enum except `CUSTOMER`.
  *
  * Wider than either allowlist above and deliberately so: those two bound what may be

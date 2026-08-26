@@ -5,6 +5,7 @@ import {
   InvalidStaffRoleError,
   PhoneAlreadyRegisteredError,
   StaffDepotRequiredError,
+  RoleEscalationError,
 } from '../../src/domain/errors/auth.errors';
 import { Role } from '../../src/domain/customer/role.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
@@ -174,6 +175,57 @@ describe('AccountService', () => {
   it('invites an office role without a depot', async () => {
     const staff = await service.inviteStaff('+628990001188', Role.HEAD_OFFICE, 'Kantor');
     expect(staff).toMatchObject({ role: Role.HEAD_OFFICE, status: 'ACTIVE' });
+  });
+
+  /*
+   * AUTHZ-1: the invite write path refused exactly one role — CUSTOMER — so head office,
+   * who holds `staffAdmin`, could invite its own phone number back as SUPER_ADMIN and hold
+   * every capability in the platform a minute later. Nothing in the request was invalid and
+   * nothing was logged as a refusal, because nothing refused it.
+   */
+  describe('granting a role above your own', () => {
+    it('refuses head office minting a SUPER_ADMIN or a DIREKTUR', async () => {
+      await expect(
+        service.inviteStaffWithEmployee(
+          { ...EMPLOYMENT, phone: '+628997770001', role: Role.SUPER_ADMIN, fullName: 'Diri Sendiri' },
+          Role.HEAD_OFFICE,
+        ),
+      ).rejects.toBeInstanceOf(RoleEscalationError);
+      await expect(
+        service.inviteStaffWithEmployee(
+          { ...EMPLOYMENT, phone: '+628997770002', role: Role.DIREKTUR, fullName: 'Bos' },
+          Role.HEAD_OFFICE,
+        ),
+      ).rejects.toBeInstanceOf(RoleEscalationError);
+    });
+
+    it('lets a SUPER_ADMIN do it, and leaves ordinary staff invites alone', async () => {
+      await expect(
+        service.inviteStaffWithEmployee(
+          { ...EMPLOYMENT, phone: '+628997770003', role: Role.SUPER_ADMIN, fullName: 'Admin' },
+          Role.SUPER_ADMIN,
+        ),
+      ).resolves.toMatchObject({ role: Role.SUPER_ADMIN });
+      await expect(
+        service.inviteStaffWithEmployee(
+          { ...EMPLOYMENT, phone: '+628997770004', role: Role.KEPALA_DEPOT, fullName: 'Sari', depotId: 'depot-1' },
+          Role.HEAD_OFFICE,
+        ),
+      ).resolves.toMatchObject({ role: Role.KEPALA_DEPOT });
+    });
+
+    // The spreadsheet is the same write path, so it cannot be the way around the rule.
+    it('fails only the escalating row of a bulk import', async () => {
+      const summary = await service.importStaff(
+        [
+          { ...EMPLOYMENT, phone: '+628997770011', role: Role.FINANCE, fullName: 'Keuangan' },
+          { ...EMPLOYMENT, phone: '+628997770012', role: Role.SUPER_ADMIN, fullName: 'Diri Sendiri' },
+        ],
+        Role.HEAD_OFFICE,
+      );
+      expect(summary).toMatchObject({ created: 1, failed: 1 });
+      expect(summary.results[1]).toMatchObject({ row: 2, status: 'failed' });
+    });
   });
 
   // The mirror image of the HR form: inviting somebody used to create a login and nothing

@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { ImportSummary, runImport } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  runImport,
+} from '@hydromart/platform';
 
 import {
   InventoryItemType,
@@ -266,8 +271,8 @@ export class InventoryService {
    * instead of explaining it), and a line that ever sold anything is never deletable —
    * its movements are the depot's sales record. Deactivating the product hides those.
    */
-  async deleteLine(itemId: string): Promise<void> {
-    const line = await this.require(itemId);
+  async deleteLine(itemId: string, user?: AuthenticatedUser): Promise<void> {
+    const line = await this.require(itemId, user);
     if (line.quantity !== 0 || line.reserved !== 0) {
       throw new InventoryLineNotEmptyError();
     }
@@ -280,8 +285,8 @@ export class InventoryService {
   }
 
   /** Who is holding this line's reserved units — the orders behind the "dipesan" column. */
-  async listReservations(itemId: string): Promise<ReservationRecord[]> {
-    await this.require(itemId);
+  async listReservations(itemId: string, user?: AuthenticatedUser): Promise<ReservationRecord[]> {
+    await this.require(itemId, user);
     return this.inventory.listReservations(itemId);
   }
 
@@ -299,15 +304,16 @@ export class InventoryService {
     return items.map((i) => this.toView(i));
   }
 
-  async get(itemId: string): Promise<ItemView> {
-    return this.toView(await this.require(itemId));
+  async get(itemId: string, user?: AuthenticatedUser): Promise<ItemView> {
+    return this.toView(await this.require(itemId, user));
   }
 
   async updateMeta(
     itemId: string,
     patch: { label?: string; unit?: string; minimumStock?: number; sellPrice?: number | null },
+    user?: AuthenticatedUser,
   ): Promise<ItemView> {
-    await this.require(itemId);
+    await this.require(itemId, user);
     const updated = await this.inventory.update(itemId, patch);
     return this.toView(updated);
   }
@@ -328,8 +334,9 @@ export class InventoryService {
     reason: string | null,
     actorId: string,
     authorization = '',
+    user?: AuthenticatedUser,
   ): Promise<ItemView> {
-    const item = await this.require(itemId);
+    const item = await this.require(itemId, user);
     const next = item.quantity + delta;
     if (next < 0) {
       throw new NegativeStockError();
@@ -360,8 +367,9 @@ export class InventoryService {
     reason: string | null,
     actorId: string,
     authorization = '',
+    user?: AuthenticatedUser,
   ): Promise<ItemView> {
-    const item = await this.require(itemId);
+    const item = await this.require(itemId, user);
     const variance = countedQuantity - item.quantity;
     const updated = await this.inventory.applyMovement(itemId, countedQuantity, {
       itemId,
@@ -797,8 +805,8 @@ export class InventoryService {
     };
   }
 
-  async movements(itemId: string): Promise<StockMovementRecord[]> {
-    await this.require(itemId);
+  async movements(itemId: string, user?: AuthenticatedUser): Promise<StockMovementRecord[]> {
+    await this.require(itemId, user);
     return this.inventory.listMovements(itemId);
   }
 
@@ -816,11 +824,19 @@ export class InventoryService {
     return buildPage(items, total, filter.page, filter.limit, nextCursor);
   }
 
-  private async require(itemId: string): Promise<InventoryItemRecord> {
+  /**
+   * Load a stock line by id, and — AUTHZ-A1 — refuse it to a caller the row's depot is not
+   * theirs. Every by-id operation on this service goes through here, which is why the check
+   * lives here and not in each of the seven handlers. `user` is optional because the
+   * internal service-to-service callers have no principal; `assertDepotAccess` is a no-op
+   * for those and for unscoped roles.
+   */
+  private async require(itemId: string, user?: AuthenticatedUser): Promise<InventoryItemRecord> {
     const item = await this.inventory.findById(itemId);
     if (!item) {
       throw new InventoryItemNotFoundError();
     }
+    assertDepotAccess(user, item.depotId);
     return item;
   }
 }

@@ -84,6 +84,8 @@ describe('InventoryController line operations', () => {
     deleteLine: jest.fn(),
   };
   const controller = new InventoryController(inventory as never);
+  // The by-id handlers now carry the caller so the service can refuse another depot's line.
+  const USER = { sub: 'staff-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -96,13 +98,13 @@ describe('InventoryController line operations', () => {
 
   it('reads the active holds on a line', async () => {
     inventory.listReservations.mockResolvedValue([]);
-    await controller.reservations('it-1');
-    expect(inventory.listReservations).toHaveBeenCalledWith('it-1');
+    await controller.reservations('it-1', USER);
+    expect(inventory.listReservations).toHaveBeenCalledWith('it-1', USER);
   });
 
   it('deletes a line by id', async () => {
     inventory.deleteLine.mockResolvedValue(undefined);
-    await controller.remove('it-1');
-    expect(inventory.deleteLine).toHaveBeenCalledWith('it-1');
+    await controller.remove('it-1', USER);
+    expect(inventory.deleteLine).toHaveBeenCalledWith('it-1', USER);
   });
 });
