@@ -600,9 +600,12 @@ adalah F5 — lihat kotak peringatan di Fase 7.
 1. `cd apps/web && npm run typecheck && npm run lint && npm test`; untuk service yang
    disentuh, `npm run test:cov` di direktori service itu — ambang **98/98/98/98**.
 2. Jangan pernah `npm test` dari root repo — timeout 600 detik, exit 255 (runner mati,
-   bukan test gagal). Node lokal saat ini **v25.9.0** sedangkan repo mengunci
-   `>=20.20 <21` (`.nvmrc` = 20.20.2); build export harus di Node 20 atau hasil lokal
-   tidak mewakili CI.
+   bukan test gagal). Repo mengunci `>=22.14 <23`
+   (`.nvmrc` = 22.14.0), sama dengan `node-version` di CI dan sama dengan
+   `node:22-alpine` yang dijalankan image produksi; build export di Node lain tidak
+   mewakili CI. Ketiganya pernah berbeda — CI menguji 22, image menjalankan 20, dan
+   `engines` melarang 22 — jadi setiap tes yang lulus, lulus di Node yang produksi tidak
+   pernah jalankan.
 3. `node scripts/check-endpoint-contracts.mjs` dan `node scripts/check-env-contract.mjs`
    hijau.
 4. **Bukti bahwa Fase 1 selesai**: `MOBILE_BUILD=1 npx next build` menghasilkan `out/`

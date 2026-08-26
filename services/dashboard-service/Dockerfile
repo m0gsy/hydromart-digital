@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for the Hydromart dashboard-service (deploys to Cloud Run).
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
@@ -62,7 +62,7 @@ RUN npm prune --omit=dev \
   && rm -rf node_modules/prisma node_modules/.bin/prisma node_modules/@types node_modules/typescript \
   && mkdir -p /app/services/dashboard-service/node_modules
 
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app

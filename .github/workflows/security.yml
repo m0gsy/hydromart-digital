@@ -106,7 +106,7 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
-  # Image scanning. All 19 runtime images are FROM the same node:20-alpine, so the OS
+  # Image scanning. All 19 runtime images are FROM the same node:22-alpine, so the OS
   # layer is one scan, not nineteen — the per-image delta is our own JS, which `sast` and
   # `npm run audit:ci` already cover. --ignore-unfixed because an alpine CVE with no
   # published fix is not something a rebuild can resolve.

@@ -2,7 +2,7 @@
 # Multi-stage build for the Hydromart auth-service (deploys to Cloud Run).
 
 # ---- Builder ----
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 
@@ -71,7 +71,7 @@ RUN npm prune --omit=dev \
   && mkdir -p /app/services/auth-service/node_modules
 
 # ---- Runtime ----
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app

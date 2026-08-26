@@ -3,7 +3,7 @@
 # Build context MUST be the repo root so npm-workspace deps resolve:
 #   docker build -f apps/web/Dockerfile -t hydromart-web .
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -60,7 +60,7 @@ RUN npm run build -w @hydromart/access
 COPY apps/web ./apps/web
 RUN npm run build -w @hydromart/web
 
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
