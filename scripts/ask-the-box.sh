@@ -89,6 +89,59 @@ else
   echo "  no running container matching 'auth'"
 fi
 
+# L2.2/L2.3/L2.4 — the three remaining launch blockers, asked HERE rather than inferred from
+# `.env.production.example` or from a developer's local database. L2.1 was reported wrong for
+# exactly that reason: the template said the credentials were blank, and production had them.
+#
+# Read-only throughout: env keys are reported as set/not-set with a length, never as a value,
+# and every SQL below is a SELECT.
+line "L2.2 — storage credentials"
+if [ -f .env ]; then
+  for key in HR_STORAGE_S3_ACCESS_KEY_ID HR_STORAGE_S3_SECRET_ACCESS_KEY              PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY              AUTH_STORAGE_S3_SECRET_ACCESS_KEY CUSTOMER_STORAGE_S3_SECRET_ACCESS_KEY; do
+    val="$(sed -n "s/^${key}=//p" .env | head -1)"
+    if [ -z "$val" ]; then echo "  ${key} : NOT SET"; else echo "  ${key} : set (${#val} chars)"; fi
+  done
+  echo "  (whether the key was ROTATED is not knowable from here — that is the ledger in"
+  echo "   docs/RUNBOOK_SECRET_ROTATION.md, and a key being set says nothing about its age.)"
+fi
+
+PG="$(docker ps --filter 'name=postgres' --format '{{.Names}}' 2>/dev/null | grep -v exporter | head -1)"
+q() { docker exec "$PG" psql -U hydromart -d "$1" -t -A -F'|' -c "$2" 2>/dev/null; }
+
+line "L2.3 — can a real depot actually be paid?"
+if [ -n "$PG" ]; then
+  echo "  postgres container : $PG"
+  q hydromart_depot "
+    select count(*) filter (where active),
+           count(*) filter (where active and coalesce(\"paymentBankAccountNumber\",'') <> ''),
+           count(*) filter (where active and coalesce(\"paymentQrisImageUrl\",'') <> '')
+    from depots" | sed 's/^/  active | with-bank | with-QRIS  =  /'
+  echo "  real depots (fixtures excluded) still missing a payment destination:"
+  q hydromart_depot "
+    select code from depots
+    where active
+      and code !~ '^(E2E|UAT|HIER|DEMO)'
+      and (coalesce(\"paymentBankAccountNumber\",'') = '' or coalesce(\"paymentQrisImageUrl\",'') = '')
+    order by code" | sed 's/^/    - /' | head -20
+else
+  echo "  no postgres container found"
+fi
+
+line "L2.4 — business tunables: decided, or still the coded default?"
+if [ -n "$PG" ]; then
+  for db in depot delivery loyalty payout referral order hr; do
+    rows="$(q "hydromart_${db}" "select scope||' '||key||' = '||value from service_settings order by key")"
+    if [ -z "$rows" ]; then
+      echo "  ${db}: no stored override — every tunable runs its coded default"
+    else
+      echo "  ${db}:"; printf '%s
+' "$rows" | sed 's/^/    /'
+    fi
+  done
+  echo "  franchise commission (HQ's cut):"
+  q hydromart_payout "select count(*) from commission_schemes" | sed 's/^/    commission_schemes rows: /'
+fi
+
 # M16. The blocking question, asked in the only place it has an answer. `compose config`
 # parses and resolves without touching a container, which is why it is safe to ask here.
 line "M16 — does compose error, or skip the scheduler?"
