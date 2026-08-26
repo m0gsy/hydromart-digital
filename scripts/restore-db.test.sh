@@ -23,6 +23,12 @@
 # two that need nothing, rather than exiting 0 in silence — a check that always passes is the
 # exact failure class this file exists about.
 set -uo pipefail
+# NOTE: CI invokes this as `bash -e file`, which sets -e for the whole script regardless of
+# what the line below asks for — and this file runs commands that are SUPPOSED to fail
+# (pg_isready while Postgres is still starting exits 2; every negative case exits 1). Under
+# -e the first of those killed the run and reported the failure as the script's own. So -e
+# is switched off explicitly here: the assertions below are the verdict, not the shell's.
+set +e
 cd "$(dirname "$0")/.."
 
 SRC=cmp01-test-source
