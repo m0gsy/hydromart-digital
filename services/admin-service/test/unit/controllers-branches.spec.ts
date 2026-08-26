@@ -600,6 +600,7 @@ describe('WebhooksController', () => {
   const record: WebhookRecord = {
     id: 'w-1',
     url: 'https://x.com/hook',
+    apiKeyId: null,
     events: ['order.created'],
     active: true,
     secret: null,

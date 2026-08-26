@@ -220,6 +220,43 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
   });
 });
 
+// AUTHZ-2. Settling reads the ORDER's depot, because a payment row's own depotId is the
+// till of a counter sale and null for every delivery payment. Same batch endpoint as the
+// order numbers above — this adds an endpoint to nobody.
+describe('OrderCoordinationHttpAdapter.getOrderDepot', () => {
+  it('reads the depot of exactly the order asked for', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: [{ orderId: 'o1', depotId: 'depot-1' }, { orderId: 'o2', depotId: 'depot-2' }] }),
+    );
+
+    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBe(
+      'depot-1',
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://order:3002/api/v1/orders/internal/values');
+    expect(JSON.parse(init.body)).toEqual({ orderIds: ['o1'] });
+  });
+
+  // Every "cannot say" is null, and the CALLER fails closed on it: a depot-scoped staff
+  // member does not get to settle money whose depot could not be established.
+  it('answers null when unconfigured, unknown, refused, or unreachable', async () => {
+    await expect(
+      new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).getOrderDepot('o1'),
+    ).resolves.toBeNull();
+    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('')).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(res({ body: [] }));
+    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+  });
+});
+
 // The abort timer this adapter arms had never been let fire for the new call: a hung
 // order-service must still let the refund queue answer.
 describe('OrderCoordinationHttpAdapter.getOrderNumbers when order-service hangs', () => {

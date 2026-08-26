@@ -7,7 +7,9 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 import { WebhookRecord } from '../../application/ports/webhook.repository';
@@ -37,6 +39,16 @@ export class CreateWebhookDto {
   @IsString()
   @MaxLength(200)
   secret?: string;
+
+  /*
+   * AUTHZ-3. The partner API answers "deliveries sent to you"; this is what "you" means.
+   * An endpoint with no key assigned is readable by HQ and by no partner at all — so an
+   * integration that is meant to read its own traffic back needs this set.
+   */
+  @ApiPropertyOptional({ format: 'uuid', description: 'Partner API key that owns this endpoint.' })
+  @IsOptional()
+  @IsUUID()
+  apiKeyId?: string;
 }
 
 export class UpdateWebhookDto {
@@ -64,6 +76,13 @@ export class UpdateWebhookDto {
   @IsString()
   @MaxLength(200)
   secret?: string;
+
+  /** Reassign (or, with null, clear) the owning partner key — see CreateWebhookDto. */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  apiKeyId?: string | null;
 }
 
 /* ---------- Responses ---------- */
@@ -73,6 +92,8 @@ export class WebhookDto {
   id!: string;
   @ApiProperty()
   url!: string;
+  @ApiProperty({ format: 'uuid', nullable: true, description: 'Owning partner API key.' })
+  apiKeyId!: string | null;
   @ApiProperty({ type: [String] })
   events!: string[];
   @ApiProperty()
@@ -94,6 +115,7 @@ export class WebhookDto {
     return {
       id: record.id,
       url: record.url,
+      apiKeyId: record.apiKeyId ?? null,
       events: record.events,
       active: record.active,
       lastDeliveryStatus: record.lastDeliveryStatus,

@@ -1,7 +1,14 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { money, recordAuditEvent } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Role as PlatformRole,
+  assertDepotAccess,
+  isDepotScoped,
+  money,
+  recordAuditEvent,
+} from '@hydromart/platform';
 
 import {
   CashShortError,
@@ -246,6 +253,31 @@ export class PaymentService {
     return this.payments.attachProof(id, proofUrl);
   }
 
+  /**
+   * AUTHZ-2 — refuse a depot-scoped caller a payment that is not their depot's.
+   *
+   * `confirm`, `fail` and `refund` took an id and settled it. `paymentSettle` is held by
+   * KEPALA_DEPOT and STAFF_DEPOT and `refundIssue` by MANAGER, all of them depot-scoped, and
+   * an order id is not a secret — the queue screens print them. Marking another depot's
+   * transfer PAID confirms their order; marking it FAILED strands a customer who has paid.
+   *
+   * The payment row cannot answer whose money it is: `depotId` on it is the till of a
+   * counter sale and is null for every delivery payment, and widening it would change what
+   * shift close sums. The ORDER's depot is the answer, so it is read from order-service —
+   * and only when the caller is depot-scoped, so the finance/HQ path is untouched.
+   *
+   * Fails CLOSED: an order whose depot cannot be read is not settleable by a depot-scoped
+   * caller. Unscoped callers (FINANCE, SUPER_ADMIN) never reach the lookup at all.
+   */
+  private async assertSettleableBy(
+    user: AuthenticatedUser | undefined,
+    payment: PaymentRecord,
+  ): Promise<void> {
+    if (!user || !isDepotScoped(user.role as PlatformRole)) return;
+    const depotId = payment.depotId ?? (await this.orderCoordination.getOrderDepot(payment.orderId));
+    assertDepotAccess(user, depotId);
+  }
+
   async getAny(id: string): Promise<PaymentRecord> {
     const payment = await this.payments.findById(id);
     if (!payment) {
@@ -329,8 +361,10 @@ export class PaymentService {
     changedBy: string,
     cashReceived?: number,
     capturedAt?: Date,
+    user?: AuthenticatedUser,
   ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
+    await this.assertSettleableBy(user, payment);
     this.assertTransition(payment.status, PaymentStatus.PAID);
     const patch: PaymentStatusPatch = {
       status: PaymentStatus.PAID,
@@ -352,8 +386,9 @@ export class PaymentService {
     return updated;
   }
 
-  async fail(id: string, changedBy: string): Promise<PaymentRecord> {
+  async fail(id: string, changedBy: string, user?: AuthenticatedUser): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
+    await this.assertSettleableBy(user, payment);
     this.assertTransition(payment.status, PaymentStatus.FAILED);
     this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
     return this.payments.update(id, { status: PaymentStatus.FAILED, failedAt: new Date() });
@@ -429,8 +464,14 @@ export class PaymentService {
     return { hqApprovalThresholdIdr: this.config.refundApprovalThreshold };
   }
 
-  async refund(id: string, changedBy: string, reason?: string): Promise<PaymentRecord> {
+  async refund(
+    id: string,
+    changedBy: string,
+    reason?: string,
+    user?: AuthenticatedUser,
+  ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
+    await this.assertSettleableBy(user, payment);
     if (!isRefundable(payment.status)) {
       throw new PaymentNotRefundableError(payment.status);
     }

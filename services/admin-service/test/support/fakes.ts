@@ -199,6 +199,7 @@ export class InMemoryWebhookRepository implements WebhookRepository {
     const record: WebhookRecord = {
       id: randomUUID(),
       url: data.url,
+      apiKeyId: data.apiKeyId ?? null,
       events: data.events,
       active: data.active ?? true,
       secret: data.secret ?? null,

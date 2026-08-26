@@ -74,6 +74,57 @@ describe('PaymentService', () => {
     expect(spy).toHaveBeenLastCalledWith(from, to, 5);
   });
 
+  /*
+   * AUTHZ-2. `confirm`, `fail` and `refund` loaded the payment by id and settled it. A depot
+   * head, a courier or a manager holds those capabilities for THEIR depot; nothing checked
+   * which depot the money belonged to, and an order id is not a secret — the queue screens
+   * hand them out. Marking another depot's transfer PAID confirms their order; marking it
+   * FAILED strands a customer who has already paid.
+   *
+   * The payment row cannot answer this: its `depotId` is the till of a counter sale and is
+   * null for every delivery payment (see the schema note). The order's depot is the answer,
+   * so it is read from order-service — and read only when the caller is depot-scoped, so the
+   * finance/HQ path costs nothing extra.
+   */
+  describe("settling another depot's payment", () => {
+    const DEPOT_A = '11111111-1111-1111-1111-111111111111';
+    const DEPOT_B = '22222222-2222-2222-2222-222222222222';
+    const outsider = { sub: 'kepala-a', role: 'KEPALA_DEPOT', depotId: DEPOT_A } as never;
+    const insider = { sub: 'kepala-b', role: 'KEPALA_DEPOT', depotId: DEPOT_B } as never;
+
+    const paymentAtDepotB = async () => {
+      const orderId = randomUUID();
+      const payment = await initiate(PaymentMethod.CASH, 45000, orderId);
+      orders.orderDepots.set(orderId, DEPOT_B);
+      return payment;
+    };
+
+    it('refuses confirm, fail and refund from a depot head of another depot', async () => {
+      const p1 = await paymentAtDepotB();
+      await expect(service.confirm(p1.id, 'kepala-a', undefined, undefined, outsider)).rejects.toThrow(
+        /depot/i,
+      );
+      await expect(service.fail(p1.id, 'kepala-a', outsider)).rejects.toThrow(/depot/i);
+      expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
+
+      await service.confirm(p1.id, 'kepala-b', undefined, undefined, insider);
+      await expect(service.refund(p1.id, 'kepala-a', 'salah', outsider)).rejects.toThrow(/depot/i);
+    });
+
+    // Fail closed: if order-service cannot say whose order it is, a depot-scoped caller does
+    // not get to settle it. An unscoped caller (finance, super admin) is unaffected.
+    it('refuses a depot-scoped caller when the order depot cannot be read', async () => {
+      const p = await paymentAtDepotB();
+      orders.orderDepots.clear();
+      await expect(service.confirm(p.id, 'kepala-b', undefined, undefined, insider)).rejects.toThrow(
+        /depot/i,
+      );
+      await expect(service.confirm(p.id, 'finance-1')).resolves.toMatchObject({
+        status: PaymentStatus.PAID,
+      });
+    });
+  });
+
   it('initiates an online payment with a gateway charge and reference', async () => {
     const payment = await initiate(PaymentMethod.VA);
     expect(payment.status).toBe(PaymentStatus.PENDING);

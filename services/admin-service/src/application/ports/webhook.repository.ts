@@ -1,6 +1,8 @@
 export interface WebhookRecord {
   id: string;
   url: string;
+  /** The partner API key this endpoint belongs to; null = unassigned (AUTHZ-3). */
+  apiKeyId: string | null;
   events: string[];
   active: boolean;
   secret: string | null;
@@ -14,6 +16,8 @@ export interface CreateWebhookData {
   events: string[];
   active?: boolean;
   secret?: string | null;
+  /** Which partner key may read and replay this endpoint's deliveries (AUTHZ-3). */
+  apiKeyId?: string | null;
 }
 
 /** Fields a PATCH may change on a webhook (all optional; at least one supplied). */
@@ -22,6 +26,7 @@ export interface UpdateWebhookData {
   events?: string[];
   active?: boolean;
   secret?: string | null;
+  apiKeyId?: string | null;
   /** Written by the dispatcher only — never exposed on the PATCH DTO. */
   lastDeliveryStatus?: string | null;
   deliveryRatePct?: number | null;
@@ -86,8 +91,14 @@ export interface WebhookDeliveryRepository {
   endpointStats(
     endpointId: string,
   ): Promise<{ delivered: number; attempted: number; lastStatus: WebhookDeliveryStatus | null }>;
-  /** Newest-first delivery history, for the partner API. */
-  listForPartner(limit: number, event?: string): Promise<WebhookDeliveryRecord[]>;
-  /** Re-queue one delivery for another attempt. Null when the id is unknown. */
-  replay(id: string, at: Date): Promise<WebhookDeliveryRecord | null>;
+  /**
+   * Newest-first delivery history. `apiKeyId` scopes it to the endpoints that key owns —
+   * pass it for the partner API, omit it for HQ (AUTHZ-3).
+   */
+  listForPartner(limit: number, event?: string, apiKeyId?: string): Promise<WebhookDeliveryRecord[]>;
+  /**
+   * Re-queue one delivery for another attempt. Null when the id is unknown — or, when
+   * `apiKeyId` is given, when the delivery belongs to a different partner.
+   */
+  replay(id: string, at: Date, apiKeyId?: string): Promise<WebhookDeliveryRecord | null>;
 }

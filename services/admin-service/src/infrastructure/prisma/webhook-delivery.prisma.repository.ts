@@ -119,17 +119,31 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
     };
   }
 
-  async listForPartner(limit: number, event?: string): Promise<WebhookDeliveryRecord[]> {
+  async listForPartner(
+    limit: number,
+    event?: string,
+    apiKeyId?: string,
+  ): Promise<WebhookDeliveryRecord[]> {
+    // AUTHZ-3: `apiKeyId` present = a partner asking, and they see only the deliveries of
+    // the endpoints their own key owns. Absent = HQ (`platformAdmin`), which sees all.
+    const where = {
+      ...(event ? { event } : {}),
+      ...(apiKeyId ? { endpoint: { apiKeyId } } : {}),
+    };
     const rows = await this.prisma.webhookDelivery.findMany({
-      where: event ? { event } : undefined,
+      where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
     return rows.map(toRecord);
   }
 
-  async replay(id: string, at: Date): Promise<WebhookDeliveryRecord | null> {
-    const existing = await this.prisma.webhookDelivery.findUnique({ where: { id } });
+  async replay(id: string, at: Date, apiKeyId?: string): Promise<WebhookDeliveryRecord | null> {
+    // The ownership filter is part of the LOOKUP, not a check after it: another partner's
+    // delivery comes back as "not found", which is also all a partner should learn.
+    const existing = apiKeyId
+      ? await this.prisma.webhookDelivery.findFirst({ where: { id, endpoint: { apiKeyId } } })
+      : await this.prisma.webhookDelivery.findUnique({ where: { id } });
     if (!existing) return null;
     // Attempts reset: a replay is a fresh decision by a human, not a continuation of the
     // backoff that gave up. Otherwise a DEAD row would be dead again on its first try.

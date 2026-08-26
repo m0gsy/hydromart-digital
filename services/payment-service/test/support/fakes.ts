@@ -274,6 +274,11 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   async notifyRefunded(orderId: string, amount: number): Promise<void> {
     this.refunded.push({ orderId, amount });
   }
+  /** orderId -> depot. Absent = order-service could not say (the caller fails closed). */
+  orderDepots = new Map<string, string>();
+  async getOrderDepot(orderId: string): Promise<string | null> {
+    return this.orderDepots.get(orderId) ?? null;
+  }
   /** orderId -> HM-… number. Empty = order-service could not be read (fail-soft). */
   orderNumbers = new Map<string, string>();
   async getOrderNumbers(orderIds: string[]): Promise<Map<string, string>> {

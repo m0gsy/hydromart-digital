@@ -42,6 +42,34 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     }
   }
 
+  /**
+   * Reuses the same `internal/values` batch the refund queue reads for order numbers, so
+   * this adds an endpoint to nobody. Any failure answers null and the caller refuses the
+   * settlement — see the port note.
+   */
+  async getOrderDepot(orderId: string): Promise<string | null> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey || orderId.length === 0) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(`${orderServiceUrl}/api/v1/orders/internal/values`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderIds: [orderId] }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`order-service responded ${res.status}`);
+      const rows = (await res.json()) as { orderId?: string; depotId?: string | null }[];
+      return rows.find((r) => r.orderId === orderId)?.depotId ?? null;
+    } catch (error) {
+      this.logger.warn(`Order depot lookup failed for ${orderId}: ${(error as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async confirmPaid(orderId: string): Promise<void> {
     await this.post(
       `/api/v1/orders/${orderId}/internal-confirm`,

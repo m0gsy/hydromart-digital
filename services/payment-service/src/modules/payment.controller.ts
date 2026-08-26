@@ -495,6 +495,7 @@ export class PaymentController {
       dto.cashReceived,
       // K2.9: only an offline-queued COD sends this. The service clamps it.
       dto.capturedAt ? new Date(dto.capturedAt) : undefined,
+      user,
     );
   }
 
@@ -506,7 +507,7 @@ export class PaymentController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PaymentRecord> {
-    return this.payments.fail(id, user.sub);
+    return this.payments.fail(id, user.sub, user);
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })
@@ -518,7 +519,7 @@ export class PaymentController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RefundPaymentDto,
   ): Promise<PaymentRecord> {
-    return this.payments.refund(id, user.sub, dto.reason);
+    return this.payments.refund(id, user.sub, dto.reason, user);
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })

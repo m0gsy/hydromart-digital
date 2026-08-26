@@ -93,15 +93,19 @@ export class WebhookDispatchService {
     return { sent, failed, dead, ok: failed + dead === 0 || sent > 0 };
   }
 
-  /** Re-queue one delivery (partner API / HQ). 404 when the id is unknown. */
-  async replay(id: string, now = new Date()): Promise<WebhookDeliveryRecord> {
-    const row = await this.deliveries.replay(id, now);
+  /**
+   * Re-queue one delivery (partner API / HQ). 404 when the id is unknown — and, for a
+   * partner, when it is another partner's (AUTHZ-3): same answer, nothing leaked.
+   */
+  async replay(id: string, apiKeyId?: string, now = new Date()): Promise<WebhookDeliveryRecord> {
+    const row = await this.deliveries.replay(id, now, apiKeyId);
     if (!row) throw new NotFoundException('Delivery not found');
     return row;
   }
 
-  list(limit: number, event?: string): Promise<WebhookDeliveryRecord[]> {
-    return this.deliveries.listForPartner(limit, event);
+  /** `apiKeyId` = a partner asking about their own endpoints; omitted = the HQ view. */
+  list(limit: number, event?: string, apiKeyId?: string): Promise<WebhookDeliveryRecord[]> {
+    return this.deliveries.listForPartner(limit, event, apiKeyId);
   }
 
   private async attempt(delivery: DueDelivery, now: Date): Promise<'sent' | 'failed' | 'dead'> {

@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
@@ -15,7 +16,7 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { WebhookDispatchService } from '../application/services/webhook-dispatch.service';
-import { ApiKeyGuard, ApiScopes } from './api-key.guard';
+import { ApiKeyGuard, ApiKeyRequest, ApiScopes } from './api-key.guard';
 import {
   ListDeliveriesDto,
   PublishEventDto,
@@ -102,15 +103,24 @@ export class PartnerDeliveryController {
   @ApiScopes('webhooks:read')
   @ApiOperation({ summary: 'Webhook deliveries sent to you, newest first (API key)' })
   @ApiOkResponse({ type: WebhookDeliveryDto, isArray: true })
-  async list(@Query() query: ListDeliveriesDto): Promise<WebhookDeliveryDto[]> {
-    return (await this.dispatch.list(query.limit, query.event)).map(WebhookDeliveryDto.from);
+  async list(
+    @Query() query: ListDeliveriesDto,
+    @Req() request: ApiKeyRequest,
+  ): Promise<WebhookDeliveryDto[]> {
+    // AUTHZ-3: the key that authenticated this request is what "to you" means.
+    return (await this.dispatch.list(query.limit, query.event, request.apiKey?.id)).map(
+      WebhookDeliveryDto.from,
+    );
   }
 
   @Post(':id/replay')
   @ApiScopes('webhooks:write')
   @ApiOperation({ summary: 'Ask for one delivery to be sent again (API key)' })
   @ApiOkResponse({ type: WebhookDeliveryDto })
-  async replay(@Param('id', ParseUUIDPipe) id: string): Promise<WebhookDeliveryDto> {
-    return WebhookDeliveryDto.from(await this.dispatch.replay(id));
+  async replay(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: ApiKeyRequest,
+  ): Promise<WebhookDeliveryDto> {
+    return WebhookDeliveryDto.from(await this.dispatch.replay(id, request.apiKey?.id));
   }
 }

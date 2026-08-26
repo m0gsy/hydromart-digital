@@ -246,7 +246,12 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     return this.rows
       .filter((row) => orderIds.includes(row.id))
-      .map((row) => ({ orderId: row.id, orderNumber: row.orderNumber, totalIdr: row.total }));
+      .map((row) => ({
+        orderId: row.id,
+        orderNumber: row.orderNumber,
+        totalIdr: row.total,
+        depotId: row.depotId ?? null,
+      }));
   }
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     return this.rows

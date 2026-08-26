@@ -283,6 +283,13 @@ export class OrderValueDto {
 
   @ApiProperty({ example: 50_000, description: 'Authoritative order total in integer IDR.' })
   totalIdr!: number;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: "The order's depot, or null while unassigned. payment-service scopes settlement on it.",
+  })
+  depotId!: string | null;
 }
 
 /** Spec 7b: set up a recurring galon delivery. */
