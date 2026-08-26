@@ -116,6 +116,11 @@ if [ -n "$PG" ]; then
            count(*) filter (where active and coalesce(\"paymentBankAccountNumber\",'') <> ''),
            count(*) filter (where active and coalesce(\"paymentQrisImageUrl\",'') <> '')
     from depots" | sed 's/^/  active | with-bank | with-QRIS  =  /'
+  # Whether the missing bank account is also a missing HQ cut depends on WHO owns the depot:
+  # payout.service.ts:179 reads `(await schemes.currentForDepot(id))?.pct ?? 0`, so a WARALABA
+  # depot with no scheme hands HQ nothing and says nothing about it.
+  q hydromart_depot "select type, count(*) from depots where active group by type order by type" |
+    sed "s/^/  active depots by type: /"
   echo "  real depots (fixtures excluded) still missing a payment destination:"
   q hydromart_depot "
     select code from depots
