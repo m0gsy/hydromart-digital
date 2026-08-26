@@ -1,0 +1,15 @@
+-- Reverses 20260826120000_webhook_endpoint_owner.
+--
+-- Dropping the column takes the ownership back off every webhook endpoint, which is the
+-- fact AUTHZ-3 exists to record: with it gone, the partner API can no longer tell one
+-- partner's endpoints from another's. Whatever code is running at that moment decides what
+-- that means — the fixed code answers a partner with NOTHING (fail-closed), the code before
+-- it answered every partner with EVERYONE'S deliveries, payload included.
+--
+-- So roll this back only together with the code that reads it, and know which half you are
+-- left holding. The assignments themselves are lost: nothing else in the schema records
+-- which key an endpoint was registered for, and re-deriving them is exactly the guess this
+-- migration refused to make in the first place. Read them out first if you will want them:
+--
+--   SELECT id, url, "apiKeyId" FROM webhook_endpoints WHERE "apiKeyId" IS NOT NULL;
+ALTER TABLE "webhook_endpoints" DROP COLUMN IF EXISTS "apiKeyId";
