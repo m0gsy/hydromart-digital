@@ -23,7 +23,7 @@ import {
 import { AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
 
 import { CartService, CartView } from '../application/services/cart.service';
-import { AddCartItemDto, SetCartItemQuantityDto } from './dto/cart.dto';
+import { AddCartItemDto, SetCartItemQuantityDto, ShelfPricesResponseDto } from './dto/cart.dto';
 import { CartResponseDto } from './dto/responses.generated.dto';
 
 /*
@@ -58,13 +58,14 @@ export class CartController {
    * the shelf and the number on the bill cannot be produced by two different rules — which
    * is what they were.
    */
+  @ApiOkResponse({ type: ShelfPricesResponseDto })
   @Public()
   @Get('shelf-prices')
   @ApiOperation({ summary: "Depot-resolved shelf prices for products (public, PG-03)" })
   shelfPrices(
     @Query('productIds') productIds?: string,
     @Query('depotId') depotId?: string,
-  ): Promise<{ basis: string; prices: { productId: string; unitPrice: number }[] }> {
+  ): Promise<ShelfPricesResponseDto> {
     const ids = (productIds ?? '')
       .split(',')
       .map((s) => s.trim())

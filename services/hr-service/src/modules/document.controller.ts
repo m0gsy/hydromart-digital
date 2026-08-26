@@ -63,6 +63,10 @@ export class DocumentController {
    * forever, signed out, from anywhere. The bytes come through here now, behind `hrView`
    * and the owning employee's depot check, and are told not to be cached anywhere.
    */
+  @ApiOkResponse({
+    description: 'The document bytes, with the mime type the upload sniffed from them.',
+    content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
+  })
   @Get(':id/file')
   @Can('hrView')
   @Header('Cache-Control', 'no-store, private')
