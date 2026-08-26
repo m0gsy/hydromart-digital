@@ -351,6 +351,18 @@ export const opsFix = {
   },
   // dashboard/walk-in — PR-8. Mirrors id/opsFix.walkIn key for key.
   walkIn: {
+    deliverToggle: 'Deliver to the buyer',
+    deliverHint: 'The fee is charged per gallon and is already inside the total below.',
+    deliverAddressPlaceholder: 'Full address',
+    deliverCityPlaceholder: 'City',
+    deliverProvincePlaceholder: 'Province',
+    deliverRecipientPlaceholder: 'Recipient name',
+    deliverPhonePlaceholder: 'Number the courier can call',
+    deliverNotesPlaceholder: 'Landmark (optional)',
+    deliverIncomplete: 'Address and number incomplete — the total below is still a pick-up price.',
+    deliverRecipientFallback: 'Counter buyer',
+    shipping: 'Delivery',
+
     saleSaved: "Sale {order} saved.",
     saleVoided: "Sale {order} voided.",
     reload: "Reload",

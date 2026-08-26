@@ -2619,4 +2619,6 @@ export interface CounterQuote {
   /** The agen band priced this basket; the screen badges it. */
   agen: boolean;
   catalogFallback: string | null;
+  /** C11: the ongkir already inside totalIdr, 0 for a pick-up. Its own line at the till. */
+  shippingIdr: number;
 }
