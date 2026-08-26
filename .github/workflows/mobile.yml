@@ -96,7 +96,7 @@ jobs:
     if: github.event_name == 'pull_request'
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
@@ -109,7 +109,7 @@ jobs:
       # default was high enough — which is a thing that changes without anyone here
       # deciding it. `.nvmrc` is NOT used: it pins 20 for the services and the web build,
       # and nothing in this job builds either.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
 
@@ -195,9 +195,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -271,7 +271,7 @@ jobs:
       # constraints are real, so the job satisfies them in turn rather than picking a
       # winner: the exports above are built on 20, everything from here down runs on 22.
       # Nothing after this point is JavaScript we ship.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
 
@@ -340,7 +340,7 @@ jobs:
     steps:
       # Full history, or `merge-base --is-ancestor` has nothing to reason about: the
       # default shallow checkout carries one commit and every ancestry question is a lie.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
@@ -357,7 +357,7 @@ jobs:
           git fetch --no-tags origin main:refs/remotes/origin/main
           bash scripts/mobile-release-gate.sh "${{ github.sha }}" refs/remotes/origin/main
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -441,7 +441,7 @@ jobs:
       # what the services and the web build are tested against. Both constraints are real,
       # so they are satisfied in turn — exports on 20, everything below on 22. Nothing
       # after this point is JavaScript that ships.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
 

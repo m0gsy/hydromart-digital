@@ -198,13 +198,27 @@ if registry_mode; then
   # layers on the production disk, and no repeat of the BuildKit daemon panic that stopped
   # all 25 containers on 2026-08-02.
   log "registry mode (IMAGE_PREFIX=$IMAGE_PREFIX) — pulling images tagged $NEW_SHA"
-  if ! pull_images "$NEW_SHA"; then
-    log "!! could not pull images for $NEW_SHA — the Images workflow has not published them"
-    log "   restoring the tree to $PREV_SHA; the running stack was not touched"
-    git reset --hard "$PREV_SHA"
-    alert "deploy aborted: no images published for $NEW_SHA (stack still serving $PREV_SHA)"
-    exit 1
-  fi
+  # M10. deploy.yml and images.yml are BOTH triggered by `workflow_run: CI completed`, so
+  # they run in PARALLEL — this can and does arrive before the images it needs. The abort
+  # below is safe (the tree goes back and the stack keeps serving PREV_SHA), but safe still
+  # meant a deploy somebody had to notice and re-run by hand, which is the kind of chore
+  # that makes a mode get switched back off.
+  #
+  # So wait for the publish rather than racing it. Bounded, because waiting forever on a
+  # workflow that FAILED is just a slower way of never deploying.
+  image_wait=0
+  until pull_images "$NEW_SHA"; do
+    if [ "$image_wait" -ge "${IMAGE_WAIT_SECONDS:-600}" ]; then
+      log "!! no images for $NEW_SHA after ${image_wait}s — the Images workflow has not published them"
+      log "   restoring the tree to $PREV_SHA; the running stack was not touched"
+      git reset --hard "$PREV_SHA"
+      alert "deploy aborted: no images published for $NEW_SHA (stack still serving $PREV_SHA)"
+      exit 1
+    fi
+    log "   images for $NEW_SHA not published yet (${image_wait}s) — Images runs beside this one; waiting"
+    sleep 30
+    image_wait=$((image_wait + 30))
+  done
 elif [ "${SERVICES[0]:-}" = "--all" ]; then
   log "rebuilding ALL services"
   rebuild_or_rollback --all

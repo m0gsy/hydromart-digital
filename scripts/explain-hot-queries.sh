@@ -47,6 +47,8 @@ run() {
   fi
 }
 
+MAXROWS=0
+
 echo "Row counts first — a plan on an empty table is not evidence."
 for db in hydromart_order hydromart_customer hydromart_delivery hydromart_crm; do
   [ -n "$ONLY" ] && [ "$db" != "hydromart_$ONLY" ] && continue
@@ -58,6 +60,10 @@ for db in hydromart_order hydromart_customer hydromart_delivery hydromart_crm; d
      WHERE n_live_tup > 0
      ORDER BY n_live_tup DESC
      LIMIT 12;" 2>&1 || true
+  n="$(docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d "$db" -X -tAq \
+    -c "SELECT COALESCE(MAX(n_live_tup), 0) FROM pg_stat_user_tables;" 2>/dev/null || echo 0)"
+  case "$n" in *[!0-9]* | '') n=0 ;; esac
+  [ "$n" -gt "$MAXROWS" ] && MAXROWS="$n"
 done
 
 # The four reads that run on every screen somebody keeps open. Kept as literal SQL rather
@@ -82,6 +88,23 @@ echo
 echo "Done. A Seq Scan over a table with thousands of rows is the finding; a Seq Scan over"
 echo "an empty one is the instrument lying, and the row counts above say which you are"
 echo "looking at."
+
+# L1.7's actual requirement is "measured on production VOLUME", and the volume is a fact
+# about the day you run this, not about the script. On 2026-08-26 the largest table held
+# 136 rows: every plan above was a sequential scan, every one of them was CORRECT — a seq
+# scan over 11 rows is the fastest plan there is — and none of them said anything about how
+# this database behaves under load. That run could be read as "no findings", which is the
+# same shape of mistake as the older audit this script was written to prevent.
+#
+# So the script says so itself, every time, instead of leaving it to whoever remembers.
+EVIDENCE_FLOOR="${EVIDENCE_FLOOR:-1000}"
+if [ "$MAXROWS" -lt "$EVIDENCE_FLOOR" ]; then
+  echo
+  echo "NOT A MEASUREMENT — the largest table probed holds $MAXROWS rows (floor: $EVIDENCE_FLOOR)."
+  echo "Postgres chooses a sequential scan over a small table because that IS the fastest"
+  echo "plan, so nothing above is evidence about production behaviour. L1.7 is not closed by"
+  echo "this run. It is closed by running it again once real traffic has filled these tables."
+fi
 
 if [ "$FAILED" -gt 0 ]; then
   echo

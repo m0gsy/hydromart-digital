@@ -55,7 +55,7 @@ jobs:
     outputs:
       docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # The filter diffs against the merge base, which a shallow clone does not have.
           fetch-depth: 0
@@ -79,12 +79,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
       # so the runner, the Dockerfiles and a developer's shell all agree on one
       # version pair. `20` alone floated across every 20.x release.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -102,7 +102,7 @@ jobs:
       # this cache is the other half — it carries the generated clients between runs so the
       # skip actually has something to skip.
       - name: Cache generated Prisma clients
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
@@ -438,9 +438,9 @@ jobs:
           - shard: packages
             workspaces: '@hydromart/platform @hydromart/access'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -452,7 +452,7 @@ jobs:
           npm --version
 
       - name: Cache generated Prisma clients
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
@@ -492,9 +492,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -506,7 +506,7 @@ jobs:
           npm --version
 
       - name: Cache generated Prisma clients
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
@@ -574,7 +574,7 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "resolved @playwright/test = $v"
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -683,7 +683,7 @@ jobs:
     # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from the
     # workflow-level env above.
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # Audit CI-1: the images were built COLD here and again in `e2e`, with no layer cache
       # at all — ~18 images, twice per run, from scratch, every time. docker-compose.cache.yml
@@ -695,7 +695,7 @@ jobs:
       # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
       # so the runner, the Dockerfiles and a developer's shell all agree on one
       # version pair. `20` alone floated across every 20.x release.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -712,7 +712,7 @@ jobs:
       # this cache is the other half — it carries the generated clients between runs so the
       # skip actually has something to skip.
       - name: Cache generated Prisma clients
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
@@ -768,12 +768,12 @@ jobs:
       # checkout dir "hydromart-digital"). cwd-independent; the OTP scraper execSyncs this.
       E2E_OTP_LOG_CMD: docker logs --tail 4000 hydromart-digital-auth-1
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
       # so the runner, the Dockerfiles and a developer's shell all agree on one
       # version pair. `20` alone floated across every 20.x release.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -790,7 +790,7 @@ jobs:
       # this cache is the other half — it carries the generated clients between runs so the
       # skip actually has something to skip.
       - name: Cache generated Prisma clients
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: services/*/prisma/generated
           key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
@@ -904,7 +904,7 @@ jobs:
       # a restore-key so a source change reuses the previous build's cache instead of
       # throwing it away: a partially warm cache is most of the saving.
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: apps/web/.next/cache
           key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**') }}
@@ -953,7 +953,7 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "resolved @playwright/test = $v"
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -1028,7 +1028,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Conclude
         run: |
           bash scripts/ci-conclude.sh \
