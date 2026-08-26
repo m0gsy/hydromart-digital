@@ -51,7 +51,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 10m
-          envs: IMAGE_PREFIX,IMAGE_TAG,PROBE_SERVICE,PROBE_MODE
+          envs: IMAGE_PREFIX,IMAGE_TAG,PROBE_SERVICE,PROBE_MODE,PROBE_REF
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -62,8 +62,11 @@ jobs:
             #
             # So fetch just this script from main. Nothing else in the tree is touched, and
             # deploy.sh's `git reset --hard` puts it back in step on the next release.
-            git fetch --quiet origin main
-            git checkout origin/main -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh
+            # Normally main; the dispatched ref when someone is testing a probe change before
+            # merging it. Either way it is ONE fetch of named read-only scripts, and
+            # deploy.sh's `git reset --hard` puts the tree back on the next release.
+            git fetch --quiet origin "${PROBE_REF:-main}"
+            git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh
             case "${PROBE_MODE:-pull}" in
               diagnose) bash scripts/ask-the-box.sh ;;
               *)        bash scripts/check-registry-pull.sh ;;
@@ -73,3 +76,4 @@ jobs:
           IMAGE_TAG: ${{ github.event.inputs.image_tag }}
           PROBE_SERVICE: ${{ github.event.inputs.service }}
           PROBE_MODE: ${{ github.event.inputs.mode }}
+          PROBE_REF: ${{ github.ref_name }}
