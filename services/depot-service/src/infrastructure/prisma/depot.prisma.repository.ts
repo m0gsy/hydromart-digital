@@ -92,6 +92,16 @@ export class DepotPrismaRepository implements DepotRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async findManyByIds(ids: string[], activeOnly: boolean): Promise<DepotRecord[]> {
+    // An empty `in` list is a query that can only return nothing; skipping the round trip
+    // matters because the caller's list is often empty (a customer holding no deposit).
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.depot.findMany({
+      where: { id: { in: [...new Set(ids)] }, ...(activeOnly ? { active: true } : {}) },
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   /**
    * Existence only, cached once true (audit S-19). Nothing in the product deletes a depot,
    * so "it exists" cannot become false; "it does not exist" can become true the moment

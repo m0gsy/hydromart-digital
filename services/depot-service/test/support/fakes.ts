@@ -189,6 +189,16 @@ export class InMemoryDepotRepository implements DepotRepository {
     const r = this.rows.find((x) => x.id === id && (!activeOnly || x.active));
     return r ? { ...r } : null;
   }
+  /**
+   * Counted, so a test can prove a caller stopped issuing one query per row. Mirrors the
+   * real repository: absent ids are simply not in the result, duplicates collapse.
+   */
+  findManyByIdsCalls = 0;
+  async findManyByIds(ids: string[], activeOnly: boolean): Promise<DepotRecord[]> {
+    this.findManyByIdsCalls += 1;
+    const wanted = new Set(ids);
+    return this.rows.filter((x) => wanted.has(x.id) && (!activeOnly || x.active)).map((x) => ({ ...x }));
+  }
   // Audit S-19: the existence check the depot guard uses. Counted, so a test can prove the
   // guard stopped reading whole rows.
   existsCalls = 0;

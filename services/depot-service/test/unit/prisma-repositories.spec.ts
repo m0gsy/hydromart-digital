@@ -302,6 +302,36 @@ describe('DepotPrismaRepository', () => {
     expect(model.findUnique).toHaveBeenCalledTimes(3);
   });
 
+  /*
+   * The batched name lookup the customer deposit card uses. It replaced one `findById` per
+   * depot — an N+1 that is invisible on seed data because N is "how many depots has this
+   * person used", which is exactly why it survived until somebody looked for the shape.
+   */
+  describe('findManyByIds', () => {
+    it('asks once, de-duplicates, and honours activeOnly', async () => {
+      model.findMany.mockResolvedValue([row]);
+      const out = await repo.findManyByIds(['d1', 'd1', 'd2'], true);
+      expect(model.findMany).toHaveBeenCalledTimes(1);
+      expect(model.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['d1', 'd2'] }, active: true },
+      });
+      expect(out).toHaveLength(1);
+    });
+
+    it('omits the active filter when it is not asked for', async () => {
+      model.findMany.mockResolvedValue([]);
+      await repo.findManyByIds(['d1'], false);
+      expect(model.findMany).toHaveBeenCalledWith({ where: { id: { in: ['d1'] } } });
+    });
+
+    // An empty `in` list is a round trip that can only ever return nothing.
+    it('does not query at all for an empty list', async () => {
+      model.findMany.mockClear();
+      await expect(repo.findManyByIds([], false)).resolves.toEqual([]);
+      expect(model.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   it('searches with paging and no filters, mapping decimals/json', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);

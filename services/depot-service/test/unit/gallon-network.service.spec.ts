@@ -17,10 +17,27 @@ const returns = (rows: GallonReturnDepotRow[]) =>
   ({ networkSummary: async () => rows }) as unknown as GallonReturnRepository;
 // I5's `forCustomer` names each depot, so the service reads the depot repo too. The rollup
 // tests below never reach that path; this stub exists so they can keep not caring.
-const depots = (byId: Record<string, string> = {}) =>
-  ({
-    findById: async (id: string) => (byId[id] ? { id, name: byId[id] } : null),
-  }) as unknown as DepotRepository;
+/*
+ * Both reads are counted. The customer deposit card used to call `findById` once per depot
+ * — an N+1 that is invisible on seed data because N is "how many depots has this person
+ * used". Counting is the only way a test can tell one batched read from three single ones,
+ * since the RESULT is identical either way.
+ */
+const depotCalls = { findById: 0, findManyByIds: 0 };
+const depots = (byId: Record<string, string> = {}) => {
+  depotCalls.findById = 0;
+  depotCalls.findManyByIds = 0;
+  return {
+    findById: async (id: string) => {
+      depotCalls.findById += 1;
+      return byId[id] ? { id, name: byId[id] } : null;
+    },
+    findManyByIds: async (ids: string[]) => {
+      depotCalls.findManyByIds += 1;
+      return ids.filter((id) => byId[id]).map((id) => ({ id, name: byId[id] }));
+    },
+  } as unknown as DepotRepository;
+};
 
 describe('GallonNetworkService.outstanding', () => {
   it('merges issue + return rows per depot into outstanding + net deposit', async () => {
@@ -242,6 +259,38 @@ describe('GallonNetworkService.forCustomer (I5)', () => {
       { depotId: 'd1', depotName: 'Depot Cikini', gallonsOnLoan: 2, depositHeldIdr: 40000 },
       { depotId: 'd2', depotName: 'Depot Menteng', gallonsOnLoan: 2, depositHeldIdr: 40000 },
     ]);
+  });
+
+  /*
+   * One query for the names, however many depots the customer holds a balance at.
+   *
+   * This is the assertion the shape needs: the rows come out identical whether the service
+   * reads the depots one at a time or all at once, so nothing else in this file could tell
+   * the difference — which is why the N+1 survived until it was looked for on purpose.
+   */
+  it('reads every depot name in one query, not one per row', async () => {
+    await forCustomer(
+      [
+        { depotId: 'd1', gallons: 5, amountIdr: 100000 },
+        { depotId: 'd2', gallons: 2, amountIdr: 40000 },
+      ],
+      [],
+    );
+    expect(depotCalls.findManyByIds).toBe(1);
+    expect(depotCalls.findById).toBe(0);
+  });
+
+  // And a customer holding nothing must not produce a query at all — an empty `in` list is
+  // a round trip that can only ever return nothing.
+  it('asks for no names when the customer owes nothing', async () => {
+    await expect(
+      forCustomer(
+        [{ depotId: 'd1', gallons: 3, amountIdr: 60000 }],
+        [{ depotId: 'd1', gallons: 3, amountIdr: 60000 }],
+      ),
+    ).resolves.toEqual([]);
+    expect(depotCalls.findManyByIds).toBe(0);
+    expect(depotCalls.findById).toBe(0);
   });
 
   // Settled up is not the same as "a depot I once used". A list of every depot they ever

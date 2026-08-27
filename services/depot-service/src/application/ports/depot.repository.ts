@@ -79,6 +79,12 @@ export interface DepotRepository {
   search(query: DepotQuery): Promise<{ items: DepotRecord[]; total: number }>;
   findById(id: string, activeOnly: boolean): Promise<DepotRecord | null>;
   /**
+   * The same read for several ids at once, so a caller holding a list does not issue one
+   * query per row. Rows that do not exist are simply absent — the caller decides what a
+   * missing depot means, which is not the same for a name lookup and an access check.
+   */
+  findManyByIds(ids: string[], activeOnly: boolean): Promise<DepotRecord[]>;
+  /**
    * Does this depot exist at all? Asked by the `requireDepot` guard at the top of nearly
    * every depot-scoped call — 47 call sites (audit S-19) — which used to read the whole
    * row and throw it away. A depot is never deleted, so a positive answer is remembered
