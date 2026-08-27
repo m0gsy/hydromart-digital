@@ -372,6 +372,34 @@ if health_ok; then
   # the unquoted PEM was never exported. The repo fix existed the whole time and had simply
   # never been installed. A silent watchdog looks exactly like a quiet week, so the deploy
   # asks the host crontab directly rather than trusting that somebody ran the installer.
+  # Install them, rather than ask whether somebody did.
+  #
+  # `install-host-cron.sh` is idempotent by construction — its own header says so: the block
+  # is delimited by markers and replaced wholesale. And yet the box has now been caught TWICE
+  # running an out-of-date copy of it:
+  #
+  #   2026-08-25  three weekly safety scripts from #323 were in the repo, in the installer,
+  #               and had never once run
+  #   2026-08-27  backup-offsite.sh and check-backup-freshness.sh, added with the CMP work,
+  #               same story — the deploy reported them missing and nothing installed them
+  #
+  # The second time is the answer to the first. Adding a line to the installer does nothing
+  # until a human SSHes in and re-runs it, so "scheduled" meant "scheduled in git". A step
+  # that must be remembered is a step that will be forgotten, and it was — including by the
+  # people who wrote the probe that noticed.
+  #
+  # Tolerant of its own failure, deliberately: a box with no `crontab` binary, or a locked
+  # crontab, must not abort a deploy that is otherwise fine. The probe below is what stays
+  # strict — and it now measures what this line just did rather than what somebody once did.
+  if [ -f scripts/install-host-cron.sh ]; then
+    if bash scripts/install-host-cron.sh >/dev/null 2>&1; then
+      log "host cron installed/updated from scripts/install-host-cron.sh"
+    else
+      log "!! could not install the host crontab — the probe below will say what is missing."
+      alert "install-host-cron.sh failed on deploy; host cron jobs may be stale"
+    fi
+  fi
+
   HOST_CRON="$(crontab -l 2>/dev/null || true)"
   if printf '%s' "$HOST_CRON" | grep -q 'set -a'; then
     log "!! the host crontab still sources .env by EXECUTING it (\`set -a; . ./.env\`)."

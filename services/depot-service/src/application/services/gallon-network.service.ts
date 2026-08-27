@@ -84,18 +84,42 @@ export class GallonNetworkService {
       this.returns.perDepotForCustomer(customerId),
     ]);
     const returnedBy = new Map(returned.map((r) => [r.depotId, r]));
-    const rows: CustomerDepotDepositRow[] = [];
-    for (const i of issued) {
+    /*
+     * The depot NAMES, in one query rather than one per row.
+     *
+     * This loop used to call `findById` per depot — an N+1 on the customer's own gallon
+     * deposit card. N is small (how many depots has this person used) so it never showed
+     * up as slow, which is exactly why it survived: a shape that is only wrong at scale is
+     * invisible on seed data. Naming which rows are wanted first also means the depots of
+     * settled balances are never read at all.
+     */
+    const owing = issued.filter((i) => {
       const back = returnedBy.get(i.depotId);
-      const gallonsOnLoan = Math.max(0, i.gallons - (back?.gallons ?? 0));
-      const depositHeldIdr = Math.max(0, i.amountIdr - (back?.amountIdr ?? 0));
-      if (!gallonsOnLoan && !depositHeldIdr) continue;
-      const depot = await this.depots.findById(i.depotId, false);
+      return (
+        Math.max(0, i.gallons - (back?.gallons ?? 0)) > 0 ||
+        Math.max(0, i.amountIdr - (back?.amountIdr ?? 0)) > 0
+      );
+    });
+    // Nothing owed anywhere means nothing to name. The repository already refuses to send
+    // an empty `in` list to Postgres, but not asking at all is the version that stays true
+    // if somebody later swaps the repository for one that does not.
+    const depotsById = new Map(
+      owing.length === 0
+        ? []
+        : (await this.depots.findManyByIds(owing.map((i) => i.depotId), false)).map((d) => [
+            d.id,
+            d,
+          ]),
+    );
+
+    const rows: CustomerDepotDepositRow[] = [];
+    for (const i of owing) {
+      const back = returnedBy.get(i.depotId);
       rows.push({
         depotId: i.depotId,
-        depotName: depot?.name ?? '',
-        gallonsOnLoan,
-        depositHeldIdr,
+        depotName: depotsById.get(i.depotId)?.name ?? '',
+        gallonsOnLoan: Math.max(0, i.gallons - (back?.gallons ?? 0)),
+        depositHeldIdr: Math.max(0, i.amountIdr - (back?.amountIdr ?? 0)),
       });
     }
     return rows;
