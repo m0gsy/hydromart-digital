@@ -177,6 +177,12 @@ referrals: {
 // Points-redeem catalog (loyalty-service).
 rewards: {
   catalog: '/loyalty/api/v1/rewards/catalog',
+  // PAR-04: the CATALOGUE MANAGEMENT trio. All three were built (design 15c) and reachable
+  // from no screen, so the reward table could only be edited with SQL — which is what the
+  // controller's own comment says it was there to end. `items` differs from `catalog`: it
+  // returns retired rows too, because restoring one is the other half of retiring it.
+  items: '/loyalty/api/v1/rewards/items',
+  updateItem: (id: string) => `/loyalty/api/v1/rewards/items/${encodeURIComponent(id)}`,
   redeem: '/loyalty/api/v1/rewards/redeem',
   // M14-03 lifecycle: the customer's own list + cancel, and the staff hand-over queue.
   myRedemptions: '/loyalty/api/v1/rewards/redemptions/me',

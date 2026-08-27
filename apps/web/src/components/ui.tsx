@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, useId } from 'react';
 import { CaretRight, Drop } from '@phosphor-icons/react';
 
 import { formatIDR } from '@/lib/format';
@@ -75,6 +76,19 @@ export function LinkButton({
 }
 
 /* ---------- Field + Input ---------- */
+/**
+ * A labelled form row.
+ *
+ * `htmlFor` was optional and most callers omitted it, so the `<label>` pointed at nothing:
+ * tapping the label did not focus the field, and a screen reader announced the control
+ * without its name. Measured while writing the reward-catalogue screen — 396 `<Field>`
+ * uses in apps/web, and the association only ever happened when somebody remembered.
+ *
+ * So it happens by default now. When no `htmlFor` is given and the child is a single
+ * element with no id of its own, the generated id is put on both. An explicit `htmlFor`
+ * still wins, and anything else (a fragment, several children, a child that already has an
+ * id) is left exactly as it was — this must not start renaming controls that already work.
+ */
 export function Field({
   label,
   htmlFor,
@@ -88,12 +102,22 @@ export function Field({
   error?: string;
   children: ReactNode;
 }) {
+  const generatedId = useId();
+  const only = Children.count(children) === 1 ? Children.only(children) : null;
+  const adoptable =
+    !htmlFor && isValidElement<{ id?: string }>(only) && only.props.id === undefined;
+  const fieldId = htmlFor ?? (adoptable ? generatedId : undefined);
+  const control =
+    adoptable && isValidElement<{ id?: string }>(only)
+      ? cloneElement(only, { id: generatedId })
+      : children;
+
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
+      <label htmlFor={fieldId} className="text-sm font-medium">
         {label}
       </label>
-      {children}
+      {control}
       {hint && !error && <p className="text-xs text-muted">{hint}</p>}
       {error && (
         <p className="text-xs font-medium text-red-600" role="alert">
