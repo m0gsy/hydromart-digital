@@ -482,12 +482,59 @@ if health_ok; then
 
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
-  if $COMPOSE exec -T crm sh -c '[ -n "${VAPID_PUBLIC_KEY:-}" ]' >/dev/null 2>&1; then
-    log "web push probe — VAPID_PUBLIC_KEY is set inside crm"
+  #
+  # BOTH keys, not just the public one. This probed VAPID_PUBLIC_KEY alone and reported
+  # "web push probe — VAPID_PUBLIC_KEY is set inside crm", which is true and beside the
+  # point: the adapter no-ops when EITHER key is blank, so a box with a public key and no
+  # private one got a green line about a channel that could not send. The private half is
+  # also the one more likely to be missing — it is the secret, so it is the one left out of
+  # a hand-copied .env.
+  VAPID_MISSING=''
+  for V in VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY; do
+    if ! $COMPOSE exec -T crm sh -c "[ -n \"\${$V:-}\" ]" >/dev/null 2>&1; then
+      VAPID_MISSING="$VAPID_MISSING $V"
+    fi
+  done
+  if [ -z "$VAPID_MISSING" ]; then
+    log "web push probe — both VAPID keys are set inside crm"
   else
-    log "!! VAPID_PUBLIC_KEY is EMPTY inside the crm container — web push cannot work at all."
-    log "   Android FCM is unaffected. Fix: set it in .env and recreate crm (deploy mode env-set)."
-    alert "VAPID_PUBLIC_KEY missing in crm — web push is dead"
+    log "!! Web push is DEAD inside the crm container — missing:$VAPID_MISSING"
+    log "   This is the BROWSER transport only; Android is probed separately below."
+    log "   Fix: set them in .env and recreate crm (deploy mode env-set)."
+    alert "VAPID credentials missing in crm —$VAPID_MISSING — web push is dead"
+  fi
+
+  # 2b. CMP-05 — Android push, probed the same way, and until now not probed at all.
+  #
+  # The line above used to end with "Android FCM is unaffected", which is a claim, not a
+  # measurement: nothing anywhere read FCM_PROJECT_ID / FCM_CLIENT_EMAIL / FCM_PRIVATE_KEY,
+  # and all three default to blank. Blank disables the Android transport exactly the way
+  # blank VAPID keys disable the browser one — silently, in the adapter. So the deploy could
+  # print a reassurance about the one channel it had never looked at.
+  #
+  # That matters more than the browser half. WhatsApp and SMS are gone as transactional
+  # channels, and the customer app is an Android WebView: push is the only way an order
+  # update reaches somebody who does not have the app open.
+  #
+  # Presence only, never the value — a service-account private key must not reach a log.
+  # All three, because two out of three is still a dead transport, and the private key is
+  # the one most likely to be dropped (a PEM through a .env survives only escaped).
+  FCM_MISSING=''
+  for V in FCM_PROJECT_ID FCM_CLIENT_EMAIL FCM_PRIVATE_KEY; do
+    if ! $COMPOSE exec -T crm sh -c "[ -n \"\${$V:-}\" ]" >/dev/null 2>&1; then
+      FCM_MISSING="$FCM_MISSING $V"
+    fi
+  done
+  if [ -z "$FCM_MISSING" ]; then
+    log "android push probe — all three FCM service-account variables are set inside crm"
+  else
+    log "!! Android push is DEAD inside the crm container — missing:$FCM_MISSING"
+    log "   Blank disables the FCM transport in the adapter, with no error anywhere. With"
+    log "   WhatsApp and SMS retired, this is the only channel that reaches a customer who"
+    log "   does not have the app open — every order update simply never arrives."
+    log "   Fix: set them in .env and recreate crm (deploy mode env-set). FCM_PRIVATE_KEY"
+    log "   must keep its \n escapes; a raw PEM does not survive a .env file."
+    alert "FCM credentials missing in crm —$FCM_MISSING — Android push is dead"
   fi
 
   # 3. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger

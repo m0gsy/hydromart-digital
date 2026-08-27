@@ -65,4 +65,15 @@ case "$CONCLUSION" in
   *) fail "CI concluded '$CONCLUSION' for $SHA — only 'success' may be released" ;;
 esac
 
+# NOT checked here: mobile/android/app/google-services.json.
+#
+# It was, for one commit, and that was wrong twice over. `mobile.yml` writes the file from
+# the GOOGLE_SERVICES_JSON_BASE64 secret FORTY LINES BELOW the step that runs this gate, so
+# a working-tree check here refuses every release before the workflow has had a chance to
+# supply it. And the check already exists at that step, failing closed with its own message
+# ("push would not work in the shipped build"). The file is gitignored on purpose
+# (mobile/.gitignore:3) — it names the Firebase project, and gitleaks scans for its shape.
+#
+# Left as a comment rather than deleted: the next person to notice that a bundle can ship
+# without Firebase deserves to find out here that it cannot, instead of adding this again.
 echo "release-gate: $SHA is on $BRANCH and CI passed for it — releasing"

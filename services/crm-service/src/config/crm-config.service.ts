@@ -31,6 +31,10 @@ export class CrmConfigService {
   /**
    * customer-service base URL for the CRM broadcast directory (FR-087 segmentation). Blank
    * disables segment targeting — a segment request then fails closed (SegmentUnavailableError).
+   *
+   * no-deploy-probe: fails CLOSED and loudly, on the request, to the caller. The deploy
+   * probes credentials whose absence is SILENT (CMP-05); this one announces itself the
+   * first time anybody asks for a segment, so a probe would add nothing.
    */
   get customerServiceUrl(): string {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '').trim();

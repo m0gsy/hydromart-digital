@@ -161,6 +161,14 @@ jobs:
       # nothing), once duplicated so a fix landed in one copy only. Both failures aborted a
       # production release before a container was touched, and neither needed a database to
       # catch.
+      # CMP-05 — the deploy probed browser push and printed "Android FCM is unaffected"
+      # about a channel nothing had ever looked at. Measured on a running stack: VAPID set,
+      # all three FCM variables empty. A credential whose absence kills a transport in
+      # silence must be probed; one that fails closed and loudly says so itself.
+      - name: Every silently-disableable channel is probed on deploy (CMP-05)
+        run: node scripts/check-notification-probes.mjs
+
+      # PAR-01 / PAR-05 — a scheduled sweep whose path resolves
       - name: Index pre-build table parses (no database needed)
         run: bash scripts/create-indexes.test.sh
 
