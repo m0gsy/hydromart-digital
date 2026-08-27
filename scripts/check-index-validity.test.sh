@@ -86,26 +86,29 @@ docker run -d --name "$PG" -e POSTGRES_USER=hydromart -e POSTGRES_PASSWORD=x \
 cleanup() { docker rm -f "$PG" >/dev/null 2>&1; }
 trap cleanup EXIT
 
-# Readiness, and NOT `pg_isready`.
+# Readiness, over TCP, and this took three attempts to get right — which is the point of
+# writing down why rather than just the answer.
 #
-# The entrypoint of this image starts a TEMPORARY server on a unix socket to run initdb,
-# then shuts it down and starts the real one. `pg_isready` answers yes to that temporary
-# server, so the loop fell through while the cluster was still bootstrapping — the
-# CREATE DATABASE that came next hit a socket that was about to disappear, and every case
-# below then ran against a database that did not exist.
+# The postgres image's entrypoint runs initdb against a TEMPORARY server first, then shuts
+# it down and starts the real one. That temporary server is a real, working Postgres:
 #
-# What the cases need is "this server will accept a connection AND run a statement", so
-# that is what is asked. On CI this cost one retry; the old form cost four false failures
-# that looked like the checker was wrong.
+#   pg_isready                  says yes to it        (attempt 1 — four false failures)
+#   psql ... -c 'SELECT 1'      succeeds against it   (attempt 2 — "the database system
+#                                                      is shutting down", mid-fixture)
+#
+# What separates them is the LISTENER. The bootstrap server is started with
+# `listen_addresses=''`, so it is reachable only over the unix socket; the real one listens
+# on TCP. Asking over 127.0.0.1 therefore cannot be answered by the wrong server at all —
+# it is a difference in kind, not a longer wait.
 ready=0
 for _ in $(seq 1 60); do
-  if docker exec "$PG" psql -tAX -U hydromart -d postgres -c 'SELECT 1' >/dev/null 2>&1; then
+  if docker exec "$PG" psql -tAX -h 127.0.0.1 -U hydromart -d postgres -c 'SELECT 1' >/dev/null 2>&1; then
     ready=1
     break
   fi
   sleep 1
 done
-[ "$ready" = "1" ] || bad "Postgres never accepted a connection; nothing below is meaningful"
+[ "$ready" = "1" ] || bad "Postgres never accepted a TCP connection; nothing below is meaningful"
 
 psql_do() { docker exec "$PG" psql -tAX -U hydromart -d "$1" -c "$2" 2>&1; }
 # Statements carrying SQL string literals go through stdin, not -c: a single-quoted shell
