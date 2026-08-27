@@ -72,6 +72,7 @@ export const id = {
       logoutAllError: 'Gagal keluar dari semua perangkat.',
       empty: 'Tidak ada sesi aktif.',
       loadError: 'Gagal memuat daftar perangkat.',
+    },
     consentHistory: {
       title: 'Riwayat persetujuan',
       show: 'Lihat riwayat',
