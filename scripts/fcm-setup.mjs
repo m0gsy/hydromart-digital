@@ -36,9 +36,17 @@ Firebase console steps — these need your Google account, so no script can do t
      Use ONE project for the app; the package name below has to live in it.
 
   2. Project settings -> General -> Your apps -> Add app -> Android.
-       Package name:  id.hydromart.customer      (and again for the ops binary if you
-                                                  ship push there too)
-     Download \`google-services.json\`.
+     Register BOTH package names, in the SAME project — one google-services.json holds
+     several apps in its \`client\` array, so you download it once, after adding both:
+
+       id.hydromart.app     the customer binary (the gradle default)
+       id.hydromart.ops     the staff binary   (-PhydromartAppId=id.hydromart.ops)
+
+     Both are read out of mobile/android/app/build.gradle, not guessed. SHA-1/SHA-256
+     fingerprints are optional here: they are for Google Sign-In and App Links, and
+     Hydromart's App Links certificates are already handled separately.
+
+     Then download \`google-services.json\`.
 
   3. Put it at:  mobile/android/app/google-services.json  -- and COMMIT it.
      It is a client config, not a secret (it ships inside every APK), and it is not
