@@ -86,10 +86,26 @@ docker run -d --name "$PG" -e POSTGRES_USER=hydromart -e POSTGRES_PASSWORD=x \
 cleanup() { docker rm -f "$PG" >/dev/null 2>&1; }
 trap cleanup EXIT
 
-for _ in $(seq 1 40); do
-  docker exec "$PG" pg_isready -U hydromart >/dev/null 2>&1 && break
+# Readiness, and NOT `pg_isready`.
+#
+# The entrypoint of this image starts a TEMPORARY server on a unix socket to run initdb,
+# then shuts it down and starts the real one. `pg_isready` answers yes to that temporary
+# server, so the loop fell through while the cluster was still bootstrapping — the
+# CREATE DATABASE that came next hit a socket that was about to disappear, and every case
+# below then ran against a database that did not exist.
+#
+# What the cases need is "this server will accept a connection AND run a statement", so
+# that is what is asked. On CI this cost one retry; the old form cost four false failures
+# that looked like the checker was wrong.
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$PG" psql -tAX -U hydromart -d postgres -c 'SELECT 1' >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 1
 done
+[ "$ready" = "1" ] || bad "Postgres never accepted a connection; nothing below is meaningful"
 
 psql_do() { docker exec "$PG" psql -tAX -U hydromart -d "$1" -c "$2" 2>&1; }
 # Statements carrying SQL string literals go through stdin, not -c: a single-quoted shell
@@ -98,7 +114,11 @@ psql_do() { docker exec "$PG" psql -tAX -U hydromart -d "$1" -c "$2" 2>&1; }
 # build then "failed" for the wrong reason — a case that looked like it ran and had not.
 psql_in() { docker exec -i "$PG" psql -tAX -v ON_ERROR_STOP=1 -U hydromart -d "$1" 2>&1; }
 
-psql_do postgres 'CREATE DATABASE hydromart_depot;' >/dev/null
+CREATED="$(psql_do postgres 'CREATE DATABASE hydromart_depot;')"
+case "$CREATED" in
+  *[Ee]rror* | *ERROR*) bad "could not create the fixture database: $CREATED" ;;
+  *) ok "fixture database created" ;;
+esac
 # The real table, the real index name create-indexes.sh builds, and the duplicate row that
 # makes the concurrent build fail — which is the only way to produce an invalid index.
 SETUP="$(psql_in hydromart_depot <<'SQL'
@@ -108,8 +128,11 @@ INSERT INTO "gallon_issues" ("orderId") VALUES
   ('11111111-1111-1111-1111-111111111111');
 SQL
 )"
+# Both spellings. psql prints SERVER errors as `ERROR:` and its OWN as `psql: error:` —
+# and it was the lowercase one that came back when the database was missing, so this said
+# the fixture was fine while nothing had been created.
 case "$SETUP" in
-  *ERROR*) bad "fixture setup failed, nothing below is meaningful: $SETUP" ;;
+  *ERROR* | *[Ee]rror*) bad "fixture setup failed, nothing below is meaningful: $SETUP" ;;
   *) ok "fixture: gallon_issues holds two rows with the same orderId" ;;
 esac
 
