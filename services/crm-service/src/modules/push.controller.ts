@@ -32,6 +32,15 @@ export class PushController {
     private readonly config: CrmConfigService,
   ) {}
 
+  /*
+   * route-authz: takes no subject. It returns the same VAPID public key to every caller —
+   * the one the browser needs to build a subscription, and which is public by construction
+   * (it ships to every device that subscribes). There is nothing here to scope to a person
+   * and no capability it belongs to, so neither @Can nor @CurrentUser applies.
+   *
+   * Left behind the global JwtAuthGuard rather than made @Public(): nothing needs it before
+   * sign-in, and loosening auth to satisfy a checker is the wrong direction.
+   */
   @ApiOkResponse({ type: VapidPublicKey3ResponseDto })
   @Get('vapid-public-key')
   @ApiOperation({ summary: 'Public VAPID key the browser needs to subscribe (empty = push off)' })

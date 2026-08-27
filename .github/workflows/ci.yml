@@ -168,7 +168,16 @@ jobs:
       - name: Every silently-disableable channel is probed on deploy (CMP-05)
         run: node scripts/check-notification-probes.mjs
 
-      # PAR-01 / PAR-05 — a scheduled sweep whose path resolves
+      # Nothing asserted that a backend route is authorised AT ALL. check-roles-policy checks
+      # the shape of the @Roles that exist; JwtAuthGuard is a global APP_GUARD, so a route
+      # with no decorator resolves to "any authenticated caller, any role" — a signed-in
+      # customer reaching a head-office route, and no gate could see it.
+      - name: Every route says who may call it
+        run: node scripts/check-route-authz.mjs
+
+      - name: Route-authz gate can go red
+        run: bash scripts/check-route-authz.test.sh
+
       - name: Index pre-build table parses (no database needed)
         run: bash scripts/create-indexes.test.sh
 

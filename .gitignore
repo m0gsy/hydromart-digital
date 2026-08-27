@@ -98,3 +98,9 @@ export-*.txt
 tap-*.txt
 export-sweep-*.txt
 apk-build*.log
+
+# Playwright's JSON reporter, written wherever `--reporter=json` was pointed. Two of these
+# were committed (apps/web/full.json, apps/web/solo.json): nothing referenced them, and each
+# carried the absolute paths of the laptop that produced it, node install and all.
+full.json
+solo.json

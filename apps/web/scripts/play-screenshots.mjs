@@ -9,10 +9,17 @@
 // OTPs over the `sms` channel, so point SMS_API_BASE_URL at a local sink that appends
 // "<ts> <phone> <code>" lines to OTP_LOG, and set OTP_LOG here to that file.
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { chromium, devices } from '@playwright/test';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
-const OUT = process.env.OUT_DIR ?? 'g:/VsCode/Hydromart/docs/play-assets';
+// Derived from this file, not from the box it was written on. The default used to be
+// `g:/VsCode/Hydromart/docs/play-assets`, which exists on exactly one computer — and the
+// gate that exists to catch that walked only `.uat` and `scripts`, so this sat one
+// directory outside its reach (`apps/web/scripts`) for as long as it has existed.
+const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const OUT = process.env.OUT_DIR ?? join(REPO_ROOT, 'docs', 'play-assets');
 
 const VIEWPORTS = [
   { prefix: '', width: 412, height: 732, scale: 3 }, //  1236x2196 phone
