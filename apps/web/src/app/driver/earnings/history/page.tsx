@@ -50,7 +50,7 @@ function History() {
   const router = useRouter();
   const [page, setPage] = useState(1);
   const load = useAsync<Page<CourierLedgerEntry>>(
-    () => api.get(endpoints.courierPayout.ledger({ page, limit: PAGE_SIZE }), true),
+    () => api.get(endpoints.courierPayout.ledger(page, PAGE_SIZE), true),
     [page],
   );
 

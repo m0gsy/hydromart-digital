@@ -95,13 +95,14 @@ courierPayout: {
    * `summary.recentEntries` and had no way at all to see last month. That is money they
    * were paid.
    */
-  ledger: (q: { page?: number; limit?: number } = {}) => {
-    const p = new URLSearchParams();
-    if (q.page) p.set('page', String(q.page));
-    if (q.limit) p.set('limit', String(q.limit));
-    const qs = p.toString();
-    return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
-  },
+  // One expression, deliberately. A block-bodied builder is invisible to
+  // check-endpoint-contracts' name map — it reads `name: (…) => '/path…'` — so the call
+  // site becomes one more of the 305 whose HTTP verb nothing verifies. Both parameters are
+  // always sent, so there is no conditional query string to build.
+  // eslint-disable-next-line max-len -- one line on purpose: check-endpoint-contracts' name
+  // map reads `name: (…) => '/path'` on a SINGLE line, and a wrapped builder becomes one
+  // more of the call sites whose HTTP verb nothing verifies.
+  ledger: (page: number, limit: number) => `/payout/api/v1/courier/ledger?page=${page}&limit=${limit}`,
   // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
   earningRule: '/payout/api/v1/courier/earning-rule',
   withdraw: '/payout/api/v1/courier/withdrawals',
