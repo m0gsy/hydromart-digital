@@ -8,6 +8,17 @@
 // `endpoints` is still one object, assembled in ./index.ts.
 
 export const insight = {
+  /*
+   * Both read models are rebuilt from order-service's completed orders. Both routes are
+   * SUPER_ADMIN-only, both were built as the backfill for a model that has drifted or was
+   * never populated, and neither had a screen — so the only recovery for a stale
+   * recommendation or forecast model was a hand-made HTTP request.
+   */
+  readModelRebuild: {
+    forecast: '/forecast/api/v1/forecast/rebuild',
+    recommendations: '/recommendations/api/v1/recommendations/rebuild',
+  },
+
   // HQ analytics reports (order-service, HEAD_OFFICE/MANAGER/SUPER_ADMIN; customer is HQ-only).
   reports: {
     // Revenue share per product (22b). Grouped by product — order-service has no category column.

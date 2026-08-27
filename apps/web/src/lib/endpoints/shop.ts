@@ -175,6 +175,20 @@ referrals: {
 },
 
 // Points-redeem catalog (loyalty-service).
+/*
+ * PAR-09. The order outbox: the retry queue for the side effects a completed order still
+ * owes — the stock consume, the loyalty award, the referral qualification, the
+ * franchise-owner credit. Money is owed against a PENDING row.
+ *
+ * The gauge exists "so a queue that stops draining is visible", and no screen showed it, so
+ * it was visible to nobody. The manual drain next to it is SUPER_ADMIN-only and was equally
+ * unreachable — the scheduler has its own internal door.
+ */
+orderOutbox: {
+  pending: '/orders/api/v1/orders/outbox/pending',
+  process: '/orders/api/v1/orders/outbox/process',
+},
+
 rewards: {
   catalog: '/loyalty/api/v1/rewards/catalog',
   // PAR-04: the CATALOGUE MANAGEMENT trio. All three were built (design 15c) and reachable

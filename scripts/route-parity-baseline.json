@@ -8,9 +8,6 @@
     "GET referral: /referrals/customers/:",
     "GET referral: /referrals/me/code",
     "POST admin: /partner/deliveries/:/replay",
-    "POST forecast: /forecast/rebuild",
-    "POST order: /orders/outbox/process",
-    "POST recommendation: /recommendations/rebuild",
     "PUT depot: /shifts/bulk"
   ]
 }
