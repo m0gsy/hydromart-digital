@@ -4,8 +4,6 @@
     "GET delivery: /deliveries/:",
     "GET delivery: /driver/settlement/:",
     "GET depot: /suppliers/:",
-    "GET referral: /referrals/customers/:",
-    "GET referral: /referrals/me/code",
     "PUT depot: /shifts/bulk"
   ]
 }
