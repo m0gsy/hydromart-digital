@@ -231,7 +231,14 @@ export class GallonReturnService {
       condition === GallonCondition.GOOD
         ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
         : 0;
-    const record = await this.returns.create({
+    // MONEY-04: idempotent on the order, because the courier's handover travels through the
+    // offline queue and that queue is at-least-once. A lost response — 15s timeout at the
+    // door, a 502 mid-deploy — is retried on the next flush, and the old bare `create`
+    // booked a SECOND refund for the same handover.
+    //
+    // The issue side has had this since I1, with a comment saying exactly why. Only the
+    // refund half was left open, which is the half that pays money out.
+    const { record, created } = await this.returns.createFromOrder({
       depotId,
       customerId: input.customerId ?? null,
       orderId: input.orderId,
@@ -241,6 +248,9 @@ export class GallonReturnService {
       note: input.note ?? null,
       actorId: courierId,
     });
+    // Already booked. Return the refund that actually happened, and queue nothing: a second
+    // variance approval for one handover is a manager asked to rule on the same gallons twice.
+    if (!created) return record;
     if (excessGallons > 0) {
       await this.queueVariance(depotId, excessGallons, record.id, courierId);
     }

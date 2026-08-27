@@ -147,7 +147,12 @@ model GallonReturn {
   createdAt       DateTime        @default(now())
 
   @@index([depotId, createdAt])
-  @@index([orderId])
+  /// MONEY-04: unique, not just indexed. The courier handover travels through the offline
+  /// queue, which is at-least-once, and a bare create refunded the deposit twice on a
+  /// retry. Postgres treats every NULL as distinct, so this refuses a second booking of
+  /// the same order while leaving walk-in counter returns (orderId null) unconstrained —
+  /// exactly the shape gallon_issues has carried since I1.
+  @@unique([orderId], map: "gallon_returns_orderId_key")
   @@map("gallon_returns")
 }
 

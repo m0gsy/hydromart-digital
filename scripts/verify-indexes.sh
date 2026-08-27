@@ -45,9 +45,12 @@ q(){ docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 
 # index_exists <svc> <indexname>  -> ok/no, bumps FAIL if missing
 index_exists(){
   local svc="$1" idx="$2" got
-  got="$(q "$svc" "SELECT 1 FROM pg_indexes WHERE indexname='$idx';")"
+  # DB-1: `indisvalid`, not pg_indexes. A CONCURRENTLY build that failed leaves an INVALID
+  # index behind that pg_indexes reports exactly like a good one and that enforces nothing
+  # — measured. Every index below is here because something depends on it holding.
+  got="$(q "$svc" "SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = '$idx' AND i.indisvalid;")"
   if [ "$got" = "1" ]; then ok "$svc.$idx present"; return 0; fi
-  no "$svc.$idx MISSING — migration not applied to hydromart_$svc"
+  no "$svc.$idx MISSING or INVALID — migration not applied to hydromart_$svc, or a concurrent build failed"
   [ "$PREFLIGHT" = "1" ] || FAIL=1
   return 1
 }

@@ -71,7 +71,12 @@ forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT 
 # index with it: nothing to pre-build, nothing to lock, nothing missing.
 table_absent() {
   _ta_db="$1"
-  _ta_table="$(printf '%s' "$2" | sed -n 's/.* ON "\([^"]*\)".*//p')"
+  # The backreference is \1. It was a raw 0x01 byte from #186 until 27 Aug 2026 — sed
+  # substituted a control character in, every table name came back as that byte, no table
+  # was ever found, and so EVERY index took the "its table does not exist yet" branch:
+  # nothing was ever pre-built and the end-state re-check could never report anything
+  # MISSING. The script exited 0 for five months without doing its job.
+  _ta_table="$(printf '%s' "$2" | sed -n 's/.* ON "\([^"]*\)".*/\1/p')"
   [ -n "$_ta_table" ] || return 1
   _ta_found="$(psql_do "$_ta_db" "SELECT 1 FROM information_schema.tables WHERE table_name='$_ta_table';" | tr -d '[:space:]')"
   [ "$_ta_found" != "1" ]
@@ -94,7 +99,8 @@ echo "$INDEXES" | while IFS='|' read -r db idx stmt; do
     continue
   fi
 
-  present="$(psql_do "$db" "SELECT 1 FROM pg_indexes WHERE indexname='$idx';" | tr -d '[:space:]')"
+  # One rule, everywhere: "present" means present AND valid (DB-1).
+  present="$(psql_do "$db" "SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = '$idx' AND i.indisvalid;" | tr -d '[:space:]')"
   if [ "$present" = "1" ]; then
     ok "$db.$idx already present"
     continue
@@ -139,9 +145,23 @@ done
 # version of it proved why: the three service_settings indexes were correctly skipped —
 # three ✅ lines in the log — and then this re-check called them MISSING and failed the
 # release anyway. Half a fix reads exactly like no fix from the outside.
+# DB-1 / MONEY-02: `pg_indexes` is NOT a validity check. A `CREATE UNIQUE INDEX
+# CONCURRENTLY` that fails leaves the index behind marked `indisvalid = false` — and
+# pg_indexes lists it exactly like a good one. Measured on a real Postgres: the failed
+# build errors, `SELECT 1 FROM pg_indexes` still answers 1, `indisvalid` is `f`, and a
+# duplicate INSERT then SUCCEEDS. So this re-check called an index that enforces nothing
+# "present", exited 0, and the deploy went out on top of it.
+#
+# The loop above DOES notice invalidity — and its `FAIL=1` is thrown away by the subshell,
+# which is the whole reason this end-state re-check exists. Half a rule again.
+#
+# What that buys, concretely: `gallon_issues_orderId_key` is in the table above. It is the
+# only thing making the deposit-held booking idempotent, because Prisma's `upsert` is a
+# SELECT-then-INSERT with no constraint behind it. Invalid index, green deploy, at-least-once
+# completion fan-out — the depot books the same deposit twice.
 MISSING="$(echo "$INDEXES" | while IFS='|' read -r db idx stmt; do
   [ -z "${db:-}" ] && continue
-  got="$(psql_do "$db" "SELECT 1 FROM pg_indexes WHERE indexname='$idx';" | tr -d '[:space:]')"
+  got="$(psql_do "$db" "SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = '$idx' AND i.indisvalid;" | tr -d '[:space:]')"
   [ "$got" = "1" ] && continue
   table_absent "$db" "$stmt" && continue
   echo "$db.$idx"

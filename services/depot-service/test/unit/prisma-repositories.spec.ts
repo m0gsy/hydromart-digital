@@ -754,6 +754,7 @@ describe('GallonIssuePrismaRepository', () => {
 describe('GallonReturnPrismaRepository', () => {
   const model = {
     create: jest.fn(),
+    findUnique: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn(),
@@ -761,6 +762,71 @@ describe('GallonReturnPrismaRepository', () => {
   };
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
+
+  // MONEY-04. The courier handover arrives through the offline queue, which is
+  // at-least-once, and the old bare `create` refunded the deposit a second time on every
+  // retry. These four cases are the whole idempotency contract.
+  describe('createFromOrder', () => {
+    const data = {
+      depotId: 'd1',
+      customerId: 'c1',
+      orderId: 'o1',
+      quantity: 2,
+      condition: GallonCondition.GOOD,
+      depositRefunded: 40000,
+      note: null,
+      actorId: 'courier-1',
+    };
+    const row = { ...data, id: 'r1', depositRefunded: decimal(40000), createdAt: new Date() };
+
+    beforeEach(() => {
+      model.findUnique.mockReset();
+      model.create.mockReset();
+    });
+
+    it('writes the row the first time', async () => {
+      model.findUnique.mockResolvedValue(null);
+      model.create.mockResolvedValue(row);
+      const out = await repo.createFromOrder(data);
+      expect(out.created).toBe(true);
+      expect(out.record.depositRefunded).toBe(40000);
+      expect(model.create).toHaveBeenCalledWith({ data });
+    });
+
+    // The offline queue's own retry, minutes later after its backoff.
+    it('returns the first row and writes nothing when the order is already booked', async () => {
+      model.findUnique.mockResolvedValue(row);
+      const out = await repo.createFromOrder(data);
+      expect(out.created).toBe(false);
+      expect(out.record.id).toBe('r1');
+      expect(model.create).not.toHaveBeenCalled();
+    });
+
+    // Two flushes racing: both misses, one create wins, the loser re-reads.
+    it('re-reads the winner when a concurrent flush took the unique index', async () => {
+      model.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(row);
+      model.create.mockRejectedValue({ code: 'P2002' });
+      const out = await repo.createFromOrder(data);
+      expect(out.created).toBe(false);
+      expect(out.record.id).toBe('r1');
+    });
+
+    // A P2002 with nothing to read back is a DIFFERENT unique index, and swallowing it
+    // would report a refund that was never written.
+    it('rethrows a P2002 that leaves nothing to read back', async () => {
+      const err = { code: 'P2002' };
+      model.findUnique.mockResolvedValue(null);
+      model.create.mockRejectedValue(err);
+      await expect(repo.createFromOrder(data)).rejects.toBe(err);
+    });
+
+    it('rethrows any other prisma error', async () => {
+      const err = { code: 'P2003' };
+      model.findUnique.mockResolvedValue(null);
+      model.create.mockRejectedValue(err);
+      await expect(repo.createFromOrder(data)).rejects.toBe(err);
+    });
+  });
 
   // I2's other half. `depositRefunded` is a Decimal column, so the sum arrives as an object
   // and has to be coerced — subtracting it raw would give NaN and let every refund through.
