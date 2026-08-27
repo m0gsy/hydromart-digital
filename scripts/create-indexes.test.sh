@@ -67,3 +67,27 @@ echo "create-indexes: $COUNT statement(s) parse, name-match, are CONCURRENT, and
 USES="$(grep -c 'table_absent "\$db" "\$stmt"' "$SCRIPT" || true)"
 [ "$USES" -ge 2 ] || fail "the new-table rule is used $USES time(s); the loop and the end-state check both need it"
 echo 'create-indexes: the new-table rule is applied in both places'
+
+# The script's OWN table-name extraction, not a copy of it.
+#
+# The assertion above (case 4) runs a sed written HERE against the statements. It passed
+# every day while the script's own line said `s/.* ON "\([^"]*\)".*/<0x01>/p` — a raw
+# control byte where the backreference should be, written by #186 and unnoticed for five
+# months. Every table name came back as that byte, no table was ever found, so EVERY index
+# took the "its table does not exist yet" branch: nothing was pre-built, and the end-state
+# re-check could never report anything MISSING. A no-op that exits 0.
+#
+# A test that reimplements the thing it is testing cannot see that. This one calls it.
+# shellcheck source=/dev/null
+TA_TABLE="$(
+  # Pull just the function out and run it with a stub psql, so no database is needed.
+  sed -n '/^table_absent() {/,/^}/p' "$SCRIPT" > /tmp/ci-ta.$$.sh
+  # shellcheck disable=SC1090
+  . /tmp/ci-ta.$$.sh
+  psql_do() { echo ''; }
+  table_absent x 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "foo_idx" ON "some_table"("a")' >/dev/null
+  printf '%s' "$_ta_table"
+  rm -f /tmp/ci-ta.$$.sh
+)"
+[ "$TA_TABLE" = "some_table" ] || fail "table_absent extracted [$TA_TABLE], not [some_table] — its sed replacement is not a working backreference, so every index silently takes the new-table skip"
+echo 'create-indexes: table_absent extracts a real table name from a real statement'

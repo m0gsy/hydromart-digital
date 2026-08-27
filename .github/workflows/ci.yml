@@ -164,6 +164,15 @@ jobs:
       - name: Index pre-build table parses (no database needed)
         run: bash scripts/create-indexes.test.sh
 
+      # DB-1 / MONEY-02 — a CONCURRENTLY build that fails leaves the index behind marked
+      # invalid, pg_indexes lists it exactly like a good one, and it enforces nothing. Both
+      # the create-indexes end-state re-check and verify-indexes asked pg_indexes, so a
+      # release could go out on top of a unique index that holds no constraint — including
+      # gallon_issues_orderId_key, the only thing making a deposit booking idempotent.
+      # The container cases skip loudly without a daemon; the source cases run everywhere.
+      - name: An invalid index cannot read as present (DB-1)
+        run: bash scripts/check-index-validity.test.sh
+
       # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
       # is stubbed — so it is gated here like any other logic.
       - name: Scheduler sweep self-check

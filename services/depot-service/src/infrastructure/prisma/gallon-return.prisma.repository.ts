@@ -8,6 +8,7 @@ import { Injectable } from '@nestjs/common';
 import { GallonCondition } from '../../domain/gallon-return';
 import {
   CreateGallonReturnData,
+  CreateGallonReturnFromOrderData,
   GallonReturnDepotRow,
   GallonReturnRecord,
   GallonReturnRepository,
@@ -39,6 +40,38 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
       condition: row.condition as GallonCondition,
       depositRefunded: Number(row.depositRefunded),
     };
+  }
+
+  /**
+   * MONEY-04. Read-then-write, with the unique index as the backstop.
+   *
+   * Two shapes of repeat have to be survived and they are not the same:
+   *   - the offline queue's retry, minutes apart after its backoff -> the findUnique sees
+   *     the first row and nothing is written;
+   *   - two flushes racing (a tab and a resumed app) -> both findUnique miss, one create
+   *     wins, the other takes P2002 and re-reads.
+   * A findUnique alone closes only the first. `gallon_returns_orderId_key` is what closes
+   * the second, which is why this ships with the migration and not before it.
+   */
+  async createFromOrder(
+    data: CreateGallonReturnFromOrderData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }> {
+    const existing = await this.prisma.gallonReturn.findUnique({
+      where: { orderId: data.orderId },
+    });
+    if (existing) return { record: this.toRecord(existing as ReturnRow), created: false };
+    try {
+      const row = await this.prisma.gallonReturn.create({ data });
+      return { record: this.toRecord(row as ReturnRow), created: true };
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2002') throw error;
+      const raced = await this.prisma.gallonReturn.findUnique({
+        where: { orderId: data.orderId },
+      });
+      // A P2002 with nothing to read back is a different unique index, not this race.
+      if (!raced) throw error;
+      return { record: this.toRecord(raced as ReturnRow), created: false };
+    }
   }
 
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {

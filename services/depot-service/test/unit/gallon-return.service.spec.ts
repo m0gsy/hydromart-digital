@@ -4,6 +4,7 @@ import { OwnershipType } from '../../src/domain/inventory';
 import { DepotNotFoundError, GallonOverReturnError } from '../../src/domain/errors';
 import {
   CreateGallonReturnData,
+  CreateGallonReturnFromOrderData,
   GallonReturnRecord,
   GallonReturnRepository,
   GallonReturnSummary,
@@ -27,6 +28,18 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
     const row: GallonReturnRecord = { id: `r${++this.seq}`, createdAt: new Date(), ...data };
     this.rows.push(row);
     return row;
+  }
+  /** MONEY-04: the same idempotency the real repository gets from the unique index. */
+  async createFromOrder(
+    data: CreateGallonReturnFromOrderData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }> {
+    const existing = this.rows.find((r) => r.orderId === data.orderId);
+    if (existing) return { record: existing, created: false };
+    return { record: await this.create(data), created: true };
+  }
+  /** Every row written, so a test can count them instead of trusting a summary. */
+  all(): GallonReturnRecord[] {
+    return this.rows;
   }
   async listForDepot(depotId: string, page: number, limit: number) {
     const all = this.rows.filter((r) => r.depotId === depotId).reverse();
@@ -461,6 +474,41 @@ describe('GallonReturnService', () => {
     );
     expect(rec.depositRefunded).toBe(0);
     expect(rec.quantity).toBe(3);
+  });
+
+  /**
+   * MONEY-04. The courier handover is queued offline (`kind: 'gallonReturn'`), and that
+   * queue is at-least-once: a POST whose response is lost — 15s timeout at a customer's
+   * door, a 502 mid-deploy — is re-sent on the next flush. The server had already committed
+   * the first row.
+   *
+   * Before the fix this wrote a SECOND gallon_returns row and refunded the deposit twice,
+   * while the mirror-image issue side had been idempotent on orderId since I1.
+   */
+  it('books a repeated courier handover once — the deposit is not refunded twice', async () => {
+    const orderId = '00000000-0000-4000-8000-00000000ab01';
+    const first = await service.recordFromCourier(depotId, { orderId, quantity: 2 }, 'courier-1');
+    const retry = await service.recordFromCourier(depotId, { orderId, quantity: 2 }, 'courier-1');
+
+    expect(retry.id).toBe(first.id);
+    expect(returns.all().filter((r) => r.orderId === orderId)).toHaveLength(1);
+    const summary = await returns.summaryForDepot(depotId);
+    expect(summary.depositRefunded).toBe(GALLON_DEPOSIT_IDR * 2);
+    expect(summary.gallons).toBe(2);
+  });
+
+  /**
+   * The side effects must not repeat either: a second GALLON_VARIANCE for one handover is a
+   * manager asked to rule on the same gallons twice, and each approval carries a rupiah
+   * amount that the queue then counts again.
+   */
+  it('queues no second approval when the same handover is re-sent', async () => {
+    const orderId = '00000000-0000-4000-8000-00000000ab02';
+    // 99 gallons against an empty issue ledger — guaranteed variance.
+    await service.recordFromCourier(depotId, { orderId, quantity: 99 }, 'courier-1');
+    const afterFirst = approvals.created.length;
+    await service.recordFromCourier(depotId, { orderId, quantity: 99 }, 'courier-1');
+    expect(approvals.created.length).toBe(afterFirst);
   });
 
   it('rejects a courier return against an unknown depot', async () => {

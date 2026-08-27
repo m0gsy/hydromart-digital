@@ -29,6 +29,15 @@ export interface CreateGallonReturnData {
   actorId: string;
 }
 
+/**
+ * MONEY-04: one courier handover, booked from the order that carried it. `orderId` is
+ * required here — that is the whole difference from `CreateGallonReturnData`, whose
+ * `orderId` is nullable because a walk-in counter return has no order.
+ */
+export interface CreateGallonReturnFromOrderData extends CreateGallonReturnData {
+  orderId: string;
+}
+
 /** Rollup of a depot's returns (all time): empties handed back + deposit refunded. */
 export interface GallonReturnSummary {
   returns: number;
@@ -59,6 +68,23 @@ export interface GallonReturnDepotRow {
 
 export interface GallonReturnRepository {
   create(data: CreateGallonReturnData): Promise<GallonReturnRecord>;
+  /**
+   * MONEY-04: idempotent on `orderId`, the exact mirror of
+   * `GallonIssueRepository.createFromOrder` — and it exists for the same reason, which the
+   * issue side had and this one did not.
+   *
+   * The courier's handover goes through the offline queue (`kind: 'gallonReturn'`). That
+   * queue is at-least-once by construction: a POST whose response is lost — a 15s timeout
+   * at a customer's door, a 502 mid-deploy — is retried on the next flush. The old path was
+   * a bare `create`, so the retry wrote a SECOND row and the deposit came back twice.
+   *
+   * `created` is what the caller needs to know: on a repeat there must be no second
+   * variance approval and no second damaged-refund approval either. The record returned is
+   * the first one, so the courier sees the refund that was actually booked.
+   */
+  createFromOrder(
+    data: CreateGallonReturnFromOrderData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }>;
   listForDepot(
     depotId: string,
     page: number,
