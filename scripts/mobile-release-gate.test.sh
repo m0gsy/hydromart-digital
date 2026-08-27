@@ -57,6 +57,18 @@ mkdir -p "$REPO"
 MAIN_SHA="$(cat "$TMP/main-sha")"
 SIDE_SHA="$(cat "$TMP/side-sha")"
 
+# The Firebase config the release needs to exist. It lives on the build machine, not in
+# git, so the gate reads it from the working tree and this fixture supplies one.
+GS_DIR="$REPO/mobile/android/app"
+GS="$GS_DIR/google-services.json"
+mkdir -p "$GS_DIR"
+gs_good() { printf '{"project_info":{"project_id":"hydromart-test"}}
+' >"$GS"; }
+gs_placeholder() { printf '{"todo":"paste the real one"}
+' >"$GS"; }
+gs_gone() { rm -f "$GS"; }
+gs_good
+
 # The CI-conclusion probe, stubbed. $1 is the sha; it prints a conclusion and exits 0.
 mkstub() {
   printf '#!/usr/bin/env bash\necho "%s"\n' "$1" >"$TMP/probe"
@@ -101,6 +113,28 @@ for c in cancelled skipped neutral; do
   [ "$(rc "$MAIN_SHA")" != 0 ] && ok "CI conclusion '$c' is refused" ||
     bad "CI conclusion '$c' must be refused"
 done
+
+# The client half of CMP-05. `mobile/android/app/build.gradle` applies the google-services
+# plugin only IF this file is present, and reports its absence with `logger.info` — a level
+# nobody sets, in a build that succeeds. So a signed bundle could be uploaded and installed
+# with push that cannot work, and nothing anywhere said so.
+mkstub success
+gs_gone
+[ "$(rc "$MAIN_SHA")" != 0 ] && ok "a release without google-services.json is refused" ||
+  bad "a bundle built with no Firebase config would ship dead push and must be refused"
+case "$(run "$MAIN_SHA")" in
+  *google-services.json*) ok "the refusal names the file and where to get it" ;;
+  *) bad "the refusal must name google-services.json" ;;
+esac
+
+# A placeholder is worse than nothing: the plugin APPLIES, so the build looks configured
+# and the push registration fails on the phone instead.
+mkstub success
+gs_placeholder
+[ "$(rc "$MAIN_SHA")" != 0 ] && ok "a placeholder google-services.json is refused" ||
+  bad "a file with no project_id must be refused, not treated as configured"
+
+gs_good
 
 if [ "$fails" -ne 0 ]; then
   echo "mobile-release-gate.sh: $fails check(s) failed" >&2
