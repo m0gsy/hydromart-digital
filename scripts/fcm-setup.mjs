@@ -48,12 +48,19 @@ Firebase console steps — these need your Google account, so no script can do t
 
      Then download \`google-services.json\`.
 
-  3. Put it at:  mobile/android/app/google-services.json  -- and COMMIT it.
-     It is a client config, not a secret (it ships inside every APK), and it is not
-     gitignored, so committing it is how the build machine and CI get it.
-     Without that file the Gradle build quietly skips the google-services plugin and the
-     APK ships with push that cannot work. \`scripts/mobile-release-gate.sh\` now refuses
-     a release build in that state instead of logging it at info level.
+  3. This one is ALREADY WIRED, and it is NOT committed. Check before you touch it:
+
+       gh secret list | grep GOOGLE_SERVICES_JSON_BASE64
+
+     \`mobile.yml\` decodes that secret into mobile/android/app/google-services.json at
+     build time and refuses the build when it is empty. The file is gitignored on purpose
+     (mobile/.gitignore:3) — it names the Firebase project.
+
+     Only if the secret is missing:
+       base64 -w0 google-services.json      # then paste as that repo secret
+
+     For a LOCAL release build, drop the file at mobile/android/app/google-services.json
+     by hand; gradle skips the plugin without it and the APK ships with dead push.
 
   4. Project settings -> Service accounts -> Generate new private key.
      That downloads a JSON. Do NOT commit it anywhere.
@@ -63,7 +70,9 @@ Firebase console steps — these need your Google account, so no script can do t
        bash scripts/deploy.sh env-set        (or your usual deploy)
 
   6. The deploy's own android-push probe will go green. Until then it stays red on
-     purpose — that is CMP-05.
+     purpose — that is CMP-05. If it is ALREADY green on your server, the credentials
+     were set there before this probe existed and step 4-5 were never needed: the probe
+     is what tells you which of the two it is, which is the whole point of adding it.
 
 Note on rotation: the service-account key is a credential like any other. Generating a new
 one in step 4 and re-running step 5 is the whole rotation; delete the old key in the console

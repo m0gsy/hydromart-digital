@@ -65,24 +65,15 @@ case "$CONCLUSION" in
   *) fail "CI concluded '$CONCLUSION' for $SHA — only 'success' may be released" ;;
 esac
 
-# 3. Push. `mobile/android/app/build.gradle` applies the google-services plugin only IF
-# `google-services.json` is present, and when it is absent says so with `logger.info` —
-# a level nobody sets, in a build that succeeds. So a release bundle could be signed,
-# uploaded and installed with push that cannot work, and the only trace was a line no
-# human or gate would ever read.
+# NOT checked here: mobile/android/app/google-services.json.
 #
-# That is the CMP-05 shape on the client side: the deploy probes the SERVER credentials
-# now, and the server can hold perfectly good ones while the app on the phone was never
-# built with a Firebase project at all. Both halves have to be there or nothing arrives.
+# It was, for one commit, and that was wrong twice over. `mobile.yml` writes the file from
+# the GOOGLE_SERVICES_JSON_BASE64 secret FORTY LINES BELOW the step that runs this gate, so
+# a working-tree check here refuses every release before the workflow has had a chance to
+# supply it. And the check already exists at that step, failing closed with its own message
+# ("push would not work in the shipped build"). The file is gitignored on purpose
+# (mobile/.gitignore:3) — it names the Firebase project, and gitleaks scans for its shape.
 #
-# Presence only. The file is not a secret (it ships inside the APK), but it is not in the
-# repo either, so this is a build-machine check, not a git one.
-GS='mobile/android/app/google-services.json'
-if [ ! -f "$GS" ]; then
-  fail "$GS is missing — Gradle would skip the google-services plugin and this bundle would ship with Android push that cannot work. Download it from the Firebase console (see: node scripts/fcm-setup.mjs --help) and place it there."
-fi
-if ! grep -q '"project_id"' "$GS" 2>/dev/null; then
-  fail "$GS does not look like a Firebase config (no project_id) — a placeholder file is worse than none, because the plugin applies and the push registration then fails at runtime"
-fi
-
-echo "release-gate: $SHA is on $BRANCH, CI passed for it, and the Firebase config is present — releasing"
+# Left as a comment rather than deleted: the next person to notice that a bundle can ship
+# without Firebase deserves to find out here that it cannot, instead of adding this again.
+echo "release-gate: $SHA is on $BRANCH and CI passed for it — releasing"
