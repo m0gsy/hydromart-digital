@@ -52,6 +52,7 @@ payment|payments_cashierShiftId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "pay
 depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_itemId_createdAt_idx" ON "stock_movements"("itemId", "createdAt")
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")
 depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_issues_orderId_key" ON "gallon_issues"("orderId")
+depot|gallon_returns_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_returns_orderId_key" ON "gallon_returns"("orderId")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_customerId_createdAt_idx" ON "reseller_price_changes"("customerId", "createdAt" DESC)
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")
