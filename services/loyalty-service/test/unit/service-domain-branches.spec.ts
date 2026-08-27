@@ -61,7 +61,14 @@ describe('LoyaltyService read/list helpers', () => {
       expired: false,
       createdAt: new Date('2019-01-01'),
     });
-    const result = await service.runExpiry(new Date());
+    // PAR-01: the sweep ships off, so this case builds one with the switch explicitly on.
+    // Asserting the orphan-lot branch against a disabled sweep would assert nothing.
+    const sweeper = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    const result = await sweeper.runExpiry(new Date());
     expect(result.lotsExpired).toBe(1); // lot was found...
     expect(result.pointsExpired).toBe(0); // ...but skipped (no account to debit)
   });

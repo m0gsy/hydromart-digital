@@ -102,3 +102,19 @@
 # every run). So it fired at 04:10 WIB, seven hours before it was meant to, with the depots
 # still shut.
 10 11 * * * sh /scripts/sweep.sh fraud-flags/internal/scan admin:3017
+
+# PAR-05: birthday points (FR-091). Built, tested, idempotent per customer per year — and
+# called by nothing, so no birthday point has ever been granted in production. Nobody
+# noticed because there is no screen whose absence is felt. Daily at 07:00 WIB: a birthday
+# is a whole day, and a greeting that arrives before the depots open reads as one.
+0 7 * * * sh /scripts/sweep.sh profile/internal/birthday-rewards customer:3002
+# PAR-01: loyalty point expiry (BR-014). Same story — implemented, idempotent, unreachable,
+# so points have never expired and the liability has accrued since launch. Daily at 03:45,
+# after the 03:30 retention purge so the two nightly writers never overlap.
+#
+# It ships INERT: the sweep runs and expires nothing until `pointExpirySweepEnabled` is set
+# to 1. Connecting it live on the first deploy would expire every lot that has been quietly
+# accumulating past its window, which is a decision about customers' balances and not a
+# deployment detail. The response says `disabled: true` rather than "0 lots", so "switched
+# off" and "nothing was due" are never the same line in the log.
+45 3 * * * sh /scripts/sweep.sh loyalty/internal/expire loyalty:3010

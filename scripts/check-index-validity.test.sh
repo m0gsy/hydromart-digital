@@ -86,10 +86,29 @@ docker run -d --name "$PG" -e POSTGRES_USER=hydromart -e POSTGRES_PASSWORD=x \
 cleanup() { docker rm -f "$PG" >/dev/null 2>&1; }
 trap cleanup EXIT
 
-for _ in $(seq 1 40); do
-  docker exec "$PG" pg_isready -U hydromart >/dev/null 2>&1 && break
+# Readiness, over TCP, and this took three attempts to get right — which is the point of
+# writing down why rather than just the answer.
+#
+# The postgres image's entrypoint runs initdb against a TEMPORARY server first, then shuts
+# it down and starts the real one. That temporary server is a real, working Postgres:
+#
+#   pg_isready                  says yes to it        (attempt 1 — four false failures)
+#   psql ... -c 'SELECT 1'      succeeds against it   (attempt 2 — "the database system
+#                                                      is shutting down", mid-fixture)
+#
+# What separates them is the LISTENER. The bootstrap server is started with
+# `listen_addresses=''`, so it is reachable only over the unix socket; the real one listens
+# on TCP. Asking over 127.0.0.1 therefore cannot be answered by the wrong server at all —
+# it is a difference in kind, not a longer wait.
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$PG" psql -tAX -h 127.0.0.1 -U hydromart -d postgres -c 'SELECT 1' >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 1
 done
+[ "$ready" = "1" ] || bad "Postgres never accepted a TCP connection; nothing below is meaningful"
 
 psql_do() { docker exec "$PG" psql -tAX -U hydromart -d "$1" -c "$2" 2>&1; }
 # Statements carrying SQL string literals go through stdin, not -c: a single-quoted shell
@@ -98,7 +117,11 @@ psql_do() { docker exec "$PG" psql -tAX -U hydromart -d "$1" -c "$2" 2>&1; }
 # build then "failed" for the wrong reason — a case that looked like it ran and had not.
 psql_in() { docker exec -i "$PG" psql -tAX -v ON_ERROR_STOP=1 -U hydromart -d "$1" 2>&1; }
 
-psql_do postgres 'CREATE DATABASE hydromart_depot;' >/dev/null
+CREATED="$(psql_do postgres 'CREATE DATABASE hydromart_depot;')"
+case "$CREATED" in
+  *[Ee]rror* | *ERROR*) bad "could not create the fixture database: $CREATED" ;;
+  *) ok "fixture database created" ;;
+esac
 # The real table, the real index name create-indexes.sh builds, and the duplicate row that
 # makes the concurrent build fail — which is the only way to produce an invalid index.
 SETUP="$(psql_in hydromart_depot <<'SQL'
@@ -108,8 +131,11 @@ INSERT INTO "gallon_issues" ("orderId") VALUES
   ('11111111-1111-1111-1111-111111111111');
 SQL
 )"
+# Both spellings. psql prints SERVER errors as `ERROR:` and its OWN as `psql: error:` —
+# and it was the lowercase one that came back when the database was missing, so this said
+# the fixture was fine while nothing had been created.
 case "$SETUP" in
-  *ERROR*) bad "fixture setup failed, nothing below is meaningful: $SETUP" ;;
+  *ERROR* | *[Ee]rror*) bad "fixture setup failed, nothing below is meaningful: $SETUP" ;;
   *) ok "fixture: gallon_issues holds two rows with the same orderId" ;;
 esac
 

@@ -308,6 +308,82 @@ describe('ProfileController · my gallon deposit (I5)', () => {
   });
 });
 
+/*
+ * PAR-05. FR-091 was built, tested and idempotent per customer per year — and the only
+ * route to it was @Roles(SUPER_ADMIN), i.e. it needed a human's JWT. The scheduler
+ * authenticates with `x-internal-key` and has none, so no birthday point has ever been
+ * granted in production and nothing complained: there is no screen whose absence is felt.
+ *
+ * The verdict matters as much as the door. sweep.sh greps `ok` because a 200 is a
+ * statement about the transport, not about the round (J7).
+ */
+describe('ProfileController · birthday sweep for the scheduler (PAR-05)', () => {
+  const profiles = { runBirthdayRewards: jest.fn() };
+  const c = new ProfileController(profiles as never, {} as never);
+
+  beforeEach(() => profiles.runBirthdayRewards.mockReset());
+
+  it('sweeps with no JWT — the adapter carries the internal key', async () => {
+    profiles.runBirthdayRewards.mockResolvedValue({
+      date: '2026-05-17',
+      candidates: 3,
+      granted: 3,
+      failed: 0,
+      disabled: false,
+    });
+    await expect(c.runBirthdayRewardsInternal()).resolves.toMatchObject({ granted: 3, ok: true });
+    expect(profiles.runBirthdayRewards).toHaveBeenCalledWith('');
+  });
+
+  it('is ok on a day with no birthdays — nothing due is a working sweep', async () => {
+    profiles.runBirthdayRewards.mockResolvedValue({
+      date: '2026-05-17',
+      candidates: 0,
+      granted: 0,
+      failed: 0,
+      disabled: false,
+    });
+    await expect(c.runBirthdayRewardsInternal()).resolves.toMatchObject({ ok: true });
+  });
+
+  // Partial failure stays ok on purpose: a scheduler pinned to unhealthy by one bad row
+  // reports an outage no more usefully than one that is always green.
+  it('is still ok when one grant of many failed', async () => {
+    profiles.runBirthdayRewards.mockResolvedValue({
+      date: '2026-05-17',
+      candidates: 4,
+      granted: 3,
+      failed: 1,
+      disabled: false,
+    });
+    await expect(c.runBirthdayRewardsInternal()).resolves.toMatchObject({ ok: true });
+  });
+
+  it('is NOT ok when every candidate failed', async () => {
+    profiles.runBirthdayRewards.mockResolvedValue({
+      date: '2026-05-17',
+      candidates: 4,
+      granted: 0,
+      failed: 4,
+      disabled: false,
+    });
+    await expect(c.runBirthdayRewardsInternal()).resolves.toMatchObject({ ok: false });
+  });
+
+  // No LOYALTY_SERVICE_URL: the round could not do its job and every candidate went
+  // un-stamped. That is a dead sweep, not a quiet one.
+  it('is NOT ok when the sweep is disabled by missing configuration', async () => {
+    profiles.runBirthdayRewards.mockResolvedValue({
+      date: '2026-05-17',
+      candidates: 3,
+      granted: 0,
+      failed: 0,
+      disabled: true,
+    });
+    await expect(c.runBirthdayRewardsInternal()).resolves.toMatchObject({ ok: false });
+  });
+});
+
 describe('ProfileController · internal notification preferences', () => {
   const profiles = { findSegment: jest.fn() };
   const notifications = { get: jest.fn(), update: jest.fn() };

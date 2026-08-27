@@ -50,6 +50,20 @@ export class LoyaltyConfigService {
   earnRateRupiah(depotId: string | null = null): number {
     return this.tunable('earnRateRupiah', this.num('LOYALTY_EARN_RATE_RUPIAH'), depotId);
   }
+  /**
+   * PAR-01: whether the scheduled expiry sweep actually expires anything. Global only —
+   * a depot cannot decide that the points on a customer's card survive longer there.
+   */
+  get pointExpirySweepEnabled(): boolean {
+    return (
+      this.tunable(
+        'pointExpirySweepEnabled',
+        this.num('LOYALTY_POINT_EXPIRY_SWEEP_ENABLED'),
+        null,
+      ) === 1
+    );
+  }
+
   /** Months a point remains valid after it is earned (BR-014). */
   pointExpiryMonths(depotId: string | null = null): number {
     return this.tunable('pointExpiryMonths', this.num('LOYALTY_POINT_EXPIRY_MONTHS'), depotId);

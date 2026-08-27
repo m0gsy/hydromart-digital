@@ -33,6 +33,13 @@ export interface EarnResult {
 export interface ExpiryResult {
   lotsExpired: number;
   pointsExpired: number;
+  /**
+   * PAR-01: true when the sweep ran and deliberately expired nothing because
+   * `pointExpirySweepEnabled` is off. Distinct from `lotsExpired: 0`, which means the
+   * sweep ran and found nothing due — the two look identical otherwise, and that
+   * ambiguity is how BR-014 stayed unreachable without anyone noticing.
+   */
+  disabled: boolean;
 }
 
 @Injectable()
@@ -246,6 +253,11 @@ export class LoyaltyService {
    * a swept lot is never picked up again. Meant to be run on a schedule.
    */
   async runExpiry(now: Date = new Date()): Promise<ExpiryResult> {
+    // PAR-01. Checked BEFORE the read, not after: a disabled sweep must not even look at
+    // which lots are due. Off is the shipped default — see the setting's own note.
+    if (!this.config.pointExpirySweepEnabled) {
+      return { lotsExpired: 0, pointsExpired: 0, disabled: true };
+    }
     const lots = await this.repo.findExpirableLots(now, LoyaltyService.EXPIRY_BATCH);
     let pointsExpired = 0;
     for (const lot of lots) {
@@ -262,6 +274,6 @@ export class LoyaltyService {
     if (lots.length > 0) {
       this.logger.log(`Expired ${pointsExpired} points across ${lots.length} lots`);
     }
-    return { lotsExpired: lots.length, pointsExpired };
+    return { lotsExpired: lots.length, pointsExpired, disabled: false };
   }
 }

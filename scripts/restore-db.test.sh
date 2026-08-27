@@ -87,7 +87,16 @@ pg() { docker exec "$1" psql -qAX -U hydromart -d "${2:-postgres}" -c "$3" >/dev
 wait_ready() {
   local c="$1" i
   for i in $(seq 1 60); do
-    docker exec "$c" pg_isready -U hydromart >/dev/null 2>&1 && return 0
+    # TCP, not the unix socket, and not pg_isready. The image's entrypoint runs initdb
+    # against a temporary server first; that server answers pg_isready and even runs
+    # queries, then shuts down. It is started with `listen_addresses=''`, so it is the
+    # only one NOT reachable over 127.0.0.1 — which makes this the question that cannot
+    # be answered by the wrong server.
+    #
+    # This is what the intermittent "source Postgres never became ready" failures on CI
+    # were: not a slow runner, a ready check that could be satisfied by a server about to
+    # disappear.
+    docker exec "$c" psql -tAX -h 127.0.0.1 -U hydromart -d postgres -c 'SELECT 1' >/dev/null 2>&1 && return 0
     sleep 1
   done
   return 1

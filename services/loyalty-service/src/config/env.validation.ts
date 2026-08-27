@@ -15,6 +15,9 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   LOYALTY_EARN_RATE_RUPIAH: Joi.number().integer().positive().default(1000),
   LOYALTY_POINT_EXPIRY_MONTHS: Joi.number().integer().positive().default(12),
+  // PAR-01: the expiry sweep is scheduled but inert until this is 1. Defaults OFF so the
+  // release that connects it cannot expire a backlog of points nobody decided to expire.
+  LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: Joi.number().integer().min(0).max(1).default(0),
   // Shared service-to-service secret guarding /loyalty/earn + /loyalty/reward
   // (system-triggered). Blank = fail-closed (internal calls rejected).
   INTERNAL_SERVICE_KEY: optionalSecret(16),

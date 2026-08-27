@@ -43,6 +43,8 @@ describe('Loyalty HTTP flows (e2e)', () => {
               RATE_LIMIT_MAX: 100,
               LOYALTY_EARN_RATE_RUPIAH: 1000,
               LOYALTY_POINT_EXPIRY_MONTHS: 12,
+              // PAR-01: 1 here, so the e2e exercises the sweep it is asserting.
+              LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: 1,
               INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],

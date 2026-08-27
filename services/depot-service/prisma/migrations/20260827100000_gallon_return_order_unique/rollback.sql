@@ -8,3 +8,10 @@
 -- the constraint alone. Roll the image back with it.
 DROP INDEX IF EXISTS "gallon_returns_orderId_key";
 CREATE INDEX IF NOT EXISTS "gallon_returns_orderId_idx" ON "gallon_returns"("orderId");
+
+-- `gallon_returns_duplicate_archive` is deliberately NOT dropped here.
+--
+-- It holds rows that were deleted from a money ledger. Rolling the schema back does not
+-- un-refund a deposit, and dropping the only remaining record of what was removed would
+-- turn a reversible change into an unexplainable balance. Drop it by hand once the
+-- reconciliation it exists for is done.
