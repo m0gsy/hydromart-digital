@@ -116,11 +116,41 @@ function clientPaths() {
       (f) => !f.includes(`endpoints${sep}`),
     ),
   ];
+  /*
+   * A path the client BUILDS from a base constant is still a path the client can reach.
+   *
+   * `apps/web/src/lib/settings.ts` holds one row per service:
+   *
+   *   { id: 'loyalty', base: '/loyalty/api/v1' }, …
+   *
+   * and the settings screen iterates them through
+   * `api.get(`${base}/settings/schema`)`. Neither half looks like `/x/api/v1/…` on its
+   * own, so five real, screen-reachable routes were reported as orphans — and five false
+   * orphans in a list of nineteen is how the four real ones stop being read.
+   *
+   * Collected separately and combined: every `/segment/api/v1` base literal, against every
+   * `${…}/suffix` template. That over-generates (a base that never meets that suffix is
+   * counted as reachable) and the alternative under-generates, which is the failure that
+   * was actually happening.
+   */
+  const bases = new Set();
+  const suffixes = new Set();
+
   for (const file of files) {
-    for (const [, raw] of readFileSync(file, 'utf8').matchAll(
-      /['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi,
-    )) {
+    const text = readFileSync(file, 'utf8');
+    for (const [, raw] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi)) {
       found.add(normalise(raw));
+    }
+    for (const [, base] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1)['"`]/gi)) {
+      bases.add(base);
+    }
+    for (const [, suffix] of text.matchAll(/`\$\{[A-Za-z_$][\w$.]*\}(\/[^`$]+)/g)) {
+      suffixes.add(suffix);
+    }
+  }
+  for (const base of bases) {
+    for (const suffix of suffixes) {
+      found.add(normalise(base + suffix));
     }
   }
   return [...found];
