@@ -158,6 +158,13 @@ export const dashA = {
     gateBody: 'The CRM dashboard is for depot and head-office staff only.',
   },
   customerDetail: {
+    referralTitle: 'Referrals',
+    referralCode: 'Code',
+    referralInvited: 'Invited',
+    referralQualified: 'Qualified',
+    referralEmpty: 'This customer has not invited anybody yet.',
+    referralError: 'Could not read referral data.',
+
     back: 'Back to customers',
     notFoundTitle: 'Not found',
     notFoundBody: 'This customer does not exist.',

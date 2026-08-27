@@ -85,11 +85,20 @@ describe('Referral HTTP flows (e2e)', () => {
 
   let sharedCode: string;
 
-  it('returns a lazily-created referral code for the current customer', async () => {
-    const res = await request(server()).get('/api/v1/referrals/me/code').set(auth(customerAToken)).expect(200);
-    expect(res.body).toMatchObject({ customerId: customerAId });
-    expect(res.body.code).toMatch(/^[A-Z0-9]{8}$/);
-    sharedCode = res.body.code;
+  /*
+   * This used to read `GET /referrals/me/code`, which is gone: its whole answer was the
+   * `code` field of `GET /referrals/me`, the route the app has always called, so it was a
+   * second door onto a subset of the first and no screen ever opened it.
+   *
+   * The behaviour that must survive the deletion is the LAZY CREATE — a customer who has
+   * never had a code gets one the first time they look. That is what this asserts, now
+   * against the route that remains.
+   */
+  it('lazily creates the referral code on the customer’s first read', async () => {
+    const res = await request(server()).get('/api/v1/referrals/me').set(auth(customerAToken)).expect(200);
+    expect(res.body.code).toMatchObject({ customerId: customerAId });
+    expect(res.body.code.code).toMatch(/^[A-Z0-9]{8}$/);
+    sharedCode = res.body.code.code;
   });
 
   it('lets a customer redeem a code (happy path)', async () => {

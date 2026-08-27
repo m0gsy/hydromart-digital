@@ -159,6 +159,13 @@ export const dashA = {
     gateBody: 'Dashboard CRM tersedia untuk staf depot dan kantor pusat.',
   },
   customerDetail: {
+    referralTitle: 'Referral',
+    referralCode: 'Kode',
+    referralInvited: 'Diundang',
+    referralQualified: 'Memenuhi syarat',
+    referralEmpty: 'Pelanggan ini belum pernah mengundang siapa pun.',
+    referralError: 'Gagal membaca data referral.',
+
     back: 'Kembali ke pelanggan',
     notFoundTitle: 'Tidak ditemukan',
     notFoundBody: 'Pelanggan ini tidak ada.',
