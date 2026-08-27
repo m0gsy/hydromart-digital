@@ -81,4 +81,20 @@ cp "$WORK/baseline.orig" "$BASELINE"
 run_check
 case "$OUT" in *"internal"*) ok "reports internal routes as their own class" ;; *) bad "expected an internal count: $OUT" ;; esac
 
+# 4. The partner API is its own class too, and for the same reason pointed outward: a route
+#    behind ApiKeyGuard is called by an INTEGRATOR, from their own system. Its caller is not
+#    in this repo and never will be, so hunting for one can only ever fail — `partner/deliveries`
+#    and its replay sat in the orphan list for exactly that reason.
+#
+#    The guard is written on the CLASS, above `@Controller(...)`, so a reader that looks only
+#    inside the controller body misses it. That is the regression this case pins.
+case "$OUT" in
+  *"partner API"*) ok "reports partner-API routes as their own class" ;;
+  *) bad "expected a partner-API count: $OUT" ;;
+esac
+case "$OUT" in
+  *"0 partner API"*) bad "the partner count is zero — the class-level ApiKeyGuard is not being read" ;;
+  *) ok "  ...and it is not zero" ;;
+esac
+
 exit "$fails"
