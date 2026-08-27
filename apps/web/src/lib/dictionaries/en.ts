@@ -72,6 +72,17 @@ export const en: Dictionary = {
       empty: 'No active sessions.',
       loadError: 'Could not load your devices.',
     },
+    consentHistory: {
+      title: 'Consent history',
+      show: 'Show history',
+      hide: 'Hide history',
+      granted: 'Granted',
+      withdrawn: 'Withdrawn',
+      version: 'version {v}',
+      via: 'via {source}',
+      empty: 'No decision recorded yet.',
+      loadError: 'Could not load your consent history.',
+    },
     privacyData: {
       title: 'My personal data',
       body: 'You may ask for a copy of the data we hold, or ask for your account to be deleted. Head office reviews every request first, within 3x24 hours of it being sent (UU PDP No. 27/2022).',

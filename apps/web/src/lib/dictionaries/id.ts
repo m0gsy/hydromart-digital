@@ -73,6 +73,17 @@ export const id = {
       empty: 'Tidak ada sesi aktif.',
       loadError: 'Gagal memuat daftar perangkat.',
     },
+    consentHistory: {
+      title: 'Riwayat persetujuan',
+      show: 'Lihat riwayat',
+      hide: 'Sembunyikan riwayat',
+      granted: 'Disetujui',
+      withdrawn: 'Ditarik',
+      version: 'versi {v}',
+      via: 'lewat {source}',
+      empty: 'Belum ada keputusan tercatat.',
+      loadError: 'Gagal memuat riwayat persetujuan.',
+    },
     privacyData: {
       title: 'Data pribadi saya',
       body: 'Kamu berhak meminta salinan data yang kami simpan, atau meminta akun dihapus. Setiap permintaan ditinjau kantor pusat dulu, paling lambat 3x24 jam sejak dikirim (UU PDP No. 27/2022).',

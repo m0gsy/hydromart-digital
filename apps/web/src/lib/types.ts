@@ -70,6 +70,16 @@ export interface DeviceSession {
   userAgent: string | null;
 }
 
+/** One consent decision as it was recorded (UU PDP evidence, oldest first). */
+export interface ConsentHistoryEntry {
+  id: string;
+  purpose: string;
+  granted: boolean;
+  documentVersion: string;
+  source: string;
+  recordedAt: string;
+}
+
 export interface Session {
   customer: Customer;
 }

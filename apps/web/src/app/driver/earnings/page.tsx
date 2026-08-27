@@ -164,7 +164,20 @@ function Earnings() {
         </Button>
       )}
 
-      <div className="text-sm font-extrabold">{t('hrFix.earnings.breakdown')}</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-extrabold">{t('hrFix.earnings.breakdown')}</div>
+        {/*
+          `recentEntries` is the last few movements the summary carries. The full paged
+          cash-book has always existed on the server and had no screen, so a courier could
+          see this week and not last month — of their own pay.
+        */}
+        <Link
+          href="/driver/earnings/history"
+          className="text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+        >
+          {t('hrFix.earningsHistory.seeAll')}
+        </Link>
+      </div>
       {recentEntries.length === 0 ? (
         <CenterState icon={<Coins size={32} />} title={t('hrFix.earnings.emptyTitle')}>
           {t('hrFix.earnings.emptyBody2')}

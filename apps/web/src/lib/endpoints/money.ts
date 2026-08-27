@@ -87,9 +87,22 @@ payout: {
 // Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
 courierPayout: {
   summary: '/payout/api/v1/courier/earnings/summary',
-  // (ledger removed, audit F: `summary` above already carries `recentEntries`, and that is
-  // what /driver/earnings renders. A PAGED full history is a screen nobody has built — when
-  // one is built, add the entry back with it.)
+  /*
+   * Back, with the screen that note asked for: /driver/earnings/history.
+   *
+   * It said "a PAGED full history is a screen nobody has built — when one is built, add the
+   * entry back with it". Nobody built it, so a courier saw the last few movements off
+   * `summary.recentEntries` and had no way at all to see last month. That is money they
+   * were paid.
+   */
+  // One expression, deliberately. A block-bodied builder is invisible to
+  // check-endpoint-contracts' name map — it reads `name: (…) => '/path…'` — so the call
+  // site becomes one more of the 305 whose HTTP verb nothing verifies. Both parameters are
+  // always sent, so there is no conditional query string to build.
+  // eslint-disable-next-line max-len -- one line on purpose: check-endpoint-contracts' name
+  // map reads `name: (…) => '/path'` on a SINGLE line, and a wrapped builder becomes one
+  // more of the call sites whose HTTP verb nothing verifies.
+  ledger: (page: number, limit: number) => `/payout/api/v1/courier/ledger?page=${page}&limit=${limit}`,
   // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
   earningRule: '/payout/api/v1/courier/earning-rule',
   withdraw: '/payout/api/v1/courier/withdrawals',
