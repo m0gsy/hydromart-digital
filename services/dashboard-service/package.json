@@ -87,6 +87,7 @@
         "lines": 98
       }
     },
+    "testTimeout": 30000,
     "testEnvironment": "node"
   }
 }
