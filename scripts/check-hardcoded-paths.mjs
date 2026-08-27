@@ -12,12 +12,40 @@
  * exactly like an authorisation defect in the product. One hardcoded path, and the harness
  * spent a whole run blaming the system it was testing.
  *
+ * It walked `.uat` and `scripts` only, and that is how it stayed green over
+ * `apps/web/scripts/play-screenshots.mjs`, whose output directory defaulted to
+ * `g:/VsCode/Hydromart/docs/play-assets` — one directory outside its reach, for as long as
+ * that file has existed. A check with a hand-picked list of places to look proves nothing
+ * about the places not on the list. So it walks the repo now, and the list is of places to
+ * SKIP: build output, dependencies, and generated code, each of which is regenerated rather
+ * than edited.
+ *
  * Exit 0 = nothing hardcodes a machine path.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOTS = ['.uat', 'scripts'];
+const ROOTS = ['.'];
+/*
+ * Not source: regenerated from source, or downloaded. A path baked into any of these is a
+ * property of the machine that produced them, not a defect in the repo — and `full.json`
+ * and `solo.json` (Playwright's JSON reporter, committed by accident and referenced by
+ * nothing) were exactly that until they were deleted alongside this change.
+ */
+const SKIP = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'coverage',
+  'lcov-report',
+  '.next',
+  'out',
+  'generated',
+  'test-results',
+  'playwright-report',
+  '.audit_tmp',
+]);
 /** A drive letter, a /home/<user>, a /Users/<name>: paths that exist on exactly one box. */
 const ABSOLUTE = /(['"`])(?:[A-Za-z]:[\/]|\/home\/[a-z]|\/Users\/)[^'"`\n]{3,}\1/g;
 
@@ -25,9 +53,19 @@ const files = [];
 const walk = (dir) => {
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      if (entry !== 'node_modules' && !entry.startsWith('_')) walk(path);
-    } else if (/\.(mjs|js|ts)$/.test(entry)) {
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch {
+      continue; // a broken symlink is not a finding
+    }
+    if (stat.isDirectory()) {
+      // `_`-prefixed: an archived harness kept for reference, not run by anything.
+      // `mobile-out*`: the pruned web exports Capacitor syncs into the APK.
+      if (!SKIP.has(entry) && !entry.startsWith('_') && !entry.startsWith('mobile-out')) {
+        walk(path);
+      }
+    } else if (/\.(mjs|js|ts|tsx|sh)$/.test(entry)) {
       files.push(path);
     }
   }

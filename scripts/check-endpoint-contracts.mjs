@@ -141,6 +141,13 @@ const matches = (route, wanted) =>
  *
  * Anything not statically resolvable is COUNTED AND REPORTED rather than dropped: a check
  * that silently skips what it cannot read is how the last one ended up half blind.
+ *
+ * Reported, though, is not the same as checked — and for a long time the number was printed
+ * on the SUCCESS line and nowhere else. 305 of 668 call sites, 46%, were unverified every
+ * day while the gate said OK. So the count is a RATCHET now
+ * (`scripts/endpoint-contract-baseline.json`): it may fall, and a change that raises it
+ * fails the build. That does not make the 305 checked; it makes the 306th impossible to add
+ * without saying so.
  */
 const RE_API =
   /api\.(get|post|put|patch|del|delete)(?:Cached)?\s*(?:<[^(]*>)?\(\s*endpoints\.([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)/g;
@@ -654,9 +661,18 @@ for (const call of calls) {
 
 const query = queryParamFindings(segments, routeCache);
 
+const UNREADABLE_BASELINE = 'scripts/endpoint-contract-baseline.json';
+
 if (process.argv.includes('--update')) {
   writeFileSync(ALLOWLIST, `${JSON.stringify(unresolved.map((u) => u.path).sort(), null, 2)}\n`);
   console.log(`Recorded ${unresolved.length} unresolved client path(s).`);
+  // Both baselines, one flag. This block exits, so a ceiling recorded further down would
+  // never be reached — which is how the first version of the ratchet wrote nothing at all.
+  writeFileSync(
+    UNREADABLE_BASELINE,
+    `${JSON.stringify({ unresolvedCallSites: unreadable }, null, 2)}\n`,
+  );
+  console.log(`Recorded ${unreadable} unresolvable call site(s) in ${UNREADABLE_BASELINE}.`);
   process.exit(0);
 }
 
@@ -698,12 +714,45 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
+/*
+ * The ratchet. `unreadable` is the count of call sites whose verb this cannot read, so
+ * whose method is NOT checked against the route. It was reported and never enforced.
+ *
+ * A ceiling rather than zero, because driving it to zero means rewriting how the client
+ * builds those calls, and a gate that demands that today is a gate somebody deletes. What
+ * it does buy: the number cannot grow by accident, and every drop is recorded deliberately.
+ */
+const ceiling = existsSync(UNREADABLE_BASELINE)
+  ? JSON.parse(readFileSync(UNREADABLE_BASELINE, 'utf8')).unresolvedCallSites
+  : Infinity;
+
 console.log(
   `Endpoint contract check OK — ${clientPaths().size} client path(s), ${allowed.size} allowlisted, ` +
     `${calls.length} call site(s) method-matched, ${query.unreadable} runtime-built query string(s)` +
     (unreadable ? `, ${unreadable} call site(s) not statically resolvable` : '') +
     '.',
 );
+
+if (unreadable > ceiling) {
+  console.error(
+    `\n${unreadable} call site(s) cannot have their HTTP method checked — the recorded ` +
+      `ceiling is ${ceiling}.`,
+  );
+  console.error(
+    'An unresolvable call site is one where `api.<verb>(endpoints.a.b)` could not be read,\n' +
+      'so nothing verifies the client and the controller agree on the verb. Write the call\n' +
+      'in that shape, or lower the ceiling deliberately:\n' +
+      '  node scripts/check-endpoint-contracts.mjs --update',
+  );
+  process.exit(1);
+}
+if (unreadable < ceiling && Number.isFinite(ceiling)) {
+  console.log(
+    `${ceiling - unreadable} call site(s) became readable since the ceiling was recorded — ` +
+      'run with --update to lock the gain in.',
+  );
+}
+
 if (stale.length > 0) {
   console.log('Allowlist entries that now resolve — run with --update to drop them:');
   for (const p of stale) console.log(`  - ${p}`);

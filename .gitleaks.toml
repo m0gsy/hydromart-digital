@@ -31,8 +31,6 @@ paths = [
   '''\.test\.ts$''',
   '''^docker-compose\.test\.yml$''',
   '''^\.github/workflows/ci\.yml$''',
-  # The audit register and readiness docs quote leaked-looking material verbatim.
-  '''^docs/''',
 ]
 
 regexes = [
@@ -45,4 +43,12 @@ regexes = [
   # VAPID/web-push and JWT example values are documented inline in several READMEs with a
   # literal "example"/"changeme"/"replace" marker next to them.
   '''(?i)(example|placeholder|changeme|replace-me|your-.*-here|dummy|fake)''',
+  # Container image tags and digests. A deploy log pasted into a runbook reads as
+  # `ghcr.io/<owner>/<image>:<40-hex git sha>`, and generic-api-key fires on the entropy
+  # after the colon. This is what the whole `^docs/` tree was allowlisted for — measured,
+  # the ONE finding under docs/ was exactly this shape, in PHASE_M_CLOSEOUT.md:59. Blanking
+  # a whole tree to silence one false positive means a real secret pasted into any document
+  # is invisible too; naming the shape keeps the rest of the tree scanned.
+  '''^[0-9a-f]{40}$''',
+  '''^sha256:[0-9a-f]{16,64}$''',
 ]

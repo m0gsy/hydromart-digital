@@ -30,10 +30,14 @@ permissions:
   contents: read
 
 jobs:
-  # Secrets: scans the working tree, not the history. A history scan is a one-off human
-  # exercise — the only remedy for a committed secret is rotation plus a rewrite, and
-  # failing every future PR on a leak that is already disclosed teaches people to ignore
-  # the check. Run it by hand with `--source . ` minus `--no-git` when you want it.
+  # Secrets: scans the working tree, not the history. A history scan does not belong on a
+  # PR — the only remedy for a committed secret is rotation plus a rewrite, and failing
+  # every future PR on a leak that is already disclosed teaches people to ignore the check.
+  #
+  # But "not on a PR" was read as "never", and so nothing has ever looked: a secret
+  # committed and then deleted is invisible to every run of this job. The `secrets-history`
+  # job below closes that on the WEEKLY schedule, where a finding is a rotation ticket
+  # rather than a blocked merge.
   secrets:
     runs-on: ubuntu-latest
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
@@ -54,6 +58,44 @@ jobs:
         with:
           name: gitleaks-sarif
           path: gitleaks.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # The half nothing has ever run. `--no-git` above reads the working tree, so a credential
+  # that was committed and later deleted has never been looked for — and deletion is the
+  # most common way one is "handled", which is exactly why it needs finding.
+  #
+  # SCHEDULE ONLY, and that is the point rather than a compromise. On a PR this would go red
+  # for a disclosure that already happened, on every PR, forever — the shape that teaches
+  # people to ignore a check. Once a week it is a rotation ticket with an owner.
+  #
+  # `fetch-depth: 0`: the default checkout is shallow, and a shallow history scan finds
+  # nothing while reporting success — the same failure this job exists to end.
+  secrets-history:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Prove the history is actually here
+        run: |
+          COUNT="$(git rev-list --count HEAD)"
+          echo "commits available to scan: $COUNT"
+          # A one-commit checkout would let the scan below pass while reading almost nothing.
+          [ "$COUNT" -gt 100 ] || { echo "shallow checkout — a history scan over $COUNT commit(s) proves nothing"; exit 1; }
+
+      - name: gitleaks (full history)
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo             zricethezav/gitleaks:v8.21.2             detect --source . --redact --config .gitleaks.toml                    --report-format sarif --report-path /repo/gitleaks-history.sarif --exit-code 1
+
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: gitleaks-history-sarif
+          path: gitleaks-history.sarif
           if-no-files-found: ignore
           retention-days: 30
 

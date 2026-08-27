@@ -537,6 +537,31 @@ if health_ok; then
     alert "FCM credentials missing in crm —$FCM_MISSING — Android push is dead"
   fi
 
+  # 2c. N2's other half — the WEB build.
+  #
+  # mobile.yml refuses to publish an APK when SENTRY_DSN_MOBILE is unset, and that check is
+  # real. The web image had no equivalent: `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` in
+  # docker-compose.prod.yml means an unset variable bakes an EMPTY string into the bundle,
+  # `sentry-init.tsx` then never even downloads the SDK, and the site runs with no error
+  # reporting at all. Nothing anywhere said so.
+  #
+  # `missing_env_keys` cannot see it: it compares KEY PRESENCE against .env.example, and
+  # SENTRY_DSN_WEB is present there — as `SENTRY_DSN_WEB=`, empty. A key that exists with no
+  # value is exactly the shape that passes a presence check and ships a dead feature.
+  #
+  # Read from .env, not from a container: this is a BUILD arg, so by the time anything is
+  # running it has already been baked in or not.
+  DSN_WEB="$(tr -d '' < .env 2>/dev/null | sed -n 's/^SENTRY_DSN_WEB=//p' | head -1 || true)"
+  if [ -n "$DSN_WEB" ]; then
+    log "web error reporting probe — SENTRY_DSN_WEB is set, so the image was built with a DSN"
+  else
+    log "!! SENTRY_DSN_WEB is EMPTY in .env — the web image is built with NEXT_PUBLIC_SENTRY_DSN"
+    log "   blank, the Sentry SDK is never loaded, and every client-side crash on the site is"
+    log "   invisible. Set it in .env and REBUILD the web image (a restart is not enough — it"
+    log "   is a build arg)."
+    alert "SENTRY_DSN_WEB empty — the web build has no error reporting (audit N2)"
+  fi
+
   # 3. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger
   # holding a fixed OTP the account of a KEPALA_DEPOT at a depot with real customers on it —
   # their names, addresses and phone numbers. `scripts/seed-demo-depot.mjs` builds the
