@@ -20,7 +20,6 @@ import {
   DepotSummaryQueryDto,
   QualifyReferralDto,
   RedeemReferralDto,
-  ReferralCodeDto,
   ReferralDto,
   ReferralPageQueryDto,
   ReferralSummaryDto,
@@ -39,13 +38,16 @@ export class ReferralController {
 
   // Static `me/...` routes are declared before any `:param` route to avoid capture.
 
-  @ApiOkResponse({ type: ReferralCodeDto })
-  @ApiBearerAuth()
-  @Get('me/code')
-  @ApiOperation({ summary: "Get the current customer's referral code (FR-092, lazy-created)" })
-  async myCode(@CurrentUser() user: AuthenticatedUser): Promise<ReferralCodeDto> {
-    return ReferralCodeDto.from(await this.referrals.getOrCreateMyCode(user.sub));
-  }
+  /*
+   * `GET me/code` is GONE, and deleted rather than given a screen.
+   *
+   * Its whole answer was `ReferralCodeDto` — which is `ReferralSummaryDto.code`, a field of
+   * `GET me` directly below, the route the app has always called. So it was a second door
+   * onto one field of the first, reachable from no screen, and a screen for it would have
+   * shown the customer something they were already looking at.
+   *
+   * The lazy-create it did still happens: `getMySummary` creates the code the same way.
+   */
 
   @ApiOkResponse({ type: ReferralSummaryDto })
   @ApiBearerAuth()

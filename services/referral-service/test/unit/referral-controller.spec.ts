@@ -51,11 +51,19 @@ function makeController() {
 }
 
 describe('ReferralController', () => {
-  it('myCode returns the current customer code', async () => {
-    const { controller, service } = makeController();
-    const out = await controller.myCode(user);
-    expect(service.getOrCreateMyCode).toHaveBeenCalledWith('u1');
-    expect(out.code).toBe('BUDI10');
+  /*
+   * `myCode` is gone. Its whole answer was one field of `mySummary` — the route the app
+   * has always called — so it was a second door onto a subset of the first, reachable from
+   * no screen.
+   *
+   * What must NOT go with it is the lazy create: a customer who has never had a code still
+   * has to get one the first time they open the referral screen. That is asserted here,
+   * against the route that remains.
+   */
+  it('mySummary still carries the code, so deleting myCode took nothing with it', async () => {
+    const { controller } = makeController();
+    const out = await controller.mySummary(user, { page: 1, limit: 10 });
+    expect(out.code.code).toBe('BUDI10');
   });
 
   it('mySummary passes page/limit through to the service', async () => {

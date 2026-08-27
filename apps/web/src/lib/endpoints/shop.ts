@@ -167,6 +167,10 @@ promotions: {
 
 referrals: {
   me: '/referrals/api/v1/referrals/me',
+  // A staff read of ONE customer's referral standing (`loyaltyRead`). Built and reachable
+  // from nowhere, so the depot could see its own referral rollup and never the person in
+  // front of them — which is the row somebody is actually asking about.
+  byCustomer: (customerId: string) => `/referrals/api/v1/referrals/customers/${encodeURIComponent(customerId)}`,
   redeem: '/referrals/api/v1/referrals',
   // Depot-scoped referral rollup (design 17b): invited/qualified/conversion + top
   // referrers among the depot's own customers.

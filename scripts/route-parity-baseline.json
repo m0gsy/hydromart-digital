@@ -2,11 +2,11 @@
   "orphans": [
     "GET admin: /partner/deliveries",
     "GET admin: /tickets/:",
+    "GET auth: /account/consents/history",
     "GET delivery: /deliveries/:",
     "GET delivery: /driver/settlement/:",
     "GET depot: /suppliers/:",
-    "GET referral: /referrals/customers/:",
-    "GET referral: /referrals/me/code",
+    "GET payout: /courier/ledger",
     "POST admin: /partner/deliveries/:/replay",
     "PUT depot: /shifts/bulk"
   ]

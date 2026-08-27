@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewDepotCrm, canUseManagerConsole, canViewResellers } from '@/lib/roles';
+import { CustomerReferralCard } from '@/components/dashboard/customer-referral-card';
 import { useAsync } from '@/lib/use-async';
 import type { Reseller } from '@/lib/reseller';
 import type { DepotCustomerDetail } from '@/lib/types';
@@ -193,6 +194,8 @@ function DetailBody({ id }: { id: string }) {
                   )}
                 </Card>
               </section>
+
+              <CustomerReferralCard customerId={id} />
 
               {/* Recent orders */}
               <section>
