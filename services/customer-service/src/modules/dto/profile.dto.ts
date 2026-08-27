@@ -49,6 +49,15 @@ export class BirthdayRewardResultDto {
   disabled!: boolean;
 }
 
+/**
+ * PAR-05: the scheduler's view of the same sweep. `ok` is the J7 verdict sweep.sh greps
+ * for — a 200 says the transport worked, not that the round did.
+ */
+export class BirthdaySweepResultDto extends BirthdayRewardResultDto {
+  @ApiProperty({ example: true })
+  ok!: boolean;
+}
+
 export class UpdateNotificationsDto {
   @ApiPropertyOptional({ example: true })
   @IsOptional()

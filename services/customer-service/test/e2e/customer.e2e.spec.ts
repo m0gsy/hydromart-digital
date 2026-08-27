@@ -145,7 +145,13 @@ describe('Customer HTTP flows (e2e)', () => {
     expect(res.body).toMatchObject({ push: true, whatsapp: false });
   });
 
-  it('sets DOB and runs the birthday sweep (admin grants points, customer forbidden)', async () => {
+  /*
+   * PAR-05. This used to POST /profile/birthday-rewards with an admin JWT — the only door
+   * FR-091 had, and one no screen anywhere offered, which is why no birthday point was
+   * ever granted in production. The scheduler owns the sweep now and authenticates with
+   * `x-internal-key`, so that is what this asserts. The JWT door is gone.
+   */
+  it('sets DOB and runs the birthday sweep (scheduler grants points, JWT rejected)', async () => {
     // The sweep matches on the BUSINESS day (H-16), not the UTC one. Taking today from
     // toISOString() made this test fail for the seven hours a day when WIB has already
     // turned over and UTC has not — on any machine, CI included.
@@ -155,15 +161,20 @@ describe('Customer HTTP flows (e2e)', () => {
     ).expect(200);
     expect(set.body.birthdate).toBe(today);
 
-    // Customer cannot trigger the sweep.
-    await auth(request(server()).post('/api/v1/profile/birthday-rewards')).expect(403);
-
-    // Admin sweeps: cust-1 has a birthday today → one grant.
-    const res = await request(server())
-      .post('/api/v1/profile/birthday-rewards')
+    // A customer's own token is not a key. Neither is an admin's — the sweep is not a
+    // human-facing route, and a token that opens it is a token somebody can be phished for.
+    await auth(request(server()).post('/api/v1/profile/internal/birthday-rewards')).expect(401);
+    await request(server())
+      .post('/api/v1/profile/internal/birthday-rewards')
       .set('Authorization', `Bearer ${adminToken}`)
+      .expect(401);
+
+    // The scheduler sweeps: cust-1 has a birthday today -> one grant, and `ok` says so.
+    const res = await request(server())
+      .post('/api/v1/profile/internal/birthday-rewards')
+      .set('x-internal-key', INTERNAL_KEY)
       .expect(201);
-    expect(res.body).toMatchObject({ granted: 1, failed: 0, disabled: false });
+    expect(res.body).toMatchObject({ granted: 1, failed: 0, disabled: false, ok: true });
     expect(loyalty.calls.some((c) => c.customerId === 'cust-1' && c.points === 250)).toBe(true);
   });
 

@@ -173,6 +173,16 @@ jobs:
       - name: An invalid index cannot read as present (DB-1)
         run: bash scripts/check-index-validity.test.sh
 
+      # PAR-01 / PAR-05 — a scheduled sweep whose path resolves to nothing, or to a route
+      # that only a human's JWT opens, fails every tick into a container log. Both birthday
+      # points (FR-091) and point expiry (BR-014) were fully built and reachable by nobody
+      # on a schedule for exactly that reason, and no gate could see it.
+      - name: Every scheduled sweep is reachable (PAR-01/PAR-05)
+        run: node scripts/check-scheduler-routes.mjs
+
+      - name: Scheduler-route gate can go red
+        run: bash scripts/check-scheduler-routes.test.sh
+
       # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
       # is stubbed — so it is gated here like any other logic.
       - name: Scheduler sweep self-check

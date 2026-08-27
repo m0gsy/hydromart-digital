@@ -1,0 +1,4184 @@
+[
+ {
+  "method": "GET",
+  "route": "/api/v1/api-keys",
+  "file": "services/admin-service/src/modules/api-keys.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/api-keys",
+  "file": "services/admin-service/src/modules/api-keys.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/api-keys/:id/rotate",
+  "file": "services/admin-service/src/modules/api-keys.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/api-keys/:id",
+  "file": "services/admin-service/src/modules/api-keys.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/support/tickets",
+  "file": "services/admin-service/src/modules/customer-support.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/support/tickets",
+  "file": "services/admin-service/src/modules/customer-support.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/export-logs",
+  "file": "services/admin-service/src/modules/export-logs.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/export-logs/:id/download",
+  "file": "services/admin-service/src/modules/export-logs.controller.ts",
+  "line": 64
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/export-logs/internal",
+  "file": "services/admin-service/src/modules/export-logs.controller.ts",
+  "line": 86
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/feature-flags",
+  "file": "services/admin-service/src/modules/feature-flags.controller.ts",
+  "line": 19
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/feature-flags/:key",
+  "file": "services/admin-service/src/modules/feature-flags.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/fraud-flags",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/fraud-flags/:id/review",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/fraud-flags/:id/block",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/fraud-flags/:id/clear",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 64
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/fraud-flags/internal/scan",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 82
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/fraud-flags/internal",
+  "file": "services/admin-service/src/modules/fraud-flags.controller.ts",
+  "line": 95
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/admin-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/incidents",
+  "file": "services/admin-service/src/modules/incidents.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/incidents",
+  "file": "services/admin-service/src/modules/incidents.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/incidents/:id",
+  "file": "services/admin-service/src/modules/incidents.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/notification-prefs",
+  "file": "services/admin-service/src/modules/notification-prefs.controller.ts",
+  "line": 40
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/notification-prefs",
+  "file": "services/admin-service/src/modules/notification-prefs.controller.ts",
+  "line": 47
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/onboarding",
+  "file": "services/admin-service/src/modules/onboarding.controller.ts",
+  "line": 18
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/onboarding",
+  "file": "services/admin-service/src/modules/onboarding.controller.ts",
+  "line": 25
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/retention",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/retention/purge-plan",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/retention/purge",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/retention/internal/purge",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/retention/internal/backup-status",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/retention/:id",
+  "file": "services/admin-service/src/modules/retention.controller.ts",
+  "line": 105
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/scheduled-reports/internal/run-due",
+  "file": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/scheduled-reports",
+  "file": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+  "line": 59
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/scheduled-reports",
+  "file": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+  "line": 66
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/scheduled-reports/:id",
+  "file": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/scheduled-reports/:id",
+  "file": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+  "line": 84
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/security-policy",
+  "file": "services/admin-service/src/modules/security-policy.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/security-policy",
+  "file": "services/admin-service/src/modules/security-policy.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/sla-policy",
+  "file": "services/admin-service/src/modules/sla-policy.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/sla-policy",
+  "file": "services/admin-service/src/modules/sla-policy.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/tickets",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 25
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/tickets",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/tickets/:id",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/tickets/:id/reply",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/tickets/:id/assign",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/tickets/:id/resolve",
+  "file": "services/admin-service/src/modules/support-tickets.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/system-health",
+  "file": "services/admin-service/src/modules/system-health.controller.ts",
+  "line": 18
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/system-settings",
+  "file": "services/admin-service/src/modules/system-settings.controller.ts",
+  "line": 18
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/system-settings",
+  "file": "services/admin-service/src/modules/system-settings.controller.ts",
+  "line": 25
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/webhooks/events",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/webhooks/deliveries/process",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/webhooks/deliveries",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 71
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/webhooks/deliveries/:id/replay",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/partner/deliveries",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 101
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/partner/deliveries/:id/replay",
+  "file": "services/admin-service/src/modules/webhook-delivery.controller.ts",
+  "line": 109
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/webhooks",
+  "file": "services/admin-service/src/modules/webhooks.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/webhooks",
+  "file": "services/admin-service/src/modules/webhooks.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/webhooks/:id",
+  "file": "services/admin-service/src/modules/webhooks.controller.ts",
+  "line": 52
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/webhooks/:id",
+  "file": "services/admin-service/src/modules/webhooks.controller.ts",
+  "line": 59
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/access/matrix",
+  "file": "services/auth-service/src/modules/auth/access.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/access/matrix/:capability",
+  "file": "services/auth-service/src/modules/auth/access.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/access/matrix/:capability",
+  "file": "services/auth-service/src/modules/auth/access.controller.ts",
+  "line": 71
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/access/internal/overrides",
+  "file": "services/auth-service/src/modules/auth/access.controller.ts",
+  "line": 84
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/me",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 47
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/auth/me",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/me/phone",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/me/phone/confirm",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 92
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/customers/lookup",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 118
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/customers/by-ids",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 129
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/staff",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 142
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/drivers",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 186
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/customers/count",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 201
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/staff/invite",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 217
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/auth/staff/:id/depot",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 232
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/auth/staff/:id/status",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 249
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/auth/staff/:id",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 268
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/staff/import",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 279
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/sessions",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 290
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/sessions/:id/revoke",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 298
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/logout",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 311
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/logout/all",
+  "file": "services/auth-service/src/modules/auth/account.controller.ts",
+  "line": 328
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/audit",
+  "file": "services/auth-service/src/modules/auth/audit.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/audit/depot",
+  "file": "services/auth-service/src/modules/auth/audit.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/audit/internal",
+  "file": "services/auth-service/src/modules/auth/audit.controller.ts",
+  "line": 80
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/register",
+  "file": "services/auth-service/src/modules/auth/auth.controller.ts",
+  "line": 29
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/otp/verify",
+  "file": "services/auth-service/src/modules/auth/auth.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/otp/resend",
+  "file": "services/auth-service/src/modules/auth/auth.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/login",
+  "file": "services/auth-service/src/modules/auth/auth.controller.ts",
+  "line": 77
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/token/refresh",
+  "file": "services/auth-service/src/modules/auth/auth.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/me/avatar",
+  "file": "services/auth-service/src/modules/auth/avatar.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/account/consents",
+  "file": "services/auth-service/src/modules/auth/consent.controller.ts",
+  "line": 28
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/account/consents/history",
+  "file": "services/auth-service/src/modules/auth/consent.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/account/consents",
+  "file": "services/auth-service/src/modules/auth/consent.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/account/data-requests",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/account/data-requests/me",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/account/data-requests/me/export",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 52
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/account/data-requests",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 64
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/account/data-requests/:id/approve",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 75
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/account/data-requests/:id/reject",
+  "file": "services/auth-service/src/modules/auth/data-subject.controller.ts",
+  "line": 94
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/auth/internal/staff/depot/:depotId",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/staff",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 72
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/staff/managed",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 88
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/staff/status",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 103
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/staff/profile",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 118
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/staff/role",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 133
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/customers/pre-register",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 142
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/customers/by-ids",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 156
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/auth/internal/audit-logs/purge",
+  "file": "services/auth-service/src/modules/auth/internal.controller.ts",
+  "line": 170
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/auth-service/src/modules/health/health.controller.ts",
+  "line": 25
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/broadcasts",
+  "file": "services/crm-service/src/modules/broadcast.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/broadcasts",
+  "file": "services/crm-service/src/modules/broadcast.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/broadcasts/:id/read",
+  "file": "services/crm-service/src/modules/broadcast.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/campaigns",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/campaigns/depot",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/campaigns",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 97
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/campaigns/:id",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 105
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/campaigns/:id/send",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 113
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/campaigns/internal/process-sending",
+  "file": "services/crm-service/src/modules/campaign.controller.ts",
+  "line": 132
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/crm-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/notifications/me",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 49
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/notifications/ops",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/notifications/ops/:id/read",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 72
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/notifications/ops/read-all",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 86
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/notifications",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 96
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/notifications/internal",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 111
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/notifications/internal/purge",
+  "file": "services/crm-service/src/modules/notification.controller.ts",
+  "line": 124
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/push/vapid-public-key",
+  "file": "services/crm-service/src/modules/push.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/push/subscriptions",
+  "file": "services/crm-service/src/modules/push.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/push/subscriptions",
+  "file": "services/crm-service/src/modules/push.controller.ts",
+  "line": 61
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/segments",
+  "file": "services/crm-service/src/modules/saved-segment.controller.ts",
+  "line": 29
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/segments",
+  "file": "services/crm-service/src/modules/saved-segment.controller.ts",
+  "line": 37
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/segments/:id",
+  "file": "services/crm-service/src/modules/saved-segment.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/addresses",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/addresses/internal/primary",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/addresses",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/addresses/:id",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/addresses/:id",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 89
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/addresses/:id/primary",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 100
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/addresses/:id",
+  "file": "services/customer-service/src/modules/address.controller.ts",
+  "line": 111
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/customers/import",
+  "file": "services/customer-service/src/modules/depot-crm.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/depot",
+  "file": "services/customer-service/src/modules/depot-crm.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/crm/dashboard",
+  "file": "services/customer-service/src/modules/depot-crm.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/:id/depot-detail",
+  "file": "services/customer-service/src/modules/depot-crm.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/favorites",
+  "file": "services/customer-service/src/modules/favorite.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/favorites",
+  "file": "services/customer-service/src/modules/favorite.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/favorites/:productId",
+  "file": "services/customer-service/src/modules/favorite.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/customer-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/customers/internal/resolve-by-phone",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/internal/pdp-export",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/customers/internal/pdp-anonymise",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 83
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/customers/internal/favorite-depot",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 102
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/internal/reseller/:customerId",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 127
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/customers/internal/resellers/apply-scheduled",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 147
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/internal/by-depot",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 155
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/internal/crm-summary",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 166
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/customers/internal/crm-summaries",
+  "file": "services/customer-service/src/modules/internal.controller.ts",
+  "line": 176
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payment-methods",
+  "file": "services/customer-service/src/modules/payment-method.controller.ts",
+  "line": 29
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payment-methods",
+  "file": "services/customer-service/src/modules/payment-method.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/payment-methods/:id",
+  "file": "services/customer-service/src/modules/payment-method.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payment-methods/:id/default",
+  "file": "services/customer-service/src/modules/payment-method.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/payment-methods/:id",
+  "file": "services/customer-service/src/modules/payment-method.controller.ts",
+  "line": 68
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile/gallon-deposit",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/profile",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile/directory",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 87
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile/internal/directory",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 106
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile/internal/notifications",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 128
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/profile/birthday-rewards",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 138
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/profile/notifications",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 158
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/profile/notifications",
+  "file": "services/customer-service/src/modules/profile.controller.ts",
+  "line": 166
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/resellers/me",
+  "file": "services/customer-service/src/modules/reseller-self.controller.ts",
+  "line": 18
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/resellers",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 80
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/resellers/:customerId",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 89
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/resellers/import",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 104
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/resellers",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 114
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/resellers/:customerId/photo",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 140
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/resellers/:customerId",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 189
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/resellers/:customerId/price-changes",
+  "file": "services/customer-service/src/modules/reseller.controller.ts",
+  "line": 214
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/dashboard/executive",
+  "file": "services/dashboard-service/src/modules/dashboard.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/dashboard/monthly-pnl",
+  "file": "services/dashboard-service/src/modules/dashboard.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/dashboard/network",
+  "file": "services/dashboard-service/src/modules/dashboard.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/dashboard/franchise",
+  "file": "services/dashboard-service/src/modules/dashboard.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/dashboard-service/src/modules/health.controller.ts",
+  "line": 10
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/commission",
+  "file": "services/delivery-service/src/modules/commission.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deliveries",
+  "file": "services/delivery-service/src/modules/delivery.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deliveries/:id/release",
+  "file": "services/delivery-service/src/modules/delivery.controller.ts",
+  "line": 61
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deliveries/:id/cancel",
+  "file": "services/delivery-service/src/modules/delivery.controller.ts",
+  "line": 73
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/deliveries",
+  "file": "services/delivery-service/src/modules/delivery.controller.ts",
+  "line": 85
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/deliveries/:id",
+  "file": "services/delivery-service/src/modules/delivery.controller.ts",
+  "line": 99
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/deliveries",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/deliveries/:id",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 52
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/deliveries/:id/pickup",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/deliveries/:id/start",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 73
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/deliveries/:id/complete",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 84
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/deliveries/:id/location",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 112
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/deliveries/:id/fail",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 123
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/deliveries/:id/contact-attempts",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 136
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/deliveries/:id/no-show",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 152
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/deliveries/:id/reschedule",
+  "file": "services/delivery-service/src/modules/driver-delivery.controller.ts",
+  "line": 163
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/incidents",
+  "file": "services/delivery-service/src/modules/driver-incident.controller.ts",
+  "line": 17
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/incidents",
+  "file": "services/delivery-service/src/modules/driver-incident.controller.ts",
+  "line": 28
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/performance",
+  "file": "services/delivery-service/src/modules/driver-performance.controller.ts",
+  "line": 22
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/settlement",
+  "file": "services/delivery-service/src/modules/driver-settlement.controller.ts",
+  "line": 29
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/settlement/:id",
+  "file": "services/delivery-service/src/modules/driver-settlement.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/settlement",
+  "file": "services/delivery-service/src/modules/driver-settlement.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/shifts/current",
+  "file": "services/delivery-service/src/modules/driver-shift.controller.ts",
+  "line": 19
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/driver/shifts",
+  "file": "services/delivery-service/src/modules/driver-shift.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/shifts/check-in",
+  "file": "services/delivery-service/src/modules/driver-shift.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/shifts/:id/check-out",
+  "file": "services/delivery-service/src/modules/driver-shift.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/driver/shifts/:id/status",
+  "file": "services/delivery-service/src/modules/driver-shift.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/delivery-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/sla",
+  "file": "services/delivery-service/src/modules/report.controller.ts",
+  "line": 49
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/internal/sla",
+  "file": "services/delivery-service/src/modules/report.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/sla-by-depot",
+  "file": "services/delivery-service/src/modules/report.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-team",
+  "file": "services/delivery-service/src/modules/report.controller.ts",
+  "line": 82
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/proofs/purge-expired",
+  "file": "services/delivery-service/src/modules/retention.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/delivery-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/delivery-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/delivery-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settlements/internal/deposited",
+  "file": "services/delivery-service/src/modules/settlement.controller.ts",
+  "line": 37
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settlements/rules",
+  "file": "services/delivery-service/src/modules/settlement.controller.ts",
+  "line": 53
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settlements",
+  "file": "services/delivery-service/src/modules/settlement.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/settlements/:id/verify",
+  "file": "services/delivery-service/src/modules/settlement.controller.ts",
+  "line": 67
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/settlements/:id/dispute",
+  "file": "services/delivery-service/src/modules/settlement.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/shifts",
+  "file": "services/delivery-service/src/modules/shift.controller.ts",
+  "line": 19
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deliveries/internal/sla-sweep",
+  "file": "services/delivery-service/src/modules/sla-alert.controller.ts",
+  "line": 23
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/deliveries/uploads",
+  "file": "services/delivery-service/src/modules/upload.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/approvals",
+  "file": "services/depot-service/src/modules/approval.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/approvals",
+  "file": "services/depot-service/src/modules/approval.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/approvals/counts",
+  "file": "services/depot-service/src/modules/approval.controller.ts",
+  "line": 53
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/approvals/:id",
+  "file": "services/depot-service/src/modules/approval.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/approvals/:id/decide",
+  "file": "services/depot-service/src/modules/approval.controller.ts",
+  "line": 72
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/cashbook/internal/depot-costs",
+  "file": "services/depot-service/src/modules/cashbook.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/cashbook",
+  "file": "services/depot-service/src/modules/cashbook.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/cashbook",
+  "file": "services/depot-service/src/modules/cashbook.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/cashier-shifts",
+  "file": "services/depot-service/src/modules/cashier-shift.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/cashier-shifts/current",
+  "file": "services/depot-service/src/modules/cashier-shift.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/cashier-shifts",
+  "file": "services/depot-service/src/modules/cashier-shift.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/cashier-shifts/:id/close",
+  "file": "services/depot-service/src/modules/cashier-shift.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/daily-close",
+  "file": "services/depot-service/src/modules/daily-close.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/daily-close",
+  "file": "services/depot-service/src/modules/daily-close.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/daily-close/reopen",
+  "file": "services/depot-service/src/modules/daily-close.controller.ts",
+  "line": 75
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depot-targets",
+  "file": "services/depot-service/src/modules/depot-target.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/depot-targets",
+  "file": "services/depot-service/src/modules/depot-target.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/nearby",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 79
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/internal/owned/:ownerId",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 93
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/internal/:id/owner",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 108
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/internal/contacts",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 130
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/manage",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 155
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/mine",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 166
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/manage/:id",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 177
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:id/payment-info",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 195
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:id/contact",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 206
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:id",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 214
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 223
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/depots/:id",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 252
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:id/qris",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 264
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/depots/:id",
+  "file": "services/depot-service/src/modules/depot.controller.ts",
+  "line": 310
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/order-disputes",
+  "file": "services/depot-service/src/modules/dispute.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/order-disputes",
+  "file": "services/depot-service/src/modules/dispute.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/order-disputes/:id/resolve",
+  "file": "services/depot-service/src/modules/dispute.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/driver/gallon-returns",
+  "file": "services/depot-service/src/modules/driver-gallon-return.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/franchise-applications",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/franchise-applications",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 80
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/franchise-applications/:id",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 91
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/franchise-applications/:id",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 98
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/franchise-applications/:id/approve",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 108
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/franchise-applications/:id/reject",
+  "file": "services/depot-service/src/modules/franchise-application.controller.ts",
+  "line": 116
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/gallon-issues",
+  "file": "services/depot-service/src/modules/gallon-issue.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/gallon-issues/internal/from-order",
+  "file": "services/depot-service/src/modules/gallon-issue.controller.ts",
+  "line": 73
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/gallon-issues/summary",
+  "file": "services/depot-service/src/modules/gallon-issue.controller.ts",
+  "line": 89
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/gallon-issues",
+  "file": "services/depot-service/src/modules/gallon-issue.controller.ts",
+  "line": 101
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/gallon-outstanding/internal/by-customer",
+  "file": "services/depot-service/src/modules/gallon-network.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/gallon-outstanding/internal/for-customer",
+  "file": "services/depot-service/src/modules/gallon-network.controller.ts",
+  "line": 75
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/gallon-outstanding/internal/customer-ledger",
+  "file": "services/depot-service/src/modules/gallon-network.controller.ts",
+  "line": 91
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/gallon-outstanding/internal/returns-range",
+  "file": "services/depot-service/src/modules/gallon-network.controller.ts",
+  "line": 111
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/gallon-outstanding",
+  "file": "services/depot-service/src/modules/gallon-network.controller.ts",
+  "line": 119
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/returns",
+  "file": "services/depot-service/src/modules/gallon-return.controller.ts",
+  "line": 28
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/returns/summary",
+  "file": "services/depot-service/src/modules/gallon-return.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/returns",
+  "file": "services/depot-service/src/modules/gallon-return.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/shift-handovers",
+  "file": "services/depot-service/src/modules/handover.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/shift-handovers",
+  "file": "services/depot-service/src/modules/handover.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/shift-handovers/:id/sign",
+  "file": "services/depot-service/src/modules/handover.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/depot-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/staff-hierarchy/internal/scope/:staffId",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/staff-hierarchy/internal/describe/:staffId",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 75
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/staff-hierarchy/depots/:depotId/assistant",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 86
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/staff-hierarchy/depots/:depotId/assistant",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 99
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/staff-hierarchy/:staffId",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 110
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/staff-hierarchy/:staffId/superior",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 118
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/staff-hierarchy/:staffId/superior",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 131
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/staff-hierarchy/:staffId/depots/:depotId",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 140
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/staff-hierarchy/:staffId/depots/:depotId",
+  "file": "services/depot-service/src/modules/hierarchy.controller.ts",
+  "line": 153
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/huddle-notes",
+  "file": "services/depot-service/src/modules/huddle.controller.ts",
+  "line": 19
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/huddle-notes",
+  "file": "services/depot-service/src/modules/huddle.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/incidents",
+  "file": "services/depot-service/src/modules/incident.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/incidents",
+  "file": "services/depot-service/src/modules/incident.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/incidents/:id",
+  "file": "services/depot-service/src/modules/incident.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/incidents/:id/resolve",
+  "file": "services/depot-service/src/modules/incident.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 65
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory/import",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/inventory/prices",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 118
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/inventory/movements",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 142
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/inventory",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 164
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory/consume",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 180
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory/reserve",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 195
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory/restock",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 208
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/inventory/release",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 223
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/inventory/internal/product-changed",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 249
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/inventory/low-stock",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 263
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/inventory/wastage",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 282
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/inventory/:itemId/reservations",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 294
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/inventory/:itemId",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 302
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/inventory/:itemId",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 313
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/inventory/:itemId",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 321
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/inventory/:itemId/adjust",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 332
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/inventory/:itemId/opname",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 345
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/inventory/:itemId/movements",
+  "file": "services/depot-service/src/modules/inventory.controller.ts",
+  "line": 364
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/maintenance-items",
+  "file": "services/depot-service/src/modules/maintenance.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/maintenance-items",
+  "file": "services/depot-service/src/modules/maintenance.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/maintenance-items/:id/serviced",
+  "file": "services/depot-service/src/modules/maintenance.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/internal/governance",
+  "file": "services/depot-service/src/modules/operational-report.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/operational-costs",
+  "file": "services/depot-service/src/modules/operational-report.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/price-overrides",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/price-overrides/import",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/price-overrides",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 97
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/price-overrides/count-by-product",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 110
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/price-overrides/:id/approve",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 117
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/price-overrides/:id/reject",
+  "file": "services/depot-service/src/modules/price-override.controller.ts",
+  "line": 129
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/pricing/rules",
+  "file": "services/depot-service/src/modules/pricing.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/depots/:depotId/pricing/rules",
+  "file": "services/depot-service/src/modules/pricing.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/depots/:depotId/pricing/rules/:ruleId",
+  "file": "services/depot-service/src/modules/pricing.controller.ts",
+  "line": 54
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/depots/:depotId/pricing/rules/:ruleId",
+  "file": "services/depot-service/src/modules/pricing.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/purchase-orders",
+  "file": "services/depot-service/src/modules/purchase-order.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/purchase-orders",
+  "file": "services/depot-service/src/modules/purchase-order.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/purchase-orders/:id",
+  "file": "services/depot-service/src/modules/purchase-order.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/purchase-orders/:id/send",
+  "file": "services/depot-service/src/modules/purchase-order.controller.ts",
+  "line": 54
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/purchase-orders/:id/receive",
+  "file": "services/depot-service/src/modules/purchase-order.controller.ts",
+  "line": 65
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/shifts",
+  "file": "services/depot-service/src/modules/roster.controller.ts",
+  "line": 28
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/shifts",
+  "file": "services/depot-service/src/modules/roster.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/shifts/bulk",
+  "file": "services/depot-service/src/modules/roster.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/depot-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/depot-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/depot-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions/internal/customer-ids",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions/admin/summary",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 80
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 87
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 94
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/subscriptions/:id/pause",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 113
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/subscriptions/:id/resume",
+  "file": "services/depot-service/src/modules/subscription.controller.ts",
+  "line": 124
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/suppliers",
+  "file": "services/depot-service/src/modules/supplier.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/suppliers",
+  "file": "services/depot-service/src/modules/supplier.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/suppliers/:id",
+  "file": "services/depot-service/src/modules/supplier.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/wholesale-tiers",
+  "file": "services/depot-service/src/modules/wholesale-tier.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/wholesale-tiers",
+  "file": "services/depot-service/src/modules/wholesale-tier.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/wholesale-tiers/:id",
+  "file": "services/depot-service/src/modules/wholesale-tier.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/wholesale-tiers/:id",
+  "file": "services/depot-service/src/modules/wholesale-tier.controller.ts",
+  "line": 67
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/forecast/demand",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 85
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/forecast/depot/:depotId",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 101
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/forecast/sales",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 118
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/forecast/churn",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 137
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/forecast/internal/churn-band",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 159
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/forecast/rebuild",
+  "file": "services/forecast-service/src/modules/forecast.controller.ts",
+  "line": 173
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/forecast-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/forecast/ingest",
+  "file": "services/forecast-service/src/modules/ingest.controller.ts",
+  "line": 22
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/forecast-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/forecast-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/forecast-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/bonuses",
+  "file": "services/hr-service/src/modules/adjustment.controller.ts",
+  "line": 23
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/bonuses",
+  "file": "services/hr-service/src/modules/adjustment.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/deductions",
+  "file": "services/hr-service/src/modules/adjustment.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deductions",
+  "file": "services/hr-service/src/modules/adjustment.controller.ts",
+  "line": 54
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/deductions/import",
+  "file": "services/hr-service/src/modules/adjustment.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/allowances",
+  "file": "services/hr-service/src/modules/allowance.controller.ts",
+  "line": 19
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/allowances",
+  "file": "services/hr-service/src/modules/allowance.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/allowances/import",
+  "file": "services/hr-service/src/modules/allowance.controller.ts",
+  "line": 35
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/allowances/:id/deactivate",
+  "file": "services/hr-service/src/modules/allowance.controller.ts",
+  "line": 43
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/announcements",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 29
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/announcements/:id",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 37
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/announcements",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/announcements/publish-due",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/announcements/me",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/announcements/me/:id/read",
+  "file": "services/hr-service/src/modules/announcement.controller.ts",
+  "line": 83
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employee-assets",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 25
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employee-assets/:id",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 33
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employee-assets",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employee-assets/import",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 49
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/employee-assets/:id",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 59
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employee-assets/:id/movements",
+  "file": "services/hr-service/src/modules/asset.controller.ts",
+  "line": 71
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/attendance/check-in",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/attendance/check-out",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/attendance/me",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/attendance",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/attendance/manual",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/attendance/:id/adjust",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 64
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/attendance/:id/decide",
+  "file": "services/hr-service/src/modules/attendance.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-audit",
+  "file": "services/hr-service/src/modules/audit.controller.ts",
+  "line": 16
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/holidays",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/holidays",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 49
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/holidays/:id",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-shifts",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/hr-shifts",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 82
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/hr-shifts/:id",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/hr-shifts/:id",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 102
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/shift-rotations",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 122
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/shift-rotations",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 130
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/shift-rotations/:id",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 138
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/shift-rotations/assignments",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 150
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/shift-rotations/assignments",
+  "file": "services/hr-service/src/modules/calendar.controller.ts",
+  "line": 158
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/departments",
+  "file": "services/hr-service/src/modules/department.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/departments",
+  "file": "services/hr-service/src/modules/department.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/departments/:id",
+  "file": "services/hr-service/src/modules/department.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/departments/:id",
+  "file": "services/hr-service/src/modules/department.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employee-documents",
+  "file": "services/hr-service/src/modules/document.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employee-documents/:id",
+  "file": "services/hr-service/src/modules/document.controller.ts",
+  "line": 47
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employee-documents",
+  "file": "services/hr-service/src/modules/document.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employee-documents/internal/retention-purge",
+  "file": "services/hr-service/src/modules/document.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/retention-report",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/retention-anonymise",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/retention-biometrics",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/provision",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 96
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/provision-many",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 114
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/status",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 132
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/depot",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 150
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/internal/anonymise",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 165
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/:id/account",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 177
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employees",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 185
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employees/:id",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 193
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/employees/:id/history",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 201
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 209
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/import",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 217
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/employees/:id",
+  "file": "services/hr-service/src/modules/employees.controller.ts",
+  "line": 229
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/attendance/me/face/enroll",
+  "file": "services/hr-service/src/modules/face.controller.ts",
+  "line": 21
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/employees/:id/face/enroll",
+  "file": "services/hr-service/src/modules/face.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/hr-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/leave/me",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/leave/me/balance",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/leave/me",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/leave/me/:id/cancel",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/leave",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 59
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/leave/balances/import",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 67
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/leave/:id/manager-decision",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 79
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/leave/:id/hr-decision",
+  "file": "services/hr-service/src/modules/leave.controller.ts",
+  "line": 91
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll/me",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll/me/:id",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 47
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll/me/:id/slip",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll/:id",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payroll/:id/slip",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 85
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payroll/generate",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 100
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payroll/generate-batch",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 114
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payroll/:id/approve",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 125
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payroll/:id/pay",
+  "file": "services/hr-service/src/modules/payroll.controller.ts",
+  "line": 133
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/performance",
+  "file": "services/hr-service/src/modules/performance.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/performance/score",
+  "file": "services/hr-service/src/modules/performance.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/performance/dashboard",
+  "file": "services/hr-service/src/modules/performance.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/performance",
+  "file": "services/hr-service/src/modules/performance.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/performance/generate",
+  "file": "services/hr-service/src/modules/performance.controller.ts",
+  "line": 58
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/dashboard",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 28
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/internal/depot-summary",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 41
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/internal/depot-summaries",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/employees",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 75
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/attendance",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 91
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/payroll",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 107
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/late",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 123
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/leave",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 141
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/performance",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 159
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/assets",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 177
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr-reports/announcements",
+  "file": "services/hr-service/src/modules/reports.controller.ts",
+  "line": 194
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/bonus-rules",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/bonus-rules",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/bonus-rules/:id",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loans",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 63
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loans",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 71
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loans/import",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 79
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/loans/:id/deactivate",
+  "file": "services/hr-service/src/modules/rules.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/hr/settings/schema",
+  "file": "services/hr-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/hr/settings",
+  "file": "services/hr-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/hr/settings",
+  "file": "services/hr-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/loyalty-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/tiers",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/rules",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 59
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/me",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 67
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/accounts/:customerId",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 87
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/me/transactions",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 102
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loyalty/earn",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 116
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loyalty/adjust",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 133
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loyalty/reward",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 145
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loyalty/internal/reverse-earn",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 163
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/loyalty/expire",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 174
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/members/count",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 184
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/depot-summary",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 193
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/loyalty/customers/:customerId",
+  "file": "services/loyalty-service/src/modules/loyalty.controller.ts",
+  "line": 204
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/rewards/catalog",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/rewards/items",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/rewards/items",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/rewards/items/:id",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 66
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/rewards/redeem",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/rewards/redemptions/me",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 96
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/rewards/redemptions/active",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 109
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/rewards/redemptions/:id/cancel",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 123
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/rewards/redemptions/:id/used",
+  "file": "services/loyalty-service/src/modules/reward.controller.ts",
+  "line": 138
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/loyalty-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/loyalty-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/loyalty-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/cart",
+  "file": "services/order-service/src/modules/cart.controller.ts",
+  "line": 55
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/cart/items",
+  "file": "services/order-service/src/modules/cart.controller.ts",
+  "line": 67
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/cart/items/:productId",
+  "file": "services/order-service/src/modules/cart.controller.ts",
+  "line": 87
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/cart/items/:productId",
+  "file": "services/order-service/src/modules/cart.controller.ts",
+  "line": 108
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/cart",
+  "file": "services/order-service/src/modules/cart.controller.ts",
+  "line": 120
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/order-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/reports/meter/:depotId/:date",
+  "file": "services/order-service/src/modules/meter.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/meter/:depotId/:date",
+  "file": "services/order-service/src/modules/meter.controller.ts",
+  "line": 70
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/meter/:depotId",
+  "file": "services/order-service/src/modules/meter.controller.ts",
+  "line": 81
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/checkout",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 70
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/delivery-options",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 112
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/walk-in",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 125
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/walk-in/quote",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 191
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/walk-in/identify",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 220
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/walk-in/:id/void",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 239
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/outbox/process",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 258
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/outbox/internal/process",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 283
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/outbox/pending",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 292
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/expire-abandoned",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 301
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/internal/expire-abandoned",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 333
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 343
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/manage",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 354
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/orders/manage/:id/depot",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 396
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/manage/:id",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 410
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/internal/completed",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 430
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/internal/depot-sales",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 479
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/internal/depot-customers",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 496
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/internal/customer-orders",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 534
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/internal/values",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 563
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/reminders/reorder",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 576
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/:id",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 591
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/:id/timeline",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 601
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/:id/cancel",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 612
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/:id/repeat",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 624
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/:id/review",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 634
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/:id/review",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 644
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/:id/internal-confirm",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 666
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/:id/internal-refund",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 682
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/orders/:id/internal-total",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 700
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/orders/reviews/ratings/internal",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 715
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/orders/:id/status",
+  "file": "services/order-service/src/modules/order.controller.ts",
+  "line": 723
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/sales",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/top-customers",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/top-depots",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/shipping-by-depot",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 83
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/refunds-by-depot",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/rating-by-depot",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 97
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-ratings",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 104
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/revenue-by-category",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 113
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/retention-cohort",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 120
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-daily",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 128
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-daily/export",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 150
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-weekly",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 162
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-compare",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 173
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/depot-monthly",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 184
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/internal/depot-daily-gallons",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 201
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/internal/segment-customers",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 224
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/internal/export-rows",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 243
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/reports/internal/daily-sales-broadcast/:slot",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 261
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/audience-reach",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 277
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/segment-estimate",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 285
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/reseller-rollup",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 299
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/reports/customer/:customerId",
+  "file": "services/order-service/src/modules/report.controller.ts",
+  "line": 311
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/order-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/order-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/order-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions/discount",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/subscriptions/admin/summary",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 54
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 62
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/:id/pause",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 90
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/:id/resume",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 101
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/:id/cancel",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 114
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/:id/address",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 130
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/internal",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 167
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/subscriptions/process-due",
+  "file": "services/order-service/src/modules/subscription.controller.ts",
+  "line": 185
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/payment-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 107
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/staff",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 120
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/internal/void-for-order",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 139
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/internal/expire-pending",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 156
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/internal/cancel-for-order",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 178
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/internal/depot-cash",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 192
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/internal/export-rows",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 218
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/internal/cash-collected",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 238
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/for-orders",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 261
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/internal/refund-counts",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 280
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 295
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/methods",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 313
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/for-order/:orderId",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 320
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/internal/for-order/:orderId",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 341
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/unsettled-by-method",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 352
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/revenue-by-method",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 367
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/cash-collected",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 392
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/refunds/rules",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 406
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/refunds/queue",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 416
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/proof",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 435
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payments/:id",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 474
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/confirm",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 484
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/fail",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 502
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/refund",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 513
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/refund/approve",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 525
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/:id/refund/reject",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 536
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payments/webhook",
+  "file": "services/payment-service/src/modules/payment.controller.ts",
+  "line": 549
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/tax-settings",
+  "file": "services/payment-service/src/modules/tax.controller.ts",
+  "line": 18
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/tax-settings",
+  "file": "services/payment-service/src/modules/tax.controller.ts",
+  "line": 26
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/commission/schemes",
+  "file": "services/payout-service/src/modules/commission.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/commission/schemes/apply",
+  "file": "services/payout-service/src/modules/commission.controller.ts",
+  "line": 37
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/earnings/summary",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 50
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/earning-rule",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/ledger",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 66
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/courier/withdrawals",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 76
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/withdrawals",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 86
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/courier/expenses",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 93
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/expenses",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 109
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/courier/ledger/internal",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 125
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier/ledger/internal/depot-earnings",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 157
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/courier/ledger/variance/internal",
+  "file": "services/payout-service/src/modules/courier-payout.controller.ts",
+  "line": 177
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/courier-earning-rules",
+  "file": "services/payout-service/src/modules/earning-rule.controller.ts",
+  "line": 24
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/courier-earning-rules",
+  "file": "services/payout-service/src/modules/earning-rule.controller.ts",
+  "line": 31
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/expenses",
+  "file": "services/payout-service/src/modules/expense-approval.controller.ts",
+  "line": 22
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/expenses/:id/approve",
+  "file": "services/payout-service/src/modules/expense-approval.controller.ts",
+  "line": 34
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/expenses/:id/reject",
+  "file": "services/payout-service/src/modules/expense-approval.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/payout-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payout/hq/pending",
+  "file": "services/payout-service/src/modules/hq-payout.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payout/hq/owner/:ownerId",
+  "file": "services/payout-service/src/modules/hq-payout.controller.ts",
+  "line": 49
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payout/hq/release",
+  "file": "services/payout-service/src/modules/hq-payout.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payout/summary",
+  "file": "services/payout-service/src/modules/payout.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/payout/ledger",
+  "file": "services/payout-service/src/modules/payout.controller.ts",
+  "line": 46
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payout/withdrawals",
+  "file": "services/payout-service/src/modules/payout.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payout/revenue/internal",
+  "file": "services/payout-service/src/modules/payout.controller.ts",
+  "line": 73
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/payout/revenue/internal/void",
+  "file": "services/payout-service/src/modules/payout.controller.ts",
+  "line": 96
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/payout-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/payout-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/payout-service/src/modules/settings.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/categories",
+  "file": "services/product-service/src/modules/category.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/categories/all",
+  "file": "services/product-service/src/modules/category.controller.ts",
+  "line": 42
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/categories",
+  "file": "services/product-service/src/modules/category.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/categories/:id",
+  "file": "services/product-service/src/modules/category.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/categories/:id",
+  "file": "services/product-service/src/modules/category.controller.ts",
+  "line": 72
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/product-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/products",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 32
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/products/all",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 45
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/products/batch",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 57
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/products/:id",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 69
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/products",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 79
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/products/:id",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 99
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/products/:id",
+  "file": "services/product-service/src/modules/product.controller.ts",
+  "line": 111
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/products/images",
+  "file": "services/product-service/src/modules/upload.controller.ts",
+  "line": 36
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/promo-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/promotions",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 39
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/promotions/admin",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 48
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/promotions/:id/analytics",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 56
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/promotions",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 66
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/promotions/:id",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 85
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/promotions/:id",
+  "file": "services/promo-service/src/modules/promotion.controller.ts",
+  "line": 108
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/depots/:depotId/voucher-requests",
+  "file": "services/promo-service/src/modules/voucher-request.controller.ts",
+  "line": 37
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/voucher-requests",
+  "file": "services/promo-service/src/modules/voucher-request.controller.ts",
+  "line": 72
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/voucher-requests/:id/approve",
+  "file": "services/promo-service/src/modules/voucher-request.controller.ts",
+  "line": 83
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/voucher-requests/:id/reject",
+  "file": "services/promo-service/src/modules/voucher-request.controller.ts",
+  "line": 94
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 53
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers/:code",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers/burn-summary",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 64
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers/:code",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 70
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers/me",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 74
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers/quote",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 84
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers/quote/internal",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 101
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers/redeem",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 115
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers/release",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 135
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 145
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/vouchers/:id/grant",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 167
+ },
+ {
+  "method": "PATCH",
+  "route": "/api/v1/vouchers/:id",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 180
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/vouchers/:id",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 204
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/vouchers/:code",
+  "file": "services/promo-service/src/modules/voucher.controller.ts",
+  "line": 212
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/recommendation-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/recommendations/ingest",
+  "file": "services/recommendation-service/src/modules/ingest.controller.ts",
+  "line": 22
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/recommendations/reorder",
+  "file": "services/recommendation-service/src/modules/recommendation.controller.ts",
+  "line": 30
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/recommendations/trending",
+  "file": "services/recommendation-service/src/modules/recommendation.controller.ts",
+  "line": 38
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/recommendations/rebuild",
+  "file": "services/recommendation-service/src/modules/recommendation.controller.ts",
+  "line": 51
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/recommendations/products/:productId/related",
+  "file": "services/recommendation-service/src/modules/recommendation.controller.ts",
+  "line": 60
+ },
+ {
+  "method": "GET",
+  "route": "/api/health",
+  "file": "services/referral-service/src/modules/health.controller.ts",
+  "line": 14
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/referrals/me/code",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 44
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/referrals/me",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 52
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/referrals",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 65
+ },
+ {
+  "method": "POST",
+  "route": "/api/v1/referrals/qualify",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 78
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/referrals/depot-summary",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 89
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/referrals/customers/:customerId",
+  "file": "services/referral-service/src/modules/referral.controller.ts",
+  "line": 98
+ },
+ {
+  "method": "GET",
+  "route": "/api/v1/settings/schema",
+  "file": "services/referral-service/src/modules/settings.controller.ts",
+  "line": 20
+ },
+ {
+  "method": "PUT",
+  "route": "/api/v1/settings",
+  "file": "services/referral-service/src/modules/settings.controller.ts",
+  "line": 27
+ },
+ {
+  "method": "DELETE",
+  "route": "/api/v1/settings",
+  "file": "services/referral-service/src/modules/settings.controller.ts",
+  "line": 44
+ }
+]

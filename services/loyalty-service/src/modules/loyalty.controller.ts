@@ -31,7 +31,7 @@ import {
 } from './dto/loyalty.dto';
 import { TierBenefit } from '../domain/membership';
 import { DepotLoyaltySummary, ExpiryResult } from '../application/services/loyalty.service';
-import { DepotLoyaltyResponseDto, ExpiryResponseDto, MemberCountResponseDto, PagedPointsTransactionResponseDto, TierBenefitResponseDto } from './dto/responses.generated.dto';
+import { DepotLoyaltyResponseDto, ExpiryResponseDto, ExpirySweepResponseDto, MemberCountResponseDto, PagedPointsTransactionResponseDto, TierBenefitResponseDto } from './dto/responses.generated.dto';
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
 // customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.
@@ -176,6 +176,31 @@ export class LoyaltyController {
   @ApiOperation({ summary: 'Sweep expired point lots (system/scheduler, BR-014)' })
   expire(): Promise<ExpiryResult> {
     return this.loyalty.runExpiry();
+  }
+
+  /**
+   * PAR-01. The same sweep, reachable by the scheduler.
+   *
+   * `POST loyalty/expire` above is SUPER_ADMIN-only, i.e. it needs a human's JWT — and
+   * scripts/scheduler/sweep.sh authenticates with `x-internal-key` and has no JWT to
+   * offer. So BR-014 was built, guarded, tested, and callable by nobody on a schedule:
+   * points have never expired in production, and the liability has been accruing since
+   * launch. This is the door the scheduler can actually open.
+   *
+   * `ok` is the J7 verdict sweep.sh greps for: a 200 says the transport worked, not that
+   * the round did. False only when the sweep could not do its job. Deliberately switched
+   * off is NOT a failure — pinning the scheduler to unhealthy because an operator chose
+   * not to expire points would report an outage that is not one.
+   */
+  @ApiOkResponse({ type: ExpirySweepResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/expire')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sweep expired point lots (scheduler, internal service auth, BR-014)' })
+  async expireInternal(): Promise<ExpiryResult & { ok: boolean }> {
+    return { ...(await this.loyalty.runExpiry()), ok: true };
   }
 
   @ApiOkResponse({ type: MemberCountResponseDto })

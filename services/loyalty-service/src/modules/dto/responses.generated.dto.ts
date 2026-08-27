@@ -34,6 +34,17 @@ export class ExpiryResponseDto {
   lotsExpired!: number;
   @ApiProperty({ type: Number })
   pointsExpired!: number;
+  @ApiProperty({ type: Boolean })
+  disabled!: boolean;
+}
+
+/**
+ * PAR-01: the scheduler's view of the same sweep. `ok` is what sweep.sh greps (J7) — a 200
+ * is a statement about the transport, not about the round.
+ */
+export class ExpirySweepResponseDto extends ExpiryResponseDto {
+  @ApiProperty({ type: Boolean })
+  ok!: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

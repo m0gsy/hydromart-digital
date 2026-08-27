@@ -151,6 +151,12 @@ describe('LoyaltyService', () => {
     expect(account.tier).toBe(MembershipTier.SILVER);
   });
 
+  // PAR-01. The sweep now has a switch and it ships OFF, so every expiry case below builds
+  // a service with it explicitly on. `sweeper` is that service; `service` (switch off) is
+  // what the last case in this block uses to assert the default.
+  const sweeperFor = (repository: InMemoryLoyaltyRepository): LoyaltyService =>
+    new LoyaltyService(repository, buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }), new InMemoryCustomerDirectory());
+
   it('sweeps expired lots into negative EXPIRE entries (BR-014)', async () => {
     // Earn with an already-past expiry so the lot is immediately due.
     const expired = new LoyaltyService(
@@ -160,7 +166,7 @@ describe('LoyaltyService', () => {
     );
     await expired.earnForOrder('cust-1', randomUUID(), 60000); // 60 pts, expiry in the past
 
-    const result = await service.runExpiry(new Date());
+    const result = await sweeperFor(repo).runExpiry(new Date());
     expect(result.lotsExpired).toBe(1);
     expect(result.pointsExpired).toBe(60);
 
@@ -176,9 +182,71 @@ describe('LoyaltyService', () => {
       new InMemoryCustomerDirectory(),
     );
     await expired.earnForOrder('cust-1', randomUUID(), 60000);
-    await service.runExpiry(new Date());
-    const second = await service.runExpiry(new Date());
+    await sweeperFor(repo).runExpiry(new Date());
+    const second = await sweeperFor(repo).runExpiry(new Date());
     expect(second.lotsExpired).toBe(0);
+  });
+
+  /*
+   * PAR-01. BR-014 was built, tested and wired to nothing: no scheduler ever called it, so
+   * no point has ever expired in production and the liability has accrued since launch.
+   * Connecting it is this release. Connecting it LIVE would, on the first tick, expire
+   * every lot that has been quietly sitting past its window — a decision about customers'
+   * balances, not a deployment detail.
+   *
+   * So the sweep ships inert, and says so. `disabled: true` rather than `lotsExpired: 0`,
+   * because "switched off" and "nothing was due" reading the same in the log is the exact
+   * silence that let BR-014 sit unreachable for as long as it did.
+   */
+  it('expires nothing, and says it is off, while the switch is off (PAR-01)', async () => {
+    const expired = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    await expired.earnForOrder('cust-1', randomUUID(), 60000);
+
+    // `service` is built from the default config — which is the production default.
+    const result = await service.runExpiry(new Date());
+    expect(result).toEqual({ lotsExpired: 0, pointsExpired: 0, disabled: true });
+
+    const account = await service.getAccount('cust-1');
+    expect(account.pointsBalance).toBe(60);
+    expect(repo.txns.some((t) => t.type === PointsTxnType.EXPIRE)).toBe(false);
+  });
+
+  it('expires the same lot once the switch is on (PAR-01)', async () => {
+    const expired = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    await expired.earnForOrder('cust-1', randomUUID(), 60000);
+
+    const result = await sweeperFor(repo).runExpiry(new Date());
+    expect(result).toEqual({ lotsExpired: 1, pointsExpired: 60, disabled: false });
+  });
+
+  // A GLOBAL setting override must reach the switch too — the env var is only the boot
+  // default, and an operator turning this on will do it from the settings screen.
+  it('honours a GLOBAL setting override of the switch (PAR-01)', async () => {
+    const config = await buildTestConfigWithSettings([
+      { scope: 'GLOBAL', depotId: null, key: 'pointExpirySweepEnabled', value: '1' },
+    ]);
+    const expired = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    await expired.earnForOrder('cust-1', randomUUID(), 60000);
+
+    const result = await new LoyaltyService(
+      repo,
+      config,
+      new InMemoryCustomerDirectory(),
+    ).runExpiry(new Date());
+    expect(result.disabled).toBe(false);
+    expect(result.lotsExpired).toBe(1);
   });
 });
 

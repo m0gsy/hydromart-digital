@@ -390,6 +390,10 @@ function withCache(cache: SettingsCache, overrides: Record<string, string>): Loy
     RATE_LIMIT_MAX: '100',
     LOYALTY_EARN_RATE_RUPIAH: '1000',
     LOYALTY_POINT_EXPIRY_MONTHS: '12',
+    // PAR-01: '0', mirroring production. A test env that silently enables a switch the
+    // release ships disabled would prove the sweep works in a configuration nobody runs.
+    // The expiry tests turn it on explicitly, which is also what documents the switch.
+    LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '0',
     ...overrides,
   };
   const fake = {

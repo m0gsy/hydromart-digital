@@ -7,6 +7,7 @@ function config(cache: SettingsCache): LoyaltyConfigService {
   const env: Record<string, string> = {
     LOYALTY_EARN_RATE_RUPIAH: '1000',
     LOYALTY_POINT_EXPIRY_MONTHS: '12',
+    LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '0',
   };
   const fake = {
     get: <T>(k: string, d?: T): T => (env[k] as unknown as T) ?? (d as T),

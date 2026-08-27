@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
@@ -8,6 +8,7 @@ import { ProfileService } from '../application/services/profile.service';
 import { NotificationService } from '../application/services/notification.service';
 import {
   BirthdayRewardResultDto,
+  BirthdaySweepResultDto,
   DirectoryQueryDto,
   DirectoryRecipientDto,
   ProfileResponseDto,
@@ -134,15 +135,45 @@ export class ProfileController {
     return this.notifications.get(customerId);
   }
 
-  @Roles(Role.SUPER_ADMIN)
-  @Post('profile/birthday-rewards')
-  @ApiOperation({ summary: 'Grant birthday points to today’s birthday customers (admin/scheduler, FR-091)' })
-  @ApiOkResponse({ type: BirthdayRewardResultDto })
-  async runBirthdayRewards(
-    @Headers('authorization') authorization: string,
-  ): Promise<BirthdayRewardResultDto> {
-    return this.profiles.runBirthdayRewards(authorization);
+  /**
+   * PAR-05. The same sweep, reachable by the scheduler.
+   *
+   * FR-091 was built, tested, made idempotent per customer per year — and wired to
+   * nothing. The route below it is SUPER_ADMIN-only, i.e. it needs a human's JWT, and
+   * scripts/scheduler/sweep.sh authenticates with `x-internal-key`. So no birthday point
+   * has ever been granted in production, and nothing complained: there is no screen whose
+   * absence anybody feels.
+   *
+   * `ok` is the J7 verdict. False only when the round accomplished nothing AND something
+   * went wrong — a sweep on a day with no birthdays is a working sweep, and a round that
+   * granted forty and lost one is too. `disabled` (no LOYALTY_SERVICE_URL) is a failure:
+   * the round could not do its job and every candidate went un-stamped.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('profile/internal/birthday-rewards')
+  @ApiOperation({ summary: 'Grant birthday points to today’s birthday customers (scheduler, internal service auth, FR-091)' })
+  @ApiOkResponse({ type: BirthdaySweepResultDto })
+  async runBirthdayRewardsInternal(): Promise<BirthdayRewardResultDto & { ok: boolean }> {
+    // The adapter authenticates system-to-system with the internal key and ignores this
+    // argument; there is no JWT on a cron tick to pass through.
+    const result = await this.profiles.runBirthdayRewards('');
+    return { ...result, ok: !result.disabled && !(result.granted === 0 && result.failed > 0) };
   }
+
+  /*
+   * PAR-05: the SUPER_ADMIN twin of the sweep above is GONE, deliberately.
+   *
+   * It was the only route FR-091 had, it needed a human's JWT, and no screen anywhere
+   * offered it — which is precisely why no birthday point was ever granted. Keeping it
+   * next to a scheduled sweep would leave the same dead door in the wall: nothing calls
+   * it, and a manual run cannot recover a missed day anyway (`findBirthdayCandidates`
+   * asks for TODAY's birthdays, so yesterday's are gone whatever anybody presses).
+   *
+   * If ops ever needs a "run it now" button, that is a screen plus this route back — not a
+   * route sitting alone waiting for a screen that was never written.
+   */
 
   /*
    * K5.1: CUSTOMER only, and it was nobody-in-particular before.

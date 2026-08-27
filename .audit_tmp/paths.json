@@ -1,0 +1,2066 @@
+[
+ {
+  "file": "admin.ts",
+  "line": 16,
+  "path": "/admin/api/v1/feature-flags",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 20,
+  "path": "/admin/api/v1/system-settings",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 22,
+  "path": "/admin/api/v1/system-health",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 25,
+  "path": "/admin/api/v1/api-keys",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 26,
+  "path": "/admin/api/v1/api-keys",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 32,
+  "path": "/admin/api/v1/webhooks",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 33,
+  "path": "/admin/api/v1/webhooks",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 49,
+  "path": "/admin/api/v1/export-logs/${id}/download",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 52,
+  "path": "/admin/api/v1/scheduled-reports",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 53,
+  "path": "/admin/api/v1/scheduled-reports",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 72,
+  "path": "/admin/api/v1/tickets",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 82,
+  "path": "/admin/api/v1/support/tickets",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 83,
+  "path": "/admin/api/v1/support/tickets",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 106,
+  "path": "/admin/api/v1/incidents",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 110,
+  "path": "/admin/api/v1/sla-policy",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 113,
+  "path": "/admin/api/v1/retention",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 120,
+  "path": "/admin/api/v1/security-policy",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 122,
+  "path": "/admin/api/v1/notification-prefs",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 124,
+  "path": "/admin/api/v1/onboarding",
+  "seg": "admin"
+ },
+ {
+  "file": "admin.ts",
+  "line": 131,
+  "path": "/depots/api/v1/franchise-applications",
+  "seg": "depots"
+ },
+ {
+  "file": "admin.ts",
+  "line": 140,
+  "path": "/depots/api/v1/franchise-applications/${id}",
+  "seg": "depots"
+ },
+ {
+  "file": "admin.ts",
+  "line": 142,
+  "path": "/depots/api/v1/franchise-applications/${id}/approve",
+  "seg": "depots"
+ },
+ {
+  "file": "admin.ts",
+  "line": 143,
+  "path": "/depots/api/v1/franchise-applications/${id}/reject",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 38,
+  "path": "/depots/api/v1/depots",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 41,
+  "path": "/depots/api/v1/depots/${id}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 43,
+  "path": "/depots/api/v1/depots/manage/${id}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 45,
+  "path": "/depots/api/v1/depots/${id}/payment-info",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 48,
+  "path": "/depots/api/v1/depots/${id}/contact",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 50,
+  "path": "/depots/api/v1/depots/${id}/qris",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 54,
+  "path": "/depots/api/v1/depots/${depotId}/daily-close?businessDate=${businessDate}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 55,
+  "path": "/depots/api/v1/depots/${depotId}/daily-close",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 56,
+  "path": "/depots/api/v1/depots/${depotId}/daily-close/reopen",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 66,
+  "path": "/depots/api/v1/depot-targets",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 75,
+  "path": "/depots/api/v1/subscriptions?${p}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 79,
+  "path": "/depots/api/v1/subscriptions/admin/summary",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 80,
+  "path": "/depots/api/v1/subscriptions",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 81,
+  "path": "/depots/api/v1/subscriptions/${id}/pause",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 82,
+  "path": "/depots/api/v1/subscriptions/${id}/resume",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 96,
+  "path": "/depots/api/v1/depots/${depotId}/inventory",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 97,
+  "path": "/depots/api/v1/depots/${depotId}/inventory/import",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 98,
+  "path": "/depots/api/v1/inventory/${itemId}/adjust",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 99,
+  "path": "/depots/api/v1/inventory/${itemId}/opname",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 101,
+  "path": "/depots/api/v1/inventory/${itemId}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 103,
+  "path": "/depots/api/v1/inventory/${itemId}/movements",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 105,
+  "path": "/depots/api/v1/inventory/${itemId}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 107,
+  "path": "/depots/api/v1/inventory/${itemId}/reservations",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 126,
+  "path": "/depots/api/v1/inventory/wastage?${p}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 146,
+  "path": "/depots/api/v1/maintenance-items",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 147,
+  "path": "/depots/api/v1/maintenance-items/${id}/serviced",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 157,
+  "path": "/procurement/api/v1/suppliers",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 163,
+  "path": "/procurement/api/v1/purchase-orders?${p}",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 165,
+  "path": "/procurement/api/v1/purchase-orders/${id}",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 166,
+  "path": "/procurement/api/v1/purchase-orders",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 167,
+  "path": "/procurement/api/v1/purchase-orders/${id}/send",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 168,
+  "path": "/procurement/api/v1/purchase-orders/${id}/receive",
+  "seg": "procurement"
+ },
+ {
+  "file": "depot.ts",
+  "line": 176,
+  "path": "/depots/api/v1/staff-hierarchy/${staffId}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 178,
+  "path": "/depots/api/v1/staff-hierarchy/${staffId}/superior",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 181,
+  "path": "/depots/api/v1/staff-hierarchy/${staffId}/depots/${depotId}",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 184,
+  "path": "/depots/api/v1/staff-hierarchy/depots/${depotId}/assistant",
+  "seg": "depots"
+ },
+ {
+  "file": "depot.ts",
+  "line": 193,
+  "path": "/approvals/api/v1/approvals?${p}",
+  "seg": "approvals"
+ },
+ {
+  "file": "depot.ts",
+  "line": 195,
+  "path": "/approvals/api/v1/approvals/${id}",
+  "seg": "approvals"
+ },
+ {
+  "file": "depot.ts",
+  "line": 196,
+  "path": "/approvals/api/v1/approvals/${id}/decide",
+  "seg": "approvals"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 22,
+  "path": "/deliveries/api/v1/deliveries",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 26,
+  "path": "/deliveries/api/v1/deliveries/${id}/release",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 27,
+  "path": "/deliveries/api/v1/deliveries/${id}/cancel",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 31,
+  "path": "/deliveries/api/v1/driver/deliveries",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 34,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 36,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/pickup",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 37,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/start",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 38,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/complete",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 39,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/fail",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 43,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/contact-attempts",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 44,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/no-show",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 46,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/reschedule",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 48,
+  "path": "/deliveries/api/v1/driver/deliveries/${id}/location",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 50,
+  "path": "/deliveries/api/v1/driver/deliveries/uploads",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 61,
+  "path": "/deliveries/api/v1/driver/shifts/current",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 62,
+  "path": "/deliveries/api/v1/driver/shifts",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 63,
+  "path": "/deliveries/api/v1/driver/shifts/check-in",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 64,
+  "path": "/deliveries/api/v1/driver/shifts/${id}/check-out",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 65,
+  "path": "/deliveries/api/v1/driver/shifts/${id}/status",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 69,
+  "path": "/deliveries/api/v1/driver/incidents",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 70,
+  "path": "/deliveries/api/v1/driver/incidents",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 75,
+  "path": "/deliveries/api/v1/driver/settlement",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 78,
+  "path": "/deliveries/api/v1/driver/settlement",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 83,
+  "path": "/depots/api/v1/driver/gallon-returns",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 90,
+  "path": "/deliveries/api/v1/driver/performance?${p}",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 98,
+  "path": "/deliveries/api/v1/commission?${p}",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 104,
+  "path": "/deliveries/api/v1/reports/depot-team?${p}",
+  "seg": "deliveries"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 114,
+  "path": "/incidents/api/v1/incidents?${p}",
+  "seg": "incidents"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 116,
+  "path": "/incidents/api/v1/incidents/${id}",
+  "seg": "incidents"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 117,
+  "path": "/incidents/api/v1/incidents",
+  "seg": "incidents"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 118,
+  "path": "/incidents/api/v1/incidents/${id}/resolve",
+  "seg": "incidents"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 125,
+  "path": "/depots/api/v1/order-disputes?${p}",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 127,
+  "path": "/depots/api/v1/order-disputes",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 128,
+  "path": "/depots/api/v1/order-disputes/${id}/resolve",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 140,
+  "path": "/depots/api/v1/depots/${depotId}/returns/summary",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 141,
+  "path": "/depots/api/v1/depots/${depotId}/returns",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 149,
+  "path": "/depots/api/v1/depots/${depotId}/gallon-issues/summary",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 150,
+  "path": "/depots/api/v1/depots/${depotId}/gallon-issues",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 156,
+  "path": "/depots/api/v1/gallon-outstanding",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 164,
+  "path": "/shifts/api/v1/shifts",
+  "seg": "shifts"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 172,
+  "path": "/depots/api/v1/shift-handovers",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 173,
+  "path": "/depots/api/v1/shift-handovers/${id}/sign",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 181,
+  "path": "/depots/api/v1/huddle-notes",
+  "seg": "depots"
+ },
+ {
+  "file": "fulfilment.ts",
+  "line": 190,
+  "path": "/deliveries/api/v1/settings",
+  "seg": "deliveries"
+ },
+ {
+  "file": "hr.ts",
+  "line": 34,
+  "path": "/employees/api/v1/employees/${id}",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 35,
+  "path": "/employees/api/v1/employees/${id}/history",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 36,
+  "path": "/employees/api/v1/employees",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 40,
+  "path": "/employees/api/v1/employees/${employeeId}/account",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 41,
+  "path": "/employees/api/v1/employees/import",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 42,
+  "path": "/employees/api/v1/employees/${id}",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 45,
+  "path": "/bonus-rules/api/v1/bonus-rules",
+  "seg": "bonus-rules"
+ },
+ {
+  "file": "hr.ts",
+  "line": 46,
+  "path": "/bonus-rules/api/v1/bonus-rules/${id}",
+  "seg": "bonus-rules"
+ },
+ {
+  "file": "hr.ts",
+  "line": 51,
+  "path": "/allowances/api/v1/allowances",
+  "seg": "allowances"
+ },
+ {
+  "file": "hr.ts",
+  "line": 52,
+  "path": "/allowances/api/v1/allowances/import",
+  "seg": "allowances"
+ },
+ {
+  "file": "hr.ts",
+  "line": 53,
+  "path": "/allowances/api/v1/allowances/${id}/deactivate",
+  "seg": "allowances"
+ },
+ {
+  "file": "hr.ts",
+  "line": 54,
+  "path": "/deductions/api/v1/deductions/import",
+  "seg": "deductions"
+ },
+ {
+  "file": "hr.ts",
+  "line": 55,
+  "path": "/loans/api/v1/loans",
+  "seg": "loans"
+ },
+ {
+  "file": "hr.ts",
+  "line": 56,
+  "path": "/loans/api/v1/loans/import",
+  "seg": "loans"
+ },
+ {
+  "file": "hr.ts",
+  "line": 57,
+  "path": "/loans/api/v1/loans/${id}/deactivate",
+  "seg": "loans"
+ },
+ {
+  "file": "hr.ts",
+  "line": 58,
+  "path": "/leave/api/v1/leave/balances/import",
+  "seg": "leave"
+ },
+ {
+  "file": "hr.ts",
+  "line": 59,
+  "path": "/employee-assets/api/v1/employee-assets/import",
+  "seg": "employee-assets"
+ },
+ {
+  "file": "hr.ts",
+  "line": 60,
+  "path": "/employees/api/v1/employees/${id}/face/enroll",
+  "seg": "employees"
+ },
+ {
+  "file": "hr.ts",
+  "line": 61,
+  "path": "/attendance/api/v1/attendance/me/face/enroll",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 62,
+  "path": "/attendance/api/v1/attendance/check-in",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 63,
+  "path": "/attendance/api/v1/attendance/check-out",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 64,
+  "path": "/attendance/api/v1/attendance/manual",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 65,
+  "path": "/attendance/api/v1/attendance/${id}/adjust",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 66,
+  "path": "/attendance/api/v1/attendance/${id}/decide",
+  "seg": "attendance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 124,
+  "path": "/payroll/api/v1/payroll/${id}",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 126,
+  "path": "/payroll/api/v1/payroll/me/${id}",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 127,
+  "path": "/payroll/api/v1/payroll/me/${id}/slip",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 128,
+  "path": "/payroll/api/v1/payroll/generate",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 129,
+  "path": "/payroll/api/v1/payroll/${id}/approve",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 130,
+  "path": "/payroll/api/v1/payroll/${id}/pay",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 133,
+  "path": "/bonuses/api/v1/bonuses",
+  "seg": "bonuses"
+ },
+ {
+  "file": "hr.ts",
+  "line": 136,
+  "path": "/deductions/api/v1/deductions",
+  "seg": "deductions"
+ },
+ {
+  "file": "hr.ts",
+  "line": 139,
+  "path": "/performance/api/v1/performance",
+  "seg": "performance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 158,
+  "path": "/hr-reports/api/v1/hr-reports/attendance?${p}",
+  "seg": "hr-reports"
+ },
+ {
+  "file": "hr.ts",
+  "line": 164,
+  "path": "/hr-reports/api/v1/hr-reports/payroll?${p}",
+  "seg": "hr-reports"
+ },
+ {
+  "file": "hr.ts",
+  "line": 166,
+  "path": "/payroll/api/v1/payroll/${id}/slip",
+  "seg": "payroll"
+ },
+ {
+  "file": "hr.ts",
+  "line": 187,
+  "path": "/hr/api/v1/hr/settings",
+  "seg": "hr"
+ },
+ {
+  "file": "hr.ts",
+  "line": 188,
+  "path": "/hr/api/v1/hr/settings",
+  "seg": "hr"
+ },
+ {
+  "file": "hr.ts",
+  "line": 197,
+  "path": "/holidays/api/v1/holidays",
+  "seg": "holidays"
+ },
+ {
+  "file": "hr.ts",
+  "line": 198,
+  "path": "/holidays/api/v1/holidays/${id}",
+  "seg": "holidays"
+ },
+ {
+  "file": "hr.ts",
+  "line": 203,
+  "path": "/departments/api/v1/departments",
+  "seg": "departments"
+ },
+ {
+  "file": "hr.ts",
+  "line": 204,
+  "path": "/departments/api/v1/departments/${id}",
+  "seg": "departments"
+ },
+ {
+  "file": "hr.ts",
+  "line": 205,
+  "path": "/departments/api/v1/departments/${id}",
+  "seg": "departments"
+ },
+ {
+  "file": "hr.ts",
+  "line": 215,
+  "path": "/leave/api/v1/leave/me",
+  "seg": "leave"
+ },
+ {
+  "file": "hr.ts",
+  "line": 216,
+  "path": "/leave/api/v1/leave/me/${id}/cancel",
+  "seg": "leave"
+ },
+ {
+  "file": "hr.ts",
+  "line": 224,
+  "path": "/leave/api/v1/leave/${id}/manager-decision",
+  "seg": "leave"
+ },
+ {
+  "file": "hr.ts",
+  "line": 225,
+  "path": "/leave/api/v1/leave/${id}/hr-decision",
+  "seg": "leave"
+ },
+ {
+  "file": "hr.ts",
+  "line": 228,
+  "path": "/employee-documents/api/v1/employee-documents",
+  "seg": "employee-documents"
+ },
+ {
+  "file": "hr.ts",
+  "line": 249,
+  "path": "/employee-assets/api/v1/employee-assets/${id}",
+  "seg": "employee-assets"
+ },
+ {
+  "file": "hr.ts",
+  "line": 250,
+  "path": "/employee-assets/api/v1/employee-assets",
+  "seg": "employee-assets"
+ },
+ {
+  "file": "hr.ts",
+  "line": 251,
+  "path": "/employee-assets/api/v1/employee-assets/${id}/movements",
+  "seg": "employee-assets"
+ },
+ {
+  "file": "hr.ts",
+  "line": 259,
+  "path": "/announcements/api/v1/announcements/${id}",
+  "seg": "announcements"
+ },
+ {
+  "file": "hr.ts",
+  "line": 260,
+  "path": "/announcements/api/v1/announcements",
+  "seg": "announcements"
+ },
+ {
+  "file": "hr.ts",
+  "line": 261,
+  "path": "/announcements/api/v1/announcements/me",
+  "seg": "announcements"
+ },
+ {
+  "file": "hr.ts",
+  "line": 262,
+  "path": "/announcements/api/v1/announcements/me/${id}/read",
+  "seg": "announcements"
+ },
+ {
+  "file": "hr.ts",
+  "line": 266,
+  "path": "/performance/api/v1/performance/dashboard?${p}",
+  "seg": "performance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 268,
+  "path": "/performance/api/v1/performance/generate",
+  "seg": "performance"
+ },
+ {
+  "file": "hr.ts",
+  "line": 275,
+  "path": "/shift-rotations/api/v1/shift-rotations",
+  "seg": "shift-rotations"
+ },
+ {
+  "file": "hr.ts",
+  "line": 276,
+  "path": "/shift-rotations/api/v1/shift-rotations/${id}",
+  "seg": "shift-rotations"
+ },
+ {
+  "file": "hr.ts",
+  "line": 279,
+  "path": "/shift-rotations/api/v1/shift-rotations/assignments",
+  "seg": "shift-rotations"
+ },
+ {
+  "file": "hr.ts",
+  "line": 300,
+  "path": "/hr-shifts/api/v1/hr-shifts",
+  "seg": "hr-shifts"
+ },
+ {
+  "file": "hr.ts",
+  "line": 301,
+  "path": "/hr-shifts/api/v1/hr-shifts/${id}",
+  "seg": "hr-shifts"
+ },
+ {
+  "file": "hr.ts",
+  "line": 302,
+  "path": "/hr-shifts/api/v1/hr-shifts/${id}",
+  "seg": "hr-shifts"
+ },
+ {
+  "file": "identity.ts",
+  "line": 12,
+  "path": "/auth/api/v1/auth/register",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 13,
+  "path": "/auth/api/v1/auth/otp/verify",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 14,
+  "path": "/auth/api/v1/auth/otp/resend",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 15,
+  "path": "/auth/api/v1/auth/login",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 16,
+  "path": "/auth/api/v1/auth/token/refresh",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 17,
+  "path": "/auth/api/v1/auth/me",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 19,
+  "path": "/auth/api/v1/auth/me",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 21,
+  "path": "/auth/api/v1/auth/me/avatar",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 26,
+  "path": "/auth/api/v1/auth/me/phone",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 27,
+  "path": "/auth/api/v1/auth/me/phone/confirm",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 34,
+  "path": "/auth/api/v1/auth/logout",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 37,
+  "path": "/auth/api/v1/access/matrix",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 40,
+  "path": "/auth/api/v1/sessions",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 56,
+  "path": "/auth/api/v1/auth/staff/invite",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 59,
+  "path": "/auth/api/v1/auth/staff/import",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 62,
+  "path": "/auth/api/v1/auth/staff/${id}/depot",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 64,
+  "path": "/auth/api/v1/auth/staff/${id}/status",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 67,
+  "path": "/auth/api/v1/auth/staff/${id}",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 69,
+  "path": "/auth/api/v1/auth/drivers",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 76,
+  "path": "/customers/api/v1/profile",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 80,
+  "path": "/customers/api/v1/profile/gallon-deposit",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 85,
+  "path": "/customers/api/v1/profile/notifications",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 90,
+  "path": "/crm/api/v1/notifications/me",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 93,
+  "path": "/crm/api/v1/notifications/ops",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 94,
+  "path": "/crm/api/v1/notifications/ops/${id}/read",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 95,
+  "path": "/crm/api/v1/notifications/ops/read-all",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 101,
+  "path": "/crm/api/v1/push/vapid-public-key",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 102,
+  "path": "/crm/api/v1/push/subscriptions",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 103,
+  "path": "/crm/api/v1/push/subscriptions",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 110,
+  "path": "/crm/api/v1/broadcasts",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 111,
+  "path": "/crm/api/v1/broadcasts/${id}/read",
+  "seg": "crm"
+ },
+ {
+  "file": "identity.ts",
+  "line": 116,
+  "path": "/customers/api/v1/payment-methods",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 117,
+  "path": "/customers/api/v1/payment-methods",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 119,
+  "path": "/customers/api/v1/payment-methods/${id}",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 120,
+  "path": "/customers/api/v1/payment-methods/${id}/default",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 125,
+  "path": "/customers/api/v1/addresses",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 126,
+  "path": "/customers/api/v1/addresses",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 128,
+  "path": "/customers/api/v1/addresses/${id}",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 129,
+  "path": "/customers/api/v1/addresses/${id}/primary",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 135,
+  "path": "/customers/api/v1/favorites",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 136,
+  "path": "/customers/api/v1/favorites",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 137,
+  "path": "/customers/api/v1/favorites/${productId}",
+  "seg": "customers"
+ },
+ {
+  "file": "identity.ts",
+  "line": 142,
+  "path": "/auth/api/v1/account/data-requests",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 143,
+  "path": "/auth/api/v1/account/data-requests/me",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 144,
+  "path": "/auth/api/v1/account/data-requests/me/export",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 147,
+  "path": "/auth/api/v1/account/data-requests/${id}/approve",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 149,
+  "path": "/auth/api/v1/account/consents",
+  "seg": "auth"
+ },
+ {
+  "file": "identity.ts",
+  "line": 153,
+  "path": "/auth/api/v1/account/data-requests/${id}/reject",
+  "seg": "auth"
+ },
+ {
+  "file": "insight.ts",
+  "line": 29,
+  "path": "/orders/api/v1/reports/customer/${customerId}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 53,
+  "path": "/orders/api/v1/reports/depot-daily?${p}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 60,
+  "path": "/orders/api/v1/reports/depot-daily/export?${p}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 64,
+  "path": "/orders/api/v1/reports/meter/${depotId}/${date}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 65,
+  "path": "/orders/api/v1/reports/meter/${depotId}/${date}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 79,
+  "path": "/orders/api/v1/reports/depot-weekly?${p}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 86,
+  "path": "/orders/api/v1/reports/depot-compare?${p}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 96,
+  "path": "/orders/api/v1/reports/depot-ratings?${p}",
+  "seg": "orders"
+ },
+ {
+  "file": "insight.ts",
+  "line": 155,
+  "path": "/forecast/api/v1/settings",
+  "seg": "forecast"
+ },
+ {
+  "file": "insight.ts",
+  "line": 156,
+  "path": "/forecast/api/v1/settings",
+  "seg": "forecast"
+ },
+ {
+  "file": "insight.ts",
+  "line": 215,
+  "path": "/crm/api/v1/campaigns",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 219,
+  "path": "/crm/api/v1/campaigns/depot",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 222,
+  "path": "/crm/api/v1/segments",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 223,
+  "path": "/crm/api/v1/segments/${id}",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 225,
+  "path": "/crm/api/v1/campaigns/${id}",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 226,
+  "path": "/crm/api/v1/campaigns/${id}/send",
+  "seg": "crm"
+ },
+ {
+  "file": "insight.ts",
+  "line": 234,
+  "path": "/customers/api/v1/customers/depot?${p}",
+  "seg": "customers"
+ },
+ {
+  "file": "insight.ts",
+  "line": 241,
+  "path": "/customers/api/v1/customers/import",
+  "seg": "customers"
+ },
+ {
+  "file": "insight.ts",
+  "line": 262,
+  "path": "/auth/api/v1/auth/audit/depot?${p}",
+  "seg": "auth"
+ },
+ {
+  "file": "money.ts",
+  "line": 12,
+  "path": "/payments/api/v1/payments/staff",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 13,
+  "path": "/payments/api/v1/payments",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 16,
+  "path": "/payments/api/v1/payments/methods",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 17,
+  "path": "/payments/api/v1/payments?orderId=${orderId}",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 19,
+  "path": "/payments/api/v1/payments/for-order/${orderId}",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 23,
+  "path": "/payments/api/v1/payments/for-orders",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 25,
+  "path": "/payments/api/v1/payments/${id}/confirm",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 28,
+  "path": "/payments/api/v1/payments/${id}/proof",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 49,
+  "path": "/payments/api/v1/tax-settings",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 50,
+  "path": "/payments/api/v1/tax-settings",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 64,
+  "path": "/payments/api/v1/payments/refunds/rules",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 65,
+  "path": "/payments/api/v1/payments/${id}/refund/approve",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 66,
+  "path": "/payments/api/v1/payments/${id}/refund/reject",
+  "seg": "payments"
+ },
+ {
+  "file": "money.ts",
+  "line": 71,
+  "path": "/payout/api/v1/payout/summary",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 79,
+  "path": "/payout/api/v1/payout/withdrawals",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 81,
+  "path": "/payout/api/v1/payout/hq/pending",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 82,
+  "path": "/payout/api/v1/payout/hq/release",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 84,
+  "path": "/payout/api/v1/payout/hq/owner/${ownerId}",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 89,
+  "path": "/payout/api/v1/courier/earnings/summary",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 94,
+  "path": "/payout/api/v1/courier/earning-rule",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 95,
+  "path": "/payout/api/v1/courier/withdrawals",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 98,
+  "path": "/payout/api/v1/courier/expenses",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 104,
+  "path": "/payout/api/v1/courier-earning-rules",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 105,
+  "path": "/payout/api/v1/courier-earning-rules",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 119,
+  "path": "/payout/api/v1/expenses/${id}/approve",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 120,
+  "path": "/payout/api/v1/expenses/${id}/reject",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 128,
+  "path": "/deliveries/api/v1/settlements?${p}",
+  "seg": "deliveries"
+ },
+ {
+  "file": "money.ts",
+  "line": 132,
+  "path": "/deliveries/api/v1/settlements/rules",
+  "seg": "deliveries"
+ },
+ {
+  "file": "money.ts",
+  "line": 133,
+  "path": "/deliveries/api/v1/settlements/${id}/verify",
+  "seg": "deliveries"
+ },
+ {
+  "file": "money.ts",
+  "line": 134,
+  "path": "/deliveries/api/v1/settlements/${id}/dispute",
+  "seg": "deliveries"
+ },
+ {
+  "file": "money.ts",
+  "line": 148,
+  "path": "/depots/api/v1/price-overrides/${id}/approve",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 149,
+  "path": "/depots/api/v1/price-overrides/${id}/reject",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 152,
+  "path": "/depots/api/v1/depots/${depotId}/price-overrides/import",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 154,
+  "path": "/depots/api/v1/price-overrides/count-by-product",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 159,
+  "path": "/payout/api/v1/commission/schemes",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 160,
+  "path": "/payout/api/v1/commission/schemes/apply",
+  "seg": "payout"
+ },
+ {
+  "file": "money.ts",
+  "line": 168,
+  "path": "/depots/api/v1/cashbook?${p}",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 170,
+  "path": "/depots/api/v1/cashbook",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 175,
+  "path": "/depots/api/v1/cashier-shifts",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 181,
+  "path": "/depots/api/v1/cashier-shifts/${id}/close",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 187,
+  "path": "/depots/api/v1/wholesale-tiers",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 188,
+  "path": "/depots/api/v1/wholesale-tiers/${id}",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 193,
+  "path": "/depots/api/v1/depots/${depotId}/pricing/rules",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 194,
+  "path": "/depots/api/v1/depots/${depotId}/pricing/rules",
+  "seg": "depots"
+ },
+ {
+  "file": "money.ts",
+  "line": 196,
+  "path": "/depots/api/v1/depots/${depotId}/pricing/rules/${id}",
+  "seg": "depots"
+ },
+ {
+  "file": "shop.ts",
+  "line": 39,
+  "path": "/products/api/v1/products/${id}",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 41,
+  "path": "/products/api/v1/products",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 42,
+  "path": "/products/api/v1/products/${id}",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 43,
+  "path": "/products/api/v1/products/${id}",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 49,
+  "path": "/products/api/v1/products/images",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 51,
+  "path": "/products/api/v1/categories",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 54,
+  "path": "/products/api/v1/categories/all",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 55,
+  "path": "/products/api/v1/categories",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 56,
+  "path": "/products/api/v1/categories/${id}",
+  "seg": "products"
+ },
+ {
+  "file": "shop.ts",
+  "line": 65,
+  "path": "/orders/api/v1/cart",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 66,
+  "path": "/orders/api/v1/cart/items",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 68,
+  "path": "/orders/api/v1/cart/items/${productId}",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 69,
+  "path": "/orders/api/v1/cart",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 73,
+  "path": "/orders/api/v1/orders/walk-in",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 75,
+  "path": "/orders/api/v1/orders/walk-in/quote",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 78,
+  "path": "/orders/api/v1/orders/walk-in/identify",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 80,
+  "path": "/orders/api/v1/orders/walk-in/${id}/void",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 81,
+  "path": "/orders/api/v1/orders/checkout",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 87,
+  "path": "/orders/api/v1/orders",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 88,
+  "path": "/orders/api/v1/orders/${id}",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 89,
+  "path": "/orders/api/v1/orders/${id}/cancel",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 90,
+  "path": "/orders/api/v1/orders/${id}/repeat",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 92,
+  "path": "/orders/api/v1/orders/${id}/review",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 93,
+  "path": "/orders/api/v1/orders/${id}/status",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 121,
+  "path": "/orders/api/v1/orders/manage/${id}",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 123,
+  "path": "/orders/api/v1/orders/manage/${id}/depot",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 128,
+  "path": "/orders/api/v1/subscriptions",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 129,
+  "path": "/orders/api/v1/subscriptions",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 130,
+  "path": "/orders/api/v1/subscriptions/${id}/pause",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 131,
+  "path": "/orders/api/v1/subscriptions/${id}/resume",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 132,
+  "path": "/orders/api/v1/subscriptions/${id}/cancel",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 136,
+  "path": "/orders/api/v1/subscriptions/${id}/address",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 142,
+  "path": "/orders/api/v1/subscriptions/admin/summary",
+  "seg": "orders"
+ },
+ {
+  "file": "shop.ts",
+  "line": 147,
+  "path": "/vouchers/api/v1/promotions",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 149,
+  "path": "/vouchers/api/v1/promotions/admin",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 150,
+  "path": "/vouchers/api/v1/promotions",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 152,
+  "path": "/vouchers/api/v1/promotions/${id}",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 153,
+  "path": "/vouchers/api/v1/promotions/${id}/analytics",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 157,
+  "path": "/referrals/api/v1/referrals/me",
+  "seg": "referrals"
+ },
+ {
+  "file": "shop.ts",
+  "line": 158,
+  "path": "/referrals/api/v1/referrals",
+  "seg": "referrals"
+ },
+ {
+  "file": "shop.ts",
+  "line": 167,
+  "path": "/loyalty/api/v1/rewards/catalog",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 168,
+  "path": "/loyalty/api/v1/rewards/redeem",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 170,
+  "path": "/loyalty/api/v1/rewards/redemptions/me",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 174,
+  "path": "/loyalty/api/v1/rewards/redemptions/${id}/cancel",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 175,
+  "path": "/loyalty/api/v1/rewards/redemptions/${id}/used",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 179,
+  "path": "/vouchers/api/v1/vouchers/quote",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 181,
+  "path": "/vouchers/api/v1/vouchers/me",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 183,
+  "path": "/vouchers/api/v1/vouchers/${id}/grant",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 185,
+  "path": "/vouchers/api/v1/vouchers?page=${page}&limit=${limit}",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 187,
+  "path": "/vouchers/api/v1/vouchers/burn-summary",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 188,
+  "path": "/vouchers/api/v1/vouchers",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 190,
+  "path": "/vouchers/api/v1/vouchers/${id}",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 203,
+  "path": "/vouchers/api/v1/voucher-requests/${id}/approve",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 204,
+  "path": "/vouchers/api/v1/voucher-requests/${id}/reject",
+  "seg": "vouchers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 222,
+  "path": "/loyalty/api/v1/loyalty/customers/${customerId}",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 225,
+  "path": "/loyalty/api/v1/loyalty/adjust",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 227,
+  "path": "/loyalty/api/v1/loyalty/members/count",
+  "seg": "loyalty"
+ },
+ {
+  "file": "shop.ts",
+  "line": 265,
+  "path": "/customers/api/v1/resellers",
+  "seg": "customers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 266,
+  "path": "/customers/api/v1/resellers/import",
+  "seg": "customers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 267,
+  "path": "/customers/api/v1/resellers/${customerId}",
+  "seg": "customers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 269,
+  "path": "/customers/api/v1/resellers/${customerId}/photo",
+  "seg": "customers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 271,
+  "path": "/customers/api/v1/resellers/${customerId}/price-changes",
+  "seg": "customers"
+ },
+ {
+  "file": "shop.ts",
+  "line": 282,
+  "path": "/customers/api/v1/resellers/me",
+  "seg": "customers"
+ }
+]

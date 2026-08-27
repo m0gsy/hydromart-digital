@@ -35,6 +35,31 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1000000,
     envDefault: 1000,
   },
+  // PAR-01. The expiry sweep's own switch, and it ships OFF.
+  //
+  // BR-014 has been implemented and unreachable since it was written: `runExpiry` exists,
+  // is idempotent, is tested — and no scheduler ever called it, so no point has ever
+  // expired in production. Wiring it to the scheduler without a switch would, on the first
+  // deploy, expire every lot that has been quietly accumulating past its window since
+  // launch. That is a decision about customers' balances, not a deployment detail.
+  //
+  // So: connected, scheduled, and inert until somebody sets this to 1. The sweep says
+  // plainly in its own response that it is off, rather than answering "0 lots" — which is
+  // indistinguishable from a working sweep with nothing due, and is exactly the silence
+  // that let BR-014 sit unreachable in the first place.
+  //
+  // int 0/1 because the settings framework has no boolean type; adding one for a single
+  // flag would be a change to six services for a field two values wide.
+  {
+    key: 'pointExpirySweepEnabled',
+    label: 'Jalankan hangus poin otomatis',
+    type: 'int',
+    unit: '0=mati, 1=hidup',
+    min: 0,
+    max: 1,
+    envDefault: 0,
+    global: true,
+  },
   {
     key: 'pointExpiryMonths',
     label: 'Masa berlaku poin',
