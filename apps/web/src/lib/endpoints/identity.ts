@@ -151,6 +151,12 @@ pdp: {
   approve: (id: string) => `/auth/api/v1/account/data-requests/${id}/approve`,
   // UU PDP tahap 2 — the consent ledger.
   consents: '/auth/api/v1/account/consents',
+  /*
+   * Every consent decision the person has made, oldest first — built for UU PDP and
+   * reachable from no screen, so the one thing the law is about ("what did I agree to, and
+   * when") could be answered by the server and not by the app.
+   */
+  consentHistory: '/auth/api/v1/account/consents/history',
   // (consentHistory removed, audit F: the consent LEDGER is written and read by the purge
   // engine, but no screen has ever shown a customer their own consent history. The route
   // stays live in auth-service; this table lists what the app calls.)

@@ -71,6 +71,16 @@ export const en: Dictionary = {
       logoutAllError: 'Could not sign out of all devices.',
       empty: 'No active sessions.',
       loadError: 'Could not load your devices.',
+    consentHistory: {
+      title: 'Consent history',
+      show: 'Show history',
+      hide: 'Hide history',
+      granted: 'Granted',
+      withdrawn: 'Withdrawn',
+      version: 'version {v}',
+      via: 'via {source}',
+      empty: 'No decision recorded yet.',
+      loadError: 'Could not load your consent history.',
     },
     privacyData: {
       title: 'My personal data',

@@ -87,9 +87,21 @@ payout: {
 // Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
 courierPayout: {
   summary: '/payout/api/v1/courier/earnings/summary',
-  // (ledger removed, audit F: `summary` above already carries `recentEntries`, and that is
-  // what /driver/earnings renders. A PAGED full history is a screen nobody has built — when
-  // one is built, add the entry back with it.)
+  /*
+   * Back, with the screen that note asked for: /driver/earnings/history.
+   *
+   * It said "a PAGED full history is a screen nobody has built — when one is built, add the
+   * entry back with it". Nobody built it, so a courier saw the last few movements off
+   * `summary.recentEntries` and had no way at all to see last month. That is money they
+   * were paid.
+   */
+  ledger: (q: { page?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    const qs = p.toString();
+    return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
+  },
   // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
   earningRule: '/payout/api/v1/courier/earning-rule',
   withdraw: '/payout/api/v1/courier/withdrawals',

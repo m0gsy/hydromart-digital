@@ -72,6 +72,16 @@ export const id = {
       logoutAllError: 'Gagal keluar dari semua perangkat.',
       empty: 'Tidak ada sesi aktif.',
       loadError: 'Gagal memuat daftar perangkat.',
+    consentHistory: {
+      title: 'Riwayat persetujuan',
+      show: 'Lihat riwayat',
+      hide: 'Sembunyikan riwayat',
+      granted: 'Disetujui',
+      withdrawn: 'Ditarik',
+      version: 'versi {v}',
+      via: 'lewat {source}',
+      empty: 'Belum ada keputusan tercatat.',
+      loadError: 'Gagal memuat riwayat persetujuan.',
     },
     privacyData: {
       title: 'Data pribadi saya',

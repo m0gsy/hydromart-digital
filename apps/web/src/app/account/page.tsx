@@ -67,6 +67,7 @@ import type {
   Customer,
   ConsentState,
   DeviceSession,
+  ConsentHistoryEntry,
   DataSubjectRequest,
   DataSubjectRequestType,
   LoyaltyAccount,
@@ -375,6 +376,10 @@ function ConsentBody() {
     api.get(endpoints.pdp.consents, true),
   );
   const [pending, setPending] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const history = useAsync<ConsentHistoryEntry[]>(() =>
+    api.get(endpoints.pdp.consentHistory, true),
+  );
 
   async function toggle(row: ConsentState, granted: boolean) {
     setPending(row.purpose);
@@ -423,6 +428,63 @@ function ConsentBody() {
               }
             />
           ))}
+        </div>
+      )}
+
+      {/*
+        The history, and the reason it belongs on the same sheet rather than its own screen.
+        UU PDP is about being able to answer "what did I agree to, and when" — the toggles
+        above answer only "what is true now". `GET /account/consents/history` was built for
+        exactly that and reachable from nowhere, so the evidence existed and the person it
+        was about could not see it.
+
+        Collapsed by default: the current state is what somebody opens this sheet for.
+      */}
+      <button
+        type="button"
+        onClick={() => setShowHistory((v) => !v)}
+        className="mt-4 text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+      >
+        {t(showHistory ? 'account.consentHistory.hide' : 'account.consentHistory.show')}
+      </button>
+
+      {showHistory && (
+        <div className="mt-2">
+          <h3 className="text-sm font-bold">{t('account.consentHistory.title')}</h3>
+          {history.loading ? (
+            <Skeleton className="mt-2 h-20 w-full rounded-xl" />
+          ) : history.error ? (
+            <ErrorState
+              message={history.error ?? t('account.consentHistory.loadError')}
+              onRetry={history.reload}
+            />
+          ) : (history.data ?? []).length === 0 ? (
+            <p className="mt-2 text-sm text-muted">{t('account.consentHistory.empty')}</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-2">
+              {(history.data ?? []).map((row) => (
+                <li key={row.id} className="rounded-xl border border-app px-3 py-2 text-[13px]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold">
+                      {t(`account.consents.purpose.${row.purpose}`)}
+                    </span>
+                    <Chip tone={row.granted ? 'success' : 'outline'}>
+                      {t(
+                        row.granted
+                          ? 'account.consentHistory.granted'
+                          : 'account.consentHistory.withdrawn',
+                      )}
+                    </Chip>
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-muted">
+                    {formatDateTime(row.recordedAt)} ·{' '}
+                    {t('account.consentHistory.version', { v: row.documentVersion })} ·{' '}
+                    {t('account.consentHistory.via', { source: row.source })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
