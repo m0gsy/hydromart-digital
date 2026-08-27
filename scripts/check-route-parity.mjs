@@ -86,6 +86,14 @@ function declaredRoutes(service) {
       const from = controllers[i].index;
       const to = i + 1 < controllers.length ? controllers[i + 1].index : text.length;
       const body = text.slice(from, to);
+      /*
+       * The class's OWN decorators sit ABOVE `@Controller(...)`, so they are outside
+       * `body` — and `@UseGuards(ApiKeyGuard)` is written there, on the class, because the
+       * whole controller is the partner surface. Looking only inside the body found the
+       * guard on the admin-side controller (where it is per-route) and missed the partner
+       * one entirely, which is the case this exists for.
+       */
+      const classHead = text.slice(Math.max(0, from - 500), from);
       for (const m of body.matchAll(/@(Get|Post|Put|Patch|Delete)\(\s*(?:'([^']*)')?\s*\)/g)) {
         // The decorators immediately above this verb — where @UseGuards(InternalAuthGuard)
         // sits when a route is service-to-service.
@@ -96,6 +104,19 @@ function declaredRoutes(service) {
           method: m[1].toUpperCase(),
           path: splitPath(`${base}/${m[2] ?? ''}`),
           internalGuard: /InternalAuthGuard/.test(preceding),
+          /*
+           * ApiKeyGuard is the PARTNER surface: an external integrator authenticating with
+           * an API key, from their own system. Its caller is not in this repo and never
+           * will be, so looking for one here can only ever fail — `partner/deliveries` and
+           * its replay were reported as orphans for exactly that reason.
+           *
+           * Read off `body`, not `preceding`: this guard is written at CLASS level (the
+           * whole controller is the partner API), which is above every route in the file
+           * and further than 600 characters from most of them.
+           */
+          apiKeyGuard:
+            /@UseGuards\([^)]*ApiKeyGuard/.test(body) ||
+            /@UseGuards\([^)]*ApiKeyGuard/.test(classHead),
         });
       }
     }
@@ -205,6 +226,10 @@ const INTERNAL_SEGMENTS = new Set(['internal', 'health', 'healthz', 'webhook', '
 
 function classify(route, clientByService, callerPaths) {
   if (route.internalGuard) return 'internal';
+  // Same reasoning as internal, different audience: a partner API's caller is outside this
+  // repo by definition. Counted in its own class rather than folded into `internal`, so the
+  // number stays honest — this surface IS reachable by somebody, just not by us.
+  if (route.apiKeyGuard) return 'partner';
   if (route.path.some((s) => INTERNAL_SEGMENTS.has(s))) return 'internal';
 
   const fromUi = clientByService[route.service] ?? [];
@@ -228,7 +253,7 @@ for (const path of clientPaths()) {
 }
 const callerPaths = nonWebCallers().map((p) => splitPath(p).slice(2)); // drop api/v1
 
-const counts = { ui: 0, internal: 0, caller: 0, orphan: 0 };
+const counts = { ui: 0, internal: 0, partner: 0, caller: 0, orphan: 0 };
 const orphans = [];
 for (const service of services) {
   for (const route of declaredRoutes(service)) {
@@ -246,6 +271,7 @@ orphans.sort();
 const total = counts.ui + counts.internal + counts.caller + counts.orphan;
 const summary =
   `${total} routes — ${counts.ui} reachable from a screen, ${counts.internal} internal, ` +
+    `${counts.partner} partner API, ` +
   `${counts.caller} called by something else, ${counts.orphan} orphaned`;
 
 if (process.argv.includes('--list')) {
