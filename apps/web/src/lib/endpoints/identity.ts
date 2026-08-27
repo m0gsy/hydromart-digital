@@ -32,6 +32,10 @@ auth: {
   customersByIds: (ids: string[]) =>
     `/auth/api/v1/auth/customers/by-ids?ids=${encodeURIComponent(ids.join(','))}`,
   logout: '/auth/api/v1/auth/logout',
+  // PAR-16: revoke EVERY session at once. Built with the sessions list, and until the
+  // devices sheet in /account there was no screen anywhere that could call it — so the one
+  // thing a customer needs the moment their phone is stolen was unreachable.
+  logoutAll: '/auth/api/v1/auth/logout/all',
   // RBAC matrix (F2): read the effective map, retune or reset one capability. Writes
   // are accessMatrixWrite (super-admin by default) and reach the guards within a TTL.
   matrix: '/auth/api/v1/access/matrix',

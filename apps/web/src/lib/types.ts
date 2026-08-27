@@ -58,6 +58,18 @@ export interface DepotTeamReport {
 // SEC-4: the access/refresh tokens now live in httpOnly cookies the gateway sets and
 // reads — JS never sees them. The client-visible session is just the cached profile;
 // the cookie is the real credential (validated on every request server-side).
+/**
+ * PAR-16: one signed-in device, as `GET /auth/api/v1/sessions` returns it. Named for what
+ * it is on screen — `Session` was already taken by the token bundle sign-in returns.
+ */
+export interface DeviceSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
 export interface Session {
   customer: Customer;
 }
@@ -437,6 +449,12 @@ export interface RewardItem {
   imageUrl: string | null;
   /** Remaining stock; null = unlimited. */
   stock: number | null;
+  /**
+   * PAR-04: false = retired. Absent from `/rewards/catalog`, which only ever returns the
+   * live ones — the management list (`/rewards/items`) is where a retired row is visible,
+   * and being able to see one is what makes restoring it possible.
+   */
+  active?: boolean;
 }
 
 /** Result of redeeming points for a reward (loyalty /rewards/redeem). */

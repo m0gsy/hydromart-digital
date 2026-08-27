@@ -66,6 +66,7 @@ import { formatDateTime } from '@/lib/format';
 import type {
   Customer,
   ConsentState,
+  DeviceSession,
   DataSubjectRequest,
   DataSubjectRequestType,
   LoyaltyAccount,
@@ -618,14 +619,122 @@ function PrefsBody() {
   );
 }
 
+/* ---------- Devices & sessions (sheet body) — PAR-16 ---------- */
+/**
+ * `GET /sessions`, `POST /sessions/:id/revoke` and `POST /auth/logout/all` all existed and
+ * were reachable from no screen in the app. The last one is the one that matters: "sign out
+ * everywhere" is what a person needs the moment their phone is stolen, and the only way to
+ * run it was a hand-made HTTP request.
+ *
+ * `endpoints.auth.sessions` being declared in the endpoints table was enough to make the
+ * route-parity gate call the first two "reachable from a screen" — a table entry is not a
+ * screen, and that is worth knowing about that gate.
+ */
+function DevicesBody() {
+  const { t } = useT();
+  const { toast } = useToast();
+  const { signOut } = useAuth();
+  const { data, error, loading, reload } = useAsync<DeviceSession[]>(() =>
+    api.get(endpoints.auth.sessions, true),
+  );
+  const [pending, setPending] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+
+  async function revoke(id: string) {
+    setPending(id);
+    try {
+      await api.post(endpoints.auth.revokeSession(id), {}, true);
+      toast(t('account.devices.revoked'), 'success');
+      reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.devices.revokeError'), 'error');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function logoutAll() {
+    setPending('all');
+    try {
+      await api.post(endpoints.auth.logoutAll, {}, true);
+      toast(t('account.devices.loggedOutAll'), 'success');
+      // This device's own session is among the ones just revoked, so staying signed in
+      // locally would leave the app holding a token the server no longer honours — every
+      // later request a 401 with no explanation.
+      signOut();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.devices.logoutAllError'), 'error');
+      setPending(null);
+    }
+  }
+
+  const sessions = data ?? [];
+
+  return (
+    <div>
+      <p className="mb-1 text-sm text-muted">{t('account.devices.body')}</p>
+      {loading ? (
+        <Skeleton className="h-24 w-full rounded-xl" />
+      ) : error ? (
+        <ErrorState message={error ?? t('account.devices.loadError')} onRetry={reload} />
+      ) : sessions.length === 0 ? (
+        <p className="py-4 text-sm text-muted">{t('account.devices.empty')}</p>
+      ) : (
+        <div className="divide-y divide-[color:var(--border-soft)]">
+          {sessions.map((row) => (
+            <ListRow
+              key={row.id}
+              title={row.userAgent?.trim() || t('account.devices.unknownDevice')}
+              subtitle={`${t('account.devices.since', {
+                date: formatDateTime(row.createdAt),
+              })} · ${row.ipAddress ?? '—'}`}
+              trailing={
+                <Button
+                  variant="ghost"
+                  disabled={pending !== null}
+                  onClick={() => void revoke(row.id)}
+                >
+                  {t('account.devices.revoke')}
+                </Button>
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      <Button
+        className="mt-4 w-full"
+        variant="danger"
+        disabled={pending !== null || sessions.length === 0}
+        onClick={() => setConfirmAll(true)}
+      >
+        {t('account.devices.logoutAll')}
+      </Button>
+
+      <ConfirmDialog
+        open={confirmAll}
+        title={t('account.devices.logoutAll')}
+        message={t('account.devices.logoutAllConfirm')}
+        confirmLabel={t('account.devices.logoutAll')}
+        onClose={() => setConfirmAll(false)}
+        onConfirm={() => {
+          setConfirmAll(false);
+          void logoutAll();
+        }}
+      />
+    </div>
+  );
+}
+
 /* ---------- The four settings that have no route of their own ---------- */
-type SheetKey = 'payments' | 'prefs' | 'privacyData' | 'consents';
+type SheetKey = 'payments' | 'prefs' | 'privacyData' | 'consents' | 'devices';
 
 const SHEETS = [
   { key: 'payments', titleKey: 'account.payments.title', icon: CreditCard, Body: PaymentsBody },
   { key: 'prefs', titleKey: 'account.prefs.title', icon: SlidersHorizontal, Body: PrefsBody },
   { key: 'privacyData', titleKey: 'account.privacyData.title', icon: ShieldCheck, Body: PrivacyDataBody },
   { key: 'consents', titleKey: 'account.consents.title', icon: ClipboardText, Body: ConsentBody },
+  { key: 'devices', titleKey: 'account.devices.title', icon: DeviceMobile, Body: DevicesBody },
 ] as const satisfies readonly { key: SheetKey; titleKey: string; icon: typeof Money; Body: () => React.ReactNode }[];
 
 /* ---------- Profile card ---------- */
