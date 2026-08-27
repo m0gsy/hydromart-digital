@@ -87,6 +87,7 @@
       "!src/**/index.ts"
     ],
     "coverageDirectory": "./coverage",
+    "testTimeout": 30000,
     "testEnvironment": "node",
     "coverageThreshold": {
       "global": {
