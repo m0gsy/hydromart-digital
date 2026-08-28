@@ -566,6 +566,44 @@ if health_ok; then
     fi
   fi
 
+  # 1c. A franchise depot with no commission scheme.
+  #
+  # The detector in order-service alerts when an ORDER books 0% — but only once an order has
+  # been placed. This asks the question before that: which active WARALABA depots have no
+  # `commission_schemes` row at all. `check-launch-blockers.mjs` already performs exactly this
+  # query and, like L2.3, has never run on the box.
+  #
+  # Two databases, so two queries and the join is here. hydromart_payout keys schemes by
+  # depotId; hydromart_depot knows which depots are franchises.
+  if docker exec "$PG" true >/dev/null 2>&1; then
+    FRANCHISE="$(docker exec "$PG" psql -U hydromart -d hydromart_depot -tAc       "SELECT coalesce(string_agg(id::text || '=' || code, ',' ORDER BY code), '') FROM depots
+        WHERE active AND \"ownershipType\" = 'WARALABA' AND code !~ '^(E2E|UAT|HIER|DEMO)-'" 2>/dev/null || echo 'unreadable')"
+    if [ "$FRANCHISE" = "unreadable" ]; then
+      log "!! the franchise commission probe could not read hydromart_depot; it is proving NOTHING."
+      alert "franchise commission probe cannot read hydromart_depot"
+    elif [ -z "$FRANCHISE" ]; then
+      log "franchise commission probe — no active WARALABA depot yet, so nothing to cover"
+    else
+      SCHEMED="$(docker exec "$PG" psql -U hydromart -d hydromart_payout -tAc         "SELECT coalesce(string_agg(DISTINCT \"depotId\"::text, ','), '') FROM commission_schemes" 2>/dev/null || echo '')"
+      UNCOVERED=''
+      for PAIR in $(printf '%s' "$FRANCHISE" | tr ',' ' '); do
+        DID="${PAIR%%=*}"
+        case ",$SCHEMED," in
+          *",$DID,"*) ;;
+          *) UNCOVERED="$UNCOVERED ${PAIR#*=}" ;;
+        esac
+      done
+      if [ -z "$UNCOVERED" ]; then
+        log "franchise commission probe — every active WARALABA depot has a commission scheme"
+      else
+        log "!! franchise depots with NO commission_schemes row:$UNCOVERED"
+        log "   payout falls back to 0%, so HQ takes nothing and the ledger still balances —"
+        log "   there is no broken thing to notice, only money that never arrived."
+        alert "franchise depots with no commission scheme:$UNCOVERED - HQ is taking 0%"
+      fi
+    fi
+  fi
+
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
   #

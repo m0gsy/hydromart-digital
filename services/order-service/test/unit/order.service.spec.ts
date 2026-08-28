@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import * as alerter from '@hydromart/platform';
 
 import { Logger } from '@nestjs/common';
 
@@ -241,7 +242,6 @@ describe('OrderService', () => {
     });
   });
 
-
   // The reconciliation reads litres off the ORDER LINE, not the live catalog. If the
   // snapshot ever stops being written, every meter comparison silently reports the
   // whole day's production as unaccounted-for water. These two guard that.
@@ -375,9 +375,7 @@ describe('OrderService', () => {
         throw new Error('history table down');
       };
 
-      await expect(
-        service.checkout(customer, { deliveryAddress: address }),
-      ).resolves.toBeDefined();
+      await expect(service.checkout(customer, { deliveryAddress: address })).resolves.toBeDefined();
     });
   });
 
@@ -663,10 +661,16 @@ describe('OrderService', () => {
     it('returns the first order when the same Idempotency-Key is retried', async () => {
       await addToCart(20000, 2);
 
-      const first = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      const first = await service.checkout(customer, {
+        deliveryAddress: address,
+        idempotencyKey: key,
+      });
       // The retry finds an empty cart — checkout clears it — so a service that did not
       // recognise the key would not merely double-order here, it would throw.
-      const second = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      const second = await service.checkout(customer, {
+        deliveryAddress: address,
+        idempotencyKey: key,
+      });
 
       expect(second.id).toBe(first.id);
       expect(orders.rows).toHaveLength(1);
@@ -706,8 +710,16 @@ describe('OrderService', () => {
       promo.quoteDiscount = 5000;
 
       const [a, b] = await Promise.all([
-        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
-        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+        service.checkout(customer, {
+          deliveryAddress: address,
+          idempotencyKey: key,
+          voucherCode: 'HEMAT10',
+        }),
+        service.checkout(customer, {
+          deliveryAddress: address,
+          idempotencyKey: key,
+          voucherCode: 'HEMAT10',
+        }),
       ]);
 
       expect(orders.rows).toHaveLength(1);
@@ -726,7 +738,11 @@ describe('OrderService', () => {
       jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
 
       await expect(
-        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+        service.checkout(customer, {
+          deliveryAddress: address,
+          idempotencyKey: key,
+          voucherCode: 'HEMAT10',
+        }),
       ).rejects.toBeInstanceOf(DuplicateCheckoutError);
       expect(promo.releaseCalls).toHaveLength(1);
     });
@@ -742,7 +758,11 @@ describe('OrderService', () => {
       // the way out. (The voucher stays burned in that case — a stuck redemption is worse
       // reported than a wrong error, and promo-service being down is its own alert.)
       await expect(
-        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key, voucherCode: 'HEMAT10' }),
+        service.checkout(customer, {
+          deliveryAddress: address,
+          idempotencyKey: key,
+          voucherCode: 'HEMAT10',
+        }),
       ).rejects.toBeInstanceOf(DuplicateCheckoutError);
     });
 
@@ -843,7 +863,10 @@ describe('OrderService', () => {
       await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
       await cartService.setItem(other, product, 1, false);
 
-      const theirs = await service.checkout(other, { deliveryAddress: address, idempotencyKey: key });
+      const theirs = await service.checkout(other, {
+        deliveryAddress: address,
+        idempotencyKey: key,
+      });
 
       expect(orders.rows).toHaveLength(2);
       expect(theirs.customerId).toBe(other);
@@ -942,7 +965,9 @@ describe('OrderService', () => {
     });
 
     it('J7 · a round with nobody due is ok, and says nothing failed', async () => {
-      await expect(service.remindStaleCustomers(new Date('2020-01-02T00:00:00.000Z'))).resolves.toEqual({
+      await expect(
+        service.remindStaleCustomers(new Date('2020-01-02T00:00:00.000Z')),
+      ).resolves.toEqual({
         reminded: 0,
         failed: 0,
         ok: true,
@@ -1214,7 +1239,6 @@ describe('OrderService', () => {
       await service.checkout(customer, { deliveryAddress: address });
       expect(notification.calls.some((c) => c.event === 'ORDER_RECEIVED')).toBe(true);
     });
-
   });
 
   it('reviews a delivered order once, then rejects a second review (spec 7c)', async () => {
@@ -1466,7 +1490,12 @@ describe('OrderService', () => {
 
   it('applies reseller percent discount and skips membership + voucher', async () => {
     await addToCart(20000, 1); // subtotal 20000
-    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
+    resellerDiscount.result = {
+      active: true,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'depot-home',
+    };
     membership.rate = 0.05; // must be ignored
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(2000); // 10% of 20000, membership 5% ignored
@@ -1515,7 +1544,12 @@ describe('OrderService', () => {
       depots.depots = [nearDepot];
       const productId = await addToCart(22000, 10);
       pricing.setTier('depot-near', productId, 10, 5500);
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 10,
+        flatGallonPriceIdr: 0,
+        homeDepotId: 'depot-home',
+      };
       const order = await service.checkout(customer, { deliveryAddress: routed }, 'Bearer tok');
       expect(order.subtotal).toBe(55000);
       expect(order.discount).toBe(0);
@@ -1526,7 +1560,12 @@ describe('OrderService', () => {
   describe('flat reseller galon price', () => {
     it('discounts each galon line down to the flat price', async () => {
       await addToCart(8000, 3); // 3 × Rp8.000 = 24.000 listed
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       membership.rate = 0.05; // must be ignored — reseller pricing replaces it
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.subtotal).toBe(24000);
@@ -1537,7 +1576,12 @@ describe('OrderService', () => {
     // the membership+voucher path and is never charged the agen price at all.
     it('is a reseller even with no discount percent at all', async () => {
       await addToCart(8000, 1);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       membership.rate = 0.05;
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(3000); // flat price, not 5% membership (400)
@@ -1546,14 +1590,24 @@ describe('OrderService', () => {
 
     it('wins over the percentage when both are set', async () => {
       await addToCart(8000, 1);
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 10,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(3000); // not 800
     });
 
     it('never marks a line up that already sits below the flat price', async () => {
       await addToCart(4000, 2);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(0);
     });
@@ -1561,7 +1615,12 @@ describe('OrderService', () => {
     it('leaves non-galon lines at list price', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: false });
       await cartService.setItem(customer, p.id, 2, false);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
       expect(order.discount).toBe(0);
     });
@@ -1579,7 +1638,12 @@ describe('OrderService', () => {
       ];
       const productId = await addToCart(8000, 10);
       pricing.setTier('depot-near', productId, 10, 5500);
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: 'depot-home' };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: 'depot-home',
+      };
       const order = await service.checkout(
         customer,
         { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
@@ -1592,7 +1656,12 @@ describe('OrderService', () => {
 
   it('rejects a voucher for an active reseller', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
+    resellerDiscount.result = {
+      active: true,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'depot-home',
+    };
     await expect(
       service.checkout(
         customer,
@@ -1612,7 +1681,12 @@ describe('OrderService', () => {
 
   it('ignores a deactivated reseller and falls back to normal pricing', async () => {
     await addToCart(20000, 1);
-    resellerDiscount.result = { active: false, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
+    resellerDiscount.result = {
+      active: false,
+      discountPct: 10,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'depot-home',
+    };
     membership.rate = 0.05;
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(1000); // reseller gated off; membership applies instead
@@ -1959,9 +2033,9 @@ describe('OrderService', () => {
     it('rejects checkout while the depot directory is unreachable', async () => {
       await addToCart(20000, 1);
       depots.unreachable = true;
-      await expect(
-        service.checkout(customer, { deliveryAddress: address }),
-      ).rejects.toBeInstanceOf(DepotUnavailableError);
+      await expect(service.checkout(customer, { deliveryAddress: address })).rejects.toBeInstanceOf(
+        DepotUnavailableError,
+      );
       expect(orders.rows).toHaveLength(0);
     });
   });
@@ -2708,9 +2782,7 @@ describe('OrderService', () => {
       jest.spyOn(orders, 'appendNote').mockRejectedValue(new Error('db down'));
       await addToCart(20_000, 2);
 
-      await expect(
-        service.checkout(customer, { deliveryAddress: address }),
-      ).resolves.toBeDefined();
+      await expect(service.checkout(customer, { deliveryAddress: address })).resolves.toBeDefined();
     });
   });
 
@@ -2831,6 +2903,64 @@ describe('OrderService franchise revenue on completion', () => {
       depotId: depot.id,
       amountIdr: order.total,
     });
+  });
+
+  /*
+   * A franchise depot taking a 0% commission.
+   *
+   * `payout.service.ts:179` is `(await this.schemes.currentForDepot(depotId))?.pct ?? 0`, so a
+   * WARALABA depot with no `commission_schemes` row accrues nothing for HQ — and the ledger
+   * BALANCES, the statement PRINTS, and every number reconciles. There is no broken thing to
+   * notice, only money that never arrived.
+   *
+   * This is the ownerId guard's other half: that one asks "is there a ledger to credit", this
+   * one asks "is there a rate to credit it at", and for a franchise the answer is never zero.
+   */
+  it('alerts when a franchise depot books a 0% commission, because nothing else would show it', async () => {
+    const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+    const { service, order, revenue } = await build(true);
+    revenue.nextResult = { commissionPct: 0 };
+
+    await complete(service, order.id);
+
+    expect(revenue.posted).toHaveLength(1);
+    expect(alerted).toHaveBeenCalledTimes(1);
+    const said = String((alerted.mock.calls[0]![0] as { exception: Error }).exception.message);
+    expect(said).toContain(order.orderNumber);
+    expect(said).toContain('commission_schemes');
+    alerted.mockRestore();
+  });
+
+  it('says nothing when the franchise commission is a real rate', async () => {
+    const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+    const { service, order, revenue } = await build(true);
+    revenue.nextResult = { commissionPct: 15 };
+    await complete(service, order.id);
+    expect(alerted).not.toHaveBeenCalled();
+    alerted.mockRestore();
+  });
+
+  /*
+   * The push fails OPEN, so `null` means the answer never arrived — payout being down is an
+   * outage, and reporting it as a commission of zero would send somebody hunting a scheme row
+   * that is probably right there.
+   */
+  it('does not report a commission finding when payout never answered', async () => {
+    const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+    const { service, order, revenue } = await build(true);
+    revenue.nextResult = null;
+    await complete(service, order.id);
+    expect(alerted).not.toHaveBeenCalled();
+    alerted.mockRestore();
+  });
+
+  // An HKP depot legitimately takes 0%: HQ owns it, there is no commission to take.
+  it('does not alert for a company-owned depot, where zero is the right answer', async () => {
+    const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+    const { service, order } = await build(false, 'HKP');
+    await complete(service, order.id);
+    expect(alerted).not.toHaveBeenCalled();
+    alerted.mockRestore();
   });
 
   it('posts nothing, and says nothing, for a company-owned depot', async () => {

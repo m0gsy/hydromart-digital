@@ -4,6 +4,7 @@ import { OrderConfigService } from '../../config/order-config.service';
 import {
   FranchiseRevenuePort,
   OrderRevenueEvent,
+  RevenuePostResult,
 } from '../../application/ports/franchise-revenue.port';
 
 /**
@@ -21,13 +22,14 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async orderCompleted(event: OrderRevenueEvent): Promise<void> {
+  async orderCompleted(event: OrderRevenueEvent): Promise<RevenuePostResult | null> {
     const { payoutServiceUrl, internalServiceKey } = this.config;
     if (!payoutServiceUrl || !internalServiceKey) {
       this.logger.debug(
         `Franchise revenue push skipped (payout integration disabled): ${event.orderNumber}`,
       );
-      return;
+      // Integration off is "no answer", not "commission of zero".
+      return null;
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FranchiseRevenueHttpAdapter.TIMEOUT_MS);
@@ -49,10 +51,22 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
       if (!res.ok) {
         throw new Error(`payout-service responded ${res.status}`);
       }
+      /*
+       * Read the body. It was thrown away, and that single omission is why a WARALABA depot
+       * with no commission_schemes row could accrue 0% for HQ on every order with nothing
+       * anywhere reporting it: payout returns `commissionPct` here and always has
+       * (payout.service.ts:122), and nobody was listening.
+       *
+       * Parsed defensively — this whole path fails OPEN, so a body that is not the shape we
+       * expect must read as "no answer", never as a commission of zero.
+       */
+      const body = (await res.json().catch(() => null)) as { commissionPct?: unknown } | null;
+      return typeof body?.commissionPct === 'number' ? { commissionPct: body.commissionPct } : null;
     } catch (error) {
       this.logger.warn(
         `Franchise revenue push failed for ${event.orderNumber}: ${(error as Error).message}`,
       );
+      return null;
     } finally {
       clearTimeout(timer);
     }

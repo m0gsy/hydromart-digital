@@ -52,11 +52,9 @@ import {
 import {
   FranchiseRevenuePort,
   OrderRevenueEvent,
+  RevenuePostResult,
 } from '../../src/application/ports/franchise-revenue.port';
-import {
-  GallonIssueEvent,
-  GallonIssuePort,
-} from '../../src/application/ports/gallon-issue.port';
+import { GallonIssueEvent, GallonIssuePort } from '../../src/application/ports/gallon-issue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
@@ -358,7 +356,12 @@ export class InMemoryOrderRepository implements OrderRepository {
   /** History rows written without a transition (catalog-pricing marker, design 4b). */
   notes: { id: string; status: OrderStatus; changedBy: string; note: string }[] = [];
 
-  async appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void> {
+  async appendNote(
+    id: string,
+    status: OrderStatus,
+    changedBy: string,
+    note: string,
+  ): Promise<void> {
     this.notes.push({ id, status, changedBy, note });
   }
 
@@ -467,12 +470,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     this.refunds.set(orderId, amount);
   }
 
-  async voidWalkIn(
-    id: string,
-    reason: string,
-    changedBy: string,
-    at: Date,
-  ): Promise<OrderRecord> {
+  async voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id);
     // Mirrors the guarded UPDATE: only a COMPLETED counter sale flips, so a second void
     // finds nothing to change and is rejected exactly as it is against Postgres.
@@ -727,7 +725,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     return structuredClone(r);
   }
   /** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
-  async setDeliveryAddress(id: string, address: DeliveryAddressSnapshot): Promise<SubscriptionRecord> {
+  async setDeliveryAddress(
+    id: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;
     Object.assign(r, address);
     r.updatedAt = nextDate();
@@ -851,8 +852,11 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
   voided: { orderId: string; reason: string }[] = [];
   /** When set, orderVoided throws it — payout down while a void is in flight. */
   voidError: Error | null = null;
-  async orderCompleted(event: OrderRevenueEvent): Promise<void> {
+  /** What payout "decided" for the next push. null = the push did not land (fails OPEN). */
+  nextResult: RevenuePostResult | null = { commissionPct: 15 };
+  async orderCompleted(event: OrderRevenueEvent): Promise<RevenuePostResult | null> {
     this.posted.push(event);
+    return this.nextResult;
   }
   async orderVoided(orderId: string, reason: string): Promise<void> {
     if (this.voidError) throw this.voidError;
@@ -1180,7 +1184,11 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
   /** phone -> customer id, as customer-service would resolve it. Empty = unreachable. */
   readonly byPhone = new Map<string, string>();
   readonly resolveCalls: { phone: string; fullName: string | null; depotId: string }[] = [];
-  async resolveByPhone(phone: string, fullName: string | null, depotId: string): Promise<string | null> {
+  async resolveByPhone(
+    phone: string,
+    fullName: string | null,
+    depotId: string,
+  ): Promise<string | null> {
     this.resolveCalls.push({ phone, fullName, depotId });
     return this.byPhone.get(phone) ?? null;
   }

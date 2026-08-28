@@ -41,7 +41,6 @@ import {
   canTransition,
   hasBeenDispatched,
   isCancellable,
-
   isVoidableInShift,
   notificationEventFor,
 } from '../../domain/order-status';
@@ -434,8 +433,7 @@ export class OrderService {
     // The same closed/break test the screen ran in `deliveryOptions`, applied to the depot
     // already resolved above — so an express order placed while the counter is shut is
     // refused rather than billed for a delivery nobody can make.
-    const expressAvailable =
-      express.enabled && (await this.depotIsOpen(depot.id, depot));
+    const expressAvailable = express.enabled && (await this.depotIsOpen(depot.id, depot));
     if (input.express && !expressAvailable) throw new ExpressUnavailableError();
     const expressFee = input.express ? money(express.fee) : 0;
 
@@ -456,13 +454,7 @@ export class OrderService {
     let membershipUnavailable = false;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      discount = resellerDiscountFor(
-        reseller!,
-        items,
-        subtotal,
-        tieredProductIds,
-        tierPricedTotal,
-      );
+      discount = resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -588,7 +580,6 @@ export class OrderService {
     await this.notifyDepotOfOrder(order, authorization);
     return order;
   }
-
 
   /**
    * O6: tell the DEPOT an order just landed on it.
@@ -845,9 +836,7 @@ export class OrderService {
         'Pelanggan tidak diberi tahu: notifikasi pesanan terjadwal gagal dikirim',
       );
     } catch (err) {
-      this.logger.warn(
-        `Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`);
     }
   }
 
@@ -999,7 +988,14 @@ export class OrderService {
       // them sees it, the voucher book records a bigger discount than the one handed over.
       voucherCode
         ? (orderId) =>
-            this.promo.redeem(voucherCode, customerId, orderId, subtotal, shippingFee, authorization)
+            this.promo.redeem(
+              voucherCode,
+              customerId,
+              orderId,
+              subtotal,
+              shippingFee,
+              authorization,
+            )
         : undefined,
     );
 
@@ -1136,7 +1132,11 @@ export class OrderService {
     // recommendations need no undoing — they fall out of every report with the status.
     if (order.customerId !== ANONYMOUS_CUSTOMER_ID) {
       await this.loyalty
-        .reversePoints(order.customerId, orderId, `Penjualan konter ${order.orderNumber} dibatalkan`)
+        .reversePoints(
+          order.customerId,
+          orderId,
+          `Penjualan konter ${order.orderNumber} dibatalkan`,
+        )
         .catch(() => {});
     }
     return voided;
@@ -1219,7 +1219,13 @@ export class OrderService {
       // to come from the same read that decided the price — a badge computed separately is
       // a fourth number waiting to disagree with the other three.
       return {
-        discount: resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal),
+        discount: resellerDiscountFor(
+          reseller!,
+          items,
+          subtotal,
+          tieredProductIds,
+          tierPricedTotal,
+        ),
         agen: true,
       };
     }
@@ -1361,8 +1367,7 @@ export class OrderService {
     return {
       ...order,
       staffCanComplete:
-        order.status === OrderStatus.DELIVERED &&
-        this.config.staffCompleteDelivered(order.depotId),
+        order.status === OrderStatus.DELIVERED && this.config.staffCompleteDelivered(order.depotId),
     };
   }
 
@@ -1601,7 +1606,7 @@ export class OrderService {
       }
       return;
     }
-    await this.franchiseRevenue.orderCompleted({
+    const posted = await this.franchiseRevenue.orderCompleted({
       orderId: order.id,
       orderNumber: order.orderNumber,
       franchiseOwnerId,
@@ -1612,6 +1617,37 @@ export class OrderService {
       commissionBaseIdr: order.subtotal,
       completedAt: new Date().toISOString(),
     });
+
+    /*
+     * A franchise depot taking a 0% commission.
+     *
+     * `payout.service.ts:179` is `(await this.schemes.currentForDepot(depotId))?.pct ?? 0`, so
+     * a WARALABA depot with no `commission_schemes` row accrues nothing for HQ — and the
+     * ledger BALANCES, the statement PRINTS, and every number reconciles. That is what makes
+     * it dangerous: there is no broken thing to notice, only money that never arrived.
+     *
+     * This is the ownerId guard six lines above, applied to the other half of the same
+     * question. That one asks "is there a ledger to credit"; this one asks "is there a rate to
+     * credit it at", and the honest answer for a franchise is never zero.
+     *
+     * `null` means the push did not land — the path fails OPEN, and payout being down is an
+     * outage, not a commission finding. Only a real, measured 0 is reported.
+     *
+     * alertServerError, not logger.error: ops runs Prometheus and no log aggregation, so the
+     * ownerId guard's own `logger.error` lands somewhere nobody reads. Repeating that would
+     * ship a second silent failure to watch the first one.
+     */
+    if (ownership.ownershipType === 'WARALABA' && posted && posted.commissionPct === 0) {
+      alertServerError({
+        method: 'POST',
+        path: 'payout/revenue/internal',
+        status: 200,
+        exception: new Error(
+          `Depot waralaba ${order.depotId} tidak punya commission_schemes: order ${order.orderNumber} ` +
+            'membukukan komisi HQ 0% dan ledger-nya tetap seimbang, jadi tidak ada yang terlihat rusak.',
+        ),
+      });
+    }
   }
 
   /**
@@ -1854,7 +1890,13 @@ export class OrderService {
     // Returns the id and nothing else on purpose: the screen re-quotes with it, and the
     // quote is where tier, agen and voucher are decided. Reporting a rate here as well
     // would be a second opinion on the same question.
-    return { customerId: await this.resolveCounterBuyer({ depotId, customerPhone: phone, customerName: name } as WalkInSaleInput) };
+    return {
+      customerId: await this.resolveCounterBuyer({
+        depotId,
+        customerPhone: phone,
+        customerName: name,
+      } as WalkInSaleInput),
+    };
   }
 
   /**
