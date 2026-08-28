@@ -105,7 +105,33 @@ export class RewardPrismaRepository implements RewardRepository {
             ]
           : []),
       ])
-      .catch(rejectSpentPoints);
+      .catch(rejectSpentPoints)
+      .catch(async (error: unknown) => {
+        /*
+         * The idempotency key doing what an idempotency key is for.
+         *
+         * The service checks `findRedemptionByKey` first, and that check is not the guard:
+         * a client that retries — which is the entire reason it sends a key — can have both
+         * attempts read "not redeemed" and both insert. `@@unique([customerId,
+         * idempotencyKey])` is what actually stops the second redemption.
+         *
+         * Left raw, the loser's P2002 is a 500: the customer is told the redemption failed
+         * while their points are gone and a voucher is waiting for them. Reading the
+         * winner's row back is both the truth and the answer the key promised.
+         */
+        if ((error as { code?: string })?.code !== 'P2002') throw error;
+        const won = await this.prisma.rewardRedemption.findUnique({
+          where: {
+            customerId_idempotencyKey: {
+              customerId: m.customerId,
+              idempotencyKey: m.idempotencyKey,
+            },
+          },
+        });
+        // A P2002 with nothing to read back is a different unique index, not this race.
+        if (!won) throw error;
+        return [won] as const;
+      });
     return this.toRecord(redemption);
   }
 

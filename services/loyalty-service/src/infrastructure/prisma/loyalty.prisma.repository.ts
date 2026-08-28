@@ -57,6 +57,11 @@ function rejectOnMissingRow(error: unknown): never {
   throw error;
 }
 
+/** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string })?.code === 'P2002';
+}
+
 @Injectable()
 export class LoyaltyPrismaRepository implements LoyaltyRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -128,28 +133,54 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return row ? this.toTxn(row) : null;
   }
 
+  /**
+   * Points for a completed order.
+   *
+   * The service checks `findEarnByOrder` first, and that check is not the guard: two
+   * pushes of the same completion both find nothing and both insert. `@@unique([orderId,
+   * type])` is what actually stops the second credit — and payout-service already wrote
+   * down what happens when only the index stops it:
+   *
+   *   without this catch it stopped it by throwing a 500 at whoever lost, which reads as
+   *   a broken payout rather than a duplicate that was correctly refused
+   *
+   * The same sentence applies here and the catch did not. Order completion is pushed
+   * at-least-once, so the loser is not an edge case; it is the retry doing its job. The
+   * winner's credit IS the intended outcome, so the loser reads the account back and
+   * reports it, which is exactly what `alreadyEarned` already means one layer up.
+   */
   async recordEarn(m: EarnMutation): Promise<LoyaltyAccountRecord> {
-    const [, account] = await this.prisma.$transaction([
-      this.prisma.pointsTransaction.create({
-        data: {
-          accountId: m.accountId,
-          customerId: m.customerId,
-          type: PrismaTxnType.EARN,
-          points: m.points,
-          orderId: m.orderId,
-          reason: m.reason,
-          expiresAt: m.expiresAt,
-        },
-      }),
-      this.prisma.loyaltyAccount.update({
-        where: { id: m.accountId },
-        data: {
-          pointsBalance: { increment: m.points },
-          lifetimePoints: { increment: m.lifetimeDelta },
-        },
-      }),
-    ]);
-    return this.toAccount(account);
+    const [, account] = await this.prisma
+      .$transaction([
+        this.prisma.pointsTransaction.create({
+          data: {
+            accountId: m.accountId,
+            customerId: m.customerId,
+            type: PrismaTxnType.EARN,
+            points: m.points,
+            orderId: m.orderId,
+            reason: m.reason,
+            expiresAt: m.expiresAt,
+          },
+        }),
+        this.prisma.loyaltyAccount.update({
+          where: { id: m.accountId },
+          data: {
+            pointsBalance: { increment: m.points },
+            lifetimePoints: { increment: m.lifetimeDelta },
+          },
+        }),
+      ])
+      .catch(async (error: unknown) => {
+        if (!isUniqueViolation(error)) throw error;
+        // Nothing was written by this call — the whole transaction rolled back — so the
+        // account as it stands is the winner's, points included.
+        return [
+          null,
+          await this.prisma.loyaltyAccount.findUniqueOrThrow({ where: { id: m.accountId } }),
+        ] as const;
+      });
+    return this.toAccount(account as AccountRow);
   }
 
   async recordAdjustment(
