@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { maskPhone } from '@hydromart/platform';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
@@ -164,14 +165,13 @@ export class OtpService {
     return reviewer?.phones.includes(phone) ? reviewer.code : null;
   }
 
-  /** Mask a phone number for safe display: keep country code + last 3 digits. */
-  static maskPhone(phone: string): string {
-    if (phone.length <= 7) {
-      return phone;
-    }
-    const head = phone.slice(0, 5);
-    const tail = phone.slice(-3);
-    const masked = '*'.repeat(Math.max(phone.length - head.length - tail.length, 0));
-    return `${head}${masked}${tail}`;
-  }
+  /**
+   * Mask a phone number for safe display: keep country code + last 3 digits.
+   *
+   * The rule moved to `@hydromart/platform` unchanged. It was a private static here, which
+   * is why delivery-service and order-service logged numbers whole — they had no copy, and
+   * there was nowhere to import one from. Kept as a re-export so the six call sites in this
+   * service read the same as they always did.
+   */
+  static maskPhone = maskPhone;
 }

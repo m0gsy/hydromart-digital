@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { maskPhone } from '@hydromart/platform';
 
 import { CustomerNotificationPort } from '../../application/ports/customer-notification.port';
 import { AuthConfigService } from '../../config/auth-config.service';
@@ -44,10 +45,14 @@ export class CustomerNotificationHttpAdapter implements CustomerNotificationPort
       }).finally(() => clearTimeout(timeout));
 
       if (!response.ok) {
-        this.logger.warn(`${event} notification rejected (${response.status}) for ${phone}`);
+        this.logger.warn(
+          `${event} notification rejected (${response.status}) for ${maskPhone(phone)}`,
+        );
       }
     } catch (error) {
-      this.logger.warn(`${event} notification failed for ${phone}: ${(error as Error).message}`);
+      this.logger.warn(
+        `${event} notification failed for ${maskPhone(phone)}: ${(error as Error).message}`,
+      );
     }
   }
 }

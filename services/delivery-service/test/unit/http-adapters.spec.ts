@@ -1,4 +1,5 @@
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
+import { Logger } from '@nestjs/common';
 import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
 import { DepotLocationHttpAdapter } from '../../src/infrastructure/http/depot-location.http.adapter';
 import { CustomerNotificationHttpAdapter } from '../../src/infrastructure/http/customer-notification.http.adapter';
@@ -59,10 +60,15 @@ describe('OrderCoordinationHttpAdapter', () => {
 
   it('PATCHes order status on happy path, forwarding driver name + phone when given', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'DELIVERED', 'Bearer x', {
-      driverName: 'Budi',
-      driverPhone: '081298765432',
-    });
+    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus(
+      'o1',
+      'DELIVERED',
+      'Bearer x',
+      {
+        driverName: 'Budi',
+        driverPhone: '081298765432',
+      },
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       'http://order:3005/api/v1/orders/o1/status',
       expect.objectContaining({ method: 'PATCH' }),
@@ -74,9 +80,14 @@ describe('OrderCoordinationHttpAdapter', () => {
   it('serialises the ETA as an ISO string when given', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     const eta = new Date('2026-07-20T10:30:00.000Z');
-    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'ON_DELIVERY', 'Bearer x', {
-      estimatedArrivalAt: eta,
-    });
+    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus(
+      'o1',
+      'ON_DELIVERY',
+      'Bearer x',
+      {
+        estimatedArrivalAt: eta,
+      },
+    );
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       status: 'ON_DELIVERY',
       estimatedArrivalAt: eta.toISOString(),
@@ -85,7 +96,11 @@ describe('OrderCoordinationHttpAdapter', () => {
 
   it('omits meta fields when not provided', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'PICKED_UP', 'Bearer x');
+    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus(
+      'o1',
+      'PICKED_UP',
+      'Bearer x',
+    );
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ status: 'PICKED_UP' });
   });
 
@@ -150,7 +165,9 @@ describe('OpsNotifierHttpAdapter', () => {
   });
 
   it('skips without internal key', async () => {
-    await new OpsNotifierHttpAdapter(makeConfig({ internalServiceKey: '' })).incidentReported(alert);
+    await new OpsNotifierHttpAdapter(makeConfig({ internalServiceKey: '' })).incidentReported(
+      alert,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -188,7 +205,12 @@ describe('OpsNotifierHttpAdapter', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.event).toBe('DELIVERY_SLA_BREACHED');
     expect(body.depotId).toBe('dep-1');
-    expect(body.vars).toMatchObject({ order: 'HM-9', minutes: '200', threshold: '120', over: '80' });
+    expect(body.vars).toMatchObject({
+      order: 'HM-9',
+      minutes: '200',
+      threshold: '120',
+      over: '80',
+    });
   });
 
   it('omits depotId when the delivery was never attributed to one', async () => {
@@ -378,7 +400,9 @@ describe('RatingHttpAdapter', () => {
   });
 
   it('returns empty (skips) without internal key', async () => {
-    const out = await new RatingHttpAdapter(makeConfig({ internalServiceKey: '' })).avgRating(['o1']);
+    const out = await new RatingHttpAdapter(makeConfig({ internalServiceKey: '' })).avgRating([
+      'o1',
+    ]);
     expect(out).toEqual({ average: null, count: 0 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -426,7 +450,9 @@ describe('the 5s timeout actually aborts', () => {
     jest.fn(
       (_url: string, init: { signal: AbortSignal }) =>
         new Promise((_resolve, reject) => {
-          init.signal.addEventListener('abort', () => reject(new Error('The operation was aborted')));
+          init.signal.addEventListener('abort', () =>
+            reject(new Error('The operation was aborted')),
+          );
         }),
     );
 
@@ -507,11 +533,15 @@ describe('the 5s timeout actually aborts', () => {
 // NaN or "undefined" rendered into a courier's screen.
 describe('missing fields in an owner response', () => {
   it('cash collection reads absent totals as zero', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }) as never;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }) as never;
     // C1: an absent `byOrder` reads as "no PAID cash on any order", which is the
     // fail-closed direction — the expectation then falls back to the COD on the
     // delivery row instead of quietly forgiving the courier the whole shift.
-    expect(await new CashCollectionHttpAdapter(makeConfig()).sumCollected(['o1'], 'Bearer t')).toEqual({
+    expect(
+      await new CashCollectionHttpAdapter(makeConfig()).sumCollected(['o1'], 'Bearer t'),
+    ).toEqual({
       total: 0,
       count: 0,
       byOrder: [],
@@ -521,7 +551,11 @@ describe('missing fields in an owner response', () => {
   it('a depot with coordinates but no name still anchors the radius check', async () => {
     global.fetch = jest
       .fn()
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ lat: -6.2, lng: 106.8 }) }) as never;
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ lat: -6.2, lng: 106.8 }),
+      }) as never;
     expect(await new DepotLocationHttpAdapter(makeConfig()).find('dep-1')).toEqual({
       id: 'dep-1',
       name: '',
@@ -562,7 +596,11 @@ describe('EventPublisherHttpAdapter', () => {
 
   it('publishes nothing when the fan-out is not configured', async () => {
     await new EventPublisherHttpAdapter(makeConfig({ adminServiceUrl: '' })).publish('e', {}, at);
-    await new EventPublisherHttpAdapter(makeConfig({ internalServiceKey: '' })).publish('e', {}, at);
+    await new EventPublisherHttpAdapter(makeConfig({ internalServiceKey: '' })).publish(
+      'e',
+      {},
+      at,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -676,6 +714,29 @@ describe('CustomerNotificationHttpAdapter', () => {
       null,
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The number does not go into the log.
+   *
+   * Pino's `redact` cannot reach this one — it walks the object paths of a log record, and
+   * an interpolated message is just text by the time pino sees it. auth-service has masked
+   * numbers this way for as long as OTP delivery has been logged; the rule was a private
+   * static on a service class there, so this service had no copy and logged them whole.
+   */
+  it('names the unusable number in the log without writing it down', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    await new CustomerNotificationHttpAdapter(makeConfig()).notify(
+      'DELIVERY_RESCHEDULED',
+      '+62812345678901234',
+      vars,
+      null,
+    );
+
+    const line = String(warn.mock.calls[0]?.[0] ?? '');
+    expect(line).not.toContain('+62812345678901234');
+    expect(line).toContain('+6281**********234');
+    warn.mockRestore();
   });
 
   it('swallows a non-2xx — the reschedule is already committed', async () => {
