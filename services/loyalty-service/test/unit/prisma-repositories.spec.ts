@@ -236,6 +236,50 @@ describe('LoyaltyPrismaRepository', () => {
     });
   });
 
+  /*
+   * The second push of the same completed order.
+   *
+   * The service's `findEarnByOrder` check is not the guard — two pushes both read "not
+   * earned" and both insert. `@@unique([orderId, type])` is. payout-service wrote the rest
+   * of this down already: without a catch the index stops the double credit "by throwing a
+   * 500 at whoever lost, which reads as a broken payout rather than a duplicate that was
+   * correctly refused". Order completion is pushed at-least-once, so the loser is the
+   * retry doing its job, not an edge case.
+   */
+  it('reports the account the winner credited when a second earn loses the unique index', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    loyaltyAccount.findUniqueOrThrow.mockResolvedValue(accountRow() as never);
+
+    const out = await repo.recordEarn({
+      accountId: 'acc-1',
+      customerId: 'cust-1',
+      points: 100,
+      reason: null,
+      lifetimeDelta: 100,
+      orderId: 'ord-1',
+      expiresAt: new Date('2026-07-01'),
+    });
+
+    expect(out.tier).toBe(MembershipTier.GOLD);
+    expect(loyaltyAccount.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: 'acc-1' } });
+  });
+
+  it('rethrows any other earn failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    $transaction.mockRejectedValueOnce(boom);
+    await expect(
+      repo.recordEarn({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        points: 100,
+        reason: null,
+        lifetimeDelta: 100,
+        orderId: 'ord-1',
+        expiresAt: new Date('2026-07-01'),
+      }),
+    ).rejects.toBe(boom);
+  });
+
   it('records an adjustment atomically with the given txn type', async () => {
     pointsTransaction.create.mockReturnValue('ledger-op' as never);
     loyaltyAccount.update.mockReturnValue(accountRow() as never);
@@ -437,7 +481,7 @@ describe('RewardPrismaRepository', () => {
         customerId: 'cust-1',
         pointsSpent: 500,
         idempotencyKey: 'idem-1',
-      depotId: 'depot-1',
+        depotId: 'depot-1',
       },
     });
     // Negative ledger entry, lifetime/tier untouched (spend never promotes).
@@ -575,6 +619,55 @@ describe('RewardPrismaRepository', () => {
         decrementStock: false,
       }),
     ).rejects.toBeInstanceOf(InsufficientPointsError);
+  });
+
+  /*
+   * The idempotency key doing what an idempotency key is for.
+   *
+   * A client retries — which is the entire reason it sends a key — and both attempts read
+   * "not redeemed" and both insert. `@@unique([customerId, idempotencyKey])` stops the
+   * second. Left raw, the loser's P2002 is a 500: the customer is told the redemption
+   * failed while their points are gone and a voucher is waiting for them.
+   */
+  it('returns the redemption the winner wrote when a retry loses the idempotency key', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    rewardRedemption.findUnique.mockResolvedValue(redemptionRow as never);
+
+    const out = await repo.redeem({
+      accountId: 'acc-1',
+      customerId: 'cust-1',
+      rewardItemId: 'ri-1',
+      idempotencyKey: 'key-1',
+      depotId: 'depot-1',
+      pointsSpent: 500,
+      reason: 'Redeemed Free Galon',
+      decrementStock: false,
+    });
+
+    expect(out.id).toBe(redemptionRow.id);
+    expect(rewardRedemption.findUnique).toHaveBeenCalledWith({
+      where: { customerId_idempotencyKey: { customerId: 'cust-1', idempotencyKey: 'key-1' } },
+    });
+  });
+
+  // A P2002 with nothing to read back is a DIFFERENT unique index, and treating it as this
+  // race would report a redemption that never happened.
+  it('rethrows a P2002 that is not the idempotency key', async () => {
+    const dup = Object.assign(new Error('dup'), { code: 'P2002' });
+    $transaction.mockRejectedValueOnce(dup);
+    rewardRedemption.findUnique.mockResolvedValue(null as never);
+    await expect(
+      repo.redeem({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        idempotencyKey: 'key-1',
+        depotId: 'depot-1',
+        pointsSpent: 500,
+        reason: 'Redeemed Free Galon',
+        decrementStock: false,
+      }),
+    ).rejects.toBe(dup);
   });
 
   it('rethrows any other redemption failure', async () => {
