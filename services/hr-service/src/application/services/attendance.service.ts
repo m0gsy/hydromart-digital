@@ -71,6 +71,22 @@ export class AttendanceService {
     const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
     if (existing?.checkInAt) {
+      /*
+       * The replay of a punch that already landed.
+       *
+       * The face punch rides the offline capture queue (apps/web/src/lib/offline-queue.ts),
+       * and the queue retries a job it never got an answer for — including the answer lost
+       * AFTER this row was written. That retry used to get "Sudah check-in hari ini", a 400,
+       * which `isRetryable` in that file correctly does not retry: the job was marked failed
+       * and the employee was told their attendance did not record while it had.
+       *
+       * Identified precisely rather than guessed. `offlineAt` is `min(capturedAt, now)`, so
+       * a queued punch replaying the same `capturedAt` computes the same instant to the
+       * millisecond — if the stored check-in is that instant, this is that punch arriving
+       * twice. A punch with no `capturedAt` is a live one, and a second live punch is a
+       * genuine second attempt that must still be refused.
+       */
+      if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
       throw new BadRequestException('Sudah check-in hari ini');
     }
 
@@ -123,13 +139,15 @@ export class AttendanceService {
     if (!row?.checkInAt) {
       throw new BadRequestException('Belum check-in hari ini');
     }
-    if (row.checkOutAt) {
-      throw new BadRequestException('Sudah check-out hari ini');
-    }
-
     // Floored at check-in and capped at server time by offlineAt(), so an offline check-out can
     // only ever report a shorter shift than the reconnect moment — it needs no HR approval.
     const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
+    if (row.checkOutAt) {
+      // Same replay rule as `checkIn` above, and for the same queue.
+      if (punch.capturedAt && row.checkOutAt.getTime() === at.getTime()) return row;
+      throw new BadRequestException('Sudah check-out hari ini');
+    }
+
     const workingMinutes = Math.max(
       0,
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),

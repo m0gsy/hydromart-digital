@@ -18,7 +18,12 @@ import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedding.repository';
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 
-const user: AuthenticatedUser = { sub: 'auth-1', role: 'STAFF_DEPOT' as never, phone: '08', depotId: 'd1' };
+const user: AuthenticatedUser = {
+  sub: 'auth-1',
+  role: 'STAFF_DEPOT' as never,
+  phone: '08',
+  depotId: 'd1',
+};
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: '08', depotId: null };
 
 // 08:10 / 08:30 / 16:10 Asia/Jakarta (UTC+7).
@@ -167,6 +172,77 @@ describe('AttendanceService offline punch', () => {
     const threeDaysLater = new Date(AT_0810.getTime() + 72 * 3_600_000);
     await expect(svc.checkIn(user, punchAt(AT_0810), threeDaysLater)).rejects.toThrow(
       BadRequestException,
+    );
+  });
+
+  /*
+   * The replay of a punch that already landed.
+   *
+   * The face punch rides the offline capture queue, and the queue retries a job it never
+   * got an answer for — including the answer lost AFTER the row was written. That retry
+   * used to get "Sudah check-in hari ini", a 400, which `isRetryable` in offline-queue.ts
+   * correctly does not retry: the job was marked failed and the employee was told their
+   * attendance did not record while it had.
+   */
+  it('answers a replayed check-in with the punch already recorded', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, status: 'PRESENT' } as Attendance;
+    const { svc } = make({ att });
+
+    const out = await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000));
+
+    expect(out.id).toBe('a1');
+    expect(att.created).toBeUndefined();
+  });
+
+  /*
+   * Not a replay. A punch with no `capturedAt` is a live one, and a second live punch is a
+   * genuine second attempt — the employee is standing at the reader pressing it again.
+   */
+  it('still refuses a live second check-in', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, status: 'PRESENT' } as Attendance;
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow('Sudah check-in hari ini');
+  });
+
+  // A queued punch from a DIFFERENT moment is also not a replay of this one.
+  it('still refuses an offline punch captured at another moment', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, status: 'PRESENT' } as Attendance;
+    const { svc } = make({ att });
+    await expect(
+      svc.checkIn(user, punchAt(AT_0830), new Date(AT_0830.getTime() + 60_000)),
+    ).rejects.toThrow('Sudah check-in hari ini');
+  });
+
+  it('answers a replayed check-out with the punch already recorded', async () => {
+    const att = new FakeAtt();
+    att.row = {
+      id: 'a1',
+      checkInAt: AT_0810,
+      checkOutAt: AT_1610,
+      status: 'PRESENT',
+    } as Attendance;
+    const { svc } = make({ att });
+
+    const out = await svc.checkOut(user, punchAt(AT_1610), new Date(AT_1610.getTime() + 60_000));
+
+    expect(out.id).toBe('a1');
+    expect(att.patched).toBeUndefined();
+  });
+
+  it('still refuses a live second check-out', async () => {
+    const att = new FakeAtt();
+    att.row = {
+      id: 'a1',
+      checkInAt: AT_0810,
+      checkOutAt: AT_1610,
+      status: 'PRESENT',
+    } as Attendance;
+    const { svc } = make({ att });
+    await expect(svc.checkOut(user, punchAt(), AT_1610)).rejects.toThrow(
+      'Sudah check-out hari ini',
     );
   });
 
