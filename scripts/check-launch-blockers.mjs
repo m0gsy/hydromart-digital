@@ -44,6 +44,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 
 const argv = process.argv.slice(2);
 const PRODUCTION = argv.includes('--production');
@@ -312,7 +313,10 @@ function worse(current, next) {
       );
       if (never(rotated)) {
         lines.push('never rotated. The key that leaked in conversation is still a valid key.');
-      } else if (never(revoked) || !/ya|yes|sudah|done|✓/i.test(revoked)) {
+        // Anchored, not a substring search. `/ya/` matched the middle of "besok saya cabut" —
+        // "I'll revoke it tomorrow" read as "revoked", which is the one sentence in this table
+        // whose opposite meaning matters.
+      } else if (never(revoked) || !/^\s*(ya|yes|sudah|done|✓)\b/i.test(revoked)) {
         lines.push(
           'rotated, but the ledger does not say the OLD key was revoked — so it still works,',
           'and the rotation duplicated the secret instead of replacing it',
@@ -369,7 +373,8 @@ function worse(current, next) {
   // quietly drops rows is how a check ends up reporting "all clear" about nothing.
   const FIXTURES = "code ~ '^(E2E|UAT|HIER|DEMO)-'";
   const lines = [
-    'required: every real, active depot has a bank account (name + number + holder) AND a QRIS image',
+    'required: every real, active depot has SOMEWHERE for money to land - a bank account',
+    '          (name + number + holder) or a QRIS image. Both is better; neither blocks.',
     'excluded as fixtures: depot codes matching E2E- / UAT- / HIER- / DEMO-',
   ];
   const rows = psql(
@@ -396,24 +401,39 @@ function worse(current, next) {
         return { code, bankName, number, holder, qris };
       });
 
+    /*
+     * BLOCKING and INCOMPLETE are different questions, and this used to AND them.
+     *
+     * `apps/web/src/lib/payments.ts:67-68` hides TRANSFER when there is no bank account and
+     * QRIS when there is no image, and never filters CASH. So a depot with a working bank
+     * account and no QRIS photo sells perfectly well — while this gate refused the release
+     * over it. Demanding both is stricter than the product, and a gate stricter than the
+     * product is a gate people learn to override.
+     *
+     * What genuinely blocks: no destination at all (every non-cash route hidden), or an
+     * account number that is example digits (the customer transfers money into nowhere).
+     */
     const broken = [];
+    const partial = [];
     for (const d of depots) {
       const bank = Boolean(d.bankName && d.number && d.holder);
       const fake = bank && looksLikeExampleDigits(d.number);
-      if (!bank && !d.qris) {
-        broken.push(`${d.code}: no payment destination at all — the payment screen is blank`);
-      } else if (fake) {
+      if (fake) {
         broken.push(`${d.code}: account "${d.number}" is example digits, not an account number`);
-      } else if (!bank) {
+      } else if (!bank && !d.qris) {
         broken.push(
-          `${d.code}: QRIS only, no bank account — a customer who cannot scan cannot pay`,
+          `${d.code}: no payment destination at all — cash only, and /dashboard/payout ` +
+            'refuses to pay this depot out with no account on file',
         );
+      } else if (!bank) {
+        partial.push(`${d.code}: QRIS only — a customer who cannot scan is left with cash`);
       } else if (!d.qris) {
-        broken.push(`${d.code}: bank transfer only, no QRIS image`);
+        partial.push(`${d.code}: bank transfer only, no QRIS image`);
       }
     }
     lines.push(`measured: ${depots.length} real active depot(s), ${broken.length} not payable`);
     for (const b of broken) lines.push(`  ${b}`);
+    for (const p of partial) lines.push(`  (not blocking) ${p}`);
     if (depots.length === 0) {
       // Zero real depots is not "all depots are fine". It means the question was not answered.
       lines.push(
@@ -479,6 +499,30 @@ function worse(current, next) {
       source: `${SERVICES_ROOT}/loyalty-service/src/domain/membership.ts`,
       sourceNeedle: 'TIER_BENEFITS',
     },
+    /*
+     * The three keys where a live money bug sat unseen.
+     *
+     * On 2026-08-29 production served `silverDiscountPct = goldDiscountPct =
+     * platinumDiscountPct = 0` against coded defaults of 2/5/8 — measured with
+     * `curl https://api.hydromart-digital.com/loyalty/api/v1/loyalty/tiers`. Every customer
+     * the app called GOLD, badge and all, paid full price.
+     *
+     * This gate claimed to guard "the membership ladder rungs and their discounts" and never
+     * queried one of them. Worse, its criterion is "a GLOBAL row exists" — so `GLOBAL=0`
+     * would have read as DECIDED and gone green on the worst state the system can reach.
+     * Hence `zeroIsBroken`: a tier that advertises a discount and pays none is not a
+     * decision anybody made, it is a unit mistake nobody was told about.
+     */
+    ...['silver', 'gold', 'platinum'].map((tier) => ({
+      db: 'loyalty',
+      key: `${tier}DiscountPct`,
+      what: `the ${tier.toUpperCase()} discount the app promises on every basket`,
+      source: `${SERVICES_ROOT}/loyalty-service/src/domain/membership.ts`,
+      sourceNeedle: 'TIER_BENEFITS',
+      zeroIsBroken:
+        'the tier badge promises a discount and the checkout applies none — a stored 0 here ' +
+        'is what a mistyped rate (0.05 instead of 5) leaves behind',
+    })),
     {
       db: 'referral',
       key: 'referrerPoints',
@@ -517,7 +561,17 @@ function worse(current, next) {
       lines.push(`  ${t.key}: cannot read hydromart_${t.db}.service_settings — not measured`);
       continue;
     }
-    if (/(^|, )GLOBAL=/.test(stored)) {
+    const zeroed = t.zeroIsBroken && /(^|, )(GLOBAL|DEPOT)=0(,|$)/.test(stored);
+    if (zeroed) {
+      // A row exists, so the "has anyone decided" test passes — and the answer stored is the
+      // one value that cannot have been intended.
+      verdict = worse(verdict, 'BLOCKED');
+      lines.push(
+        `  ${t.key}: STORED AS ZERO — ${t.zeroIsBroken}`,
+        `    stored: ${stored}`,
+        `    the coded default in ${t.source} is not zero, so this is a written-down 0`,
+      );
+    } else if (/(^|, )GLOBAL=/.test(stored)) {
       lines.push(`  ${t.key}: decided — ${stored}`);
     } else {
       verdict = worse(verdict, 'BLOCKED');
@@ -650,11 +704,17 @@ function worse(current, next) {
    *    from a laptop is a gate that goes red on bad wifi and then gets ignored.
    *  - The CLAIMED host, not WEB_DOMAIN. Android fetches the host inside the APK and nothing
    *    else, so that is the only host whose answer means anything.
-   *  - Only when the host chain above is intact. Fetching a host we have already reported as
-   *    wrong turns a measured BLOCKED into an UNMEASURED UNKNOWN, which reads as a weaker
-   *    finding than the one we already have.
+   *  - Whatever the verdict so far. This used to run only when everything else was already
+   *    SAFE, which skipped the one cheap measurement that settles the question EXACTLY when
+   *    the question was open. The premise was that a fetch could weaken a measured BLOCKED
+   *    into an UNKNOWN; it cannot, because the fetch never lowers the verdict — it is read
+   *    for its own line, and only ever makes things worse, never better.
+   *
+   *    This mattered: on 2026-08-29 a laptop with no WEB_DOMAIN reported L2.6 BLOCKED with
+   *    "nothing serves .well-known/assetlinks.json", while `curl` against the real host
+   *    returned 200 and a file byte-identical to the repo's.
    */
-  if (PRODUCTION && verdict === 'SAFE' && claimed) {
+  if (PRODUCTION && claimed) {
     const url = `https://${claimed}/.well-known/assetlinks.json`;
     const local = read('apps/web/public/.well-known/assetlinks.json');
     try {
@@ -693,9 +753,30 @@ function worse(current, next) {
 /* ------------------------------------------------------------------- verdict */
 
 const ICON = { SAFE: 'ok      ', BLOCKED: 'BLOCKED ', UNKNOWN: 'UNKNOWN ' };
+
+/*
+ * Say WHERE this is standing, before saying anything about production.
+ *
+ * Four of these five verdicts were wrong for one reason and it was never visible in the
+ * output: run from a laptop, this reads the repo's dev `.env` and a Postgres container
+ * named `hydromart-postgres` — the name docker-compose.yml gives it, which is the SAME name
+ * it has on the VPS. So off-box the gate does not fall back to "cannot tell": it answers
+ * confidently, out of the developer's database, in production's voice.
+ *
+ * The banner now names the host, the env file and the database it is about to query, and
+ * says plainly that this is not the box unless it is. A reader who sees BLOCKED next to a
+ * laptop's hostname knows what they are looking at.
+ */
+const HOST = process.env.COMPUTERNAME ?? process.env.HOSTNAME ?? hostname();
 console.log(
-  `launch blockers — env file: ${ENV_FILE}${existsSync(ENV_FILE) ? '' : ' (does not exist)'}, ` +
-    `mode: ${PRODUCTION ? 'production (failing)' : 'informational'}\n`,
+  `launch blockers - host: ${HOST}, env file: ${ENV_FILE}` +
+    `${existsSync(ENV_FILE) ? '' : ' (does not exist)'}, db: ${PG_CONTAINER}/${PG_USER}, ` +
+    `mode: ${PRODUCTION ? 'production (failing)' : 'informational'}`,
+);
+console.log(
+  '  Everything below describes THAT machine. Unless this is the deploy host, `.env` is a\n' +
+    '  developer file and the container queried is a developer database - and the container\n' +
+    '  carries the same name on both, so nothing here will say so on its own.\n',
 );
 for (const r of results) {
   console.log(`${ICON[r.verdict]}${r.id}  ${r.title}`);
