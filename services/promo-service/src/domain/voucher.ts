@@ -1,5 +1,9 @@
-// Voucher discount domain rules (PRD FR-089 Coupon, FR-090 Voucher). Money is
-// integer rupiah throughout — every result is floored and clamped to the subtotal.
+import { money } from '@hydromart/platform';
+
+// Voucher discount domain rules (PRD FR-089 Coupon, FR-090 Voucher). Money is integer
+// rupiah throughout, ROUNDED by the platform's shared `money()` and clamped to the
+// subtotal. It used to say "floored", and it was — which is how a percentage voucher and a
+// percentage membership discount could differ by a rupiah on the same basket.
 
 import {
   MinSpendNotMetError,
@@ -42,7 +46,23 @@ export function computeDiscount(v: VoucherRules, subtotal: number, shippingFee =
   let raw: number;
   switch (v.discountType) {
     case DiscountType.PERCENTAGE:
-      raw = Math.min(Math.floor((subtotal * v.value) / 100), v.maxDiscount ?? Infinity, subtotal);
+      /*
+       * `money()`, not `Math.floor`.
+       *
+       * The platform has one rupiah rule — half-up `Math.round` — and its own header says
+       * why: two private copies of a rounding rule is one copy away from two different
+       * rounding rules. This was the copy. A membership discount of 15% on Rp4.999 came to
+       * 750 (`money(subtotal * rate)`) and a 15% VOUCHER on the same basket came to 749,
+       * because floor rounds the discount down and round does not.
+       *
+       * Nobody could see it: each mechanism is internally consistent end to end, and the
+       * order total is what the payment is checked against either way (SEC-1). It only
+       * shows up when the same customer compares the same percentage from two sources.
+       *
+       * The direction is one rupiah MORE discount, half the time. That is the shared rule,
+       * and matching it is the point.
+       */
+      raw = Math.min(money((subtotal * v.value) / 100), v.maxDiscount ?? Infinity, subtotal);
       break;
     case DiscountType.FREE_SHIPPING:
       raw = Math.min(shippingFee, v.maxDiscount ?? Infinity);

@@ -24,9 +24,27 @@ const rules = (overrides: Partial<VoucherRules> = {}): VoucherRules => ({
 });
 
 describe('computeDiscount', () => {
-  it('takes a floored percentage of the subtotal', () => {
+  /*
+   * ROUNDED, by the platform's shared `money()` — not floored.
+   *
+   * The platform has one rupiah rule (half-up) and its header says why: two private copies
+   * of a rounding rule is one copy away from two different rounding rules. This was the
+   * copy. A 15% MEMBERSHIP discount on Rp4.999 came to 750 and a 15% VOUCHER on the same
+   * basket came to 749, and nobody could see it because each mechanism is internally
+   * consistent end to end.
+   *
+   * Asserted against `Math.round`, not a literal: the point is that this agrees with the
+   * shared rule, and a literal would still pass if the rule itself changed underneath.
+   */
+  it('rounds a percentage of the subtotal the way the rest of the platform does', () => {
     expect(computeDiscount(rules({ value: 10 }), 60000)).toBe(6000);
-    expect(computeDiscount(rules({ value: 15 }), 61234)).toBe(Math.floor(61234 * 0.15));
+    expect(computeDiscount(rules({ value: 15 }), 61234)).toBe(Math.round(61234 * 0.15));
+  });
+
+  // The case that separates the two rules. 15% of 4.999 is 749,85 — floor says 749, the
+  // platform says 750, and the customer is charged a rupiah either way it goes.
+  it('gives the same rupiah as a membership discount on a basket that rounds up', () => {
+    expect(computeDiscount(rules({ value: 15 }), 4999)).toBe(750);
   });
 
   it('caps a percentage discount at maxDiscount when set', () => {
