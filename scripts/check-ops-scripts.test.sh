@@ -77,4 +77,27 @@ else
   bad "the install must come before the probe (install=$INSTALL_LINE probe=$PROBE_LINE)"
 fi
 
+# --- caddy drift is RELOADED, not narrated ---------------------------------------------
+#
+# The drift handler restarts the observability containers and, for everything else, prints
+# "this deploy did not fix it". That rule is right for a container whose restart drops
+# in-flight requests — and Caddy is not one: `caddy reload` validates the new file and swaps
+# the config with the listeners still open, so the reason not to touch it does not apply.
+#
+# Leaving it as advice cost twenty days of missing HSTS and CSP once already, and the
+# production deploy printed the same line again on 2026-08-27.
+if grep -qE 'caddy reload --config' scripts/deploy.sh; then
+  ok "deploy reloads a stale Caddyfile instead of describing it"
+else
+  bad "deploy.sh only NAMES a stale caddy config — a reload costs no connections and is the whole reason the restart rule does not apply here"
+fi
+
+# A reload that fails means the Caddyfile did not validate, and Caddy keeps serving the old
+# one. That is the right outcome and the wrong thing to be quiet about.
+if grep -qE 'alert "caddy refused to reload' scripts/deploy.sh; then
+  ok "a Caddyfile that will not validate raises an alert rather than passing quietly"
+else
+  bad "a failed caddy reload must alert: the release is live and the front door is not"
+fi
+
 exit "$fails"
