@@ -145,6 +145,23 @@ if [ -n "$PG" ]; then
   done
   echo "  franchise commission (HQ's cut):"
   q hydromart_payout "select count(*) from commission_schemes" | sed 's/^/    commission_schemes rows: /'
+
+  # A VERDICT, not another dump.
+  #
+  # Everything above is rows, and rows need a reader who already knows what the coded default
+  # is. On 2026-08-29 the rows said `GLOBAL silverDiscountPct = 0` and had said so for a while;
+  # it took someone cross-checking membership.ts to see that a tier promising a discount was
+  # paying none. Every customer the app called GOLD had been paying full price.
+  #
+  # So the three values whose zero is never a decision are named here and judged here.
+  echo "  membership discount — a tier that promises a discount and pays none:"
+  for k in silverDiscountPct goldDiscountPct platinumDiscountPct; do
+    v="$(q hydromart_loyalty "select coalesce(string_agg(scope||'='||value, ', '), '(no row - coded default)') from service_settings where key = '${k}'")"
+    case "$v" in
+      *=0*) echo "    !! ${k} = ${v}  <- STORED ZERO. The badge promises a discount; checkout applies none." ;;
+      *) echo "    ok ${k} = ${v}" ;;
+    esac
+  done
 fi
 
 # M16. The blocking question, asked in the only place it has an answer. `compose config`

@@ -252,6 +252,14 @@ jobs:
       - name: Launch-blocker gate self-check
         run: bash scripts/check-launch-blockers.test.sh
 
+      # ask-the-box is the ONLY instrument that asks the launch-blocker questions where they
+      # have answers — on the box. check-launch-blockers.mjs asks them of a developer's .env
+      # and a developer's database, and four of its five verdicts were wrong because of it.
+      # An instrument that important with no self-check is one edit away from reporting
+      # nothing and looking fine.
+      - name: ask-the-box self-check
+        run: bash scripts/ask-the-box.test.sh
+
       # M13: the between-batches GC used to prune the BUILD cache, throwing away exactly the
       # layers the next batch of three images needed. Invisible except as a 39-minute deploy.
       - name: docker-gc self-check
