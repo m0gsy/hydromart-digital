@@ -56,6 +56,50 @@ describe('PaymentService (branch coverage)', () => {
     );
   });
 
+  /*
+   * The replay of a confirmation that already landed.
+   *
+   * COD confirmation rides the offline capture queue (K2.9), and the queue retries a job it
+   * never got an answer for — including the answer lost AFTER the server wrote PAID. The
+   * second attempt used to get "Cannot move a payment from PAID to PAID", a 409, which
+   * `isRetryable` in offline-queue.ts correctly does not retry: the job was marked failed
+   * and the courier was shown an error for cash that had been booked correctly. The app
+   * lying about money is the failure the queue exists to prevent.
+   */
+  it('answers a replayed COD confirmation with the payment, not a conflict', async () => {
+    const payment = await initiate(PaymentMethod.CASH);
+    const first = await service.confirm(payment.id, 'kurir', 50000);
+
+    const replay = await service.confirm(payment.id, 'kurir', 50000);
+
+    expect(replay.status).toBe(PaymentStatus.PAID);
+    expect(replay.paidAt).toEqual(first.paidAt);
+    expect(replay.cashReceived).toBe(first.cashReceived);
+    expect(replay.changeGiven).toBe(first.changeGiven);
+  });
+
+  // A confirmation carrying no cash figure at all is a plain "is it paid" replay.
+  it('answers a replay that carries no cash figure the same way', async () => {
+    const payment = await initiate(PaymentMethod.TRANSFER);
+    await service.confirm(payment.id, 'staff');
+    await expect(service.confirm(payment.id, 'staff')).resolves.toMatchObject({
+      status: PaymentStatus.PAID,
+    });
+  });
+
+  /*
+   * Not a replay. A second confirmation with a DIFFERENT figure is a cashier settling the
+   * same order twice with different notes in hand — and the change owed to the customer was
+   * computed from the first figure, so this must still conflict.
+   */
+  it('still conflicts when a second confirmation names different cash', async () => {
+    const payment = await initiate(PaymentMethod.CASH);
+    await service.confirm(payment.id, 'kasir', 50000);
+    await expect(service.confirm(payment.id, 'kasir', 100000)).rejects.toBeInstanceOf(
+      InvalidPaymentTransitionError,
+    );
+  });
+
   it('gives the TRANSFER offline instruction and no gateway call', async () => {
     const payment = await initiate(PaymentMethod.TRANSFER);
     expect(payment.status).toBe(PaymentStatus.PENDING);
