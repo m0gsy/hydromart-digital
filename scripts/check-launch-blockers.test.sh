@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+#
+# `set +e`, explicitly, and it is not sloppiness.
+#
+# Under `--production` this gate EXITS 1 on purpose, and this file drives it that way a
+# dozen times to prove each class can go red. CI runs self-checks as `bash -e <file>`, which
+# treats the first of those deliberate non-zero exits as the script dying — so under CI's own
+# invocation this file used to stop a third of the way through and report success.
+#
+# Nobody found out because nothing ran it: thirteen sibling self-checks are invoked by name in
+# .github/workflows/ci.yml and this one was not. The gate that decides whether the product may
+# ship was itself the only unmeasured gate in the repo. `bash -e` on it failed before a single
+# assertion below was added.
+#
+# Failure is accounted by `$fails` and returned by the explicit `exit` at the end, which is
+# what CI reads.
+set +e
 # Self-check for scripts/check-launch-blockers.mjs.
 #
 #   bash scripts/check-launch-blockers.test.sh
@@ -285,6 +301,65 @@ grep -q 'informational' "$OUT" || bad "informational mode does not say which mod
 got=$?
 [ "$got" -eq 0 ] && ok "the default run (env file .env) reports and exits 0" ||
   bad "the default run exited $got"
+
+# ------------------------------------------------------- the gate says WHERE it is standing
+#
+# Four of five verdicts were once wrong for one reason that never appeared in the output:
+# off-box this reads a developer .env and a Postgres container that carries the SAME name on
+# a laptop and on the VPS (docker-compose.yml gives it that name). So it did not fall back to
+# "cannot tell" — it answered confidently, from the wrong machine, in production's voice.
+"${GATE[@]}" >"$OUT" 2>&1
+grep -q 'host:' "$OUT" ||
+  bad "the banner does not name the HOST it measured — the mistake that made four verdicts wrong is invisible"
+grep -q 'db: ' "$OUT" ||
+  bad "the banner does not name the DATABASE container it queries, and that name is identical on a laptop and on the box"
+grep -q 'developer database' "$OUT" ||
+  bad "nothing warns the reader that this may not be the deploy host"
+ok "the banner names the host and database every verdict below is about"
+
+# ------------------------------------------------------- L2.4 watches the discount keys
+#
+# Production served silverDiscountPct = goldDiscountPct = platinumDiscountPct = 0 against
+# coded defaults of 2/5/8 while this gate reported on "the membership ladder rungs and their
+# discounts" without ever querying one of them.
+"${GATE[@]}" >"$OUT" 2>&1
+for K in silverDiscountPct goldDiscountPct platinumDiscountPct; do
+  grep -q "$K" "$OUT" ||
+    bad "L2.4 never mentions $K — the gate claims to guard the tier discounts and does not read them"
+done
+ok "L2.4 reads the three tier discount keys it claims to guard"
+
+# A stored 0 is not a decision. The gate's criterion is "a GLOBAL row exists", so without
+# this it would call the worst reachable state — a tier advertising a discount and paying
+# none — DECIDED, and go green on it.
+grep -q 'zeroIsBroken' scripts/check-launch-blockers.mjs ||
+  bad "a stored 0 for a tier discount must BLOCK; 'a row exists' would call it decided"
+ok "a tier discount stored as zero is treated as the failure it is"
+
+# ------------------------------------------------------- L2.3 is not stricter than the app
+#
+# payments.ts hides TRANSFER without a bank account and QRIS without an image, and never
+# filters CASH — so a depot with a working account and no QRIS photo sells fine. Refusing the
+# release over it makes a gate people learn to override.
+grep -q '(not blocking)' scripts/check-launch-blockers.mjs ||
+  bad "L2.3 still demands bank AND QRIS; the product accepts either, and a gate stricter than the product gets overridden"
+ok "L2.3 blocks on no destination at all, and only reports one-of-two"
+
+# ------------------------------------------------------- L2.6 measures when it matters
+#
+# The decisive HTTPS GET ran only when everything else was already SAFE — so the one cheap
+# measurement that settles the question was skipped EXACTLY when the question was open.
+grep -q "if (PRODUCTION && claimed)" scripts/check-launch-blockers.mjs ||
+  bad "L2.6 still gates its assetlinks fetch on an already-SAFE verdict, skipping the measurement precisely when it is needed"
+ok "L2.6 fetches the assetlinks file whatever the verdict so far"
+
+# ------------------------------------------------------- L2.2 does not read "ya" inside a word
+#
+# The revoked cell was matched as a SUBSTRING: "besok saya cabut" — I will revoke it tomorrow
+# — contains "ya", and read as revoked. That is the one cell whose opposite meaning matters.
+sed 's/| pemilik | ya |/| pemilik | besok saya cabut |/' "$TMP/rotated.md" >"$TMP/soon.md"
+ROTATION_RUNBOOK="$TMP/soon.md" "${GATE[@]}" "$TMP/good.env" >"$OUT" 2>&1
+expect_verdict L2.2 BLOCKED "L2.2 does not read \"besok saya cabut\" as a revoked key"
 
 if [ "$fails" -gt 0 ]; then
   echo "check-launch-blockers.mjs: $fails check(s) failed" >&2

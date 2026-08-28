@@ -242,6 +242,16 @@ jobs:
       - name: Ops watch scripts self-check
         run: bash scripts/check-ops-scripts.test.sh
 
+      # The launch gate's own self-check, which nothing ran until now.
+      #
+      # Thirteen sibling self-tests are invoked by name in this file and this one was not, so
+      # the gate that decides whether the product may ship was itself unmeasured. Its header
+      # asks every class to be proved able to go RED and able to go GREEN; three of the five
+      # had no tested SAFE path at all, and the assertions added alongside this step are the
+      # ones that would have caught a live 0% membership discount.
+      - name: Launch-blocker gate self-check
+        run: bash scripts/check-launch-blockers.test.sh
+
       # M13: the between-batches GC used to prune the BUILD cache, throwing away exactly the
       # layers the next batch of three images needed. Invisible except as a 39-minute deploy.
       - name: docker-gc self-check
