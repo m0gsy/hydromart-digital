@@ -555,6 +555,44 @@ if health_ok; then
     alert "VAPID credentials missing in crm —$VAPID_MISSING — web push is dead"
   fi
 
+  # 2a. The OTP channel, probed on the box — because nothing did.
+  #
+  # scripts/check-launch-blockers.mjs asks this question of the REPO's .env, on a laptop, and
+  # is never executed here. So the one credential pair that stands between a stranger and an
+  # account had no measurement anywhere near production. auth-service refuses to BOOT on
+  # `console` under NODE_ENV=production, so a running stack proves the channel is not console
+  # — it proves nothing about whether the credentials are usable.
+  #
+  # Presence only, never the value. This cannot tell you Zenziva ACCEPTS them; only a real SMS
+  # to a real handset can. It tells you the two halves are there, which is the failure that
+  # ships silently: blank credentials used to pass validation (the `when` branch concat'ed
+  # `.required()` onto a base that allowed ''), boot green, and fail at the first send.
+  OTP_CHANNEL="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^OTP_DELIVERY_CHANNEL=//p' | head -1 || true)"
+  case "$OTP_CHANNEL" in
+    zenziva) OTP_KEYS='ZENZIVA_USERKEY ZENZIVA_PASSKEY' ;;
+    sms) OTP_KEYS='SMS_API_BASE_URL SMS_API_TOKEN' ;;
+    *) OTP_KEYS='' ;;
+  esac
+  if [ -z "$OTP_CHANNEL" ] || [ "$OTP_CHANNEL" = console ]; then
+    log "!! OTP_DELIVERY_CHANNEL is '${OTP_CHANNEL:-unset}' — the code is only PRINTED to the"
+    log "   container log, so anyone who can read logs can sign in as any customer."
+    alert "OTP channel is '${OTP_CHANNEL:-unset}' in .env — OTP codes are only logged, not sent"
+  else
+    OTP_MISSING=''
+    for V in $OTP_KEYS; do
+      if ! $COMPOSE exec -T auth sh -c "[ -n \"\${$V:-}\" ]" >/dev/null 2>&1; then
+        OTP_MISSING="$OTP_MISSING $V"
+      fi
+    done
+    if [ -z "$OTP_MISSING" ]; then
+      log "otp probe — channel '$OTP_CHANNEL', both credentials set inside auth"
+    else
+      log "!! OTP is DEAD inside the auth container — channel '$OTP_CHANNEL' missing:$OTP_MISSING"
+      log "   Nobody can register or sign in. Fix: set them in .env and recreate auth."
+      alert "OTP credentials missing in auth —$OTP_MISSING — nobody can sign in"
+    fi
+  fi
+
   # 2b. CMP-05 — Android push, probed the same way, and until now not probed at all.
   #
   # The line above used to end with "Android FCM is unaffected", which is a claim, not a

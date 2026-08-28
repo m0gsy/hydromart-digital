@@ -30,6 +30,49 @@ describe('auth env validation — OTP channel credentials', () => {
     expect(error?.message).toContain('ZENZIVA_PASSKEY');
   });
 
+  /*
+   * The case production can actually produce, and the one the old schema let through.
+   *
+   * `docker-compose.prod.yml:107-110` interpolates these with `:-`, so the key is ALWAYS
+   * present — which makes "absent", the one thing `.required()` catches, the one thing the
+   * box cannot produce. And `.required()` on a base that `.allow('')` still admits `''`,
+   * because a `when` branch is concat'ed and concat UNIONS allowed values; the channel
+   * branch below already had to work around exactly this.
+   *
+   * Empty credentials booted GREEN and then failed at the first send, per customer, with
+   * nothing upstream saying why.
+   */
+  it('refuses EMPTY Zenziva keys, not just absent ones', () => {
+    const { error } = validate({
+      ...BASE,
+      OTP_DELIVERY_CHANNEL: 'zenziva',
+      ZENZIVA_USERKEY: '',
+      ZENZIVA_PASSKEY: '',
+    });
+    expect(error?.message).toContain('ZENZIVA_USERKEY');
+  });
+
+  it('refuses one empty key even when the other is set', () => {
+    const { error } = validate({
+      ...BASE,
+      OTP_DELIVERY_CHANNEL: 'zenziva',
+      ZENZIVA_USERKEY: 'userkey',
+      ZENZIVA_PASSKEY: '',
+    });
+    expect(error?.message).toContain('ZENZIVA_PASSKEY');
+  });
+
+  // The sms channel had the identical hole.
+  it('refuses an EMPTY sms token, not just an absent one', () => {
+    const { error } = validate({
+      ...BASE,
+      OTP_DELIVERY_CHANNEL: 'sms',
+      SMS_API_BASE_URL: 'https://sms.example',
+      SMS_API_TOKEN: '',
+    });
+    expect(error?.message).toContain('SMS_API_TOKEN');
+  });
+
   it('accepts the Zenziva channel once both keys are present', () => {
     const { error } = validate({
       ...BASE,

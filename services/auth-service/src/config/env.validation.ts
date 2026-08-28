@@ -136,15 +136,26 @@ export const envValidationSchema = Joi.object({
   // which would demand that channel's credentials from every deploy that never picked
   // it. The key carries a `console` default, so absent must not match.
   .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms').required() }).unknown(), {
+    // `.invalid('')` for the same reason as the zenziva branch below: concat unions the
+    // allowed values, so `.required()` on a base that `.allow('')` only means "present".
     then: Joi.object({
-      SMS_API_BASE_URL: Joi.string().uri().required(),
-      SMS_API_TOKEN: Joi.string().required(),
+      SMS_API_BASE_URL: Joi.string().uri().invalid('').required(),
+      SMS_API_TOKEN: Joi.string().invalid('').required(),
     }),
   })
   .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('zenziva').required() }).unknown(), {
+    // `.invalid('')`, not just `.required()` — for the exact reason the branch below spells
+    // out for the channel: a `when` branch is CONCAT'ed onto the base key, and concat UNIONS
+    // allowed values. The base is `Joi.string().allow('').optional()`, so `.required()` alone
+    // only means "must be PRESENT", and the empty string stays allowed.
+    //
+    // That is not a theoretical gap. docker-compose.prod.yml:107-110 interpolates these with
+    // `:-`, so the key is ALWAYS present — which makes "absent", the one case `.required()`
+    // catches, the one case production cannot produce. An empty ZENZIVA_USERKEY booted green
+    // and then failed at the first send, per customer, with nothing upstream saying why.
     then: Joi.object({
-      ZENZIVA_USERKEY: Joi.string().required(),
-      ZENZIVA_PASSKEY: Joi.string().required(),
+      ZENZIVA_USERKEY: Joi.string().invalid('').required(),
+      ZENZIVA_PASSKEY: Joi.string().invalid('').required(),
     }),
   })
   // H-26: production must name a real channel. `console` only prints the code into the
