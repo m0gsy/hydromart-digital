@@ -46,6 +46,7 @@ export const opsFix = {
   payout: {
     noAccount: "No account set",
     accountUnreadable: "Depot bank account could not be read — reload before withdrawing.",
+    noBankAccount: "This depot has no bank account on file. Set it under depot settings (Depots → this depot → Payment); needs the MANAGER or SUPER_ADMIN role.",
   },
   meter: {
     deliveredHint: "{n} gallons delivered · {amount}",

@@ -160,4 +160,25 @@ else
   bad "the Sentry probe must name the GitHub repo VARIABLE as the fix; .env is a dead end here"
 fi
 
+# --- a depot with nowhere for money to land is REPORTED ----------------------------------
+#
+# payments.ts hides TRANSFER without a bank account and QRIS without an image, and never
+# filters CASH — so a depot with all four columns blank sells quietly, cash only, and nothing
+# on any screen says two methods were removed rather than declined. The check that would have
+# said so already existed (check-launch-blockers.mjs L2.3) and had never run on the box;
+# measured 2026-08-29, all three production depots were in exactly that state.
+if grep -qE 'depot payment probe' scripts/deploy.sh; then
+  ok "deploy reports active depots with no payment destination"
+else
+  bad "nothing tells the box that a depot takes cash only — the L2.3 question is asked by a gate that never runs here"
+fi
+
+# An unreadable answer must be a FINDING. The outbox probe next to it printed "unreadable"
+# for its whole life and proved nothing, quietly.
+if grep -qE 'depot payment probe cannot read' scripts/deploy.sh; then
+  ok "an unreadable depot database is treated as a finding, not a pass"
+else
+  bad "the depot payment probe can fail to read and stay silent — that is the outbox bug again"
+fi
+
 exit "$fails"
