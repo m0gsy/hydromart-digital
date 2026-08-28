@@ -132,4 +132,14 @@ else
   bad ".env.example omits ZENZIVA_* while production runs that channel — the env gate cannot see the two keys every sign-in needs"
 fi
 
+# And ONLY those two. ZENZIVA_BASE_URL carries a Joi default that IS the production value
+# (env.validation.ts:91), so a box that never sets it is a box that is working — listing it
+# here made the contract gate warn on the first deploy after it was added, about nothing. A
+# line that can never indicate a fault is noise in a gate whose entire value is being read.
+if grep -qE '^ZENZIVA_BASE_URL=' .env.example; then
+  bad "ZENZIVA_BASE_URL is back in .env.example — it has a default equal to the production value, so it can only ever produce a false warning"
+else
+  ok "the contract lists the two Zenziva keys that can actually be wrong, and not the one that cannot"
+fi
+
 exit "$fails"
