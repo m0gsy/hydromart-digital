@@ -20,7 +20,12 @@ import {
   isOpen,
 } from '../../domain/shift';
 import { DepotLocationPort } from '../ports/depot-location.port';
-import { ShiftQuery, ShiftRecord, ShiftRepository, ShiftStatusPatch } from '../ports/shift.repository';
+import {
+  ShiftQuery,
+  ShiftRecord,
+  ShiftRepository,
+  ShiftStatusPatch,
+} from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 
 /** A shift plus the derived numbers the app shows but never stores (design 3b). */
@@ -52,7 +57,19 @@ export class ShiftService {
     lng: number,
     capturedAt?: Date | null,
   ): Promise<ShiftView> {
-    if (await this.shifts.findOpenByDriver(driverId)) {
+    const open = await this.shifts.findOpenByDriver(driverId);
+    if (open) {
+      /*
+       * A shift already open AT THIS DEPOT is the replay of a check-in whose answer got
+       * lost — the same check-in that rides the offline capture queue, retried because the
+       * courier's phone never heard back. `isRetryable` does not retry a 409, so the job
+       * was marked failed and the courier was told their shift did not open while it was
+       * open on the server. Answered with the shift they already have.
+       *
+       * A shift open at a DIFFERENT depot is not a replay; it is a courier trying to be in
+       * two places, and that must still be refused.
+       */
+      if (open.depotId === depotId) return this.view(open);
       throw new ShiftAlreadyOpenError();
     }
 
