@@ -20,6 +20,7 @@ import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { copyWeekCells, shiftWeekStart } from '@/lib/roster-copy';
 import { canManageRoster, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -96,6 +97,7 @@ function RosterBody() {
   // Local cell state, keyed `${staffId}|${day}` → shift. Seeded from the fetched week.
   const [cells, setCells] = useState<Record<string, ShiftKind>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
 
   const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
   const roster = useAsync<ShiftAssignment[]>(
@@ -140,6 +142,43 @@ function RosterBody() {
     } catch (err) {
       setCells((prev) => ({ ...prev, [cellKey(staffId, day)]: current })); // roll back
       setSaveError(err instanceof ApiError ? err.message : t('opsFix.shift.saveError'));
+    }
+  }
+
+  /*
+   * Copy last week onto this one, in a single write.
+   *
+   * Reads the previous week, keeps only the shifts (OFF would overwrite whatever somebody
+   * has already entered here with "nobody filled this in last week"), drops anyone no
+   * longer on the grid, and PUTs the lot. One request, one server-side transaction — the
+   * thing 7 x N single-cell writes cannot be.
+   */
+  async function copyLastWeek() {
+    if (!editing || !canEdit || !scopedId) return;
+    setCopying(true);
+    setSaveError(null);
+    try {
+      const previous = await api.get<ShiftAssignment[]>(
+        endpoints.roster.week(scopedId, shiftWeekStart(weekStart, -1)),
+        true,
+      );
+      const cellsToWrite = copyWeekCells(previous, staff);
+      if (cellsToWrite.length === 0) {
+        // Nothing to copy is not a failure, and it must not look like one: an empty week
+        // behind you is the normal state of a new depot.
+        setSaveError(t('opsFix.shift.copyEmpty'));
+        return;
+      }
+      await api.put(
+        endpoints.roster.bulk(),
+        { depotId: scopedId, weekStart, cells: cellsToWrite },
+        true,
+      );
+      roster.reload();
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : t('opsFix.shift.copyError'));
+    } finally {
+      setCopying(false);
     }
   }
 
@@ -201,6 +240,18 @@ function RosterBody() {
             >
               <PencilSimple size={16} weight="bold" className="mr-1.5" />
               {editing ? t('opsFix.shift.editOn') : t('opsFix.shift.editOff')}
+            </Button>
+          )}
+          {/* Only while editing: it writes the whole week, and a button that does that
+              sitting next to two export buttons is one somebody presses by accident. */}
+          {canEdit && editing && (
+            <Button
+              variant="secondary"
+              onClick={() => void copyLastWeek()}
+              loading={copying}
+              disabled={staff.length === 0}
+            >
+              {t('opsFix.shift.copyLastWeek')}
             </Button>
           )}
           <Button variant="ghost" onClick={() => void exportXlsx()} disabled={staff.length === 0}>

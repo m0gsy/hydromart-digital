@@ -1,10 +1,13 @@
 'use client';
 
+import { useState } from 'react';
+
 import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/locale-context';
 import { ArrowLeft, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
+import { SettlementDetail } from '@/components/driver/settlement-detail';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -28,6 +31,7 @@ const STATUS: Record<SettlementStatus, { label: string; cls: string }> = {
 
 function History() {
   const { t } = useT();
+  const [openId, setOpenId] = useState<string | null>(null);
   const router = useRouter();
   const load = useAsync<CashSettlement[]>(
     () => api.get(endpoints.deliveries.settlement.history, true),
@@ -87,7 +91,29 @@ function History() {
                 {s.chargedToDriver && (
                   <p className="mt-2 text-[12px] text-red-600">{t('hrFix.settlementHistory.chargedToYou')}</p>
                 )}
-                {s.note && <p className="mt-1 text-[12px] text-black/60">Catatan kasir: {s.note}</p>}
+                {s.note && (
+                  <p className="mt-1 text-[12px] text-black/60">
+                    {t('hrFix.settlementHistory.detailNote')}: {s.note}
+                  </p>
+                )}
+                {/*
+                  The row shows the outcome. What it does not show is the audit trail —
+                  when it was verified and how many orders it covered — and it is a
+                  snapshot from page load, so a settlement verified since is still
+                  "menunggu" here until this re-reads it.
+                */}
+                <button
+                  type="button"
+                  onClick={() => setOpenId((current) => (current === s.id ? null : s.id))}
+                  className="mt-2 text-[12px] font-bold text-brand-700 underline underline-offset-2"
+                >
+                  {t('hrFix.settlementHistory.open')}
+                </button>
+                {openId === s.id && (
+                  <div className="mt-1">
+                    <SettlementDetail settlementId={s.id} />
+                  </div>
+                )}
               </Card>
             );
           })}

@@ -305,6 +305,15 @@ export const dashC = {
     },
   },
   tracking: {
+    detailError: 'Gagal membuka data pengiriman.',
+    detailOrder: 'Pesanan',
+    detailStatus: 'Status',
+    detailAddress: 'Alamat tujuan',
+    detailPhone: 'Telepon penerima',
+    detailCod: 'COD',
+    detailNoCod: 'Bukan COD',
+    detailAssigned: 'Ditugaskan',
+    open: 'Detail',
     steps: {
       ASSIGNED: 'Ditugaskan',
       PICKED_UP: 'Diambil',

@@ -1,9 +1,3 @@
 {
-  "orphans": [
-    "GET admin: /tickets/:",
-    "GET delivery: /deliveries/:",
-    "GET delivery: /driver/settlement/:",
-    "GET depot: /suppliers/:",
-    "PUT depot: /shifts/bulk"
-  ]
+  "orphans": []
 }

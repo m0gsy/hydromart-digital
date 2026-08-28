@@ -20,6 +20,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { SupplierDetail } from '@/components/dashboard/supplier-detail';
 import { useDepot } from '@/lib/depot-context';
 import { canManageProcurement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -113,6 +114,7 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
 }
 
 function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats }) {
+  const [showDetail, setShowDetail] = useState(false);
   const { t } = useT();
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -136,6 +138,20 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
           </Badge>
         )}
       </div>
+
+      {/*
+        Phone and registration date are on the record and were on no screen — the card
+        shows a name, a code and an on-time badge. Opened on demand rather than added to
+        every card: a procurement list is scanned, not read.
+      */}
+      <button
+        type="button"
+        onClick={() => setShowDetail((v) => !v)}
+        className="self-start text-[12px] font-bold text-brand-700 underline underline-offset-2"
+      >
+        {t('opsFix.suppliers.open')}
+      </button>
+      {showDetail && <SupplierDetail supplierId={supplier.id} />}
 
       {supplier.categories.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ChatCircleDots, PaperPlaneRight } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
+import { TicketDetail } from '@/components/hq/ticket-detail';
 import { Badge, Button, Card, Chip, ErrorState, Input, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { agoLabel } from '@/lib/hq/stubs';
@@ -38,6 +39,9 @@ export default function HqTicketsPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>('all');
+  // Which ticket's thread is open. One at a time: a queue with every thread expanded is
+  // a queue nobody can scan.
+  const [openId, setOpenId] = useState<string | null>(null);
   const query = useAsync<SupportTicket[]>(
     () => api.get(endpoints.admin.tickets.list({ status: filter === 'all' ? undefined : filter }), true),
     [filter],
@@ -116,6 +120,19 @@ export default function HqTicketsPage() {
                 {tk.customerRef} · {tk.customerPhone} ·{' '}
                 {tk.assigneeId ? t('hq.tickets.assignedTo', { who: tk.assigneeId }) : t('hq.tickets.unassigned')}
               </p>
+              {/*
+                Opened on demand, and re-read rather than expanded from the row: the row is
+                a snapshot from when the queue loaded, so a reply written since then is on
+                the server and not here. That is the whole reason the by-id route exists.
+              */}
+              <button
+                type="button"
+                onClick={() => setOpenId((current) => (current === tk.id ? null : tk.id))}
+                className="self-start text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+              >
+                {t(openId === tk.id ? 'hq.tickets.detailHide' : 'hq.tickets.detailShow')}
+              </button>
+              {openId === tk.id && <TicketDetail ticketId={tk.id} />}
 
               <div className="flex flex-col gap-2 rounded-xl bg-[color:var(--surface-soft)] p-3">
                 {tk.messages.map((m) => (

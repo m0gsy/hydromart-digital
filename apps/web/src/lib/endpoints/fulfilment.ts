@@ -20,6 +20,13 @@ deliveries: {
   },
   // Assign a courier to an order (dispatch); advances the order to DRIVER_ASSIGNED.
   assign: '/deliveries/api/v1/deliveries',
+  /*
+   * One delivery, read by staff. The only orphan of the five with no written reason — it
+   * was recorded, never decided. It carries its own authorisation (`assertDepotAccess`,
+   * commented "close the by-id vector"), the courier side has the same route and a screen,
+   * and the dispatcher tracing one late delivery had nothing.
+   */
+  detail: (id: string) => `/deliveries/api/v1/deliveries/${encodeURIComponent(id)}`,
 // B2: the dispatcher's two ways to take a delivery back off a courier who cannot
 // finish it. Release hands the ORDER back to the queue for someone else; cancel ends
 // it, which is what returns the stock the checkout is still holding.
@@ -73,8 +80,13 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
   // the expected total is snapshotted server-side from payment-service.
   settlement: {
     history: '/deliveries/api/v1/driver/settlement',
-    // (get removed, audit F: the courier reads their settlement HISTORY and submits a new
-    // one. Opening a past settlement by id has no screen behind it.)
+    /*
+     * There is one now. The history row shows a status and two totals; what it cannot show
+     * is WHY — the note a cashier wrote when they disputed it, who verified it and when,
+     * and whether the shortfall was charged to the courier. That is the courier's own money
+     * and the answer they would take to a manager.
+     */
+    get: (id: string) => `/deliveries/api/v1/driver/settlement/${encodeURIComponent(id)}`,
     submit: '/deliveries/api/v1/driver/settlement',
   },
   // Courier empty-gallon return at handover (design 2e, depot-service). Deposit refund
@@ -162,8 +174,13 @@ roster: {
   week: (depotId: string, weekStart: string) =>
     `/shifts/api/v1/shifts?depotId=${encodeURIComponent(depotId)}&weekStart=${encodeURIComponent(weekStart)}`,
   setCell: () => '/shifts/api/v1/shifts',
-  // (bulk removed, audit F: the roster grid writes one cell at a time — there is no
-  // multi-cell save in the UI for a bulk route to serve.)
+  /*
+   * There is one now: "salin minggu lalu". Filling a week one tap at a time is 7 x N
+   * separate requests, each able to fail on its own and leave a half-written roster with
+   * nothing to roll back to. Copying last week is the operation that needs a bulk write,
+   * and the one a depot actually does — most couriers work the same pattern every week.
+   */
+  bulk: () => '/shifts/api/v1/shifts/bulk',
 },
 
 handover: {

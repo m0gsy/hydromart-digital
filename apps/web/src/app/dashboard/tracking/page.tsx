@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { DeliveryDetail } from '@/components/dashboard/delivery-detail';
 import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -75,6 +76,7 @@ function DeliveryCard({
 }) {
   const { t } = useT();
   const [busy, setBusy] = useState<'release' | 'cancel' | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   /*
@@ -146,6 +148,22 @@ function DeliveryCard({
         </span>
         <span className="text-xs text-muted">{relative(d.lastLocationAt, t)}</span>
       </div>
+
+      {/*
+        The one orphan route of the five that never had a written reason — recorded, never
+        decided. The card shows where the delivery IS; the record also holds the
+        destination, the recipient's number and the COD amount, which is what a dispatcher
+        is holding a phone about. Opened on demand, and re-read: this list polls, but the
+        card is still whatever the last poll returned.
+      */}
+      <button
+        type="button"
+        onClick={() => setShowDetail((v) => !v)}
+        className="self-start text-[12px] font-bold text-brand-700 underline underline-offset-2"
+      >
+        {t('dashC.tracking.open')}
+      </button>
+      {showDetail && <DeliveryDetail deliveryId={d.id} />}
 
       {/* B2: only while the delivery is still in flight — a finished one has nothing to take. */}
       {(d.status === 'ASSIGNED' || d.status === 'PICKED_UP' || d.status === 'ON_DELIVERY') && (
