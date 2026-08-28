@@ -100,4 +100,36 @@ else
   bad "a failed caddy reload must alert: the release is live and the front door is not"
 fi
 
+# --- the OTP channel is probed on the box ------------------------------------------------
+#
+# scripts/check-launch-blockers.mjs asks this of the REPO's .env, on a laptop, and is never
+# executed on the box (grep it across .github/ and scripts/ — only the script and its own
+# self-test). So the credential pair standing between a stranger and an account had no
+# measurement anywhere near production, while VAPID and FCM — strictly less critical — both
+# had one.
+if grep -qE 'otp probe — channel' scripts/deploy.sh; then
+  ok "deploy probes the OTP channel's credentials inside auth"
+else
+  bad "nothing measures the OTP credentials on the box: VAPID and FCM are probed and the one that gates every sign-in is not"
+fi
+
+# `console` prints the code into the container log. A stack left on it is one log read away
+# from signing in as any customer, so it must shout rather than pass quietly.
+if grep -qE 'OTP codes are only logged, not sent' scripts/deploy.sh; then
+  ok "an OTP channel of console raises an alert"
+else
+  bad "a box on OTP_DELIVERY_CHANNEL=console must alert — the code is in the log"
+fi
+
+# --- the env contract can SEE the production OTP credentials -----------------------------
+#
+# deploy-common.sh compares the box's .env against .env.example, so a variable absent from
+# the example is a variable the per-deploy gate is structurally blind to. ZENZIVA_* was
+# absent while production ran on that channel.
+if grep -qE '^ZENZIVA_USERKEY=' .env.example && grep -qE '^ZENZIVA_PASSKEY=' .env.example; then
+  ok ".env.example declares the Zenziva credentials, so the env-contract gate can see them"
+else
+  bad ".env.example omits ZENZIVA_* while production runs that channel — the env gate cannot see the two keys every sign-in needs"
+fi
+
 exit "$fails"
