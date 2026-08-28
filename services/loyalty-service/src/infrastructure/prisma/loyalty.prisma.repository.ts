@@ -173,6 +173,16 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
       ])
       .catch(async (error: unknown) => {
         if (!isUniqueViolation(error)) throw error;
+        /*
+         * Returned without reading the row back, unlike the other three places this repo
+         * answers a unique violation with its outcome — and that is safe for exactly one
+         * reason: `PointsTransaction` carries a single unique index, `[orderId, type]`. A
+         * violation in this transaction can therefore only be this race.
+         *
+         * `prisma-repositories.spec.ts` pins that invariant against the schema file, so the
+         * day a second index is added this stops being true, the test goes red, and whoever
+         * added it reads this comment instead of shipping a silent "you earned points".
+         */
         // Nothing was written by this call — the whole transaction rolled back — so the
         // account as it stands is the winner's, points included.
         return [

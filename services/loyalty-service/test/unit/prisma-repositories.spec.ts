@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { LoyaltyPrismaRepository } from '../../src/infrastructure/prisma/loyalty.prisma.repository';
 import { RewardPrismaRepository } from '../../src/infrastructure/prisma/reward.prisma.repository';
@@ -10,6 +13,32 @@ import { PointsTxnType } from '../../src/domain/points';
 // points/balance mapping. $transaction is mocked to resolve the array of build-time ops it
 // is handed (the repos read positional results out of it). Mirrors
 // services/auth-service/test/unit/prisma-repositories.spec.ts.
+
+/*
+ * `recordEarn` answers a unique violation with the account, WITHOUT reading the earn row
+ * back first — unlike the three other places in this repo that answer a P2002 with its
+ * outcome. That shortcut is correct for exactly one reason, and it is a fact about the
+ * schema rather than about the code: `PointsTransaction` carries a single unique index.
+ *
+ * Read from schema.prisma so it cannot drift. The day somebody adds a second index this
+ * goes red — which is the day `recordEarn` would otherwise start reporting "you earned
+ * points" for a violation that means something else entirely.
+ */
+describe('the invariant recordEarn depends on', () => {
+  it('PointsTransaction has exactly one unique index', () => {
+    const schema = readFileSync(join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+    const lines = schema.split('\n');
+    const from = lines.findIndex((l) => l.startsWith('model PointsTransaction'));
+    const rest = lines.slice(from);
+    const body = rest.slice(
+      0,
+      rest.findIndex((l) => l === '}'),
+    );
+    const uniques = body.filter((l) => /@@unique|@unique/.test(l));
+    expect(uniques).toHaveLength(1);
+    expect(uniques[0]).toContain('@@unique([orderId, type])');
+  });
+});
 
 describe('LoyaltyPrismaRepository', () => {
   const loyaltyAccount = {
