@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
+import { PrivacyLink } from '@/components/privacy-sheet';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { currentPosition, GeoError } from '@/lib/geo';
@@ -72,7 +73,9 @@ function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElem
         onClick={clear}
         className="inline-flex items-center gap-1 text-sm text-[color:var(--muted)] hover:text-brand-600"
       >
-        <Eraser size={16} />{t('hrFix.pod.clearSignature')}</button>
+        <Eraser size={16} />
+        {t('hrFix.pod.clearSignature')}
+      </button>
     </div>
   );
 }
@@ -150,8 +153,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       // recipient actually drew one. Both travel as data URLs so the queue can survive a
       // reload — the uploads themselves happen inside the queue, online or on flush.
       const photoBlob = await compressImage(photo);
-      const signatureBlob =
-        canvas && !isCanvasBlank(canvas) ? await canvasToBlob(canvas) : null;
+      const signatureBlob = canvas && !isCanvasBlank(canvas) ? await canvasToBlob(canvas) : null;
 
       // Queued counts as done for the courier: the handover happened, and holding them on
       // this screen until signal returns would strand them at the customer's gate. The
@@ -162,7 +164,9 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           deliveryId,
           orderNumber,
           photo: await toDataUrl(photoBlob, t('hrFix.pod.readFailed')),
-          signature: signatureBlob ? await toDataUrl(signatureBlob, t('hrFix.pod.readFailed')) : undefined,
+          signature: signatureBlob
+            ? await toDataUrl(signatureBlob, t('hrFix.pod.readFailed'))
+            : undefined,
           // Always true here — Selesai is gated on it above — but sent rather than assumed
           // server-side, because the server must be able to tell "said yes" from "never
           // asked", and an old APK is exactly the second case.
@@ -200,10 +204,20 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--muted)] hover:border-brand-500">
           <Camera size={20} />
           {photo ? t('hrFix.pod.replacePhoto') : t('hrFix.pod.takePhoto')}
-          <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="hidden" />
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={pickPhoto}
+            className="hidden"
+          />
         </label>
         {photoPreview && (
-          <img src={photoPreview} alt={t('hrFix.pod.previewAlt')} className="max-h-48 rounded-xl object-cover" />
+          <img
+            src={photoPreview}
+            alt={t('hrFix.pod.previewAlt')}
+            className="max-h-48 rounded-xl object-cover"
+          />
         )}
       </div>
 
@@ -218,32 +232,44 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           className="mt-0.5 size-4 shrink-0 accent-brand-600"
         />
         <span className="flex items-center gap-1.5 text-sm font-medium">
-          <SealCheck size={16} weight="fill" className="text-brand-700" />{t('hrFix.pod.sealIntact')}</span>
+          <SealCheck size={16} weight="fill" className="text-brand-700" />
+          {t('hrFix.pod.sealIntact')}
+        </span>
       </label>
 
       <Field label={t('hrFix.pod.recipient')}>
-        <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder={t('hrFix.pod.recipientHint')} maxLength={120} />
+        <Input
+          value={recipientName}
+          onChange={(e) => setRecipientName(e.target.value)}
+          placeholder={t('hrFix.pod.recipientHint')}
+          maxLength={120}
+        />
       </Field>
 
       <div className="space-y-2">
         <span className="flex items-center gap-1 text-sm font-medium">
           <PencilLine size={16} /> Tanda tangan penerima
-          <span className="text-xs font-normal text-[color:var(--muted)]">{t('hrFix.pod.optional')}</span>
+          <span className="text-xs font-normal text-[color:var(--muted)]">
+            {t('hrFix.pod.optional')}
+          </span>
         </span>
         {/* UU PDP notice: the delivery photo is always stored; the signature is optional
             and, when given, consents to being stored too. */}
         <p className="text-xs leading-relaxed text-[color:var(--muted)]">
-          Foto bukti antar disimpan sesuai Kebijakan Privasi. Tanda tangan bersifat opsional; dengan menandatangani, penerima menyetujui tanda tangan disimpan sesuai{' '}
-          <a href="/kebijakan-privasi" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600">
-            Kebijakan Privasi
-          </a>
-          .
+          Foto bukti antar disimpan sesuai Kebijakan Privasi. Tanda tangan bersifat opsional; dengan
+          menandatangani, penerima menyetujui tanda tangan disimpan sesuai{' '}
+          <PrivacyLink className="underline hover:text-brand-600">Kebijakan Privasi</PrivacyLink>.
         </p>
         <SignaturePad canvasRef={canvasRef} />
       </div>
 
       <Field label={t('hrFix.pod.noteOpt')}>
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('hrFix.pod.noteHint')} maxLength={255} />
+        <Input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={t('hrFix.pod.noteHint')}
+          maxLength={255}
+        />
       </Field>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

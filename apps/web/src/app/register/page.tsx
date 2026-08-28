@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { ArrowLeft, ArrowRight, Gift, User } from '@phosphor-icons/react';
 
+import { PrivacyLink } from '@/components/privacy-sheet';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -54,7 +55,8 @@ function RegisterForm() {
       const onward = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       if (referral.trim()) onward.set('ref', referral.trim());
       // E4: the server's cooldown, carried so /verify counts the same seconds it does.
-      if (challenge.resendCooldownSeconds) onward.set('cd', String(challenge.resendCooldownSeconds));
+      if (challenge.resendCooldownSeconds)
+        onward.set('cd', String(challenge.resendCooldownSeconds));
       // K1.1: the code's lifetime, so /verify can count it down and say so when it ends.
       if (challenge.expiresInSeconds) onward.set('exp', String(challenge.expiresInSeconds));
       router.push(`/verify?${onward.toString()}`);
@@ -89,7 +91,10 @@ function RegisterForm() {
           no change; a gated destination still bounces at RequireAuth, which is the honest
           answer to someone who has just declined to make an account.
         */}
-        <Link href={next} className="text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]">
+        <Link
+          href={next}
+          className="text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]"
+        >
           Lewati
         </Link>
       </div>
@@ -171,7 +176,9 @@ function RegisterForm() {
 
         {/* Referral (optional) — code is carried to /verify and redeemed post-signup. */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="referral" className="text-[12.5px] font-bold">{t('auth.register.referralLabel')}</label>
+          <label htmlFor="referral" className="text-[12.5px] font-bold">
+            {t('auth.register.referralLabel')}
+          </label>
           <div
             className="flex items-center gap-2 rounded-[14px] border-[1.5px] border-app bg-[color:var(--surface-elevated)] px-3.5"
             style={{ height: 52 }}
@@ -197,12 +204,19 @@ function RegisterForm() {
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+            /*
+             * Named explicitly, because the visible sentence no longer names it in full:
+             * "Kebijakan Privasi" is a button now (it opens the policy in place rather than
+             * in a tab the app cannot show), and a nested control does not contribute to the
+             * label its checkbox is computed from. Without this a screen reader announces
+             * "Saya menyetujui dan Ketentuan Layanan Hydromart" — a consent with the thing
+             * being consented to missing from it.
+             */
+            aria-label={`${t('auth.register.consentPre')}${t('auth.register.consentPrivacy')}${t('auth.register.consentPost')}`}
           />
           <span>
             {t('auth.register.consentPre')}
-            <Link href="/kebijakan-privasi" target="_blank" className="font-bold text-brand-600 hover:underline">
-              {t('auth.register.consentPrivacy')}
-            </Link>
+            <PrivacyLink>{t('auth.register.consentPrivacy')}</PrivacyLink>
             {t('auth.register.consentPost')}
           </span>
         </label>
