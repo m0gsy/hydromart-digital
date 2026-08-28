@@ -357,6 +357,60 @@ describe('CustomerPrismaRepository branch gaps', () => {
     await expect(repo.save(customer)).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
   });
 
+  /*
+   * The same race, on the path that carries the signups.
+   *
+   * `save()` had this backstop and `create()` did not, and create() is where the traffic is:
+   * public registration, the staff invite (a spreadsheet import replays it row by row), and
+   * the counter sale. Every one of them reads the number as free first, and none of them can
+   * win the race — the index decides. The loser used to get a raw P2002, which the filter can
+   * only render as a 500: a person told the server is broken on the first screen of the
+   * product, when what happened is that their number is already registered.
+   */
+  it('translates a P2002 phone conflict on CREATE, where the signups are', async () => {
+    model.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+        meta: { target: ['phone'] },
+      }),
+    );
+    await expect(
+      repo.create({ phone: '+6281234567890', email: null, fullName: 'Budi', role: Role.CUSTOMER }),
+    ).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+  });
+
+  it('translates a P2002 email conflict on CREATE', async () => {
+    model.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+        meta: { target: ['email'] },
+      }),
+    );
+    await expect(
+      repo.create({
+        phone: '+6281234567890',
+        email: 'budi@x.com',
+        fullName: null,
+        role: Role.CUSTOMER,
+      }),
+    ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
+  });
+
+  // Same rule on create as on save: a P2002 this has no sentence for stays a fault.
+  it('rethrows a create P2002 on a column it has no sentence for', async () => {
+    const raw = new Prisma.PrismaClientKnownRequestError('dup', {
+      code: 'P2002',
+      clientVersion: '5.22.0',
+      meta: { target: ['googleSub'] },
+    });
+    model.create.mockRejectedValue(raw);
+    await expect(
+      repo.create({ phone: '+6281234567890', email: null, fullName: null, role: Role.CUSTOMER }),
+    ).rejects.toBe(raw);
+  });
+
   // A P2002 on any OTHER column is not one of the two the service knows how to explain.
   it('rethrows a P2002 on a column it has no sentence for', async () => {
     model.update.mockRejectedValue(
