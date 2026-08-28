@@ -42,7 +42,7 @@ describe('toXlsx', () => {
     const fake = fakeExcel('buffer');
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock('exceljs', () => fake.Module, { virtual: true });
+      jest.doMock('exceljs', () => fake.Module);
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { toXlsx } = require('../../src/domain/xlsx');
       out = toXlsx(HEADERS, ROWS, 'Payroll');
@@ -60,7 +60,7 @@ describe('toXlsx', () => {
   it('wraps an ArrayBuffer result in a Buffer', async () => {
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock('exceljs', () => fakeExcel('arraybuffer').Module, { virtual: true });
+      jest.doMock('exceljs', () => fakeExcel('arraybuffer').Module);
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { toXlsx } = require('../../src/domain/xlsx');
       out = toXlsx(HEADERS, ROWS, 'Payroll');
@@ -74,7 +74,7 @@ describe('toXlsx', () => {
     const fake = fakeExcel('buffer');
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock('exceljs', () => fake.Module, { virtual: true });
+      jest.doMock('exceljs', () => fake.Module);
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { toXlsx } = require('../../src/domain/xlsx');
       out = toXlsx(HEADERS, ROWS, 'a'.repeat(40));
@@ -86,13 +86,9 @@ describe('toXlsx', () => {
   it('throws a clear error when exceljs is not installed', async () => {
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock(
-        'exceljs',
-        () => {
-          throw new Error('Cannot find module');
-        },
-        { virtual: true },
-      );
+      jest.doMock('exceljs', () => {
+        throw new Error('Cannot find module');
+      });
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { toXlsx } = require('../../src/domain/xlsx');
       out = toXlsx(HEADERS, ROWS, 'Payroll');
