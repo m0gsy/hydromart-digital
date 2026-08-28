@@ -21,12 +21,7 @@ import {
   isActive,
   orderStatusFor,
 } from '../../domain/delivery-status';
-import {
-  ContactMethod,
-  NoShowPolicy,
-  canMarkNoShow,
-  noShowEligibleAt,
-} from '../../domain/no-show';
+import { ContactMethod, NoShowPolicy, canMarkNoShow, noShowEligibleAt } from '../../domain/no-show';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { Page, buildPage } from '../pagination';
 import {
@@ -181,11 +176,9 @@ export class DeliveryService {
      * nothing has happened yet — advancing first would leave an order at DRIVER_ASSIGNED
      * with no delivery behind it.
      */
-    const payment = await this.payments
-      .forOrder(input.orderId)
-      .catch(() => {
-        throw new PaymentLookupUnavailableError();
-      });
+    const payment = await this.payments.forOrder(input.orderId).catch(() => {
+      throw new PaymentLookupUnavailableError();
+    });
     const codAmount = payment?.method === 'CASH' ? payment.amount : null;
 
     const assignMeta: OrderAdvanceMeta | undefined =
@@ -244,6 +237,23 @@ export class DeliveryService {
   }
 
   /** Completes the delivery with proof: photo + GPS + timestamp mandatory, signature optional. */
+  /*
+   * `replayed`: why three of these methods answer instead of conflicting.
+   *
+   * Every courier action that changes something they cannot redo rides the offline capture
+   * queue (apps/web/src/lib/offline-queue.ts, K2.9), and the queue retries a job it never
+   * got an answer for — which includes the answer lost AFTER the server applied the change.
+   *
+   * On the retry `assertTransition` raised a 409, and `isRetryable` in that file correctly
+   * does not retry a 409: the job was marked failed and the courier was shown an error for
+   * work that had landed. The queue exists so a courier in a dead spot does not lose their
+   * work; telling them it failed when it did not is the same lie by another route.
+   *
+   * `ownedByDriver` above has already established this is the same courier's delivery, and
+   * DELIVERED and FAILED are terminal states in `TRANSITIONS` — nothing leaves them — so a
+   * second arrival at one is a replay and cannot be anything else. It is answered with the
+   * record, which is what the first attempt would have returned.
+   */
   async complete(
     driverId: string,
     id: string,
@@ -251,6 +261,8 @@ export class DeliveryService {
     authorization: string,
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
+    // Already delivered, by this driver: a replay, not a second delivery. See `replayed`.
+    if (delivery.status === DeliveryStatus.DELIVERED) return delivery;
     this.assertTransition(delivery.status, DeliveryStatus.DELIVERED);
     // Proof queued offline keeps the handover time, floored at assignment so a wrong device
     // clock cannot fake an impossibly fast delivery and inflate the courier's on-time rate.
@@ -357,6 +369,8 @@ export class DeliveryService {
     authorization = '',
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
+    // Already failed, by this driver: a replay, not a second failure. See `replayed`.
+    if (delivery.status === DeliveryStatus.FAILED) return delivery;
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
     await this.cancelOrderFor(delivery.orderId, authorization);
@@ -446,6 +460,20 @@ export class DeliveryService {
    */
   async reschedule(driverId: string, id: string, input: RescheduleInput): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
+    /*
+     * Narrower than the two above, because a reschedule carries a decision.
+     *
+     * DELIVERED and FAILED are terminal, so a second one can only be a replay. RESCHEDULED
+     * is not: dispatch re-assigns from it, and a courier asking for a DIFFERENT date is
+     * making a new request, not repeating one. So the replay must say the same thing —
+     * same date to the millisecond — and anything else still conflicts.
+     */
+    if (
+      delivery.status === DeliveryStatus.RESCHEDULED &&
+      delivery.rescheduledFor?.getTime() === input.rescheduledFor.getTime()
+    ) {
+      return delivery;
+    }
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
     const updated = await this.deliveries.applyStatus(
       id,
@@ -487,7 +515,12 @@ export class DeliveryService {
    * phone-only, which is the honest outcome rather than a guessed one.
    */
   private async notifyRescheduled(
-    delivery: { id: string; orderNumber: string; recipientPhone: string | null; customerId?: string | null },
+    delivery: {
+      id: string;
+      orderNumber: string;
+      recipientPhone: string | null;
+      customerId?: string | null;
+    },
     input: { rescheduledFor: Date; slot?: string | null; note?: string | null },
   ): Promise<void> {
     if (!this.customerNotifications) {
@@ -526,7 +559,12 @@ export class DeliveryService {
    * (a delivered/failed delivery no longer moves). Latest position overwrites the
    * previous one — no track history is kept in the MVP.
    */
-  async reportLocation(driverId: string, id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+  async reportLocation(
+    driverId: string,
+    id: string,
+    lat: number,
+    lng: number,
+  ): Promise<DeliveryRecord> {
     // A projection, not the whole delivery (audit S-17): a ping arrives every few seconds
     // per courier on the road, and it used to drag the full status history and the delivery
     // proof back with it just to check an id and a status.

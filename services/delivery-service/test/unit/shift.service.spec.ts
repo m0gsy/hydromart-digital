@@ -31,7 +31,6 @@ describe('ShiftService', () => {
   const checkIn = (driverId = driver) =>
     service.checkIn(driverId, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
 
-
   it('refuses a status change the shift cannot make', async () => {
     const shift = await checkIn();
     // ONLINE -> ONLINE is not a transition; the map lists BREAK, OFFLINE and ENDED only.
@@ -65,9 +64,27 @@ describe('ShiftService', () => {
       ).rejects.toBeInstanceOf(NotAtDepotError);
     });
 
-    it('rejects a second check-in while a shift is open', async () => {
+    /*
+     * The check-in rides the offline capture queue, and the queue retries a job it never
+     * got an answer for — including the answer lost after the shift was opened. That retry
+     * used to get a 409, which `isRetryable` in offline-queue.ts correctly does not retry,
+     * so the courier was told their shift did not open while it was open on the server.
+     */
+    it('answers a repeated check-in at the same depot with the shift already open', async () => {
+      const first = await checkIn();
+      const replay = await checkIn();
+      expect(replay.id).toBe(first.id);
+      expect(replay.status).toBe(ShiftStatus.ONLINE);
+    });
+
+    // Not a replay: a courier cannot be standing at two depots, and a shift open elsewhere
+    // is exactly what this refusal is for.
+    it('still rejects a check-in at a different depot while a shift is open', async () => {
       await checkIn();
-      await expect(checkIn()).rejects.toBeInstanceOf(ShiftAlreadyOpenError);
+      const other = '00000000-0000-4000-8000-000000000002';
+      await expect(
+        service.checkIn(driver, other, AT_DEPOT.lat, AT_DEPOT.lng),
+      ).rejects.toBeInstanceOf(ShiftAlreadyOpenError);
     });
 
     it('lets a courier check in again after checking out', async () => {

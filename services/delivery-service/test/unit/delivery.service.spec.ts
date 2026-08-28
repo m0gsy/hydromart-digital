@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeliveryService, storageKeyFromUrl } from '../../src/application/services/delivery.service';
+import {
+  DeliveryService,
+  storageKeyFromUrl,
+} from '../../src/application/services/delivery.service';
 import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DeliveryAlreadyExistsError,
@@ -174,7 +177,6 @@ describe('DeliveryService', () => {
       expect(orders.calls).toHaveLength(0);
     });
   });
-
 
   // Defaults nobody passes in the happy-path specs: the courier app omits the note, and the
   // internal callers (offline flush, ops tooling) carry no bearer at all.
@@ -421,7 +423,20 @@ describe('DeliveryService', () => {
     const d = await assign(driver, orderId);
     await service.pickup(driver, d.id, AUTH);
     await service.start(driver, d.id, AUTH);
-    await service.complete(driver, d.id, { photoUrl: 'u', recipientName: 'Budi', signatureUrl: null, sealIntact: true, latitude: -6.19, longitude: 106.84, note: null }, AUTH);
+    await service.complete(
+      driver,
+      d.id,
+      {
+        photoUrl: 'u',
+        recipientName: 'Budi',
+        signatureUrl: null,
+        sealIntact: true,
+        latitude: -6.19,
+        longitude: 106.84,
+        note: null,
+      },
+      AUTH,
+    );
     await expect(assign(randomUUID(), orderId)).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
   });
 
@@ -459,12 +474,65 @@ describe('DeliveryService', () => {
   // delivery that does not exist, and one that belongs to another driver.
   it('refuses a ping for an unknown delivery or another driver', async () => {
     const d = await assign();
-    await expect(
-      service.reportLocation(driver, randomUUID(), -6.2, 106.8),
-    ).rejects.toBeInstanceOf(DeliveryNotFoundError);
+    await expect(service.reportLocation(driver, randomUUID(), -6.2, 106.8)).rejects.toBeInstanceOf(
+      DeliveryNotFoundError,
+    );
     await expect(service.reportLocation(randomUUID(), d.id, -6.2, 106.8)).rejects.toBeInstanceOf(
       NotAssignedDriverError,
     );
+  });
+
+  /*
+   * Every courier action that changes something they cannot redo rides the offline capture
+   * queue (K2.9), and the queue retries a job it never got an answer for — including the
+   * answer lost AFTER the server applied the change. On the retry `assertTransition` raised
+   * a 409, and `isRetryable` in offline-queue.ts correctly does not retry a 409: the job
+   * was marked failed and the courier was shown an error for work that had landed.
+   *
+   * The queue exists so a courier in a dead spot does not lose their work. Telling them it
+   * failed when it did not is the same lie by another route.
+   */
+  describe('a queued job replayed after its answer was lost', () => {
+    it('answers a second complete with the delivery already delivered', async () => {
+      const d = await assign();
+      await service.pickup(driver, d.id, AUTH);
+      await service.start(driver, d.id, AUTH);
+      const first = await service.complete(driver, d.id, PROOF, AUTH);
+
+      const replay = await service.complete(driver, d.id, PROOF, AUTH);
+
+      expect(replay.status).toBe(DeliveryStatus.DELIVERED);
+      expect(replay.deliveredAt).toEqual(first.deliveredAt);
+    });
+
+    it('answers a second fail with the delivery already failed', async () => {
+      const d = await assign();
+      const first = await service.fail(driver, d.id, 'Alamat tidak ditemukan', AUTH);
+
+      const replay = await service.fail(driver, d.id, 'Alamat tidak ditemukan', AUTH);
+
+      expect(replay.status).toBe(DeliveryStatus.FAILED);
+      expect(replay.failedAt).toEqual(first.failedAt);
+    });
+
+    /*
+     * Narrower, because a reschedule carries a decision. DELIVERED and FAILED are terminal,
+     * so a second one can only be a replay; RESCHEDULED is not, and a courier asking for a
+     * DIFFERENT date is making a new request rather than repeating one.
+     */
+    it('answers a second reschedule for the same date, and refuses a different one', async () => {
+      const d = await assign();
+      const when = new Date('2026-09-01T03:00:00.000Z');
+      const first = await service.reschedule(driver, d.id, { rescheduledFor: when });
+
+      const replay = await service.reschedule(driver, d.id, { rescheduledFor: when });
+      expect(replay.status).toBe(DeliveryStatus.RESCHEDULED);
+      expect(replay.rescheduledFor).toEqual(first.rescheduledFor);
+
+      await expect(
+        service.reschedule(driver, d.id, { rescheduledFor: new Date('2026-09-02T03:00:00.000Z') }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryTransitionError);
+    });
   });
 
   it('records the driver location while active and rejects it after delivery', async () => {
@@ -854,5 +922,4 @@ describe('DeliveryService', () => {
       expect(d.deliveryWindow).toBeNull();
     });
   });
-
 });
