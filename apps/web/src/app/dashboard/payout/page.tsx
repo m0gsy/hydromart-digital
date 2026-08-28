@@ -13,7 +13,17 @@ import {
 } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
@@ -82,7 +92,13 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
 const QUICK = [2_000_000, 5_000_000];
 
 /** Balance + withdrawal request card (design 9d). Posts, then shows a success receipt. */
-function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithdrawn: () => void }) {
+function BalanceCard({
+  summary,
+  onWithdrawn,
+}: {
+  summary: PayoutSummary;
+  onWithdrawn: () => void;
+}) {
   const { t } = useT();
   const { selected: depot } = useDepot();
   const [amount, setAmount] = useState('');
@@ -118,10 +134,12 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
     // to send a hardcoded reference, so the request always "worked" and the money had nowhere
     // recorded to go.
     if (!bankAccountRef) {
+      // Was a hardcoded, untranslated string that named no screen: "atur dulu di Pengaturan
+      // pembayaran". A refusal that does not say WHERE is a refusal the reader cannot act on,
+      // and the setting lives behind a capability (`depotAdmin` = MANAGER / SUPER_ADMIN) that
+      // a franchise owner reading this message may not even hold.
       setError(
-        bank.error
-          ? t('opsFix.payout.accountUnreadable')
-          : 'Depot ini belum mengisi rekening bank — atur dulu di Pengaturan pembayaran.',
+        bank.error ? t('opsFix.payout.accountUnreadable') : t('opsFix.payout.noBankAccount'),
       );
       return;
     }
@@ -148,7 +166,9 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--success-bg)]">
           <CheckCircle size={40} weight="fill" className="text-green-700" />
         </span>
-        <h2 className="text-xl font-extrabold tracking-tight">{t('dashB.payout.withdrawalProcessed')}</h2>
+        <h2 className="text-xl font-extrabold tracking-tight">
+          {t('dashB.payout.withdrawalProcessed')}
+        </h2>
         <p className="text-sm text-muted">
           <Money amount={done.amount} className="font-bold text-[color:var(--text)]" />{' '}
           {t('dashB.payout.sentTo', { ref: done.bankAccountRef })}
@@ -171,7 +191,9 @@ function BalanceCard({ summary, onWithdrawn }: { summary: PayoutSummary; onWithd
     <Card className="flex flex-col gap-3 p-5">
       <div className="rounded-2xl bg-gradient-to-br from-[#0b4d57] to-[#0c97ac] p-4 text-white">
         <p className="text-xs text-white/80">{t('dashB.payout.availableBalance')}</p>
-        <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums">{formatIDR(balance)}</p>
+        <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums">
+          {formatIDR(balance)}
+        </p>
         <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
           <Bank size={18} weight="fill" className="text-[#8fe3ee]" />
           <div className="leading-tight">
@@ -251,9 +273,7 @@ function PayoutBody() {
         <h1 className="text-2xl font-bold">{t('dashB.payout.title')}</h1>
         <Badge tone="warning">{t('dashB.payout.proposed')}</Badge>
       </div>
-      <p className="text-sm text-muted">
-        {t('dashB.payout.subtitle')}
-      </p>
+      <p className="text-sm text-muted">{t('dashB.payout.subtitle')}</p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t('dashB.payout.availableBalance')} value={formatIDR(data.availableBalance)} />

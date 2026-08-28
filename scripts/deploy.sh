@@ -531,6 +531,41 @@ if health_ok; then
     fi
   fi
 
+  # 1b. A depot with nowhere for money to land.
+  #
+  # `apps/web/src/lib/payments.ts:66-70` hides TRANSFER when there is no bank account and QRIS
+  # when there is no image, and never filters CASH. So a depot with all four columns blank
+  # sells perfectly quietly — cash only, no error anywhere, and nothing on any screen says the
+  # other two methods were removed rather than declined.
+  #
+  # The check that would have said so ALREADY EXISTS: check-launch-blockers.mjs L2.3 asks this
+  # exact question. It has never run here — `grep -n check-launch-blockers scripts/` finds it
+  # only in the script itself and its self-test. Measured on 2026-08-29: all three production
+  # depots returned `acceptsTransfer:false, acceptsQris:false`, and nobody had been told.
+  #
+  # Same fixture exclusion as the gate, so the demo depot and test rows do not cry wolf.
+  if docker exec "$PG" true >/dev/null 2>&1; then
+    NOPAY="$(docker exec "$PG" psql -U hydromart -d hydromart_depot -tAc       "SELECT coalesce(string_agg(code, ', ' ORDER BY code), '') FROM depots
+        WHERE active
+          AND code !~ '^(E2E|UAT|HIER|DEMO)-'
+          AND coalesce(nullif(trim(\"paymentBankAccountNumber\"), ''), nullif(trim(\"paymentQrisImageUrl\"), '')) IS NULL" 2>/dev/null || echo 'unreadable')"
+    if [ "$NOPAY" = "unreadable" ]; then
+      # An unreadable answer is a finding, not a pass — the outbox probe above learned that
+      # the hard way, printing "unreadable" for its whole life and proving nothing.
+      log "!! the depot payment probe could not read hydromart_depot; it is proving NOTHING."
+      alert "depot payment probe cannot read hydromart_depot - the payable check is blind"
+    elif [ -n "$NOPAY" ]; then
+      log "!! depot payment probe — these active depots have NO payment destination: $NOPAY"
+      log "   Customers there are offered CASH only: transfer and QRIS are hidden, not refused,"
+      log "   so nothing on any screen says a method was removed."
+      log "   Fix: /dashboard/depots as MANAGER or SUPER_ADMIN (that screen has the real QRIS"
+      log "   uploader; the HQ form only takes a raw URL and will happily save one that 404s)."
+      alert "depots with no payment destination: $NOPAY - cash only, silently"
+    else
+      log "depot payment probe — every active depot has a bank account or a QRIS image"
+    fi
+  fi
+
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
   #

@@ -46,6 +46,7 @@ export const opsFix = {
   payout: {
     noAccount: "Rekening belum diatur",
     accountUnreadable: "Rekening depot tidak terbaca — coba muat ulang sebelum menarik dana.",
+    noBankAccount: "Depot ini belum mengisi rekening bank. Isi di Pengaturan depot (menu Depot → pilih depot ini → Pembayaran); butuh peran MANAGER atau SUPER_ADMIN.",
   },
   meter: {
     deliveredHint: "{n} galon terkirim · {amount}",
