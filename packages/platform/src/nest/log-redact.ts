@@ -32,3 +32,37 @@ export const LOG_REDACT_PATHS: readonly string[] = [
 export function redactPaths(...extra: string[]): string[] {
   return [...LOG_REDACT_PATHS, ...extra];
 }
+
+/**
+ * A phone number, written to a log without writing down the number.
+ *
+ * The rule is not new. `OtpService.maskPhone` in auth-service has masked numbers this way
+ * for as long as OTP delivery has been logged — country code plus the last three digits,
+ * short numbers left alone. What is new is that it lives somewhere the other services can
+ * reach: it was a private static on a service class, so delivery-service and order-service
+ * had no copy at all and logged the number whole.
+ *
+ * Why it is needed at all, and why pino's `redact` does not cover it: `LOG_REDACT_PATHS`
+ * above walks the OBJECT paths of a log record, and a number interpolated into a message
+ * string is just text by the time pino sees it. Three notification adapters interpolate one:
+ *
+ *   `${event} notification rejected (${response.status}) for ${phone}`
+ *   `${event} notification skipped: "${phone}" is not a usable phone number`
+ *
+ * A phone number is personal data — `redactAlertText` already refuses to let one reach
+ * Discord. Container logs are inside the trust boundary, but they are also outside the
+ * retention engine that erases a customer's data on request, so a number written here
+ * outlives the account it belongs to.
+ *
+ * `[phone]` wholesale is right for the alert path and wrong here: these lines exist to tell
+ * one failed notification from another, and to show what was wrong with a number that would
+ * not dial. Keeping the head and tail preserves both without keeping the subscriber.
+ */
+export function maskPhone(phone: string): string {
+  // Below this there is no middle to hide, and starring the whole thing would throw away
+  // the only diagnostic the line carries.
+  if (phone.length <= 7) return phone;
+  const head = phone.slice(0, 5);
+  const tail = phone.slice(-3);
+  return `${head}${'*'.repeat(phone.length - 8)}${tail}`;
+}

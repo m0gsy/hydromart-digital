@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { maskPhone } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { NotificationPort } from '../../application/ports/notification.port';
@@ -51,7 +52,9 @@ export class NotificationHttpAdapter implements NotificationPort {
     // would 400 and this adapter would swallow it, which is how a depot goes a week without
     // its report while every log line reads "skipped".
     if (!CRM_PHONE_RE.test(dialled)) {
-      this.logger.warn(`${event} notification skipped: "${phone}" is not a usable phone number`);
+      this.logger.warn(
+        `${event} notification skipped: "${maskPhone(phone)}" is not a usable phone number`,
+      );
       return false;
     }
     const url = `${this.config.crmServiceUrl}/api/v1/notifications/internal`;

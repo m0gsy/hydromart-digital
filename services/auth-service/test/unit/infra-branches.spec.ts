@@ -1,4 +1,5 @@
 import * as fsPromises from 'node:fs/promises';
+import { Logger } from '@nestjs/common';
 
 import { S3Client } from '@aws-sdk/client-s3';
 
@@ -147,6 +148,28 @@ describe('CustomerNotificationHttpAdapter', () => {
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network down'));
     const adapter = new CustomerNotificationHttpAdapter(enabledConfig);
     await expect(adapter.sendWelcome('+6281234567890', 'Budi')).resolves.toBeUndefined();
+  });
+
+  /*
+   * The number does not go into the log.
+   *
+   * Pino's `redact` cannot reach this one: it walks the object paths of a log record, and
+   * by the time it sees an interpolated message the number is just text. The rule is the
+   * repo's own — `redactAlertText` turns a phone into `[phone]` before a stack leaves for
+   * Discord — and it stopped at that boundary. Container logs are inside the trust
+   * boundary but outside the retention engine, so a number written here outlives the
+   * account it belongs to.
+   */
+  it('writes the failure to the log without writing down the number', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 503 } as Response);
+    const adapter = new CustomerNotificationHttpAdapter(enabledConfig);
+
+    await adapter.sendWelcome('+6281234567890', 'Budi');
+
+    const line = String(warn.mock.calls[0]?.[0] ?? '');
+    expect(line).not.toContain('+6281234567890');
+    expect(line).toContain('+6281******890');
   });
 
   it('aborts and swallows on timeout', async () => {

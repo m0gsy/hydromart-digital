@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Logger } from '@nestjs/common';
 
 import { HTTP_STATUS } from '@hydromart/platform';
 
@@ -253,7 +254,15 @@ describe('DepotDirectoryHttpAdapter', () => {
       res({
         body: {
           items: [
-            { id: 'd1', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 3000, operatingHours, holidays },
+            {
+              id: 'd1',
+              lat: 1,
+              lng: 2,
+              serviceRadiusKm: 5,
+              deliveryFee: 3000,
+              operatingHours,
+              holidays,
+            },
           ],
         },
       }),
@@ -768,6 +777,25 @@ describe('NotificationHttpAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     }
   });
+
+  /*
+   * The number does not go into the log.
+   *
+   * Pino's `redact` cannot reach this one — it walks the object paths of a log record, and
+   * an interpolated message is just text by the time pino sees it. auth-service has masked
+   * numbers this way for as long as OTP delivery has been logged; the rule was a private
+   * static on a service class there, so this service had no copy and logged them whole.
+   */
+  it('names the unusable number in the log without writing it down', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await send('+62812345678901234');
+
+    const line = String(warn.mock.calls[0]?.[0] ?? '');
+    expect(line).not.toContain('+62812345678901234');
+    expect(line).toContain('+6281**********234');
+    warn.mockRestore();
+  });
 });
 
 describe('ProductCatalogHttpAdapter', () => {
@@ -798,7 +826,6 @@ describe('ProductCatalogHttpAdapter', () => {
 });
 
 describe('PromoHttpAdapter', () => {
-
   /**
    * C4 · handing the voucher back on a void.
    *
@@ -914,7 +941,9 @@ describe('CashierShiftHttpAdapter', () => {
     new CashierShiftHttpAdapter(makeConfig(over));
 
   it('confirms an open shift and carries the caller token to that depot', async () => {
-    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }));
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }),
+    );
     expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://depot:3007/api/v1/cashier-shifts/current?depotId=depot-1');
@@ -927,7 +956,9 @@ describe('CashierShiftHttpAdapter', () => {
    * drawer still open from one that belongs to a drawer already counted.
    */
   it('keeps the shift id and the time it opened', async () => {
-    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }));
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { id: 'shift-1', openedAt: '2026-08-20T01:00:00.000Z' } }),
+    );
     await expect(shift().openShift('depot-1', 'Bearer t')).resolves.toEqual({
       id: 'shift-1',
       openedAt: new Date('2026-08-20T01:00:00.000Z'),
@@ -976,13 +1007,18 @@ describe('CashierShiftHttpAdapter', () => {
 // money. A silent failure would mark a sale reversed while payment-service still holds it.
 describe('PaymentReversalHttpAdapter', () => {
   const reversal = (over: Partial<Record<string, unknown>> = {}) =>
-    new PaymentReversalHttpAdapter(makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }));
+    new PaymentReversalHttpAdapter(
+      makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }),
+    );
 
   // K2.3: same shape, different endpoint — and the endpoint is the whole difference.
   it('cancelForOrder posts to the cancellation endpoint, not the void one', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await reversal().cancelForOrder('order-1', 'Dibatalkan pelanggan');
-    const [url, sent] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string>; body: string }];
+    const [url, sent] = fetchMock.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ];
     expect(url).toBe('http://payment:3005/api/v1/payments/internal/cancel-for-order');
     expect(sent.headers['x-internal-key']).toBe(KEY);
     expect(JSON.parse(sent.body)).toEqual({ orderId: 'order-1', reason: 'Dibatalkan pelanggan' });
@@ -1032,7 +1068,10 @@ describe('PaymentCashHttpAdapter', () => {
 
   it('POSTs the order ids with the internal key and returns the split', async () => {
     fetchMock.mockResolvedValue(
-      res({ ok: true, body: { total: 40000, count: 1, byOrder: [{ orderId: 'o1', amountIdr: 40000 }] } }),
+      res({
+        ok: true,
+        body: { total: 40000, count: 1, byOrder: [{ orderId: 'o1', amountIdr: 40000 }] },
+      }),
     );
     const rows = await cash().cashByOrder(['o1', 'o2']);
     const [url, init] = fetchMock.mock.calls[0];
@@ -1180,7 +1219,8 @@ describe('DepotCostsHttpAdapter', () => {
     ['there is no internal key', { internalServiceKey: '' }, 'costs'],
   ])('returns null without a round-trip when %s', async (_label, over, which) => {
     const a = costs(over);
-    const out = which === 'costs' ? await a.costs('d1', FROM, TO) : await a.payroll('d1', '2026-07');
+    const out =
+      which === 'costs' ? await a.costs('d1', FROM, TO) : await a.payroll('d1', '2026-07');
     expect(out).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -1263,7 +1303,9 @@ describe('counter-sale reads that name the buyer', () => {
   });
 
   it('promo: quotes the named wallet over the internal route', async () => {
-    fetchMock.mockResolvedValue(res({ ok: true, body: { discount: 5000, discountType: 'PERCENT' } }));
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { discount: 5000, discountType: 'PERCENT' } }),
+    );
     const quote = await new PromoHttpAdapter(makeConfig()).quoteFor('HEMAT', 'cust-9', 40000, 0);
     expect(quote).toEqual({ discount: 5000, discountType: 'PERCENT' });
     const [url, init] = fetchMock.mock.calls[0];
@@ -1284,10 +1326,12 @@ describe('counter-sale reads that name the buyer', () => {
     ).rejects.toBeInstanceOf(VoucherRejectedError);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    fetchMock.mockResolvedValue(res({ ok: false, status: 422, body: { message: 'Minimum belum' } }));
-    await expect(
-      new PromoHttpAdapter(makeConfig()).quoteFor('X', 'c', 1, 0),
-    ).rejects.toThrow('Minimum belum');
+    fetchMock.mockResolvedValue(
+      res({ ok: false, status: 422, body: { message: 'Minimum belum' } }),
+    );
+    await expect(new PromoHttpAdapter(makeConfig()).quoteFor('X', 'c', 1, 0)).rejects.toThrow(
+      'Minimum belum',
+    );
 
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(
@@ -1367,7 +1411,9 @@ describe('CustomerDirectoryHttpAdapter', () => {
       quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
     ).resolves.toBe(false);
 
-    (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(
       quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
     ).resolves.toBe(false);
@@ -1410,9 +1456,11 @@ describe('CustomerDirectoryHttpAdapter', () => {
       (globalThis as { fetch: unknown }).fetch = fetchMock;
 
       await expect(
-        new CustomerDirectoryHttpAdapter(
-          makeConfig({ internalServiceKey: '' }),
-        ).resolveByPhone('0811', 'Budi', 'd1'),
+        new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).resolveByPhone(
+          '0811',
+          'Budi',
+          'd1',
+        ),
       ).rejects.toBeInstanceOf(CounterBuyerDirectoryUnconfiguredError);
       // Not a network problem, so no network call — and the message says retrying will not help.
       expect(fetchMock).not.toHaveBeenCalled();
@@ -1420,7 +1468,9 @@ describe('CustomerDirectoryHttpAdapter', () => {
 
     // The transient case keeps answering null, which is what makes the two tellable apart.
     it('still answers null when the service is simply unreachable', async () => {
-      (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED'));
       await expect(
         new CustomerDirectoryHttpAdapter(config).resolveByPhone('0811', 'Budi', 'd1'),
       ).resolves.toBeNull();
@@ -1468,7 +1518,9 @@ describe('CustomerDirectoryHttpAdapter', () => {
       await expect(
         new CustomerDirectoryHttpAdapter(config).primaryAddress('c1'),
       ).resolves.toMatchObject({ addressLine: 'Jl. Merdeka 10', latitude: -6.9 });
-      expect(String(fetchMock.mock.calls[0]![0])).toContain('/addresses/internal/primary?customerId=c1');
+      expect(String(fetchMock.mock.calls[0]![0])).toContain(
+        '/addresses/internal/primary?customerId=c1',
+      );
     });
 
     // Never invents one. The caller refuses the subscription instead of sending water to a

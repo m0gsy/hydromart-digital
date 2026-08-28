@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { maskPhone } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { CustomerNotificationPort } from '../../application/ports/customer-notification.port';
@@ -46,15 +47,14 @@ export class CustomerNotificationHttpAdapter implements CustomerNotificationPort
     }
     const dialled = dial(phone);
     if (!CRM_PHONE_RE.test(dialled)) {
-      this.logger.warn(`${event} notification skipped: "${phone}" is not a usable phone number`);
+      this.logger.warn(
+        `${event} notification skipped: "${maskPhone(phone)}" is not a usable phone number`,
+      );
       return;
     }
     const url = `${crmServiceUrl}/api/v1/notifications/internal`;
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      CustomerNotificationHttpAdapter.TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => controller.abort(), CustomerNotificationHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         method: 'POST',

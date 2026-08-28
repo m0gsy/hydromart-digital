@@ -1,11 +1,6 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
 export { readAllPages } from './domain/read-all';
-export {
-  pageArgs,
-  nextCursor,
-  type KeysetArgs,
-  type KeysetQuery,
-} from './domain/keyset';
+export { pageArgs, nextCursor, type KeysetArgs, type KeysetQuery } from './domain/keyset';
 export { Role } from './domain/role.enum';
 export { money } from './domain/money';
 export { haversineKm } from './domain/geo';
@@ -43,11 +38,7 @@ export {
   CAPABILITY_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
-export {
-  recordAuditEvent,
-  type AuditEvent,
-  type AuditTrailConfig,
-} from './nest/audit-trail';
+export { recordAuditEvent, type AuditEvent, type AuditTrailConfig } from './nest/audit-trail';
 export {
   startCapabilityRefresh,
   httpCapabilityLoader,
@@ -79,12 +70,9 @@ export {
   type DepotScopeStatus,
 } from './nest/depot-scope-resolver';
 export { httpSuperiorResolver, type SuperiorResolver } from './nest/superior-resolver';
-export {
-  httpAccountNameResolver,
-  type AccountNameResolver,
-} from './nest/account-name-resolver';
+export { httpAccountNameResolver, type AccountNameResolver } from './nest/account-name-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
-export { LOG_REDACT_PATHS, redactPaths } from './nest/log-redact';
+export { LOG_REDACT_PATHS, redactPaths, maskPhone } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { initSentry, captureServerError } from './nest/sentry';
