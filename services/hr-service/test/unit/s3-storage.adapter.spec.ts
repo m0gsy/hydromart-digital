@@ -1,4 +1,6 @@
-// @aws-sdk/client-s3 is not installed in dev/CI — virtual mock captures the client construction
+// A plain module mock captures the client construction. (It used to say @aws-sdk/client-s3
+// "is not installed in dev/CI" and mock it virtually; it is installed, and a virtual mock of a
+// resolvable module is a coin flip — see payroll-pdf.spec.ts.)
 // and the PutObjectCommand so we can assert bucket/key/body without touching the network.
 
 const sendMock = jest.fn();
@@ -7,33 +9,29 @@ const putCmdArgs: unknown[] = [];
 const deleteCmdArgs: unknown[] = [];
 const getCmdArgs: unknown[] = [];
 
-jest.mock(
-  '@aws-sdk/client-s3',
-  () => ({
-    S3Client: class {
-      constructor(cfg: unknown) {
-        clientCtorArgs.push(cfg);
-      }
-      send = sendMock;
-    },
-    PutObjectCommand: class {
-      constructor(public input: unknown) {
-        putCmdArgs.push(input);
-      }
-    },
-    DeleteObjectCommand: class {
-      constructor(public input: unknown) {
-        deleteCmdArgs.push(input);
-      }
-    },
-    GetObjectCommand: class {
-      constructor(public input: unknown) {
-        getCmdArgs.push(input);
-      }
-    },
-  }),
-  { virtual: true },
-);
+jest.mock('@aws-sdk/client-s3', () => ({
+  S3Client: class {
+    constructor(cfg: unknown) {
+      clientCtorArgs.push(cfg);
+    }
+    send = sendMock;
+  },
+  PutObjectCommand: class {
+    constructor(public input: unknown) {
+      putCmdArgs.push(input);
+    }
+  },
+  DeleteObjectCommand: class {
+    constructor(public input: unknown) {
+      deleteCmdArgs.push(input);
+    }
+  },
+  GetObjectCommand: class {
+    constructor(public input: unknown) {
+      getCmdArgs.push(input);
+    }
+  },
+}));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { S3StorageAdapter } = require('../../src/infrastructure/storage/s3-storage.adapter');

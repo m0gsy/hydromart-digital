@@ -26,7 +26,6 @@ jest.mock(
         this.handlers['end']?.();
       }
     },
-  { virtual: true },
 );
 
 import { Allowance, BonusRule, Employee, Loan, Payroll } from '../../prisma/generated/client';
@@ -55,7 +54,6 @@ import { SalesPort } from '../../src/application/ports/sales.port';
 const user: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 
 class FakePayrollRepo implements PayrollRepository {
-
   /**
    * December's reconciliation reads the year off the employee's earlier payslips. A fake
    * just states the answer: tests that care set `ytd`, and everything else gets a year

@@ -1,7 +1,18 @@
 import type { SlipData } from '../../src/domain/payroll-pdf';
 
-// pdfkit is an optional runtime dep (not installed in dev/CI). We drive both branches with a
-// virtual mock: a working fake PDFDocument (success path) and a throwing factory (require fail).
+// Both branches are driven by a plain module mock: a working fake PDFDocument (success path)
+// and a throwing factory (the require-failed path).
+//
+// NOT a virtual mock, and the comment that used to stand here said why one was reached for:
+// "pdfkit is an optional runtime dep (not installed in dev/CI)". It is neither — it is a
+// declared dependency in services/hr-service/package.json and it installs everywhere.
+//
+// `virtual: true` is for a module that cannot be resolved. On one that can, the mock is
+// registered under the name as written while the require resolves to a real path, and which
+// of the two wins depends on what the module registry already holds. That is a coin flip,
+// and it landed: `npx jest --maxWorkers=2` on this service — the command CI runs — failed
+// these six tests on one run in three, with the real pdfkit rendering a real PDF instead of
+// the fake. Measured on main, with no source change of any kind.
 
 const slip: SlipData = {
   employeeName: 'Ani',
@@ -47,7 +58,7 @@ describe('payrollSlipPdf', () => {
   it('renders finished PDF bytes when pdfkit is available', async () => {
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock('pdfkit', () => FakePdfDoc, { virtual: true });
+      jest.doMock('pdfkit', () => FakePdfDoc);
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { payrollSlipPdf } = require('../../src/domain/payroll-pdf');
       out = payrollSlipPdf(slip);
@@ -60,13 +71,9 @@ describe('payrollSlipPdf', () => {
   it('rejects with a clear message when pdfkit is not installed', async () => {
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock(
-        'pdfkit',
-        () => {
-          throw new Error('Cannot find module');
-        },
-        { virtual: true },
-      );
+      jest.doMock('pdfkit', () => {
+        throw new Error('Cannot find module');
+      });
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { payrollSlipPdf } = require('../../src/domain/payroll-pdf');
       out = payrollSlipPdf(slip);
@@ -89,7 +96,7 @@ describe('tableReportPdf (C4)', () => {
     }
     let bytes: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock('pdfkit', () => Capturing, { virtual: true });
+      jest.doMock('pdfkit', () => Capturing);
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { tableReportPdf } = require('../../src/domain/payroll-pdf');
       bytes = tableReportPdf(report);
@@ -136,13 +143,9 @@ describe('tableReportPdf (C4)', () => {
   it('rejects with the same clear message when pdfkit is not installed', async () => {
     let out: Promise<Buffer> | undefined;
     jest.isolateModules(() => {
-      jest.doMock(
-        'pdfkit',
-        () => {
-          throw new Error('Cannot find module');
-        },
-        { virtual: true },
-      );
+      jest.doMock('pdfkit', () => {
+        throw new Error('Cannot find module');
+      });
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { tableReportPdf } = require('../../src/domain/payroll-pdf');
       out = tableReportPdf({ title: 'x', headers: [], rows: [] });
