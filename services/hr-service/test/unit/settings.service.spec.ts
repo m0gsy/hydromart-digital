@@ -56,13 +56,30 @@ describe('SettingsService (SalaryConfiguration)', () => {
     expect(other.effective.lateDeductionAmount).toBe(10000);
   });
 
-  it('coerces money to an integer and enforces min/max', async () => {
+  it('refuses fractional money and enforces min/max', async () => {
     const { svc, repo } = make();
+    /*
+     * This used to assert 12345.9 was STORED as 12345 — the silent truncation written down as
+     * though it were a requirement. There is no such amount as 12.345,9 rupiah, so a fraction
+     * here is a typing mistake, and quietly keeping a different number than the one that was
+     * typed is how production ended up serving a 0% membership discount.
+     */
+    await expect(
+      svc.put({
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'lateDeductionAmount',
+        value: '12345.9',
+        updatedBy: 'u1',
+      }),
+    ).rejects.toThrow(/12345/);
+    expect(repo.rows).toEqual([]);
+
     await svc.put({
       scope: 'GLOBAL',
       depotId: null,
       key: 'lateDeductionAmount',
-      value: '12345.9',
+      value: '12345',
       updatedBy: 'u1',
     });
     expect(repo.rows[0].value).toBe('12345');

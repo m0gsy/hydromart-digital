@@ -6,7 +6,23 @@ const DEFS: SettingDef[] = [
   { key: 'fee', label: 'Ongkir', type: 'money', envDefault: 5000 },
   { key: 'label', label: 'Label', type: 'string', envDefault: 'depot' },
   { key: 'netWide', label: 'Global only', type: 'int', envDefault: 1, global: true },
-  { key: 'slots', label: 'Slot', type: 'string', envDefault: '09.00-11.00', pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}$' },
+  // The exact shape the live money bug is in: an int carrying a PERCENTAGE, min 0.
+  {
+    key: 'goldDiscountPct',
+    label: 'GOLD — diskon',
+    type: 'int',
+    unit: '%',
+    envDefault: 5,
+    min: 0,
+    max: 50,
+  },
+  {
+    key: 'slots',
+    label: 'Slot',
+    type: 'string',
+    envDefault: '09.00-11.00',
+    pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}$',
+  },
 ];
 const BY_KEY: Record<string, SettingDef> = Object.assign(
   Object.create(null),
@@ -62,6 +78,7 @@ describe('SettingsSliceService', () => {
       fee: 5000,
       label: 'depot',
       netWide: 1,
+      goldDiscountPct: 5,
       slots: '09.00-11.00',
     });
   });
@@ -102,10 +119,77 @@ describe('SettingsSliceService', () => {
     expect(repo.loads).toBe(3);
   });
 
-  it('coerces the stored value to the def type', async () => {
+  /*
+   * This used to assert that 7500.9 is STORED as 7500 — the silent truncation, written down
+   * as though it were a requirement. It is the trap, not a requirement: there is no such
+   * amount as 7500,9 rupiah, so a fraction here is a typing mistake and the store now says
+   * so instead of quietly keeping a different number than the one that was typed.
+   */
+  it('refuses a fractional rupiah rather than quietly storing a different amount', async () => {
     const { repo, service } = build();
-    await service.put(put({ key: 'fee', value: '7500.9' }));
-    expect(repo.upserts[0].value).toBe('7500');
+    await expect(service.put(put({ key: 'fee', value: '7500.9' }))).rejects.toThrow(/7500/);
+    expect(repo.upserts).toEqual([]);
+  });
+
+  it('stores a whole value of the def type', async () => {
+    const { repo, service } = build();
+    await service.put(put({ key: 'fee', value: '7500' }));
+    expect(repo.upserts[0]!.value).toBe('7500');
+  });
+
+  /*
+   * The write that produced a live money bug.
+   *
+   * `coerce('0.05', 'int')` is `Math.trunc(0.05)` — a silent 0 — and `min: 0` waves it
+   * through. Production is serving goldDiscountPct = 0 against a coded default of 5, so every
+   * customer the app calls GOLD has been paying full price. The field's unit is `%` and it
+   * wants `5`; somebody typed the rate and was told nothing.
+   */
+  it('refuses a fraction in a whole-number field instead of truncating it to zero', async () => {
+    const { repo, service } = build();
+    await expect(service.put(put({ key: 'goldDiscountPct', value: '0.05' }))).rejects.toThrow(
+      /whole number in %/,
+    );
+    expect(repo.upserts).toEqual([]);
+  });
+
+  // The message has to name the unit and the value to type, because that is the whole fix.
+  it('says what to type instead', async () => {
+    const { service } = build();
+    await expect(service.put(put({ key: 'goldDiscountPct', value: '0.05' }))).rejects.toThrow(
+      /5, not 0/,
+    );
+  });
+
+  // The same silent zero by the other door: `coerce` returns 0 for anything unparseable.
+  it('refuses a value that is not a number at all', async () => {
+    const { repo, service } = build();
+    await expect(
+      service.put(put({ key: 'goldDiscountPct', value: 'lima persen' })),
+    ).rejects.toThrow(/must be a number in %/);
+    expect(repo.upserts).toEqual([]);
+  });
+
+  it('refuses an empty value rather than storing zero', async () => {
+    const { repo, service } = build();
+    await expect(service.put(put({ key: 'fee', value: '   ' }))).rejects.toThrow(
+      /must be a number/,
+    );
+    expect(repo.upserts).toEqual([]);
+  });
+
+  // A whole number written with a decimal point loses nothing, so it is not a mistake.
+  it('accepts a whole number written as 5.0', async () => {
+    const { repo, service } = build();
+    await service.put(put({ key: 'goldDiscountPct', value: '5.0' }));
+    expect(repo.upserts[0]!.value).toBe('5');
+  });
+
+  // `number` fields exist to carry fractions; nothing changes for them.
+  it('still accepts a fraction where the type allows one', async () => {
+    const { repo, service } = build();
+    await service.put(put({ key: 'radiusKm', value: '7.5' }));
+    expect(repo.upserts[0]!.value).toBe('7.5');
   });
 
   it('writes a DEPOT override against its depot', async () => {
@@ -117,12 +201,20 @@ describe('SettingsSliceService', () => {
   it.each([
     ['an unknown key', put({ key: 'nope' }), 'Unknown setting'],
     ['a DEPOT scope with no depot', put({ scope: 'DEPOT', depotId: null }), 'depotId required'],
-    ['a per-depot override of a global-only key', put({ scope: 'DEPOT', depotId: 'd1', key: 'netWide' }), 'global-only'],
+    [
+      'a per-depot override of a global-only key',
+      put({ scope: 'DEPOT', depotId: 'd1', key: 'netWide' }),
+      'global-only',
+    ],
     ['a value below min', put({ value: '0' }), 'below min'],
     ['a value above max', put({ value: '99' }), 'above max'],
     // A string tunable something downstream parses must fail at the person typing it,
     // not three screens later at the reader.
-    ['a string that does not match its pattern', put({ key: 'slots', value: '9-11' }), 'must match'],
+    [
+      'a string that does not match its pattern',
+      put({ key: 'slots', value: '9-11' }),
+      'must match',
+    ],
   ])('refuses %s', async (_case, input, message) => {
     const { repo, service } = build();
     await expect(service.put(input)).rejects.toThrow(message);

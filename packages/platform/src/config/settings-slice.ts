@@ -36,6 +36,42 @@ export interface PutSettingInput {
 }
 
 /**
+ * Refuse a value the store cannot keep as typed.
+ *
+ * `coerce` is deliberately forgiving because it also runs on the READ path, where a
+ * malformed stored value must fall back rather than throw. On the WRITE path that same
+ * forgiveness is a trap, and it sprang: `coerce('0.05', 'int')` is `Math.trunc(0.05)` — a
+ * silent `0` — and `min: 0` then waves it through.
+ *
+ * Not hypothetical. Production is serving `silverDiscountPct = goldDiscountPct =
+ * platinumDiscountPct = 0` right now, against coded defaults of 2/5/8. The field's unit is
+ * `%` and it wants `5`; somebody typed the rate, `0.05`, and was told nothing. Every
+ * customer the app calls GOLD has been paying full price since.
+ *
+ * A value that changes when it is stored is a unit mistake, not a rounding question. The
+ * message names the unit, because naming it is the whole fix: the next person types `5`.
+ */
+function assertStorable(def: SettingDef, raw: string): void {
+  if (def.type === 'string') return;
+
+  const trimmed = raw.trim();
+  const n = Number(trimmed);
+  if (trimmed === '' || !Number.isFinite(n)) {
+    // Today this stores 0 — the same silent zero, by the other door.
+    throw new BadRequestException(
+      `${def.key} must be a number${def.unit ? ` in ${def.unit}` : ''} — got "${raw}"`,
+    );
+  }
+  if ((def.type === 'int' || def.type === 'money') && !Number.isInteger(n)) {
+    const advice =
+      def.unit === '%' ? 'Enter the percentage itself (5, not 0.05).' : 'Enter a whole number.';
+    throw new BadRequestException(
+      `${def.key} is a whole number${def.unit ? ` in ${def.unit}` : ''}, so "${raw}" would be stored as ${Math.trunc(n)}. ${advice}`,
+    );
+  }
+}
+
+/**
  * Q-1: seven services shipped a byte-identical copy of this class — same three
  * methods, same four validation messages, same cache handling. The only real
  * variation was the defs table each one owns, and referral-service's "every
@@ -76,6 +112,7 @@ export abstract class SettingsSliceService {
     if (def.global && input.scope === 'DEPOT') {
       throw new BadRequestException(`${input.key} is a global-only setting; no per-depot override`);
     }
+    assertStorable(def, input.value);
     const coerced = coerce(input.value, def.type);
     if (def.type === 'string' && def.pattern && !new RegExp(def.pattern).test(String(coerced))) {
       throw new BadRequestException(`${input.key} must match ${def.pattern}`);
