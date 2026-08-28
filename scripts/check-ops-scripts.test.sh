@@ -142,4 +142,22 @@ else
   ok "the contract lists the two Zenziva keys that can actually be wrong, and not the one that cannot"
 fi
 
+# --- the Sentry probe reads the IMAGE, not a file nothing reads --------------------------
+#
+# It used to read SENTRY_DSN_WEB from the box's .env and advise "set it in .env and REBUILD".
+# Both halves were wrong: deploy.sh PULLS images and never builds one, and the image is built
+# by images.yml:148 from the GitHub repo VARIABLE `vars.SENTRY_DSN_WEB`. So the advice pointed
+# at a file where the value has no effect, on a machine that does no builds.
+if grep -qE 'exec -T web .*NEXT_PUBLIC_SENTRY_DSN' scripts/deploy.sh; then
+  ok "the Sentry probe reads the DSN baked into the running web image"
+else
+  bad "the Sentry probe still reads .env — this box pulls images, so that value affects nothing"
+fi
+
+if grep -qE 'Setting it in this .env does NOTHING' scripts/deploy.sh; then
+  ok "and it says plainly that editing .env would not help"
+else
+  bad "the Sentry probe must name the GitHub repo VARIABLE as the fix; .env is a dead end here"
+fi
+
 exit "$fails"

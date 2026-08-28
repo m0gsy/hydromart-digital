@@ -638,17 +638,32 @@ if health_ok; then
   # SENTRY_DSN_WEB is present there — as `SENTRY_DSN_WEB=`, empty. A key that exists with no
   # value is exactly the shape that passes a presence check and ships a dead feature.
   #
-  # Read from .env, not from a container: this is a BUILD arg, so by the time anything is
-  # running it has already been baked in or not.
-  DSN_WEB="$(tr -d '' < .env 2>/dev/null | sed -n 's/^SENTRY_DSN_WEB=//p' | head -1 || true)"
-  if [ -n "$DSN_WEB" ]; then
-    log "web error reporting probe — SENTRY_DSN_WEB is set, so the image was built with a DSN"
+  # Read from the RUNNING IMAGE, not from .env — because .env has nothing to do with it.
+  #
+  # This probe used to read SENTRY_DSN_WEB out of the box's .env and tell the reader to "set
+  # it in .env and REBUILD". Both halves were wrong, and the advice sent people to a file
+  # where the value has no effect at all:
+  #
+  #   - deploy.sh PULLS images (registry mode, IMAGE_PREFIX); it never builds one. So the
+  #     `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` build arg in docker-compose.prod.yml:694
+  #     is dead code on this machine.
+  #   - The image is built by .github/workflows/images.yml:148, from the GitHub repo VARIABLE
+  #     `vars.SENTRY_DSN_WEB`. That variable does not exist, which is why every image ever
+  #     published has inlined an empty DSN — images.yml:91 says so in its own comment.
+  #
+  # The Dockerfile does `ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN` (apps/web/
+  # Dockerfile:29), so the baked value is readable inside the container. That is the ground
+  # truth: it answers "does the image that is running right now report errors", which is the
+  # question, rather than "is there a string in a file that nothing reads".
+  if $COMPOSE exec -T web sh -c '[ -n "${NEXT_PUBLIC_SENTRY_DSN:-}" ]' >/dev/null 2>&1; then
+    log "web error reporting probe — the running web image has a Sentry DSN baked in"
   else
-    log "!! SENTRY_DSN_WEB is EMPTY in .env — the web image is built with NEXT_PUBLIC_SENTRY_DSN"
-    log "   blank, the Sentry SDK is never loaded, and every client-side crash on the site is"
-    log "   invisible. Set it in .env and REBUILD the web image (a restart is not enough — it"
-    log "   is a build arg)."
-    alert "SENTRY_DSN_WEB empty — the web build has no error reporting (audit N2)"
+    log "!! the running web image has NEXT_PUBLIC_SENTRY_DSN EMPTY, so the Sentry SDK is never"
+    log "   loaded and every client-side crash on the site is invisible."
+    log "   Fix: create the GitHub repo VARIABLE SENTRY_DSN_WEB (Settings -> Secrets and"
+    log "   variables -> Actions -> Variables), then rebuild the web image and deploy."
+    log "   Setting it in this .env does NOTHING: this box pulls images, it does not build them."
+    alert "the running web image has no Sentry DSN — client-side crashes are invisible (audit N2)"
   fi
 
   # 3. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger
