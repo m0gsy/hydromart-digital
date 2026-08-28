@@ -15,6 +15,26 @@ import {
 import { PrismaService } from '../prisma.service';
 import { toCustomerEntity, toPrismaRole, toPrismaStatus } from '../mappers';
 
+/**
+ * A unique-constraint violation, said in the language the service already speaks.
+ *
+ * Backstops the uniqueness races the service pre-checks can't close: a pre-check reads the
+ * number as free, another request writes it, and the index — not the check — decides. Every
+ * write of a customer routes through here so neither of them can drift into telling the
+ * caller something different from the other.
+ *
+ * Anything else is rethrown untouched: a P2002 on a column this has no sentence for is not
+ * a conflict anyone can act on, and dressing it up as one would hide a real fault.
+ */
+function translateUniqueViolation(err: unknown): unknown {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    const target = err.meta?.target as string[] | undefined;
+    if (target?.includes('email')) return new EmailAlreadyRegisteredError();
+    if (target?.includes('phone')) return new PhoneAlreadyRegisteredError();
+  }
+  return err;
+}
+
 @Injectable()
 export class CustomerPrismaRepository implements CustomerRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -46,18 +66,29 @@ export class CustomerPrismaRepository implements CustomerRepository {
   }
 
   async create(data: CreateCustomerData): Promise<Customer> {
-    const row = await this.prisma.customer.create({
-      data: {
-        phone: data.phone,
-        email: data.email,
-        fullName: data.fullName,
-        role: toPrismaRole(data.role),
-        assignedDepotId: data.assignedDepotId ?? null,
-        vehicleType: data.vehicleType ?? null,
-        plateNumber: data.plateNumber ?? null,
-      },
-    });
-    return toCustomerEntity(row);
+    try {
+      const row = await this.prisma.customer.create({
+        data: {
+          phone: data.phone,
+          email: data.email,
+          fullName: data.fullName,
+          role: toPrismaRole(data.role),
+          assignedDepotId: data.assignedDepotId ?? null,
+          vehicleType: data.vehicleType ?? null,
+          plateNumber: data.plateNumber ?? null,
+        },
+      });
+      return toCustomerEntity(row);
+    } catch (err) {
+      // The same backstop `save()` has, for the same reason, on the path that carries the
+      // signups: three callers pre-check the number and none of them can win the race —
+      // registration, the staff invite (a spreadsheet import replays it row by row), and
+      // the counter sale. All three read "free", all three write, and the index decides.
+      // Without this the loser gets a raw P2002 out of an unhandled Prisma error, which
+      // the filter can only turn into a 500: a person is told the server is broken on the
+      // first screen of the product, when what happened is that their number is taken.
+      throw translateUniqueViolation(err);
+    }
   }
 
   async listStaff(
@@ -161,17 +192,7 @@ export class CustomerPrismaRepository implements CustomerRepository {
       });
       return toCustomerEntity(row);
     } catch (err) {
-      // Backstop the uniqueness races the service pre-checks can't close.
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        const target = err.meta?.target as string[] | undefined;
-        if (target?.includes('email')) {
-          throw new EmailAlreadyRegisteredError();
-        }
-        if (target?.includes('phone')) {
-          throw new PhoneAlreadyRegisteredError();
-        }
-      }
-      throw err;
+      throw translateUniqueViolation(err);
     }
   }
 }
