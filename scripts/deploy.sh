@@ -275,6 +275,29 @@ for stale in $DRIFTED; do
       docker restart "$stale" >/dev/null 2>&1 ||
         log "!! $stale restart FAILED — it is still running the old config"
       ;;
+    *caddy*)
+      # Caddy RELOADS. That is the whole difference.
+      #
+      # The rule above — name a user-facing container rather than restart it mid-deploy —
+      # exists because a restart drops in-flight requests, and the front door is the worst
+      # place to do that. `caddy reload` has no such cost: it validates the new Caddyfile
+      # first and swaps the config with the listeners still open. So the reason not to touch
+      # it automatically does not apply, and leaving the fix as advice cost twenty days of
+      # missing HSTS and CSP once already.
+      #
+      # `--force` because the config on disk can be byte-identical to the one Caddy holds
+      # after an earlier failed adopt; without it that reload is a no-op that reports success.
+      if docker exec "$stale" caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1; then
+        log "$stale reloaded its Caddyfile (no connections dropped)"
+      else
+        # A reload that fails means the new Caddyfile did not VALIDATE — Caddy keeps serving
+        # the old one, which is the right outcome and the wrong thing to be quiet about.
+        log "!! $stale would not reload: the Caddyfile on disk did not validate."
+        log "!!   It is still serving the previous config. Check it with:"
+        log "!!     docker exec $stale caddy validate --config /etc/caddy/Caddyfile"
+        alert "caddy refused to reload — the Caddyfile in this release does not validate"
+      fi
+      ;;
     *)
       log "!! $stale is running a stale config file, and this deploy did not fix it."
       log "!!   docker restart $stale   — when a brief interruption is acceptable"
