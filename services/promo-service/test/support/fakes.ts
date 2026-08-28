@@ -13,7 +13,6 @@ import {
 } from '../../src/application/ports/promotion.repository';
 import {
   CreateVoucherData,
-  RedemptionMutation,
   UpdateVoucherData,
   VoucherRecord,
   VoucherRedemptionRecord,
@@ -55,9 +54,7 @@ export class InMemoryPromotionRepository implements PromotionRepository {
   async findActive(now: Date): Promise<PromotionRecord[]> {
     return this.rows.filter(
       (row) =>
-        row.active &&
-        (!row.startsAt || row.startsAt <= now) &&
-        (!row.endsAt || row.endsAt >= now),
+        row.active && (!row.startsAt || row.startsAt <= now) && (!row.endsAt || row.endsAt >= now),
     );
   }
 }
@@ -215,27 +212,8 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   async findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]> {
     return this.redemptions
       .filter((redemption) => redemption.voucherId === voucherId)
-      .sort(
-        (a, b) =>
-          a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
-      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
       .map((redemption) => ({ ...redemption }));
-  }
-
-  async recordRedemption(m: RedemptionMutation): Promise<VoucherRedemptionRecord> {
-    const redemption: VoucherRedemptionRecord = {
-      id: randomUUID(),
-      voucherId: m.voucherId,
-      voucherCode: m.voucherCode,
-      customerId: m.customerId,
-      orderId: m.orderId,
-      discountApplied: m.discountApplied,
-      createdAt: nextDate(),
-    };
-    this.redemptions.push(redemption);
-    const voucher = this.vouchers.find((x) => x.id === m.voucherId)!;
-    voucher.usedCount += 1;
-    return { ...redemption };
   }
 
   /**
@@ -255,7 +233,15 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       customerRedemptions: forVoucher.filter((r) => r.customerId === input.customerId).length,
       burned: forVoucher.reduce((sum, r) => sum + r.discountApplied, 0),
     });
-    return this.recordRedemption({ ...input, discountApplied });
+    const redemption: VoucherRedemptionRecord = {
+      id: randomUUID(),
+      ...input,
+      discountApplied,
+      createdAt: nextDate(),
+    };
+    this.redemptions.push(redemption);
+    voucher.usedCount += 1;
+    return { ...redemption };
   }
 
   /** C4: mirrors `releaseAtomic` — delete the row, decrement the counter, together. */

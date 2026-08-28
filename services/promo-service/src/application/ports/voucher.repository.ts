@@ -61,15 +61,6 @@ export interface UpdateVoucherData {
   active?: boolean;
 }
 
-/** Atomic redemption: insert the redemption row and bump the voucher's usedCount. */
-export interface RedemptionMutation {
-  voucherId: string;
-  voucherCode: string;
-  customerId: string;
-  orderId: string;
-  discountApplied: number;
-}
-
 /** What `redemptionAnalytics` returns — every number already aggregated by Postgres. */
 export interface RedemptionAnalytics {
   totalUses: number;
@@ -131,16 +122,15 @@ export interface VoucherRepository {
     customerId: string,
   ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]>;
 
-  /** Atomic: insert redemption + increment usedCount, returns the redemption. */
-  recordRedemption(mutation: RedemptionMutation): Promise<VoucherRedemptionRecord>;
-
   /**
-   * Redeem under a lock on the voucher row (H-1).
+   * Redeem under a lock on the voucher row (H-1). The only way to redeem.
    *
-   * `recordRedemption` is atomic in its WRITE, but the usage/per-customer/budget checks
-   * that decide whether the write is allowed ran before it, on a separate connection.
+   * There used to be a second one, `recordRedemption`, atomic in its WRITE but with the
+   * usage/per-customer/budget checks decided before it on a separate connection.
    * Concurrent redemptions of the same code all read the same counts, all passed, and all
-   * wrote — so every cap was bypassable by simply sending the requests at once.
+   * wrote — so every cap was bypassable by simply sending the requests at once. H-1 added
+   * this method and moved the caller; nothing called the old one afterwards, and leaving
+   * it on the port left the bypass one `this.repo.` away from anybody adding a feature.
    *
    * Here the voucher row is locked first, so redemptions of one code are serialized: the
    * counts handed to `decide` already include every redemption that committed before us.
@@ -163,11 +153,7 @@ export interface VoucherRepository {
 
   redeemAtomic(
     input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
-    decide: (counts: {
-      usedCount: number;
-      customerRedemptions: number;
-      burned: number;
-    }) => number,
+    decide: (counts: { usedCount: number; customerRedemptions: number; burned: number }) => number,
   ): Promise<VoucherRedemptionRecord>;
 
   /** Record a grant of the voucher to a customer. Returns true only when newly created
