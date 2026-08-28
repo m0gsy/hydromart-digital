@@ -274,7 +274,8 @@ export class PaymentService {
     payment: PaymentRecord,
   ): Promise<void> {
     if (!user || !isDepotScoped(user.role as PlatformRole)) return;
-    const depotId = payment.depotId ?? (await this.orderCoordination.getOrderDepot(payment.orderId));
+    const depotId =
+      payment.depotId ?? (await this.orderCoordination.getOrderDepot(payment.orderId));
     assertDepotAccess(user, depotId);
   }
 
@@ -365,6 +366,29 @@ export class PaymentService {
   ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     await this.assertSettleableBy(user, payment);
+
+    /*
+     * The replay of a confirmation that already landed.
+     *
+     * COD confirmation goes through the offline capture queue (K2.9), and the queue retries
+     * a job it never got an answer for — which includes the answer that was lost AFTER the
+     * server wrote PAID. On the second attempt `assertTransition` said "Cannot move a
+     * payment from PAID to PAID", a 409, and `isRetryable` in offline-queue.ts correctly
+     * does not retry a 409 — so the job was marked failed and the courier was shown an
+     * error for cash that had been booked correctly the first time. That is the app lying
+     * about money, which is the failure the queue exists to prevent.
+     *
+     * Answered as what it is: the payment IS paid, so return it. Narrow on purpose — only
+     * when this confirmation says the same thing the recorded one does. A SECOND confirm
+     * carrying a DIFFERENT `cashReceived` is not a replay; it is a cashier settling the
+     * same order twice with different notes in their hand, and that must still conflict,
+     * because the change owed to the customer was computed from the first figure.
+     */
+    if (payment.status === PaymentStatus.PAID) {
+      const sameCapture = cashReceived == null || money(cashReceived) === payment.cashReceived;
+      if (sameCapture) return payment;
+    }
+
     this.assertTransition(payment.status, PaymentStatus.PAID);
     const patch: PaymentStatusPatch = {
       status: PaymentStatus.PAID,
@@ -548,7 +572,11 @@ export class PaymentService {
    * Returns null when the order has no active payment: the sale was recorded and the money
    * leg never landed, which is exactly the case the cashier is now cleaning up.
    */
-  async voidForOrder(orderId: string, reason: string, changedBy: string): Promise<PaymentRecord | null> {
+  async voidForOrder(
+    orderId: string,
+    reason: string,
+    changedBy: string,
+  ): Promise<PaymentRecord | null> {
     const active = await this.payments.findActiveByOrder(orderId);
     if (!active) return null;
     if (active.status === PaymentStatus.PENDING) {
@@ -641,10 +669,16 @@ export class PaymentService {
     this.logger.log(`Refund ${id} rejected by ${changedBy}`);
     // success:false — a refused approval is a decision someone made, and the record of
     // who refused what is exactly as load-bearing as the record of who approved.
-    await this.audit(changedBy, 'payment.refund.rejected', payment, {
-      amountIdr: payment.amount,
-      reason: reason ?? payment.refundReason ?? null,
-    }, false);
+    await this.audit(
+      changedBy,
+      'payment.refund.rejected',
+      payment,
+      {
+        amountIdr: payment.amount,
+        reason: reason ?? payment.refundReason ?? null,
+      },
+      false,
+    );
     return this.payments.update(id, {
       status: payment.status, // stays PAID
       refundApproval: RefundApproval.REJECTED,
@@ -705,7 +739,11 @@ export class PaymentService {
         // revert leaves the payment REFUNDED without the money having moved — visible in
         // reconciliation and fixable, unlike paying the customer a second time.
         await this.payments
-          .update(payment.id, { status: payment.status, refundedAt: null, refundApproval: payment.refundApproval })
+          .update(payment.id, {
+            status: payment.status,
+            refundedAt: null,
+            refundApproval: payment.refundApproval,
+          })
           .catch(() => {});
         this.logger.error(`Gateway refund failed for ${payment.id}: ${(error as Error).message}`);
         throw new GatewayUnavailableError();
@@ -769,7 +807,10 @@ export class PaymentService {
     success = true,
   ): Promise<void> {
     await recordAuditEvent(
-      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+      {
+        authServiceUrl: this.config.authServiceUrl,
+        internalServiceKey: this.config.internalServiceKey,
+      },
       {
         action,
         actorId: changedBy || null,
