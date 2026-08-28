@@ -424,6 +424,14 @@ export const opsFix = {
   },
   // dashboard/suppliers — PR-8. Sebelumnya seluruhnya hardcoded.
   suppliers: {
+    detailError: 'Gagal membuka data pemasok.',
+    detailCode: 'Kode',
+    detailPhone: 'Telepon',
+    detailCategories: 'Kategori',
+    detailOnTime: 'Ketepatan waktu',
+    detailOnTimeUnknown: 'Belum ada data',
+    detailSince: 'Terdaftar',
+    open: 'Detail',
     title: 'Pemasok',
     add: 'Tambah',
     nameRequired: 'Isi nama dan kode pemasok.',
@@ -553,6 +561,9 @@ export const opsFix = {
   },
   // dashboard/shift — PR-8. Sebelumnya seluruhnya hardcoded.
   shift: {
+    copyLastWeek: 'Salin minggu lalu',
+    copyEmpty: 'Minggu lalu kosong, tidak ada yang disalin.',
+    copyError: 'Gagal menyalin jadwal minggu lalu.',
     title: 'Jadwal shift kurir',
     editOn: 'Selesai atur',
     editOff: 'Atur shift',

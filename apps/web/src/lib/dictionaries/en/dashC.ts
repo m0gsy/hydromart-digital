@@ -300,6 +300,15 @@ export const dashC = {
     },
   },
   tracking: {
+    detailError: 'Could not open this delivery.',
+    detailOrder: 'Order',
+    detailStatus: 'Status',
+    detailAddress: 'Destination',
+    detailPhone: 'Recipient phone',
+    detailCod: 'COD',
+    detailNoCod: 'Not COD',
+    detailAssigned: 'Assigned',
+    open: 'Details',
     steps: {
       ASSIGNED: 'Assigned',
       PICKED_UP: 'Picked up',

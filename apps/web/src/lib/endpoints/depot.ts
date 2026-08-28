@@ -153,7 +153,10 @@ procurement: {
   suppliers: {
     list: (depotId: string) =>
       `/procurement/api/v1/suppliers?depotId=${encodeURIComponent(depotId)}`,
-    // (detail removed, audit F: suppliers are listed and created, never opened by id.)
+    // "Never opened by id" was a description of the UI, not a decision about it: the list
+    // shows a name and a code, and the depot's own on-time rate — the number that decides
+    // whether to order from them again — was only ever in the row nobody could open.
+    detail: (id: string) => `/procurement/api/v1/suppliers/${encodeURIComponent(id)}`,
     create: '/procurement/api/v1/suppliers',
   },
   purchaseOrders: {

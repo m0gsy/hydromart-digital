@@ -150,7 +150,7 @@ const matches = (route, wanted) =>
  * without saying so.
  */
 const RE_API =
-  /api\.(get|post|put|patch|del|delete)(?:Cached)?\s*(?:<[^(]*>)?\(\s*endpoints\.([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)/g;
+  /api\.(get|post|put|patch|del|delete)(?:Cached)?\s*(?:<[^(]*>)?\(\s*endpoints\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+){1,2})/g;
 
 function clientMethods() {
   // `orders: { list: '/orders/api/v1/orders', … }` — dotted name to path template.
@@ -160,17 +160,41 @@ function clientMethods() {
     const text = readFileSync(join(CLIENT_DIR, entry), 'utf8');
     // Brace-depth walk rather than an indentation guess: these files are formatted
     // several ways, and an indent-based reader silently matched nothing at all.
+    /*
+     * A STACK of names, not one `group`.
+     *
+     * The endpoints table nests three deep in several places — `admin.tickets.get`,
+     * `procurement.suppliers.detail`, `deliveries.settlement.get` — and this only ever
+     * recorded `<group>.<leaf>`. A call written `api.get(endpoints.admin.tickets.get(id))`
+     * therefore matched nothing, and every one of those call sites was counted as a verb
+     * nobody checks. The ratchet caught four of them arriving at once, which is what
+     * pointed at this rather than at the calls.
+     *
+     * Every suffix of the path is registered, so a two-part reference to a three-deep entry
+     * still resolves and nothing that used to resolve stops.
+     */
     let depth = 0;
-    let group = null;
+    const stack = [];
     for (const line of text.split('\n')) {
       const open = line.match(/([a-zA-Z0-9_]+):\s*\{\s*$/);
-      if (depth === 1 && open) group = open[1];
       const leaf = line.match(
         /([a-zA-Z0-9_]+):\s*(?:\([^)]*\)\s*=>\s*)?['`](\/[a-z-]+\/api\/v1\/[^'`\s]*)/i,
       );
-      if (leaf && group && depth >= 2) names.set(`${group}.${leaf[1]}`, leaf[2]);
-      depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
-      if (depth <= 1) group = depth === 1 ? group : null;
+      if (leaf && stack.length > 0) {
+        const path = [...stack, leaf[1]];
+        // Longest first, then every shorter suffix: `admin.tickets.get`, `tickets.get`.
+        for (let i = 0; i < path.length - 1; i += 1) {
+          const key = path.slice(i).join('.');
+          if (!names.has(key)) names.set(key, leaf[2]);
+        }
+      }
+      const opens = (line.match(/\{/g) ?? []).length;
+      const closes = (line.match(/\}/g) ?? []).length;
+      if (open && opens === 1 && closes === 0) stack.push(open[1]);
+      else if (opens > closes) stack.push(null);
+      depth += opens - closes;
+      for (let i = 0; i < closes - opens; i += 1) stack.pop();
+      if (depth <= 0) stack.length = 0;
     }
   }
 

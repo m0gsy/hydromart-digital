@@ -64,8 +64,16 @@ admin: {
       const qs = p.toString();
       return `/admin/api/v1/tickets${qs ? `?${qs}` : ''}`;
     },
-    // (get removed, audit F: the ticket list carries the whole ticket, and reply/assign/
-    // resolve act on it by id. No screen opens one on its own.)
+    /*
+     * Back, with the screen it was waiting for.
+     *
+     * The old note was right that the LIST carries the whole ticket — and that is exactly
+     * why it stops being right the moment somebody replies. The list is a snapshot taken
+     * when the queue was loaded; a reply, an assignment or a resolve happens after it, so
+     * the thread on screen is one message behind the thread on the server. Re-reading the
+     * one ticket is what makes the reply appear where it was typed.
+     */
+    get: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}`,
     // Staff open a ticket on a customer's behalf — a complaint taken at the counter or on
     // the phone. Until this shipped, `/hq/tickets` could reply/assign/resolve a queue that
     // nothing could add to.

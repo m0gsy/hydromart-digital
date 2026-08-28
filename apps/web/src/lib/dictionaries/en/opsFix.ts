@@ -423,6 +423,14 @@ export const opsFix = {
   },
   // dashboard/suppliers — PR-8. Mirrors id/opsFix.suppliers key for key.
   suppliers: {
+    detailError: 'Could not open this supplier.',
+    detailCode: 'Code',
+    detailPhone: 'Phone',
+    detailCategories: 'Categories',
+    detailOnTime: 'On-time rate',
+    detailOnTimeUnknown: 'No data yet',
+    detailSince: 'Registered',
+    open: 'Details',
     title: 'Suppliers',
     add: 'Add',
     nameRequired: 'Fill in the supplier name and code.',
@@ -552,6 +560,9 @@ export const opsFix = {
   },
   // dashboard/shift — PR-8. Mirrors id/opsFix.shift key for key.
   shift: {
+    copyLastWeek: 'Copy last week',
+    copyEmpty: 'Last week is empty; nothing to copy.',
+    copyError: 'Could not copy last week.',
     title: 'Courier shift roster',
     editOn: 'Done editing',
     editOff: 'Edit shifts',
