@@ -5,7 +5,6 @@ import { DiscountType } from '../../domain/voucher';
 import {
   CreateVoucherData,
   RedemptionAnalytics,
-  RedemptionMutation,
   UpdateVoucherData,
   VoucherRecord,
   VoucherRedemptionRecord,
@@ -126,7 +125,10 @@ export class VoucherPrismaRepository implements VoucherRepository {
       this.prisma.voucher.findMany({ where: { active: true }, orderBy: { validUntil: 'asc' } }),
       // A customer has few redemptions (perCustomerLimit is small), so tallying in
       // memory is cheaper and simpler than a typed groupBy.
-      this.prisma.voucherRedemption.findMany({ where: { customerId }, select: { voucherId: true } }),
+      this.prisma.voucherRedemption.findMany({
+        where: { customerId },
+        select: { voucherId: true },
+      }),
     ]);
     const byVoucher = new Map<string, number>();
     for (const r of redemptions) {
@@ -213,25 +215,6 @@ export class VoucherPrismaRepository implements VoucherRepository {
     };
   }
 
-  async recordRedemption(m: RedemptionMutation): Promise<VoucherRedemptionRecord> {
-    const [redemption] = await this.prisma.$transaction([
-      this.prisma.voucherRedemption.create({
-        data: {
-          voucherId: m.voucherId,
-          voucherCode: m.voucherCode,
-          customerId: m.customerId,
-          orderId: m.orderId,
-          discountApplied: m.discountApplied,
-        },
-      }),
-      this.prisma.voucher.update({
-        where: { id: m.voucherId },
-        data: { usedCount: { increment: 1 } },
-      }),
-    ]);
-    return this.toRedemption(redemption);
-  }
-
   /**
    * H-1: serialize redemptions of one voucher so its caps cannot be beaten by sending the
    * requests at the same time.
@@ -247,43 +230,68 @@ export class VoucherPrismaRepository implements VoucherRepository {
     input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
     decide: (counts: { usedCount: number; customerRedemptions: number; burned: number }) => number,
   ): Promise<VoucherRedemptionRecord> {
-    return this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<{ usedCount: number }[]>`
+    return this.prisma
+      .$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<{ usedCount: number }[]>`
         SELECT "usedCount" FROM "vouchers" WHERE "id" = ${input.voucherId}::uuid FOR UPDATE`;
-      if (locked.length === 0) throw new VoucherNotFoundError();
+        if (locked.length === 0) throw new VoucherNotFoundError();
 
-      const [customerRedemptions, burnedAgg] = await Promise.all([
-        tx.voucherRedemption.count({
-          where: { voucherId: input.voucherId, customerId: input.customerId },
-        }),
-        tx.voucherRedemption.aggregate({
-          where: { voucherId: input.voucherId },
-          _sum: { discountApplied: true },
-        }),
-      ]);
+        const [customerRedemptions, burnedAgg] = await Promise.all([
+          tx.voucherRedemption.count({
+            where: { voucherId: input.voucherId, customerId: input.customerId },
+          }),
+          tx.voucherRedemption.aggregate({
+            where: { voucherId: input.voucherId },
+            _sum: { discountApplied: true },
+          }),
+        ]);
 
-      // Throws on any cap violation — the transaction rolls back and nothing is burned.
-      const discountApplied = decide({
-        usedCount: Number(locked[0].usedCount),
-        customerRedemptions,
-        burned: Number(burnedAgg._sum.discountApplied ?? 0),
-      });
+        // Throws on any cap violation — the transaction rolls back and nothing is burned.
+        const discountApplied = decide({
+          usedCount: Number(locked[0].usedCount),
+          customerRedemptions,
+          burned: Number(burnedAgg._sum.discountApplied ?? 0),
+        });
 
-      const redemption = await tx.voucherRedemption.create({
-        data: {
-          voucherId: input.voucherId,
-          voucherCode: input.voucherCode,
-          customerId: input.customerId,
-          orderId: input.orderId,
-          discountApplied,
-        },
+        const redemption = await tx.voucherRedemption.create({
+          data: {
+            voucherId: input.voucherId,
+            voucherCode: input.voucherCode,
+            customerId: input.customerId,
+            orderId: input.orderId,
+            discountApplied,
+          },
+        });
+        await tx.voucher.update({
+          where: { id: input.voucherId },
+          data: { usedCount: { increment: 1 } },
+        });
+        return this.toRedemption(redemption);
+      })
+      .catch(async (error: unknown) => {
+        /*
+         * The lock serializes redemptions of one VOUCHER. It says nothing about one ORDER.
+         *
+         * `redeem` checks `findRedemptionByOrder` first, and that check is not the guard: a
+         * retried checkout — a slow connection, a tapped button, an at-least-once caller —
+         * has both attempts read "not redeemed", both queue on the voucher lock, and the
+         * second one meet `@@unique([orderId])`. The transaction rolls back, so nothing is
+         * double-burned; that part was already right.
+         *
+         * What was wrong is the answer. A raw P2002 is a 500 on a checkout that succeeded,
+         * and the service already knows what to say instead — it says it one line earlier,
+         * for the same case found one moment sooner:
+         *
+         *     if (existing) return { orderId: existing.orderId, discountApplied: ... }
+         */
+        if ((error as { code?: string })?.code !== 'P2002') throw error;
+        const won = await this.prisma.voucherRedemption.findUnique({
+          where: { orderId: input.orderId },
+        });
+        // A P2002 with nothing to read back is a different unique index, not this race.
+        if (!won) throw error;
+        return this.toRedemption(won);
       });
-      await tx.voucher.update({
-        where: { id: input.voucherId },
-        data: { usedCount: { increment: 1 } },
-      });
-      return this.toRedemption(redemption);
-    });
   }
 
   async releaseAtomic(orderId: string): Promise<VoucherRedemptionRecord | null> {

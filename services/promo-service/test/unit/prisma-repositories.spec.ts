@@ -150,7 +150,11 @@ describe('VoucherPrismaRepository', () => {
 
   it('create writes the generated enum and maps back', async () => {
     voucher.create.mockResolvedValue(voucherRow());
-    const rec = await repo.create({ code: 'HEMAT10', discountType: DiscountType.PERCENTAGE, value: 10 } as never);
+    const rec = await repo.create({
+      code: 'HEMAT10',
+      discountType: DiscountType.PERCENTAGE,
+      value: 10,
+    } as never);
     expect(rec.discountType).toBe(DiscountType.PERCENTAGE);
     expect(voucher.create).toHaveBeenCalledWith({
       data: { code: 'HEMAT10', discountType: 'PERCENTAGE', value: 10 },
@@ -259,7 +263,9 @@ describe('VoucherPrismaRepository', () => {
   it('countRedemptions scopes by voucher and optionally customer', async () => {
     voucherRedemption.count.mockResolvedValue(3);
     expect(await repo.countRedemptions('v-1', 'c-1')).toBe(3);
-    expect(voucherRedemption.count).toHaveBeenCalledWith({ where: { voucherId: 'v-1', customerId: 'c-1' } });
+    expect(voucherRedemption.count).toHaveBeenCalledWith({
+      where: { voucherId: 'v-1', customerId: 'c-1' },
+    });
     await repo.countRedemptions('v-1');
     expect(voucherRedemption.count).toHaveBeenLastCalledWith({ where: { voucherId: 'v-1' } });
   });
@@ -328,22 +334,42 @@ describe('VoucherPrismaRepository', () => {
     expect(await repo.findRedemptionByOrder('o-2')).toBeNull();
   });
 
-  it('recordRedemption creates the redemption and increments usedCount', async () => {
-    const red = { id: 'r-1', voucherId: 'v-1' };
-    $transaction.mockResolvedValue([red, voucherRow()]);
-    const m = {
-      voucherId: 'v-1',
-      voucherCode: 'HEMAT10',
-      customerId: 'c-1',
-      orderId: 'o-1',
-      discountApplied: 1000,
-    };
-    expect(await repo.recordRedemption(m)).toEqual(red);
-    expect(voucherRedemption.create).toHaveBeenCalledWith({ data: m });
-    expect(voucher.update).toHaveBeenCalledWith({
-      where: { id: 'v-1' },
-      data: { usedCount: { increment: 1 } },
-    });
+  /*
+   * The lock serializes redemptions of one VOUCHER. It says nothing about one ORDER.
+   *
+   * `redeem` checks `findRedemptionByOrder` first, and that check is not the guard: a
+   * retried checkout has both attempts read "not redeemed", both queue on the voucher
+   * lock, and the second meet `@@unique([orderId])`. The rollback was already right —
+   * nothing is double-burned. The answer was not: a raw P2002 is a 500 on a checkout that
+   * succeeded, and the service says the right thing one line earlier for the same case
+   * found one moment sooner.
+   */
+  it('answers a retried checkout with the redemption it already made', async () => {
+    const red = { id: 'r-1', voucherId: 'v-1', orderId: 'o-1', discountApplied: 1000 };
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    voucherRedemption.findUnique.mockResolvedValue(red);
+
+    const out = await repo.redeemAtomic(
+      { voucherId: 'v-1', voucherCode: 'HEMAT10', customerId: 'c-1', orderId: 'o-1' },
+      () => 1000,
+    );
+
+    expect(out.id).toBe('r-1');
+    expect(voucherRedemption.findUnique).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
+  });
+
+  // A P2002 with nothing to read back is a DIFFERENT unique index, and reporting it as a
+  // successful redemption would hand out a discount that was never recorded.
+  it('rethrows a P2002 that is not this order', async () => {
+    const dup = Object.assign(new Error('dup'), { code: 'P2002' });
+    $transaction.mockRejectedValueOnce(dup);
+    voucherRedemption.findUnique.mockResolvedValue(null);
+    await expect(
+      repo.redeemAtomic(
+        { voucherId: 'v-1', voucherCode: 'HEMAT10', customerId: 'c-1', orderId: 'o-1' },
+        () => 1000,
+      ),
+    ).rejects.toBe(dup);
   });
 
   it('grantVoucher returns false when a grant already exists', async () => {
@@ -355,7 +381,9 @@ describe('VoucherPrismaRepository', () => {
   it('grantVoucher creates and returns true when none exists', async () => {
     voucherGrant.findUnique.mockResolvedValue(null);
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(true);
-    expect(voucherGrant.create).toHaveBeenCalledWith({ data: { voucherId: 'v-1', customerId: 'c-1' } });
+    expect(voucherGrant.create).toHaveBeenCalledWith({
+      data: { voucherId: 'v-1', customerId: 'c-1' },
+    });
   });
 });
 // H-1: the burn that the voucher caps actually rest on. The row is locked FOR UPDATE, the
@@ -437,7 +465,6 @@ describe('VoucherPrismaRepository.redeemAtomic', () => {
     expect(seen[0].burned).toBe(0);
   });
 });
-
 
 describe('VoucherRequestPrismaRepository', () => {
   const model = {
