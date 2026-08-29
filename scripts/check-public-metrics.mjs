@@ -25,7 +25,11 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
-const caddyfile = readFileSync(join(repo, 'Caddyfile'), 'utf8');
+// infra/caddy/, not the repo root: the file moved into a directory of its own so that
+// docker-compose can bind-mount the DIRECTORY. A single-file mount pins an inode, and a
+// deploy that writes a new file left the container serving the old one — which is how the
+// /metrics block below passed this check for two days while answering 200 in production.
+const caddyfile = readFileSync(join(repo, 'infra', 'caddy', 'Caddyfile'), 'utf8');
 
 let failed = false;
 const fail = (msg) => {
@@ -90,4 +94,15 @@ if (url) {
   }
 }
 
-process.exit(failed ? 1 : 0);
+// `process.exitCode`, never `process.exit()` — the same lesson check-launch-blockers.mjs
+// already wrote down, in another file that also fetches:
+//
+//   killing the process while the fetch still holds a socket trips
+//   `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` in libuv on Windows and the
+//   gate exits 127. A gate that dies with a C assertion instead of a verdict is
+//   indistinguishable from a gate that passed.
+//
+// Measured here on 2026-08-29: `--url` against the live API exited 127, not 1, while
+// printing the correct refusal. Anything reading the code rather than the output would have
+// called that a pass.
+process.exitCode = failed ? 1 : 0;

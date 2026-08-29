@@ -314,4 +314,25 @@ else
   bad "a box running the stub face verifier would report nothing — the biometric check would accept anyone"
 fi
 
+# --- /metrics is asked of the SERVER, not of the disk -------------------------------------
+#
+# check-public-metrics.mjs has always supported `--url`, and its own header says why: "a
+# config that is not deployed protects nothing". CI runs it WITHOUT one, so it read the
+# Caddyfile on disk, found the block, and passed — while the live API answered 200 with
+# 404 KB of the platform's traffic for two days. The block was committed and never reached
+# the container: the Caddyfile was bind-mounted as a single FILE, and that mount pins an
+# inode, so `git reset --hard` wrote a new file the container could not see.
+if grep -qE 'check-public-metrics.mjs --url' scripts/deploy.sh; then
+  ok "deploy asks the live API whether /metrics is public"
+else
+  bad "nothing asks the SERVER about /metrics — the gate reads a file, and a file is not a deployment"
+fi
+
+# The mount is the root cause, and it must stay a directory.
+if grep -qE '^      - \./infra/caddy:/etc/caddy:ro' docker-compose.prod.yml; then
+  ok "the Caddyfile is mounted as a directory, so a new file is visible to the container"
+else
+  bad "the Caddyfile is bind-mounted as a single file again — the mount pins an inode and every deploy silently serves the old config"
+fi
+
 exit "$fails"

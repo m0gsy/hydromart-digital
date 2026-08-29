@@ -226,7 +226,7 @@ from `{$API_DOMAIN}`, so setting that variable is enough. Validate any edit befo
 restarting:
 
 ```bash
-docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/infra/caddy:/etc/caddy:ro" \
   caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 

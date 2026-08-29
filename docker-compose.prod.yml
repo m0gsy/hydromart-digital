@@ -923,7 +923,20 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The DIRECTORY, not the file - and that difference is a live security finding.
+      #
+      # A single-file bind mount pins an INODE. `git reset --hard` during a deploy does not
+      # rewrite the old file, it writes a new one, so the container kept serving the config
+      # from whenever it was last CREATED. `caddy reload --config /etc/caddy/Caddyfile` then
+      # re-read that same stale inode and reported success - which is why three deploys in a
+      # row printed "reloaded its Caddyfile (no connections dropped)" while the /metrics block
+      # committed on 2026-08-27 never took effect, and
+      # `curl https://api.hydromart-digital.com/metrics` answered 200 with 404 KB of the
+      # platform's traffic to anybody who asked.
+      #
+      # Mounting the directory means a new file inside it is simply visible. Caddy's default
+      # entrypoint already reads /etc/caddy/Caddyfile, so nothing else changes.
+      - ./infra/caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
 

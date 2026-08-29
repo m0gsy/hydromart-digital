@@ -56,7 +56,7 @@ hydromart/
 ├── docs/                       Requirements (BRD/PRD), architecture, perf baseline
 ├── docker-compose.yml          Local PostgreSQL
 ├── docker-compose.prod.yml     The production overlay (see DEPLOY.md)
-└── Caddyfile                   TLS termination, HSTS + CSP
+└── infra/caddy/Caddyfile       TLS termination, HSTS + CSP
 ```
 
 Each service owns its own database and Prisma schema, consumes `@hydromart/platform`
