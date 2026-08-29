@@ -6,6 +6,7 @@ import { Suspense, useState } from 'react';
 import { ArrowLeft, ArrowRight, Gift, User } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
+import { TermsLink } from '@/components/terms-sheet';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -212,11 +213,18 @@ function RegisterForm() {
              * "Saya menyetujui dan Ketentuan Layanan Hydromart" — a consent with the thing
              * being consented to missing from it.
              */
-            aria-label={`${t('auth.register.consentPre')}${t('auth.register.consentPrivacy')}${t('auth.register.consentPost')}`}
+            aria-label={`${t('auth.register.consentPre')}${t('auth.register.consentPrivacy')}${t('auth.register.consentMid')}${t('auth.register.consentTerms')}${t('auth.register.consentPost')}`}
           />
           <span>
             {t('auth.register.consentPre')}
             <PrivacyLink>{t('auth.register.consentPrivacy')}</PrivacyLink>
+            {t('auth.register.consentMid')}
+            {/*
+              The other half of the same sentence. It was plain text naming a document that
+              answered 404 — every person who ever registered agreed to something that had
+              never been written. Now it opens, in place, exactly like the policy beside it.
+            */}
+            <TermsLink>{t('auth.register.consentTerms')}</TermsLink>
             {t('auth.register.consentPost')}
           </span>
         </label>
