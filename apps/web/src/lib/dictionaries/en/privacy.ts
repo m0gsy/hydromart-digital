@@ -3,7 +3,7 @@ import { privacy as base } from '../id/privacy';
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
   title: 'Privacy Policy',
-  effective: 'Effective 23 August 2026',
+  effective: 'Effective 29 August 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
   sections: [
@@ -28,8 +28,8 @@ export const privacy: typeof base = {
       body: 'We process data based on your consent (given at registration and when the recipient signs for a delivery) and to perform your order. You may withdraw consent at any time; as a result we may be unable to continue certain services.',
     },
     {
-      heading: 'Sharing',
-      body: 'Data is shared only with the depot and courier handling your order, and with infrastructure providers (file storage, OTP delivery) as strictly needed. We do not sell your personal data.',
+      heading: 'Sharing & third-party recipients',
+      body: 'Your order data is shared with the depot and courier handling it. Beyond that, some providers receive part of your data because they are the ones processing it for us, and this is the complete list. (1) BiznetGio NEO Object Storage (Jakarta and West Java, Indonesia) holds image files: proof-of-delivery photos and signatures, and your profile photo. (2) Zenziva (Indonesia) receives your phone number and the message text in order to send OTP codes by SMS. (3) Google, through Firebase Cloud Messaging, receives your Android device token together with the title and body of every notification we send — so a line like “Your order is on its way” does pass through Google’s servers, and Google processes it outside Indonesia. (4) For browser notifications, the push service of your browser vendor (Google for Chrome, Mozilla for Firefox, and so on) relays our message, but the content is encrypted, so they learn only which device it went to, not what it said. Device notifications run only if you allow them; withdrawing that permission stops both the token and the notification text from reaching Google. None of the recipients above may use your data for their own purposes, and we do not sell or rent your personal data.',
     },
     {
       heading: 'Storage & retention',

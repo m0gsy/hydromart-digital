@@ -9,13 +9,15 @@
 # COPY errors — and psql exits 0 unless told not to. Nobody told it.
 #
 # Every case below was first run by hand against real Postgres containers on 2026-08-27; this
-# file is that session made repeatable. It builds a source cluster holding 137 + 42 rows,
+# file is that session made repeatable. It builds a source cluster holding 138 + 43 rows
+# (137 orders + 42 payments, plus the one _prisma_migrations row per database that every
+# hydromart_* database carries in production and that the drill's schema-version check reads),
 # dumps it, and restores into a second container:
 #
 #   1. into an EMPTY cluster            -> 0, and the row counts are printed
 #   2. into a POPULATED cluster         -> 1 (refused; this is the 03:00 case)
 #   3. ...same state, the OLD pipeline  -> 0 (the lie, asserted explicitly)
-#   4. with DROP_EXISTING=YES           -> 0, and the rows are back to 179
+#   4. with DROP_EXISTING=YES           -> 0, and the rows are back to 181
 #   5. a SCHEMA-ONLY dump               -> 1 ("that is a schema, not a recovery")
 #   6. a dump with a failing statement  -> 1, and the error is printed
 #
@@ -60,7 +62,7 @@ run() {
 }
 
 cleanup() {
-  docker rm -f "$SRC" "$DST" >/dev/null 2>&1 || true
+  docker rm -f "$SRC" "$DST" hydromart-restore-drill >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -116,6 +118,23 @@ pg "$SRC" hydromart_orders \
   "CREATE TABLE orders(id serial primary key, total int); INSERT INTO orders(total) SELECT g*1000 FROM generate_series(1,137) g;"
 pg "$SRC" hydromart_payments \
   "CREATE TABLE payments(id serial primary key, amount int); INSERT INTO payments(amount) SELECT g*500 FROM generate_series(1,42) g;"
+# Prisma owns every hydromart_* database in production, so `_prisma_migrations` exists in all
+# of them and the drill's schema-version check reads it.
+#
+# The third database below deliberately does NOT have one. Without it this fixture hid a
+# real defect: `live()` exits non-zero on the missing relation, `pipefail` propagates it,
+# `set -e` kills the drill at the assignment — one line before the `${lm:-0}` default that
+# was written for exactly this answer. Dead guard, weekly drill dying with no reason given,
+# and a suite that could not see it because every fixture database had the table. The code
+# is fixed (`|| true` in both probes); this is what keeps it fixed.
+for db in hydromart_orders hydromart_payments; do
+  pg "$SRC" "$db" \
+    "CREATE TABLE \"_prisma_migrations\"(id text primary key, finished_at timestamptz); INSERT INTO \"_prisma_migrations\" VALUES ('0001_init', now());"
+done
+
+# A hydromart database Prisma has never migrated — the shape that crashed the drill.
+pg "$SRC" postgres "CREATE DATABASE hydromart_scratchpad;"
+pg "$SRC" hydromart_scratchpad "CREATE TABLE notes(id serial primary key);"
 
 DUMP="$WORK/hydromart-20260827-000000.sql.gz"
 docker exec "$SRC" pg_dumpall -U hydromart | gzip >"$DUMP"
@@ -137,7 +156,7 @@ fresh "$DST" || { bad "target Postgres never became ready"; exit "$fails"; }
 run restore "$DUMP"
 check "1. empty cluster restores" 0 "$RC"
 case "$OUT" in
-  *"137 rows"*"42 rows"*"179 rows total"*) ok "1b. it counted the rows it restored (137 + 42 = 179)" ;;
+  *"138 rows"*"43 rows"*"181 rows total"*) ok "1b. it counted the rows it restored (138 + 43 = 181)" ;;
   *) bad "1b. row counts missing from the output: $OUT" ;;
 esac
 
@@ -156,8 +175,8 @@ check "3. the OLD pipeline exits 0 in that same state (the lie)" 0 "$OLD_RC"
 run restore_drop "$DUMP"
 check "4. DROP_EXISTING=YES restores it properly" 0 "$RC"
 case "$OUT" in
-  *"179 rows total"*) ok "4b. and the rows are all back" ;;
-  *) bad "4b. expected 179 rows after the drop-and-restore: $OUT" ;;
+  *"181 rows total"*) ok "4b. and the rows are all back" ;;
+  *) bad "4b. expected 181 rows after the drop-and-restore: $OUT" ;;
 esac
 
 run restore_drop "$WORK/schema-only.sql.gz"
@@ -172,6 +191,33 @@ check "6. a dump with a failing statement fails the restore" 1 "$RC"
 case "$OUT" in
   *tabel_yang_tidak_ada*) ok "6b. and it prints the error it saw" ;;
   *) bad "6b. expected the failing statement in the output: $OUT" ;;
+esac
+
+# --- 7. RTO is a NUMBER, not a guess ------------------------------------------------------
+#
+# `grep -n 'elapsed\|SECONDS' scripts/restore-db.sh` was EMPTY: neither branch timed itself,
+# so the weekly verdict in /var/log/hydromart-restore-drill.log said a restore worked and
+# never said how long it took. "How long are we down for" was therefore answered from
+# memory by whoever was awake at 03:00.
+#
+# Asserted on the OUTPUT of a real restore, because a variable that is measured and never
+# printed is the same as no measurement at all.
+run restore_drop "$DUMP"
+check "7. a repeat restore still succeeds" 0 "$RC"
+case "$OUT" in
+  *"restore took "*s*) ok "7b. --into-prod reports how long the recovery took" ;;
+  *) bad "7b. no duration in the restore output — RTO is still a guess: $OUT" ;;
+esac
+
+# The drill is the half a human never watches. Its dump comes from $SRC, so $SRC is the
+# "live" cluster it verifies against — the same comparison the real drill makes, on data
+# this file built. `report_backup_run` fails open without a compose stack, by design.
+drill() { PG_CONTAINER="$SRC" PG_USER=hydromart bash scripts/restore-db.sh --drill "$1"; }
+run drill "$DUMP"
+check "8. the drill passes against the cluster the dump came from" 0 "$RC"
+case "$OUT" in
+  *"drill OK"*"took "*s*) ok "8b. and the verdict carries the elapsed time" ;;
+  *) bad "8b. the drill verdict has no duration, so the weekly log still cannot answer 'what is our RTO': $OUT" ;;
 esac
 
 exit "$fails"

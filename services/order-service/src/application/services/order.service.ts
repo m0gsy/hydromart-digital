@@ -1496,12 +1496,13 @@ export class OrderService {
     // an order recorded as cancelled whose money is still held is a customer who paid for
     // nothing and a depot holding revenue it does not have.
     await this.paymentReversal.cancelForOrder(order.id, reason ?? 'Order cancelled by customer');
-    const cancelled = await this.orders.applyStatus(
-      order.id,
-      order.status,
+    // Through the shared write, which stays silent here because the actor is the customer.
+    const cancelled = await this.applyStatusNotifying(
+      order,
       OrderStatus.CANCELLED,
       customerId,
       reason ?? null,
+      authorization,
     );
     await this.releaseStock(cancelled, authorization);
     return cancelled;
@@ -1567,12 +1568,14 @@ export class OrderService {
           );
           continue;
         }
-        const cancelled = await this.orders.applyStatus(
-          order.id,
-          order.status,
+        // W2: through the shared write, so the customer hears about a cancellation nobody
+        // asked them about — the sweep used to take the order away in silence.
+        const cancelled = await this.applyStatusNotifying(
+          order,
           OrderStatus.CANCELLED,
           changedBy,
           sweep.note,
+          authorization,
         );
         await this.releaseStock(cancelled, authorization);
         cancelledCount += 1;
@@ -2000,6 +2003,69 @@ export class OrderService {
     );
   }
 
+  /**
+   * Moves the order AND tells the customer about it — the one place a status write turns
+   * into a message.
+   *
+   * The notification used to live inside `updateStatus` alone, and three roads reach a
+   * status write: the customer's own cancel, staff and delivery-service through
+   * `updateStatus`, and the hourly abandoned sweep. So a cancellation by hand sent
+   * ORDER_CANCELLED and the identical cancellation by the sweep sent nothing at all.
+   * Measured on production (W2): payment is cash at the depot, so a CASH order is never
+   * PAID by a gateway and CREATED→CONFIRMED needs a human at the counter — an order placed
+   * after the 21.00 close was auto-cancelled sixty minutes later and the customer's order
+   * simply disappeared, silently, overnight.
+   *
+   * Silent when the actor IS the customer: they are looking at the screen that confirmed
+   * it. Same call `notificationEventFor` makes for VOIDED, and it leaves the customer's own
+   * cancel exactly as it was.
+   */
+  private async applyStatusNotifying(
+    order: OrderRecord,
+    to: OrderStatus,
+    changedBy: string | null,
+    note: string | null,
+    authorization: string,
+    ...rest: [
+      driverName?: string | null,
+      driverPhone?: string | null,
+      estimatedArrivalAt?: Date | null,
+      outbox?: OutboxWrite[],
+    ]
+  ): Promise<OrderRecord> {
+    const updated = await this.orders.applyStatus(
+      order.id,
+      order.status,
+      to,
+      changedBy,
+      note,
+      ...rest,
+    );
+    // FR-093/FR-094: notify the customer over WhatsApp on notable lifecycle changes.
+    // Delivery progress reaches here too — delivery-service advances the order status
+    // over HTTP, so ON_DELIVERY/DELIVERED notifications flow through this one point.
+    // B6: `order.status` is where this transition came FROM, and it decides whether
+    // COMPLETED speaks. Proof of delivery walks DELIVERED then COMPLETED in one loop, so
+    // without it the customer gets two messages seconds apart about the same doorstep.
+    const event = changedBy === order.customerId ? null : notificationEventFor(to, order.status);
+    if (event) {
+      await this.notification.notify(
+        event,
+        updated.phone,
+        {
+          name: updated.recipientName,
+          orderNumber: updated.orderNumber,
+          orderId: updated.id,
+          // Only ORDER_DRIVER_ASSIGNED names a courier; every other template ignores it.
+          driver: updated.driverName ?? '',
+        },
+        updated.customerId,
+        authorization,
+      );
+    }
+    return updated;
+  }
+
   /** BR-012: staff advance an order along the legal status graph. */
   async updateStatus(
     orderId: string,
@@ -2021,12 +2087,12 @@ export class OrderService {
     if (to === OrderStatus.CANCELLED) {
       await this.paymentReversal.cancelForOrder(order.id, note ?? 'Order cancelled');
     }
-    const updated = await this.orders.applyStatus(
-      order.id,
-      order.status,
+    const updated = await this.applyStatusNotifying(
+      order,
       to,
       changedBy,
       note ?? null,
+      authorization,
       to === OrderStatus.DRIVER_ASSIGNED ? (driverName ?? null) : undefined,
       to === OrderStatus.DRIVER_ASSIGNED ? (driverPhone ?? null) : undefined,
       to === OrderStatus.ON_DELIVERY && estimatedArrivalAt
@@ -2042,28 +2108,6 @@ export class OrderService {
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {
       await this.releaseStock(updated, authorization);
-    }
-    // FR-093/FR-094: notify the customer over WhatsApp on notable lifecycle changes.
-    // Delivery progress reaches here too — delivery-service advances the order status
-    // over HTTP, so ON_DELIVERY/DELIVERED notifications flow through this one point.
-    // B6: `order.status` is where this transition came FROM, and it decides whether
-    // COMPLETED speaks. Proof of delivery walks DELIVERED then COMPLETED in one loop, so
-    // without it the customer gets two messages seconds apart about the same doorstep.
-    const event = notificationEventFor(to, order.status);
-    if (event) {
-      await this.notification.notify(
-        event,
-        updated.phone,
-        {
-          name: updated.recipientName,
-          orderNumber: updated.orderNumber,
-          orderId: updated.id,
-          // Only ORDER_DRIVER_ASSIGNED names a courier; every other template ignores it.
-          driver: updated.driverName ?? '',
-        },
-        updated.customerId,
-        authorization,
-      );
     }
     return updated;
   }

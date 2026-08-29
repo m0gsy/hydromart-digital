@@ -39,9 +39,19 @@ function minutesOf(hhmm: string | undefined): number | null {
 /**
  * Whether the depot is serving at `now`.
  *
- * OPEN is the default when nothing is configured: an empty/absent `operatingHours` is a
- * depot that never filled the form in, not a depot that is permanently shut — and reading
- * it as closed would silently switch express off for every existing depot.
+ * SHUT is the default when nothing is configured. This used to answer OPEN, reasoning that
+ * an empty/absent `operatingHours` is a depot that never filled the form in rather than one
+ * that is permanently closed, and that reading it as shut would silently withdraw express
+ * from every existing depot. Measured against production, that default sells: depot
+ * DEMO-01 "Depot Demo (Play Review)" is ACTIVE and public in Malang with
+ * `operatingHours: {}`, so anyone inside its 3 km radius could buy an immediate cash
+ * delivery from it at any hour of any day. Absence is not a safe value — the same call the
+ * Prometheus alerting rules had to make. A depot that has not said when it trades has not
+ * said it trades now, and the failure it buys is a delivery nobody is there to make.
+ *
+ * Note what this does NOT decide. A depot-service outage never reaches here at all:
+ * order.service `depotIsOpen` keeps express on when the directory cannot answer, because
+ * not knowing and knowing that nothing is configured are different facts.
  *
  * A listed holiday date closes the whole day. A day with no entry is a weekly closing day.
  * `close` at or before `open` (an overnight depot) is treated as open all day rather than
@@ -53,7 +63,7 @@ export function isOpenAt(
   now: Date,
   tz: string,
 ): boolean {
-  if (!hours || Object.keys(hours).length === 0) return true;
+  if (!hours || Object.keys(hours).length === 0) return false;
 
   const day = localDayKey(now, tz);
   if (holidays?.some((h) => h?.date === day)) return false;

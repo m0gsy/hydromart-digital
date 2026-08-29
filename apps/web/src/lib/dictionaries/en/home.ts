@@ -53,6 +53,7 @@ export const home: typeof base = {
     viewRewards: 'View rewards',
     guestTitle: 'Earn points on every order',
     guestBody: 'Become a member and get bigger discounts as you climb tiers.',
+    guestBodyPoints: 'Become a member and collect points on every order to redeem for rewards.',
     register: 'Sign up free',
   },
   depots: {

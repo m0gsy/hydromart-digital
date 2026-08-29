@@ -306,6 +306,79 @@ for stale in $DRIFTED; do
 done
 
 if health_ok; then
+  # W6 — health_ok proves the CONTAINERS are up. It does not prove the RELEASE works.
+  #
+  # It asks two questions: does the gateway answer /health, and does docker call anything
+  # unhealthy. A service whose routes 500 on every request answers both of those correctly,
+  # and so does one whose Prisma client cannot reach its database after a schema change.
+  # `scripts/smoke.sh` was written for exactly that gap — and `grep -n smoke scripts/deploy.sh`
+  # was EMPTY. It existed only as a manual mode in deploy.yml, which is to say it ran when
+  # somebody remembered, which on this repo's evidence is never.
+  #
+  # smoke.sh is not simply called here, and the reason is not caution. It WRITES to
+  # production: it grants loyalty points, redeems a reward into a real depot's pickup queue
+  # (a redemption a staff member then has to hand over), stores a payment method on a real
+  # account and renames that profile to "Smoke Edited". Running it on every deploy would
+  # manufacture that data forever. So the gate below is the READ half — the same two public
+  # endpoints smoke.sh drives, asked the way a customer's first screen asks them — and the
+  # write half stays behind DEPLOY_SMOKE=full for a release where somebody wants it.
+  #
+  # Both paths are @Public() by declaration (loyalty reward.controller.ts:25,
+  # depot depot.controller.ts:68), so a 401 here is a finding, not an expected answer.
+  # An EMPTY but valid list is a PASS: an empty catalogue is a data state, not a broken
+  # release, and a gate that rolls back over one would roll back forever on a fresh box.
+  SMOKE_BASE="${GATEWAY_HEALTH%/health}"
+  SMOKE_ASKED=""
+  SMOKE_DEAD=""
+  SMOKE_ODD=""
+  for round in 1 2 3 4 5 6; do
+    SMOKE_ASKED=""; SMOKE_DEAD=""; SMOKE_ODD=""
+    for path in ${DEPLOY_SMOKE_PATHS:-/loyalty/api/v1/rewards/catalog /depots/api/v1/depots}; do
+      # `|| true`: curl exits non-zero when the connection itself fails, and under
+      # `set -euo pipefail` that status would end the deploy inside the assignment — the
+      # same trap the scheduler-TZ probe a few lines below documents, twice paid for.
+      # A dead endpoint is what this exists to SEE, so it must survive seeing one: 000.
+      CODE="$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$SMOKE_BASE$path" || true)"
+      SMOKE_ASKED="$SMOKE_ASKED $path:${CODE:-000}"
+      case "${CODE:-000}" in
+        200) ;;
+        000|5*) SMOKE_DEAD="$SMOKE_DEAD $path:${CODE:-000}" ;;
+        *)      SMOKE_ODD="$SMOKE_ODD $path:$CODE" ;;
+      esac
+    done
+    [ -z "$SMOKE_DEAD" ] && break
+    # health_ok has already waited; this is for a service that answers its healthcheck
+    # before its first real query works. Short, because a release that needs a minute of
+    # grace past health_ok is a release that is failing.
+    [ "$round" -lt 6 ] && sleep 10
+  done
+  log "release smoke probe (path:http) —$SMOKE_ASKED"
+  if [ -n "$SMOKE_DEAD" ]; then
+    log "!! the release does not serve its public reads:$SMOKE_DEAD"
+    log "   Every container is running and healthy, so nothing else here would have said so."
+    log "!! rolling back to $PREV_SHA"
+    alert "deploy rolled back: $NEW_SHA is healthy but does not serve$SMOKE_DEAD"
+    bash scripts/rollback.sh "$PREV_SHA"
+    exit 1
+  fi
+  if [ -n "$SMOKE_ODD" ]; then
+    # Not a rollback: a 4xx on a route declared @Public() means the route CONTRACT moved,
+    # which the previous release would answer the same way. Rolling back would not fix it
+    # and would hide it.
+    log "!! a public read answered something other than 200:$SMOKE_ODD"
+    log "   Both paths are @Public(); a 401/404 here means the route moved, not that it is down."
+    alert "public read answered$SMOKE_ODD after deploying $NEW_SHA"
+  fi
+  # The write half, opt-in. `DEPLOY_SMOKE=full bash scripts/deploy.sh` on a release where the
+  # rewards/payment path is what changed — it costs one real redemption in a depot queue.
+  if [ "${DEPLOY_SMOKE:-read}" = "full" ]; then
+    log "DEPLOY_SMOKE=full — running the write-path smoke (this creates real data)"
+    if ! bash scripts/smoke.sh; then
+      log "!! the write-path smoke FAILED — the release is serving reads but a customer flow is broken"
+      alert "write-path smoke failed after deploying $NEW_SHA"
+    fi
+  fi
+
   echo "$PREV_SHA" > "$STATE_DIR/prev-sha"   # one step back, for manual rollback
   echo "$NEW_SHA" > "$LAST_GOOD"
   log "DEPLOY OK → $NEW_SHA (previous good: $PREV_SHA)"
@@ -815,7 +888,110 @@ if health_ok; then
     alert "the running web image has no Sentry DSN — client-side crashes are invisible (audit N2)"
   fi
 
-  # 3. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger
+  # 3. SPACE — the only failure here that destroys DATA rather than uptime.
+  #
+  # One disk carries Postgres, all 14 nightly dumps (backup-db.sh BACKUP_KEEP=14), nineteen
+  # service images and the Prometheus TSDB. A full disk on the machine that holds both the
+  # database and its own backups cannot be recovered from on that machine — there is no
+  # second copy to reach for and no room to write one.
+  #
+  # PARTLY ALREADY BUILT, and that is the point. ask-the-box.sh:200-230 asks exactly this and
+  # already judges it at 85/95 — it is a MANUAL tool: ci.yml runs only its self-test and
+  # registry-check.yml offers it as a button somebody presses. A judgement a human must ssh in
+  # to read is the category that left three weekly safety scripts in the installer, unrun, for
+  # months. So the same two questions are asked here, on a schedule that exists, by something
+  # that can `alert` — which is the one thing ask-the-box.sh cannot do.
+  #
+  # The thresholds are ITS numbers, deliberately not new ones: 95% = Postgres is about to
+  # refuse writes (WAL needs room to land well before a filesystem reaches 100%), 85% = order
+  # a bigger disk this week, because nothing on this box trims itself except that 14-dump
+  # window. The third test is the one a percentage cannot express: the weekly restore drill
+  # materialises a SECOND full copy of the cluster in a scratch container on this same disk,
+  # and a migrating deploy writes a full dump on top of that — so free space below 2x the
+  # database size means the recovery path does not fit, at any percentage.
+  #
+  # ponytail: `/` like every other df in this repo, and no growth rate. A rate needs history
+  # this script does not keep; printing both numbers every deploy is what puts that history
+  # in the deploy log, where the date it fills up can finally be read off.
+  DISK_AVAIL_KB="$(df -Pk / 2>/dev/null | awk 'NR==2{print $4}' || true)"
+  DISK_USED_PCT="$(df -Pk / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}' || true)"
+  DB_TOTAL_KB=""
+  DB_PRETTY="unreadable"
+  if docker exec "$PG" true >/dev/null 2>&1; then
+    DB_SIZE="$(docker exec "$PG" psql -U hydromart -d postgres -tAc       "SELECT coalesce(sum(pg_database_size(datname)),0)/1024 || '|' || pg_size_pretty(coalesce(sum(pg_database_size(datname)),0)) || ' in ' || count(*) || ' db' FROM pg_database WHERE datname LIKE 'hydromart%'"       2>/dev/null | tr -d '' || true)"
+    DB_TOTAL_KB="${DB_SIZE%%|*}"
+    [ "$DB_SIZE" != "${DB_SIZE#*|}" ] && DB_PRETTY="${DB_SIZE#*|}"
+  fi
+  if [ -z "${DISK_AVAIL_KB:-}" ]; then
+    # A probe that cannot read is not a probe — the outbox lesson, one section up.
+    log "!! disk probe — df returned nothing, so free space was NOT measured on this box."
+  else
+    log "disk probe — $((DISK_AVAIL_KB / 1024)) MB free on / (${DISK_USED_PCT:-?}% used), databases $DB_PRETTY"
+    DISK_FINDING=""
+    if [ "${DISK_USED_PCT:-0}" -ge 95 ]; then
+      DISK_FINDING="CRITICAL: under 5% free on / — Postgres refuses writes before the disk reaches 100%"
+    elif [ "${DISK_USED_PCT:-0}" -ge 85 ]; then
+      DISK_FINDING="over 85% used on / — nothing here trims itself except the 14-dump window"
+    elif [ -n "${DB_TOTAL_KB:-}" ] && [ "${DB_TOTAL_KB:-0}" -gt 0 ] &&
+         [ "$DISK_AVAIL_KB" -lt "$((DB_TOTAL_KB * 2))" ]; then
+      DISK_FINDING="free space is under 2x the database size — the weekly restore drill and the pre-migration dump both need a full second copy, and neither would fit"
+    fi
+    if [ -n "$DISK_FINDING" ]; then
+      log "!! $DISK_FINDING"
+      log "   This disk holds the database AND every backup of it. Free some: bash scripts/docker-gc.sh"
+      alert "disk on $(hostname 2>/dev/null || echo box): $DISK_FINDING (databases $DB_PRETTY)"
+    fi
+    if [ "$DB_PRETTY" = "unreadable" ]; then
+      log "!! the database sizes could not be read, so 'does a restore still fit' was not asked."
+    fi
+  fi
+
+  # 4. The secrets no compose file passes, and the one whose EMPTINESS is the fault.
+  #
+  # missing_env_keys() compares .env.example against the box's .env and then drops every key
+  # no compose file interpolates (compose_ignores_env, deploy-common.sh:374). That narrowing is
+  # right — a key compose never reads is a key .env has no say over — and it leaves a blind
+  # spot with a short list on it: BACKUP_OFFSITE_DEST and BACKUP_S3_* are read by scripts
+  # (backup-offsite.sh, backup-db.sh) and by nothing in compose, so NO amount of listing them
+  # in .env.example can make that gate see them. Only a probe that reads .env directly can,
+  # exactly as the storage-driver check above already does.
+  #
+  # ALERT_WEBHOOK_URL is a second shape of the same hole. It is now in .env.example and compose
+  # does pass it, so the gate can report it ABSENT — but that gate compares key PRESENCE, and
+  # `ALERT_WEBHOOK_URL=` present-and-empty is precisely the state in which every alarm in this
+  # system is raised, rendered and dropped. Emptiness is what matters for all four.
+  #
+  # Deliberately does NOT alert: these are standing configuration gaps only a human can close,
+  # and an alarm that fires on every deploy about a state nobody can fix from here is the
+  # warning-nobody-reads trap this repo has already paid for twice. There is also a joke in the
+  # first line — an empty ALERT_WEBHOOK_URL is the one finding that cannot possibly be alerted
+  # about, which is why it is stated in the deploy log instead.
+  OPS_EMPTY=""
+  for key in ALERT_WEBHOOK_URL BACKUP_OFFSITE_DEST BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
+    if [ -z "$(tr -d '' < .env 2>/dev/null | sed -n "s/^${key}=//p" | head -1)" ]; then
+      OPS_EMPTY="$OPS_EMPTY $key"
+    fi
+  done
+  if [ -z "$OPS_EMPTY" ]; then
+    log "ops secrets probe — alert destination and offsite backup credentials are all set"
+  else
+    log "!! ops secrets probe — EMPTY in .env:$OPS_EMPTY"
+    case "$OPS_EMPTY" in
+      *ALERT_WEBHOOK_URL*)
+        log "   ALERT_WEBHOOK_URL   no alert of any kind reaches a person — 5xx, watchdog,"
+        log "                       backup failure and restore drill all land in a log file." ;;
+    esac
+    case "$OPS_EMPTY" in
+      *BACKUP_OFFSITE_DEST*)
+        log "   BACKUP_OFFSITE_DEST every copy of the database is on the disk the database is on." ;;
+    esac
+    case "$OPS_EMPTY" in
+      *BACKUP_S3_*)
+        log "   BACKUP_S3_*         the offsite job cannot authenticate even once DEST is set." ;;
+    esac
+  fi
+
+  # 5. The Play reviewer must not be a real employee. REVIEWER_PHONE granted a stranger
   # holding a fixed OTP the account of a KEPALA_DEPOT at a depot with real customers on it —
   # their names, addresses and phone numbers. `scripts/seed-demo-depot.mjs` builds the
   # account they should get; this is the check that somebody pointed the variable at it.

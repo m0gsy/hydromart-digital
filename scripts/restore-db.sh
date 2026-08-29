@@ -64,8 +64,12 @@ SCRATCH="hydromart-restore-drill"
 # exit, alert. Registered here (before the dump checks below) so those failures alert
 # too. ponytail: generic message + exit code; the detail is in the drill log the alert
 # tells you to read — richer per-failure messages aren't worth threading through.
+#
+# `$SECONDS` is bash's own counter from the start of this script, and it is in the trap for
+# the same reason it is in the success lines below: a drill that DIED after eleven minutes and
+# one that died after eleven seconds are different incidents, and the log said neither.
 if [ "$MODE" = "--drill" ]; then
-  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; if [ "$rc" -ne 0 ]; then alert "drill exited $rc, check the drill log"; report_backup_run DRILL FAILED "drill exited $rc, see the drill log"; fi; exit $rc' EXIT
+  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; if [ "$rc" -ne 0 ]; then alert "drill exited $rc after ${SECONDS}s, check the drill log"; report_backup_run DRILL FAILED "drill exited $rc after ${SECONDS}s, see the drill log"; fi; exit $rc' EXIT
 fi
 
 if [ -z "$DUMP" ]; then
@@ -98,8 +102,20 @@ case "$MODE" in
       if [ "$i" = 30 ]; then echo "ERROR: scratch Postgres never became ready" >&2; exit 1; fi
     done
 
+    # RTO — the number this whole file exists to produce, and the one it never recorded.
+    #
+    # `grep -n 'elapsed\|SECONDS' scripts/restore-db.sh` was EMPTY. So the weekly verdict in
+    # /var/log/hydromart-restore-drill.log said a restore WORKED and never said how long the
+    # business would be down for, and "how long does a recovery take" was answered from memory
+    # by whoever happened to be awake. One number turns that from a guess into a fact.
+    #
+    # Two are recorded, because they answer different questions: RESTORE_SECONDS is the part a
+    # real recovery pays (--into-prod runs exactly this pipeline), and $SECONDS at the end is
+    # what the DRILL costs, which is what the weekly cron slot has to fit.
     echo "drill: restoring $DUMP ..."
+    RESTORE_START=$SECONDS
     gunzip -c "$DUMP" | docker exec -i "$SCRATCH" psql -q -U "$PG_USER" -d postgres >/dev/null
+    RESTORE_SECONDS=$((SECONDS - RESTORE_START))
 
     # H-36 — the old drill stopped at "at least one database called hydromart* now
     # exists". A dump that restored the CREATE DATABASE statements and nothing else
@@ -114,8 +130,14 @@ case "$MODE" in
     # Live is the reference because a dump is by definition older than live. Every check
     # is therefore "restored matches live" for structure and "restored is non-empty" for
     # data — never an exact row count, which ordinary traffic would fail.
-    live(){ docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]'; }
-    scratch(){ docker exec "$SCRATCH" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]'; }
+    # `|| true` is load-bearing under `set -euo pipefail`. These are PROBES: a database with
+    # no `_prisma_migrations` table is a legitimate answer of zero, and psql exits non-zero
+    # for it. pipefail then propagates that through the pipe, `set -e` kills the script at
+    # the assignment, and the `${lm:-0}` defaults written three lines down to handle exactly
+    # this case were never reached — dead code guarding a crash that happened first. The
+    # weekly drill would have died every week without naming a reason.
+    live(){ docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]' || true; }
+    scratch(){ docker exec "$SCRATCH" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]' || true; }
 
     TABLES_SQL="SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"
     MIGRATIONS_SQL="SELECT count(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL;"
@@ -168,8 +190,11 @@ case "$MODE" in
       echo "ERROR: $DUMP does not restore to a usable copy of the live cluster — see the failures above" >&2
       exit 1
     fi
-    SUMMARY="$CHECKED databases verified against live;$PROBED"
-    echo "drill OK: $DUMP restores to a usable cluster ($SUMMARY)"
+    # The duration goes into SUMMARY, not only into the echo: SUMMARY is what reaches
+    # admin-service and /hq/retention, so the RTO is readable from the console rather than
+    # only from a log file on the box.
+    SUMMARY="restore took ${RESTORE_SECONDS}s, drill took ${SECONDS}s total; $CHECKED databases verified against live;$PROBED"
+    echo "drill OK: $DUMP restores to a usable cluster — restore took ${RESTORE_SECONDS}s, drill took ${SECONDS}s total ($CHECKED databases verified against live;$PROBED)"
     report_backup_run DRILL OK "$SUMMARY"
     ;;
 
@@ -223,9 +248,11 @@ case "$MODE" in
     fi
 
     echo "restoring $DUMP into PROD container '$CONTAINER' ..."
+    RESTORE_START=$SECONDS
     ERRLOG="$(mktemp)"
     trap 'rm -f "$ERRLOG"' EXIT
     gunzip -c "$DUMP" | docker exec -i "$CONTAINER" psql -U "$PG_USER" -d postgres       >/dev/null 2>"$ERRLOG"
+    RESTORE_SECONDS=$((SECONDS - RESTORE_START))
 
     # `role "x" already exists` is the one expected error in a cluster-wide dump: the roles
     # outlive the databases. Everything else is a statement that did NOT run.
@@ -276,7 +303,12 @@ case "$MODE" in
       exit 1
     fi
 
+    # The real RTO, measured on the real thing. At 03:00 this is the number somebody upstairs
+    # is asking for, and until now the only honest answer was "we have never timed it".
+    # RESTORE_SECONDS is the data-loading pipeline; $SECONDS also carries the drop and the
+    # row-counting verification, which a recovery pays for too.
     echo "restore verified: $DB_COUNT databases, $TOTAL_ROWS rows total, 0 errors."
+    echo "restore took ${RESTORE_SECONDS}s (${SECONDS}s including the drop and the verification)."
     echo "Restart the app services so they reconnect."
     # Deliberately not reported to admin-service: `kind` there is BACKUP|DRILL, and a real
     # recovery is neither. At 03:00 the operator is reading this output, not /hq/retention.

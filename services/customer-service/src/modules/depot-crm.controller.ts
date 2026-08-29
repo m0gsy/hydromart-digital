@@ -40,11 +40,14 @@ export class DepotCrmController {
     return this.imports.importCustomers(user, dto.depotId, dto.rows);
   }
 
+  // Still a bare array, not a `{ items, total }` envelope: three consoles read this route
+  // and every one of them renders the response directly. The bound is in the query itself
+  // (W9) — a full page is the signal that another one may exist, same as `nextCursor`.
   @Get('depot')
-  @ApiOperation({ summary: 'List customers associated with a depot (name/phone searchable)' })
+  @ApiOperation({ summary: 'List customers associated with a depot (name/phone searchable, paged)' })
   @ApiOkResponse({ type: [DepotCustomerDto] })
   listDepotCustomers(@Query() query: DepotCustomerQueryDto): Promise<DepotCustomerDto[]> {
-    return this.crm.listDepotCustomers(query.depotId, query.q);
+    return this.crm.listDepotCustomers(query.depotId, query.q, query.page, query.limit);
   }
 
   // Static `crm/dashboard` declared before `:id/...` so it is not captured by the param route.

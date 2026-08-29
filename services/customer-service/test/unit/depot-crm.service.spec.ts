@@ -1,19 +1,42 @@
 import { NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
 
+import { Prisma } from '../../prisma/generated/client';
 import { DepotCrmService } from '../../src/application/services/depot-crm.service';
-import { DepotCrmRepository, DepotCustomerRow } from '../../src/application/ports/depot-crm.repository';
+import {
+  DepotCrmRepository,
+  DepotCustomerQuery,
+  DepotCustomerRow,
+} from '../../src/application/ports/depot-crm.repository';
+import { DepotCrmPrismaRepository } from '../../src/infrastructure/prisma/depot-crm.prisma.repository';
+import { DepotCustomerQueryDto } from '../../src/modules/dto/depot-crm.dto';
 import { DepotCustomerOrderStats, OrderCrmPort } from '../../src/application/ports/order-crm.port';
 import { AddressRecord, AddressRepository } from '../../src/application/ports/address.repository';
 import { CustomerProfileRecord, ProfileRepository } from '../../src/application/ports/profile.repository';
 import { CustomerIdentity, IdentityPort } from '../../src/application/ports/identity.port';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 
-// Minimal fake: findIdsByDepot + listDepotCustomers are exercised here.
+// Minimal fake: findIdsByDepot + listDepotCustomers are exercised here. `asked` records
+// the query object, because W9 is about what reaches the DATABASE, not about what comes back.
 class FakeDepotCrmRepository implements DepotCrmRepository {
   byDepot = new Map<string, string[]>();
   rows: DepotCustomerRow[] = [];
-  async listDepotCustomers(): Promise<DepotCustomerRow[]> {
-    return this.rows;
+  asked: DepotCustomerQuery[] = [];
+  async listDepotCustomers(_depotId: string, query: DepotCustomerQuery = {}): Promise<DepotCustomerRow[]> {
+    this.asked.push(query);
+    // Models the statement, not a fixed array: W9 moved the WHERE into SQL, so a fake that
+    // ignores `q`/`qMatchedIds` would let any query at all pass these assertions.
+    const { q, qMatchedIds = [] } = query;
+    if (!q) return this.rows;
+    const needle = q.toLowerCase();
+    return this.rows.filter(
+      (r) =>
+        qMatchedIds.includes(r.customerId) ||
+        (r.fullName?.toLowerCase().includes(needle) ?? false) ||
+        (r.phone?.toLowerCase().includes(needle) ?? false),
+    );
   }
   async findIdsByDepot(depotId: string): Promise<string[]> {
     return this.byDepot.get(depotId) ?? [];
@@ -74,6 +97,80 @@ describe('DepotCrmService.getCrmDashboard', () => {
   });
 });
 
+describe('DepotCrmService directory search reaches the identity the screen shows', () => {
+  /*
+   * The regression this pins: W9 moved the search into SQL, and that SQL can only see this
+   * database — `addresses.recipientName` and `addresses.phone`. But the row rendered to the
+   * operator has its name and phone OVERWRITTEN with the account's own, which auth-service
+   * owns. So the console displayed one phone and searched a different one: the operator read
+   * an account number off the list, typed it back, and got nothing. Ordinary whenever the
+   * recipient is a household or an office.
+   */
+  const row = { customerId: 'c1', fullName: 'Rumah Budi', phone: '+62811-ADDRESS', membershipTier: MembershipTier.BASIC };
+  const noOrders: OrderCrmPort = { depotCustomerStats: async () => [], customerOrders: async () => [] };
+
+  function build(identity: FakeIdentity, seed = true) {
+    const repo = new FakeDepotCrmRepository();
+    if (seed) {
+      repo.byDepot.set('depot-a', ['c1']);
+      repo.rows = [row];
+    }
+    return new DepotCrmService(repo, {} as never, {} as never, noOrders, { gallonsByCustomer: async () => null } as never, identity, {} as never);
+  }
+
+  function withAccount(): FakeIdentity {
+    const identity = new FakeIdentity();
+    identity.names.set('c1', { fullName: 'Budi Santoso', phone: '+62899-ACCOUNT' });
+    return identity;
+  }
+
+  it('finds a customer by the ACCOUNT phone the list is showing, not the address phone', async () => {
+    const rows = await build(withAccount()).listDepotCustomers('depot-a', '899-ACCOUNT');
+    expect(rows.map((r) => r.id)).toEqual(['c1']);
+  });
+
+  it('finds them by account name too', async () => {
+    expect((await build(withAccount()).listDepotCustomers('depot-a', 'Santoso')).map((r) => r.id)).toEqual(['c1']);
+  });
+
+  it('still matches what this database holds, so the SQL path is not bypassed', async () => {
+    expect((await build(withAccount()).listDepotCustomers('depot-a', 'ADDRESS')).map((r) => r.id)).toEqual(['c1']);
+  });
+
+  it('a needle that matches neither identity returns nothing', async () => {
+    expect(await build(withAccount()).listDepotCustomers('depot-a', 'zzz')).toHaveLength(0);
+  });
+
+  it('asks auth-service only when there is a needle', async () => {
+    const identity = withAccount();
+    await build(identity).listDepotCustomers('depot-a');
+    // One call: the decoration pass over the page. The search pass must not have run.
+    expect(identity.asked).toHaveLength(1);
+  });
+
+  it('a depot with no members short-circuits before asking auth-service', async () => {
+    expect(await build(withAccount(), false).listDepotCustomers('depot-empty', 'budi')).toHaveLength(0);
+  });
+
+  it('a PENDING account with no name and no phone matches nothing and throws nothing', async () => {
+    // Both identity fields are documented as nullable on a PENDING account — the state
+    // every pre-registered customer sits in until their first OTP. The needle must simply
+    // not match them, rather than reading `undefined.toLowerCase()`.
+    const identity = new FakeIdentity();
+    identity.names.set('c1', { fullName: null, phone: null });
+    expect(await build(identity).listDepotCustomers('depot-a', 'Santoso')).toHaveLength(0);
+  });
+
+  it('an auth-service that answers with nothing narrows the search instead of failing it', async () => {
+    // Its real degraded mode. IdentityHttpAdapter swallows a failed batch and returns what
+    // it has, so "unreachable" arrives here as an EMPTY map, never as a throw. A directory
+    // that cannot decorate is still a directory, and a 500 on a search box is worse than
+    // matching on fewer columns.
+    const rows = await build(new FakeIdentity()).listDepotCustomers('depot-a', 'ADDRESS');
+    expect(rows.map((r) => r.id)).toEqual(['c1']);
+  });
+});
+
 describe('DepotCrmService.listDepotCustomers', () => {
   const config = { crmThresholds: { newDays: 30, activeDays: 30, followUpDays: 60 } } as never;
   const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
@@ -89,8 +186,8 @@ describe('DepotCrmService.listDepotCustomers', () => {
     stats: DepotCustomerOrderStats[],
     identity: IdentityPort = new FakeIdentity(),
     subscribers: string[] | null = null,
+    repo: FakeDepotCrmRepository = new FakeDepotCrmRepository(),
   ): DepotCrmService {
-    const repo = new FakeDepotCrmRepository();
     repo.rows = rows;
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
     const depotProfile = { subscriberIds: async () => subscribers, geo: async () => null };
@@ -164,16 +261,154 @@ describe('DepotCrmService.listDepotCustomers', () => {
     expect(only).toMatchObject({ fullName: 'name-c3', phone: 'phone-c3' });
   });
 
-  it('search matches the account name the staff member can actually see', async () => {
-    const identity = new FakeIdentity();
-    identity.names.set('c1', { fullName: 'Budi Santoso', phone: '0811' });
-    identity.names.set('c2', { fullName: 'Siti Aminah', phone: '0822' });
-    const svc = service([row('c1'), row('c2')], [], identity);
+  /*
+   * W9. Searching used to be a pass over the whole depot AFTER it had been read and
+   * enriched, so one keystroke cost the size of the directory. Both halves of the needle
+   * now travel to the query: the text (matched in SQL against the primary address name and
+   * phone) and the ids whose ORDER-SNAPSHOT name/phone matched, which is the only place
+   * order-service's names exist at all.
+   *
+   * What deliberately no longer narrows here is the auth-service account name: it is not in
+   * this database and there is no endpoint to search it, so it can only be overlaid onto a
+   * page the query has already chosen.
+   */
+  it('sends the needle to the query instead of filtering the depot after reading it', async () => {
+    const repo = new FakeDepotCrmRepository();
+    const stats: DepotCustomerOrderStats[] = [
+      { customerId: 'c-sari', name: 'Sari', phone: '+62899', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
+      { customerId: 'c-agus', name: 'Agus', phone: '+62888', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
+    ];
+    await service([row('c1')], stats, new FakeIdentity(), null, repo).listDepotCustomers('depot-a', ' sArI ');
 
-    expect((await svc.listDepotCustomers('depot-a', ' bUdI ')).map((i) => i.id)).toEqual(['c1']);
-    expect((await svc.listDepotCustomers('depot-a', '0822')).map((i) => i.id)).toEqual(['c2']);
-    expect((await svc.listDepotCustomers('depot-a', 'name-c1')).map((i) => i.id)).toEqual([]);
-    expect((await svc.listDepotCustomers('depot-a', '   ')).map((i) => i.id)).toEqual(['c1', 'c2']);
+    expect(repo.asked[0]).toMatchObject({ q: 'sArI', qMatchedIds: ['c-sari'] });
+    // Membership is the union of all three sources, so every orderer still reaches the CTE.
+    expect(repo.asked[0]!.orderedIds).toEqual(['c-sari', 'c-agus']);
+  });
+
+  // The query returns the orderers now, but their name is not in this database at all: no
+  // account, no address, only order-service's snapshot. Third fallback, and the last one.
+  it('falls back to the order snapshot for someone who has only ever ordered here', async () => {
+    const nameless: DepotCustomerRow = { customerId: 'c-orderer', fullName: null, phone: null, membershipTier: MembershipTier.BASIC };
+    const [only] = await service([nameless], [
+      { customerId: 'c-orderer', name: 'Sari', phone: '+62822', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
+    ]).listDepotCustomers('depot-a');
+    expect(only).toMatchObject({ id: 'c-orderer', fullName: 'Sari', phone: '+62822' });
+  });
+
+  it('a blank needle is no needle — it must not reach the query as an empty ILIKE', async () => {
+    const repo = new FakeDepotCrmRepository();
+    await service([row('c1')], [], new FakeIdentity(), null, repo).listDepotCustomers('depot-a', '   ');
+    expect(repo.asked[0]!.q).toBeUndefined();
+    expect(repo.asked[0]!.qMatchedIds).toEqual([]);
+  });
+
+  /*
+   * The bound is what W9 is actually about: this list had none at all. The service turns the
+   * page number into an OFFSET the DATABASE applies; it does not read the depot and slice.
+   */
+  it('turns page/limit into the query bound, and defaults to the platform ceiling', async () => {
+    const repo = new FakeDepotCrmRepository();
+    const svc = service([row('c1')], [], new FakeIdentity(), null, repo);
+
+    await svc.listDepotCustomers('depot-a', undefined, 3, 20);
+    expect(repo.asked[0]).toMatchObject({ limit: 20, offset: 40 });
+
+    await svc.listDepotCustomers('depot-a');
+    expect(repo.asked[1]).toMatchObject({ limit: DEFAULT_MAX_ROWS, offset: 0 });
+  });
+});
+
+/*
+ * W9. `$queryRaw` never reaches the Prisma query-bounds middleware: that middleware returns
+ * early for anything whose action is not `findMany` (packages/platform/src/nest/query-bounds.ts),
+ * so the 500-row ceiling every other read in this service inherits did NOT apply to this one.
+ * Measured against the middleware's own first line, not assumed from the comment above it.
+ */
+describe('DepotCrmPrismaRepository paging and search reach the SQL', () => {
+  function capturing(): { repo: DepotCrmPrismaRepository; sql: () => Prisma.Sql } {
+    let captured: Prisma.Sql | undefined;
+    const $queryRaw = jest.fn(async (q: Prisma.Sql) => {
+      captured = q;
+      return [];
+    });
+    return {
+      repo: new DepotCrmPrismaRepository({ $queryRaw } as never),
+      sql: () => captured as Prisma.Sql,
+    };
+  }
+
+  it('bounds the read with a parameterised LIMIT/OFFSET', async () => {
+    const { repo, sql } = capturing();
+    await repo.listDepotCustomers('depot-1', { limit: 25, offset: 50 });
+    expect(sql().text).toMatch(/LIMIT \$\d+ OFFSET \$\d+/);
+    expect(sql().values).toEqual(expect.arrayContaining([25, 50]));
+  });
+
+  it('orders by a key that ENDS with the id, so no row repeats or vanishes between pages', async () => {
+    // The keyset rule this repo already wrote down: packages/platform/src/domain/keyset.ts.
+    // Ordering by recipientName alone lets two customers who share a name swap places
+    // between two queries — one is then listed twice and the other never.
+    const { repo, sql } = capturing();
+    await repo.listDepotCustomers('depot-1');
+    expect(sql().text).toMatch(/ORDER BY[\s\S]*"customerId" ASC/);
+  });
+
+  it('bounds a caller that asked for no page at all', async () => {
+    const { repo, sql } = capturing();
+    await repo.listDepotCustomers('depot-1');
+    expect(sql().values).toEqual(expect.arrayContaining([DEFAULT_MAX_ROWS, 0]));
+  });
+
+  it('matches q in SQL as a BOUND value — a quote in the needle cannot reach the statement', async () => {
+    const { repo, sql } = capturing();
+    const needle = `O'Brien'; DROP TABLE "addresses"; --`;
+    await repo.listDepotCustomers('depot-1', { q: needle });
+    expect(sql().text).toContain('ILIKE');
+    expect(sql().text).not.toContain('DROP TABLE');
+    expect(sql().text).not.toContain("O'Brien");
+    expect(sql().values).toContain(`%${needle}%`);
+  });
+
+  it('leaves the search clause off entirely when nothing was searched for', async () => {
+    const { repo, sql } = capturing();
+    await repo.listDepotCustomers('depot-1');
+    expect(sql().text).not.toContain('ILIKE');
+  });
+
+  it('maps the tier and joins the orderers in as the third membership source', async () => {
+    let captured: Prisma.Sql | undefined;
+    const $queryRaw = jest.fn(async (q: Prisma.Sql) => {
+      captured = q;
+      return [{ customerId: 'c1', fullName: 'Budi', phone: '+62800', membershipTier: 'SILVER' }];
+    });
+    const repo = new DepotCrmPrismaRepository({ $queryRaw } as never);
+    const out = await repo.listDepotCustomers('depot-1', {
+      orderedIds: ['c-orderer'],
+      q: 'x',
+      qMatchedIds: ['c-orderer'],
+    });
+    expect(out[0]!.membershipTier).toBe(MembershipTier.SILVER);
+    expect(captured!.text).toContain('unnest');
+    expect(captured!.values).toEqual(expect.arrayContaining([['c-orderer']]));
+  });
+});
+
+describe('DepotCustomerQueryDto bounds the page it will accept', () => {
+  const depotId = '11111111-1111-4111-8111-111111111111';
+  const errors = (over: Record<string, unknown>) =>
+    validateSync(plainToInstance(DepotCustomerQueryDto, { depotId, ...over })).map((e) => e.property);
+
+  it('refuses a limit past the ceiling rather than letting it reach the database', () => {
+    expect(errors({ limit: 100_000 })).toEqual(['limit']);
+    expect(errors({ limit: 0 })).toEqual(['limit']);
+    expect(errors({ page: 0 })).toEqual(['page']);
+    expect(errors({})).toEqual([]);
+  });
+
+  it('coerces the strings a query string actually carries', () => {
+    const dto = plainToInstance(DepotCustomerQueryDto, { depotId, page: '3', limit: '50' });
+    expect([dto.page, dto.limit]).toEqual([3, 50]);
+    expect(validateSync(dto)).toEqual([]);
   });
 });
 

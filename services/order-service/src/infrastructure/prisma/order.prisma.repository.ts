@@ -46,6 +46,31 @@ const REPORT_PAGE_SIZE = 500;
 const MAX_REPORT_ORDERS = 20_000;
 /** Orders one stale-sweep tick will claim. The next tick picks up the rest. */
 const STALE_SWEEP_BATCH = 500;
+/**
+ * W2b: what checkout stores in `deliveryWindow` when the customer wants "antar sekarang"
+ * (apps/web/src/app/checkout/page.tsx `EXPRESS_WINDOW`). Express is a request for NOW, so
+ * it is not a schedule and earns none of the grace below — an express order still sitting
+ * in CREATED an hour later IS abandoned.
+ */
+const EXPRESS_WINDOW = 'Antar sekarang (express)';
+/**
+ * W2b: how much longer an order the customer booked for a later day gets before the
+ * abandoned sweep may touch it.
+ *
+ * A grace, not an amnesty. Checkout offers the next four days and nothing beyond
+ * (`buildDates` in the checkout screen), so an order stale by more than that has outlived
+ * the furthest slot anyone can book and is abandoned like any other — the alternative is a
+ * reservation nothing ever releases.
+ *
+ * ponytail: four days is the booking HORIZON, not the booked date. `deliveryWindow` is a
+ * free-form label ("Besok, 09.00-12.00") whose day part comes from the browser's
+ * dictionary, so the day itself cannot be read here at all. A `scheduledFor` column would
+ * replace this constant and the literal above with one comparison.
+ *
+ * Plain millisecond arithmetic on a Date, so the naive-timestamp two-hop rule (see
+ * `salesSeries`) does not apply: no day boundary is being cut, only an instant moved.
+ */
+const SCHEDULED_GRACE_MS = 4 * 24 * 3_600_000;
 
 type Decimalish = { toNumber(): number };
 
@@ -493,6 +518,17 @@ export class OrderPrismaRepository implements OrderRepository {
         // cost. The column shipped in B3a; this is the release that reads it.
         statusChangedAt: { lt: before },
         ...(exemptSubscriptions ? { subscriptionId: null } : {}),
+        // W2b: an order the customer booked for a later day is not abandoned an hour after
+        // checkout — it is waiting, exactly as asked. The sweep read `statusChangedAt`
+        // alone, so a CASH order placed at 22.00 for tomorrow morning was cancelled at
+        // 23.00 while the depot was still shut: the orders the schedule exists for were
+        // the ones it killed. Same reasoning as the D1 exclusion above, and in the query
+        // for the same reason — a backlog of deferred orders must not eat the `take`.
+        OR: [
+          { deliveryWindow: null },
+          { deliveryWindow: { in: ['', EXPRESS_WINDOW] } },
+          { statusChangedAt: { lt: new Date(before.getTime() - SCHEDULED_GRACE_MS) } },
+        ],
       },
       // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
       include: INCLUDE_NO_HISTORY,
