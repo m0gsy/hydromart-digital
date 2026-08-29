@@ -198,6 +198,123 @@ docker system df 2>/dev/null | sed 's/^/    /'
 echo "  memory:"
 free -h 2>/dev/null | sed 's/^/    /' || echo "    (free unavailable)"
 
+line "SPACE — the only failure here that can destroy DATA"
+# `df -h /` a few lines up has printed a table since this file was written, and a table is
+# not an answer: nothing has ever JUDGED it, and nobody reads a diagnose run they did not
+# already suspect something from. One disk carries Postgres, every nightly dump, nineteen
+# service images and the Prometheus TSDB. Full disk on the machine that holds the database
+# AND its own backups is the one failure in this system that loses data rather than uptime,
+# and its date has never been calculated.
+AVAIL_KB="$(df -Pk / 2>/dev/null | awk 'NR==2{print $4}')"
+USED_PCT="$(df -Pk / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}')"
+if [ -n "${AVAIL_KB:-}" ]; then
+  echo "  free on / : $((AVAIL_KB / 1024)) MB (${USED_PCT}% used)"
+  # 85/95 rather than a single line: the first is "order a bigger disk this week", the
+  # second is "Postgres is about to refuse writes". Postgres stops accepting them well
+  # before 100 because WAL needs room to land.
+  if [ "${USED_PCT:-0}" -ge 95 ]; then
+    echo "  !! CRITICAL: under 5% free. Postgres refuses writes before a disk reaches 100%."
+  elif [ "${USED_PCT:-0}" -ge 85 ]; then
+    echo "  !! WARNING: over 85% used. Nothing here trims itself except the 14-dump window."
+  else
+    echo "  ok: headroom is fine today"
+  fi
+fi
+if [ -n "$PG" ]; then
+  echo "  database sizes:"
+  docker exec "$PG" psql -U hydromart -d postgres -t -A -F'|'     -c "select datname, pg_size_pretty(pg_database_size(datname)) from pg_database
+        where datname like 'hydromart%' order by pg_database_size(datname) desc" 2>/dev/null |
+    sed 's/^/    /' | head -25
+fi
+echo "  dumps on disk:"
+for d in /var/backups/hydromart ~/backups; do
+  [ -d "$d" ] || continue
+  n="$(ls -1 "$d"/hydromart-*.sql.gz 2>/dev/null | wc -l | tr -d ' ')"
+  sz="$(du -sh "$d" 2>/dev/null | cut -f1)"
+  echo "    $d : ${n} dump(s), ${sz:-?} total"
+done
+
+line "ALERTS — is there anywhere for an alarm to GO?"
+# One variable decides whether every 5xx alert, the watchdog, the backup failure and the
+# restore drill reach a human or a logfile. It is not in .env.example, so the deploy's
+# env-contract probe has never been structurally able to report it missing. Never a value:
+# a webhook URL IS the credential.
+for key in ALERT_WEBHOOK_URL BACKUP_OFFSITE_DEST BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY SENTRY_DSN SENTRY_DSN_WEB; do
+  if [ -n "$(sed -n "s/^${key}=//p" .env 2>/dev/null | head -1)" ]; then
+    echo "  ${key} : set"
+  else
+    echo "  ${key} : EMPTY"
+  fi
+done
+echo "  consequence of each EMPTY above:"
+echo "    ALERT_WEBHOOK_URL   no alert of any kind reaches a person; they land in a log file"
+echo "    BACKUP_OFFSITE_DEST every copy of the database is on the disk the database is on"
+echo "    BACKUP_S3_*         the offsite job cannot authenticate even once DEST is set"
+echo "    SENTRY_DSN          server exceptions are invisible; you learn from a customer"
+echo "    SENTRY_DSN_WEB      browser + WebView crashes are invisible (BUILD ARG: needs rebuild)"
+
+line "ORDERS — how many were cancelled by the sweep, and how many were placed after hours?"
+# The rupiah size of the silent-cancellation defect. The code path is certain; the count is
+# the only thing that turns it from a certainty into a number. WIB is UTC+7 and the columns
+# are naive timestamps, so the hour is shifted here rather than trusted.
+if [ -n "$PG" ]; then
+  q hydromart_order "
+    select status, count(*) from orders
+    where \"createdAt\" > now() - interval '30 days'
+    group by 1 order by 2 desc" | sed 's/^/  last 30d by status: /'
+  q hydromart_order "
+    select count(*) from orders
+    where \"createdAt\" > now() - interval '30 days'
+      and extract(hour from (\"createdAt\" + interval '7 hours')) not between 8 and 20" |
+    sed 's/^/  placed outside 08:00-21:00 WIB (30d): /'
+  q hydromart_order "
+    select count(*) from orders
+    where \"createdAt\" > now() - interval '30 days'
+      and status = 'CANCELLED'
+      and \"statusChangedAt\" - \"createdAt\" between interval '55 minutes' and interval '3 hours'" |
+    sed 's/^/  CANCELLED 55min-3h after creation (the sweep signature): /'
+fi
+
+line "GALLON DEPOSITS — how many double refunds already happened?"
+# Migration 20260827100000 copied every duplicate into gallon_returns_duplicate_archive
+# before deleting it, and the table comments itself \"nothing reads it\". This reads it.
+if [ -n "$PG" ]; then
+  q hydromart_depot "select count(*) from gallon_returns_duplicate_archive" |
+    sed 's/^/  rows archived as duplicates: /' | grep . ||
+    echo "  (table absent — the migration has not run on this box)"
+fi
+
+line "INDEXES — present AND valid, or just present?"
+# 278 CREATE INDEX across migrations; verify-indexes.sh checks 9. The one that makes gallon
+# refunds idempotent is not among the 9. --check is report-only and builds nothing.
+if [ -f scripts/create-indexes.sh ]; then
+  PG_CONTAINER="$PG" bash scripts/create-indexes.sh --check 2>&1 | tail -25 | sed 's/^/  /'
+else
+  echo "  scripts/create-indexes.sh not on this checkout (the box lags main between deploys)"
+fi
+
+line "RESTORE DRILL — has one ever passed, and how long did it take?"
+# The verdict lives in a log the repo never reads back. Until restore-db.sh records elapsed
+# time, RTO is a guess; this at least reports whether a drill happens at all.
+DRILL_LOG="${DRILL_LOG:-/var/log/hydromart-restore-drill.log}"
+if [ -f "$DRILL_LOG" ]; then
+  echo "  log mtime : $(date -r "$DRILL_LOG" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
+  echo "  last lines:"
+  tail -6 "$DRILL_LOG" 2>/dev/null | sed 's/^/    /'
+else
+  echo "  !! $DRILL_LOG does not exist — no restore drill has ever run on this box."
+fi
+
+line "DEMO-01 — a fixture depot, live and public, with no operating hours"
+# operatingHours {} means ALWAYS OPEN (order-service/src/domain/opening-hours.ts), so a real
+# customer within 3 km of Malang can order cash at 03:00 from a depot that does not operate.
+if [ -n "$PG" ]; then
+  q hydromart_depot "
+    select code, active, coalesce(\"operatingHours\"::text,'null')
+    from depots where code like 'DEMO%' or name ilike '%demo%'" |
+    sed 's/^/  /' | grep . || echo "  no demo depot found (good)"
+fi
+
 line "cron (L1.4 — is the schedule actually installed?)"
 if crontab -l >/dev/null 2>&1; then
   crontab -l 2>/dev/null | grep -cE 'backup-db|restore-db|watchdog|check-tls|log-retention|rollback-drill' |
