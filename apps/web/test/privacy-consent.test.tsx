@@ -92,13 +92,25 @@ describe('PrivacyLink', () => {
  * ever registered agreed to something that had never been written.
  */
 describe('TermsLink', () => {
-  it('opens the terms over the page, like the policy beside it', () => {
+  /*
+   * `findBy`, not `getBy`: the body is loaded on demand (next/dynamic), because eighteen
+   * clauses in two languages put the register screen 3.5 kB over its Lighthouse byte ceiling
+   * when imported statically. So the text arrives a tick after the click — which is exactly
+   * the behaviour being asserted, not a timing workaround.
+   */
+  it('opens the terms over the page, like the policy beside it', async () => {
     show(<TermsLink>Ketentuan Layanan</TermsLink>);
     expect(screen.queryByText(termsID.sections[0]!.heading)).toBeNull();
 
     fireEvent.click(screen.getByText('Ketentuan Layanan'));
-    expect(screen.getByText(termsID.sections[0]!.heading)).toBeTruthy();
+    expect(await screen.findByText(termsID.sections[0]!.heading)).toBeTruthy();
     expect(screen.getByText(termsID.intro)).toBeTruthy();
+  });
+
+  // The point of loading it on demand: a reader who never opens it never downloads it.
+  it('does not render the terms until they are asked for', () => {
+    show(<TermsLink>Ketentuan Layanan</TermsLink>);
+    expect(screen.queryByText(termsID.intro)).toBeNull();
   });
 
   it('does not tick a consent box it is nested inside', () => {

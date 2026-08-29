@@ -1,6 +1,6 @@
 'use client';
 
-import { TermsBody } from '@/components/terms-sheet';
+import { TermsBody } from '@/components/terms-body';
 import { useT } from '@/lib/locale-context';
 import { terms as termsEN } from '@/lib/dictionaries/en/terms';
 import { terms as termsID } from '@/lib/dictionaries/id/terms';
