@@ -84,6 +84,13 @@ export const id = {
       empty: 'Belum ada keputusan tercatat.',
       loadError: 'Gagal memuat riwayat persetujuan.',
     },
+    consentPending: {
+      title: 'Syarat & kebijakan sudah diperbarui',
+      body: 'Persetujuanmu tercatat pada teks versi lama. Yang berlaku sekarang versi {v} — silakan baca, lalu setujui ulang kalau kamu setuju.',
+      unenforced:
+        'Ini pemberitahuan saja. Akunmu tetap aktif dan pesananmu tetap sah meski kamu tidak menyetujui ulang — tidak ada yang diblokir, diturunkan, atau dikeluarkan.',
+      accept: 'Setujui teks terbaru',
+    },
     privacyData: {
       title: 'Data pribadi saya',
       body: 'Kamu berhak meminta salinan data yang kami simpan, atau meminta akun dihapus. Setiap permintaan ditinjau kantor pusat dulu, paling lambat 3x24 jam sejak dikirim (UU PDP No. 27/2022).',

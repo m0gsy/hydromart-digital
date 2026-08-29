@@ -35,6 +35,12 @@ git rev-parse --verify --quiet "$TARGET^{commit}" >/dev/null || {
 
 CUR="$(git rev-parse HEAD)"
 log "rolling back $CUR → $TARGET"
+# Say up front which of the two very different things this is about to do. Measured: with
+# IMAGE_PREFIX empty this recompiles images on a box that is already unhealthy; with it set
+# it pulls what CI built. deploy.sh's rollback-cost probe reports the same fact on every
+# healthy release so that nobody first reads it here, at 2am.
+registry_mode ||
+  log "!! IMAGE_PREFIX is empty, so this rollback REBUILDS images on this box (see DEPLOY.md 'Registry mode')"
 
 CHANGED="$(git diff --name-only "$TARGET" "$CUR")"
 git reset --hard "$TARGET"
@@ -43,12 +49,21 @@ if registry_mode; then
   # H-35: the point of immutable SHA tags. Rolling back is pulling the images that were
   # already built for the target commit — seconds, and byte-identical to what ran before,
   # rather than a fresh build on a box that is currently unhealthy.
-  log "registry mode — pulling images tagged $TARGET"
+  log "registry mode — pulling images tagged $TARGET (a pull, not a build on a sick box)"
   if ! pull_images "$TARGET"; then
     log "!! no images published for $TARGET — cannot roll back to it"
     alert "rollback to $TARGET impossible: no images published for that commit"
     exit 1
   fi
+  # deploy.sh has always done this after its pull (deploy.sh:225) and this script never did.
+  # deploy-common.sh:63 says why it matters: .env is the only place a bare `docker compose`
+  # reads IMAGE_TAG from. So a rollback used to leave .env still naming the release it had
+  # just rolled BACK — and the runbook's own remedy for a stale container,
+  # `up -d --force-recreate <svc>`, would then re-deploy the broken images by hand, during
+  # the incident, silently. Written AFTER the pull, never before, for the same reason
+  # deploy.sh writes it there: a tag naming images nobody has is worse than no tag.
+  persist_image_tag "$TARGET" ||
+    log '!! could not write IMAGE_TAG to .env — manual compose calls will ask for the OLD tag'
 elif needs_full_rebuild "$CHANGED"; then
   log "shared package or root build input differs → full rebuild"
   bash scripts/rebuild-stale.sh --all

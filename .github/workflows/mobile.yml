@@ -240,7 +240,9 @@ jobs:
       # (M3b). And `gh variable list` does not return SENTRY_DSN_MOBILE (measured 2026-08-25),
       # so the effect was exactly inverted: no test APK could be built at all, while every
       # released binary shipped blind. The refusal now lives in `bundle`; this only says what
-      # you are holding.
+      # you are holding — and saying it is not optional either: check-workflows.mjs requires
+      # this job to `warn` and requires it NOT to refuse, so a build handed to a tester can
+      # never again be silently blind, and can never again be refused for being blind.
       - name: Client error reporting
         env:
           DSN: ${{ vars.SENTRY_DSN_MOBILE }}
@@ -374,14 +376,16 @@ jobs:
           # M3b. `NEXT_PUBLIC_*` is inlined into the export at build time and `SentryInit` does
           # not even download the SDK when the DSN is blank, so an AAB built without this is
           # blind on every device that ever installs it and nothing about it looks wrong.
-          # check-workflows.mjs asserts only that this workflow MENTIONS the build arg — a
-          # mention is not a value, which is how the N2 gate stayed green for months while the
-          # only refusal sat in `testable`, a job that publishes nothing. This is the path that
-          # publishes, so this is where an empty DSN has to stop.
+          # check-workflows.mjs used to assert only that this workflow MENTIONS the build arg,
+          # in SOME job — which is how the N2 gate stayed green for months while the only
+          # refusal sat in `testable`, a job that publishes nothing. It now names the job:
+          # RELEASE_CONFIG requires `bundle` to refuse this and `testable` only to warn about
+          # it, so the two can never swap places again. This is the path that publishes, so
+          # this is where an empty DSN has to stop.
           DSN: ${{ vars.SENTRY_DSN_MOBILE }}
         run: |
-          test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the app would call http://localhost:8080"; exit 1; }
-          test -n "$MOBILE_WEB_HOST" || { echo "MOBILE_WEB_HOST is empty — App Links would claim the placeholder domain"; exit 1; }
+          test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the app would call http://localhost:8080; create it under Settings -> Secrets and variables -> Actions -> Variables"; exit 1; }
+          test -n "$MOBILE_WEB_HOST" || { echo "MOBILE_WEB_HOST is empty — App Links would claim the placeholder domain; create it under Settings -> Secrets and variables -> Actions -> Variables"; exit 1; }
           case "$MOBILE_API_URL" in https://*) ;; *) echo "MOBILE_API_URL must be https — Android blocks cleartext"; exit 1 ;; esac
           test -n "$DSN" || {
             echo "SENTRY_DSN_MOBILE is unset, so NEXT_PUBLIC_SENTRY_DSN would be inlined EMPTY and this" >&2
@@ -408,7 +412,7 @@ jobs:
         # committed — gitleaks scans for exactly this shape, and it names the project to
         # anyone who reads it.
         run: |
-          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "GOOGLE_SERVICES_JSON_BASE64 is empty — push would not work in the shipped build"; exit 1; }
+          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "GOOGLE_SERVICES_JSON_BASE64 is empty — push would not work in the shipped build; create it under Settings -> Secrets and variables -> Actions -> Secrets"; exit 1; }
           echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > mobile/android/app/google-services.json
 
       - name: Signing keystore
@@ -425,10 +429,18 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
-          for v in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            test -n "${!v}" || { echo "$v is empty — Gradle would emit an UNSIGNED app-release.aab and this run would still be green"; exit 1; }
-          done
+          # Named one per line rather than looped over `${!v}`. A refusal has to NAME the
+          # variable it refuses or nothing can tell which of the four is actually guarded:
+          # `for v in A B C; do test -n "${!v}"` mentions all three on a line that does not
+          # exit, and exits on a line that names none of them, so check-workflows.mjs read
+          # this step as guarding nothing at all (measured 2026-08-29). Four lines, four
+          # answerable questions.
+          WHERE="create it under Settings -> Secrets and variables -> Actions -> Secrets"
+          UNSIGNED="Gradle would emit an UNSIGNED app-release.aab and this run would still be green"
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 is empty — nothing would sign this release; $WHERE"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "ANDROID_KEYSTORE_PASSWORD is empty — $UNSIGNED; $WHERE"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "ANDROID_KEY_ALIAS is empty — $UNSIGNED; $WHERE"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "ANDROID_KEY_PASSWORD is empty — $UNSIGNED; $WHERE"; exit 1; }
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/android/upload.jks
 
       - name: Version numbers

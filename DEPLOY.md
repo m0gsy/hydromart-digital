@@ -393,6 +393,80 @@ TOKENS="<t1>,<t2>,...,<tN>" VUS=10 CART_LINES=3 \
 - Needs a seeded catalog (`scripts/seed.mjs`) — setup() reads the live product
   list and fails fast if there are fewer than `CART_LINES` products.
 
+### Registry mode — and what a rollback actually costs
+
+`.github/workflows/images.yml` has always ended its header with *"The VPS opts in by
+setting `IMAGE_PREFIX` + `IMAGE_TAG` in `.env` (see DEPLOY.md)"*. Until now this page
+never mentioned `IMAGE_PREFIX`, so that sentence pointed at nothing.
+
+**Two modes, and the difference only shows up on your worst day.**
+
+| | `IMAGE_PREFIX` empty (today) | `IMAGE_PREFIX` set |
+|---|---|---|
+| a deploy | compiles 19 images **on this box** | pulls 19 prebuilt images |
+| a rollback | recompiles them, **while the box is unhealthy** | pulls the target commit's images |
+| what runs | whatever this box built | the exact bytes CI tested |
+| rollback targets | none — local images are tagged `:local` | every SHA the registry still holds |
+
+`scripts/rollback.sh` is the only way out of a bad release. With `IMAGE_PREFIX` empty it
+falls through to `rebuild-stale.sh`, i.e. the remedy for a broken release is to recompile
+every image on the machine that is already broken — over the parallel BuildKit path whose
+daemon panic stopped all 25 containers on 2026-08-02. Every deploy now prints a
+`rollback cost probe` line saying which mode is live and, using the image step it just
+timed on this box, roughly what a rollback would cost in it.
+
+**No credential is needed.** Measured 2026-08-29: `images.yml` publishes all 19 service
+images to GHCR on every green CI, tagged with the commit SHA, and the packages are
+**public** — an anonymous token pulled the manifest for every service at `main`'s HEAD
+(HTTP 200; a package that does not exist returns 403). There is no `docker login`, no
+personal access token and no repo secret to arrange first.
+
+```bash
+# 1. Prove this box can pull, BEFORE betting a release on it. Discovering a wrong
+#    prefix mid-deploy is discovering it at the most expensive moment.
+IMAGE_PREFIX=ghcr.io/m0gsy/hydromart-digital- IMAGE_TAG=$(git rev-parse HEAD) \
+  bash scripts/check-registry-pull.sh
+
+# 2. Only if that passed, make it the box's mode. The prefix is a PREFIX: it ends with
+#    the dash, because docker-compose.prod.yml appends the service name to it
+#    (`${IMAGE_PREFIX:-hydromart-}gateway`).
+echo 'IMAGE_PREFIX=ghcr.io/m0gsy/hydromart-digital-' >> .env
+
+# 3. Deploy as usual. Do NOT set IMAGE_TAG by hand — deploy.sh and rollback.sh each write
+#    the commit they are shipping into .env, which is what keeps a bare
+#    `docker compose up -d <svc>` resolving to the release that is actually running.
+bash scripts/deploy.sh
+```
+
+Substitute your own owner/repo if this is a fork: the image name is
+`ghcr.io/<owner>/<repo>-<service>`, lowercased, exactly as `images.yml` builds it.
+
+To go back: delete the `IMAGE_PREFIX` line from `.env` and deploy. Nothing else changes —
+compose falls back to `hydromart-<svc>:local` and the box builds its own images again.
+
+**One caveat that is not optional.** `deploy.yml` and `images.yml` are both triggered by
+*CI completed*, so they run in parallel: a deploy can arrive before its images exist.
+`deploy.sh` already waits up to `IMAGE_WAIT_SECONDS` (default 600) and then aborts without
+touching the running stack, so this is a slower deploy, never a broken one.
+
+### Rolling back
+
+```bash
+# one step back — the previous good release, recorded by the last successful deploy
+bash scripts/rollback.sh
+
+# or to a specific commit (must be a commit this checkout has; in registry mode its
+# images must still be in GHCR)
+bash scripts/rollback.sh <sha>
+```
+
+`deploy.sh` writes `.deploy/prev-sha` (one step back) and `.deploy/last-good-sha` (what is
+serving) after a **green** health check, and `.deploy/` is gitignored, so `git reset --hard`
+during a deploy cannot erase them. Nothing else on the box records which release is live.
+
+Code only. A migration that must also be undone is a separate step —
+`scripts/restore-db.sh` against the dump `deploy.sh` takes immediately before migrating.
+
 ### Alerting (Prometheus + Alertmanager)
 
 Each service already pings `ALERT_WEBHOOK_URL` on its own 5xx (error-alerter). The

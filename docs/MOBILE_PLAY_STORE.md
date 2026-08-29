@@ -440,6 +440,16 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 - [ ] Buat kedua aplikasi: `id.hydromart.app` dan `id.hydromart.ops`
 - [ ] Satu proyek Firebase, dua app Android, unduh **satu** `google-services.json`, jadikan
       secret `GOOGLE_SERVICES_JSON_BASE64`
+- [ ] Buat variable `SENTRY_DSN_MOBILE` (Settings → Secrets and variables → Actions →
+      **Variables**), isinya DSN proyek Sentry Anda:
+      `https://<key>@<org>.ingest.sentry.io/<project-id>`. **Ini satu-satunya hal yang
+      memblokir tag `mobile-v*` berikutnya** — diukur 2026-08-29, `gh variable list` hanya
+      mengembalikan `MOBILE_API_URL`, `MOBILE_WEB_HOST` dan `PUBLIC_API_URL`, jadi job
+      `bundle` berhenti di step "Required configuration is present" dan mencetak persis
+      nama serta tempat yang harus diisi. Blokirnya disengaja: `NEXT_PUBLIC_*` dibekukan ke
+      dalam ekspor saat build, jadi AAB tanpa DSN tidak akan pernah bisa melaporkan error
+      dari perangkat mana pun, selamanya. APK uji (Run workflow) tetap bisa dibangun
+      tanpanya dan akan berkata sendiri bahwa ia buta
 - [ ] Isi Data Safety dari bagian 1 — dua form, satu per aplikasi, dan isinya berbeda
 - [ ] Content rating, target audience, kategori
 - [ ] URL hapus akun dari bagian 3
@@ -648,7 +658,7 @@ salah.
 | 1   | Tentukan commit-nya                  | `git fetch origin --tags --prune` lalu `git log --oneline -1 origin/main`                                    | SHA yang mau dirilis                             |
 | 2   | CI hijau untuk SHA **itu**           | `gh run list --workflow=ci.yml --commit $(git rev-parse origin/main) --limit 1 --json status,conclusion,url` | `"status":"completed"` dan `"conclusion":"success"` |
 | 3   | Uji gerbangnya lebih dulu            | `bash scripts/mobile-release-gate.sh $(git rev-parse origin/main) origin/main`                              | baris `release-gate: … — releasing`              |
-| 4   | Konfigurasi build ada                | `gh variable list` dan `gh secret list`                                                                     | 2 variable + 5 secret dari 11.1                  |
+| 4   | Konfigurasi build ada                | `gh variable list` dan `gh secret list` — `SENTRY_DSN_MOBILE` termasuk, lihat bagian 7                      | **3** variable + 5 secret dari 11.1              |
 | 5   | Data Safety terisi, dua form         | Play Console → **App content → Data safety**, isi dari bagian 1                                              | "Complete" di **kedua** aplikasi                 |
 | 6   | Content rating, target audience      | Play Console → **App content**                                                                              | tidak ada task merah                             |
 | 7   | URL hapus akun                       | Play Console → **App content → Data deletion**, nilai dari bagian 6                                          | `…/hapus-akun`                                   |
@@ -733,12 +743,16 @@ dan `SURFACES` di [`apps/web/scripts/build-mobile.mjs`](../apps/web/scripts/buil
 — yang pertama menyebut apa yang dibuang, yang kedua menyebut apa yang hasil ekspornya
 wajib dan wajib-tidak punya, dan keduanya menggagalkan build kalau tidak cocok.
 
-Satu hal berlaku untuk keduanya: **tidak ada laporan crash yang sampai ke kita.**
-`SENTRY_DSN_MOBILE` tidak diisi sebagai variable, jadi ekspor yang masuk binary tidak
-membawa DSN dan tidak punya reporter sama sekali (komentar N2 di `mobile.yml:234`). Yang
-tersisa adalah Play Vitals — ANR dan crash, gratis, terlambat berjam-jam — dan cerita
-penguji. Karena itu kolom "apa yang terjadi" di bawah bukan formalitas: ia satu-satunya
-telemetri yang ada.
+Satu hal berlaku untuk keduanya: **APK uji tidak mengirim laporan crash ke kita, dan itu
+sekarang dikatakan, bukan didiamkan.** `SENTRY_DSN_MOBILE` belum ada sebagai variable
+(diukur 2026-08-29: `gh variable list` hanya mengembalikan `MOBILE_API_URL`,
+`MOBILE_WEB_HOST`, `PUBLIC_API_URL`), jadi ekspornya tidak membawa DSN dan tidak punya
+reporter sama sekali. Job `testable` tetap membangunnya — APK di atas meja bukan
+publikasi — tapi menuliskan `::warning::` yang berbunyi "this APK is BLIND" di ringkasan
+run. Yang **tidak** boleh lewat adalah AAB: job `bundle` menolak, dan bagian 11.5 di bawah
+menjelaskan penolakan itu beserta kalimat persisnya. Sisa telemetrinya adalah Play Vitals
+— ANR dan crash, gratis, terlambat berjam-jam — dan cerita penguji. Karena itu kolom
+"apa yang terjadi" di bawah bukan formalitas: ia satu-satunya telemetri yang ada.
 
 #### App 1 — Hydromart (`id.hydromart.app`)
 
@@ -824,9 +838,10 @@ tidak terbaca — bukan bahwa penguji salah langkah.
 
 ### 11.5 Bagaimana repo memberi tahu bahwa sebuah rilis boleh diunggah
 
-Satu berkas menjawabnya: [`scripts/mobile-release-gate.sh`](../scripts/mobile-release-gate.sh),
-dijalankan sebagai step pertama job `bundle` (`mobile.yml:324-329`). Ia menegakkan **dua**
-syarat, dan tidak lebih:
+Dua step di awal job `bundle` menjawabnya, dan keduanya berbeda pertanyaan. Yang pertama,
+[`scripts/mobile-release-gate.sh`](../scripts/mobile-release-gate.sh) di step
+**"This commit has earned a release"**, menanyakan apakah **commit-nya** layak. Ia
+menegakkan **dua** syarat, dan tidak lebih:
 
 1. **Commit-nya ada di `main`.** `git merge-base --is-ancestor <sha> <branch>` — bukan "ada
    commit dengan pesan yang sama di main", bukan "bisa dijangkau dari suatu ref". Workflow
@@ -858,12 +873,58 @@ Dua rincian di dalamnya persis yang menyelamatkan Anda dari salah paham:
   orang yang menjalankannya dengan tangan tidak diberi tahu bahwa commit bagusnya belum
   diuji — gerbang yang berdusta adalah gerbang yang dimatikan orang.
 
-Gerbang ini bisa merah, dan itu dibuktikan bukan dijanjikan:
+
+**Step kedua menanyakan pertanyaan yang lain: apakah _konfigurasinya_ layak.**
+"Required configuration is present" menolak `MOBILE_API_URL`, `MOBILE_WEB_HOST` dan
+`SENTRY_DSN_MOBILE` yang kosong; "Firebase config" dan "Signing keystore" menolak lima
+secret Android yang kosong, satu baris per secret. Semua penolakannya menyebut **apa yang
+harus dibuat dan di mana** — misalnya, dijalankan dengan DSN kosong ia mencetak:
+
+```
+SENTRY_DSN_MOBILE is unset, so NEXT_PUBLIC_SENTRY_DSN would be inlined EMPTY and this
+AAB would be published with no error reporting at all, for the life of the binary
+on every device that installs it (audit N2/M3b).
+
+Create it under Settings -> Secrets and variables -> Actions -> Variables:
+  SENTRY_DSN_MOBILE = https://<key>@<org>.ingest.sentry.io/<project-id>
+```
+
+**Inilah yang memblokir `mobile-v1.5.0` hari ini**, dan itu memang maksudnya:
+`NEXT_PUBLIC_*` dibekukan ke dalam ekspor saat build, jadi AAB yang dibangun tanpa DSN
+tidak akan pernah bisa melaporkan satu error pun dari perangkat mana pun, selamanya.
+Nilainya hanya bisa dibuat pemilik akun Sentry — repo ini tidak bisa mengarangnya, dan
+melemahkan penjaganya supaya tag lewat hanya memindahkan kerugiannya ke pengguna.
+
+**Penjaganya ada di job yang benar, dan itu sekarang diperiksa.** Sampai 2026-08-27
+penolakan DSN justru duduk di `testable` — satu-satunya job yang tidak menerbitkan apa pun
+— sementara `bundle` membaca variable yang sama tanpa ada yang memeriksanya (M3b).
+Efeknya persis terbalik: tidak ada APK uji yang bisa dibangun sama sekali, dan setiap
+binary yang dirilis buta. `scripts/check-workflows.mjs` tidak melihatnya karena ia
+**job-agnostik**: ia bertanya "adakah _sesuatu_ di berkas ini yang menolak DSN kosong", dan
+memang ada — hanya saja di job yang salah. Sekarang aturannya menyebut job-nya
+(`RELEASE_CONFIG`): `bundle` **wajib menolak**, `testable` **wajib hanya memperingatkan dan
+tidak boleh menolak**, `publish` wajib memperingatkan saat `PLAY_SERVICE_ACCOUNT_JSON`
+kosong, dan setiap `vars.`/`secrets.` di `mobile.yml` yang tidak punya baris aturan
+dilaporkan sebagai lubang. Keduanya tidak bisa lagi bertukar tempat diam-diam.
+
+Gerbang commit-nya bisa merah, dan itu dibuktikan bukan dijanjikan:
 [`scripts/mobile-release-gate.test.sh`](../scripts/mobile-release-gate.test.sh) menyuntikkan
 `CI_CONCLUSION_CMD` sebagai stub, jadi kedua syarat bisa dijatuhkan tanpa jaringan.
 
 ```bash
 bash scripts/mobile-release-gate.test.sh
+```
+
+Gerbang konfigurasinya juga, dan cara membuktikannya berbeda: aturannya dijalankan ulang
+terhadap tiga umpan yang **tidak boleh** dianggap penjaga — baris `env:` telanjang di
+sebelah `exit 1` milik variable lain, step yang hanya memperingatkan, dan step yang membaca
+tanpa berkata apa-apa — sehingga aturan yang kembali longgar menggagalkan run-nya sendiri.
+Diukur 2026-08-29, bentuk lamanya menganggap umpan pertama sebagai penolakan; karena itu
+menghapus penjaga DSN dari `bundle` **tetap hijau**, di `check-workflows.mjs` maupun di
+empat assertion `mobile-release-gate.test.sh` yang kini pindah ke sana.
+
+```bash
+node scripts/check-workflows.mjs
 ```
 
 Yang gerbang ini **tidak** periksa, jadi tetap tugas Anda: apakah tag-nya lebih baru dari

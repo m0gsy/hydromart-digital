@@ -83,6 +83,13 @@ export const en: Dictionary = {
       empty: 'No decision recorded yet.',
       loadError: 'Could not load your consent history.',
     },
+    consentPending: {
+      title: 'The terms and privacy text have changed',
+      body: 'Your consent is on file against the older wording. Version {v} is the one in force — read it, then re-confirm if you agree.',
+      unenforced:
+        'This is a notice, nothing more. Your account stays active and your orders stay valid if you never re-confirm — nothing is blocked, downgraded or signed out.',
+      accept: 'Accept the current text',
+    },
     privacyData: {
       title: 'My personal data',
       body: 'You may ask for a copy of the data we hold, or ask for your account to be deleted. Head office reviews every request first, within 3x24 hours of it being sent (UU PDP No. 27/2022).',

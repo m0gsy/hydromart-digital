@@ -51,6 +51,13 @@ jobs:
   k6:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # The record step below pushes a row to docs/perf/BASELINE.md. This repository's default
+    # workflow-token permission is read-only on contents — deploy.yml documents the same
+    # discovery from the other side, where a missing block cost eleven silently-skipped image
+    # checks. Without `contents: write` the push answers 403 and the baseline stays empty in
+    # exactly the way this change exists to stop.
+    permissions:
+      contents: write
     env:
       # Must match docker-compose.test.yml, exactly as ci.yml does it: `scripts/seed.mjs`
       # mints an admin token the booted stack has to trust. Without it the seed step exits
@@ -160,11 +167,85 @@ jobs:
 
       # The thresholds live in the scripts (p95 + success rate). k6 exits non-zero when one
       # breaks, so a regression fails this job rather than sitting in a log nobody opens.
+      #
+      # `--summary-export` writes the same numbers as machine-readable JSON for the record
+      # step below. Measured against k6 2.2.0 (the version `apt` installs here): the flag is
+      # still supported AND the human text summary still prints to the log, so the diagnostic
+      # output that named the last three failures is not traded away for the JSON.
       - name: Checkout hot path
-        run: k6 run scripts/load/checkout.k6.js
+        run: k6 run --summary-export checkout.summary.json scripts/load/checkout.k6.js
 
       - name: Owner and HR dashboards
-        run: k6 run scripts/load/dashboards.k6.js
+        run: k6 run --summary-export dashboards.summary.json scripts/load/dashboards.k6.js
+
+      # The reason this workflow existed for weeks without producing a baseline.
+      #
+      # `docs/perf/BASELINE.md` said `_not yet run_` on the line that holds wall-clock, and it
+      # said so THROUGH a green run (32686490758, 2026-08-24) that measured every number the
+      # line was waiting for. Filling it in was a manual step at the end of an hour-long job,
+      # and manual steps at the end of long jobs do not happen. So the run writes its own row.
+      #
+      # No `if: always()`. A red run is red on stock, tokens or the rate limiter far more often
+      # than on latency — eleven of the first twelve were — and those numbers are depletion or
+      # throttling wearing a latency job's clothes. Recording them would poison the series the
+      # table exists to be. Green runs only; the log still has everything else.
+      #
+      # The row is written to the job summary either way, and pushed only from main. A branch
+      # dispatch is usually someone debugging this workflow, and its numbers are not the trunk's.
+      - name: Record the baseline
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          # Runner shape belongs in the row: GitHub resizes hosted runners, and two rows from
+          # different hardware are not a series. Measured here rather than assumed.
+          host="gh-$(. /etc/os-release && echo "$ID-$VERSION_ID")/$(nproc)c/$(awk '/MemTotal/{printf "%.0fg", $2/1048576}' /proc/meminfo)"
+          echo "recording on $host"
+          # Redirected, never piped: `node ... | tee` would report tee's exit status and
+          # swallow a failed record entirely — the same trap the Mint tokens step above
+          # documents, which once drove ten VUs with a SUPER_ADMIN token for forty minutes.
+          node scripts/check-perf-baseline.mjs --record \
+            --checkout checkout.summary.json --dashboards dashboards.summary.json \
+            --run "$RUN_ID" --sha "$SHA" --vus "$VUS" --host "$host" > rows.md
+          {
+            echo "### Load baseline — $host, $VUS VUs, $DURATION"
+            echo
+            echo '| Date | Run | Commit | Scenario | VUs | N | Iterations | OK | p50 ms | p90 ms | p95 ms | Host |'
+            echo '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |'
+            cat rows.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat rows.md
+
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "not on main — the row is in the job summary above, not committed"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/perf/BASELINE.md
+          # `if`, not `&&`: under `bash -e` a failing left operand makes the whole `&&` list
+          # non-zero and aborts the step, so "nothing changed" would read as a broken run.
+          if git diff --cached --quiet; then
+            echo "baseline unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(perf): baseline dari larian Load $RUN_ID"
+
+          # This job holds the runner for the better part of an hour, so main has usually
+          # moved by now. Rebase and retry rather than fail: a lost race is not a regression,
+          # and reddening a healthy load run teaches people to ignore this workflow.
+          for attempt in 1 2 3; do
+            if git pull --rebase --quiet origin main && git push --quiet origin HEAD:main; then
+              echo "baseline row pushed to main"
+              exit 0
+            fi
+            echo "push attempt $attempt lost the race, retrying..." >&2
+            sleep 5
+          done
+          # A warning, not a failure: the numbers survive in the job summary above, and the
+          # next run appends again. Silence is the thing to avoid, not a non-zero exit.
+          echo "::warning::could not push the baseline row after 3 attempts — numbers are in the job summary"
 
       # ALWAYS, 4000 lines, per service, uploaded — not 200 lines of the whole stack tailed
       # into a console. The k6 run finally printed the refusal body:

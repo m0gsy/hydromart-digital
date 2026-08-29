@@ -1398,6 +1398,28 @@ export const hq = {
     deleteWarning:
       'Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun).',
   },
+  consentLag: {
+    title: 'Ketertinggalan persetujuan',
+    subtitle: 'Seberapa jauh basis pelanggan tertinggal dari teks Syarat & Kebijakan yang berlaku.',
+    version: 'Teks yang berlaku: versi {v}',
+    population: 'Akun pelanggan',
+    current: 'Sudah sesuai',
+    neverAsked: 'Belum pernah ditanya',
+    refused: 'Menolak',
+    outdated: 'Teks lama',
+    overlapNote:
+      'Hanya "Sudah sesuai" yang eksklusif. Satu akun bisa masuk "Belum pernah ditanya", "Menolak", dan "Teks lama" sekaligus — ketiga angka itu tumpang tindih dan memang tidak berjumlah sama dengan total akun pelanggan.',
+    backfillNote:
+      'Semua baris persetujuan lama dicatat ulang pada versi "1.0" saat migrasi buku persetujuan, jadi hampir seluruh basis pelanggan wajar muncul sebagai "Teks lama". Itu jawaban yang benar, bukan tanda bahaya, dan bukan alasan menghubungi semua orang.',
+    neverAskedNote:
+      '"Belum pernah ditanya" bukan "Menolak": yang pertama tidak punya baris sama sekali karena pertanyaannya belum pernah diajukan, yang kedua adalah jawaban tidak. Keduanya dihitung terpisah dan tidak boleh digabung.',
+    empty: 'Tidak ada akun tertinggal di halaman ini.',
+    page: 'Halaman {n}',
+    prev: 'Sebelumnya',
+    next: 'Berikutnya',
+    lastPage: 'halaman terakhir',
+    loadError: 'Gagal memuat laporan ketertinggalan persetujuan.',
+  },
   retention: {
     runSweep: 'Jalankan sapuan retensi',
     sweepHint:

@@ -160,6 +160,31 @@ pdp: {
   // (consentHistory removed, audit F: the consent LEDGER is written and read by the purge
   // engine, but no screen has ever shown a customer their own consent history. The route
   // stays live in auth-service; this table lists what the app calls.)
+  /*
+   * W10 — "is there anything I still have to accept?", asked by the account it is about
+   * and never on behalf of another. auth-service could work this out from the day the
+   * ledger shipped and no route returned it; then the route landed and no screen called
+   * it, which is the same hole one step along. Read on the consent sheet in /account,
+   * beside the PUT that answers it — there is no second write path.
+   *
+   * `enforcement: 'UNENFORCED'` is part of the contract, not a footnote: nothing on the
+   * server blocks, downgrades or signs out an account over this answer, so nothing on the
+   * screen may either.
+   */
+  consentPending: '/auth/api/v1/account/consents/pending',
+  /*
+   * The fleet-wide half of the same question, behind `pdpRequests` (the PDP desk) rather
+   * than `hqConsole` (a director). Keyset-paginated, and the server caps a page at 100:
+   * this walks the whole customer base, so the caller carries a cursor instead of asking
+   * for all of it and rendering a list with no end.
+   */
+  consentReport: (q: { limit?: number; cursor?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (q.limit) p.set('limit', String(q.limit));
+    if (q.cursor) p.set('cursor', q.cursor);
+    const qs = p.toString();
+    return `/auth/api/v1/account/consents/report${qs ? `?${qs}` : ''}`;
+  },
   reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
 },
 } as const;
