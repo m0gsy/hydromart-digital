@@ -178,13 +178,16 @@ pdp: {
    * this walks the whole customer base, so the caller carries a cursor instead of asking
    * for all of it and rendering a list with no end.
    */
-  consentReport: (q: { limit?: number; cursor?: string } = {}) => {
-    const p = new URLSearchParams();
-    if (q.limit) p.set('limit', String(q.limit));
-    if (q.cursor) p.set('cursor', q.cursor);
-    const qs = p.toString();
-    return `/auth/api/v1/account/consents/report${qs ? `?${qs}` : ''}`;
-  },
+  /*
+   * ONE LINE, and that is load-bearing rather than a style choice:
+   * check-endpoint-contracts.mjs resolves `endpoints.<a>.<b>` with a regex that wants the
+   * property name and its path literal on the SAME line, so anything wrapped is unreadable
+   * and lands in the unresolvable-call-site ratchet. Written wrapped it pushed that count
+   * 258 -> 259 and failed the build — correctly: an unresolvable call is one where nothing
+   * verifies the client and the controller agree on the verb. (`queue` above is wrapped and
+   * is one of the 258; this one does not need to join it.)
+   */
+  consentReport: (q: { limit?: number; cursor?: string } = {}) => `/auth/api/v1/account/consents/report?limit=${q.limit ?? ''}${q.cursor ? `&cursor=${encodeURIComponent(q.cursor)}` : ''}`,
   reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
 },
 } as const;
