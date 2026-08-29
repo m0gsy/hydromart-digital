@@ -1,0 +1,40 @@
+# The consoles are not for search engines.
+#
+# Measured 2026-08-29: `curl https://hydromart-digital.com/hq` returned 200, prerendered,
+# `Cache-Control: s-maxage=31536000`, with no X-Robots-Tag and no robots.txt anywhere — so
+# Google was invited to index the HQ console shell, the depot dashboard, the courier app and
+# the HR console. None of them serve data to a signed-out visitor, but their existence, their
+# route names and their copy are not something to publish by accident.
+#
+# A static file rather than the app/robots.ts convention, for the same reason
+# manifest.webmanifest is static: that convention is a GENERATED ROUTE, and the mobile build
+# runs `output: 'export'` and has to stay free of routes to export.
+#
+# robots.txt only ASKS. The X-Robots-Tag header in next.config.mjs is what tells a crawler
+# that already has the URL, and the two together are the belt and the braces.
+
+User-agent: *
+
+# Consoles and staff surfaces.
+Disallow: /hq
+Disallow: /dashboard
+Disallow: /driver
+Disallow: /hr
+Disallow: /m
+
+# Signed-in customer surfaces: nothing here is useful to a stranger, and several are
+# per-account pages that would only ever 404 or redirect for a crawler.
+Disallow: /account
+Disallow: /addresses
+Disallow: /cart
+Disallow: /checkout
+Disallow: /orders
+Disallow: /notifications
+Disallow: /favorites
+Disallow: /rewards
+Disallow: /vouchers
+Disallow: /subscriptions
+Disallow: /referral
+Disallow: /verify
+
+Sitemap: https://hydromart-digital.com/sitemap.xml

@@ -47,6 +47,35 @@ export const metadata: Metadata = {
   // A static file rather than the app/manifest.ts convention: that convention is a
   // generated route, and the mobile build has to stay free of routes to export.
   manifest: '/manifest.webmanifest',
+  /*
+   * What a shared link looks like.
+   *
+   * Without `metadataBase` Next cannot turn a relative og:image into the absolute URL the
+   * Open Graph spec requires, and without `openGraph` there is nothing to render at all — so
+   * every Hydromart link pasted into WhatsApp, the country's default way to share anything,
+   * arrived as a bare URL. The icon already exists at a fixed public path; this is the
+   * declaration that was missing, not an asset.
+   *
+   * The origin follows NEXT_PUBLIC_SITE_URL when it is set and falls back to the production
+   * host, because a build with no value must still produce absolute URLs — a relative
+   * og:image is silently dropped by every scraper rather than reported.
+   */
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://hydromart-digital.com'),
+  openGraph: {
+    type: 'website',
+    siteName: 'Hydromart',
+    // i18n-ok: same reason as the title and description above — resolved on the server,
+    // before any locale exists.
+    title: 'Hydromart — Pesan air minum',
+    description: 'Pesan galon isi ulang dan air kemasan dari depot terdekat, diantar ke rumahmu.',
+    images: ['/icon-512.png'],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Hydromart — Pesan air minum',
+    description: 'Pesan galon isi ulang dan air kemasan dari depot terdekat, diantar ke rumahmu.',
+    images: ['/icon-512.png'],
+  },
 };
 
 export const viewport: Viewport = {
