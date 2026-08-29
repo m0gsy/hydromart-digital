@@ -22,8 +22,24 @@ export interface OrderRevenueEvent {
  * down must never block an order from completing, and the push is idempotent on the payout
  * side (keyed by order id), so a later retry cannot double-credit.
  */
+/**
+ * What payout-service decided about a pushed order. `null` when the push did not land — it
+ * fails OPEN, so an unreachable payout is not a commission finding.
+ */
+export interface RevenuePostResult {
+  /** The commission percentage payout actually applied. */
+  commissionPct: number;
+}
+
 export interface FranchiseRevenuePort {
-  orderCompleted(event: OrderRevenueEvent): Promise<void>;
+  /**
+   * Returns what payout decided, or null when the push failed (it fails OPEN).
+   *
+   * It used to return void, and the adapter threw the response body away — which is the only
+   * reason the caller could not see a franchise depot accruing 0%. payout-service has
+   * returned `commissionPct` on this endpoint all along (payout.service.ts:122).
+   */
+  orderCompleted(event: OrderRevenueEvent): Promise<RevenuePostResult | null>;
   /**
    * Backs the revenue and commission out again when a counter sale is reversed. Without it
    * the franchise owner keeps being credited for money that was handed back to the buyer.

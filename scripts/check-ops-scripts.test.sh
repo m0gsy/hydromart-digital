@@ -181,4 +181,23 @@ else
   bad "the depot payment probe can fail to read and stay silent — that is the outbox bug again"
 fi
 
+# --- a franchise depot with no commission scheme is REPORTED -----------------------------
+#
+# payout.service.ts:179 is `(await this.schemes.currentForDepot(depotId))?.pct ?? 0`, so a
+# WARALABA depot with no commission_schemes row accrues nothing for HQ — and the ledger
+# BALANCES, the statement PRINTS, every number reconciles. There is no broken thing to
+# notice, only money that never arrived. The order-service detector catches it on the first
+# ORDER; this catches it before one is placed.
+if grep -qE 'franchise commission probe' scripts/deploy.sh; then
+  ok "deploy reports active WARALABA depots with no commission scheme"
+else
+  bad "nothing reports a franchise depot with no commission scheme — HQ would take 0% and the ledger would still balance"
+fi
+
+if grep -qE 'franchise commission probe cannot read' scripts/deploy.sh; then
+  ok "an unreadable answer is a finding here too"
+else
+  bad "the franchise commission probe can fail to read and stay silent"
+fi
+
 exit "$fails"

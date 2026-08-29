@@ -504,20 +504,62 @@ describe('FranchiseRevenueHttpAdapter', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('swallows a payout failure — completion must never depend on it', async () => {
+  /*
+   * Still swallowed — and now it says NULL rather than nothing, which is a distinction the
+   * caller acts on: order.service.ts alerts on a franchise depot that books a 0% commission,
+   * and payout being unreachable must not read as a measured zero. An outage would otherwise
+   * send somebody hunting a commission_schemes row that is probably right there.
+   */
+  it('swallows a payout failure and reports NO ANSWER, not a commission of zero', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
     await expect(
       new FranchiseRevenueHttpAdapter(
         makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
       ).orderCompleted(event),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
 
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(
       new FranchiseRevenueHttpAdapter(
         makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
       ).orderCompleted(event),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
+  });
+
+  // The whole point of the change: payout has always returned commissionPct here, and the
+  // adapter threw the body away.
+  it('reports the commission payout actually applied', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: { recorded: true, commissionPct: 15 } }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderCompleted(event),
+    ).resolves.toEqual({ commissionPct: 15 });
+  });
+
+  /*
+   * A 200 whose body is not JSON at all — a proxy's HTML error page is the usual one. The
+   * parse must fail to NO ANSWER, never to a commission of zero, for the same reason as the
+   * outage case: a manufactured zero sends somebody hunting a scheme row that is fine.
+   */
+  it('treats a body that will not parse as no answer', async () => {
+    fetchMock.mockResolvedValueOnce(res({ throwJson: true }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderCompleted(event),
+    ).resolves.toBeNull();
+  });
+
+  // A body that is not the shape we expect is NO ANSWER. Reading a missing field as 0 would
+  // manufacture the exact finding this exists to report.
+  it('treats an unparseable body as no answer rather than zero', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: { recorded: true } }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderCompleted(event),
+    ).resolves.toBeNull();
   });
 
   it('posts the void so the owner stops being paid for a reversed order', async () => {
