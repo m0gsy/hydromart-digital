@@ -45,14 +45,41 @@ async function countApiCalls(page: import('@playwright/test').Page, path: string
  */
 const DEPOT_TARGET = 12;
 
+/*
+ * The API origin, which is NOT the baseURL.
+ *
+ * These calls used to be written as `page.request.get('/depots/...')`, which Playwright
+ * resolves against `baseURL` — the NEXT app on :3000 (playwright.config.ts:10,26). Next has
+ * no `/depots` route and no rewrite to one, so every call 404'd, `list.ok() ? … : []`
+ * swallowed it, the twelve POSTs went to the same wrong origin unchecked, and CI printed
+ *
+ *   /hq: measuring across 0 depot(s)
+ *
+ * on every run. The whole point of this spec is to measure the fan-out AT THE SCALE the audit
+ * measured it, and it was measuring an empty network while reporting a pass.
+ */
+const API_URL =
+  process.env.E2E_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+const api = (path: string) => `${API_URL}${path}`;
+
 async function ensureDepots(page: import('@playwright/test').Page): Promise<number> {
-  const list = await page.request.get('/depots/api/v1/depots/manage?limit=100');
-  const existing = list.ok() ? ((await list.json()).items ?? []) : [];
+  const list = await page.request.get(api('/depots/api/v1/depots/manage?limit=100'));
+  // Loud, not swallowed. An unreachable or unauthorised depot API is the exact condition
+  // that made this spec measure nothing, so it must never be indistinguishable from
+  // "there are no depots yet".
+  if (!list.ok()) {
+    throw new Error(
+      `depot list failed (${list.status()}) at ${API_URL} — this spec cannot measure a ` +
+        'fan-out without depots, and silently measuring zero is how it passed for months. ' +
+        'Set E2E_API_URL to the gateway origin.',
+    );
+  }
+  const existing = (await list.json()).items ?? [];
   const stamp = Date.now().toString().slice(-6);
   for (let i = existing.length; i < DEPOT_TARGET; i += 1) {
     // Spread far apart so none of them can compete for routing with a real seeded depot —
     // this spec measures request counts, and must not change what checkout would answer.
-    await page.request.post('/depots/api/v1/depots', {
+    const created = await page.request.post(api('/depots/api/v1/depots'), {
       data: {
         code: `BUDGET-${stamp}-${i}`,
         name: `Budget Depot ${i}`,
@@ -67,9 +94,27 @@ async function ensureDepots(page: import('@playwright/test').Page): Promise<numb
         minOrderAmount: 0,
       },
     });
+    if (!created.ok()) {
+      throw new Error(
+        `creating budget depot ${i} failed (${created.status()}): ${await created.text()}`,
+      );
+    }
   }
-  const after = await page.request.get('/depots/api/v1/depots/manage?limit=100');
-  return after.ok() ? ((await after.json()).items ?? []).length : existing.length;
+  const after = await page.request.get(api('/depots/api/v1/depots/manage?limit=100'));
+  if (!after.ok()) throw new Error(`depot re-read failed (${after.status()})`);
+  const count = ((await after.json()).items ?? []).length;
+  /*
+   * The assertion that would have caught this on day one. A spec whose whole subject is
+   * "at twelve depots" must refuse to report a number measured at fewer — a small count
+   * here is not a small fan-out, it is an unmeasured one.
+   */
+  if (count < DEPOT_TARGET) {
+    throw new Error(
+      `only ${count} depot(s) exist, but this budget is defined at ${DEPOT_TARGET} — ` +
+        'the audit measured ~201 requests at twelve, so anything less is not comparable.',
+    );
+  }
+  return count;
 }
 
 test.describe('request budget per screen', () => {

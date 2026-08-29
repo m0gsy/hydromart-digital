@@ -18,21 +18,39 @@ test('face check-in captures a frame and posts through the cookie session', asyn
   await page.context().setGeolocation({ latitude: -6.2088, longitude: 106.8456 });
 
   await page.goto('/hr/me/check-in');
-  await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({
+    timeout: 10_000,
+  });
 
   // The capture button enables only once getUserMedia resolves. Headless Chromium's
   // fake device is not guaranteed to hand a stream to every runner (it can hang or
   // reject silently) — that's an environment limit, not a product defect, so skip rather
   // than fail. Where the fake camera works, the full capture→POST pipeline below runs.
   const capture = page.getByRole('button', { name: /Ambil Foto/i });
-  try {
-    await expect(capture).toBeEnabled({ timeout: 15_000 });
-  } catch {
-    test.skip(true, 'headless fake camera did not hand over a stream on this runner');
-  }
+  /*
+   * This used to `test.skip`, and a skip reports GREEN — the same lesson walk-in.spec.ts:67
+   * already learned about the counter sale.
+   *
+   * The reason it looked defensible was "the headless fake camera is an environment limit".
+   * It is not: playwright.config.ts:58 launches Chromium with
+   * `--use-fake-device-for-media-stream` AND `--use-fake-ui-for-media-stream`, so this run
+   * ASKED for a synthetic camera and told the browser to auto-accept the permission. If the
+   * capture button never enables after that, something is wrong with the product or with the
+   * flags — and both are worth a red build.
+   *
+   * The face punch is the only biometric flow CI exercises. Letting it quietly not run means
+   * answering "is attendance capture covered?" with yes when nothing was tested.
+   */
+  await expect(
+    capture,
+    'the capture button never enabled, although Chromium was launched with ' +
+      '--use-fake-device-for-media-stream and --use-fake-ui-for-media-stream ' +
+      '(playwright.config.ts:58) — so a camera WAS offered and auto-accepted',
+  ).toBeEnabled({ timeout: 15_000 });
 
   const postPromise = page.waitForResponse(
-    (r) => r.url().includes('/attendance/api/v1/attendance/check-in') && r.request().method() === 'POST',
+    (r) =>
+      r.url().includes('/attendance/api/v1/attendance/check-in') && r.request().method() === 'POST',
     { timeout: 20_000 },
   );
   await capture.click();
@@ -93,20 +111,51 @@ test('a punch taken offline is queued on the device and flushed on reconnect', a
   await page.context().setGeolocation({ latitude: -6.2088, longitude: 106.8456 });
 
   await page.goto('/hr/me/check-in');
-  await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({
+    timeout: 10_000,
+  });
 
   const capture = page.getByRole('button', { name: /Ambil Foto/i });
-  try {
-    await expect(capture).toBeEnabled({ timeout: 15_000 });
-  } catch {
-    test.skip(true, 'headless fake camera did not hand over a stream on this runner');
-  }
+  /*
+   * This used to `test.skip`, and a skip reports GREEN — the same lesson walk-in.spec.ts:67
+   * already learned about the counter sale.
+   *
+   * The reason it looked defensible was "the headless fake camera is an environment limit".
+   * It is not: playwright.config.ts:58 launches Chromium with
+   * `--use-fake-device-for-media-stream` AND `--use-fake-ui-for-media-stream`, so this run
+   * ASKED for a synthetic camera and told the browser to auto-accept the permission. If the
+   * capture button never enables after that, something is wrong with the product or with the
+   * flags — and both are worth a red build.
+   *
+   * The face punch is the only biometric flow CI exercises. Letting it quietly not run means
+   * answering "is attendance capture covered?" with yes when nothing was tested.
+   */
+  await expect(
+    capture,
+    'the capture button never enabled, although Chromium was launched with ' +
+      '--use-fake-device-for-media-stream and --use-fake-ui-for-media-stream ' +
+      '(playwright.config.ts:58) — so a camera WAS offered and auto-accepted',
+  ).toBeEnabled({ timeout: 15_000 });
 
   await page.context().setOffline(true);
   await capture.click();
 
   // Queued, not lost: the banner is the user-visible proof the capture is still on the device.
   const banner = page.getByText(/data belum terkirim/i);
+  /*
+   * This one STAYS a skip, and the distinction matters — the two above were turned into hard
+   * failures in the same change, so somebody will reasonably ask why this was left alone.
+   *
+   * Those two asked "did the browser hand us a camera at all", and the answer is a fact about
+   * the run: playwright.config.ts:58 requests a synthetic device and auto-accepts the
+   * permission, so a missing stream is a defect. This one asks something else — whether the
+   * client-side liveness check accepts a SYNTHETIC frame. The fake camera renders a test
+   * pattern, and a liveness gate that refuses a test pattern is a liveness gate doing its
+   * job. Making this throw would demand the product be worse in order to be testable.
+   *
+   * The ingress path is still covered unconditionally by the third test in this file, which
+   * is deliberately camera-free — so a skip here never leaves the queue untested.
+   */
   try {
     await expect(banner).toBeVisible({ timeout: 20_000 });
   } catch {
@@ -115,7 +164,8 @@ test('a punch taken offline is queued on the device and flushed on reconnect', a
   }
 
   const flushed = page.waitForResponse(
-    (r) => r.url().includes('/attendance/api/v1/attendance/check-') && r.request().method() === 'POST',
+    (r) =>
+      r.url().includes('/attendance/api/v1/attendance/check-') && r.request().method() === 'POST',
     { timeout: 30_000 },
   );
   await page.context().setOffline(false);
