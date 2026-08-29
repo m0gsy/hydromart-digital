@@ -252,6 +252,15 @@ jobs:
       - name: Launch-blocker gate self-check
         run: bash scripts/check-launch-blockers.test.sh
 
+      # The on-call rota, which nothing invoked.
+      #
+      # 32 of the 33 scripts/check-*.mjs are called by name somewhere; this was the one that
+      # was not — not by ci.yml, not by deploy.sh, not by install-host-cron.sh, not by
+      # package.json. docs/RUNBOOK_ONCALL.md:238 even carries the YAML snippet for this step.
+      # It passes today, and until now nothing would have held it to that tomorrow.
+      - name: On-call rota check
+        run: node scripts/check-oncall-rota.mjs
+
       # ask-the-box is the ONLY instrument that asks the launch-blocker questions where they
       # have answers — on the box. check-launch-blockers.mjs asks them of a developer's .env
       # and a developer's database, and four of its five verdicts were wrong because of it.

@@ -46,6 +46,16 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # `actions: read` is why this file exists in this diff at all.
+    #
+    # Without a `permissions:` block the workflow token takes the repository default, which
+    # here is read-only on CONTENTS and grants nothing on ACTIONS. So `gh run list --workflow
+    # Images` answered 403, the step swallowed it, and the wait below reported "no Images run
+    # for <sha> (skipped for this commit) - continuing" on 11 deploys out of 11 — including
+    # ones where the Images run for that exact SHA had succeeded.
+    permissions:
+      contents: read
+      actions: read
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
     # stalled two of them on a two-minute download and nothing said so.
     # Must stay ABOVE `command_timeout` (120m) further down, or this cap silently overrides
@@ -72,14 +82,36 @@ jobs:
       # A wait, not a `needs`: workflows cannot depend on each other, and Images is SKIPPED
       # for a commit that touches no Dockerfile. Skipped must keep deploying (there is
       # nothing new to pull); only a real failure may stop it.
+      # Says WHY it is not waiting, rather than being absent. A gate that skips in silence is
+      # indistinguishable from a gate that passed, and this one spent its whole life looking
+      # like the second.
+      - name: Images wait not applicable (build mode)
+        if: github.event_name == 'workflow_run' && vars.IMAGE_PREFIX == ''
+        run: |
+          echo "IMAGE_PREFIX is unset, so this deployment BUILDS its images on the box"
+          echo "(scripts/lib/deploy-common.sh:37 registry_mode; rebuild-stale.sh runs compose build)."
+          echo "The images this workflow would wait for are pushed to GHCR and never pulled here,"
+          echo "so waiting for them would gate on something the release does not use."
+          echo "Set the IMAGE_PREFIX repo variable when registry mode is switched on and this"
+          echo "step is replaced by the real wait below."
+
       - name: Wait for this commit's images
-        if: github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_run' && vars.IMAGE_PREFIX != ''
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           for attempt in $(seq 1 60); do
-            read -r status conclusion <<<"$(gh run list --workflow Images --commit "$SHA"               --json status,conclusion --jq '.[0] | "\(.status // "none") \(.conclusion // "none")"' 2>/dev/null || echo "none none")"
+            # No `2>/dev/null`. It was the only one in this directory, and it turned every
+            # API failure — a 403 from the missing `actions: read` above, most of all — into
+            # the string "none none", which this loop reads as "no Images run, carry on".
+            if ! out="$(gh run list --workflow Images --commit "$SHA" --json status,conclusion --jq '.[0] | "\(.status // "none") \(.conclusion // "none")"')"; then
+              echo "!! could not ask GitHub about the Images run for $SHA."
+              echo "   That is not the same as 'no images were built', and it must not be"
+              echo "   treated as one — refusing to deploy on an unanswered question."
+              exit 1
+            fi
+            read -r status conclusion <<<"$out"
             case "$status" in
               none)
                 echo "no Images run for $SHA (skipped for this commit) — continuing"
