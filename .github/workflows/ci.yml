@@ -932,8 +932,19 @@ jobs:
           # runner's initdb creates all 16 databases, which can take >60s. The old loop
           # only `break`ed on ready and fell through silently on timeout, so the first
           # workspace to migrate (admin) intermittently hit P1001.
+          # TCP, not the in-container unix socket, and NOT pg_isready. The postgres image
+          # entrypoint runs initdb against a TEMPORARY server first; that server answers
+          # pg_isready over the socket and even serves queries, then shuts down. It is started
+          # with `listen_addresses=''`, so it is the only one NOT reachable over 127.0.0.1 —
+          # which makes this the question the wrong server cannot answer, and it is the same
+          # question the host-side `npm run db:migrate` below asks through the mapped port.
+          #
+          # The retry loop in the next step documented this flap and worked around it with
+          # 5 x 5s instead of fixing it; that ran out and the migrate died on P1001. Third file
+          # in this repo to learn it — restore-db.test.sh wrote it down first, restore-db.sh
+          # got it in the same commit as this.
           for i in $(seq 1 60); do
-            if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then exit 0; fi
+            if docker compose exec -T postgres psql -tAX -h 127.0.0.1 -U hydromart -d hydromart_auth -c 'SELECT 1' >/dev/null 2>&1; then exit 0; fi
             sleep 2
           done
           echo "Postgres did not become ready in time" >&2
