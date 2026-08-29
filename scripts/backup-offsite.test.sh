@@ -22,8 +22,12 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# No ops pings from a drill. backup-offsite.sh alerts on every non-zero exit, and this file
-# produces eight of them on purpose.
+# No ops pings from a drill. This file produces ten non-zero exits on purpose, and the
+# webhook being empty makes alert() return before it ever reaches curl.
+#
+# This comment used to read "backup-offsite.sh alerts on every non-zero exit" — stated, never
+# measured, and false: the EXIT trap was installed after the destination check, so the eight
+# exits above it were silent. Section 12 below now measures it instead of asserting it.
 export ALERT_WEBHOOK_URL=''
 
 fails=0
@@ -211,6 +215,51 @@ expect "refuses a 0-byte dump instead of verifying nothing" 2 "is not a backup"
 # --- 11. no dumps anywhere ----------------------------------------------------------------
 run env BACKUP_OFFSITE_DEST="$REM" BACKUP_DIR="$TMP/empty" bash scripts/backup-offsite.sh
 expect "says so when there is nothing to copy" 2 "has scripts/backup-db.sh ever run"
+
+# --- 12. the alert actually FIRES on the failure a fresh box will hit -----------------------
+# Every check above asserts an exit code and a message on stderr. Cron reads neither. The
+# thing that reaches a human is alert(), and until this section existed nothing here had ever
+# observed one — which is how the trap came to sit below the destination check, silencing the
+# single most likely failure on a box nobody has configured yet.
+#
+# alert() ends in `curl -fsS -X POST ... "$url"`, so a curl earlier on PATH that records its
+# argv is the whole instrument: no network, no webhook, no sockets.
+STUB="$TMP/stub"
+mkdir -p "$STUB"
+cat >"$STUB/curl" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '%s
+' "$*" >>"$ALERT_CAPTURE"
+STUBEOF
+chmod +x "$STUB/curl"
+
+alerts_from() {
+  : >"$TMP/alerts"
+  ALERT_CAPTURE="$TMP/alerts"     ALERT_WEBHOOK_URL='http://alert.invalid/hook'     PATH="$STUB:$PATH"     "$@" >/dev/null 2>&1 || true
+  cat "$TMP/alerts"
+}
+
+got="$(alerts_from env -u BACKUP_OFFSITE_DEST bash scripts/backup-offsite.sh "$DUMP")"
+case "$got" in
+  *"offsite backup of"*FAILED*) ok "an unconfigured box wakes somebody, not just cron's log" ;;
+  '') bad "an unconfigured box wakes somebody — alert() was never called at all" ;;
+  *) bad "an unconfigured box wakes somebody — alerted, but said: $(echo "$got" | head -1)" ;;
+esac
+
+# And the late failures must still name the artefact, which is what $FAIL_WHAT buys: the
+# early exits say "the newest dump" because they happen before the key is known, this one
+# says the key.
+got="$(alerts_from env BACKUP_OFFSITE_DEST="$TMP/no-such-mount" bash scripts/backup-offsite.sh "$DUMP")"
+case "$got" in
+  *"hydromart-20260825-030000.sql.gz"*) ok "a late failure names the dump it failed to copy" ;;
+  *) bad "a late failure names the dump — said: $(echo "$got" | head -1)" ;;
+esac
+
+# --help is somebody at a terminal, not a backup that failed. It exits 0, so the trap's
+# own `rc -ne 0` guard covers it — measured, because installing the trap earlier is exactly
+# the change that could have started paging on a help screen.
+got="$(alerts_from bash scripts/backup-offsite.sh --help)"
+[ -z "$got" ] && ok "--help pages nobody" || bad "--help paged: $got"
 
 if [ "$fails" -gt 0 ]; then
   echo "backup-offsite.sh: $fails check(s) failed" >&2

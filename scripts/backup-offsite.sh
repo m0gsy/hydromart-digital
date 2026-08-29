@@ -88,6 +88,25 @@ case "${1:-}" in
     ;;
 esac
 
+# EVERY exit below this line means no copy of this database left the box tonight, so every
+# one of them is worth waking somebody for. That is why the trap is installed HERE and not
+# further down: it used to sit after the destination check, so the single most likely
+# failure on a fresh box — BACKUP_OFFSITE_DEST never set — exited 2 with the alert trap not
+# yet installed. Nightly cron, non-zero, silent. The header two screens up promises "a box
+# with no offsite destination must say so every night"; for that one case it did not, and
+# this file's own self-test asserted the exit code while its comment claimed the alert.
+#
+# The arg parse stays above it on purpose: `--help` and a usage typo are somebody at a
+# terminal, not a backup that failed.
+#
+# $FAIL_WHAT is expanded when the trap FIRES, not when it is installed, so an early exit
+# names the artefact generically and a late one names the key.
+FAIL_WHAT='the newest dump'
+alert_on_failure() {
+  trap 'rc=$?; [ "$rc" -ne 0 ] && alert "offsite backup of $FAIL_WHAT FAILED (exit $rc) — the dumps on this box are the only copies"; exit $rc' EXIT
+}
+alert_on_failure
+
 command -v sha256sum >/dev/null 2>&1 || {
   echo "!! sha256sum not found. Without it this script cannot verify anything, and an" >&2
   echo "   unverified copy is exactly what it exists to replace. Install coreutils." >&2
@@ -128,6 +147,7 @@ fi
 LOCAL_SIZE="$(wc -c <"$FILE" | tr -d ' ')"
 LOCAL_SHA="$(sha256_of "$FILE")"
 KEY="$(basename "$FILE")"
+FAIL_WHAT="$KEY"
 
 # --- 2. where it goes --------------------------------------------------------------------
 DEST="${BACKUP_OFFSITE_DEST:-}"
@@ -144,13 +164,6 @@ if [ -z "$DEST" ]; then
   fi
   exit 2
 fi
-
-# From here on a failure is worth waking somebody for: it means the only copies of this
-# database are on the box this script just failed to copy them off.
-alert_on_failure() {
-  trap 'rc=$?; [ "$rc" -ne 0 ] && alert "offsite backup of '"$KEY"' FAILED (exit $rc) — the dumps on this box are the only copies"; exit $rc' EXIT
-}
-alert_on_failure
 
 case "$DEST" in
   s3://*)

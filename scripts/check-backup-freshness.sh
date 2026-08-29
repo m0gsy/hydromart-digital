@@ -12,6 +12,14 @@
 # it is too old. It reads the DUMPS THEMSELVES rather than the console — the file on disk is
 # the thing a recovery needs, and it cannot be stale-and-green at the same time.
 #
+# It asked two questions and needed three. "Is there a recent dump" and "has a drill read one
+# back" are both answered by files on the SAME DISK as the database, so both stay green
+# through the failure that takes the disk — which is the failure backups exist for. The word
+# "offsite" did not appear in this file at all, while backup-offsite.sh ran nightly and, on a
+# box with no destination set, exited 2 into a log nobody reads. Green gate, zero copies
+# anywhere else. The third question is below, and it is asked by re-running the verifier
+# rather than by trusting its last verdict — same principle as the other two.
+#
 #   bash scripts/check-backup-freshness.sh
 #
 # Env:
@@ -19,6 +27,7 @@
 #   BACKUP_MAX_AGE_HOURS       default 26 — a nightly job plus two hours of slack
 #   DRILL_MAX_AGE_DAYS         default 9  — a weekly drill plus two days
 #   DRILL_LOG                  default /var/log/hydromart-restore-drill.log
+#   BACKUP_OFFSITE_DEST        where a copy lives that is NOT this disk; unset is a failure
 #   ALERT_WEBHOOK_URL          same webhook the services and the drill use; unset = log only
 #
 # Exit: 0 fresh, 1 stale or missing (the loud one), 2 nothing to check on this box.
@@ -87,6 +96,27 @@ else
   else
     echo "ok   last restore drill was ${DRILL_DAYS}d ago (limit ${DRILL_MAX_AGE_DAYS}d)"
   fi
+fi
+
+# --- 3. is there a copy that is NOT on this disk, and are its bytes still the right bytes --
+# backup-offsite.sh --verify is idempotent and never uploads: it reads the newest dump's
+# remote twin back and compares size + sha256. Re-running it here costs one read-back a day
+# and is the only thing in this repo that can distinguish "offsite is configured" from
+# "offsite is working". Reused rather than reimplemented — a second checksum comparison
+# would be a second thing to keep true.
+if [ -z "${BACKUP_OFFSITE_DEST:-}" ]; then
+  echo "!! BACKUP_OFFSITE_DEST is not set: every copy of this database is on the disk the" >&2
+  echo "   database is on. The two checks above pass in exactly this state, which is why" >&2
+  echo "   this one exists. Set it in .env — see scripts/backup-offsite.sh --help." >&2
+  alert "no offsite destination — every backup is on the disk it backs up"
+  fails=1
+elif OFFSITE_OUT="$(bash scripts/backup-offsite.sh --verify 2>&1)"; then
+  echo "ok   the newest dump is offsite and reads back byte-identical"
+else
+  echo "!! the newest dump is NOT verifiable at $BACKUP_OFFSITE_DEST:" >&2
+  echo "$OFFSITE_OUT" | sed 's/^/   /' >&2
+  alert "newest dump is not verifiable offsite — $(echo "$OFFSITE_OUT" | head -1)"
+  fails=1
 fi
 
 exit "$fails"

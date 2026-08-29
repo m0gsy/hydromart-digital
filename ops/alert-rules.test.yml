@@ -1,0 +1,112 @@
+# promtool fixtures for the two business alerts that are supposed to fire on SILENCE.
+#
+#   bash scripts/check-alert-rules.test.sh
+#
+# Everything else in alert-rules.yml fires on a signal that is PRESENT (a 5xx rate, a `up`
+# that flipped, a disk that filled). These two are the opposite shape: they fire when a
+# counter stops moving. That shape has a failure mode the others do not, and it is the
+# reason this file exists — see the `no series at all` cases below.
+#
+# eval_time is seconds from epoch 0 = 1970-01-01T00:00:00 UTC, so `hour()` inside
+# NoOrdersCreated's opening-hours guard is literally the number of hours into the test.
+# 3h therefore lands inside the 02:00-13:00 UTC window the alert is scoped to; 14h and 1h
+# land outside it, which is what makes the guard itself testable.
+rule_files:
+  - alert-rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # --- NoOrdersCreated -----------------------------------------------------------------
+  - interval: 1m
+    name: no series at all — the shape a deploy leaves behind
+    # THE CASE THIS FILE EXISTS FOR. A counter with a label set that has never been observed
+    # is not zero, it is ABSENT: every deploy resets the process and, until the first order
+    # of the day, `http_request_duration_seconds_count{route=~".*/orders"}` does not exist.
+    # `sum()` over nothing returns an empty vector, and `empty == 0` compares nothing and
+    # matches nothing. So the alert built to notice "checkout stopped" was structurally
+    # blind to a release that broke checkout — the one occasion it was written for.
+    #
+    # Some series must exist or promtool has no timeline to evaluate over, so an unrelated
+    # route carries the clock. That is also what production looks like: the gateway is busy,
+    # nobody is ordering.
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+        values: '0+3x400'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NoOrdersCreated
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: 'No order has been created in 2 hours'
+              description: >-
+                Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
+                = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
+                check the customer app can reach the gateway, and that a depot is open.
+
+  - interval: 1m
+    name: the series exists and is flat — the case that always worked
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/orders", method="POST", status="201"}'
+        values: '7+0x400'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NoOrdersCreated
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: 'No order has been created in 2 hours'
+              description: >-
+                Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
+                = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
+                check the customer app can reach the gateway, and that a depot is open.
+
+  - interval: 1m
+    name: orders are flowing — stays quiet
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/orders", method="POST", status="201"}'
+        values: '0+2x400'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: NoOrdersCreated
+        exp_alerts: []
+
+  - interval: 1m
+    name: silent at 01:00 UTC — outside opening hours, deliberately quiet
+    # The guard is half the alert: a depot town at 08:00 WIB has no orders and that is not an
+    # incident. If the fix below broke the guard, this is what would catch it.
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+        values: '0+3x200'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: NoOrdersCreated
+        exp_alerts: []
+
+  # --- SchedulerSweepsSilent -----------------------------------------------------------
+  - interval: 1m
+    name: scheduler has never been observed — same absence, no hour guard to hide behind
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+        values: '0+3x400'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: SchedulerSweepsSilent
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: 'No internal sweep has run in an hour'
+              description: >-
+                The scheduler fires internal sweeps every few minutes; an hour of silence means
+                it is up but doing nothing, which is how a dead flow used to look green.
+
+  - interval: 1m
+    name: sweeps are running — stays quiet
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/internal/sweep", method="POST", status="200"}'
+        values: '0+1x400'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: SchedulerSweepsSilent
+        exp_alerts: []
