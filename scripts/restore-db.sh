@@ -95,11 +95,21 @@ case "$MODE" in
       -e POSTGRES_USER="$PG_USER" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB=postgres \
       "$PG_IMAGE" >/dev/null
 
-    # Wait for the server to accept connections (max ~30s).
-    for i in $(seq 1 30); do
-      if docker exec "$SCRATCH" pg_isready -U "$PG_USER" >/dev/null 2>&1; then break; fi
+    # TCP, not the unix socket, and NOT pg_isready. The postgres image entrypoint runs initdb
+    # against a temporary server first; that server answers pg_isready and even runs queries,
+    # then shuts down — and the restore piped into it dies mid-stream with "FATAL: terminating
+    # connection due to administrator command / server closed the connection unexpectedly".
+    # It is started with `listen_addresses=''`, so it is the only one NOT reachable over
+    # 127.0.0.1, which makes this the question the wrong server cannot answer.
+    #
+    # restore-db.test.sh has waited this way, with that reasoning written out, since it was
+    # written — and this script, the one a real recovery runs, kept pg_isready. The weekly
+    # drill on the box carries the same race. Found when a third fixture database shifted the
+    # timing enough to hit it on CI: green here for months, and it was never the runner.
+    for i in $(seq 1 60); do
+      docker exec "$SCRATCH" psql -tAX -h 127.0.0.1 -U "$PG_USER" -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break
       sleep 1
-      if [ "$i" = 30 ]; then echo "ERROR: scratch Postgres never became ready" >&2; exit 1; fi
+      if [ "$i" = 60 ]; then echo "ERROR: scratch Postgres never became ready" >&2; exit 1; fi
     done
 
     # RTO — the number this whole file exists to produce, and the one it never recorded.
