@@ -259,4 +259,25 @@ else
   bad ".env.example disagrees with the gateway's own default for RATE_LIMIT_MAX"
 fi
 
+# --- which face verifier is running, and whether it can work -----------------------------
+#
+# FACE_VERIFIER_DRIVER defaults to `onnx` in three places at once — the Joi schema, the
+# compose default, and .env.production.example — while the comment above the compose line
+# says production is meant to be `neo`. No .onnx file is committed and nothing downloads one,
+# so a box on the default answers 503 on every enrolment and every check-in: attendance
+# simply does not work, quietly. Nothing measured which of those it was.
+if grep -qE 'face verifier probe' scripts/deploy.sh; then
+  ok "deploy reports which face verifier is running"
+else
+  bad "nothing says which face verifier the box runs — on the default it 503s every check-in and reports nothing"
+fi
+
+# `stub` accepts ANY frame. Fine on a laptop; on a real box it turns the biometric gate into
+# a formality, and that must never pass quietly.
+if grep -qE 'ACCEPTS ANY FACE' scripts/deploy.sh; then
+  ok "a stub face verifier is called out rather than passing quietly"
+else
+  bad "a box running the stub face verifier would report nothing — the biometric check would accept anyone"
+fi
+
 exit "$fails"
