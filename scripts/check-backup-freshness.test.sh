@@ -35,9 +35,25 @@ DUMPS="$WORK/backups"
 mkdir -p "$DUMPS"
 DRILL_LOG="$WORK/drill.log"
 
+# The five cases below each assert ONE reason for going red. Now that the script also asks
+# whether a copy exists off-box, they need a destination that works — otherwise every one of
+# them would go red for the new reason and still look like it passed its own assertion.
+OFFSITE="$WORK/offsite"
+mkdir -p "$OFFSITE"
+
+# `touch` alone is not enough any more: backup-offsite.sh refuses a 0-byte dump, correctly,
+# because sha256 of nothing matches sha256 of nothing. So a dump gets bytes, and the offsite
+# twin is written at the same time — the cases below assert staleness and drills, and must
+# not go red for a reason they are not testing.
+make_dump() {
+  printf 'hydromart-fake-dump-%s
+' "$1" >"$DUMPS/$1"
+  cp "$DUMPS/$1" "$OFFSITE/$1"
+}
+
 run_check() {
   set +e
-  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG" bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
+  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG"     BACKUP_OFFSITE_DEST="${OFFSITE_OVERRIDE-$OFFSITE}"     BACKUP_OFFSITE_ALLOW_SAME_FS=1     bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
   RC=$?
   set -e
   OUT="$(cat "$WORK/out")"
@@ -51,7 +67,8 @@ check "an empty backup directory is a failure" 1 "$RC"
 case "$OUT" in *"no dump at all"*) ok "  ...and it says which directory it looked in" ;; *) bad "  expected 'no dump at all': $OUT" ;; esac
 
 # 2. A fresh dump and a fresh drill: the only green state.
-touch "$DUMPS/hydromart-20260827-030000.sql.gz" "$DRILL_LOG"
+make_dump hydromart-20260827-030000.sql.gz
+touch "$DRILL_LOG"
 run_check
 check "a fresh dump plus a fresh drill passes" 0 "$RC"
 
@@ -75,5 +92,38 @@ case "$OUT" in *UNVERIFIED*) ok "  ...and it calls the backups UNVERIFIED" ;; *)
 rm -f "$DRILL_LOG"
 run_check
 check "no drill log at all is a failure" 1 "$RC"
+
+# 6. The state the production box is in right now: dumps fresh, drill recent, and not one
+#    byte of this database anywhere except the disk it lives on. Both checks above pass.
+#    This is the whole reason the third one was added, so it is asserted from the outside:
+#    a green gate here for five months would have been a green gate over zero offsite copies.
+touch "$DUMPS/hydromart-20260827-030000.sql.gz" "$DRILL_LOG"
+OFFSITE_OVERRIDE=''
+run_check
+check "fresh dumps + recent drill still FAIL with no offsite destination" 1 "$RC"
+case "$OUT" in
+  *"on the disk the"*) ok "  ...and it says the copies are on the disk they back up" ;;
+  *) bad "  expected the disk sentence: $OUT" ;;
+esac
+
+# 7. Configured but the copy is not actually there — a destination that is set and empty is
+#    worse than one that is unset, because the operator believes it works.
+OFFSITE_OVERRIDE="$WORK/empty-offsite" ; mkdir -p "$OFFSITE_OVERRIDE"
+run_check
+check "a destination with no copy in it is a failure" 1 "$RC"
+case "$OUT" in
+  *"NOT verifiable"*) ok "  ...and it says the dump is not verifiable" ;;
+  *) bad "  expected 'NOT verifiable': $OUT" ;;
+esac
+unset OFFSITE_OVERRIDE
+
+# 8. And the happy path, so this is not an instrument that is red on everything: the copy
+#    make_dump wrote is still sitting at $OFFSITE, and the same gate goes green.
+run_check
+check "a real offsite copy passes" 0 "$RC"
+case "$OUT" in
+  *"reads back byte-identical"*) ok "  ...by reading the bytes back, not by trusting a log" ;;
+  *) bad "  expected the read-back line: $OUT" ;;
+esac
 
 exit "$fails"

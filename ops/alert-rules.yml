@@ -166,8 +166,16 @@ groups:
         # Checkout is the one route whose silence is never normal during opening hours. The
         # window is deliberately long: a depot town at 03:00 has no orders and that is not
         # an incident, so this is scoped by an hour-of-day guard rather than a shorter window.
+        #
+        # `or vector(0)` is load-bearing, not defensive. Without it this rule could not fire
+        # on the one event it was written for. A counter whose label set has never been seen
+        # is ABSENT, not zero: every deploy restarts the process, and until the first order
+        # of the day this series does not exist. `sum()` over nothing returns an empty
+        # vector, and `empty == 0` compares nothing and matches nothing — so a release that
+        # broke checkout produced exactly the silence this alert is deaf to. Proven with
+        # promtool in ops/alert-rules.test.yml, which reported `got:[]` before this edit.
         expr: |
-          sum(increase(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[2h])) == 0
+          (sum(increase(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[2h])) or vector(0)) == 0
             and on() (hour() >= 2 < 13)
         for: 10m
         labels: { severity: critical }
@@ -207,8 +215,11 @@ groups:
         # The scheduler has its own healthcheck, but a container that is UP and sweeping
         # nothing looks identical from outside. Its sweeps go through the gateway, so their
         # absence is visible here.
+        # Same absence-is-not-zero trap as NoOrdersCreated, and worse here: a scheduler that
+        # has never swept since the last restart has no series at all, which is precisely
+        # the state "it is up but doing nothing" produces.
         expr: |
-          sum(increase(http_request_duration_seconds_count{route=~".*/internal/.*"}[1h])) == 0
+          (sum(increase(http_request_duration_seconds_count{route=~".*/internal/.*"}[1h])) or vector(0)) == 0
         for: 30m
         labels: { severity: warning }
         annotations:

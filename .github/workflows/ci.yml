@@ -451,6 +451,21 @@ jobs:
       - name: Backup freshness gate (CMP-04)
         run: bash scripts/check-backup-freshness.test.sh
 
+      # L2.7 — written, self-tested, and never invoked by this file until now. It is the
+      # only thing in the repo that can tell "offsite is configured" from "offsite is
+      # working", and it went eleven weeks unrun: the same shape as the gate it checks.
+      - name: Offsite backup gate can go red (L2.7)
+        run: bash scripts/backup-offsite.test.sh
+
+      # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
+      # Prometheus only complains about a rule that fails to PARSE; a rule that parses and
+      # can never match looks exactly like a rule that is simply not firing, which is what a
+      # healthy alert looks like too. Two of them could not fire at all. promtool comes from
+      # the prom/prometheus image the prod stack already runs, and the step skips with a
+      # message when no docker daemon is present rather than passing quietly.
+      - name: Business alerts can actually fire (N12)
+        run: bash scripts/check-alert-rules.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple
