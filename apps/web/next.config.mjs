@@ -67,6 +67,24 @@ const nextConfig = {
     : {
         async headers() {
           return [
+            /*
+             * The consoles, told not to be indexed by a crawler that already has the URL.
+             *
+             * public/robots.txt asks politely and is the only thing the mobile export can
+             * carry; this is the half that binds. Measured 2026-08-29: /hq answered 200,
+             * prerendered and cached for a year, with neither in place.
+             *
+             * First entry on purpose — Next applies every matching rule, and putting the
+             * narrower one first keeps it readable next to the site-wide block below.
+             */
+            {
+              source: '/:path(hq|dashboard|driver|hr|m)/:rest*',
+              headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+            },
+            {
+              source: '/:path(hq|dashboard|driver|hr|m)',
+              headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+            },
             {
               source: '/:path*',
               headers: [
