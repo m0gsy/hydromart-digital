@@ -68,3 +68,52 @@ describe('depotOpenState', () => {
     ).toBe('buka');
   });
 });
+
+/*
+ * The depot's clock, not the viewer's — and since W11 that difference spends money.
+ *
+ * order-service answers with `isOpenAt(..., config.businessTimeZone)`. This copy read
+ * `now.getHours()`, the device's own clock. While the answer only picked a badge word the two
+ * could disagree harmlessly; now it also disables the pay button, so a phone on WITA/WIT, or
+ * one with a wrong clock, or a browser abroad, refuses an order the server would accept.
+ *
+ * CI found it before a customer did: the runner's clock is UTC, the seeded depot opens
+ * 08:00-20:00 WIB, and at 20:41 UTC the checkout E2E could not submit. One wall clock, two
+ * answers.
+ */
+describe('depotOpenState reads the depot clock, not the device clock', () => {
+  const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const hours = Object.fromEntries(WEEK.map((d) => [d, { open: '08:00', close: '20:00' }]));
+
+  it('is OPEN at 20:41 UTC, which is 03:41 the next day in WIB', () => {
+    // The exact instant the E2E run died. In WIB this is 03:41 — outside 08:00-20:00 — so the
+    // depot really is shut, and the badge must say so for a reason that is TRUE.
+    expect(depotOpenState(hours, [], new Date('2026-08-29T20:41:00Z'))).toBe('tutup');
+  });
+
+  it('is open at 09:00 WIB however the viewer device is set', () => {
+    // 02:00 UTC = 09:00 WIB. Under the old code a device on UTC read 02:00 and said `tutup`,
+    // and a device on WIB read 09:00 and said `buka` — same depot, same moment.
+    expect(depotOpenState(hours, [], new Date('2026-08-30T02:00:00Z'))).toBe('buka');
+  });
+
+  it('is shut at 21:00 WIB even for a viewer whose device says 14:00', () => {
+    // 14:00 UTC = 21:00 WIB, an hour past closing. The device clock would have sold this one.
+    expect(depotOpenState(hours, [], new Date('2026-08-30T14:00:00Z'))).toBe('tutup');
+  });
+
+  it('picks the holiday by the depot day, not the viewer day', () => {
+    // 17:30 UTC on the 30th is already 00:30 on the 31st in WIB. A viewer on UTC would have
+    // matched the 30th's holiday row and missed the 31st's.
+    const holidays = [{ date: '2026-08-31', label: 'Libur' }];
+    expect(depotOpenState(hours, holidays, new Date('2026-08-30T17:30:00Z'))).toBe('tutup');
+    expect(depotOpenState(hours, [], new Date('2026-08-30T17:30:00Z'))).toBe('tutup');
+  });
+
+  it('picks the WEEKDAY by the depot day too', () => {
+    // Sunday 17:30 UTC is already Monday in WIB. Only Monday is open here.
+    const monOnly = { mon: { open: '00:00', close: '23:59' } };
+    expect(depotOpenState(monOnly, [], new Date('2026-08-30T17:30:00Z'))).toBe('buka');
+    expect(depotOpenState(monOnly, [], new Date('2026-08-30T10:00:00Z'))).toBe('tutup');
+  });
+});
