@@ -24,8 +24,8 @@ bad() {
   fails=$((fails + 1))
 }
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"; cp "$WORK/Caddyfile.orig" Caddyfile 2>/dev/null || true' EXIT
-cp Caddyfile "$WORK/Caddyfile.orig"
+trap 'rm -rf "$WORK"; cp "$WORK/Caddyfile.orig" infra/caddy/Caddyfile 2>/dev/null || true' EXIT
+cp infra/caddy/Caddyfile "$WORK/Caddyfile.orig"
 
 run_check() {
   set +e
@@ -34,7 +34,7 @@ run_check() {
   set -e
 }
 
-restore() { cp "$WORK/Caddyfile.orig" Caddyfile; }
+restore() { cp "$WORK/Caddyfile.orig" infra/caddy/Caddyfile; }
 
 echo "check-public-metrics:"
 
@@ -46,7 +46,7 @@ python - "$WORK/Caddyfile.orig" <<'PY'
 import io, re, sys
 s = io.open(sys.argv[1], encoding='utf-8').read()
 s = re.sub(r"\n\thandle /metrics\*.*?\n\t\}\n", "\n", s, flags=re.S)
-io.open('Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
+io.open('infra/caddy/Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
 PY
 run_check
 [ "$RC" = 1 ] && ok "fails when nothing blocks /metrics" || bad "an unblocked /metrics must fail (rc=$RC)"
@@ -54,7 +54,7 @@ case "$OUT" in *"does not block /metrics"*) ok "  ...and says what to add" ;; *)
 restore
 
 # 2. A block that answers 200 is not a refusal.
-sed -i 's/respond 404/respond 200/' Caddyfile
+sed -i 's/respond 404/respond 200/' infra/caddy/Caddyfile
 run_check
 [ "$RC" = 1 ] && ok "fails when /metrics is answered 200" || bad "respond 200 must fail (rc=$RC)"
 restore
@@ -62,11 +62,11 @@ restore
 # 3. Blocking AFTER the proxy reads as protection and is not.
 python - <<'PY'
 import io, re
-s = io.open('Caddyfile', encoding='utf-8').read()
+s = io.open('infra/caddy/Caddyfile', encoding='utf-8').read()
 block = re.search(r"\n\thandle /metrics\*.*?\n\t\}\n", s, flags=re.S).group(0)
 s = s.replace(block, "\n")
 s = s.replace("\treverse_proxy gateway:8080\n", "\treverse_proxy gateway:8080\n" + block)
-io.open('Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
+io.open('infra/caddy/Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
 PY
 run_check
 [ "$RC" = 1 ] && ok "fails when the block sits after reverse_proxy" || bad "ordering must fail (rc=$RC)"
@@ -77,9 +77,9 @@ restore
 #    connect-src and would have reported on the wrong block entirely.
 python - <<'PY'
 import io
-s = io.open('Caddyfile', encoding='utf-8').read()
+s = io.open('infra/caddy/Caddyfile', encoding='utf-8').read()
 s = s.replace("{$API_DOMAIN} {\n\timport hsts", "{$SOMETHING_ELSE} {\n\timport hsts")
-io.open('Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
+io.open('infra/caddy/Caddyfile', 'w', encoding='utf-8', newline='\n').write(s)
 PY
 run_check
 [ "$RC" = 1 ] && ok "fails when the public API site cannot be found at all" || bad "a missing site must fail (rc=$RC)"

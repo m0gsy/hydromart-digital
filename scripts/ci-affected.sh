@@ -45,7 +45,7 @@ affects_images() {
       #   ops/*                             -> prometheus, alert-rules, alertmanager, grafana
       #   Caddyfile                         -> the edge in front of all of it
       # Same class as docker-compose*.yml above, which already answers true.
-      infra/*|ops/*|Caddyfile) echo "true"; return ;;
+      infra/*|ops/*) echo "true"; return ;;
     esac
     if [ -n "$(svc_of "$file")" ]; then
       echo "true"

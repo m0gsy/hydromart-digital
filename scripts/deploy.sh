@@ -648,6 +648,33 @@ if health_ok; then
     esac
   fi
 
+  # 1e. /metrics, asked of the SERVER.
+  #
+  # scripts/check-public-metrics.mjs has always supported `--url`, and its own header says why:
+  # "a config that is not deployed protects nothing". CI runs it without one (ci.yml), so for
+  # two days it read the Caddyfile on disk, found the block, and passed — while
+  # `curl https://api.hydromart-digital.com/metrics` answered 200 with 404 KB of the platform's
+  # traffic: request counts by route and status, install counts per build, heap and event-loop
+  # figures. The block was committed on 2026-08-27 and never reached the container, because the
+  # Caddyfile was bind-mounted as a single FILE and the mount pinned the old inode.
+  #
+  # CI cannot reach production. This can, and it runs after the release is live, which is the
+  # only moment the answer means anything.
+  API_HOST="$(tr -d '' < .env 2>/dev/null | sed -n 's/^API_DOMAIN=//p' | head -1 || true)"
+  if [ -n "$API_HOST" ]; then
+    if node scripts/check-public-metrics.mjs --url "https://$API_HOST" >/tmp/metrics-probe.log 2>&1; then
+      log "public /metrics probe — https://$API_HOST/metrics is not reachable from the internet"
+    else
+      log "!! /metrics IS reachable from the internet at https://$API_HOST/metrics"
+      sed 's/^/   /' /tmp/metrics-probe.log | head -12
+      alert "public /metrics is answering on https://$API_HOST - the platform's traffic is readable by anybody"
+    fi
+    rm -f /tmp/metrics-probe.log
+  else
+    log "!! API_DOMAIN is unset, so nothing checked whether /metrics is public."
+    alert "API_DOMAIN unset - the public /metrics check could not run"
+  fi
+
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
   #
