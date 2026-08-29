@@ -9,9 +9,22 @@ const SOP: Record<string, DepotHours> = {
   fri: { open: '08:00', close: '21:00', breakStart: '11:30', breakEnd: '13:00' },
 };
 
-/** Local wall clock — the badge reads the viewer's own clock, so the test does too. */
+/*
+ * A WIB wall clock, built as an explicit instant.
+ *
+ * This was `new Date(y, m - 1, d, hh, mm)` — which builds the instant in whatever timezone
+ * the MACHINE is set to, with a comment saying the badge reads the viewer's own clock. That
+ * was true of the code then, and it made every assertion below agree with itself only on a
+ * laptop already on WIB. On the CI runner, which is UTC, `at(2026, 8, 10, 21, 0)` is 04:00
+ * the next morning in Jakarta and four of these tests flipped.
+ *
+ * They were never testing opening hours; they were testing the author's timezone. Asia/
+ * Jakarta is UTC+7 all year with no DST, so the offset is subtracted directly and the
+ * instant is the same one on every machine.
+ */
+const WIB_OFFSET_HOURS = 7;
 const at = (y: number, m: number, d: number, hh: number, mm: number): Date =>
-  new Date(y, m - 1, d, hh, mm);
+  new Date(Date.UTC(y, m - 1, d, hh - WIB_OFFSET_HOURS, mm));
 
 // 2026-08-10 Monday, 2026-08-14 Friday, 2026-08-11 Tuesday (no entry in SOP).
 describe('depotOpenState', () => {
