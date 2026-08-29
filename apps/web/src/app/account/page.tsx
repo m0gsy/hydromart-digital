@@ -65,6 +65,8 @@ import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
 import type {
   Customer,
+  ConsentPending,
+  ConsentPurpose,
   ConsentState,
   DeviceSession,
   ConsentHistoryEntry,
@@ -380,6 +382,19 @@ function ConsentBody() {
   const history = useAsync<ConsentHistoryEntry[]>(() =>
     api.get(endpoints.pdp.consentHistory, true),
   );
+  /*
+   * W10. The Terms/Privacy wording moves; an acceptance recorded under the old text stays
+   * on file and stays valid, so nobody is locked out — but until this call there was no
+   * way for the person to LEARN that the text had changed, on the one screen where their
+   * consent is the subject.
+   *
+   * It is deliberately part of this sheet and not a startup interstitial. See the notice
+   * below for why that is a requirement and not a layout preference.
+   */
+  const acceptance = useAsync<ConsentPending>(() =>
+    api.get(endpoints.pdp.consentPending, true),
+  );
+  const [accepting, setAccepting] = useState(false);
 
   async function toggle(row: ConsentState, granted: boolean) {
     setPending(row.purpose);
@@ -394,9 +409,80 @@ function ConsentBody() {
     }
   }
 
+  /*
+   * Re-confirming is the SAME PUT the toggles use, once per owed purpose — no second write
+   * path, so the ledger keeps one shape and the old row survives as evidence of what was
+   * agreed and when. Sequential rather than parallel: there are at most two mandatory
+   * purposes, and a failure that names one row beats a Promise.all that names none.
+   */
+  async function acceptPending(purposes: ConsentPurpose[]) {
+    setAccepting(true);
+    try {
+      for (const purpose of purposes) {
+        await api.put(endpoints.pdp.consents, { purpose, granted: true }, true);
+      }
+      toast(t('account.consents.saved'), 'success');
+      reload();
+      acceptance.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.consents.saveError'), 'error');
+    } finally {
+      setAccepting(false);
+    }
+  }
+
   return (
     <div>
       <p className="mb-1 text-sm text-muted">{t('account.consents.body')}</p>
+
+      {/*
+        The notice, and the shape it is NOT.
+
+        `enforcement: 'UNENFORCED'` is the server stating that it does nothing about this
+        answer: an account that ignores it keeps working, keeps its orders, and keeps the
+        lawful basis those orders already had. A modal with no close button, or a sheet that
+        will not open until this is answered, would enforce in the UI what the server
+        deliberately does not — and would be a harder wall than any rule that actually
+        exists. So this is an inline panel inside a sheet the customer opened themselves,
+        with the toggles below it still usable.
+
+        Silent is the other failure. This repo's rule is "UNENFORCED not silent": the gap
+        gets said out loud on the screen, in `unenforced` below, rather than left to be
+        inferred from the absence of a blocker.
+      */}
+      {acceptance.data?.mustAccept && (
+        <div className="mb-3 rounded-xl border border-app bg-[color:var(--surface-soft)] p-3">
+          <p className="text-[13px] font-bold">{t('account.consentPending.title')}</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">
+            {t('account.consentPending.body', { v: acceptance.data.documentVersion })}
+          </p>
+          <p className="mt-1 text-[12px] text-muted">{t('account.consentPending.unenforced')}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <Button
+              loading={accepting}
+              onClick={() => acceptPending(acceptance.data?.purposes ?? [])}
+            >
+              {t('account.consentPending.accept')}
+            </Button>
+            {/* Labelled with the purpose names the list below already uses: these two
+                documents ARE the two mandatory purposes. `terms.title` looks like the
+                obvious key and is not in the merged dictionary — id/terms.ts is imported
+                directly by the pages that render it, so it would have printed the key. */}
+            <Link
+              href="/syarat-ketentuan"
+              className="text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+            >
+              {t('account.consents.purpose.TERMS')}
+            </Link>
+            <Link
+              href="/kebijakan-privasi"
+              className="text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+            >
+              {t('account.consents.purpose.PRIVACY')}
+            </Link>
+          </div>
+        </div>
+      )}
       {loading ? (
         <Skeleton className="h-24 w-full rounded-xl" />
       ) : error ? (

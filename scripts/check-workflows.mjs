@@ -26,6 +26,12 @@ const yaml = require('js-yaml');
 const DIR = '.github/workflows';
 const problems = [];
 
+// Shell `#` comments are stripped everywhere a `run` body is read. The first version of the
+// COMPOSE_BAKE check below tested the raw text, and the comment three lines above the fix
+// already contained the string it looked for — so it went green on a file with the variable
+// deleted. Module-scoped because the release-config rule at the bottom needs it too.
+const uncommented = (run) => String(run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
+
 for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   const path = join(DIR, file);
   const text = readFileSync(path, 'utf8');
@@ -95,7 +101,6 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
    * as the one it was written to catch: a gate that cannot go red. `run` bodies are stripped
    * of `#` comments for the same reason.
    */
-  const uncommented = (run) => String(run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
   const envOf = (...scopes) => Object.assign({}, ...scopes.map((s) => s?.env ?? {}));
   for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
     for (const step of job?.steps ?? []) {
@@ -169,7 +174,7 @@ if (!imagesText.includes(`${DSN}=`)) {
   problems.push(`${join(DIR, 'images.yml')}: does not pass ${DSN} to the published web image`);
 }
 /*
- * The other half of N2, and the reason its first half was green for so long.
+ * The other half of N2, and the half that was missing: WHICH JOB (M3b).
  *
  * The checks above assert that the release workflows MENTION the build arg. They do, and the
  * artefacts were still blind: `SENTRY_DSN_WEB` and `SENTRY_DSN_MOBILE` were never created as
@@ -177,38 +182,221 @@ if (!imagesText.includes(`${DSN}=`)) {
  * image and APK inlined nothing. A mention is not a value, and a check that reads the file
  * cannot see a value that only exists at run time.
  *
- * What it CAN pin is that each release path still LOOKS at the DSN and says something when it
- * is empty. Read from the parsed `env` and `run` of a real step, not from the raw text,
- * because the comment explaining the guard also contains its name.
+ * What it CAN pin is how each job reacts to that value being empty. The rule that used to live
+ * here flattened every job of a file together and asked whether SOMETHING refused an empty
+ * SENTRY_DSN_MOBILE. Something did — `testable`, which builds a debug APK for a phone on a
+ * desk and publishes nothing — while `bundle`, which signs the AAB and hands it to Play, read
+ * the same variable with nothing checking it. Job-agnostic, so it stayed green for months
+ * while the effect was exactly inverted: no test APK could be built at all, and every released
+ * binary shipped blind for the whole life of the binary on every device that installed it.
  *
- * Deliberately asymmetric, and the asymmetry is the point:
+ * A secret that is REQUIRED in the publishing job and OPTIONAL in the test job is a rule. It
+ * could not be written down here, so it was never checked. Now it can be:
  *
- *   mobile.yml  must FAIL. Nothing keys on that workflow, so refusing to publish a blind APK
- *               costs the APK and nothing else.
- *   images.yml  may warn instead. `deploy.yml`'s M11 step refuses to deploy unless the Images
- *               run concluded success or skipped, so a hard failure there stops every deploy
- *               rather than one image. Turning it blocking is a release decision; `exit 1`
- *               satisfies this check too, so making it blocking needs no change here.
+ *   refuse   the job must `exit 1` when it is empty — publishing without it is the defect
+ *   warn     the job must SAY it is empty and carry on — refusing here costs a test build
+ *            for nothing, which is the M3b bug with its sign flipped
+ *   report   either will do; whether it blocks is a release decision, not a check's
+ *   default  never guarded, because every read supplies an inline `|| 'fallback'`
  */
-for (const [file, variable, mustFail] of [
-  ['images.yml', 'SENTRY_DSN_WEB', false],
-  ['mobile.yml', 'SENTRY_DSN_MOBILE', true],
-]) {
-  const doc = yaml.load(readFileSync(join(DIR, file), 'utf8'));
-  const guards = Object.values(doc?.jobs ?? {}).flatMap((job) =>
-    (job?.steps ?? []).filter((step) => {
-      const env = Object.values(step?.env ?? {}).join(' ');
-      const body = String(step?.run ?? '').replace(/(^|\s)#[^\n]*/g, ' ');
-      if (!env.includes(variable)) return false;
-      const looks = /\$DSN/.test(body);
-      const reacts = mustFail ? /exit\s+1/.test(body) : /exit\s+1|::warning/.test(body);
-      return looks && reacts;
-    }),
-  );
-  if (guards.length === 0) {
+const RELEASE_CONFIG = [
+  // `bundle` is the only job in this repo that produces a SIGNED, uploadable artifact.
+  // Everything it reads without an inline fallback has to stop it when empty.
+  ['mobile.yml', 'bundle', 'MOBILE_API_URL', 'refuse'],
+  ['mobile.yml', 'bundle', 'MOBILE_WEB_HOST', 'refuse'],
+  ['mobile.yml', 'bundle', 'SENTRY_DSN_MOBILE', 'refuse'],
+  ['mobile.yml', 'bundle', 'GOOGLE_SERVICES_JSON_BASE64', 'refuse'],
+  ['mobile.yml', 'bundle', 'ANDROID_KEYSTORE_BASE64', 'refuse'],
+  // build.gradle attaches the release signingConfig on `hydromartKeystore.exists()` alone and
+  // reads these three through `System.getenv`, which is null for an unset secret — and AGP
+  // writes the UNSIGNED result to the same `app-release.aab` path a signed one uses, so the
+  // mv, the permission audit, the upload and the whole run stay green. Play says no first.
+  ['mobile.yml', 'bundle', 'ANDROID_KEYSTORE_PASSWORD', 'refuse'],
+  ['mobile.yml', 'bundle', 'ANDROID_KEY_ALIAS', 'refuse'],
+  ['mobile.yml', 'bundle', 'ANDROID_KEY_PASSWORD', 'refuse'],
+  ['mobile.yml', 'bundle', 'SENTRY_ENVIRONMENT', 'default'],
+  // `testable` hands a debug APK to a person holding a phone. Refusing to build one because a
+  // reporting DSN is unset is the inversion above; saying the APK is blind is the whole duty.
+  ['mobile.yml', 'testable', 'MOBILE_API_URL', 'refuse'],
+  ['mobile.yml', 'testable', 'MOBILE_WEB_HOST', 'default'],
+  ['mobile.yml', 'testable', 'SENTRY_DSN_MOBILE', 'warn'],
+  ['mobile.yml', 'testable', 'SENTRY_ENVIRONMENT', 'default'],
+  // Opt-in on purpose: there is no account to publish to yet and a tag has to stay green
+  // without one. It must not be SILENT about it — a run that uploaded nothing looked exactly
+  // like a run that published, which is why this is `warn` and not `default`.
+  ['mobile.yml', 'publish', 'PLAY_SERVICE_ACCOUNT_JSON', 'warn'],
+  // `deploy.yml`'s M11 step refuses to deploy unless the Images run concluded success or
+  // skipped, so a hard failure here would stop every deploy rather than one image. Making it
+  // blocking is a release decision; `exit 1` satisfies `report` too, so it needs no change here.
+  ['images.yml', 'build', 'SENTRY_DSN_WEB', 'report'],
+];
+
+/*
+ * How one job reacts to `variable` being empty.
+ *
+ * Steps bind these under an alias — `DSN: ${{ vars.SENTRY_DSN_MOBILE }}` — so the alias is
+ * resolved out of the parsed `env` rather than assumed. Keying on the alias name is a rule a
+ * rename switches off silently.
+ *
+ * The reaction is whatever the block opened by the emptiness TEST does before that block
+ * closes — not whatever the step does anywhere. Measured 2026-08-29: asking only that a step
+ * mention the variable and contain an `exit 1` somewhere meant deleting the DSN refusal
+ * outright left every assertion green, because the `env:` line survived and MOBILE_API_URL's
+ * `exit 1` two lines above answered for it.
+ */
+const CLOSES = /^\s*(\}|fi|esac|done)\s*[;&|]*\s*$/;
+const testsEmpty = (line, name) => new RegExp(`-[nz]\\s+"?\\$\\{?!?${name}\\b`).test(line);
+const ANY_EMPTY_TEST = /-[nz]\s+"?\$/;
+
+const ELSE = /^\s*(\}\s*)?(else|elif\b)/;
+
+/*
+ * WHICH WAY the test points, not merely that one exists.
+ *
+ * Measured 2026-08-30 by mutating mobile.yml in place: changing
+ *   `test -n "$DSN" || { echo ...; exit 1; }`
+ * to
+ *   `test -z "$DSN" || { echo ...; exit 1; }`
+ * — a guard that LETS AN EMPTY VALUE THROUGH and rejects a set one — still read as `refuse`
+ * and this checker exited 0. Since SENTRY_DSN_MOBILE is empty today, that one character
+ * restores the exact defect these rules exist to close, with the gate green.
+ *
+ * A reaction only answers for emptiness when its branch is the one an EMPTY value takes:
+ *   -z ... ; then | -z ... &&   body runs when empty      OK
+ *   -n ... ||                   `||` side runs when empty OK
+ *   -n ... ; then | -n ... &&   body runs when SET        not a guard
+ *   -z ... ||                   `||` side runs when SET   not a guard
+ * and `else` hands the rest of the block to the other condition.
+ */
+function emptyBranch(line, name) {
+  const m = new RegExp(`-([nz])\\s+"?\\$\\{?(!?)${name}\\b`).exec(line);
+  if (!m) return null;
+  const empty = (m[1] === 'z') !== (m[2] === '!');
+  const orElse = /\|\|/.test(line.slice(m.index + m[0].length));
+  return orElse ? !empty : empty;
+}
+
+/*
+ * A step that may not run cannot refuse anything, and a step whose failure is swallowed
+ * cannot either. Both were invisible: adding `if: false` or `continue-on-error: true` to the
+ * guard step left this checker at exit 0 with all eight refusal lines intact and a blind AAB
+ * shipping. Fail closed — an `if:` this cannot prove is constant-true counts as no guard,
+ * which is the safe direction for a rule about publishing.
+ */
+function stepIsBinding(step) {
+  if (String(step?.['continue-on-error']) === 'true') return false;
+  if (step?.if === undefined) return true;
+  return /^\s*(true|\$\{\{\s*true\s*\}\})\s*$/.test(String(step.if));
+}
+
+function reactionOf(job, variable) {
+  const named = new RegExp(`\\b${variable}\\b`);
+  let seen = 'none';
+  for (const step of job?.steps ?? []) {
+    const aliases = Object.entries(step?.env ?? {})
+      .filter(([, value]) => named.test(String(value)))
+      .map(([key]) => key);
+    if (aliases.length === 0) continue;
+    if (!stepIsBinding(step)) continue;
+    const lines = uncommented(step.run).split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const alias = aliases.find((a) => testsEmpty(lines[i], a));
+      if (alias === undefined) continue;
+      let onEmpty = emptyBranch(lines[i], alias);
+      if (onEmpty === null) continue;
+      // Only the stretch an EMPTY value actually reaches counts. `else` hands the rest of the
+      // block to the other condition, so the flag flips rather than the scan ending.
+      let block = onEmpty ? lines[i] : '';
+      for (let j = i + 1; j < lines.length; j++) {
+        if (ELSE.test(lines[j])) {
+          onEmpty = !onEmpty;
+          continue;
+        }
+        // Either the block this test opened has closed, or a test of some OTHER variable has
+        // started its own — both end the stretch of shell that answers for this one.
+        if (CLOSES.test(lines[j])) break;
+        if (ANY_EMPTY_TEST.test(lines[j]) && !aliases.some((a) => testsEmpty(lines[j], a))) break;
+        if (onEmpty) block += `\n${lines[j]}`;
+      }
+      if (/exit\s+1/.test(block)) return 'refuse';
+      if (/::warning/.test(block)) seen = 'warn';
+    }
+  }
+  return seen;
+}
+
+const WHERE = 'Settings -> Secrets and variables -> Actions';
+const releaseDocs = new Map();
+for (const [file, jobName, variable, expected] of RELEASE_CONFIG) {
+  if (!releaseDocs.has(file)) {
+    releaseDocs.set(file, yaml.load(readFileSync(join(DIR, file), 'utf8')));
+  }
+  const path = join(DIR, file);
+  const job = releaseDocs.get(file)?.jobs?.[jobName];
+  if (!job) {
+    problems.push(`${path}: no job \`${jobName}\` — the rule for ${variable} is checking nothing`);
+    continue;
+  }
+  const got = reactionOf(job, variable);
+  const fallback = new RegExp(`(vars|secrets)\\.${variable}\\s*\\|\\|`).test(JSON.stringify(job));
+  const say = (want) =>
     problems.push(
-      `${join(DIR, file)}: nothing ${mustFail ? 'refuses to publish' : 'reports'} when ${variable} is empty — ` +
-        `NEXT_PUBLIC_SENTRY_DSN is inlined at build time, so the artefact would ship blind`,
+      `${path}: job \`${jobName}\` must ${want} an empty ${variable}, and instead does \`${got}\` — ` +
+        `create the value under ${WHERE}, or fix the guard inside that job`,
+    );
+  if (expected === 'refuse' && got !== 'refuse') say('refuse');
+  if (expected === 'report' && got === 'none') say('react to');
+  if (expected === 'warn' && got !== 'warn') {
+    say(got === 'refuse' ? 'only warn about, never refuse,' : 'warn about');
+  }
+  if (expected === 'default' && !fallback) {
+    problems.push(
+      `${path}: job \`${jobName}\` reads ${variable} with no guard and no inline ` +
+        `\`|| 'fallback'\` — an unset value would reach the build as an empty string`,
+    );
+  }
+}
+
+/*
+ * The inverse, so the table cannot go stale by omission: every repository variable and secret
+ * `mobile.yml` reads needs a row above. Without this, one more secret added to `bundle` is a
+ * silent hole again — which is exactly how SENTRY_DSN_MOBILE got in. Scoped to mobile.yml
+ * because that is the release path this repo signs and uploads; measured 2026-08-29, the rows
+ * above are every `vars.*`/`secrets.*` in the file, so this reports nothing today and only
+ * speaks up for something new.
+ */
+const ruled = new Set(RELEASE_CONFIG.map(([f, j, v]) => `${f} ${j} ${v}`));
+const mobileDoc = releaseDocs.get('mobile.yml') ?? yaml.load(mobileText);
+for (const [jobName, job] of Object.entries(mobileDoc?.jobs ?? {})) {
+  const used = new Set(
+    [...JSON.stringify(job).matchAll(/(?:vars|secrets)\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]),
+  );
+  for (const variable of used) {
+    if (ruled.has(`mobile.yml ${jobName} ${variable}`)) continue;
+    problems.push(
+      `${join(DIR, 'mobile.yml')}: job \`${jobName}\` reads ${variable}, and RELEASE_CONFIG in ` +
+        'scripts/check-workflows.mjs says nothing about it — an unruled secret in the release path',
+    );
+  }
+}
+
+/*
+ * And the rule itself has to be able to go red, or it is the defect it was written to catch.
+ * The three shapes below are that defect, reduced: a step that declares the variable in `env:`
+ * and exits over a DIFFERENT one, a step that only warns, and a step that reads it and says
+ * nothing. Measured 2026-08-29, the previous rule read the first as a refusal — which is how
+ * M3b survived months of green CI and four green assertions in mobile-release-gate.test.sh.
+ */
+for (const [shape, run, mustNotBe] of [
+  ["a bare `env:` line beside somebody else's `exit 1`", 'test -n "$OTHER" || { echo no; exit 1; }', 'refuse'],
+  ['a step that only warns', 'if [ -z "$X" ]; then echo "::warning::blind"; fi', 'refuse'],
+  ['a step that reads it and says nothing', 'echo "$X" > /dev/null', 'warn'],
+]) {
+  const decoy = { steps: [{ env: { X: '${{ vars.DECOY }}' }, run }] };
+  if (reactionOf(decoy, 'DECOY') === mustNotBe) {
+    problems.push(
+      `scripts/check-workflows.mjs: reactionOf() reads ${shape} as \`${mustNotBe}\` — ` +
+        'the release-config rule cannot go red, which is the bug it exists to catch',
     );
   }
 }

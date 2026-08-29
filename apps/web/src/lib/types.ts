@@ -505,6 +505,54 @@ export interface ConsentState {
   documentVersion: string | null;
 }
 
+/**
+ * W10. "Do I have to accept anything again?" — the answer for one account.
+ *
+ * `enforcement` is a single literal on purpose. It is the server saying out loud that it
+ * does not act on this: no block, no downgrade, no sign-out. The screen that reads it is
+ * held to the same promise, so the field is carried into the client type rather than
+ * dropped as noise.
+ */
+export interface ConsentPending {
+  documentVersion: string;
+  /** Mandatory purposes still owed. MARKETING never appears — an opt-in is not owed. */
+  purposes: ConsentPurpose[];
+  mustAccept: boolean;
+  enforcement: 'UNENFORCED';
+}
+
+/**
+ * One account's lag, for the fleet report. Id only, no name or phone: the server refuses to
+ * build a second identified copy of the customer base for a compliance count.
+ *
+ * The three lists are not exclusive — an account can be behind on TERMS and never have been
+ * asked about PRIVACY — and "never asked" is not "refused". Both facts are kept apart here
+ * because collapsing them is the exact mistake this data exists to prevent.
+ */
+export interface ConsentLagCustomer {
+  customerId: string;
+  neverAsked: ConsentPurpose[];
+  refused: ConsentPurpose[];
+  outdated: ConsentPurpose[];
+}
+
+export interface ConsentLagTotals {
+  population: number;
+  /** The only exclusive count. The other three overlap and do NOT sum to `population`. */
+  current: number;
+  neverAsked: number;
+  refused: number;
+  outdated: number;
+}
+
+export interface ConsentLagReport {
+  documentVersion: string;
+  totals: ConsentLagTotals;
+  items: ConsentLagCustomer[];
+  /** Keyset: null on the last page. */
+  nextCursor: string | null;
+}
+
 export type RedemptionStatus = 'ACTIVE' | 'USED' | 'CANCELLED';
 
 /**

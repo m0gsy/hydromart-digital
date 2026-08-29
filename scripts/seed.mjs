@@ -75,8 +75,25 @@ const PRODUCTS = [
   { sku: 'ACC-POMPA', name: 'Pompa Galon Manual', unit: 'Pcs', volumeMl: null, isGallon: false, basePrice: 25000, cat: 'aksesoris' },
 ];
 
+/*
+ * Open around the clock, and that is a FIXTURE decision with a reason.
+ *
+ * These depots were seeded 08:00-20:00 WIB, which is what a real one looks like. Since W11 an
+ * order can only be placed while the depot is open, so that window silently decided WHEN the
+ * test suites are allowed to pass: the e2e checkout spec failed with
+ * `<button disabled type="submit">` on a run that landed at 04:25 WIB, and it would have
+ * failed for a developer working late in exactly the same way.
+ *
+ * Opening hours have their own tests (apps/web/test/opening-hours.test.ts and the order-service
+ * domain spec) which pin instants explicitly and do not depend on when they run. A checkout
+ * test should fail because checkout is broken, never because of the clock on the wall.
+ *
+ * NOT a production default: deploy.sh does not run this script, and the live depots
+ * (BKS-GALAXY-01, BKS-Pekayon-1) are not from this list. A real depot sets its hours in the
+ * console — and a depot with NO hours is treated as shut, which is the point of W11.
+ */
 const HOURS = Object.fromEntries(
-  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '08:00', close: '20:00' }]),
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '23:59' }]),
 );
 
 const DEPOTS = [

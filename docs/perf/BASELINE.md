@@ -98,43 +98,104 @@ k6 run scripts/load/checkout.k6.js
 k6 run scripts/load/dashboards.k6.js
 ```
 
-Both print p95 and fail on their thresholds. **Record the numbers here when you run them** —
-an empty row below is honest; an invented one is not.
+Both print p95 and fail on their thresholds. **The rows below are written by the run itself**
+— `.github/workflows/load.yml` calls `node scripts/check-perf-baseline.mjs --record` with k6's
+own `--summary-export` JSON and pushes the result. Nobody has to remember. Times are
+milliseconds, to k6's own two decimals so a row can be diffed against the run log directly.
 
-| Date          | Commit | Scenario | VUs | p95 | Notes                                                             |
-| ------------- | ------ | -------- | --- | --- | ----------------------------------------------------------------- |
-| _not yet run_ |        |          |     |     | needs a seeded VPS-class stack; laptop numbers are not a baseline |
+`Run` is a GitHub Actions run id: `https://github.com/m0gsy/hydromart-digital/actions/runs/<id>`.
+`N` is the **fan-out width the run actually exercised** — cart lines for checkout, owned depots
+for the franchise dashboard, employees scored for the performance dashboard. Read the p95
+column only together with `N`: every scenario here exists to show a per-item cost stopped
+multiplying, and a latency with no width beside it cannot show that.
 
-### Why this table is still empty after PR 10 (audit Q-17)
+| Date | Run | Commit | Scenario | VUs | N | Iterations | OK | p50 ms | p90 ms | p95 ms | Host |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-24 | 32686490758 | `4dc0ed92` | checkout | 10 | ? | 864 | 100.00% | 263.31 | 443.43 | 564.43 | gh-ubuntu-24.04 |
+| 2026-08-24 | 32686490758 | `4dc0ed92` | franchise dashboard | 10 | 0 | 4399 | 100.00% | 25.04 | 95.45 | 125.95 | gh-ubuntu-24.04 |
+| 2026-08-24 | 32686490758 | `4dc0ed92` | performance dashboard | 10 | ? | 4399 | 100.00% | 87.73 | 128.92 | 148.57 | gh-ubuntu-24.04 |
+| 2026-08-29 | 33263857699 | `e927e86c` | checkout | 10 | ? | 1027 | 100.00% | 270.59 | 489.06 | 586.77 | gh-ubuntu-24.04 |
+| 2026-08-29 | 33263857699 | `e927e86c` | franchise dashboard | 10 | 0 | 8453 | 100.00% | 17.27 | 40.18 | 54.28 | gh-ubuntu-24.04 |
+| 2026-08-29 | 33263857699 | `e927e86c` | performance dashboard | 10 | ? | 8453 | 100.00% | 45.57 | 66.06 | 76.95 | gh-ubuntu-24.04 |
 
-Everything Q-17 asked for that can be built is built: the scripts exist, they refuse to
-report a number the rate limiter produced (CI-12), `scripts/check-perf-baseline.mjs` fails
-CI if a pinning test disappears, and the round-trip table above is the part that a laptop
-_can_ measure honestly.
+Both checkout rows read `N = ?` because NEITHER run emitted `checkout_cart_lines` —
+the metric is younger than both (`gh run view <id> --log | grep -c checkout_cart_lines`
+returns 0 for 32686490758 and for 33263857699). They first said `N = 3`, inferred from
+the scenario's default env, in the same commit whose own rule is that a row can never
+claim a width the run did not actually use. Inferring it is exactly the thing the column
+was added to prevent, so the cells say `?` until a run measures one.
 
-What is left is a run, and a run needs a decision only the operator can make:
+The `N = 0` and `N = ?` cells are not formatting gaps, they are the finding — see
+"the franchise rows measure an empty page" below. Rows recorded from now on cannot carry
+`N = 0`: `--record` refuses to write one.
 
-1. **Where.** The checkout scenario places real orders and moves real stock. Against
-   production that is not a measurement, it is a batch of fake sales in the ledger and a
-   depot's available quantity that no longer matches its shelf. Use a seeded copy of the
-   stack on VPS-class hardware, or accept and later reverse the writes.
-2. **With the limiter raised.** `RATE_LIMIT_MAX=100` per 60s per IP, and a load generator
-   is one IP:
+### What these numbers can and cannot claim (audit Q-17)
 
-   ```bash
-   RATE_LIMIT_MAX=100000 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-     up -d gateway
-   ```
+**The machine.** Every row above was produced on a GitHub-hosted `ubuntu-latest` runner
+(image `ubuntu-24.04`, measured from the run log) — NOT on the VPS and NOT on a laptop. One
+runner holds the whole stack: Postgres, the gateway, eighteen services, the seed, and k6
+itself, all competing for the same cores. The `Host` column records that shape per row,
+because GitHub changes runner sizing and two rows from different hardware are not a series.
 
-   Both scripts abort loudly on a 429 rather than folding it into the failure rate, so a
-   forgotten step cannot quietly become "the p95".
+So:
 
-3. **Then restore it.** `RATE_LIMIT_MAX` back to its production value, and recreate the
-   gateway. A load-test setting left behind is a denial-of-service budget left open.
+- **Comparable to each other.** Same workflow, same compose stack, same shape of box. A row
+  that doubles against the rows above is a regression worth opening — that is what this
+  table is for, and it is why the k6 thresholds were tightened to ~4x the observation
+  (see the M22 note in `scripts/load/dashboards.k6.js`).
+- **NOT a production SLO.** k6 and the whole stack share one host here, so these numbers
+  carry contention production does not have — and lack the network, the disk, the real data
+  volume and the concurrent real traffic that it does. Do not quote 564ms of checkout p95 to
+  a customer.
+- **NOT a capacity number.** 10 VUs for 60s against a seeded shelf of one million units is a
+  fan-out probe, not a saturation test. Nothing here says what the box holds at peak.
 
-Record the run as a row above — date, commit, scenario, VUs, p95 — and, if
-`pg_stat_statements` is loaded, paste the top statements alongside it. Until then this
-section says "not measured", which is what is true.
+**The franchise rows measure an empty page.** Both green runs printed, in their own logs,
+`WARN: this owner has 0 depots — S-1 fan-out is not exercised.` — and both reported the
+franchise threshold PASSED anyway. The cause, measured: `load.yml` mints `TOKEN` with
+`scripts/load/mint-tokens.mjs --staff`, which signs `role: 'SUPER_ADMIN'`, and
+`/dashboard/franchise` scopes to depots the caller **owns**. A super-admin owns none. So
+125.95ms and 54.28ms are the cost of rendering nothing, and a genuine S-1 regression — three
+HTTP calls per depot coming back — multiplies by zero and cannot move them. The threshold on
+that metric is a gate that cannot go red.
+
+The fix is in the minting, not here: the seed already creates two WARALABA depots with real
+owners (`BDG-01`, `SBY-01`), so minting the dashboards token for one of those owners turns the
+scenario back on. Until that happens, `--record` writes no franchise row (`N = 0` is refused),
+so the table cannot accumulate more measurements of an empty page.
+
+The performance rows carry `N = ?` for a smaller reason: those runs predate the width metric.
+Later rows will state the roster size, and it matters — S-6 was audited on a 200-person depot,
+while the seed creates a handful of staff, so 76.95ms is not evidence about the case the
+optimisation was for.
+
+**Only one width has ever been sampled.** `load.yml` never sets `CART_LINES`, so every
+checkout row is `N = 3`. The claim these scripts were written to defend is that p95 stays
+_flat_ as N grows; one width cannot show flatness. Two runs at, say, `CART_LINES` 3 and 12
+would — that is a workflow change, not a script one.
+
+**What the first green run cost to get.** Eleven of the twelve runs before it were red, and
+none of them on latency: the seeded shelf ran out mid-run (`ORDER_INSUFFICIENT_STOCK`, run
+32661288514, the scheduled Sunday run of 2026-08-23), and then product-service rate-limited
+order-service's catalog reads, which the adapter rendered as a bare `HTTP 500 INTERNAL_ERROR`
+on `/api/v1/cart/items` (run 32685423425). Both were setup faults wearing a latency job's
+clothes; both are fixed in `load.yml` (`SEED_STOCK_QTY`, the test stack's `RATE_LIMIT_MAX`)
+and both now abort with a message that names the real cause.
+
+**Still owed, and only an operator can do it.** A VPS-class run. The checkout scenario places
+real orders and moves real stock, so against production it is not a measurement — it is fake
+sales in the ledger and a depot whose available quantity no longer matches its shelf. Use a
+seeded copy of the stack, raise the limiter for the duration:
+
+```bash
+RATE_LIMIT_MAX=100000 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d gateway
+```
+
+and **put it back afterwards** — a load-test setting left behind is a denial-of-service budget
+left open. Both scripts abort loudly on a 429 rather than folding it into the failure rate
+(CI-12), so a forgotten step cannot quietly become "the p95". Record such a run with a `Host`
+that says VPS, so it is never mistaken for one of the runner rows. If `pg_stat_statements` is
+loaded, paste the top statements alongside it.
 
 ### Profiler
 
@@ -148,4 +209,6 @@ FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20;
 ```
 
 That is the ops step that turns this file from "counts we assert" into "queries production
-actually runs". Q-17 is verified closed in PR 10, once the CI wiring and one recorded run exist.
+actually runs", and it is the one piece of Q-17 still outstanding. The CI wiring and the
+recorded run both exist now — see the Latency table — so what remains is a profile of the
+real box, which no workflow can take for you.

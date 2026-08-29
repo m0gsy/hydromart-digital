@@ -362,10 +362,25 @@ fi
 # that on every deploy manufactures production data forever. So deploy may invoke it, but
 # only behind an explicit switch.
 if grep -qE 'bash scripts/smoke\.sh' scripts/deploy.sh; then
-  if grep -qE 'DEPLOY_SMOKE' scripts/deploy.sh; then
-    ok "the write-path smoke is behind an explicit opt-in"
+  # `grep DEPLOY_SMOKE` used to be the whole assertion, and it printed "behind an explicit
+  # opt-in" over a default of `${DEPLOY_SMOKE:-full}` — the string is in the file whichever
+  # way the default points, so the gate stated the OPPOSITE of the behaviour. Assert the two
+  # properties that actually matter instead.
+  if grep -qE 'DEMO_CUSTOMER_PHONE' scripts/deploy.sh; then
+    ok "the write-path smoke is gated on a demo CUSTOMER, not just on an OTP"
   else
-    bad "deploy.sh runs scripts/smoke.sh unconditionally — every deploy would grant points, redeem a reward into a depot queue and add a payment method to a real account"
+    bad "deploy.sh runs smoke.sh without checking DEMO_CUSTOMER_PHONE — it falls back to REVIEWER_PHONE, which is staff, and staff is 403 on every customer route smoke drives"
+  fi
+  # And the missing-credential path must stay SILENT. A box with no demo account is a
+  # legitimate state that .env.production.example blesses; alerting on it fires Discord on
+  # every deploy of a healthy production, which is how a channel stops being read.
+  skip_block="$(sed -n '/elif \[ -z "\$SMOKE_CRED" \]/,/^  else$/p' scripts/deploy.sh)"
+  if [ -z "$skip_block" ]; then
+    bad "could not find the smoke skip branch in deploy.sh — the shape moved, re-read this check"
+  elif printf '%s' "$skip_block" | grep -qE '^\s*alert '; then
+    bad "the smoke skip branch ALERTS when no demo account is configured — that is a Discord ping on every deploy of a healthy box"
+  else
+    ok "an unconfigured box skips the write smoke quietly instead of paging"
   fi
 else
   ok "the write-path smoke is not wired in unconditionally"
@@ -446,5 +461,249 @@ if grep -qE 'ops secrets probe —' scripts/deploy.sh; then
 else
   bad "BACKUP_OFFSITE_DEST/BACKUP_S3_* reach no compose file, so the env-contract gate is structurally blind to them and nothing else asks — every copy of the database can sit on the database's own disk unnoticed"
 fi
+
+# --- W7: a rollback that REBUILDS on the sick box, in a mode nobody measured --------------
+#
+# MEASURED 2026-08-29, not assumed. `registry_mode()` (deploy-common.sh:37) is
+# `[ -n "${IMAGE_PREFIX:-}" ]` and IMAGE_PREFIX is empty on the production box, so both
+# deploy.sh and rollback.sh take the LOCAL branch: rebuild-stale.sh runs `compose build`.
+# That makes the documented remedy for a broken release "recompile nineteen images on the
+# machine that is currently broken", through the same parallel-BuildKit path whose daemon
+# panic stopped all 25 containers on 2026-08-02.
+#
+# It did not have to be that way, and the measurement is what says so:
+#   - .github/workflows/images.yml publishes one image per service on every green CI,
+#     tagged with the commit SHA.
+#   - curl against ghcr.io with an ANONYMOUS token returned 200 for all 19 services at
+#     main's HEAD, and 403 for a package that does not exist. The packages are PUBLIC, so
+#     no `docker login`, no PAT and no repo secret is needed to pull them. 270 SHA tags are
+#     already published — 270 rollback targets nobody could reach.
+#
+# So the missing piece was never a credential. It was one key in .env and a document that
+# said so. These assertions pin the three halves of that which live in this repo.
+
+# The box's own reference must carry the switch, because images.yml's header sends the
+# operator to DEPLOY.md for it ("The VPS opts in by setting IMAGE_PREFIX + IMAGE_TAG in
+# .env (see DEPLOY.md)") and DEPLOY.md did not contain the string IMAGE_PREFIX at all.
+# A cross-reference to a page that never mentions the subject is worse than no reference.
+if grep -q 'IMAGE_PREFIX' DEPLOY.md; then
+  ok "DEPLOY.md documents the registry switch images.yml already tells operators to read it for"
+else
+  bad "images.yml says 'see DEPLOY.md' for IMAGE_PREFIX and DEPLOY.md never mentions it — the one document an operator reads does not contain the one key that turns a 19-image rebuild into a pull"
+fi
+
+# And it must name the way to CHECK the pull before betting a release on it.
+# scripts/check-registry-pull.sh already exists for exactly this and nothing pointed at it.
+if grep -q 'check-registry-pull.sh' DEPLOY.md; then
+  ok "DEPLOY.md names the command that proves the box can pull before the switch is flipped"
+else
+  bad "DEPLOY.md documents the switch with no way to verify it — a wrong IMAGE_PREFIX is then discovered mid-deploy, which is the moment it costs the most"
+fi
+
+# ROLLBACK'S OWN BUG, found by reading what .env is left saying afterwards.
+#
+# deploy.sh calls persist_image_tag after its pull (deploy.sh:225) and rollback.sh did not.
+# deploy-common.sh:63 spells out why that matters: .env is the only place a bare
+# `docker compose` looks for IMAGE_TAG. So after a rollback, every manual command in the
+# runbook — `up -d --force-recreate <svc>`, the documented fix for a container on a stale
+# config — still resolved the tag of the release that had just been rolled BACK, and would
+# have re-deployed the broken images by hand, silently, during an incident.
+if grep -q 'persist_image_tag' scripts/rollback.sh; then
+  ok "rollback writes the tag it landed on into .env, so manual compose calls do not re-deploy the bad release"
+else
+  bad "rollback.sh never calls persist_image_tag — .env keeps naming the release that was just rolled back, so 'docker compose up -d --force-recreate <svc>' from the runbook re-deploys the broken images"
+fi
+
+# THE NUMBER MUST NOT BE A 2AM SURPRISE. What a rollback costs depends entirely on which
+# mode is live, and nothing anywhere said which mode that was or what it implied.
+if grep -q 'rollback cost probe' scripts/deploy.sh; then
+  ok "every deploy states what a rollback would cost in the mode that is actually active"
+else
+  bad "nothing reports the cost of the escape hatch — in build mode a rollback recompiles every image on the box that is already broken, and the first time anybody learns that is while the site is down"
+fi
+
+# ...and it must be THIS BOX'S measured number, not a figure quoted from a comment. The
+# 40-minute deploy timeout quoted in rebuild-stale.sh:30 is itself three times out of date
+# (deploy.yml:226 is command_timeout: 120m), which is what a quoted number decays into.
+if grep -q 'image-cost' scripts/deploy.sh; then
+  ok "the rollback cost is derived from this box's own last image step, not quoted"
+else
+  bad "the rollback cost is a number somebody wrote down once — every such number in this repo has gone stale (see the 40m timeout that is now 120m)"
+fi
+
+# --- SMOKE: the write half must leave production exactly as it found it -------------------
+#
+# It was opt-in for a real reason: it granted loyalty points, redeemed a reward into a real
+# depot's pickup queue (a redemption a staff member then has to physically hand over),
+# stored a payment method on a real account and renamed that profile to "Smoke Edited" —
+# permanently, once per run. Behind DEPLOY_SMOKE=full it therefore ran approximately never,
+# which means the customer money path was verified approximately never. Opt-in was not
+# caution, it was the write path going unmeasured while looking like a deliberate choice.
+#
+# Every one of those has an existing endpoint that undoes it — MEASURED in the code, not
+# assumed:
+#   POST /rewards/redemptions/:id/cancel  (reward.controller.ts:123, @Roles(CUSTOMER))
+#     refunds the points AND restores stock, and sets status CANCELLED — which is what takes
+#     the row out of the depot queue (reward.prisma.repository.ts:159 filters on status).
+#   DELETE /customers/api/v1/payment-methods/:id  (payment-method.controller.ts:68)
+#   PATCH  /auth/api/v1/auth/me                   (account.controller.ts:55)
+# So the residue was never necessary. These assertions are what let the write half run on
+# every deploy instead of never.
+if grep -q 'redemptions/$REDEMPTION_ID/cancel' scripts/smoke.sh; then
+  ok "smoke cancels the redemption it created, so no depot is left a reward to hand over"
+else
+  bad "smoke.sh leaves a live redemption in a real depot's pickup queue on every run — staff see a reward to hand to a customer who never asked for one"
+fi
+
+if grep -q 'payment-methods/$PMID' scripts/smoke.sh; then
+  ok "smoke deletes the payment method it stored"
+else
+  bad "smoke.sh adds one more 'GoPay ****4821' to a real account every run and removes none"
+fi
+
+if grep -q 'ORIG_NAME' scripts/smoke.sh; then
+  ok "smoke restores the profile name it changed"
+else
+  bad "smoke.sh renames a real customer to 'Smoke Edited' and never changes it back"
+fi
+
+# The switch may now default ON — but ONLY because of the three above. Written as an
+# implication so it cannot rot in either direction: if the deploy runs the write half
+# without an opt-in, the cleanup has to be there.
+if grep -qE '^[[:space:]]*(if !)? *bash scripts/smoke\.sh' scripts/deploy.sh; then
+  if grep -q 'smoke_cleanup' scripts/smoke.sh; then
+    ok "the deploy runs the write path every release, and the write path cleans up after itself"
+  else
+    bad "deploy.sh runs scripts/smoke.sh while smoke.sh has no cleanup — that manufactures production data on every single release"
+  fi
+else
+  ok "the write-path smoke is not wired in"
+fi
+
+# And the cleanup is proved by RUNNING it, not by reading it. A grep says a line exists;
+# only a run says the requests are actually sent, in a shape a server accepts, after the
+# steps that created the data. smoke.sh cds to its own parent directory, so a COPY in a
+# fixture reads that fixture's .env and never touches the box's own — which is what makes
+# this runnable in CI, where there is no .env at all.
+if ! command -v node >/dev/null 2>&1; then
+  bad "node is missing, so the smoke cleanup could not be exercised — and smoke.sh needs node to read JSON at all, so this is not a skip, it is an unmeasured production write path"
+else
+  SMOKEFIX="$(mktemp -d)"
+  mkdir -p "$SMOKEFIX/scripts"
+  cp scripts/smoke.sh scripts/load-env.sh "$SMOKEFIX/scripts/"
+  printf 'DEMO_CUSTOMER_PHONE=+628100000000\nREVIEWER_OTP_CODE=424242\n' >"$SMOKEFIX/.env"
+  cat >"$SMOKEFIX/stub.mjs" <<'SMOKE_STUB'
+// A gateway that answers every call smoke.sh makes and RECORDS them. The balance it
+// reports is deliberately huge so the point-grant step — the one call that needs a live
+// docker container — is skipped: this fixture is about what smoke.sh REMOVES.
+import http from 'node:http';
+import { writeFileSync } from 'node:fs';
+const [, , logPath, portPath] = process.argv;
+const seen = [];
+const srv = http.createServer((req, res) => {
+  let body = '';
+  req.on('data', (d) => (body += d)).on('end', () => {
+    seen.push(`${req.method} ${req.url}`);
+    const NL = String.fromCharCode(10);
+    writeFileSync(logPath, seen.join(NL) + NL);
+    const u = req.url;
+    const send = (o) => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(o));
+    };
+    // Order matters: /redemptions/ before /rewards/redeem, and /auth/me before the rest.
+    if (u.includes('/auth/login')) return send({ challengeId: 'c1' });
+    if (u.includes('/otp/verify')) return send({ customer: { id: 'cid-1' } });
+    if (u.includes('/auth/me'))
+      return send({
+        id: 'cid-1',
+        fullName: req.method === 'PATCH' ? JSON.parse(body).fullName : 'Nama Asli',
+      });
+    if (u.includes('/rewards/catalog'))
+      return send([{ id: 'r1', name: 'Galon', active: true, stock: null, pointsCost: 10 }]);
+    if (u.includes('/loyalty/me')) return send({ customerId: 'cid-1', pointsBalance: 999999 });
+    if (u.includes('/depots')) return send([{ id: 'depot-1' }]);
+    if (u.includes('/redemptions/'))
+      return send({ redemptionId: 'red-1', pointsSpent: 10, pointsBalance: 999999, status: 'CANCELLED' });
+    if (u.includes('/rewards/redeem'))
+      return send({ redemptionId: 'red-1', pointsSpent: 10, pointsBalance: 999989, status: 'ACTIVE' });
+    if (u.includes('/vouchers/me')) return send([]);
+    if (u.includes('/payment-methods'))
+      return send(req.method === 'GET' ? [{ id: 'pm-1', isDefault: true }] : { id: 'pm-1', isDefault: true });
+    return send({});
+  });
+});
+srv.listen(0, '127.0.0.1', () => writeFileSync(portPath, String(srv.address().port)));
+SMOKE_STUB
+  node "$SMOKEFIX/stub.mjs" "$SMOKEFIX/calls.log" "$SMOKEFIX/port" &
+  STUB_PID=$!
+  # `if`, not `[ ... ] && break`: this file runs under `set -e`, where a false `&&` list at
+  # the end of a loop body kills the whole self-test — and it would do so only on a runner
+  # slow enough that node had not listened yet, i.e. intermittently, in CI, for no reason.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if [ -s "$SMOKEFIX/port" ]; then break; fi
+    sleep 0.5
+  done
+  SMOKE_OUT=""
+  if [ -s "$SMOKEFIX/port" ]; then
+    SMOKE_OUT="$(GW="http://127.0.0.1:$(cat "$SMOKEFIX/port")" bash "$SMOKEFIX/scripts/smoke.sh" 2>&1 || true)"
+  fi
+  kill "$STUB_PID" 2>/dev/null || true
+  CALLS="$(cat "$SMOKEFIX/calls.log" 2>/dev/null || true)"
+  rm -rf "$SMOKEFIX"
+
+  case "$CALLS" in
+    *"POST /loyalty/api/v1/rewards/redemptions/red-1/cancel"*)
+      ok "run proof: smoke actually sends the redemption cancel" ;;
+    *) bad "smoke.sh did NOT cancel the redemption it created (calls: $(printf '%s' "$CALLS" | tr '\n' ';'))" ;;
+  esac
+  case "$CALLS" in
+    *"DELETE /customers/api/v1/payment-methods/pm-1"*)
+      ok "run proof: smoke actually deletes the payment method it stored" ;;
+    *) bad "smoke.sh did NOT delete the payment method it created (calls: $(printf '%s' "$CALLS" | tr '\n' ';'))" ;;
+  esac
+  # Two PATCHes: the edit under test, then the restore. One PATCH means the demo customer
+  # is still called "Smoke Edited".
+  # `|| true`: grep exits 1 when it counts zero, and this file runs `set -o pipefail`.
+  PATCHES="$(printf '%s' "$CALLS" | grep -c 'PATCH /auth/api/v1/auth/me' || true)"
+  if [ "${PATCHES:-0}" -ge 2 ]; then
+    ok "run proof: smoke changes the profile name and changes it back"
+  else
+    bad "smoke.sh edited the profile and never restored it (calls: $(printf '%s' "$CALLS" | tr '\n' ';'))"
+  fi
+  # The point of all of it is that a clean run stays GREEN. A cleanup that fails its own
+  # script would turn every deploy's smoke into a false alarm, which is the shape that got
+  # the previous version switched off.
+  case "$SMOKE_OUT" in
+    *"semua langkah lulus"*) ok "run proof: the cleaned-up smoke still passes end to end" ;;
+    *) bad "smoke.sh does not pass against a stub that answers every call: $SMOKE_OUT" ;;
+  esac
+fi
+
+# --- a quoted escape that got eaten ---------------------------------------------------------
+# `tr -d '\r'` strips the carriage returns a .env edited on Windows carries. Written through a
+# tool that processes escapes, the two characters become a REAL newline inside the quotes:
+#
+#     API_HOST="$(tr -d '
+#     ' < .env | sed -n 's/^API_DOMAIN=//p' | head -1)"
+#
+# which is still valid shell, still exits 0, and deletes every newline instead — collapsing the
+# whole file into one line so `^API_DOMAIN=` never matches again. Measured on the real thing:
+# the intact form yields `api.hydromart-digital.com`, the eaten form yields the entire .env
+# concatenated. It killed the public-/metrics probe (the gate that FOUND 404 KB of open metrics
+# traffic) and made the ops-secrets probe report four set keys as EMPTY on every deploy.
+#
+# Five lines of deploy.sh carried it at once and SIX gates were green over them, because every
+# one of those gates greps for text and the text was all still there. This asserts the shape
+# instead: no `tr -d '` may end a line.
+for f in scripts/deploy.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh scripts/backup-offsite.sh; do
+  [ -f "$f" ] || continue
+  if grep -nE "tr -d '$" "$f" >/dev/null 2>&1; then
+    bad "$f has a `tr -d '...'` whose quotes were split by a literal newline — the escape was eaten"
+    grep -nE "tr -d '$" "$f" | sed 's/^/         /'
+  else
+    ok "$f keeps its tr escapes on one line"
+  fi
+done
 
 exit "$fails"

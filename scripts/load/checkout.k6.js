@@ -53,6 +53,17 @@ const TOKENS = (__ENV.TOKENS || __ENV.TOKEN || '')
 const checkoutLatency = new Trend('checkout_latency', true);
 const checkoutOk = new Rate('checkout_success');
 
+/*
+ * The fan-out width this run measured, emitted so the recorded baseline row carries it.
+ *
+ * The whole claim above is "p95 stays FLAT as CART_LINES grows". A table of p95 values with
+ * no width beside them cannot show that — and load.yml never sets CART_LINES, so every run
+ * this workflow has recorded is a single sample at the default 3. Reading it off the metric
+ * rather than off an env var the recorder is told separately means a row can never claim a
+ * width the run did not actually use.
+ */
+const cartLines = new Trend('checkout_cart_lines');
+
 export const options = {
   scenarios: {
     checkout: { executor: 'constant-vus', vus: VUS, duration: DURATION },
@@ -126,6 +137,8 @@ export default function (data) {
   const token = TOKENS[(__VU - 1) % TOKENS.length];
   const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
 
+  cartLines.add(CART_LINES);
+
   // Rotate the CART_LINES window through the catalog so different iterations exercise
   // different products (and so > CART_LINES-product catalogs aren't under-covered).
   const n = data.productIds.length;
@@ -154,7 +167,8 @@ export default function (data) {
         `add to cart failed (VU ${__VU}, iter ${__ITER}): HTTP ${r.status} ${String(r.body).slice(0, 300)}`,
       );
     }
-    check(r, { 'add to cart 2xx': (x) => x.status >= 200 && x.status < 300 });  }
+    check(r, { 'add to cart 2xx': (x) => x.status >= 200 && x.status < 300 });
+  }
 
   const res = http.post(
     `${BASE}/orders/api/v1/orders/checkout`,

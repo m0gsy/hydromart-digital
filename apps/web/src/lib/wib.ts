@@ -18,8 +18,16 @@
  * ZONE <tz>` (see scripts/check-tz-usage.mjs). Same day boundary, both ends.
  */
 
-/** The business timezone. One constant, so a future depot in WITA changes one line. */
-export const BUSINESS_TZ = 'Asia/Jakarta';
+/*
+ * The business timezone. One constant, so a future depot in WITA changes one line.
+ *
+ * Defined in its own module and re-exported here: `opening-hours.ts` needs the zone and
+ * nothing else, and it runs on the home page, whose request count sits one below its
+ * Lighthouse ceiling — importing it from here would drag the formatters below along with it.
+ * Every existing importer keeps working; there is still only one definition.
+ */
+export { BUSINESS_TZ } from './business-tz';
+import { BUSINESS_TZ } from './business-tz';
 
 const dayFmt = new Intl.DateTimeFormat('en-CA', {
   timeZone: BUSINESS_TZ,

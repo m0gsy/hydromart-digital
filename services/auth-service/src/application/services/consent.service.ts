@@ -9,7 +9,11 @@ import {
   currentConsents,
   isWithdrawable,
 } from '../../domain/data-subject/consent';
-import { ConsentRepository } from '../ports/consent.repository';
+import {
+  ConsentLagPage,
+  ConsentLagReader,
+  ConsentRepository,
+} from '../ports/consent.repository';
 import { AUTH_TOKENS } from '../tokens';
 
 /**
@@ -45,6 +49,23 @@ export interface ConsentStateEntry {
   outdated: boolean;
 }
 
+/** Page size when the caller names none. */
+export const FLEET_LAG_DEFAULT_LIMIT = 50;
+/**
+ * Hard ceiling on the fleet report, enforced here and not only in the DTO.
+ *
+ * Every production consent row still reads '1.0' (the backfill in migration
+ * 20260729080000 wrote that value for every account), so on the day this goes live the
+ * "behind" list is very nearly the entire customer base. An unbounded version of this
+ * route would hand back the whole table on its first call.
+ */
+export const FLEET_LAG_MAX_LIMIT = 100;
+
+/** A fleet page plus the version it was measured against. */
+export interface ConsentLagReport extends ConsentLagPage {
+  documentVersion: string;
+}
+
 /**
  * UU PDP tahap 2. Consent is now a ledger rather than an inference from `createdAt`,
  * which is what made "withdraw" impossible in tahap 1.
@@ -58,6 +79,12 @@ export interface ConsentStateEntry {
 export class ConsentService {
   constructor(
     @Inject(AUTH_TOKENS.ConsentRepository) private readonly consents: ConsentRepository,
+    /**
+     * The same provider, asked for by its fleet-reading half. Split from `consents` on
+     * purpose: reading one customer's ledger and scanning every account are different
+     * powers, and only this parameter carries the second one.
+     */
+    @Inject(AUTH_TOKENS.ConsentRepository) private readonly fleet?: ConsentLagReader,
   ) {}
 
   /** Registration: the signup checkbox becomes real rows instead of a remembered click. */
@@ -149,5 +176,35 @@ export class ConsentService {
   /** Full history, for the customer's own view and for proving what happened when. */
   history(customerId: string): Promise<ConsentRecord[]> {
     return this.consents.listForCustomer(customerId);
+  }
+
+  /**
+   * How much of the customer base is behind the version in force — head office's question,
+   * not a customer's, and the counterpart to `pendingAcceptance`.
+   *
+   * Asks about MANDATORY_PURPOSES only, for the same reason `pendingAcceptance` does: a
+   * marketing opt-in given under older wording is still an opt-in, and listing it as
+   * "owed" would invite someone to re-prompt and read the silence as a withdrawal.
+   *
+   * Reports; enforces nothing. Whether the accounts it names are re-prompted at next
+   * login, grandfathered on the old wording, or left alone is the OWNER'S decision — it is
+   * not a default this code is allowed to take quietly, and there is no switch here that
+   * takes it. Note what the number will say on day one: every production row was
+   * backfilled at '1.0', so nearly the whole base lands in `outdated`. That is the correct
+   * answer to the question asked, not a bug in the report.
+   */
+  async fleetLag(query: { limit?: number; cursor?: string }): Promise<ConsentLagReport> {
+    if (!this.fleet) {
+      // A compliance report that answers "nobody is behind" because it was wired wrong is
+      // worse than no report. Refuse loudly instead.
+      throw new Error('ConsentService has no fleet reader: cannot answer fleet-wide lag');
+    }
+    const page = await this.fleet.mandatoryLag({
+      version: CONSENT_DOCUMENT_VERSION,
+      purposes: MANDATORY_PURPOSES,
+      limit: Math.min(query.limit ?? FLEET_LAG_DEFAULT_LIMIT, FLEET_LAG_MAX_LIMIT),
+      cursor: query.cursor,
+    });
+    return { documentVersion: CONSENT_DOCUMENT_VERSION, ...page };
   }
 }

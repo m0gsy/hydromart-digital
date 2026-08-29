@@ -103,63 +103,26 @@ for c in cancelled skipped neutral; do
 done
 
 # ---------------------------------------------------------------------------
-# M3b — the guard was bolted to the wrong job, so every released AAB was blind.
+# The mobile.yml guard assertions that used to live here are now in
+# scripts/check-workflows.mjs (RELEASE_CONFIG + reactionOf). That is not a deletion — it is
+# where four of them go from decorative to load-bearing.
 #
-# `check-workflows.mjs` already proves that SOME step in mobile.yml refuses an empty
-# SENTRY_DSN_MOBILE. It never asks WHICH job, and the answer was `testable` — the only path
-# that produces an installable APK — while `bundle`, the path that signs the AAB and hands
-# it to Play, read the same variable with nothing checking it. Measured 2026-08-25:
-# `gh variable list` does not return SENTRY_DSN_MOBILE. So the guard blocked every test
-# build, and every released binary inlined an empty NEXT_PUBLIC_SENTRY_DSN — permanently,
-# because `NEXT_PUBLIC_*` is frozen into the export at build time.
+# What stood here read the workflow with awk and asked, per job, "does some step mention this
+# variable AND contain an `exit 1`". Measured 2026-08-29 by copying mobile.yml with `cp`,
+# deleting a refusal outright and re-running: FOUR of the six assertions stayed green —
+# SENTRY_DSN_MOBILE and all three signing secrets. Each of those steps declares its variable
+# in `env:` and exits over a DIFFERENT one two lines up, so the surviving `env:` line answered
+# for the refusal that had just been deleted. A gate that cannot go red is the defect class
+# this whole file exists to close, and it was sitting inside the file.
 #
-# Read straight out of the workflow rather than from a copy of its rules here: a rule
-# restated in a test is a rule that drifts. Steps open with `- ` at six spaces and jobs at
-# two, which is all the structure needed to answer "which job" — no YAML parser, no network.
-YML="$ROOT/.github/workflows/mobile.yml"
-echo "mobile.yml release guards:"
-
-job() { awk -v want="  $1:" '$0==want{on=1;next} on && /^  [a-zA-Z]/{exit} on' "$YML"; }
-
-# Exit 0 when job $1 has a single step that both reads $2 and hard-exits over it.
-guards() {
-  job "$1" | awk -v v="$2" '
-    /^      - / { if (reads && stops) found=1; reads=0; stops=0 }
-    $0 ~ v && $0 !~ /^ *#/ { reads=1 }
-    /exit 1/ { stops=1 }
-    END { if (reads && stops) found=1; exit found ? 0 : 1 }'
-}
-
-[ -n "$(job bundle)" ] && [ -n "$(job testable)" ] ||
-  bad "mobile.yml has no 'bundle' and 'testable' pair any more — these checks are reading nothing"
-
-guards bundle SENTRY_DSN_MOBILE && ok "the release job refuses an empty SENTRY_DSN_MOBILE" ||
-  bad "'bundle' builds the AAB it uploads to Play without checking SENTRY_DSN_MOBILE"
-
-guards testable SENTRY_DSN_MOBILE &&
-  bad "'testable' hard-exits on SENTRY_DSN_MOBILE, so no APK can be built for a real phone" ||
-  ok "the testable job may build an APK with no DSN"
-
-# The same shape, one step further along. build.gradle attaches the release signingConfig on
-# `hydromartKeystore.exists()` alone (mobile/android/app/build.gradle), and the passwords come
-# from `System.getenv`, which is null when the secret is unset. AGP names an unsigned bundle
-# `app-release.aab` exactly like a signed one, so the `mv`, the permission audit and the
-# artifact upload all succeed and the run is green. Play is the first thing that says no.
-for secret in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-  guards bundle "$secret" && ok "the release job refuses an empty $secret" ||
-    bad "'bundle' signs with \$$secret without checking it is set"
-done
-
-# A release that uploaded NOTHING must not read like one that did. The gate in `publish` is a
-# deliberate opt-in and stays that way — measured 2026-08-29, `gh secret list` does not return
-# PLAY_SERVICE_ACCOUNT_JSON, so every tag today skips both upload steps and the job goes green
-# with the AABs sitting in an artifact (docs/MOBILE_PLAY_STORE.md:615 says that is the intent).
-# The behaviour is right; the volume was not. `::notice::` is the quietest annotation GitHub
-# has and does not surface on the run summary, so "tagged, all green" and "tagged, published"
-# looked identical from the outside.
-grep -q '::warning::PLAY_SERVICE_ACCOUNT_JSON' <<<"$(job publish)" &&
-  ok "a release that publishes nothing says so where it can be seen" ||
-  bad "'publish' skips the upload without a visible annotation — a green tag looks published"
+# It moved rather than being rewritten here because the fix needs a YAML parser: the workflow
+# binds these under an alias (`DSN: ${{ vars.SENTRY_DSN_MOBILE }}`), and resolving an alias
+# out of a step's parsed `env` is not something a job-shaped awk block does without becoming
+# the second-worst YAML parser in the repo. check-workflows.mjs already had one, already runs
+# in CI beside this file, and now states the rule per JOB: eight `refuse` rows, a `warn` row
+# for each job that must NOT refuse, four `default` rows for the reads that carry an inline
+# fallback, a sweep that reports any `vars.`/`secrets.` in mobile.yml with no row at all, and
+# three decoys that fail the run if the rule stops telling a refusal from a mention.
 
 if [ "$fails" -ne 0 ]; then
   echo "mobile-release-gate.sh: $fails check(s) failed" >&2
