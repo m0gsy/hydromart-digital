@@ -21,6 +21,17 @@ x-shared: &shared
   DEPOT_SERVICE_URL: http://depot:3007
   # Optional error alerting: Slack/Discord/webhook URL. Blank = disabled (no 5xx pings).
   ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+  # The second tier of the same thing, and until now it could not be switched on at all.
+  #
+  # packages/platform/src/nest/sentry.ts:26 reads `process.env.SENTRY_DSN` and returns
+  # immediately when it is blank, so every 5xx across ~19 services was aggregated nowhere.
+  # The variable was never in this file and never in .env.example, which means there was no
+  # value anybody could have set: the feature was unreachable, not merely off.
+  #
+  # Shared rather than per-service for the reason AUTH_SERVICE_URL is shared — a service that
+  # misses it reports nothing forever, and that looks exactly like a service with no errors.
+  # `release` follows IMAGE_TAG (sentry.ts:34), which this stack already sets.
+  SENTRY_DSN: ${SENTRY_DSN:-}
   # M12-11: Swagger in production needs HTTP Basic. Both blank = /docs is not mounted at
   # all (fail closed — forgetting a password must not publish every route and role gate).
   # `:-` not `:?` on purpose: docs-off is a legitimate state, so an unset value must not
@@ -631,6 +642,19 @@ services:
       # Public web origin(s) allowed to call the API from the browser (comma-separated).
       # Must include the prod site or browser CORS blocks every credentialed fetch.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # The rate limiter's four knobs, which this file never passed and therefore nobody
+      # could turn. .env.example has documented them since they were written; production has
+      # been running the Joi defaults in env.validation.ts the whole time, and an operator
+      # editing .env during an incident would have changed nothing at all.
+      #
+      # The defaults here are the ones production is ALREADY running, so wiring them through
+      # changes no behaviour today — it only makes the knobs reachable.
+      RATE_LIMIT_TTL_SECONDS: ${RATE_LIMIT_TTL_SECONDS:-60}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-600}
+      RATE_LIMIT_BURST_MAX: ${RATE_LIMIT_BURST_MAX:-300}
+      # Sized by a different question from the one above: not "what should the API serve"
+      # but "how many paid SMS may one IP cause".
+      RATE_LIMIT_OTP_MAX: ${RATE_LIMIT_OTP_MAX:-20}
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
       PRODUCT_SERVICE_URL: http://product:3003
@@ -689,6 +713,10 @@ services:
         # Cosmetic: what the account screen reports as "Versi". Defaults rather than
         # failing the build — a missing version costs a support question, not a deploy.
         NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-${IMAGE_TAG:-dev}}
+        # Build arg, not runtime: `next build` inlines NEXT_PUBLIC_*, so this was a value
+        # nobody could set. Blank hides both buttons, which is right for a fleet with no
+        # single line yet.
+        NEXT_PUBLIC_COURIER_HOTLINE: ${COURIER_HOTLINE:-}
         # N2: frozen into the bundle like the two above. Empty = the reporter is off and
         # the SDK is not even downloaded, so leaving it unset changes nothing.
         NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}

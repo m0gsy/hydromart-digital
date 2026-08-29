@@ -29,6 +29,14 @@ ARG NEXT_PUBLIC_SENTRY_DSN=
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_PUBLIC_SENTRY_ENV=production
 ENV NEXT_PUBLIC_SENTRY_ENV=$NEXT_PUBLIC_SENTRY_ENV
+# The courier hotline, read at driver/help/page.tsx:37. NEXT_PUBLIC_* is inlined by
+# `next build`, so a value that only exists at RUNTIME is a value the bundle never sees:
+# the call and WhatsApp buttons on the courier's help screen could not appear no matter
+# what anybody put in .env. Same failure shape as NEXT_PUBLIC_SENTRY_DSN above.
+# Blank default on purpose — the screen hides both buttons when it is empty, which is the
+# correct behaviour for a deployment that has no fleet line yet.
+ARG NEXT_PUBLIC_COURIER_HOTLINE=
+ENV NEXT_PUBLIC_COURIER_HOTLINE=$NEXT_PUBLIC_COURIER_HOTLINE
 # Install against the root lockfile (workspaces), then build the shared RBAC
 # package (roles.ts imports @hydromart/access) and only @hydromart/web.
 COPY package.json package-lock.json tsconfig.base.json ./
