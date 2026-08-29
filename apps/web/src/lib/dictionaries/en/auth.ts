@@ -3,10 +3,12 @@ import { auth as base } from '../id/auth';
 // English — mirrors the shape of id/auth.ts (the source of truth for keys).
 export const auth: typeof base = {
   login: {
-    biometricHint: 'Your session is still stored on this device. Open it with a fingerprint or PIN, no SMS code needed.',
+    biometricHint:
+      'Your session is still stored on this device. Open it with a fingerprint or PIN, no SMS code needed.',
     biometricFailed: 'Not unlocked. Try again, or sign in with an SMS code below.',
-    heroLine2: "delivered in minutes.",
-    heroBody: "Refill gallons, bottled water and dispensers from your nearest depot. Sign in to reorder in one tap.",
+    heroLine2: 'delivered in minutes.',
+    heroBody:
+      'Refill gallons, bottled water and dispensers from your nearest depot. Sign in to reorder in one tap.',
     heading: 'Welcome back',
     subtitle: 'Sign in with your phone number — we send a one-time code.',
     phoneLabel: 'Phone number',
@@ -18,7 +20,7 @@ export const auth: typeof base = {
   },
   register: {
     referralLabel: 'Referral code (optional)',
-    bonusPoints: "+50 points",
+    bonusPoints: '+50 points',
     heading: 'Create a new account',
     subtitle: 'We send a one-time code to verify your number.',
     phoneLabel: 'Phone number',
@@ -31,7 +33,9 @@ export const auth: typeof base = {
     terms: 'By registering, you agree to Hydromart’s Terms of Service and Privacy Policy.',
     consentPre: 'I agree to the ',
     consentPrivacy: 'Privacy Policy',
-    consentPost: ' and Hydromart’s Terms of Service.',
+    consentMid: ' and the ',
+    consentTerms: 'Terms of Service',
+    consentPost: ' of Hydromart.',
     marketingOptIn: 'I agree to receive promotions and offers (optional).',
     consentError: 'You must agree to the Privacy Policy to register.',
     error: 'Could not start registration.',
@@ -57,7 +61,8 @@ export const auth: typeof base = {
     back: 'Back to sign-in',
   },
   footer: {
-    tagline: 'Refill gallons & bottled drinking water, delivered from your nearest official depot to your door.',
+    tagline:
+      'Refill gallons & bottled drinking water, delivered from your nearest official depot to your door.',
     shop: 'Shop',
     allProducts: 'All products',
     gallonRefill: 'Gallons & refills',

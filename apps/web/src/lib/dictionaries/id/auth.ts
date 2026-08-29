@@ -1,10 +1,12 @@
 // Auth screens (login / register / verify) + site footer. Bahasa source of truth.
 export const auth = {
   login: {
-    biometricHint: 'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.',
+    biometricHint:
+      'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.',
     biometricFailed: 'Belum terbuka. Coba lagi, atau masuk dengan kode SMS di bawah.',
-    heroLine2: "diantar dalam menit.",
-    heroBody: "Galon isi ulang, air botol, dan dispenser dari depot terdekat. Masuk untuk pesan ulang sekali ketuk.",
+    heroLine2: 'diantar dalam menit.',
+    heroBody:
+      'Galon isi ulang, air botol, dan dispenser dari depot terdekat. Masuk untuk pesan ulang sekali ketuk.',
     heading: 'Selamat datang kembali',
     subtitle: 'Masuk dengan nomor teleponmu — kami kirim kode sekali pakai.',
     phoneLabel: 'Nomor telepon',
@@ -16,7 +18,7 @@ export const auth = {
   },
   register: {
     referralLabel: 'Kode referral (opsional)',
-    bonusPoints: "+50 poin",
+    bonusPoints: '+50 poin',
     heading: 'Buat akun baru',
     subtitle: 'Kami kirim kode sekali pakai untuk verifikasi nomormu.',
     phoneLabel: 'Nomor telepon',
@@ -29,7 +31,9 @@ export const auth = {
     terms: 'Dengan mendaftar, kamu menyetujui Ketentuan Layanan dan Kebijakan Privasi Hydromart.',
     consentPre: 'Saya menyetujui ',
     consentPrivacy: 'Kebijakan Privasi',
-    consentPost: ' dan Ketentuan Layanan Hydromart.',
+    consentMid: ' dan ',
+    consentTerms: 'Ketentuan Layanan',
+    consentPost: ' Hydromart.',
     marketingOptIn: 'Saya bersedia menerima info promo dan penawaran (opsional).',
     consentError: 'Kamu harus menyetujui Kebijakan Privasi untuk mendaftar.',
     error: 'Tidak bisa memulai pendaftaran.',

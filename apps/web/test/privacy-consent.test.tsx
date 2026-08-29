@@ -20,6 +20,9 @@ import { describe, expect, it } from 'vitest';
 
 import { LocaleProvider } from '@/lib/locale-context';
 import { PrivacyLink } from '@/components/privacy-sheet';
+import { TermsLink } from '@/components/terms-sheet';
+import { terms as termsEN } from '@/lib/dictionaries/en/terms';
+import { terms as termsID } from '@/lib/dictionaries/id/terms';
 import { privacy } from '@/lib/dictionaries/id/privacy';
 
 const show = (node: React.ReactElement) => render(node, { wrapper: LocaleProvider });
@@ -81,11 +84,79 @@ describe('PrivacyLink', () => {
  * is only real where the anchor used to be. This reads the files: an internal route opened
  * with `target="_blank"` is the defect, whatever it is wrapped in.
  */
+/*
+ * The other half of the same sentence.
+ *
+ * `consentPost` used to read " dan Ketentuan Layanan Hydromart." as PLAIN TEXT, naming a
+ * document that answered 404 and had no route in apps/web/src/app at all. Every person who
+ * ever registered agreed to something that had never been written.
+ */
+describe('TermsLink', () => {
+  it('opens the terms over the page, like the policy beside it', () => {
+    show(<TermsLink>Ketentuan Layanan</TermsLink>);
+    expect(screen.queryByText(termsID.sections[0]!.heading)).toBeNull();
+
+    fireEvent.click(screen.getByText('Ketentuan Layanan'));
+    expect(screen.getByText(termsID.sections[0]!.heading)).toBeTruthy();
+    expect(screen.getByText(termsID.intro)).toBeTruthy();
+  });
+
+  it('does not tick a consent box it is nested inside', () => {
+    const { container } = render(
+      <LocaleProvider>
+        <label>
+          <input type="checkbox" />
+          <TermsLink>Ketentuan Layanan</TermsLink>
+        </label>
+      </LocaleProvider>,
+    );
+    fireEvent.click(screen.getByText('Ketentuan Layanan'));
+    expect(container.querySelector<HTMLInputElement>('input')!.checked).toBe(false);
+  });
+
+  /*
+   * The document itself, not just the link. A terms page whose sections a reader cannot act
+   * on is the same failure as no page: these five are the ones that decide money, and the
+   * one that says where the money actually goes is the one nothing else in the product
+   * states out loud.
+   */
+  it('says the things this product actually does', () => {
+    const all = termsID.sections.map((s) => `${s.heading} ${s.body}`).join(' ');
+    // Payment reaches the depot directly — there is no gateway and no escrow.
+    expect(all).toMatch(/langsung oleh depot/i);
+    // The gallon deposit is returned, and is not a rental fee.
+    expect(all).toMatch(/deposit/i);
+    // Points are not money.
+    expect(all).toMatch(/tidak dapat diuangkan/i);
+    // Consumer rights survive the liability clause.
+    expect(all).toMatch(/UU No\. 8 Tahun 1999/);
+    // And it points at the policy that governs personal data.
+    expect(all).toMatch(/UU No\. 27 Tahun 2022/);
+  });
+
+  it('is mirrored in English with the same section count', () => {
+    expect(termsEN.sections).toHaveLength(termsID.sections.length);
+    for (const s of termsEN.sections) expect(s.body.length).toBeGreaterThan(40);
+  });
+});
+
 describe('the consent screens', () => {
   const CONSENT_SCREENS = [
     join('src', 'app', 'register', 'page.tsx'),
     join('src', 'components', 'driver', 'pod-capture.tsx'),
   ];
+
+  /*
+   * The register form must open BOTH halves of the sentence it asks people to agree to.
+   * A component that works proves nothing about the screen; this reads the file.
+   */
+  it('register/page.tsx opens the terms as well as the policy', () => {
+    const src = readFileSync(join(process.cwd(), 'src', 'app', 'register', 'page.tsx'), 'utf8');
+    expect(src).toContain('PrivacyLink');
+    expect(src).toContain('TermsLink');
+    // And the accessible name must still carry the whole sentence, both documents included.
+    expect(src).toContain('consentTerms');
+  });
 
   it.each(CONSENT_SCREENS)(
     '%s does not open the policy in a tab the app has no way to show',
