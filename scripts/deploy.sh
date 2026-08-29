@@ -192,7 +192,20 @@ if [ -n "$MIGRATIONS" ]; then
   fi
 fi
 
+# W7 — the image step is TIMED, because it is the same work a rollback has to do. Nothing
+# in this repo had ever measured it: rebuild-stale.sh:30 still quotes a 40-minute deploy
+# timeout that deploy.yml:226 raised to 120m, which is what a written-down number becomes.
+# Written to .deploy/image-cost and read back by the rollback-cost probe below, so the
+# figure an operator reads at 2am is one this machine produced minutes earlier.
+IMAGE_T0="$(date +%s)"
+# The images compose actually names — 19 of them, and exactly the set a `pull` fetches.
+IMAGE_TOTAL="$(grep -c 'image: ${IMAGE_PREFIX' docker-compose.prod.yml 2>/dev/null || true)"
+IMAGE_TOTAL="${IMAGE_TOTAL:-0}"
+IMAGE_N=0
+IMAGE_MODE=none
+
 if registry_mode; then
+  IMAGE_MODE=pull; IMAGE_N="$IMAGE_TOTAL"
   # H-31/H-35: images were built in CI and tagged with this exact commit. Nothing is
   # compiled on the box that serves customers — no 1.5 GB build peak beside Postgres, no
   # layers on the production disk, and no repeat of the BuildKit daemon panic that stopped
@@ -225,6 +238,7 @@ if registry_mode; then
   persist_image_tag "$NEW_SHA" ||
     log '!! could not write IMAGE_TAG to .env — manual compose calls will ask for :local'
 elif [ "${SERVICES[0]:-}" = "--all" ]; then
+  IMAGE_MODE=build; IMAGE_N="$IMAGE_TOTAL"
   log "rebuilding ALL services"
   rebuild_or_rollback --all
 elif [ "${#SERVICES[@]}" -eq 0 ]; then
@@ -235,8 +249,17 @@ elif [ "${#SERVICES[@]}" -eq 0 ]; then
   # reason a fix to these very scripts only took effect on some later, unrelated deploy.
   log "no service image is stale — converging config only"
 else
+  IMAGE_MODE=build; IMAGE_N="${#SERVICES[@]}"
   log "rebuilding: ${SERVICES[*]}"
   rebuild_or_rollback "${SERVICES[@]}"
+fi
+
+# Only when images were actually handled: a config-only deploy measures nothing, and
+# overwriting a real measurement with a zero would make the probe below lie in the
+# reassuring direction.
+if [ "$IMAGE_N" -gt 0 ]; then
+  echo "$IMAGE_MODE $IMAGE_N $(( $(date +%s) - IMAGE_T0 )) $(date -Is)" \
+    > "$STATE_DIR/image-cost" || log "!! could not record the image-step cost"
 fi
 
 # rebuild-stale only `up -d`s the services it rebuilt, so anything outside that set
@@ -321,7 +344,13 @@ if health_ok; then
   # account and renames that profile to "Smoke Edited". Running it on every deploy would
   # manufacture that data forever. So the gate below is the READ half — the same two public
   # endpoints smoke.sh drives, asked the way a customer's first screen asks them — and the
-  # write half stays behind DEPLOY_SMOKE=full for a release where somebody wants it.
+  # write half runs whenever the box carries a real demo CUSTOMER (DEMO_CUSTOMER_PHONE +
+  # REVIEWER_OTP_CODE), and is skipped quietly otherwise. DEPLOY_SMOKE=read turns it off for
+  # a release where the box must be touched as little as possible.
+  #
+  # This comment used to say the write half was opt-in behind DEPLOY_SMOKE=full while the
+  # code below already defaulted to full — the file contradicted itself two hundred lines
+  # apart, and the self-test asserted the comment rather than the behaviour.
   #
   # Both paths are @Public() by declaration (loyalty reward.controller.ts:25,
   # depot depot.controller.ts:68), so a 401 here is a finding, not an expected answer.
@@ -369,12 +398,54 @@ if health_ok; then
     log "   Both paths are @Public(); a 401/404 here means the route moved, not that it is down."
     alert "public read answered$SMOKE_ODD after deploying $NEW_SHA"
   fi
-  # The write half, opt-in. `DEPLOY_SMOKE=full bash scripts/deploy.sh` on a release where the
-  # rewards/payment path is what changed — it costs one real redemption in a depot queue.
-  if [ "${DEPLOY_SMOKE:-read}" = "full" ]; then
-    log "DEPLOY_SMOKE=full — running the write-path smoke (this creates real data)"
+  # The write half. It was behind DEPLOY_SMOKE=full for a real reason: every run granted
+  # loyalty points, parked a redemption in a real depot's pickup queue for staff to hand
+  # over, stored one more payment method on a real account and renamed that customer to
+  # "Smoke Edited" — permanently, once per release. Opt-in was the honest answer to that.
+  #
+  # Its price was that the customer money path was verified on approximately no release at
+  # all, which is the same failure class as the twenty green checks that proved nothing.
+  #
+  # smoke.sh now UNDOES all of it before it exits — cancel the redemption (which refunds the
+  # points, restores stock and takes the row out of the depot queue), DELETE the payment
+  # method, PATCH the real name back — using endpoints that already existed. That is proved
+  # by RUNNING it against a stub in check-ops-scripts.test.sh, not by reading it. So the
+  # reason to keep it off is gone, and DEPLOY_SMOKE=read is the way to turn it off for a
+  # release where the box must be touched as little as possible.
+  #
+  # It ALERTS and never rolls back, and it can never fail this script. The read gate above
+  # is what protects the release; this goes deeper, needs a demo account, and a failure here
+  # is something to look at — not a reason to take a working release off a healthy box.
+  # A deploy that reports failure while production is fine is the trap this file has already
+  # paid for twice.
+  SMOKE_CRED="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^REVIEWER_OTP_CODE=//p' | head -1 || true)"
+  # DEMO_CUSTOMER_PHONE, not just the OTP. smoke.sh falls back to REVIEWER_PHONE when it is
+  # unset (smoke.sh:57-58), and on this box REVIEWER_PHONE is a KEPALA_DEPOT staff account —
+  # which answers 403 to redeem, vouchers and payment-methods because those are customer
+  # routes. smoke then exits 1 and this block alerts, on every deploy, with production
+  # perfectly healthy. .env.production.example:122-125 blesses leaving it blank ("leave blank
+  # and both degrade quietly"), so blank must stay quiet here too — a `!!` nobody can act on
+  # is a line people stop reading, which is the trap this file has already paid for twice.
+  SMOKE_WHO="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^DEMO_CUSTOMER_PHONE=//p' | head -1 || true)"
+  if [ "${DEPLOY_SMOKE:-full}" = "read" ]; then
+    log "DEPLOY_SMOKE=read — write-path smoke skipped for this release"
+  elif [ -z "$SMOKE_CRED" ] || [ -z "$SMOKE_WHO" ]; then
+    # No alert. A box with no demo account is a legitimate state, and a `!!` on every single
+    # deploy is a line people stop reading — the reviewer probe below learned this already.
+    if [ -z "$SMOKE_CRED" ]; then
+      log "write-path smoke skipped: REVIEWER_OTP_CODE is unset, so nothing here can learn an OTP."
+    else
+      log "write-path smoke skipped: DEMO_CUSTOMER_PHONE is unset. REVIEWER_PHONE is staff on"
+      log "   this box, and a staff token is 403 on the customer routes smoke drives."
+    fi
+    log "   Set REVIEWER_PHONE + REVIEWER_OTP_CODE + DEMO_CUSTOMER_PHONE in .env and every"
+    log "   deploy verifies the redeem/payment/profile path end to end. It cleans up after"
+    log "   itself now, so it costs the demo account nothing permanent."
+  else
+    log "write-path smoke (real requests, all writes undone before it exits)"
     if ! bash scripts/smoke.sh; then
       log "!! the write-path smoke FAILED — the release is serving reads but a customer flow is broken"
+      log "   Read its ❌ lines: one naming a row it could not undo means residue was left behind."
       alert "write-path smoke failed after deploying $NEW_SHA"
     fi
   fi
@@ -688,12 +759,10 @@ if health_ok; then
   #
   # Nothing measured which of those it was. This asks the container.
   if $COMPOSE ps --status running --services 2>/dev/null | grep -qx hr; then
-    FACE_DRIVER="$($COMPOSE exec -T hr printenv FACE_VERIFIER_DRIVER 2>/dev/null | tr -d '
-' || true)"
+    FACE_DRIVER="$($COMPOSE exec -T hr printenv FACE_VERIFIER_DRIVER 2>/dev/null | tr -d '\r\n' || true)"
     case "${FACE_DRIVER:-onnx}" in
       onnx)
-        MODEL="$($COMPOSE exec -T hr printenv HR_FACE_MODEL_PATH 2>/dev/null | tr -d '
-' || true)"
+        MODEL="$($COMPOSE exec -T hr printenv HR_FACE_MODEL_PATH 2>/dev/null | tr -d '\r\n' || true)"
         MODEL="${MODEL:-./models/arcface.onnx}"
         if $COMPOSE exec -T hr sh -c "[ -f '$MODEL' ]" >/dev/null 2>&1; then
           log "face verifier probe — driver 'onnx', model present at $MODEL"
@@ -733,7 +802,7 @@ if health_ok; then
   #
   # CI cannot reach production. This can, and it runs after the release is live, which is the
   # only moment the answer means anything.
-  API_HOST="$(tr -d '' < .env 2>/dev/null | sed -n 's/^API_DOMAIN=//p' | head -1 || true)"
+  API_HOST="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^API_DOMAIN=//p' | head -1 || true)"
   if [ -n "$API_HOST" ]; then
     if node scripts/check-public-metrics.mjs --url "https://$API_HOST" >/tmp/metrics-probe.log 2>&1; then
       log "public /metrics probe — https://$API_HOST/metrics is not reachable from the internet"
@@ -918,7 +987,7 @@ if health_ok; then
   DB_TOTAL_KB=""
   DB_PRETTY="unreadable"
   if docker exec "$PG" true >/dev/null 2>&1; then
-    DB_SIZE="$(docker exec "$PG" psql -U hydromart -d postgres -tAc       "SELECT coalesce(sum(pg_database_size(datname)),0)/1024 || '|' || pg_size_pretty(coalesce(sum(pg_database_size(datname)),0)) || ' in ' || count(*) || ' db' FROM pg_database WHERE datname LIKE 'hydromart%'"       2>/dev/null | tr -d '' || true)"
+    DB_SIZE="$(docker exec "$PG" psql -U hydromart -d postgres -tAc       "SELECT coalesce(sum(pg_database_size(datname)),0)/1024 || '|' || pg_size_pretty(coalesce(sum(pg_database_size(datname)),0)) || ' in ' || count(*) || ' db' FROM pg_database WHERE datname LIKE 'hydromart%'"       2>/dev/null | tr -d '\r\n' || true)"
     DB_TOTAL_KB="${DB_SIZE%%|*}"
     [ "$DB_SIZE" != "${DB_SIZE#*|}" ] && DB_PRETTY="${DB_SIZE#*|}"
   fi
@@ -968,7 +1037,7 @@ if health_ok; then
   # about, which is why it is stated in the deploy log instead.
   OPS_EMPTY=""
   for key in ALERT_WEBHOOK_URL BACKUP_OFFSITE_DEST BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
-    if [ -z "$(tr -d '' < .env 2>/dev/null | sed -n "s/^${key}=//p" | head -1)" ]; then
+    if [ -z "$(tr -d '\r' < .env 2>/dev/null | sed -n "s/^${key}=//p" | head -1)" ]; then
       OPS_EMPTY="$OPS_EMPTY $key"
     fi
   done
@@ -1019,6 +1088,72 @@ if health_ok; then
     log "   real employee, that is live customer names, addresses and phone numbers."
     log "   Fix: run the seed-demo deploy mode, then point REVIEWER_PHONE at that number."
     alert "REVIEWER_PHONE is not the demo account — a Play reviewer may be reading real customer data"
+  fi
+
+  # 6. W7 — WHAT THE ESCAPE HATCH COSTS, in the mode that is actually live.
+  #
+  # rollback.sh is the only way out of a bad release, and it is not one thing. In registry
+  # mode it PULLS the images CI already built for the target commit — seconds to minutes,
+  # byte-identical to what ran before. With IMAGE_PREFIX empty it re-COMPILES them, here, on
+  # the box that is by definition already unhealthy, through the same parallel-BuildKit path
+  # whose daemon panic stopped all 25 containers on 2026-08-02.
+  #
+  # Nothing anywhere said which of those it was, so the answer was learned during the
+  # incident. This says it on every healthy deploy instead.
+  #
+  # The number is THIS BOX'S: the image step of THIS deploy was timed a few minutes ago and
+  # written to .deploy/image-cost. Quoting a figure is what rebuild-stale.sh:30 does — it
+  # still cites a 40-minute deploy timeout that deploy.yml:226 raised to 120m, and that is
+  # what every written-down number in this repo has eventually become.
+  ROLLBACK_TARGET="$(cat "$STATE_DIR/prev-sha" 2>/dev/null || echo "$PREV_SHA")"
+  COST_LINE="$(cat "$STATE_DIR/image-cost" 2>/dev/null || true)"
+  COST_N="$(echo "$COST_LINE" | awk '{print $2}')"
+  COST_S="$(echo "$COST_LINE" | awk '{print $3}')"
+  IMAGES_TOTAL="$(grep -c 'image: ${IMAGE_PREFIX' docker-compose.prod.yml 2>/dev/null || true)"
+  IMAGES_TOTAL="${IMAGES_TOTAL:-0}"
+  # A missing or zero measurement must not divide, and must not be dressed up as a number.
+  # Every field must be a plain number before any arithmetic happens. This whole block runs
+  # AFTER "DEPLOY OK" under `set -euo pipefail`, where one failed $(( )) would report a
+  # working release as a failed deploy — the H-17 shape the scheduler-TZ probe above
+  # documents, and the reason a report that finds nothing must still exit 0.
+  # A count of ZERO is not a small number here, it is a failed read — and printing
+  # "up to 0 images, ~0 min" would be this probe reassuring somebody about a thing it never
+  # managed to measure, which is the defect class the outbox probe already cost us.
+  if [ "${IMAGES_TOTAL:-0}" = 0 ]; then
+    IMAGES_TXT="an unknown number of (docker-compose.prod.yml unreadable)"
+  else
+    IMAGES_TXT="$IMAGES_TOTAL"
+  fi
+  COST_OK=1
+  for N in "${COST_N:-}" "${COST_S:-}" "$IMAGES_TOTAL"; do
+    case "$N" in '' | *[!0-9]*) COST_OK='' ;; esac
+  done
+  # `if`, not `&&`: a false `[ ... ] && x` is a non-zero command under `set -e`, and this
+  # runs after DEPLOY OK — the one place a probe must never be able to fail the deploy.
+  if [ "${COST_N:-0}" = 0 ] || [ "${IMAGES_TOTAL:-0}" = 0 ]; then COST_OK=''; fi
+  if [ -n "$COST_OK" ]; then
+    EST_MIN="$(( (COST_S * IMAGES_TOTAL / COST_N + 59) / 60 ))"
+    MEASURED="measured here this deploy: $COST_N image(s) in ${COST_S}s"
+  else
+    EST_MIN=""
+    MEASURED="not measured on this box yet (this deploy touched no image)"
+  fi
+  if registry_mode; then
+    log "rollback cost probe — mode=registry ($IMAGE_PREFIX), target $ROLLBACK_TARGET"
+    log "   A rollback PULLS $IMAGES_TXT prebuilt images. Nothing is compiled on this box."
+    log "   ${EST_MIN:+~${EST_MIN} min at the rate }$MEASURED"
+  else
+    log "!! rollback cost probe — mode=BUILD (IMAGE_PREFIX is empty), target $ROLLBACK_TARGET"
+    log "   A rollback COMPILES up to $IMAGES_TXT images ON THIS BOX, while it is unhealthy,"
+    log "   over the parallel BuildKit path that stopped all 25 containers on 2026-08-02."
+    log "   ${EST_MIN:+worst case ~${EST_MIN} min — }$MEASURED"
+    log "   This is a choice, not a constraint, and it costs one line. MEASURED 2026-08-29:"
+    log "   images.yml publishes all 19 service images to ghcr.io on every green CI, tagged"
+    log "   with the commit SHA, and the packages are PUBLIC — an anonymous pull returned 200"
+    log "   for every service at main's HEAD. No docker login, no PAT, no repo secret."
+    log "   Fix: put IMAGE_PREFIX=ghcr.io/<owner>/<repo>- in .env (DEPLOY.md 'Registry mode'"
+    log "   has the exact value and the one-command check), then deploy. A rollback becomes"
+    log "   a pull, and the ~270 SHA tags already in the registry become reachable targets."
   fi
 else
   log "!! health check FAILED after deploy — auto-rolling back to $PREV_SHA"
