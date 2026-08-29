@@ -200,4 +200,48 @@ else
   bad "the franchise commission probe can fail to read and stay silent"
 fi
 
+# --- variables that exist and never arrive ------------------------------------------------
+#
+# Three separate features were unreachable rather than merely off: the code read an env var,
+# .env.example documented it, and docker-compose.prod.yml passed it to nothing. There was no
+# value anybody could have set. That is a worse failure than a bug, because every layer looks
+# correct on its own.
+#
+# SENTRY_DSN: packages/platform/src/nest/sentry.ts:26 returns immediately when blank, so
+# every 5xx across ~19 services aggregated nowhere.
+if grep -qE '^  SENTRY_DSN:' docker-compose.prod.yml; then
+  ok "SENTRY_DSN reaches the services that read it"
+else
+  bad "SENTRY_DSN is read by every service and passed to none — backend error reporting cannot be switched on at all"
+fi
+
+# RATE_LIMIT_*: documented in .env.example since they were written, passed to no container,
+# so production ran the Joi defaults and an operator editing .env during an incident changed
+# nothing whatsoever.
+RL_MISSING=''
+for V in RATE_LIMIT_TTL_SECONDS RATE_LIMIT_MAX RATE_LIMIT_BURST_MAX RATE_LIMIT_OTP_MAX; do
+  grep -qE "^      $V:" docker-compose.prod.yml || RL_MISSING="$RL_MISSING $V"
+done
+if [ -z "$RL_MISSING" ]; then
+  ok "all four rate-limit knobs reach the gateway"
+else
+  bad "rate-limit knobs the gateway never receives:$RL_MISSING - turning them in .env would do nothing"
+fi
+
+# NEXT_PUBLIC_* is inlined by `next build`, so a runtime-only value is one the bundle never
+# sees. Same failure shape as NEXT_PUBLIC_SENTRY_DSN.
+if grep -qE 'ARG NEXT_PUBLIC_COURIER_HOTLINE' apps/web/Dockerfile; then
+  ok "the courier hotline is a build arg, so the bundle can actually carry it"
+else
+  bad "NEXT_PUBLIC_COURIER_HOTLINE is not a build ARG — the courier help screen's call and WhatsApp buttons can never appear"
+fi
+
+# And the stale number that hid the whole class: .env.example advertised 100 while production
+# ran 600, and neither reached a container, so nobody found out.
+if grep -qE '^RATE_LIMIT_MAX=600' .env.example; then
+  ok ".env.example advertises the limit production actually runs"
+else
+  bad ".env.example disagrees with the gateway's own default for RATE_LIMIT_MAX"
+fi
+
 exit "$fails"
