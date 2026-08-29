@@ -108,6 +108,25 @@ const WEIGHTS = {
 /** The pages a customer actually opens, plus the one a courier lives in. */
 const PAGES = ['/', '/products', '/login', '/driver'];
 
+/*
+ * Pages whose SEO score is not a quality signal, because they are deliberately hidden from
+ * search.
+ *
+ * `/driver` is the courier app. Since the consoles were given `X-Robots-Tag: noindex` and a
+ * robots.txt Disallow, Lighthouse's SEO category fails its "Page is blocked from indexing"
+ * audit there and the score fell 100 -> 63. Nothing regressed: that number IS the feature
+ * working, and a floor on it would mean every future change to the courier app had to argue
+ * with a metric that does not apply to it.
+ *
+ * Skipped in code rather than nulled in the baseline, because the baseline is JSON and cannot
+ * carry the reason — and a bare `null` there is exactly the shape somebody deletes later
+ * while tidying up. The recorded 100 stays as the historical measurement it is.
+ *
+ * The other three pages keep their SEO floor: `/`, `/products` and `/login` are the surfaces
+ * customers are meant to find, and a regression there is real.
+ */
+const NOINDEX_PAGES = new Set(['/driver']);
+
 async function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   const { chromium } = require('playwright');
@@ -247,6 +266,10 @@ for (const [page, scores] of Object.entries(measured)) {
     if (then === null || then === undefined || now === null) continue;
     const slack = TOLERANCE[category];
     if (slack === null) continue; // measured and printed above, deliberately not gated
+    if (category === 'seo' && NOINDEX_PAGES.has(page)) {
+      // Printed in the table above, and not gated: see NOINDEX_PAGES.
+      continue;
+    }
     if (now < then - (slack ?? 1)) {
       failures.push(`${page} ${category}: ${now} < ${then} (floor, tolerance ${slack ?? 1})`);
     }
