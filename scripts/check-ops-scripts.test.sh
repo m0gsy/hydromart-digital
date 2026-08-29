@@ -253,10 +253,44 @@ fi
 
 # And the stale number that hid the whole class: .env.example advertised 100 while production
 # ran 600, and neither reached a container, so nobody found out.
-if grep -qE '^RATE_LIMIT_MAX=600' .env.example; then
-  ok ".env.example advertises the limit production actually runs"
+# --- and the contract stays free of lines that cannot indicate a fault -------------------
+#
+# deploy-common.sh:329 compares the box's .env against .env.example key by key and warns about
+# every key the box does not set. So a variable whose BLANK is a correct, working state costs
+# a warning on every single deploy and buys nothing.
+#
+# This is the ZENZIVA_BASE_URL lesson (#384) a second time, and I caused it a second time: the
+# first deploy after the compose passthrough landed printed six such keys at once. All four
+# rate-limit knobs default to exactly what production runs, and COURIER_HOTLINE blank correctly
+# hides both buttons. Their reference lives in .env.production.example, which is the operator's
+# document and is not compared against anything.
+NOISE=''
+for V in RATE_LIMIT_TTL_SECONDS RATE_LIMIT_MAX RATE_LIMIT_BURST_MAX RATE_LIMIT_OTP_MAX COURIER_HOTLINE; do
+  grep -qE "^$V=" .env.example && NOISE="$NOISE $V"
+done
+if [ -z "$NOISE" ]; then
+  ok ".env.example carries no key whose blank is already correct"
 else
-  bad ".env.example disagrees with the gateway's own default for RATE_LIMIT_MAX"
+  bad "keys back in .env.example whose absence can never be a fault:$NOISE - every deploy would warn about a working box"
+fi
+
+# SENTRY_DSN is the one that stays. Blank there is not a working state dressed as a gap: it
+# means ~19 services aggregate their 5xx nowhere, and nothing else on the box reports it.
+if grep -qE '^SENTRY_DSN=' .env.example; then
+  ok "the contract still asks about backend error reporting, which nothing else measures"
+else
+  bad "SENTRY_DSN dropped from the contract — blank means every 5xx goes nowhere and no probe would say so"
+fi
+
+# And the reference the operator actually reads must carry all of them.
+MISSING=''
+for V in RATE_LIMIT_TTL_SECONDS RATE_LIMIT_MAX RATE_LIMIT_BURST_MAX RATE_LIMIT_OTP_MAX COURIER_HOTLINE SENTRY_DSN; do
+  grep -qE "^$V=" .env.production.example || MISSING="$MISSING $V"
+done
+if [ -z "$MISSING" ]; then
+  ok ".env.production.example documents every knob, including the ones the contract skips"
+else
+  bad "knobs missing from the operator's reference:$MISSING"
 fi
 
 exit "$fails"
