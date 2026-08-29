@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
 
 import { MembershipTier } from '../../domain/membership-tier.enum';
 
@@ -13,6 +15,32 @@ export class DepotCustomerQueryDto {
   @IsString()
   @MaxLength(120)
   q?: string;
+
+  // W9. This list had no ceiling at all: it is served by a `$queryRaw`, which the Prisma
+  // query-bounds middleware never touches (it only fills a missing `take` on `findMany`).
+  // The offset is bounded here as well as the page size — page*limit is an OFFSET, and an
+  // unbounded page number makes Postgres walk and discard everything before it.
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  page?: number;
+
+  /**
+   * Defaults to — and is capped at — the same 500 the bounds middleware imposes elsewhere.
+   * Deliberately not the repo's usual `@Max(100)`: the three consoles that read this route
+   * render the whole array with no pager, so a tighter default would hide customers 101+
+   * from screens that have no way to ask for them.
+   */
+  @ApiPropertyOptional({ default: DEFAULT_MAX_ROWS, minimum: 1, maximum: DEFAULT_MAX_ROWS })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(DEFAULT_MAX_ROWS)
+  limit?: number;
 }
 
 export class DepotDetailQueryDto {

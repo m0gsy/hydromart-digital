@@ -10,6 +10,58 @@ import { ProfileController } from '../../src/modules/profile.controller';
 import { InternalController } from '../../src/modules/internal.controller';
 import { ImportCustomersDto, ImportResellersDto } from '../../src/modules/dto/customer-import.dto';
 import { buildTestConfig } from '../support/fakes';
+import type { DepotCustomerQuery } from '../../src/application/ports/depot-crm.repository';
+
+/*
+ * W9 moved the directory's membership union, its search and its LIMIT out of the service and
+ * into one SQL statement. A fake that returns a fixed array regardless of `query` therefore
+ * stopped modelling the port at all: it answered a question the real repository is no longer
+ * asked, and the tests below would have stayed green over any SQL at all.
+ *
+ * So this models the statement instead — members = profile rows UNION orderedIds; the WHERE
+ * matches the joined address name/phone OR an id the caller already matched elsewhere
+ * (`qMatchedIds`); rows with no profile come back with null identity, exactly as the LEFT
+ * JOIN does, and the service overlays the order snapshot afterwards.
+ */
+function fakeCrm(profiles: { customerId: string; fullName?: string | null; phone?: string | null }[] = []) {
+  return {
+    async listDepotCustomers(_depotId: string, query: DepotCustomerQuery = {}) {
+      const { q, orderedIds = [], qMatchedIds = [], limit = 500, offset = 0 } = query;
+      const byId = new Map(profiles.map((p) => [p.customerId, p]));
+      for (const id of orderedIds) if (!byId.has(id)) byId.set(id, { customerId: id, fullName: null, phone: null });
+      const needle = q?.toLowerCase();
+      const rows = [...byId.values()]
+        .filter((r) => {
+          if (!needle) return true;
+          if (qMatchedIds.includes(r.customerId)) return true;
+          return (
+            (r.fullName?.toLowerCase().includes(needle) ?? false) ||
+            (r.phone?.toLowerCase().includes(needle) ?? false)
+          );
+        })
+        .map((r) => ({
+          customerId: r.customerId,
+          fullName: r.fullName ?? null,
+          phone: r.phone ?? null,
+          membershipTier: 'BASIC' as const,
+        }));
+      // NULLS LAST, then id — the order the statement asks for.
+      rows.sort((a, b) =>
+        a.fullName === b.fullName
+          ? a.customerId.localeCompare(b.customerId)
+          : a.fullName === null
+            ? 1
+            : b.fullName === null
+              ? -1
+              : a.fullName.localeCompare(b.fullName),
+      );
+      return rows.slice(offset, offset + limit);
+    },
+    async findIdsByDepot() {
+      return profiles.map((p) => p.customerId);
+    },
+  };
+}
 
 /** Names are a decoration on the roster; every reseller test here is about the roster. */
 function fakeIdentity() {
@@ -275,9 +327,10 @@ describe('DepotCrmService directory union and ledger (§I, J-2)', () => {
     membershipTier: 'BASIC',
   };
 
+
   const build = (ledger: unknown) =>
     new DepotCrmService(
-      { listDepotCustomers: async () => [profileRow] } as never,
+      fakeCrm([profileRow]) as never,
       {} as never,
       { claimFavoriteDepotIfUnset: async () => true } as never,
       { depotCustomerStats: async () => [orderer] } as never,
@@ -383,7 +436,7 @@ describe('DepotCrmService directory search and name fallbacks', () => {
 
   const build = (stats: unknown[], profiles: unknown[] = []) =>
     new DepotCrmService(
-      { listDepotCustomers: async () => profiles } as never,
+      fakeCrm(profiles as never) as never,
       {} as never,
       {} as never,
       { depotCustomerStats: async () => stats } as never,

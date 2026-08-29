@@ -2,6 +2,12 @@
 // which is the authority — the server decides whether "antar sekarang" is actually on offer.
 // This copy only decides what the badge says, and must answer the same way so the two never
 // contradict each other on screen.
+//
+// TWO COPIES OF ONE RULE, and they have already drifted once: the empty-config default was
+// 'buka' here and `true` there, and both were wrong, so W11 had to change them in two
+// places at once. Nothing makes that impossible to get wrong again. The rule is pure and
+// takes no Nest/React anything, so it belongs in `packages/` with both sides importing it
+// — see needs_outside_files.
 
 import type { DepotHoliday, DepotHours } from '@/lib/types';
 
@@ -22,16 +28,22 @@ export type DepotOpenState = 'buka' | 'istirahat' | 'tutup';
 /**
  * Open / on its break / shut, in the viewer's own clock.
  *
- * No hours configured at all → 'buka'. A depot that never filled the form in is not a
- * depot that is permanently closed, and rendering "Tutup" over every existing depot is
- * the loud way to get that wrong.
+ * No hours configured at all → 'tutup'. This answered 'buka' until W11, on the premise
+ * that a depot which never filled the form in is not permanently shut. The money says
+ * otherwise: order-service's `expireAbandoned` auto-cancels any order still CREATED after
+ * `abandonMinutes` — it sweeps on the age of the row, not on the delivery window — so an
+ * order placed at an unstaffed depot is silently gone about an hour later. Default-open
+ * sold that order; default-closed declines it while the customer is still looking.
+ *
+ * An unanswered question is not a yes. The fix for a depot showing "Tutup" is to fill the
+ * hours in, and that is a form somebody can reach.
  */
 export function depotOpenState(
   hours: Record<string, DepotHours> | null | undefined,
   holidays: DepotHoliday[] | null | undefined,
   now: Date = new Date(),
 ): DepotOpenState {
-  if (!hours || Object.keys(hours).length === 0) return 'buka';
+  if (!hours || Object.keys(hours).length === 0) return 'tutup';
 
   const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
     now.getDate(),

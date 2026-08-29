@@ -335,4 +335,116 @@ else
   bad "the Caddyfile is bind-mounted as a single file again — the mount pins an inode and every deploy silently serves the old config"
 fi
 
+# --- W6: something must verify the RELEASE, not only the containers -----------------------
+#
+# The whole deploy gate was health_ok(): gateway /health answers 200 and no container is
+# unhealthy. Neither question touches a business path. `scripts/smoke.sh` drives a real
+# customer flow and `grep -n smoke scripts/deploy.sh` was EMPTY — it existed only as a
+# manual mode in deploy.yml:204, so it ran when somebody remembered, which on this repo's
+# own evidence is never.
+if grep -qE 'release smoke probe' scripts/deploy.sh; then
+  ok "deploy asks the live API a business question after health_ok"
+else
+  bad "nothing verifies the release works: health_ok proves the containers are up, and a container that answers /health while its routes 500 is exactly the gap smoke.sh was written for"
+fi
+
+# ...and it must be able to ROLL BACK, or it is one more line in a log. A release whose
+# customer-facing reads do not answer is not serving, which is the same situation health_ok
+# already rolls back for (H-17).
+if grep -A 40 -E 'release smoke probe' scripts/deploy.sh | grep -qE 'rollback\.sh'; then
+  ok "a release that cannot serve its public reads is rolled back, not narrated"
+else
+  bad "the smoke probe reports and continues — a finding nobody acts on is the failure class this repo keeps re-buying"
+fi
+
+# The WRITE half must stay opt-in. smoke.sh grants loyalty points, redeems a reward into a
+# real depot's pickup queue, stores a payment method and renames the demo profile — running
+# that on every deploy manufactures production data forever. So deploy may invoke it, but
+# only behind an explicit switch.
+if grep -qE 'bash scripts/smoke\.sh' scripts/deploy.sh; then
+  if grep -qE 'DEPLOY_SMOKE' scripts/deploy.sh; then
+    ok "the write-path smoke is behind an explicit opt-in"
+  else
+    bad "deploy.sh runs scripts/smoke.sh unconditionally — every deploy would grant points, redeem a reward into a depot queue and add a payment method to a real account"
+  fi
+else
+  ok "the write-path smoke is not wired in unconditionally"
+fi
+
+# --- the disk that holds the database AND its own backups --------------------------------
+#
+# PARTLY ALREADY BUILT, and that is the finding: ask-the-box.sh:200-230 asks `df -Pk /`,
+# judges it at 85/95 and lists `pg_database_size` per database. Nothing SCHEDULES it — not
+# the deploy, not the host cron (only ci.yml's self-test and registry-check's manual
+# `diagnose` mode name the file). A judgement a human must SSH in to read is the same
+# category as the three weekly scripts that sat in the installer and never ran.
+if grep -qE 'disk probe —' scripts/deploy.sh; then
+  ok "every deploy records free disk on the box"
+else
+  bad "no deploy has ever asked how much disk is left: a full disk on the machine holding both the database and its dumps is the one failure here that destroys data rather than uptime"
+fi
+
+if grep -qE 'pg_database_size' scripts/deploy.sh; then
+  ok "and how big the databases actually are"
+else
+  bad "free bytes alone cannot say whether a restore would fit — nothing asks pg_database_size on a schedule"
+fi
+
+# It must ALERT, which is the one thing ask-the-box.sh cannot do (it echoes to a terminal
+# somebody is already looking at).
+if grep -A 30 -E 'disk probe —' scripts/deploy.sh | grep -qE 'alert "'; then
+  ok "a disk about to stop Postgres reaches a human"
+else
+  bad "the disk probe only prints — ask-the-box.sh already prints, and printing is what has kept this unmeasured"
+fi
+
+# --- the alert destination is finally IN the contract -------------------------------------
+#
+# One variable decides whether every 5xx alert, the watchdog, the backup failure and the
+# restore drill reach a person. It was absent from .env.example, so missing_env_keys() —
+# which compares .env.example against the box's .env — was structurally incapable of ever
+# reporting it. Blank is not a working state here, so it belongs in the contract next to
+# SENTRY_DSN rather than in the noise list beside COURIER_HOTLINE.
+if grep -qE '^ALERT_WEBHOOK_URL=' .env.example; then
+  ok ".env.example declares ALERT_WEBHOOK_URL, so the env-contract gate can see it"
+else
+  bad ".env.example omits ALERT_WEBHOOK_URL — the deploy gate cannot report the one key that decides whether ANY alert reaches a human"
+fi
+
+# Declaring it is only half. compose_ignores_env() drops every .env.example key no compose
+# file interpolates, so a key compose never mentions is filtered back out of the warning and
+# the gate stays blind with the line present. docker-compose.prod.yml:23 passes this one.
+if grep -qE '\$\{ALERT_WEBHOOK_URL' docker-compose.yml docker-compose.prod.yml; then
+  ok "compose interpolates it, so compose_ignores_env() does not filter it back out"
+else
+  bad "no compose file reads ALERT_WEBHOOK_URL — compose_ignores_env() would drop it from the warning and adding it to .env.example would achieve nothing"
+fi
+
+# And the gate must still actually go RED for it. Asserted by RUNNING missing_env_keys()
+# against a fixture, not by reading the two conditions above and believing them.
+REPO="$PWD"
+ENVFIX="$(mktemp -d)"
+printf 'ALERT_WEBHOOK_URL=\n' >"$ENVFIX/.env.example"
+printf 'NODE_ENV=production\n' >"$ENVFIX/.env"
+printf 'services:\n  gateway:\n    environment:\n      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}\n' \
+  >"$ENVFIX/docker-compose.prod.yml"
+RED_FOR="$( (cd "$ENVFIX" && . "$REPO/scripts/lib/deploy-common.sh" >/dev/null 2>&1 && missing_env_keys) || true)"
+rm -rf "$ENVFIX"
+case "$RED_FOR" in
+  *ALERT_WEBHOOK_URL*) ok "missing_env_keys() reports ALERT_WEBHOOK_URL when the box does not set it" ;;
+  *) bad "the env gate cannot go red for ALERT_WEBHOOK_URL (it printed: '${RED_FOR:-nothing}')" ;;
+esac
+
+# --- the backup keys compose never passes -------------------------------------------------
+#
+# BACKUP_OFFSITE_DEST and BACKUP_S3_* are read by scripts (backup-offsite.sh, backup-db.sh),
+# never by compose. So compose_ignores_env() filters them and .env.example can NEVER make the
+# env gate see them, however carefully they are listed there. The only instrument that can is
+# a probe that reads .env directly — which is what deploy.sh does for STORAGE_DRIVER already.
+if grep -qE 'ops secrets probe —' scripts/deploy.sh; then
+  ok "deploy reads the script-only backup secrets out of .env itself"
+else
+  bad "BACKUP_OFFSITE_DEST/BACKUP_S3_* reach no compose file, so the env-contract gate is structurally blind to them and nothing else asks — every copy of the database can sit on the database's own disk unnoticed"
+fi
+
 exit "$fails"

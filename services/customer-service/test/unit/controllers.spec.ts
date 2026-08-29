@@ -152,10 +152,13 @@ describe('DepotCrmController', () => {
     expect(imports.importCustomers).toHaveBeenCalledWith(user, 'd1', rows);
   });
 
-  it('listDepotCustomers passes depotId + q through', async () => {
+  it('listDepotCustomers passes depotId + q + the page bounds through', async () => {
     svc.listDepotCustomers.mockResolvedValue(['row']);
     expect(await c.listDepotCustomers({ depotId: 'd1', q: 'ali' } as never)).toEqual(['row']);
-    expect(svc.listDepotCustomers).toHaveBeenCalledWith('d1', 'ali');
+    // W9: page and limit are part of the call now. `undefined` here is the DTO's default
+    // arriving unset — asserted rather than elided, because a controller that silently
+    // dropped them would restore the unbounded read this endpoint was fixed for.
+    expect(svc.listDepotCustomers).toHaveBeenCalledWith('d1', 'ali', undefined, undefined);
   });
   it('crmDashboard passes depotId through', async () => {
     svc.getCrmDashboard.mockResolvedValue({ counts: {} });

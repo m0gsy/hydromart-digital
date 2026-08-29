@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { haversineKm } from '@hydromart/platform';
+import { DEFAULT_MAX_ROWS, haversineKm } from '@hydromart/platform';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
@@ -117,18 +117,18 @@ export interface DepotCustomerDetail {
 }
 
 /**
- * Case-insensitive contains over the name the staff member can actually SEE. Applied after
- * the account-name overlay rather than in SQL, because the searchable name is not in this
- * service's database.
+ * Case-insensitive contains over the ORDER SNAPSHOT's name and phone.
  *
- * ponytail: in-memory scan over one depot's customers. Push it into the query only if a
- * single depot's directory ever gets big enough for that to matter.
+ * W9. Searching used to happen here, over the whole directory, after every row had been read
+ * and decorated. It now happens in the query — except for these two fields, which are
+ * order-service's copy and exist nowhere in this database. So the match still runs in memory,
+ * but only to turn the needle into a list of ids the query can use.
  */
-function matches(item: DepotCustomerListItem, q: string): boolean {
+function snapshotMatches(s: DepotCustomerOrderStats, q: string): boolean {
   const needle = q.toLowerCase();
   return (
-    (item.fullName?.toLowerCase().includes(needle) ?? false) ||
-    (item.phone?.toLowerCase().includes(needle) ?? false)
+    (s.name?.toLowerCase().includes(needle) ?? false) ||
+    (s.phone?.toLowerCase().includes(needle) ?? false)
   );
 }
 
@@ -164,17 +164,6 @@ export class DepotCrmService {
   ) {}
 
   /**
-   * The depot's customers — §I: everyone, not just the ones somebody typed into Excel.
-   *
-   * The repository unions the profile's favourite depot with the reseller registry. The
-   * third source cannot go there: "has ordered from this depot" lives in order-service's
-   * database, and it arrives as `depotCustomerStats`. It used to be a LEFT-JOIN enrichment,
-   * so a customer who registered themselves and ordered ten times was simply dropped.
-   *
-   * `depotCustomerStats` already excludes the anonymous counter-sale sentinel at the
-   * source, so an unnamed walk-in cannot enter the directory as a person.
-   */
-  /**
    * Record a first-checkout depot as this customer's favourite — §I. Only when they have
    * none: see `claimFavoriteDepotIfUnset` for why moving an existing one would be wrong.
    */
@@ -182,10 +171,76 @@ export class DepotCrmService {
     return this.profiles.claimFavoriteDepotIfUnset(customerId, depotId);
   }
 
-  async listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerListItem[]> {
-    const [profileRows, stats, ledger, subscriberIds] = await Promise.all([
-      this.crm.listDepotCustomers(depotId),
-      this.orderCrm.depotCustomerStats(depotId),
+  /**
+   * Ids of this depot's members whose ACCOUNT name or phone matches the needle.
+   *
+   * No try/catch: IdentityHttpAdapter.getCustomerNames already swallows a failed batch and
+   * returns whatever it managed to read, so this port cannot throw — a catch here would be
+   * a branch no test could ever enter. Its degraded mode is an EMPTY map, and that is the
+   * case worth pinning: search then narrows to what SQL can match on its own instead of
+   * failing the whole console.
+   */
+  private async accountMatches(depotId: string, search: string): Promise<string[]> {
+    const memberIds = await this.crm.findIdsByDepot(depotId);
+    if (memberIds.length === 0) return [];
+    const identities = await this.identity.getCustomerNames(memberIds);
+    const needle = search.toLowerCase();
+    return [...identities.entries()]
+      .filter(
+        ([, who]) =>
+          (who.fullName?.toLowerCase().includes(needle) ?? false) ||
+          (who.phone?.toLowerCase().includes(needle) ?? false),
+      )
+      .map(([customerId]) => customerId);
+  }
+
+  async listDepotCustomers(
+    depotId: string,
+    q?: string,
+    page = 1,
+    limit = DEFAULT_MAX_ROWS,
+  ): Promise<DepotCustomerListItem[]> {
+    // A needle of spaces is not a needle: it must not reach the query as an empty ILIKE
+    // that matches, and costs, everything.
+    const search = q?.trim() || undefined;
+    /*
+     * W9. The order aggregate lands BEFORE the directory query rather than beside it,
+     * because it is an INPUT to that query on two counts: its ids are §I's third membership
+     * source, and its names are the only ones order-service holds. Both used to be folded
+     * in afterwards, which is what made the read unbounded — the whole depot had to be in
+     * memory before anything could be dropped.
+     */
+    const stats = await this.orderCrm.depotCustomerStats(depotId);
+    /*
+     * The needle has to reach the identity the SCREEN shows, and that is not always the one
+     * this database holds. The row's name and phone are overridden below with the account's
+     * own, so an operator reads an account phone off the list, types it back, and the query
+     * looks only at `addresses.phone` — zero rows, every time the two differ, which is the
+     * ordinary case for a household or office recipient. Moving the filter into SQL for W9
+     * is what introduced that: the old in-memory pass saw the account fields because it ran
+     * after they were merged.
+     *
+     * No new port method: this is the same `qMatchedIds` channel order-service's snapshots
+     * already use for "matched somewhere this query cannot see". One batch read, and only
+     * when there is a needle. Fails soft like every other use of this port — a search that
+     * 500s is worse than one matching on fewer columns.
+     */
+    const accountMatchedIds = search ? await this.accountMatches(depotId, search) : [];
+    const [profileRows, ledger, subscriberIds] = await Promise.all([
+      this.crm.listDepotCustomers(depotId, {
+        q: search,
+        orderedIds: stats.map((s) => s.customerId),
+        qMatchedIds: search
+          ? [
+              ...new Set([
+                ...stats.filter((s) => snapshotMatches(s, search)).map((s) => s.customerId),
+                ...accountMatchedIds,
+              ]),
+            ]
+          : [],
+        limit,
+        offset: (page - 1) * limit,
+      }),
       // J-2. `null` (not []) when depot-service is unreachable or unconfigured, so the two
       // columns can say "belum tersambung" instead of printing a zero nobody checked.
       this.depotLedger.gallonsByCustomer(depotId),
@@ -195,33 +250,22 @@ export class DepotCrmService {
     const subscribers = subscriberIds && new Set(subscriberIds);
     const ledgerBy = ledger && new Map(ledger.map((row) => [row.customerId, row]));
     const statsBy = new Map(stats.map((s) => [s.customerId, s]));
-    const known = new Set(profileRows.map((r) => r.customerId));
-    const rows = [
-      ...profileRows,
-      // Ordered here, but never recorded as belonging here. Name and phone come off the
-      // order snapshot until the account lookup below replaces them.
-      ...stats
-        .filter((s) => !known.has(s.customerId))
-        .map((s) => ({
-          customerId: s.customerId,
-          fullName: s.name ?? null,
-          phone: s.phone ?? null,
-          membershipTier: MembershipTier.BASIC,
-        })),
-    ];
 
     // The account name, not the primary address's recipient — a customer who never saved
     // an address has an account name but no address, and used to list as "Tanpa nama".
-    const identities = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
+    // Asked for the PAGE, not the depot.
+    const identities = await this.identity.getCustomerNames(profileRows.map((r) => r.customerId));
     const now = new Date();
     const t = this.config.crmThresholds;
-    const items = rows.map((r) => {
+    return profileRows.map((r) => {
       const s = statsBy.get(r.customerId);
       const account = identities.get(r.customerId);
       return {
         id: r.customerId,
-        fullName: account?.fullName ?? r.fullName,
-        phone: account?.phone ?? r.phone,
+        // Account, then the primary address's recipient, then the order snapshot: somebody
+        // who has only ever ordered here has no row in either of the first two.
+        fullName: account?.fullName ?? r.fullName ?? s?.name ?? null,
+        phone: account?.phone ?? r.phone ?? s?.phone ?? null,
         membershipTier: r.membershipTier,
         // Order aggregates from order-service; null (not 0) when it had no data / was unreachable.
         orderCount: s ? s.orderCount : null,
@@ -237,7 +281,6 @@ export class DepotCrmService {
         isSubscriber: subscribers ? subscribers.has(r.customerId) : null,
       };
     });
-    return q && q.trim() !== '' ? items.filter((i) => matches(i, q.trim())) : items;
   }
 
   /**

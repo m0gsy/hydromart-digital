@@ -727,6 +727,17 @@ describe('OrderPrismaRepository', () => {
         // different question, and the CONFIRMED/PREPARING window was asking this one.
         statusChangedAt: { lt: before },
         subscriptionId: null,
+        // W2b: and never an order the customer booked for a later day. The booked day is
+        // not readable — `deliveryWindow` stores "Kam, 09.00-11.00", which does not say
+        // WHICH Thursday, and its first two labels come from the browser's dictionary. So
+        // the query protects EVERY windowed order for the whole 4-day booking horizon and
+        // sweeps only what is unmistakably not a schedule: no window, an empty one, or
+        // express. Asserted as the literal `where` because the shape IS the guarantee.
+        OR: [
+          { deliveryWindow: null },
+          { deliveryWindow: { in: ['', 'Antar sekarang (express)'] } },
+          { statusChangedAt: { lt: new Date(before.getTime() - 4 * 24 * 60 * 60 * 1000) } },
+        ],
       },
       include: expect.any(Object),
       orderBy: { statusChangedAt: 'asc' },
@@ -738,9 +749,16 @@ describe('OrderPrismaRepository', () => {
     order.findMany.mockResolvedValue([]);
     const before = new Date('2026-01-05');
     await repo.findStaleIn([OrderStatus.CREATED], before, undefined, false);
+    // objectContaining on `where` would let a lingering `subscriptionId: null` through —
+    // the exact thing this test is named for — so the key's ABSENCE is asserted directly.
+    const where = order.findMany.mock.calls[0]![0]!.where;
+    expect(where).not.toHaveProperty('subscriptionId');
     expect(order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: { in: [OrderStatus.CREATED] }, statusChangedAt: { lt: before } },
+        where: expect.objectContaining({
+          status: { in: [OrderStatus.CREATED] },
+          statusChangedAt: { lt: before },
+        }),
       }),
     );
   });

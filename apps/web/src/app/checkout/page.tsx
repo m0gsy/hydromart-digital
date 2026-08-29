@@ -69,8 +69,22 @@ import type {
   VoucherQuote,
 } from '@/lib/types';
 
-// The deliveryWindow value order-service/depot reads is a locale-independent ID literal
-// (matches the scheduled-slot strings), so express keeps an ID marker too.
+// The one deliveryWindow value the server can recognise. order-service's sweep matches this
+// exact string to tell "deliver now" from "deliver on a chosen day" — see EXPRESS_WINDOW in
+// order.prisma.repository.ts, which must stay byte-identical (pinned by
+// apps/web/test/express-window-constant.test.ts).
+//
+// This constant IS locale-independent, because express writes it directly. The scheduled
+// slot strings around it are NOT: buildDates() below labels the first two days with
+// t('customerFix.slot.today'/'tomorrow'), so an English browser stores "Today, 09.00-11.00".
+// An earlier version of this comment claimed all of them were locale-independent literals,
+// and the sweep query was written trusting it. Neither the day NOR the date survives into
+// the row: "Kam, 09.00-11.00" does not say WHICH Thursday.
+//
+// ponytail: that is why the sweep protects every windowed order for the full 4-day booking
+// horizon instead of reading the booked day — the booked day is not in the database. The
+// upgrade path is a real `scheduledFor DateTime?` column; until it exists, no query can do
+// better than this.
 const EXPRESS_WINDOW = 'Antar sekarang (express)';
 
 /**
@@ -323,9 +337,31 @@ function CheckoutInner() {
   const delivery = options ?? NO_OPTIONS;
 
   // Buka / istirahat / tutup for the fulfilling depot, from the hours the public depot
-  // projection already carries. Only explains the missing express option — the server is
-  // the one that actually withdraws it.
+  // projection already carries. It explains the missing express option AND, since W11,
+  // gates the order itself — the server stays the authority on both.
   const depotState = depotOpenState(depot?.operatingHours, depot?.holidays);
+  /*
+   * W11. A shut depot must not take the order at all, not merely withdraw express.
+   *
+   * An order placed here lands in CREATED, and order-service's `expireAbandoned` cancels
+   * a CREATED order once it is older than `abandonMinutes` — it sweeps on the age of the
+   * row, NOT on the delivery window. So the 23:00 cash order nobody was there to confirm
+   * was silently gone by midnight, and the customer found out by not being delivered to.
+   * Same gate as `outOfServiceArea` below, because it is the same class of thing: an
+   * order the server will not carry, said before the button that spends money.
+   *
+   * `istirahat` deliberately does not gate. An hour's break is not a shut counter, and
+   * somebody is there to confirm the order when it ends.
+   */
+  /*
+   * `depot != null` is load-bearing and was missing on the first cut of this. Since W11 an
+   * absent `operatingHours` reads as SHUT, and `depot` is null while the nearby list is
+   * still in flight and again whenever `GET /depots` fails — so without it this screen
+   * refused to take money mid-fetch, and blamed opening hours for a 502. A depot we do not
+   * have yet is not a depot that is closed. Same shape as `outOfServiceArea` above, which
+   * is why that one names `nearbyLoading`.
+   */
+  const depotClosed = depot != null && depotState === 'tutup';
 
   // Ongkir estimate, charged per galon exactly as order.service.ts does it. Declared up here
   // because the voucher quote below needs it too: a FREE_SHIPPING voucher is priced against
@@ -1308,7 +1344,7 @@ function CheckoutInner() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea}
+            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || depotClosed}
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
@@ -1319,6 +1355,11 @@ function CheckoutInner() {
           {outOfServiceArea && (
             <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
               {t('order.checkout.outOfServiceArea')}
+            </p>
+          )}
+          {depotClosed && (
+            <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+              {t('hrFix.checkoutFix.depotClosed')}
             </p>
           )}
           {/* SF-02: the depot lookup failed, so nothing on this screen is the depot's price. */}
@@ -1354,6 +1395,11 @@ function CheckoutInner() {
           {t('order.checkout.outOfServiceArea')}
         </p>
       )}
+      {depotClosed && (
+        <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
+          {t('hrFix.checkoutFix.depotClosed')}
+        </p>
+      )}
       {/* A direct child of the form on purpose: `sticky` only holds while its containing
           block is on screen, and a wrapper div is exactly as tall as the bar itself. */}
       <StickyActionBar className="lg:hidden" unstickAt="lg">
@@ -1371,7 +1417,7 @@ function CheckoutInner() {
         <Button
           type="submit"
           loading={submitting}
-          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea}
+          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || depotClosed}
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >
           {/* Not `placeOrder`: that string ends in an em dash because the rail version is

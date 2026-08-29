@@ -1,9 +1,13 @@
 // Kebijakan Privasi (UU 27/2022 tentang Pelindungan Data Pribadi). Halaman statis;
 // sumber kebenaran Bahasa. `sections` di-render berurutan sebagai heading + paragraf.
-// Perbarui `effective` setiap kali isi kebijakan berubah secara material.
+// Perbarui `effective` setiap kali isi kebijakan berubah secara material — DAN naikkan
+// `CONSENT_DOCUMENT_VERSION` di services/auth-service/.../consent.service.ts ke tanggal
+// yang sama. Baris consent menyimpan versi itu, jadi kalau keduanya berbeda, ledger akan
+// mengaku pelanggan menyetujui teks yang tidak pernah mereka lihat. Itu persis cacat yang
+// terjadi sampai 29 Agustus 2026 (versi tertulis '1.0', dokumennya belum ada).
 export const privacy = {
   title: 'Kebijakan Privasi',
-  effective: 'Berlaku sejak 23 Agustus 2026',
+  effective: 'Berlaku sejak 29 Agustus 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
@@ -28,8 +32,8 @@ export const privacy = {
       body: 'Kami memproses data berdasarkan persetujuanmu (diberikan saat pendaftaran dan saat penerima menandatangani bukti pengantaran) dan untuk pelaksanaan pesananmu. Kamu dapat menarik persetujuan kapan saja, dengan konsekuensi kami mungkin tidak dapat melanjutkan layanan tertentu.',
     },
     {
-      heading: 'Berbagi data',
-      body: 'Data hanya dibagikan kepada depot dan kurir yang menangani pesananmu, serta penyedia infrastruktur (penyimpanan berkas, pengiriman OTP) sebatas yang diperlukan. Kami tidak menjual data pribadimu.',
+      heading: 'Berbagi data & penerima pihak ketiga',
+      body: 'Data pesananmu dibagikan kepada depot dan kurir yang menanganinya. Di luar itu ada penyedia yang menerima sebagian datamu karena merekalah yang memprosesnya untuk kami, dan inilah daftar lengkapnya. (1) BiznetGio NEO Object Storage (Jakarta dan Jawa Barat, Indonesia) menyimpan berkas gambar: foto dan tanda tangan bukti pengantaran, serta foto profilmu. (2) Zenziva (Indonesia) menerima nomor teleponmu dan isi pesannya untuk mengirim kode OTP lewat SMS. (3) Google, lewat Firebase Cloud Messaging, menerima token perangkat aplikasi Android-mu beserta judul dan isi setiap notifikasi yang kami kirim — jadi kalimat seperti “Pesananmu sedang diantar” memang melewati server Google, dan Google memprosesnya di luar wilayah Indonesia. (4) Untuk notifikasi di peramban, layanan push milik pembuat peramban (Google untuk Chrome, Mozilla untuk Firefox, dan seterusnya) meneruskan pesan kami, tetapi isinya terenkripsi sehingga mereka hanya tahu ke perangkat mana pesan dikirim, bukan isinya. Notifikasi perangkat hanya berjalan kalau kamu mengizinkannya; mencabut izin itu menghentikan pengiriman token maupun teks notifikasi ke Google. Tidak satu pun penerima di atas boleh memakai datamu untuk keperluannya sendiri, dan kami tidak menjual maupun menyewakan data pribadimu.',
     },
     {
       heading: 'Penyimpanan & retensi',

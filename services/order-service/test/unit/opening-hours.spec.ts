@@ -59,10 +59,31 @@ describe('isOpenAt', () => {
     expect(isOpenAt(SOP, [], new Date('2026-08-10T03:00:00.000Z'), TZ)).toBe(true); // 10:00 WIB
   });
 
-  it('treats "no hours configured" as open, never as permanently shut', () => {
-    expect(isOpenAt(null, [], wib(MON, '03:00'), TZ)).toBe(true);
-    expect(isOpenAt(undefined, null, wib(MON, '03:00'), TZ)).toBe(true);
-    expect(isOpenAt({}, [], wib(MON, '03:00'), TZ)).toBe(true);
+  /**
+   * W11. This used to answer `true`, on the reasoning that an empty blob is a depot that
+   * never filled the form in rather than one that is permanently shut. Measured against
+   * production, that reading sells: depot DEMO-01 "Depot Demo (Play Review)" is ACTIVE and
+   * public in Malang with `operatingHours: {}`, so every customer inside its 3 km radius
+   * could buy an immediate cash delivery from it at 03.00. Absence is not a safe value —
+   * the same call the Prometheus alerting rules had to make.
+   *
+   * Note what this is NOT: an unreachable depot-service still reads as open (order.service
+   * `depotIsOpen`). Not knowing and knowing that nothing is configured are different facts.
+   */
+  it('treats "no hours configured" as SHUT, not as open forever', () => {
+    expect(isOpenAt(null, [], wib(MON, '03:00'), TZ)).toBe(false);
+    expect(isOpenAt(undefined, null, wib(MON, '03:00'), TZ)).toBe(false);
+    expect(isOpenAt({}, [], wib(MON, '03:00'), TZ)).toBe(false);
+    // Even at what would be the middle of a normal trading day: the depot has not said it
+    // trades at all, and a slot nobody configured is not a slot.
+    expect(isOpenAt({}, [], wib(MON, '10:00'), TZ)).toBe(false);
+  });
+
+  // A depot that HAS filled the form in is untouched by the flip above — the two real
+  // Bekasi depots trade 08.00–21.00 and keep every answer they had.
+  it('leaves a configured depot exactly as it was', () => {
+    expect(isOpenAt(SOP, [], wib(MON, '10:00'), TZ)).toBe(true);
+    expect(isOpenAt(SOP, [], wib(MON, '22:00'), TZ)).toBe(false);
   });
 
   it('treats an unreadable or inverted window as open rather than guessing', () => {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Skeleton, Toggle } from '@/components/ui';
+import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -13,9 +13,22 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { AdminSession, SecurityPolicy } from '@/lib/types';
 
-// Design 19b — security & 2FA. Both the POLICY (admin-service GET/PUT /security-policy)
-// and the ACTIVE SESSIONS list (auth-service GET /sessions for the current user, with
-// per-session revoke) are real. No geo lookup, so sessions show device + IP, not city.
+// Design 19b — security. The ACTIVE SESSIONS list is real end to end (auth-service
+// GET /sessions for the current user, with per-session revoke). No geo lookup, so
+// sessions show device + IP, not city.
+//
+// The POLICY (admin-service GET/PUT /security-policy) is a real round trip but NOT a real
+// control: measured across the repo, `SecurityPolicy` never leaves admin-service, so
+// nothing reads any of its three fields back. Two of them (idle timeout, IP allowlist)
+// stay editable because they are implementable and hold the admin's stated intent —
+// see UNENFORCED-2 below.
+//
+// `require2fa` was different and is gone. It rendered as a switch, defaulted ON, captioned
+// "all HQ accounts must verify OTP on sign-in" — and this platform has no second factor to
+// require: there is no password anywhere in auth-service, so phone + OTP is the entire
+// credential and OTP is factor ONE. The switch promised a control that cannot exist, to
+// the only account authorised to rely on it. The stored value is still round-tripped
+// unchanged below because `SaveSecurityPolicyDto.require2fa` is a required boolean.
 export default function HqSecurityPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -33,12 +46,24 @@ export default function HqSecurityPage() {
   const allowlist = allowlistText ?? policy.ipAllowlist.join('\n');
   const set = (patch: Partial<SecurityPolicy>) => setDraft({ ...policy, ...patch });
 
+  /**
+   * UNENFORCED-2. Measured 2026-08-29: `idleTimeoutMinutes` and `ipAllowlist` are written
+   * here, stored by admin-service, and read by NOTHING — no session TTL derives from the
+   * first (auth-service has no idle concept at all) and no gateway or guard evaluates the
+   * second. Unlike `require2fa` both are implementable, so they stay editable rather than
+   * being deleted: removing them would throw away an admin's stated intent. But the SCREEN
+   * still presents them as if they applied, and that is the same lie in a smaller font.
+   * Saying so needs two dictionary strings, which live outside this page — until they land,
+   * this comment is the only place the gap is recorded. Do not read it as "handled".
+   */
   async function save() {
     setBusy(true);
     const ipAllowlist = allowlist.split('\n').map((s) => s.trim()).filter(Boolean);
     try {
       const saved = await api.put<SecurityPolicy>(
         endpoints.admin.security,
+        // `require2fa` is passed through untouched: the control is gone, the required
+        // DTO field is not, and a UI default here would silently rewrite stored state.
         { idleTimeoutMinutes: policy.idleTimeoutMinutes, require2fa: policy.require2fa, ipAllowlist },
         true,
       );
@@ -88,13 +113,6 @@ export default function HqSecurityPage() {
             />
             <span className="text-sm text-muted">{t('hq.security.minutesIdle')}</span>
           </div>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">{t('hq.security.twoFa')}</p>
-            <p className="text-xs text-muted">{t('hq.security.twoFaBody')}</p>
-          </div>
-          <Toggle on={policy.require2fa} onChange={(v) => set({ require2fa: v })} label={t('hq.security.twoFa')} />
         </div>
         <div>
           <label htmlFor="ips" className="text-sm font-semibold">

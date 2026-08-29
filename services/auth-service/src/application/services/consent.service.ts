@@ -12,8 +12,21 @@ import {
 import { ConsentRepository } from '../ports/consent.repository';
 import { AUTH_TOKENS } from '../tokens';
 
-/** Current text version. Bump when the wording materially changes. */
-export const CONSENT_DOCUMENT_VERSION = '1.0';
+/**
+ * Version of the Terms + Privacy text a consent row was recorded against.
+ *
+ * A date rather than a counter, because it is checkable: both documents carry the same
+ * `Berlaku sejak` line in apps/web/src/lib/dictionaries/{id,en}/{terms,privacy}.ts, so a
+ * support agent can line a stored version up against the document a customer is reading.
+ * Bump this AND that `effective` line together whenever the wording changes materially.
+ *
+ * It read '1.0' from 2026-07-29 — the ledger migration, which also backfilled every
+ * existing customer at that value — until 2026-08-29, when the Terms of Service were
+ * written for the first time. So every production row still names a version whose Terms
+ * document did not exist on the day it was agreed to, and `pendingAcceptance` below is
+ * what makes that fact answerable instead of merely stored.
+ */
+export const CONSENT_DOCUMENT_VERSION = '2026-08-29';
 
 export interface ConsentStateEntry {
   purpose: ConsentPurpose;
@@ -23,6 +36,13 @@ export interface ConsentStateEntry {
   /** Null when this purpose has never been put to the customer. */
   decidedAt: Date | null;
   documentVersion: string | null;
+  /**
+   * Recorded against older wording than the version in force. Purely a fact about the
+   * row: no row at all is `false`, because "never asked" has no document to be behind.
+   * Whether being outdated should prompt anything is policy, and lives in
+   * `pendingAcceptance` — not here.
+   */
+  outdated: boolean;
 }
 
 /**
@@ -75,8 +95,32 @@ export class ConsentService {
         withdrawable: isWithdrawable(purpose),
         decidedAt: record?.recordedAt ?? null,
         documentVersion: record?.documentVersion ?? null,
+        outdated: record ? record.documentVersion !== CONSENT_DOCUMENT_VERSION : false,
       };
     });
+  }
+
+  /**
+   * The mandatory purposes this customer still has to accept at the version in force:
+   * agreed against older wording, or never recorded at all (accounts that predate the
+   * ledger, and anyone the '1.0' backfill missed).
+   *
+   * Read-only ON PURPOSE, and this is the whole design. Bumping the version must never
+   * revoke anything retroactively: the earlier acceptance stays granted, no order in
+   * flight loses its lawful basis, and nobody is shut out of their account over wording
+   * they were never shown. Appearing here means "still to be asked" — the same
+   * "never asked != refused" rule the ledger already keeps, applied to a second document.
+   * Only the customer can turn that into a refusal.
+   *
+   * MARKETING is deliberately never on this list even when its row is outdated: a fresh
+   * opt-in prompt that the customer ignores would quietly read as a withdrawal of an
+   * opt-in they already gave.
+   */
+  async pendingAcceptance(customerId: string): Promise<ConsentPurpose[]> {
+    const state = await this.stateFor(customerId);
+    return state
+      .filter((entry) => entry.mandatory && (!entry.granted || entry.outdated))
+      .map((entry) => entry.purpose);
   }
 
   /**

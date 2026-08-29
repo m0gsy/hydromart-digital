@@ -72,6 +72,17 @@ const address: DeliveryAddressSnapshot = {
 /** Address with no map pin — the case that now forces an explicit depot choice. */
 const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, longitude: null };
 
+/*
+ * W11 made an absent `operatingHours` mean SHUT rather than always-open, so a fixture depot
+ * with no hours is now a depot that sells nothing — express included. These hours are open
+ * around the clock on purpose: this fixture exists to exercise pricing and express fees, and
+ * the opening-hours rule has its own tests (test/unit/opening-hours.spec.ts). A depot that
+ * is shut belongs in those, not silently underneath every other assertion in this file.
+ */
+const ALWAYS_OPEN = Object.fromEntries(
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '23:59' }]),
+);
+
 const homeDepot = {
   id: 'depot-home',
   lat: -6.9,
@@ -79,6 +90,8 @@ const homeDepot = {
   serviceRadiusKm: 10,
   deliveryFee: 5000,
   minOrderAmount: null,
+  operatingHours: ALWAYS_OPEN,
+  holidays: [],
 };
 
 describe('OrderService', () => {

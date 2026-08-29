@@ -32,6 +32,13 @@ name: Mobile release
 # Required variables (Settings → Secrets and variables → Actions → Variables):
 #   MOBILE_API_URL   https://<API_DOMAIN>  — see the guard below, this one is load-bearing
 #   MOBILE_WEB_HOST  <WEB_DOMAIN>          — the host the App Links intent-filter claims
+#   SENTRY_DSN_MOBILE  https://<key>@<org>.ingest.sentry.io/<project-id>
+#     Required by `bundle` only, and NOT YET CREATED — measured 2026-08-29, `gh variable list`
+#     returns MOBILE_API_URL, MOBILE_WEB_HOST and PUBLIC_API_URL and nothing else. So the next
+#     `mobile-v*` tag fails at "Required configuration is present" until someone adds it, and
+#     that is the point: `NEXT_PUBLIC_*` is inlined at build time, so an AAB built without it
+#     can never report an error from any device, ever. `testable` still builds without it and
+#     says so — an APK on a desk is not a publication.
 #
 # Enrol in Play App Signing before the first upload. With it, the keystore above is only
 # an UPLOAD key and losing it is recoverable. Without it, losing it means the app can
@@ -225,34 +232,24 @@ jobs:
 
       # Both exports first, while Node is the version the repo pins. They land in separate
       # directories, so neither waits on the other's APK.
-      # N2/N3: an artefact that cannot report its own errors must not be published.
       #
-      # `NEXT_PUBLIC_*` is INLINED at build time, and `SentryInit` does not even download the
-      # SDK when the DSN is blank — so a published binary with an empty DSN is permanently
-      # blind, and nothing about it looks wrong. That is not a hypothetical: MEASURED
-      # 2026-08-25, `gh variable list` returns exactly three variables (MOBILE_API_URL,
-      # MOBILE_WEB_HOST, PUBLIC_API_URL). SENTRY_DSN_MOBILE is NOT among them, so every image and every
-      # APK this repo has ever published inlined an empty string here.
-      #
-      # check-workflows.mjs asserts this workflow MENTIONS the build arg, and it does — which
-      # is why the N2 gate has been green the whole time. A mention is not a value. This step
-      # is the half that can actually go red.
-      #
-      # Guarded in the release path only. A local or bare-IP build legitimately has no DSN;
-      # what must never happen is PUBLISHING one.
-      - name: Client error reporting is configured
+      # N2/N3: an artefact that cannot report its own errors must not be PUBLISHED. The rule is
+      # right and its guard used to sit here — in the one job of this workflow that publishes
+      # nothing, since a debug APK goes to a phone on a desk. Meanwhile `bundle` below, which
+      # signs the AAB and hands it to Play, read the same variable with nothing checking it
+      # (M3b). And `gh variable list` does not return SENTRY_DSN_MOBILE (measured 2026-08-25),
+      # so the effect was exactly inverted: no test APK could be built at all, while every
+      # released binary shipped blind. The refusal now lives in `bundle`; this only says what
+      # you are holding.
+      - name: Client error reporting
         env:
           DSN: ${{ vars.SENTRY_DSN_MOBILE }}
         run: |
-          test -n "$DSN" || {
-            echo "SENTRY_DSN_MOBILE is unset, so NEXT_PUBLIC_SENTRY_DSN would be baked in EMPTY and this" >&2
-            echo "artefact would ship with no error reporting at all (audit N2)." >&2
-            echo "" >&2
-            echo "Create it under Settings -> Secrets and variables -> Actions -> Variables:" >&2
-            echo "  SENTRY_DSN_MOBILE = https://<key>@<org>.ingest.sentry.io/<project-id>" >&2
-            exit 1
-          }
-          echo "SENTRY_DSN_MOBILE is set."
+          if [ -n "$DSN" ]; then
+            echo "SENTRY_DSN_MOBILE is set — this APK reports its own errors."
+          else
+            echo "::warning::SENTRY_DSN_MOBILE is unset: this APK is BLIND. NEXT_PUBLIC_SENTRY_DSN is inlined at build time and SentryInit does not load the SDK at all when it is empty, so nothing this build crashes on will reach Sentry. Read logcat instead, or set the variable and re-run."
+          fi
 
       - name: Export both binaries
         env:
@@ -374,10 +371,27 @@ jobs:
         env:
           MOBILE_API_URL: ${{ vars.MOBILE_API_URL }}
           MOBILE_WEB_HOST: ${{ vars.MOBILE_WEB_HOST }}
+          # M3b. `NEXT_PUBLIC_*` is inlined into the export at build time and `SentryInit` does
+          # not even download the SDK when the DSN is blank, so an AAB built without this is
+          # blind on every device that ever installs it and nothing about it looks wrong.
+          # check-workflows.mjs asserts only that this workflow MENTIONS the build arg — a
+          # mention is not a value, which is how the N2 gate stayed green for months while the
+          # only refusal sat in `testable`, a job that publishes nothing. This is the path that
+          # publishes, so this is where an empty DSN has to stop.
+          DSN: ${{ vars.SENTRY_DSN_MOBILE }}
         run: |
           test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the app would call http://localhost:8080"; exit 1; }
           test -n "$MOBILE_WEB_HOST" || { echo "MOBILE_WEB_HOST is empty — App Links would claim the placeholder domain"; exit 1; }
           case "$MOBILE_API_URL" in https://*) ;; *) echo "MOBILE_API_URL must be https — Android blocks cleartext"; exit 1 ;; esac
+          test -n "$DSN" || {
+            echo "SENTRY_DSN_MOBILE is unset, so NEXT_PUBLIC_SENTRY_DSN would be inlined EMPTY and this" >&2
+            echo "AAB would be published with no error reporting at all, for the life of the binary" >&2
+            echo "on every device that installs it (audit N2/M3b)." >&2
+            echo "" >&2
+            echo "Create it under Settings -> Secrets and variables -> Actions -> Variables:" >&2
+            echo "  SENTRY_DSN_MOBILE = https://<key>@<org>.ingest.sentry.io/<project-id>" >&2
+            exit 1
+          }
 
       - name: Install workspace dependencies
         run: npm ci
@@ -400,8 +414,21 @@ jobs:
       - name: Signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          # Only the keystore FILE was checked, and the file is the half that fails loudly.
+          # mobile/android/app/build.gradle attaches the release signingConfig on
+          # `hydromartKeystore.exists()` alone and reads these three through `System.getenv`,
+          # which is null for an unset secret — and an incomplete signingConfig makes AGP write
+          # an UNSIGNED bundle to the very same `app-release.aab` path a signed one uses. So the
+          # mv, the permission audit, the artifact upload and the whole run stay green, and Play
+          # is the first thing that says no. Fail closed here, like the file above.
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           test -n "$ANDROID_KEYSTORE_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
+          for v in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            test -n "${!v}" || { echo "$v is empty — Gradle would emit an UNSIGNED app-release.aab and this run would still be green"; exit 1; }
+          done
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/android/upload.jks
 
       - name: Version numbers
@@ -572,7 +599,12 @@ jobs:
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           else
             echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::PLAY_SERVICE_ACCOUNT_JSON is unset — the bundles are attached to this run and the upload stays manual.'
+            # `::warning::`, not `::notice::`. The skip itself is correct and stays; what was
+            # wrong was how quiet it is. A notice does not surface on the run summary, so a tag
+            # that published nothing and a tag that published to Play were indistinguishable at
+            # a glance — and the state that produces the skip is the permanent one until
+            # someone creates the secret (measured 2026-08-29: `gh secret list` does not have it).
+            echo '::warning::PLAY_SERVICE_ACCOUNT_JSON is unset — NOTHING was uploaded to Play. The bundles are attached to this run as an artifact and the upload stays manual.'
           fi
 
       - name: Fetch the bundles

@@ -51,6 +51,7 @@ export const home = {
     viewRewards: 'Lihat rewards',
     guestTitle: 'Kumpulkan poin tiap pesan',
     guestBody: 'Jadi member dan dapatkan diskon makin besar seiring naik tier.',
+    guestBodyPoints: 'Jadi member dan kumpulkan poin dari tiap pesanan untuk ditukar hadiah.',
     register: 'Daftar gratis',
   },
   depots: {

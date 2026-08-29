@@ -1,5 +1,8 @@
 import { ConsentNotWithdrawableError } from '../../src/domain/errors/auth.errors';
-import { ConsentService } from '../../src/application/services/consent.service';
+import {
+  CONSENT_DOCUMENT_VERSION,
+  ConsentService,
+} from '../../src/application/services/consent.service';
 import { ConsentController } from '../../src/modules/auth/consent.controller';
 import {
   ConsentRecord,
@@ -83,10 +86,12 @@ describe('ConsentService', () => {
     await service.recordRegistrationConsent(CUSTOMER, true);
 
     await service.set(CUSTOMER, 'MARKETING', false);
-    expect((await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'MARKETING')).toMatchObject({
-      granted: false,
-      withdrawable: true,
-    });
+    expect((await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'MARKETING')).toMatchObject(
+      {
+        granted: false,
+        withdrawable: true,
+      },
+    );
 
     await service.set(CUSTOMER, 'MARKETING', true);
     expect((await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'MARKETING')?.granted).toBe(
@@ -130,5 +135,84 @@ describe('ConsentController', () => {
     expect(set).toMatchObject({ purpose: 'MARKETING', granted: true, source: 'account-settings' });
 
     expect(await controller.history(user)).toHaveLength(3);
+  });
+});
+
+/*
+ * W10. `CONSENT_DOCUMENT_VERSION` was '1.0' from the day the ledger shipped
+ * (migration 20260729080000, which also backfilled every existing customer at '1.0')
+ * until the Terms of Service were written for the first time a month later. So every
+ * production row points at a version whose Terms document did not exist when it was
+ * agreed to — and nothing in the repo ever COMPARED a stored version to the one in
+ * force, so the ledger could prove when somebody agreed but not what to.
+ */
+describe('the document version in force', () => {
+  let repo: InMemoryConsentRepository;
+  let service: ConsentService;
+
+  const retired = (purpose: ConsentRecord['purpose'], granted = true) => ({
+    customerId: CUSTOMER,
+    purpose,
+    granted,
+    documentVersion: '1.0',
+    source: 'registration-backfill',
+  });
+
+  beforeEach(() => {
+    repo = new InMemoryConsentRepository();
+    service = new ConsentService(repo);
+  });
+
+  it('is no longer the placeholder that pointed at unwritten documents', () => {
+    expect(CONSENT_DOCUMENT_VERSION).not.toBe('1.0');
+  });
+
+  it('reports the retired text as still to be accepted — without revoking it', async () => {
+    await repo.recordMany([retired('TERMS'), retired('PRIVACY')]);
+
+    expect(await service.pendingAcceptance(CUSTOMER)).toEqual(['TERMS', 'PRIVACY']);
+    // The whole point: outdated is a prompt, not a revocation. Bumping the version must
+    // not strip the lawful basis from an account that is mid-order.
+    expect((await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'TERMS')).toMatchObject({
+      granted: true,
+      outdated: true,
+    });
+  });
+
+  it('has nothing to ask a customer who registered under the current text', async () => {
+    await service.recordRegistrationConsent(CUSTOMER, true);
+
+    expect(await service.pendingAcceptance(CUSTOMER)).toEqual([]);
+    expect((await service.stateFor(CUSTOMER)).some((s) => s.outdated)).toBe(false);
+  });
+
+  it('asks an account that predates the ledger, which is not calling it a refusal', async () => {
+    expect(await service.pendingAcceptance(CUSTOMER)).toEqual(['TERMS', 'PRIVACY']);
+
+    const marketing = (await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'MARKETING');
+    // No row at all: nothing to be outdated about, and still not a "no".
+    expect(marketing).toMatchObject({ decidedAt: null, granted: false, outdated: false });
+  });
+
+  it('never drags MARKETING into re-acceptance, so an opt-in survives a reword', async () => {
+    await repo.recordMany([retired('TERMS'), retired('PRIVACY'), retired('MARKETING')]);
+
+    expect(await service.pendingAcceptance(CUSTOMER)).not.toContain('MARKETING');
+    expect((await service.stateFor(CUSTOMER)).find((s) => s.purpose === 'MARKETING')).toMatchObject(
+      // Reported as outdated (it is a fact about that row) but never re-asked: a fresh
+      // marketing prompt that the customer ignores would silently read as a withdrawal.
+      { granted: true, outdated: true },
+    );
+  });
+
+  it('re-accepting the current text clears the prompt', async () => {
+    await repo.recordMany([retired('TERMS'), retired('PRIVACY')]);
+
+    await service.set(CUSTOMER, 'TERMS', true, 're-consent');
+    await service.set(CUSTOMER, 'PRIVACY', true, 're-consent');
+
+    expect(await service.pendingAcceptance(CUSTOMER)).toEqual([]);
+    // Append-only: the old acceptance is still on file as evidence of what was agreed then.
+    expect(await service.history(CUSTOMER)).toHaveLength(4);
   });
 });

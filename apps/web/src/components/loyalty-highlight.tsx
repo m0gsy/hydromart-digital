@@ -39,6 +39,16 @@ export function LoyaltyHighlight() {
   if (!tiers || tiers.length === 0) return null;
 
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+  /*
+   * W3. A tier whose rate is 0 has no discount to advertise, and this card was the only
+   * place in the app that said so out loud anyway: products/detail, checkout and the
+   * rewards hero each already drop their own row on `rate > 0`. Same per-row shape here.
+   *
+   * Measured 2026-08-27 against production `/loyalty/tiers`: SILVER, GOLD and PLATINUM
+   * all return discountRate 0, so every guest on Beranda read "SILVER 0% GOLD 0%
+   * PLATINUM 0%" — the first screen in the app, promising nothing three times.
+   */
+  const discounting = sorted.filter((tier) => tier.discountRate > 0);
 
   // Signed-in: show live balance + progress to the next tier threshold.
   if (customer && account) {
@@ -60,7 +70,10 @@ export function LoyaltyHighlight() {
           </span>
           <span className="text-sm text-muted">
             {' '}
-            {t('home.loyalty.balanceMeta', { n: Math.round(account.discountRate * 100) })}
+            {/* The unit alone when there is no rate — the number still needs the word. */}
+            {account.discountRate > 0
+              ? t('home.loyalty.balanceMeta', { n: Math.round(account.discountRate * 100) })
+              : t('profile.rewards.points.unit')}
           </span>
         </p>
         <div className="h-2 rounded-full bg-[color:var(--surface-soft)]">
@@ -73,7 +86,9 @@ export function LoyaltyHighlight() {
                 points: (next.threshold - account.lifetimePoints).toLocaleString('id-ID'),
               })}
               <span className="font-extrabold text-[color:var(--text)]">{next.tier}</span>
-              {t('home.loyalty.toNextPost', { n: Math.round(next.discountRate * 100) })}
+              {/* "1.500 poin lagi menuju GOLD" is a whole sentence; the rise is the extra. */}
+              {next.discountRate > 0 &&
+                t('home.loyalty.toNextPost', { n: Math.round(next.discountRate * 100) })}
             </>
           ) : (
             t('home.loyalty.maxTier')
@@ -95,14 +110,25 @@ export function LoyaltyHighlight() {
       <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
         <Trophy size={22} weight="fill" className="text-amber-600" /> {t('home.loyalty.guestTitle')}
       </h2>
-      <p className="text-sm text-muted">{t('home.loyalty.guestBody')}</p>
-      <div className="flex flex-wrap gap-2">
-        {sorted.map((tier) => (
-          <Chip key={tier.tier} tone="outline">
-            {tier.tier} · {Math.round(tier.discountRate * 100)}%
-          </Chip>
-        ))}
-      </div>
+      {/*
+        * The ladder above it is hidden when no tier discounts, and this sentence promised the
+        * discounts anyway — "diskon makin besar seiring naik tier" over a card with no tiers
+        * on it. All three rates are 0 in production today, so the first thing a guest reads
+        * on Beranda was a claim the product does not honour. Driven by the same `discounting`
+        * check, so the copy and the chips can never disagree again.
+        */}
+      <p className="text-sm text-muted">
+        {t(discounting.length > 0 ? 'home.loyalty.guestBody' : 'home.loyalty.guestBodyPoints')}
+      </p>
+      {discounting.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {discounting.map((tier) => (
+            <Chip key={tier.tier} tone="outline">
+              {tier.tier} · {Math.round(tier.discountRate * 100)}%
+            </Chip>
+          ))}
+        </div>
+      )}
       <LinkButton href="/register" className="self-start">
         {t('home.loyalty.register')}
       </LinkButton>

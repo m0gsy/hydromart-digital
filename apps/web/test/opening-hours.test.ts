@@ -37,10 +37,21 @@ describe('depotOpenState', () => {
     expect(depotOpenState(SOP, [{ date: '2026-08-10' }], at(2026, 8, 10, 10, 0))).toBe('tutup');
   });
 
-  // A depot that never filled the form in is not a depot that is permanently closed.
-  it('says open when no hours are configured at all', () => {
-    expect(depotOpenState(undefined, undefined, at(2026, 8, 10, 3, 0))).toBe('buka');
-    expect(depotOpenState({}, [], at(2026, 8, 10, 3, 0))).toBe('buka');
+  /*
+   * W11. No hours configured at all is CLOSED, not open.
+   *
+   * This used to answer 'buka', and so did the server copy it mirrors. The premise both
+   * rested on — "a depot that never filled the form in is not permanently shut" — is not
+   * how the money behaves: `expireAbandoned` auto-cancels any order still CREATED after
+   * `abandonMinutes`, whatever its delivery window, so an order placed at an unstaffed
+   * depot dies about an hour later with nothing said. Default-open sold that order;
+   * default-closed refuses it while the customer is still on the screen.
+   *
+   * Configure the hours to be open. An unanswered question is not a yes.
+   */
+  it('says closed when no hours are configured at all', () => {
+    expect(depotOpenState(undefined, undefined, at(2026, 8, 10, 3, 0))).toBe('tutup');
+    expect(depotOpenState({}, [], at(2026, 8, 10, 3, 0))).toBe('tutup');
   });
 
   it('says open rather than guessing on an unreadable or half-set entry', () => {
