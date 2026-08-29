@@ -47,7 +47,10 @@ check "the workflow itself"        true  ".github/workflows/ci.yml"
 # as a success, so these used to ship with no integration run and nothing went red.
 check "the DB bootstrap SQL"       true  "infra/postgres/init-databases.sql"
 check "an ops config the stack mounts" true "ops/prometheus.yml"
-check "the edge config"            true  "Caddyfile"
+# Moved to infra/caddy/ so docker-compose can bind-mount the DIRECTORY: a single-file mount
+# pins an inode, and a deploy that writes a new file left Caddy serving the old config —
+# which is how a committed /metrics block sat unapplied while the live API answered 200.
+check "the edge config"            true  "infra/caddy/Caddyfile"
 
 # The other side of M23, deliberately still false: neither is an input to any image, and
 # answering true would boot the whole stack for a change that cannot reach it — the exact
