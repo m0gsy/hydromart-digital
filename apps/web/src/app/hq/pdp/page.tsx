@@ -13,7 +13,7 @@ import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DataSubjectRequest } from '@/lib/types';
+import type { ConsentLagReport, DataSubjectRequest } from '@/lib/types';
 
 /**
  * UU PDP tahap 1 (item 13) — the head-office decision queue.
@@ -159,6 +159,8 @@ export default function HqPdpPage() {
         </ul>
       )}
 
+      <ConsentLagCard />
+
       <p className="flex items-start gap-2 rounded-xl bg-[color:var(--surface-soft)] px-4 py-3 text-xs text-[color:var(--text-muted)]">
         <Warning size={16} weight="fill" className="mt-0.5 flex-shrink-0" />
         {t('hq.pdp.deleteWarning')}
@@ -174,5 +176,143 @@ export default function HqPdpPage() {
         onClose={() => setConfirmDelete(null)}
       />
     </div>
+  );
+}
+
+/** Page size. The server caps a page at 100; 25 is what fits on a screen without scrolling
+ *  past the totals, which are the part of this report anybody actually reads. */
+const LAG_PAGE_SIZE = 25;
+
+/**
+ * W10 — the fleet-wide half of "who is still behind the Terms/Privacy text in force".
+ *
+ * Three things this has to get right, and each of them is a way to make the number lie:
+ *
+ *  1. The totals do NOT sum. Only `current` is exclusive; neverAsked/refused/outdated
+ *     overlap, so one account can be counted in two of them. Rendered as separate figures
+ *     with that said in words — a pie or a stacked bar here would silently claim a whole
+ *     that does not exist.
+ *  2. Nearly everybody is `outdated` on day one, because the consent-ledger migration
+ *     backfilled every existing row at version '1.0'. That is the correct answer, so it is
+ *     shown in a neutral tone with the reason beside it. Painted red it would read as an
+ *     incident and get "fixed" by re-prompting the entire customer base.
+ *  3. "Never asked" is not "refused". The ledger keeps them apart on purpose (no row at
+ *     all vs. a row that says no) and this screen keeps them apart too.
+ *
+ * Paged by keyset, forward-only by nature: each page hands back the cursor for the next.
+ * "Back" is therefore the stack of cursors already spent, not a page number the server
+ * never had. Unpaged was the alternative and this walks the entire customer base.
+ */
+function ConsentLagCard() {
+  const { t } = useT();
+  const [cursors, setCursors] = useState<string[]>([]);
+  const cursor = cursors[cursors.length - 1];
+  const { data, error, loading, reload } = useAsync<ConsentLagReport>(
+    () => api.get(endpoints.pdp.consentReport({ limit: LAG_PAGE_SIZE, cursor }), true),
+    [cursor],
+  );
+
+  const totals = data?.totals;
+  const figures = totals
+    ? ([
+        ['population', totals.population],
+        ['current', totals.current],
+        ['neverAsked', totals.neverAsked],
+        ['refused', totals.refused],
+        ['outdated', totals.outdated],
+      ] as const)
+    : [];
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div>
+        <h2 className="text-lg font-bold">{t('hq.consentLag.title')}</h2>
+        <p className="text-sm text-[color:var(--text-muted)]">{t('hq.consentLag.subtitle')}</p>
+      </div>
+
+      {loading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <ErrorState message={t('hq.consentLag.loadError')} onRetry={reload} />
+      ) : (
+        <>
+          <p className="text-xs text-[color:var(--text-muted)]">
+            {t('hq.consentLag.version', { v: data?.documentVersion ?? '' })}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {figures.map(([key, value]) => (
+              <div key={key} className="rounded-xl border border-app px-3 py-2">
+                <div className="text-xs text-[color:var(--text-muted)]">
+                  {t(`hq.consentLag.${key}`)}
+                </div>
+                <div className="text-lg font-bold">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-[color:var(--text-muted)]">{t('hq.consentLag.overlapNote')}</p>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('hq.consentLag.backfillNote')}</p>
+          <p className="text-xs text-[color:var(--text-muted)]">
+            {t('hq.consentLag.neverAskedNote')}
+          </p>
+
+          {(data?.items ?? []).length === 0 ? (
+            <p className="text-sm text-[color:var(--text-muted)]">{t('hq.consentLag.empty')}</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {(data?.items ?? []).map((row) => (
+                <li
+                  key={row.customerId}
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-app px-3 py-2 text-xs"
+                >
+                  {/* Id only — the server sends no name or phone, and a compliance count is
+                      not a reason to build a second identified roster of the customer base. */}
+                  <span className="font-mono font-semibold">{row.customerId.slice(0, 8)}</span>
+                  {row.neverAsked.map((p) => (
+                    <Chip key={`n-${p}`} tone="outline">
+                      {t('hq.consentLag.neverAsked')}: {t(`account.consents.purpose.${p}`)}
+                    </Chip>
+                  ))}
+                  {row.refused.map((p) => (
+                    <Chip key={`r-${p}`} tone="amber">
+                      {t('hq.consentLag.refused')}: {t(`account.consents.purpose.${p}`)}
+                    </Chip>
+                  ))}
+                  {row.outdated.map((p) => (
+                    <Chip key={`o-${p}`} tone="tint">
+                      {t('hq.consentLag.outdated')}: {t(`account.consents.purpose.${p}`)}
+                    </Chip>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="secondary"
+              disabled={cursors.length === 0}
+              onClick={() => setCursors((c) => c.slice(0, -1))}
+            >
+              {t('hq.consentLag.prev')}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!data?.nextCursor}
+              onClick={() =>
+                setCursors((c) => (data?.nextCursor ? [...c, data.nextCursor] : c))
+              }
+            >
+              {t('hq.consentLag.next')}
+            </Button>
+            <span className="text-xs text-[color:var(--text-muted)]">
+              {t('hq.consentLag.page', { n: String(cursors.length + 1) })}
+              {!data?.nextCursor && ` · ${t('hq.consentLag.lastPage')}`}
+            </span>
+          </div>
+        </>
+      )}
+    </Card>
   );
 }

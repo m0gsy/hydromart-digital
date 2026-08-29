@@ -1394,6 +1394,28 @@ export const hq = {
     deleteWarning:
       'Approving a deletion is permanent: the identity is destroyed, financial records stay without an owner (10-year retention).',
   },
+  consentLag: {
+    title: 'Consent lag',
+    subtitle: 'How far the customer base is behind the Terms & Privacy text in force.',
+    version: 'Text in force: version {v}',
+    population: 'Customer accounts',
+    current: 'Up to date',
+    neverAsked: 'Never asked',
+    refused: 'Refused',
+    outdated: 'Older wording',
+    overlapNote:
+      'Only "Up to date" is exclusive. One account can be in "Never asked", "Refused" and "Older wording" at once — those three overlap and deliberately do not add up to the number of customer accounts.',
+    backfillNote:
+      'Every pre-existing consent row was recorded at version "1.0" by the consent-ledger migration, so nearly the whole customer base legitimately shows as "Older wording". That is the correct answer, not an alarm, and not a reason to re-prompt everybody.',
+    neverAskedNote:
+      '"Never asked" is not "Refused": the first has no row at all because the question was never put to them, the second is an actual no. They are counted separately and must not be merged.',
+    empty: 'No accounts behind on this page.',
+    page: 'Page {n}',
+    prev: 'Previous',
+    next: 'Next',
+    lastPage: 'last page',
+    loadError: 'Could not load the consent-lag report.',
+  },
   retention: {
     runSweep: 'Run retention sweep',
     sweepHint:
