@@ -90,6 +90,22 @@ const DEPOT = {
   deliveryFee: 5000,
   minOrderAmount: 0,
   ownershipType: 'HKP',
+  /*
+   * Open around the clock, and after W11 this is what makes the demo WORK at all.
+   *
+   * This depot was created with no `operatingHours`, which used to read as always-open.
+   * W11 reversed that default — an unanswered question is not a yes — so with the field
+   * empty the reviewer's account can no longer place an order, and the whole point of this
+   * script is that a Google Play reviewer can.
+   *
+   * 24/7 rather than shop hours because a reviewer is in an unknown timezone on an unknown
+   * day. It costs nothing: the 3 km radius round uninhabited coordinates already keeps every
+   * real customer out, which is the control that matters.
+   */
+  operatingHours: Object.fromEntries(
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '23:59' }]),
+  ),
+  holidays: [],
 };
 
 /*
@@ -129,6 +145,22 @@ async function main() {
   let depot = await findDepot();
   if (depot) {
     console.log(`= depot ${DEPOT.code} already exists (${depot.id})`);
+    /*
+     * Repair, not override. A depot seeded before W11 carries `operatingHours: {}`, which now
+     * means SHUT — so the reviewer account cannot order and this script would keep reporting
+     * success over a demo nobody can use. Only filled when it is missing: a depot whose hours
+     * somebody has actually set is left exactly as they set them.
+     */
+    if (!depot.operatingHours || Object.keys(depot.operatingHours).length === 0) {
+      ok(
+        await api('PATCH', `/depots/api/v1/depots/${depot.id}`, {
+          operatingHours: DEPOT.operatingHours,
+          holidays: [],
+        }),
+        'give the demo depot operating hours',
+      );
+      console.log(`~ depot ${DEPOT.code} had no operating hours — set to 24/7 so the reviewer can order`);
+    }
   } else {
     depot = ok(await api('POST', '/depots/api/v1/depots', DEPOT), 'create demo depot');
     console.log(`+ depot ${DEPOT.code} (${depot.id})`);
