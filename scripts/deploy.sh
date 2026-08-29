@@ -711,31 +711,36 @@ if health_ok; then
   # SENTRY_DSN_WEB is present there — as `SENTRY_DSN_WEB=`, empty. A key that exists with no
   # value is exactly the shape that passes a presence check and ships a dead feature.
   #
-  # Read from the RUNNING IMAGE, not from .env — because .env has nothing to do with it.
+  # Read from the RUNNING IMAGE. Measure the baked value, then say where to change it.
   #
-  # This probe used to read SENTRY_DSN_WEB out of the box's .env and tell the reader to "set
-  # it in .env and REBUILD". Both halves were wrong, and the advice sent people to a file
-  # where the value has no effect at all:
+  # The reading is right and the ADVICE here has now been wrong twice, in opposite directions,
+  # so the mechanism is worth stating once and precisely.
   #
-  #   - deploy.sh PULLS images (registry mode, IMAGE_PREFIX); it never builds one. So the
-  #     `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` build arg in docker-compose.prod.yml:694
-  #     is dead code on this machine.
-  #   - The image is built by .github/workflows/images.yml:148, from the GitHub repo VARIABLE
-  #     `vars.SENTRY_DSN_WEB`. That variable does not exist, which is why every image ever
-  #     published has inlined an empty DSN — images.yml:91 says so in its own comment.
+  # This box BUILDS its images. `registry_mode()` (scripts/lib/deploy-common.sh:37) is
+  # `[ -n "${IMAGE_PREFIX:-}" ]`, IMAGE_PREFIX is empty here, so deploy.sh takes the local
+  # branch: rebuild-stale.sh:75 runs `$COMPOSE build`, and every deploy that touches web prints
+  # `rebuilding: web`. `docker compose build` reads
+  # `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` (docker-compose.prod.yml:694) straight out of
+  # THIS .env. So .env is exactly the right place, and the rebuild is what applies it.
   #
-  # The Dockerfile does `ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN` (apps/web/
-  # Dockerfile:29), so the baked value is readable inside the container. That is the ground
-  # truth: it answers "does the image that is running right now report errors", which is the
-  # question, rather than "is there a string in a file that nothing reads".
+  # .github/workflows/images.yml:148 also builds a web image, from the repo VARIABLE
+  # `vars.SENTRY_DSN_WEB` — and that variable does not exist. True, and irrelevant while
+  # IMAGE_PREFIX is empty: those images go to GHCR and this box never pulls them. It becomes
+  # the operative fix the day registry mode is switched on, and not before.
+  #
+  # Reading the container rather than .env is still the better MEASUREMENT: apps/web/
+  # Dockerfile:29 does `ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN`, so this answers
+  # "does the image that is RUNNING report errors" instead of "is there a string in a file" —
+  # the difference between a value that was set and a value that was applied.
   if $COMPOSE exec -T web sh -c '[ -n "${NEXT_PUBLIC_SENTRY_DSN:-}" ]' >/dev/null 2>&1; then
     log "web error reporting probe — the running web image has a Sentry DSN baked in"
   else
     log "!! the running web image has NEXT_PUBLIC_SENTRY_DSN EMPTY, so the Sentry SDK is never"
     log "   loaded and every client-side crash on the site is invisible."
-    log "   Fix: create the GitHub repo VARIABLE SENTRY_DSN_WEB (Settings -> Secrets and"
-    log "   variables -> Actions -> Variables), then rebuild the web image and deploy."
-    log "   Setting it in this .env does NOTHING: this box pulls images, it does not build them."
+    log "   Fix: set SENTRY_DSN_WEB in THIS .env, then deploy - this box builds its own images"
+    log "   (IMAGE_PREFIX is empty, so rebuild-stale runs compose build) and the build reads it"
+    log "   from here. A restart alone will not do it: it is a build arg, not a runtime one."
+    log "   The GitHub repo variable of the same name only matters in registry mode."
     alert "the running web image has no Sentry DSN — client-side crashes are invisible (audit N2)"
   fi
 

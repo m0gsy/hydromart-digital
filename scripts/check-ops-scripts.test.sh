@@ -154,10 +154,25 @@ else
   bad "the Sentry probe still reads .env — this box pulls images, so that value affects nothing"
 fi
 
-if grep -qE 'Setting it in this .env does NOTHING' scripts/deploy.sh; then
-  ok "and it says plainly that editing .env would not help"
+# And it must name the RIGHT place. This assertion previously demanded the opposite, and the
+# opposite was wrong: `registry_mode()` (deploy-common.sh:37) is `[ -n "${IMAGE_PREFIX:-}" ]`,
+# IMAGE_PREFIX is empty on this deployment, so rebuild-stale.sh:75 runs `compose build` and
+# the build reads `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` (docker-compose.prod.yml:694)
+# out of the box's own .env. Every deploy that touches web prints `rebuilding: web`.
+#
+# The GitHub repo variable is real and also unset, but it feeds images.yml, whose images this
+# box never pulls. It becomes the fix on the day registry mode is switched on, and not before.
+if grep -qE 'Fix: set SENTRY_DSN_WEB in THIS .env' scripts/deploy.sh; then
+  ok "the Sentry probe points at the .env this box actually builds from"
 else
-  bad "the Sentry probe must name the GitHub repo VARIABLE as the fix; .env is a dead end here"
+  bad "the Sentry probe names the wrong remediation — this box BUILDS its images, so .env is where the DSN goes"
+fi
+
+# The claim that made it wrong. It must not come back.
+if grep -qE 'this box pulls images' scripts/deploy.sh; then
+  bad "deploy.sh still claims this box pulls images — it builds them (rebuild-stale.sh:75, and every deploy prints 'rebuilding:')"
+else
+  ok "nothing claims this box pulls its images"
 fi
 
 # --- a depot with nowhere for money to land is REPORTED ----------------------------------
