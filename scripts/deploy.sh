@@ -604,6 +604,50 @@ if health_ok; then
     fi
   fi
 
+  # 1d. Which face verifier is actually running, and whether it can work.
+  #
+  # `FACE_VERIFIER_DRIVER` defaults to `onnx` in three places at once — the Joi schema
+  # (hr-service/src/config/env.validation.ts:53), this stack's compose default
+  # (docker-compose.prod.yml:593), and .env.production.example:80 — while the comment right
+  # above the compose line says production is meant to be `neo`. No `.onnx` file is committed
+  # to this repo and nothing downloads one, so a box that took the default answers 503 on
+  # every face enrolment and every check-in, quietly, with attendance simply not working.
+  #
+  # Nothing measured which of those it was. This asks the container.
+  if $COMPOSE ps --status running --services 2>/dev/null | grep -qx hr; then
+    FACE_DRIVER="$($COMPOSE exec -T hr printenv FACE_VERIFIER_DRIVER 2>/dev/null | tr -d '
+' || true)"
+    case "${FACE_DRIVER:-onnx}" in
+      onnx)
+        MODEL="$($COMPOSE exec -T hr printenv HR_FACE_MODEL_PATH 2>/dev/null | tr -d '
+' || true)"
+        MODEL="${MODEL:-./models/arcface.onnx}"
+        if $COMPOSE exec -T hr sh -c "[ -f '$MODEL' ]" >/dev/null 2>&1; then
+          log "face verifier probe — driver 'onnx', model present at $MODEL"
+        else
+          log "!! face verifier is 'onnx' and the model is NOT at $MODEL inside hr."
+          log "   Every face enrolment and every attendance check-in answers 503, silently:"
+          log "   staff cannot clock in at all. Either ship the model to that path or set"
+          log "   FACE_VERIFIER_DRIVER=neo in .env and recreate hr."
+          alert "face verifier onnx has no model at $MODEL - attendance check-in is dead"
+        fi
+        ;;
+      neo|http)
+        log "face verifier probe — driver '$FACE_DRIVER' (remote gallery, no local model needed)"
+        ;;
+      stub)
+        # `stub` accepts any frame. Fine on a laptop, and a hole on a real box: it turns the
+        # biometric gate into a formality nobody is told about.
+        log "!! face verifier is 'stub' — it ACCEPTS ANY FACE. Attendance proves nothing."
+        alert "face verifier is 'stub' on this deployment - the biometric check accepts anyone"
+        ;;
+      *)
+        log "!! face verifier driver is '$FACE_DRIVER', which hr-service does not recognise"
+        alert "unknown FACE_VERIFIER_DRIVER '$FACE_DRIVER'"
+        ;;
+    esac
+  fi
+
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.
   # Presence only, never the value.
   #
