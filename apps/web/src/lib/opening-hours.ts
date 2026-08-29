@@ -9,7 +9,7 @@
 // takes no Nest/React anything, so it belongs in `packages/` with both sides importing it
 // — see needs_outside_files.
 
-import { BUSINESS_TZ } from '@/lib/wib';
+import { BUSINESS_TZ } from '@/lib/business-tz';
 import type { DepotHoliday, DepotHours } from '@/lib/types';
 
 
