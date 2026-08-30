@@ -1,5 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
+/*
+ * `alertServerError` is spied on rather than stubbed away: the failure path below is
+ * fail-open on purpose — a courier's failure report must survive order-service being
+ * unreachable — and the property that was missing is not that it survives, but that
+ * SOMEBODY IS TOLD it did.
+ */
+jest.mock('@hydromart/platform', () => ({
+  ...jest.requireActual('@hydromart/platform'),
+  alertServerError: jest.fn(),
+}));
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const platform = require('@hydromart/platform') as { alertServerError: jest.Mock };
+
 import {
   DeliveryService,
   storageKeyFromUrl,
@@ -735,6 +748,26 @@ describe('DeliveryService', () => {
     orders.throwOnStatus = 'CANCELLED';
     const failed = await service.fail(driver, d.id, 'address not found', AUTH);
     expect(failed.status).toBe(DeliveryStatus.FAILED);
+  });
+
+  it('and RAISES it, because a stuck order is invisible to every query', async () => {
+    /*
+     * The state this leaves behind: delivery FAILED, order still alive holding its stock
+     * reservation, customer told nothing, and NO row in order_status_history because the
+     * cancellation never happened. Nobody would think to look for it, and the only trace
+     * was one `logger.error` line in a container log.
+     *
+     * The test above pins fail-open, which is correct and stays. This pins the other half:
+     * "recoverable by hand" needs a hand that knows.
+     */
+    platform.alertServerError.mockClear();
+    const d = await assign();
+    orders.throwOnStatus = 'CANCELLED';
+    await service.fail(driver, d.id, 'address not found', AUTH);
+
+    expect(platform.alertServerError).toHaveBeenCalledTimes(1);
+    // The order id has to be IN the alert, or the alert cannot be acted on.
+    expect(platform.alertServerError.mock.calls[0][0].path).toContain(d.orderId);
   });
 
   it('gates no-show behind contact attempts + wait, then fails as no-show (5a)', async () => {
