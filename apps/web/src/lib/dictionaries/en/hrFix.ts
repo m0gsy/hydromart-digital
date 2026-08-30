@@ -1610,7 +1610,7 @@ export const hrFix = {
   },
   checkoutFix: {
     depotOnBreak: "The depot is on a break — express delivery is unavailable. Scheduled orders still work.",
-    depotClosed: "The depot is closed — ordering reopens when it does.",
+    depotClosed: "The depot is closed — express delivery is unavailable. Scheduled orders still work.",
     agentPrice: "Agent price",
     computedAtOrder: "worked out when the order is placed",
   },

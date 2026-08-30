@@ -1628,7 +1628,7 @@ export const hrFix = {
   },
   checkoutFix: {
     depotOnBreak: "Depot sedang istirahat — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.",
-    depotClosed: "Depot sedang tutup — pesanan baru dibuka lagi saat depot buka.",
+    depotClosed: "Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa.",
     agentPrice: "Harga agen",
     computedAtOrder: "dihitung saat pesanan dibuat",
   },
