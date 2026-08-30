@@ -84,3 +84,36 @@ if (missing.length) {
   process.exit(1);
 }
 NODE
+
+node - <<'NODE'
+const { readFileSync } = require('node:fs');
+const src = readFileSync('scripts/check-lighthouse.mjs', 'utf8');
+
+/*
+ * `--update` must not tighten a category floor from one run.
+ *
+ * It used to write `measured` wholesale, so one invocation's `performance` became the floor
+ * every future run had to clear. Measured 2026-08-30: floors were 72/68/78/77 and a single run
+ * reported 81/90/91/87 — with `/login` and `/driver` moving 13 and 10 points despite being
+ * untouched by that change. A number that swings ten points on an untouched page is not a
+ * floor. The tolerance for these is 8.
+ *
+ * Deterministic weights still record as measured; that is how a ratchet keeps a win.
+ */
+const wants = [
+  ["--tighten-floors", 'raising a category floor must need its own flag'],
+  ['Category floors HELD', 'and holding one must be printed, not silent'],
+];
+const missing = wants.filter(([needle]) => !src.includes(needle));
+if (missing.length) {
+  console.error('--update can tighten a category floor from a single run again:');
+  for (const [needle, why] of missing) console.error(`  - ${why} (looked for: ${needle})`);
+  process.exit(1);
+}
+
+// And the hold must be conditional on the flag, not decoration.
+if (!/const tighten = process\.argv\.includes\('--tighten-floors'\)/.test(src)) {
+  console.error('--tighten-floors is mentioned but never read — the guard is decorative.');
+  process.exit(1);
+}
+NODE

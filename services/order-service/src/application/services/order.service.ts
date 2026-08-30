@@ -104,6 +104,13 @@ import { OutboxService } from './outbox.service';
  */
 export interface AbandonedSweepResult {
   cancelled: number;
+  /**
+   * Of `cancelled`, how many were stalled AT THE DEPOT rather than abandoned by the
+   * customer. Reported separately because the two mean opposite things about who is at
+   * fault, and both used to land in one number: production cancelled 6 orders on
+   * 2026-08-16 and nothing said that 4 of them were depots that stopped working.
+   */
+  stalled: number;
   /** Stale orders left LIVE because their payment could not be settled. */
   failed: number;
   ok: boolean;
@@ -1532,7 +1539,7 @@ export class OrderService {
   ): Promise<AbandonedSweepResult> {
     const minutes = olderThanMinutes ?? this.config.abandonMinutes;
     const now = Date.now();
-    const sweeps: { statuses: OrderStatus[]; before: Date; note: string }[] = [
+    const sweeps: { statuses: OrderStatus[]; before: Date; note: string; stalled?: boolean }[] = [
       {
         statuses: [OrderStatus.CREATED],
         before: new Date(now - minutes * 60_000),
@@ -1542,10 +1549,23 @@ export class OrderService {
         statuses: [OrderStatus.CONFIRMED, OrderStatus.PREPARING],
         before: new Date(now - this.config.stalledHours * 3_600_000),
         note: 'Auto-cancelled: order stalled at the depot with no progress.',
+        stalled: true,
       },
     ];
     let cancelledCount = 0;
     let failedCount = 0;
+    /*
+     * Counted per SWEEP, not just in total, because the two mean opposite things about who
+     * is at fault. A CREATED order swept after an hour is a customer who walked away — normal,
+     * and nobody needs waking. A CONFIRMED/PREPARING order swept after a day is a DEPOT that
+     * took the job and then stopped: the customer waited, the stock stayed reserved, and the
+     * first anyone hears of it is the cancellation.
+     *
+     * Measured in production 2026-08-16: 4 of the 6 auto-cancellations that day were the
+     * stalled kind. Nothing reported that, because both sweeps landed in one number.
+     */
+    const stalledDepots = new Set<string>();
+    let stalledCount = 0;
     for (const sweep of sweeps) {
       const stale = await this.orders.findStaleIn(
         sweep.statuses,
@@ -1579,10 +1599,40 @@ export class OrderService {
         );
         await this.releaseStock(cancelled, authorization);
         cancelledCount += 1;
+        if (sweep.stalled) {
+          stalledCount += 1;
+          if (order.depotId) stalledDepots.add(order.depotId);
+        }
       }
+    }
+    /*
+     * A depot that stops working its queue is an operational failure, and until now it
+     * reached nobody: the sweep cancelled the order a day later and the only party told was
+     * the customer, whose order was already gone. The depot never learned it had stalled,
+     * so nothing changed and it stalled again.
+     *
+     * Raised only for the STALLED sweep. Abandoned checkouts are ordinary and alerting on
+     * them would be a line people stop reading — the trap this repo has paid for twice.
+     *
+     * This says the queue was abandoned; it does not say why. That question needs the depot,
+     * and this is what starts the conversation instead of the silence that was there before.
+     */
+    if (stalledCount > 0) {
+      alertServerError({
+        method: 'POST',
+        path: 'orders/expire-abandoned#stalled-at-depot',
+        status: 200,
+        exception: new Error(
+          `${stalledCount} pesanan dibatalkan otomatis karena macet di depot lebih dari ` +
+            `${this.config.stalledHours} jam (depot: ${[...stalledDepots].join(', ') || 'tidak tercatat'}). ` +
+            `Pelanggan sudah menunggu selama itu dan stoknya tertahan; depotnya menerima ` +
+            `pesanan lalu berhenti mengerjakannya.`,
+        ),
+      });
     }
     return {
       cancelled: cancelledCount,
+      stalled: stalledCount,
       failed: failedCount,
       ok: failedCount === 0 || cancelledCount > 0,
     };

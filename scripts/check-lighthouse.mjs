@@ -10,6 +10,8 @@
  *
  *   node scripts/check-lighthouse.mjs                 # gate against the baseline
  *   node scripts/check-lighthouse.mjs --update        # re-record (deliberate, reviewable)
+ *   node scripts/check-lighthouse.mjs --update --tighten-floors
+ *                                                    # ...and raise category floors too
  *
  * Runs against a locally served build (BASE_URL, default http://localhost:3000) using the
  * Chromium Playwright already installed for the e2e job — the runner's own Chrome is a
@@ -240,8 +242,53 @@ try {
 }
 
 if (process.argv.includes('--update')) {
-  writeFileSync(BASELINE, `${JSON.stringify(measured, null, 2)}\n`);
-  console.log(`\nRecorded ${Object.keys(measured).length} page(s) as the new floor.`);
+  /*
+   * A category floor must never TIGHTEN from one invocation. Deterministic weights may.
+   *
+   * `--update` used to write `measured` wholesale, which meant one run's `performance` became
+   * the floor every future run had to clear. Measured 2026-08-30, and this is the evidence
+   * that it is a trap rather than a tidy-up: recorded floors were 72/68/78/77 and a single run
+   * reported 81/90/91/87. `/login` and `/driver` were not touched by that change at all, and
+   * still moved 13 and 10 points. A number that swings ten points on an untouched page is not
+   * a floor, it is a coin flip — and the tolerance for these is 8.
+   *
+   * (`STATISTIC.performance = 'max'` already reduces five runs to their best, precisely
+   * because the median left ±26 points of spread. Best-of-five is the most optimistic
+   * summary there is, and writing it down as a MINIMUM is the wrong direction twice over.)
+   *
+   * So: weights are recorded as measured — they are deterministic, and recording an
+   * improvement is how a ratchet keeps a win. Category floors move DOWN only, which is the
+   * direction that accepts a regression somebody has decided to live with. Tightening one is
+   * a deliberate act with its own flag, and it prints what it is about to do.
+   */
+  const previous = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : {};
+  const tighten = process.argv.includes('--tighten-floors');
+  const next = {};
+  const held = [];
+  for (const [page, scores] of Object.entries(measured)) {
+    const before = previous[page] ?? {};
+    next[page] = { ...scores };
+    if (tighten) continue;
+    for (const category of CATEGORIES) {
+      const then = before[category];
+      const now = scores[category];
+      if (typeof then !== 'number' || typeof now !== 'number') continue;
+      if (now > then) {
+        next[page][category] = then;
+        held.push(`${page} ${category}: kept ${then}, this run measured ${now}`);
+      }
+    }
+  }
+  writeFileSync(BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+  console.log(`\nRecorded ${Object.keys(next).length} page(s) as the new floor.`);
+  if (held.length > 0) {
+    console.log('\nCategory floors HELD (a floor never tightens from one run):');
+    for (const h of held) console.log(`  - ${h}`);
+    console.log(
+      '\nIf a category has genuinely improved and you want the higher floor, re-run with\n' +
+        '  --update --tighten-floors\nand say in the PR which change earned it.',
+    );
+  }
   process.exit(0);
 }
 
