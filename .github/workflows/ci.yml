@@ -457,6 +457,12 @@ jobs:
       - name: Offsite backup gate can go red (L2.7)
         run: bash scripts/backup-offsite.test.sh
 
+      # A database restored without its .env will not start. This checks the property that
+      # makes backing that file up safe at all: what leaves the box cannot be read by
+      # whoever finds it, and the public key sitting on the box cannot open it either.
+      - name: Config backup is encrypted to a key the box does not hold
+        run: bash scripts/backup-env.test.sh
+
       # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
       # Prometheus only complains about a rule that fails to PARSE; a rule that parses and
       # can never match looks exactly like a rule that is simply not firing, which is what a
