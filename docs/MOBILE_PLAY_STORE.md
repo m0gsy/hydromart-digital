@@ -21,8 +21,17 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
 
 - **Dienkripsi saat transit:** ya. Caddy memaksa HTTPS, dan `usesCleartextTraffic=false`
   di manifest berarti Android memblokir permintaan http apa pun yang tersisa.
-- **Dibagikan ke pihak ketiga:** tidak. Tidak ada SDK iklan, tidak ada analytics, tidak
-  ada Crashlytics — lihat "Yang sengaja tidak ada" di `MOBILE_APPS_PLAN.md`.
+- **Dibagikan ke pihak ketiga:** tidak, KECUALI baris Crash logs dan Diagnostics di bawah.
+  Tidak ada SDK iklan dan tidak ada analytics — lihat "Yang sengaja tidak ada" di
+  `MOBILE_APPS_PLAN.md`. Tetapi sejak `SENTRY_DSN_MOBILE` diisi (2026-08-30) aplikasi
+  mengirim laporan crash ke Sentry, dan itu pihak ketiga menurut definisi Play.
+
+  Kalimat ini dulu berbunyi "tidak" tanpa kecuali, dan benar selama DSN-nya kosong: SDK-nya
+  dimuat dinamis dan tidak pernah diunduh pada build tanpa DSN. Ia berhenti benar pada detik
+  seseorang membuat variabelnya — satu tindakan di halaman setelan GitHub, yang tidak tahu
+  ada formulir Play bergantung padanya. Mengisi Data Safety dari versi lama dokumen ini akan
+  menghasilkan deklarasi yang SALAH, dan Play menolak aplikasi yang deklarasinya tidak cocok
+  dengan perilaku yang bisa mereka amati.
 - **Bisa diminta hapus:** ya, lewat jalur di bagian 3.
 
 ### App 1 — Hydromart (`id.hydromart.app`, pelanggan)
@@ -37,6 +46,8 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
 | Device or other IDs       | Ya     | Opsional | Fungsi aplikasi              | Token FCM, hanya kalau notifikasi diizinkan                  |
 | App interactions          | Ya     | Wajib    | Fungsi aplikasi              | Status pesanan & notifikasi in-app                           |
 | Approximate location      | Ya     | Opsional | Fungsi aplikasi              | Dikirim ke server untuk cari depot terdekat — lihat catatan di bawah |
+| Crash logs                | Ya     | Wajib    | Diagnostik                   | Ke Sentry (server Jerman). Pesan error + jejak kode + versi aplikasi |
+| Diagnostics               | Ya     | Wajib    | Diagnostik                   | Alamat halaman tanpa query string. Replay & breadcrumb dimatikan     |
 
 **Bukan** "Financial info": pembayaran di Hydromart selesai langsung di depot (tunai/QRIS
 di tempat) — tidak ada gateway pembayaran, tidak ada nomor kartu, tidak ada rekening yang
@@ -65,6 +76,8 @@ Semua baris di atas tidak berlaku — Ops bukan aplikasi belanja. Yang berlaku:
 | Salary / employment info     | Ya     | Wajib    | Fungsi aplikasi | Slip gaji, cuti, absensi (masuk "Personal info → Other info")                 |
 | Financial info (transaksi)   | Ya     | Wajib    | Fungsi aplikasi | Setoran kurir, kas konter, tutup harian — uang depot, bukan data bank pribadi |
 | Device or other IDs          | Ya     | Opsional | Fungsi aplikasi | Token FCM                                                                     |
+| Crash logs                   | Ya     | Wajib    | Diagnostik      | Ke Sentry (server Jerman). Binari Ops memakai DSN yang sama                   |
+| Diagnostics                  | Ya     | Wajib    | Diagnostik      | Alamat halaman tanpa query string. Replay & breadcrumb dimatikan              |
 | Customer data (pihak ketiga) | Ya     | Wajib    | Fungsi aplikasi | Nama/alamat/telepon pelanggan yang dilayani staf                              |
 
 ### Yang harus dinyatakan jelas: dua hal berbeda yang sama-sama "wajah"
