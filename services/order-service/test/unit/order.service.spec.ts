@@ -237,6 +237,7 @@ describe('OrderService', () => {
       // quiet round, because sweep.sh writes its heartbeat off exactly this field.
       expect(await service.expireAbandoned('system:scheduler')).toEqual({
         cancelled: 0,
+        stalled: 0,
         failed: 1,
         ok: false,
       });
@@ -248,10 +249,57 @@ describe('OrderService', () => {
       orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
       expect(await service.expireAbandoned('system:scheduler')).toEqual({
         cancelled: 1,
+        stalled: 0,
         failed: 0,
         ok: true,
       });
       expect(reversal.cancels.map((c) => c.orderId)).toEqual([id]);
+    });
+
+    /*
+     * A depot that takes an order and then stops is an operational failure, and until now it
+     * reached nobody. Production, 2026-08-16: six orders auto-cancelled in one pass, and FOUR
+     * of them carried `Auto-cancelled: order stalled at the depot with no progress.` — orders
+     * a depot had accepted and left sitting for over a day. Both sweeps landed in one
+     * `cancelled` count, so nothing anywhere said which kind they were.
+     *
+     * The customer now hears about the cancellation (W2). The depot still heard nothing, so
+     * nothing changed and it stalled again.
+     */
+    it('wakes somebody when a DEPOT stalls, and names the depot', async () => {
+      const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+      const id = await placeOrder();
+      const row = orders.rows.find((r) => r.id === id)!;
+      row.status = OrderStatus.PREPARING;
+      // `createdAt`, because that is what the fake repository filters on. The real one
+      // filters `statusChangedAt` (B3b) — a known drift in test/support/fakes.ts, reported
+      // separately. Either way this row is 48h old and PREPARING, which is the case here.
+      row.createdAt = new Date(Date.now() - 48 * 3_600_000);
+
+      const result = await service.expireAbandoned('system:scheduler');
+
+      expect(result.stalled).toBe(1);
+      expect(alerted).toHaveBeenCalledTimes(1);
+      const said = String((alerted.mock.calls[0]![0] as { exception: Error }).exception.message);
+      expect(said).toContain('macet di depot');
+      // Without the depot id the alert cannot be acted on — it would name a problem and no owner.
+      expect(said).toContain(row.depotId!);
+      alerted.mockRestore();
+    });
+
+    it('stays quiet for an ordinary abandoned checkout, which is not anybody failing', async () => {
+      // Alerting on these would be a line people stop reading — the trap this repo has already
+      // paid for twice. A customer who walks away from a cart is the system working.
+      const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+      const id = await placeOrder();
+      orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
+
+      const result = await service.expireAbandoned('system:scheduler');
+
+      expect(result.cancelled).toBe(1);
+      expect(result.stalled).toBe(0);
+      expect(alerted).not.toHaveBeenCalled();
+      alerted.mockRestore();
     });
   });
 
