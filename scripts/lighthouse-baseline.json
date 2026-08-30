@@ -4,35 +4,35 @@
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 441152,
-    "requests": 46,
-    "domNodes": 217
+    "bytes": 383129,
+    "requests": 39,
+    "domNodes": 218
   },
   "/products": {
     "performance": 68,
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 439552,
-    "requests": 44,
-    "domNodes": 215
+    "bytes": 348679,
+    "requests": 31,
+    "domNodes": 216
   },
   "/login": {
     "performance": 78,
     "accessibility": 96,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 320683,
+    "bytes": 336304,
     "requests": 26,
-    "domNodes": 130
+    "domNodes": 131
   },
   "/driver": {
     "performance": 77,
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 391454,
-    "requests": 35,
-    "domNodes": 40
+    "bytes": 410824,
+    "requests": 37,
+    "domNodes": 41
   }
 }
