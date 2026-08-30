@@ -439,6 +439,13 @@ jobs:
       - name: Metrics are not public (BI-2)
         run: node scripts/check-public-metrics.mjs
 
+      # A knob nothing turns is worse than no knob: it reads as configurable and behaves as
+      # hardcoded. The Caddyfile offered `{$SENTRY_INGEST_ORIGIN}` and compose never passed
+      # it, so an EU-region Sentry DSN was blocked by the CSP for every visitor — SDK
+      # downloaded, init fine, first envelope refused by the browser, nothing anywhere red.
+      - name: Caddy knobs are reachable
+        run: node scripts/check-caddy-knobs.mjs
+
       - name: Public-metrics gate can go red
         run: bash scripts/check-public-metrics.test.sh
 
