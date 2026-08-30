@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, alertServerError, assertDepotAccess } from '@hydromart/platform';
 
 import {
   DeliveryAlreadyExistsError,
@@ -392,8 +392,32 @@ export class DeliveryService {
   private async cancelOrderFor(orderId: string, authorization: string): Promise<void> {
     try {
       await this.advanceOrder(orderId, 'CANCELLED', authorization);
-    } catch {
-      this.logger.error(`Delivery failed but order ${orderId} could not be cancelled`);
+    } catch (exception) {
+      /*
+       * Fail-open stays — the comment above is right, a lost failure report is worse than a
+       * stuck order. What was wrong is that NOBODY WAS TOLD.
+       *
+       * `logger.error` wrote one line into a container log, and the resulting state is
+       * invisible to every query anyone would think to run: the delivery reads FAILED, the
+       * order is still alive holding its stock reservation, the customer has been told
+       * nothing, and `order_status_history` has no row because the cancellation never
+       * happened. "Recoverable by hand" needs a hand that knows.
+       *
+       * This is not hypothetical. `tracking` (packages/access) admits SUPERVISOR and
+       * ASSISTANT_SUPERVISOR; `orderFulfilment` does not — so those two roles can press
+       * cancel on /dashboard/tracking and order-service answers 403 every time.
+       */
+      alertServerError({
+        method: 'POST',
+        path: `/internal/orders/${orderId}/cancel-after-failed-delivery`,
+        status: 0,
+        exception,
+      });
+      this.logger.error(
+        `Delivery failed but order ${orderId} could not be cancelled — it is still holding ` +
+          `stock and the customer has not been told. Cancel it by hand, or check whether the ` +
+          `caller holds orderFulfilment (tracking alone is not enough).`,
+      );
     }
   }
 

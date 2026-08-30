@@ -449,9 +449,29 @@ export const CAPABILITIES = {
   rewardCatalog: ['MARKETING', 'SUPER_ADMIN'],
   // customer-service — the marketing customer directory (segments, exports).
   customerDirectory: ['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
-  // order-service + crm-service — moving an order through fulfilment, and the depot
-  // notifications that ride on it. Depot floor staff hold it; it is not a money power.
-  orderFulfilment: ['KEPALA_DEPOT', 'MANAGER', 'STAFF_DEPOT', 'SUPER_ADMIN'],
+  /*
+   * order-service + crm-service — moving an order through fulfilment, and the depot
+   * notifications that ride on it. Depot floor staff hold it; it is not a money power.
+   *
+   * SUPERVISOR and ASSISTANT_SUPERVISOR were added after this gap was measured: they already
+   * hold `tracking`, so /dashboard/tracking renders them a cancel button, and order-service
+   * answered 403 every time they pressed it. Worse, delivery-service swallowed that 403 by
+   * design (fail-open, so a courier's failure report is never lost) — leaving the delivery
+   * FAILED, the order alive holding stock, the customer told nothing, and no history row at
+   * all. A button with no authority behind it and no noise when it fails.
+   *
+   * Widened rather than hiding the button, on the owner's call: supervising a depot floor is
+   * what this capability is named for. Note it also carries `POST /notifications` — the
+   * WhatsApp send that rides along with fulfilment, and WhatsApp costs per message.
+   */
+  orderFulfilment: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'STAFF_DEPOT',
+    'SUPER_ADMIN',
+  ],
   // delivery-service — SLA and courier reporting across the network.
   deliveryReports: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — the depot operational report (one depot, its own numbers).

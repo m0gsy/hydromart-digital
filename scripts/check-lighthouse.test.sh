@@ -53,3 +53,34 @@ console.log(
     `${categories.length + weights.length} gated metrics; performance reduced with max.`,
 );
 NODE
+
+node - <<'NODE'
+const { readFileSync } = require('node:fs');
+const src = readFileSync('scripts/check-lighthouse.mjs', 'utf8');
+
+/*
+ * A budget that only says pass/fail hides how it was spent.
+ *
+ * `/` requests drifted 46 -> 50 against a ceiling of 51 across many PRs, each one individually
+ * under the line, and nothing ever printed a number anybody could watch. By the time it went
+ * red the debt belonged to nobody: the PR that tipped it had added one request to a page four
+ * others had already filled. Measured 2026-08-30, FIVE metrics were within noise of red —
+ * `/products` requests had ZERO slack, `/driver` bytes 254, `/login` bytes 460 — and this gate
+ * printed OK every single time.
+ *
+ * So the passing path reports headroom, and a metric inside 1% of its ceiling raises a
+ * ::warning:: the run surfaces. Asserted here because a report nobody prints is a report
+ * nobody reads.
+ */
+const wants = [
+  ['headroom.push(', 'the passing path must collect how much budget is left'],
+  ['Headroom left before the ceiling', 'and it must print it'],
+  ['::warning::', 'a nearly-exhausted budget must raise a warning on the run'],
+];
+const missing = wants.filter(([needle]) => !src.includes(needle));
+if (missing.length) {
+  console.error('The headroom report is gone, so drift under the ceiling is invisible again:');
+  for (const [needle, why] of missing) console.error(`  - ${why} (looked for: ${needle})`);
+  process.exit(1);
+}
+NODE

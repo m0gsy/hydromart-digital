@@ -170,3 +170,42 @@ describe('canGrantRole', () => {
     expect(canGrantRole(undefined, 'STAFF_DEPOT')).toBe(true);
   });
 });
+
+/*
+ * The screen and the server must agree about who may cancel an order.
+ *
+ * Measured before this was fixed: `tracking` admitted SUPERVISOR and ASSISTANT_SUPERVISOR, so
+ * /dashboard/tracking rendered them a cancel button — and `orderFulfilment`, which guards
+ * `PATCH /orders/:id/status`, did not, so order-service answered 403 every time. That 403 was
+ * then swallowed by delivery-service's fail-open catch, leaving the delivery FAILED, the order
+ * alive holding stock, the customer told nothing, and no `order_status_history` row at all.
+ *
+ * A capability pair that disagrees is not a style question, it is a button that does nothing
+ * and says nothing.
+ *
+ * HOW this actually bites, stated precisely because it is stronger than an assertion: both
+ * tuples are `as const`, so `orderFulfilment.includes(role)` type-checks its argument against
+ * the literal union. Adding a role to `tracking` that fulfilment does not carry fails to
+ * COMPILE — measured, by adding FINANCE to tracking:
+ *
+ *   TS2345: Argument of type '... | "FINANCE"' is not assignable to parameter of type
+ *           '"STAFF_DEPOT" | "KEPALA_DEPOT" | ...'
+ *
+ * So the drift cannot be committed at all, rather than being caught after the fact. Without
+ * this file nothing compares the two tuples, and that is what let them disagree for months.
+ */
+describe('the cancel button and the cancel route admit the same people', () => {
+  it('every role that can reach tracking can also move an order through fulfilment', () => {
+    const missing = CAPABILITIES.tracking.filter((role) => !CAPABILITIES.orderFulfilment.includes(role));
+    expect(missing).toEqual([]);
+  });
+
+  it('and fulfilment is still floor work, not open to everybody', () => {
+    // The other direction: widening must not have quietly turned this into a role-free door.
+    // STAFF_DEPOT holds fulfilment without holding tracking, which is correct — the counter
+    // advances orders it never sees on the tracking map.
+    expect(CAPABILITIES.orderFulfilment).toContain('STAFF_DEPOT');
+    expect(CAPABILITIES.orderFulfilment).not.toContain('KURIR');
+    expect(CAPABILITIES.orderFulfilment).not.toContain('CUSTOMER');
+  });
+});

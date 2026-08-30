@@ -113,10 +113,19 @@ export function AppBar() {
           )}
 
           {/* The cart is an app-bar action rather than a fifth tab: `/cart` is behind
-              RequireAuth, so a cart tab is a dead tab for anyone not signed in. */}
+              RequireAuth, so a cart tab is a dead tab for anyone not signed in.
+
+              prefetch={false}: the cart is opened deliberately, never browsed into, and it
+              sat in the app bar of EVERY page. Measured against production (Playwright, Moto
+              G4 emulation): this one icon accounted for 5 of the home page's 44 requests —
+              the /cart RSC payload plus its chunks — pulled for every visitor on every
+              screen, most of whom never open it. No intent handler here, unlike the tab bar:
+              there is no navigation flow this warms, and /cart is small enough that a cold
+              open is not felt. */}
           {!staff && (
             <Link
               href="/cart"
+              prefetch={false}
               aria-label={t('nav.cart')}
               className="relative flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--text)] text-[color:var(--surface)]"
             >
