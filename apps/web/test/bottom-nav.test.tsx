@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let customer: { role: string } | null = null;
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
+const prefetch = vi.fn();
+vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ prefetch }) }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer, ready: true }) }));
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k }) }));
 // The bar only listens for the keyboard inside the shell; the jsdom origin here is a
@@ -76,5 +77,52 @@ describe('BottomNav', () => {
 
     act(() => listeners.keyboardDidHide!({}));
     expect(screen.getByText('nav.shop')).toBeTruthy();
+  });
+});
+
+/*
+ * Prefetch on intent, not on sight — and this test exists because the cost was invisible.
+ *
+ * Next's App Router prefetches a <Link> as soon as it enters the viewport. This bar is always
+ * in the viewport, so every page load pulled the RSC payload and chunks for all four tabs.
+ * Measured against production with Playwright (Moto G4 emulation, 4 loads): the home page made
+ * 44 requests and 18 of them — 41% — were prefetches of other routes; 13 came from this bar.
+ * Nothing in the codebase said so, and no gate could see it: they are requests a browser makes,
+ * not bytes a bundle carries.
+ *
+ * The trade is deliberate. `prefetch={false}` alone would cost the warm cache on the navigation
+ * this bar exists for, so the prefetch moves to the first sign of intent instead — touchstart
+ * lands roughly 100ms before the tap completes.
+ */
+describe('the tab bar warms routes on intent, not on sight', () => {
+  it('prefetches nothing until the user reaches for a tab', () => {
+    prefetch.mockClear();
+    render(<BottomNav />);
+    expect(prefetch).not.toHaveBeenCalled();
+  });
+
+  it('warms the route the thumb lands on', () => {
+    prefetch.mockClear();
+    render(<BottomNav />);
+    fireEvent.touchStart(screen.getByText('nav.orders'));
+    expect(prefetch).toHaveBeenCalledWith('/orders');
+  });
+
+  it('warms on hover too, for the pointer case', () => {
+    prefetch.mockClear();
+    render(<BottomNav />);
+    fireEvent.mouseEnter(screen.getByText('nav.account'));
+    expect(prefetch).toHaveBeenCalledWith('/account');
+  });
+
+  it('every tab carries the intent handlers, so none silently goes back to eager', () => {
+    // The failure this guards is a new tab added without the two props — it would prefetch on
+    // sight again and nothing else here would notice.
+    prefetch.mockClear();
+    render(<BottomNav />);
+    for (const label of ['nav.home', 'nav.shop', 'nav.orders', 'nav.account']) {
+      fireEvent.touchStart(screen.getByText(label));
+    }
+    expect(prefetch).toHaveBeenCalledTimes(4);
   });
 });

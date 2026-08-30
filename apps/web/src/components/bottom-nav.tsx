@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Bell, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
@@ -27,12 +27,34 @@ const BAR =
 // footer and leave that gap. Same pinned-to-viewport look either way.
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useT();
   const { customer, ready } = useAuth();
   const keyboardOpen = useKeyboardOpen();
 
   const active = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  /*
+   * Prefetch on INTENT, not on sight.
+   *
+   * Next's App Router prefetches a <Link> as soon as it enters the viewport. This bar is
+   * always in the viewport, so every page load pulled the RSC payload and chunks for all
+   * four tabs whether or not anyone went there. Measured against production with Playwright
+   * (Moto G4 emulation, 4 loads): the home page made 44 requests and 18 of them — 41% — were
+   * prefetches of other routes, 13 of those from this bar. Every visitor paid for them in
+   * data, on every page.
+   *
+   * `prefetch={false}` alone would be the wrong trade: tabs ARE the most likely next
+   * destination, and losing the warm cache is exactly the navigation this bar exists for. So
+   * the prefetch moves to the moment intent appears — `onTouchStart` fires roughly 100ms
+   * before the tap completes, and `onMouseEnter` covers the desktop rail. Warm when it
+   * matters, unpaid when it does not.
+   *
+   * `router.prefetch` is idempotent and cached by Next, so a scrolling thumb that brushes
+   * three tabs costs three prefetches once, not once per touch.
+   */
+  const warm = (href: string) => () => router.prefetch(href);
 
   const tab = (href: string, label: string, icon: Icon) => {
     const on = active(href);
@@ -41,6 +63,9 @@ export function BottomNav() {
       <Link
         key={href}
         href={href}
+        prefetch={false}
+        onTouchStart={warm(href)}
+        onMouseEnter={warm(href)}
         aria-current={on ? 'page' : undefined}
         className={
           'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[10px] font-extrabold transition-colors ' +

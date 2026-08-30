@@ -64,7 +64,16 @@ export function Footer() {
               <h2 className="text-[13.5px] font-extrabold">{col.heading}</h2>
               {col.links.map((link) =>
                 link.href ? (
-                  <Link key={link.label} href={link.href} className="text-white/65 hover:text-white">
+                  /* prefetch={false}: a footer link is a destination somebody scrolls to
+                     find, not the next screen. These sat below the fold on every page and
+                     were prefetched anyway — /products?search=galon competed with the tab
+                     bar's own /products prefetch for the same budget. */
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    prefetch={false}
+                    className="text-white/65 hover:text-white"
+                  >
                     {link.label}
                   </Link>
                 ) : (
@@ -80,12 +89,12 @@ export function Footer() {
         <div className="mt-8 flex flex-col gap-2 border-t border-white/15 pt-5 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <span>{t('auth.footer.copyright')}</span>
           <span className="flex gap-4">
-            <Link href="/kebijakan-privasi" className="text-white/65 hover:text-white">
+            <Link href="/kebijakan-privasi" prefetch={false} className="text-white/65 hover:text-white">
               {t('privacy.title')}
             </Link>
             {/* Play wants the account-deletion page reachable without signing in; a footer
                 link is also how the reviewer finds it from the listing URL. */}
-            <Link href="/hapus-akun" className="text-white/65 hover:text-white">
+            <Link href="/hapus-akun" prefetch={false} className="text-white/65 hover:text-white">
               {t('deleteAccount.navLabel')}
             </Link>
           </span>

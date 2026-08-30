@@ -254,6 +254,7 @@ if (!existsSync(BASELINE)) {
 
 const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
 const failures = [];
+const headroom = [];
 for (const [page, scores] of Object.entries(measured)) {
   const floor = baseline[page];
   if (!floor) {
@@ -295,6 +296,40 @@ for (const [page, scores] of Object.entries(measured)) {
     if (now > ceiling) {
       failures.push(
         `${page} ${spec.label}: ${now} > ${ceiling} (recorded ${then}, +${spec.tolerance * 100}%)`,
+      );
+    } else {
+      headroom.push({ page, label: spec.label, now, ceiling, left: ceiling - now });
+    }
+  }
+}
+
+/*
+ * A budget that only says pass/fail hides the whole story of HOW it was spent.
+ *
+ * `/` requests drifted 46 -> 50 against a ceiling of 51 across many PRs, each one individually
+ * under the line, and nothing ever printed a number anybody could watch. By the time it went
+ * red the debt belonged to nobody: the PR that tipped it had added one request to a page four
+ * others had already filled. Measured on 2026-08-30, FIVE metrics were within noise of red —
+ * `/products` requests had ZERO slack, `/driver` bytes had 254, `/login` bytes 460 — and the
+ * gate said OK every time.
+ *
+ * So the headroom is printed on the PASSING path too, tightest first, and a metric under 1%
+ * of its own tolerance raises a `::warning::` that GitHub surfaces on the run. The number a
+ * ratchet hides is exactly the number somebody needed a month earlier.
+ */
+if (headroom.length > 0) {
+  headroom.sort((a, b) => a.left / (a.ceiling || 1) - b.left / (b.ceiling || 1));
+  console.log('\nHeadroom left before the ceiling (tightest first):');
+  for (const h of headroom) {
+    const pct = h.ceiling > 0 ? (h.left / h.ceiling) * 100 : 0;
+    const line = `  ${h.page.padEnd(10)} ${h.label.padEnd(10)} ${h.now}/${h.ceiling} — ${h.left} left`;
+    console.log(line);
+    // 1% of the ceiling: on `/driver` bytes that is ~4 KB, which one component can spend.
+    if (pct < 1) {
+      console.log(
+        `::warning::${h.page} ${h.label} has ${h.left} of headroom left (${h.now}/${h.ceiling}). ` +
+          `The next change to touch this page will fail for debt it did not create — re-record ` +
+          `the baseline deliberately, or find what has been spending it.`,
       );
     }
   }
