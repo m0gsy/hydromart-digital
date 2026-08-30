@@ -21,11 +21,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), storage-policy (close anonymous bucket listing + prove it)"
+        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), storage-policy (close anonymous bucket listing + prove it)"
         type: choice
         default: deploy
         options:
-          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, storage-policy, install-cron, explain-queries]
+          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, backup-offsite, storage-policy, install-cron, explain-queries]
       sha:
         description: "rollback target SHA (blank = previous good)"
         required: false
@@ -201,6 +201,19 @@ jobs:
             # own .env to learn an OTP (REVIEWER_PHONE/REVIEWER_OTP_CODE), which is exactly
             # why it never got run: the one machine that can do it is the one nobody is
             # logged into. Read-only against the customer flow it exercises.
+            # Prove the offsite backup WORKS, on demand, instead of finding out at 03:00.
+            #
+            # Setting BACKUP_OFFSITE_DEST and the two S3 keys makes them PRESENT; it does not
+            # make the bucket reachable, the credentials accepted, or the bytes readable back.
+            # Those are three different failures, and the nightly cron is a bad place to learn
+            # which one you have — it is the hour nobody is looking, and the answer arrives as
+            # an alert rather than as a verdict somebody asked for.
+            #
+            # Safe to press any time: idempotent by construction (an object already correct is
+            # verified and left alone), it never deletes, and it reads the dump back to compare
+            # size + sha256 before saying OK. Exit 2 = not configured, 1 = not verifiable,
+            # 0 = verified.
+            backup-offsite) echo "run=. ./scripts/load-env.sh \&\& bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
@@ -247,6 +260,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "seed-demo" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/seed-demo-depot.mjs
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "backup-offsite" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/backup-offsite.sh scripts/lib/backup-dir.sh
             fi
             ${{ steps.cmd.outputs.run }}
         env:
