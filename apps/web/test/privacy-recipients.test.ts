@@ -33,6 +33,41 @@ const RECIPIENTS: { name: string; provenBy: { file: string; needle: string } }[]
   { name: 'BiznetGio', provenBy: { file: 'scripts/backup-offsite.sh', needle: 'nos.jkt-1.neo.id' } },
 ];
 
+/*
+ * The Play Data Safety declaration is the THIRD document an integration invalidates, and the
+ * one with the sharpest consequence: Google rejects an app whose declaration does not match
+ * behaviour they can observe, and a crash SDK phoning a known host is exactly what they look
+ * for.
+ *
+ * `docs/MOBILE_PLAY_STORE.md` carried a blanket answer for every row of both tables —
+ * "Dibagikan ke pihak ketiga: tidak" — which was true for as long as the DSN was empty, because
+ * the SDK is dynamically imported and never downloaded on a build without one. It stopped being
+ * true the second somebody created `SENTRY_DSN_MOBILE` in a GitHub settings page.
+ *
+ * Filling the Play form from the stale doc would have produced a false declaration.
+ */
+describe('the Play Data Safety doc matches what the app actually sends', () => {
+  const doc = () => read('docs/MOBILE_PLAY_STORE.md');
+
+  it('declares crash logs, because the app sends them', () => {
+    // The integration first: this asserts nothing if Sentry is ever removed.
+    expect(read('apps/web/src/components/sentry-init.tsx')).toContain('@sentry/nextjs');
+    expect(doc()).toContain('Crash logs');
+    expect(doc()).toContain('Diagnostics');
+  });
+
+  it('does not still claim nothing is shared with a third party', () => {
+    // The exact sentence that went false. Worth pinning by its words: a reader skimming for
+    // "tidak" would have carried it straight into the form.
+    expect(doc()).not.toMatch(/Dibagikan ke pihak ketiga:\*\*? tidak\.\s/);
+  });
+
+  it('names where the crash reports go, because it leaves Indonesia', () => {
+    expect(doc()).toContain('Sentry');
+    expect(doc()).toMatch(/Jerman/);
+  });
+});
+
 describe('every third party that receives customer data is named in both policies', () => {
   for (const { name, provenBy } of RECIPIENTS) {
     it(`${name} is in the codebase, and in the policy`, () => {
