@@ -362,6 +362,17 @@ jobs:
       - name: No business numbers in the web client
         run: node scripts/check-money-literals.mjs
 
+      # The web paginator asked for 200 rows against a server that caps `limit` at 100, so
+      # six product screens answered `limit must not be greater than 100` on their FIRST
+      # request — and the change that introduced it existed to lift a 100-row ceiling. It
+      # replaced a truncated list with an error page.
+      #
+      # No test could have caught it: every web test mocks `api.get`, and a mock honours any
+      # limit you hand it. The number is only wrong in the presence of the real validator, so
+      # this compares the two sides of the contract directly.
+      - name: Web page size fits the server cap
+        run: node scripts/check-page-size.mjs
+
       - name: Money literal gate self-check
         run: bash scripts/check-money-literals.test.sh
 
