@@ -803,6 +803,7 @@ if health_ok; then
   # CI cannot reach production. This can, and it runs after the release is live, which is the
   # only moment the answer means anything.
   API_HOST="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^API_DOMAIN=//p' | head -1 || true)"
+  WEB_HOST="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^WEB_DOMAIN=//p' | head -1 || true)"
   if [ -n "$API_HOST" ]; then
     if node scripts/check-public-metrics.mjs --url "https://$API_HOST" >/tmp/metrics-probe.log 2>&1; then
       log "public /metrics probe — https://$API_HOST/metrics is not reachable from the internet"
@@ -815,6 +816,38 @@ if health_ok; then
   else
     log "!! API_DOMAIN is unset, so nothing checked whether /metrics is public."
     alert "API_DOMAIN unset - the public /metrics check could not run"
+  fi
+
+
+  # 1f. Sentry: is the browser ALLOWED to reach the host the DSN names?
+  #
+  # Every Sentry check here used to ask .env whether a string was non-empty, and that is a
+  # different question. Measured 2026-08-31: the web DSN was set, the SDK downloaded, init()
+  # succeeded, and every report was refused by the BROWSER — the CSP allowed
+  # `*.ingest.sentry.io` while the DSN was an EU-region `*.ingest.DE.sentry.io`, and a CSP
+  # wildcard matches one label. Nothing anywhere was red for a day.
+  #
+  # Deliberately NOT claiming the key is valid: Sentry's SaaS ingest accepts optimistically
+  # and answers 200 for a wrong key AND a wrong project id, on both /envelope/ and /store/.
+  # Measured, so this probe does not pretend otherwise.
+  WEB_DSN="$(tr -d '\r' < .env 2>/dev/null | sed -n 's/^SENTRY_DSN_WEB=//p' | head -1 || true)"
+  if [ -z "$WEB_DSN" ]; then
+    log "sentry probe — SENTRY_DSN_WEB is unset, so browser crashes reach nobody (build arg: needs a rebuild once set)"
+  elif [ -z "$WEB_HOST" ]; then
+    log "!! SENTRY_DSN_WEB is set but WEB_DOMAIN is not, so the CSP pairing could not be checked."
+  else
+    CSP_CONNECT="$(curl -fsS -m 10 -D - -o /dev/null "https://$WEB_HOST/" 2>/dev/null |
+      grep -aoiE 'connect-src [^;]*' | sed 's/connect-src //' || true)"
+    if [ -z "$CSP_CONNECT" ]; then
+      log "!! could not read the CSP from https://$WEB_HOST — the Sentry pairing is unchecked."
+    elif node scripts/check-sentry-reachable.mjs --dsn "$WEB_DSN" --csp "$CSP_CONNECT" >/tmp/sentry-probe.log 2>&1; then
+      log "sentry probe — the web DSN host is reachable and permitted by this site's CSP"
+    else
+      log "!! the web Sentry DSN cannot deliver — browser reports are being dropped:"
+      sed 's/^/   /' /tmp/sentry-probe.log | head -8
+      alert "web Sentry reports are being dropped on $WEB_HOST - the DSN host is unreachable or blocked by the CSP"
+    fi
+    rm -f /tmp/sentry-probe.log
   fi
 
   # 2. Web push is dead without VAPID, and dead silently: subscribing just never succeeds.

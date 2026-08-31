@@ -177,5 +177,11 @@ if grep -qa 'JWT_ACCESS_SECRET=' "$TMP/$KEY"; then
   exit 1
 fi
 
+# Same window as the dumps, and for the same reason: a bucket with no rule grows forever.
+# Only after the read-back proved this copy is good.
+if [ "$MODE" = copy ]; then
+  s3 node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix env/     --keep "${BACKUP_KEEP:-14}" || echo "!! env prune failed — the copy is safe, the bucket will grow" >&2
+fi
+
 echo "env OK — s3://$BUCKET/$OBJECT verified by read-back: $(wc -c <"$TMP/$KEY" | tr -d ' ')B, sha256 $LOCAL_SHA"
 echo "   Decrypt with: openssl smime -decrypt -binary -inform DER -in $KEY -inkey PRIVATE.pem"

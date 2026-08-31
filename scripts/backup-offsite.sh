@@ -376,7 +376,18 @@ verdict=0
 verify_remote || verdict=$?
 
 case "$verdict" in
-  0) echo "offsite OK — $TARGET_LABEL verified by read-back: ${LOCAL_SIZE}B, sha256 $LOCAL_SHA" ;;
+  0) # Only after the copy is VERIFIED. Pruning before the read-back would trade a proven old
+# copy for an unproven new one, which is the one trade a backup must never make.
+#
+# backup-db.sh:92 prunes the local disk to BACKUP_KEEP and its comment hands the remote side
+# to somebody else — "NEO retention = set a lifecycle rule". Nobody did, so the bucket had no
+# rule at all: it grew forever, and on the day the first copy landed it also held exactly one
+# night of history. Same sentence, read at two different times.
+if [ "$SHAPE" = s3 ]; then
+  S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}"     S3_REGION="${BACKUP_S3_REGION:-jkt-1}"     S3_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"     S3_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"     node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix "${PREFIX:-db}/"       --keep "${BACKUP_KEEP:-14}" || echo "!! offsite prune failed — the copy is safe, the bucket will grow" >&2
+fi
+
+echo "offsite OK — $TARGET_LABEL verified by read-back: ${LOCAL_SIZE}B, sha256 $LOCAL_SHA" ;;
   3)
     echo "!! the copy reported success and $TARGET_LABEL is not there." >&2
     exit 1

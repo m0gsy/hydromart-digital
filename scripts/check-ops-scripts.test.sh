@@ -706,4 +706,39 @@ for f in scripts/deploy.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh s
   fi
 done
 
+
+# --- the disaster-recovery runbook must not become fiction --------------------------------
+# A runbook is read once, in an emergency, by somebody who cannot check whether its commands
+# still exist. Every script and flag it names is asserted here so a rename breaks CI instead
+# of breaking the recovery.
+RUNBOOK=docs/DISASTER_RECOVERY.md
+if [ ! -f "$RUNBOOK" ]; then
+  bad "docs/DISASTER_RECOVERY.md is gone — losing the box is back to being an undocumented event"
+else
+  for cmd in \
+    'scripts/restore-db.sh' \
+    'scripts/env-doctor.sh' \
+    'scripts/deploy.sh' \
+    'scripts/smoke.sh' \
+    'scripts/check-backup-freshness.sh' \
+    'scripts/install-host-cron.sh'; do
+    if ! grep -q "$cmd" "$RUNBOOK"; then
+      bad "the runbook no longer mentions $cmd"
+    elif [ ! -f "$cmd" ]; then
+      bad "the runbook tells you to run $cmd and that file does not exist"
+    else
+      ok "runbook: $cmd is named and present"
+    fi
+  done
+  # The two that are not scripts but are the whole recovery: the decrypt line and the flag
+  # that stops --into-prod being pressed by accident.
+  grep -q 'openssl smime -decrypt' "$RUNBOOK" ||
+    bad "the runbook lost the .env decrypt command — the dump alone cannot boot a box"
+  grep -q 'CONFIRM=RESTORE' "$RUNBOOK" ||
+    bad "the runbook no longer shows CONFIRM=RESTORE, which --into-prod requires"
+  grep -q 'CONFIRM=RESTORE' scripts/restore-db.sh ||
+    bad "restore-db.sh no longer requires CONFIRM=RESTORE but the runbook says it does"
+  ok "runbook: the decrypt and the confirm flag both still match the scripts"
+fi
+
 exit "$fails"
