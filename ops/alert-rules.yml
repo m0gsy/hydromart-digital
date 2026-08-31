@@ -89,9 +89,23 @@ groups:
         # Docker image layers are what fill this box: a full `--all` rebuild writes ~20
         # images, and ENOSPC mid-build is the failure rebuild-stale.sh's batching exists
         # to avoid. 15% left is roughly one full rebuild of headroom.
+        # `mountpoint="/"`, not "/rootfs". node-exporter runs with `--path.rootfs=/rootfs`
+        # (docker-compose.prod.yml:822), and that flag STRIPS the prefix from the labels it
+        # emits — it tells the exporter where the host is mounted, it does not become part of
+        # the metric. So this selector matched nothing and the alert could never fire, for the
+        # one disk whose filling is the only failure here that destroys data rather than
+        # uptime.
+        #
+        # Measured against the live Prometheus 2026-08-31:
+        #   count(node_filesystem_avail_bytes)                      -> 7
+        #   count(node_filesystem_avail_bytes{mountpoint="/rootfs"}) -> (empty)
+        #
+        # Same shape as the two business alerts fixed in #396: a selector that matches nothing
+        # is not zero, it is ABSENT, and a comparison against absent matches nothing. There is
+        # a promtool fixture for this one now, which is what makes the claim checkable.
         expr: |
-          node_filesystem_avail_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
-            / node_filesystem_size_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
+          node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
             < 0.15
         for: 10m
         labels: { severity: critical }

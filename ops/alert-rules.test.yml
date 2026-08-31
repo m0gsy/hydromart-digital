@@ -110,3 +110,53 @@ tests:
       - eval_time: 3h
         alertname: SchedulerSweepsSilent
         exp_alerts: []
+
+  # --- DiskSpaceLow ---------------------------------------------------------------------
+  # The one failure in this system that destroys DATA rather than uptime, guarded by a rule
+  # that selected nothing. node-exporter runs `--path.rootfs=/rootfs`, which tells it where
+  # the host is mounted and STRIPS that prefix from what it emits — so `mountpoint="/rootfs"`
+  # matched zero series. Measured against the live Prometheus 2026-08-31:
+  #   count(node_filesystem_avail_bytes)                       -> 7
+  #   count(node_filesystem_avail_bytes{mountpoint="/rootfs"}) -> (empty)
+  - interval: 1m
+    name: a disk at 8% free — the case the rule exists for
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"}'
+        values: '8+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="ext4"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts:
+          # The selector's own labels ride along, and naming them here is the point: an
+          # alert that says WHICH filesystem is full is the difference between a page you
+          # can act on and one you have to go and investigate.
+          - exp_labels: { severity: critical, mountpoint: '/', fstype: ext4 }
+            exp_annotations:
+              summary: 'host disk below 15% free'
+              description: 'Root filesystem has 8% free. A full rebuild needs more than this — run scripts/docker-gc.sh.'
+
+  - interval: 1m
+    name: a disk with room — stays quiet
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"}'
+        values: '74+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="ext4"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts: []
+
+  - interval: 1m
+    name: tmpfs is not the disk — a full ramdisk must not page anybody
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="tmpfs"}'
+        values: '1+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="tmpfs"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts: []
