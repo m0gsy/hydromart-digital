@@ -1,4 +1,10 @@
 import { alertServerError, redactAlertText } from './error-alerter';
+import { captureServerError } from './sentry';
+
+// Without the DSN `captureServerError` returns immediately, so the real module cannot show
+// whether it was CALLED — which is the whole question below.
+jest.mock('./sentry', () => ({ captureServerError: jest.fn() }));
+const captured = captureServerError as jest.Mock;
 
 /**
  * Alerting sits on the 5xx path, so its own failure modes matter more than its
@@ -156,9 +162,93 @@ describe('alertServerError', () => {
   });
 });
 
+describe('the health probe must not spend the Sentry quota', () => {
+  // The dedupe key is `service|method path|errorName` and the map lives for the whole process,
+  // so two tests posting the same shape would throttle the second and it would read as "the
+  // webhook was skipped". A unique service per test keeps each one measuring itself.
+  let n = 0;
+  beforeEach(() => {
+    captured.mockClear();
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: true });
+    n += 1;
+    process.env.SERVICE_NAME = `probe-svc-${n}`;
+    process.env.ALERT_WEBHOOK_URL = 'https://hooks.example/abc';
+  });
+
+  /*
+   * `/health` is polled every 30s by the Docker healthcheck and again by Prometheus, across 18
+   * services. Reporting each 503 aggregates nothing — it multiplies one known cause by several
+   * hundred and buries every real exception under it. This happened: the first
+   * ServiceUnavailableException in this project's Sentry came from a health controller.
+   */
+  it('does not send a health 503 to Sentry', () => {
+    alertServerError({
+      method: 'GET',
+      path: '/api/v1/health',
+      status: 503,
+      exception: new Error('Service Unavailable Exception'),
+    });
+    expect(captured).not.toHaveBeenCalled();
+  });
+
+  it('still tells a human, once, through the throttled webhook', () => {
+    // Dropped from the aggregator is not dropped from view. If this ever stops being true,
+    // the change above became suppression instead of de-duplication.
+    alertServerError({
+      method: 'GET',
+      path: '/api/v1/health',
+      status: 503,
+      exception: new Error('Service Unavailable Exception'),
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a 500 from the SAME path — a bug in a health controller is still a bug', () => {
+    alertServerError({
+      method: 'GET',
+      path: '/api/v1/health',
+      status: 500,
+      exception: new Error('cannot read properties of undefined'),
+    });
+    expect(captured).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a 503 from a path that is not a health probe', () => {
+    // The narrowness is the safety. A real endpoint answering 503 is an outage customers feel.
+    alertServerError({
+      method: 'POST',
+      path: '/api/v1/orders',
+      status: 503,
+      exception: new Error('upstream unavailable'),
+    });
+    expect(captured).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['/health', '/api/v1/health', '/health/', '/api/v1/health?verbose=1'])(
+    'treats %s as a probe',
+    (path) => {
+      alertServerError({ method: 'GET', path, status: 503, exception: new Error('down') });
+      expect(captured).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not treat a path that merely CONTAINS health as a probe', () => {
+    alertServerError({
+      method: 'GET',
+      path: '/api/v1/health-reports/latest',
+      status: 503,
+      exception: new Error('down'),
+    });
+    expect(captured).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('redactAlertText', () => {
   it('keeps only the first frames, so a 40-frame stack cannot page a whole channel', () => {
-    const long = ['Error: boom', ...Array.from({ length: 40 }, (_, i) => `    at f${i} (a.js:1:1)`)];
+    const long = [
+      'Error: boom',
+      ...Array.from({ length: 40 }, (_, i) => `    at f${i} (a.js:1:1)`),
+    ];
     expect(redactAlertText(long.join('\n')).split('\n')).toHaveLength(6);
   });
 

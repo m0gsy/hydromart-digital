@@ -35,6 +35,31 @@ export interface ServerErrorAlert {
   exception: unknown;
 }
 
+/*
+ * A health endpoint answering 503 is this system TELLING you the database is unreachable. It
+ * is not the system failing to do its job — it is the system doing exactly its job.
+ *
+ * That distinction is a quota question, not a philosophical one. `/health` is polled by the
+ * Docker healthcheck every 30s and by Prometheus on its own interval, across 18 services. One
+ * database blip of ten minutes therefore produces several HUNDRED identical Sentry events for
+ * a single known cause — enough to consume a large share of a month's free-tier quota in one
+ * incident, and to bury every real exception underneath it. That already happened: the first
+ * ServiceUnavailableException in this project's Sentry came from promo-service's health
+ * controller, thrown deliberately on `database !== 'up'`.
+ *
+ * The absence is covered by better instruments, which is what makes dropping it safe rather
+ * than convenient: `PostgresDown` and `ServiceDown` in ops/alert-rules.yml fire on exactly
+ * this, both now with promtool fixtures, and the webhook tier below still sends one message a
+ * minute. Nothing goes unnoticed; it stops being counted 300 times.
+ *
+ * Narrow on purpose: 503 only, and only from a health path. A BUG in a health controller is a
+ * 500, and a 500 is still reported — which is the difference between suppressing noise and
+ * suppressing evidence.
+ */
+function isHealthSignal(path: string, status: number): boolean {
+  return status === 503 && /\/health\/?(\?.*)?$/.test(path);
+}
+
 export function alertServerError({ method, path, status, exception }: ServerErrorAlert): void {
   /*
    * Sentry first, and deliberately BEFORE the dedupe below: the webhook is throttled to one
@@ -42,7 +67,9 @@ export function alertServerError({ method, path, status, exception }: ServerErro
    * throttle to the aggregator would hide exactly the thing an aggregator is for — that
    * this 500 has now happened four hundred times. No-op unless SENTRY_DSN is set.
    */
-  captureServerError(exception, { method, path, status });
+  if (!isHealthSignal(path, status)) {
+    captureServerError(exception, { method, path, status });
+  }
 
   const url = process.env.ALERT_WEBHOOK_URL;
   if (!url) return; // the chat tier is disabled
@@ -58,7 +85,8 @@ export function alertServerError({ method, path, status, exception }: ServerErro
   // Keep the dedupe map from growing without bound on high-cardinality paths.
   if (lastSentAt.size > 500) lastSentAt.clear();
 
-  const stack = exception instanceof Error ? (exception.stack ?? exception.message) : String(exception);
+  const stack =
+    exception instanceof Error ? (exception.stack ?? exception.message) : String(exception);
   const text = [
     `🚨 *${svc}* — HTTP ${status} on \`${method} ${path}\``,
     '```',
