@@ -707,6 +707,41 @@ for f in scripts/deploy.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh s
 done
 
 
+# --- no tool-eaten escape may survive as a literal control character ----------------------
+# The sibling above catches one shape of this. The general shape has now bitten four times
+# in this repo: a tool that processes escapes writes the CHARACTER instead of the two
+# characters you typed. `\r` became a real carriage return, `\n` a real newline, and
+# `\b` a real backspace (0x08) inside a grep pattern, where it matched nothing and made a
+# coverage gate report all sixteen alert rules as untested.
+#
+# The fourth time was the comment ABOVE THIS ONE, describing the first three.
+#
+# None of them broke syntax. All of them stayed exit 0. They are invisible in a diff and in
+# a terminal, which is why a byte-level check is the only thing that finds them. Tab,
+# newline and carriage return are legal; nothing else in this range ever is.
+#
+# LC_ALL=C, and the exit code is read rather than discarded. The first version of this
+# check ended in `|| true`, and grep -P refused to run at all here ("supports only unibyte
+# and UTF-8 locales", exit 2). The gate printed ok over a file with a backspace in it. A
+# check that cannot tell "found nothing" from "could not look" is worse than no check: it
+# is a green line that means nothing.
+# grep -P is not usable here: it refuses with "supports only unibyte and UTF-8 locales"
+# (exit 2) even under LC_ALL=C, which is how the first version of this check came to print
+# ok over a file that had a backspace in it. A POSIX bracket class of the actual bytes,
+# built by printf rather than typed, needs no PCRE and cannot itself be eaten.
+CTRL_PATTERN="$(printf '[\001-\010\013\014\016-\037]')"
+CTRL_RC=0
+CTRL="$(grep -rl "$CTRL_PATTERN" scripts ops .github/workflows 2>&1)" || CTRL_RC=$?
+if [ "$CTRL_RC" -eq 0 ]; then
+  bad "these files carry a literal control character where an escape was meant:"
+  printf "%s\n" "$CTRL" | sed "s/^/         /"
+elif [ "$CTRL_RC" -gt 1 ]; then
+  bad "the control-character scan could not run (grep exit $CTRL_RC), so nothing was checked:"
+  printf "%s\n" "$CTRL" | sed "s/^/         /"
+else
+  ok "no script carries a literal control character where an escape was meant"
+fi
+
 # --- the disaster-recovery runbook must not become fiction --------------------------------
 # A runbook is read once, in an emergency, by somebody who cannot check whether its commands
 # still exist. Every script and flag it names is asserted here so a rename breaks CI instead
