@@ -34,6 +34,7 @@ trap 'rm -rf "$WORK"' EXIT
 DUMPS="$WORK/backups"
 mkdir -p "$DUMPS"
 DRILL_LOG="$WORK/drill.log"
+OBJECTS_LOG="$WORK/objects.log"
 
 # The five cases below each assert ONE reason for going red. Now that the script also asks
 # whether a copy exists off-box, they need a destination that works — otherwise every one of
@@ -53,7 +54,7 @@ make_dump() {
 
 run_check() {
   set +e
-  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG"     BACKUP_OFFSITE_DEST="${OFFSITE_OVERRIDE-$OFFSITE}"     BACKUP_OFFSITE_ALLOW_SAME_FS=1     bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
+  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG" OBJECTS_LOG="${OBJECTS_OVERRIDE-$OBJECTS_LOG}"     BACKUP_OFFSITE_DEST="${OFFSITE_OVERRIDE-$OFFSITE}"     BACKUP_OFFSITE_ALLOW_SAME_FS=1     bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
   RC=$?
   set -e
   OUT="$(cat "$WORK/out")"
@@ -68,9 +69,25 @@ case "$OUT" in *"no dump at all"*) ok "  ...and it says which directory it looke
 
 # 2. A fresh dump and a fresh drill: the only green state.
 make_dump hydromart-20260827-030000.sql.gz
-touch "$DRILL_LOG"
+touch "$DRILL_LOG" "$OBJECTS_LOG"
 run_check
 check "a fresh dump plus a fresh drill passes" 0 "$RC"
+
+# The object bucket holds the proof a delivery happened and the proof money arrived. Every
+# check above passes while not one byte of it has ever left the box, which is the state this
+# system was actually in — so these two cases are the ones that would have caught it.
+OBJECTS_OVERRIDE="$WORK/never-ran.log"
+run_check
+check "an object backup that has never run is a failure" 1 "$RC"
+case "$OUT" in *"never been copied off this"*) ok "  ...and it says the files never left the box" ;; *) bad "  expected the never-copied wording: $OUT" ;; esac
+
+touch -d '3 days ago' "$OBJECTS_LOG" 2>/dev/null ||
+  touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || echo 202608240300)" "$OBJECTS_LOG"
+unset OBJECTS_OVERRIDE
+run_check
+check "an object backup that STOPPED three days ago is a failure" 1 "$RC"
+case "$OUT" in *"object backup last ran"*) ok "  ...and it names how long ago it last ran" ;; *) bad "  expected the last-ran wording: $OUT" ;; esac
+touch "$OBJECTS_LOG"
 
 # 3. Backups stopped three days ago. The console would still be showing the last OK.
 touch -d '3 days ago' "$DUMPS/hydromart-20260827-030000.sql.gz" 2>/dev/null ||
@@ -97,7 +114,7 @@ check "no drill log at all is a failure" 1 "$RC"
 #    byte of this database anywhere except the disk it lives on. Both checks above pass.
 #    This is the whole reason the third one was added, so it is asserted from the outside:
 #    a green gate here for five months would have been a green gate over zero offsite copies.
-touch "$DUMPS/hydromart-20260827-030000.sql.gz" "$DRILL_LOG"
+touch "$DUMPS/hydromart-20260827-030000.sql.gz" "$DRILL_LOG" "$OBJECTS_LOG"
 OFFSITE_OVERRIDE=''
 run_check
 check "fresh dumps + recent drill still FAIL with no offsite destination" 1 "$RC"

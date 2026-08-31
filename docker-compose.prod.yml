@@ -919,6 +919,17 @@ services:
       # profile you MUST set these in .env (Caddy can't get a cert for an empty host).
       WEB_DOMAIN: ${WEB_DOMAIN:-}
       API_DOMAIN: ${API_DOMAIN:-}
+      # Where the browser is allowed to send crash reports. The Caddyfile has offered this
+      # knob since it was written — and this file never passed it, so `{$SENTRY_INGEST_ORIGIN}`
+      # always fell back to its default and the variable was unreachable by construction.
+      #
+      # It cost the whole point of Sentry on the web. The DSN created 2026-08-30 is an EU-region
+      # one — `o…….ingest.DE.sentry.io` — and the default only allows `*.ingest.sentry.io`,
+      # which does not match a second label. Measured against production: the SDK downloaded,
+      # `init` succeeded, and the first envelope was blocked by the browser. Web stayed as blind
+      # as it was before the DSN existed, except every visitor now paid to fetch the SDK.
+      SENTRY_INGEST_ORIGIN: ${SENTRY_INGEST_ORIGIN:-}
+
     ports:
       - "80:80"
       - "443:443"

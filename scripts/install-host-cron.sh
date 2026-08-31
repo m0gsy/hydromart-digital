@@ -64,6 +64,26 @@ CRON_TZ=$CRON_TZ_VALUE
 # the nightly dump, so it copies the file that job just wrote.
 20 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh >> /var/log/hydromart-backup.log 2>&1
 
+# A database is not a system. Restored onto a fresh box it will not start, because .env holds
+# the 68 keys that tell it what it is — database URLs, JWT secrets, S3 credentials, the OTP
+# provider, every Sentry DSN. Measured on production 2026-08-31: 7,925 bytes, and the only
+# copy of it lived on the box it describes.
+#
+# Encrypted to a PUBLIC certificate, so the box can write tomorrow's copy and cannot read
+# yesterday's. Runs after the dump, not before: if the night is going to fail it should fail
+# on the bigger artefact first.
+25 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-env.sh >> /var/log/hydromart-backup.log 2>&1
+
+# The databases were going offsite every night and the FILES were not — not once. Seven
+# services write to the object bucket, and two of those prefixes are evidence rather than
+# decoration: `pod/` is the proof a delivery happened, `payment-proof/` is the proof money
+# arrived. Restoring every database onto a fresh box would have produced orders pointing at
+# photographs that no longer existed anywhere.
+#
+# Its own log, because its mtime is what check-backup-freshness.sh reads to notice the job
+# has STOPPED — and a failed run must still touch it, or silence would read as success.
+40 3 * * * cd $REPO && . ./scripts/load-env.sh && node scripts/backup-objects.mjs >> /var/log/hydromart-objects.log 2>&1
+
 # CMP-04 — notice when the backups STOP. Every other job here reports an outcome; none of
 # them reports an absence, so a cron block that was never installed on a rebuilt box, or a
 # job that stopped being able to write, leaves /hq/retention showing the last OK forever.
@@ -127,7 +147,7 @@ esac
 # Log files must exist and be writable by this user before cron first appends to them —
 # a redirect into an unwritable path fails the job silently, which is the failure mode
 # this whole script exists to stop.
-for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks; do
+for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks hydromart-objects; do
   if [ ! -w "/var/log/$f.log" ]; then
     sudo -n touch "/var/log/$f.log" 2>/dev/null && sudo -n chown "$(id -u):$(id -g)" "/var/log/$f.log" 2>/dev/null || {
       echo "!! /var/log/$f.log is not writable and passwordless sudo is unavailable." >&2

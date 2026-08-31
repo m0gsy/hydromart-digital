@@ -47,6 +47,26 @@ else
   echo "  ok   every aggregate compared to 0 survives an absent series"
 fi
 
+# --- every rule has a fixture, and this is the check that keeps it that way ----------------
+# Three of sixteen rules had one. That is the same coverage shape that let DiskSpaceLow
+# select `mountpoint="/rootfs"` — a label this host has never emitted — and sit in the file
+# for months looking exactly like protection. promtool can only prove the rules somebody
+# remembered to write a fixture for, and the rule most likely to be wrong is the one nobody
+# thought about twice.
+#
+# This runs WITHOUT docker, so a machine that cannot run promtool still reports the gap.
+UNTESTED=""
+for a in $(grep -oE '^ *- alert: [A-Za-z0-9]+' ops/alert-rules.yml | awk '{print $3}'); do
+  grep -qE "alertname: ${a}$" ops/alert-rules.test.yml || UNTESTED="$UNTESTED $a"
+done
+if [ -n "$UNTESTED" ]; then
+  echo "  FAIL these rules have no promtool fixture, so nothing has ever proved they can"
+  echo "       fire at all:$UNTESTED"
+  fails=$((fails + 1))
+else
+  echo "  ok   every alert rule has at least one promtool fixture"
+fi
+
 if ! docker version >/dev/null 2>&1; then
   echo "  SKIPPED — docker is not available, so promtool cannot run here."
   echo "  Run it directly if you have promtool:  promtool test rules ops/alert-rules.test.yml"

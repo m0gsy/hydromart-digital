@@ -439,6 +439,13 @@ jobs:
       - name: Metrics are not public (BI-2)
         run: node scripts/check-public-metrics.mjs
 
+      # A knob nothing turns is worse than no knob: it reads as configurable and behaves as
+      # hardcoded. The Caddyfile offered `{$SENTRY_INGEST_ORIGIN}` and compose never passed
+      # it, so an EU-region Sentry DSN was blocked by the CSP for every visitor — SDK
+      # downloaded, init fine, first envelope refused by the browser, nothing anywhere red.
+      - name: Caddy knobs are reachable
+        run: node scripts/check-caddy-knobs.mjs
+
       - name: Public-metrics gate can go red
         run: bash scripts/check-public-metrics.test.sh
 
@@ -456,6 +463,12 @@ jobs:
       # working", and it went eleven weeks unrun: the same shape as the gate it checks.
       - name: Offsite backup gate can go red (L2.7)
         run: bash scripts/backup-offsite.test.sh
+
+      # A database restored without its .env will not start. This checks the property that
+      # makes backing that file up safe at all: what leaves the box cannot be read by
+      # whoever finds it, and the public key sitting on the box cannot open it either.
+      - name: Config backup is encrypted to a key the box does not hold
+        run: bash scripts/backup-env.test.sh
 
       # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
       # Prometheus only complains about a rule that fails to PARSE; a rule that parses and

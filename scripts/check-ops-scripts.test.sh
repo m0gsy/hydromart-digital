@@ -706,4 +706,135 @@ for f in scripts/deploy.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh s
   fi
 done
 
+
+# --- no tool-eaten escape may survive as a literal control character ----------------------
+# The sibling above catches one shape of this. The general shape has now bitten four times
+# in this repo: a tool that processes escapes writes the CHARACTER instead of the two
+# characters you typed. `\r` became a real carriage return, `\n` a real newline, and
+# `\b` a real backspace (0x08) inside a grep pattern, where it matched nothing and made a
+# coverage gate report all sixteen alert rules as untested.
+#
+# The fourth time was the comment ABOVE THIS ONE, describing the first three.
+#
+# None of them broke syntax. All of them stayed exit 0. They are invisible in a diff and in
+# a terminal, which is why a byte-level check is the only thing that finds them. Tab,
+# newline and carriage return are legal; nothing else in this range ever is.
+#
+# LC_ALL=C, and the exit code is read rather than discarded. The first version of this
+# check ended in `|| true`, and grep -P refused to run at all here ("supports only unibyte
+# and UTF-8 locales", exit 2). The gate printed ok over a file with a backspace in it. A
+# check that cannot tell "found nothing" from "could not look" is worse than no check: it
+# is a green line that means nothing.
+# grep -P is not usable here: it refuses with "supports only unibyte and UTF-8 locales"
+# (exit 2) even under LC_ALL=C, which is how the first version of this check came to print
+# ok over a file that had a backspace in it. A POSIX bracket class of the actual bytes,
+# built by printf rather than typed, needs no PCRE and cannot itself be eaten.
+CTRL_PATTERN="$(printf '[\001-\010\013\014\016-\037]')"
+CTRL_RC=0
+CTRL="$(grep -rl "$CTRL_PATTERN" scripts ops .github/workflows 2>&1)" || CTRL_RC=$?
+if [ "$CTRL_RC" -eq 0 ]; then
+  bad "these files carry a literal control character where an escape was meant:"
+  printf "%s\n" "$CTRL" | sed "s/^/         /"
+elif [ "$CTRL_RC" -gt 1 ]; then
+  bad "the control-character scan could not run (grep exit $CTRL_RC), so nothing was checked:"
+  printf "%s\n" "$CTRL" | sed "s/^/         /"
+else
+  ok "no script carries a literal control character where an escape was meant"
+fi
+
+# --- the disaster-recovery runbook must not become fiction --------------------------------
+# A runbook is read once, in an emergency, by somebody who cannot check whether its commands
+# still exist. Every script and flag it names is asserted here so a rename breaks CI instead
+# of breaking the recovery.
+RUNBOOK=docs/DISASTER_RECOVERY.md
+if [ ! -f "$RUNBOOK" ]; then
+  bad "docs/DISASTER_RECOVERY.md is gone — losing the box is back to being an undocumented event"
+else
+  for cmd in \
+    'scripts/restore-db.sh' \
+    'scripts/env-doctor.sh' \
+    'scripts/deploy.sh' \
+    'scripts/smoke.sh' \
+    'scripts/check-backup-freshness.sh' \
+    'scripts/install-host-cron.sh' \
+    'scripts/backup-objects.mjs'; do
+    if ! grep -q "$cmd" "$RUNBOOK"; then
+      bad "the runbook no longer mentions $cmd"
+    elif [ ! -f "$cmd" ]; then
+      bad "the runbook tells you to run $cmd and that file does not exist"
+    else
+      ok "runbook: $cmd is named and present"
+    fi
+  done
+  # The two that are not scripts but are the whole recovery: the decrypt line and the flag
+  # that stops --into-prod being pressed by accident.
+  grep -q 'openssl smime -decrypt' "$RUNBOOK" ||
+    bad "the runbook lost the .env decrypt command — the dump alone cannot boot a box"
+  grep -q 'CONFIRM=RESTORE' "$RUNBOOK" ||
+    bad "the runbook no longer shows CONFIRM=RESTORE, which --into-prod requires"
+  grep -q 'CONFIRM=RESTORE' scripts/restore-db.sh ||
+    bad "restore-db.sh no longer requires CONFIRM=RESTORE but the runbook says it does"
+  ok "runbook: the decrypt and the confirm flag both still match the scripts"
+fi
+
+# ---------------------------------------------------------------- standing probes run on BOTH paths
+#
+# A deploy whose commit is already contained in the running one exits early with "nothing new
+# to ship". That used to mean nothing was CHECKED either — and the probes it skipped ask about
+# the box (`.env`, the public surface, disk, the CSP), none of which is decided by which commit
+# is running. A CSP fix applied by hand was undone by a `git reset --hard`, and every deploy
+# after it was green while the browser dropped every crash report.
+DP=scripts/deploy.sh
+DEF_LINE="$(grep -n '^standing_probes() {' "$DP" | cut -d: -f1)"
+CALL_LINES="$(grep -n '^ *standing_probes$' "$DP" | cut -d: -f1)"
+if [ -z "$DEF_LINE" ]; then
+  bad "deploy.sh has no standing_probes function — the probes cannot run on both paths"
+elif [ "$(printf '%s
+' "$CALL_LINES" | grep -c .)" -lt 2 ]; then
+  bad "standing_probes is called $(printf '%s
+' "$CALL_LINES" | grep -c .) time(s); both the deploy path and the no-op path must call it"
+else
+  ok "standing_probes is called on both the deploy path and the no-op path"
+fi
+
+# bash defines functions as it READS the file. A call above the definition is not a warning,
+# it is `standing_probes: command not found` at runtime — and on the no-op path that is a path
+# nothing in CI ever executes. I wrote exactly this bug while extracting the function.
+if [ -n "$DEF_LINE" ] && [ -n "$CALL_LINES" ]; then
+  FIRST_CALL="$(printf '%s
+' "$CALL_LINES" | head -1)"
+  if [ "$DEF_LINE" -gt "$FIRST_CALL" ]; then
+    bad "standing_probes is defined at line $DEF_LINE but first called at line $FIRST_CALL — bash will not have read it yet"
+  else
+    ok "standing_probes is defined (line $DEF_LINE) before its first call (line $FIRST_CALL)"
+  fi
+fi
+
+# The early exit must come AFTER the probes, or extracting them bought nothing.
+if ! awk '/nothing new to ship/,/exit 0/' "$DP" | grep -q '^ *standing_probes$'; then
+  bad "the no-op path exits without running standing_probes — a green deploy that checked nothing"
+else
+  ok "the no-op path runs the probes before it exits"
+fi
+
+# ---------------------------------------------------------------- the object bucket goes offsite
+#
+# The dumps left the box every night; the FILES never did. Two of those prefixes are evidence:
+# `pod/` is the proof a delivery happened, `payment-proof/` the proof money arrived. A restore
+# that brings back every row and none of the photographs is not a recovery.
+if [ ! -f scripts/backup-objects.mjs ]; then
+  bad "scripts/backup-objects.mjs is gone — nothing copies the object bucket anywhere"
+elif ! node scripts/backup-objects.mjs --self-test >/dev/null 2>&1; then
+  bad "backup-objects.mjs --self-test fails; its incremental plan is wrong"
+else
+  ok "backup-objects: the copy plan is idempotent and never proposes a deletion"
+fi
+
+# A script nothing calls is the state backup-offsite.sh sat in for weeks.
+grep -q 'backup-objects.mjs' scripts/install-host-cron.sh ||
+  bad "no cron line runs backup-objects.mjs — the script exists and never runs"
+grep -q 'OBJECTS_LOG' scripts/check-backup-freshness.sh ||
+  bad "check-backup-freshness.sh no longer notices when the object backup STOPS"
+ok "backup-objects: scheduled, and its silence is watched for"
+
 exit "$fails"

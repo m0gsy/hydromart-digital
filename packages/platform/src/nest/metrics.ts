@@ -2,6 +2,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { collectDefaultMetrics, Counter, Registry, Histogram } from 'prom-client';
 
+import { guardProcess } from './process-guard';
+
 /*
  * W8 — a prom-client series is never evicted, so an unbounded `route` label is unbounded
  * process memory.
@@ -57,6 +59,13 @@ function templateOf(path: string): string {
  * Route label is bounded — see routeLabel() below for why that needs two mechanisms.
  */
 export function enableMetrics(app: INestApplication, serviceName: string): void {
+  /*
+   * Rides along here, and the reason is not tidiness: all 18 services already call this
+   * function, and a process guard that 17 of them have is not a guard. Wiring it into each
+   * `main.ts` instead would be 18 edits that drift the first time somebody adds a service.
+   */
+  guardProcess(serviceName);
+
   const registry = new Registry();
   registry.setDefaultLabels({ service: serviceName });
   collectDefaultMetrics({ register: registry });

@@ -76,6 +76,7 @@ export { LOG_REDACT_PATHS, redactPaths, maskPhone } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { initSentry, captureServerError } from './nest/sentry';
+export { guardProcess } from './nest/process-guard';
 export { GlobalValidationPipe } from './nest/validation.pipe';
 export { IsNotBefore } from './nest/date-range.validator';
 export { IsWithinDays, MAX_RANGE_DAYS } from './nest/date-range-span.validator';

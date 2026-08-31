@@ -110,3 +110,394 @@ tests:
       - eval_time: 3h
         alertname: SchedulerSweepsSilent
         exp_alerts: []
+
+  # --- DiskSpaceLow ---------------------------------------------------------------------
+  # The one failure in this system that destroys DATA rather than uptime, guarded by a rule
+  # that selected nothing. node-exporter runs `--path.rootfs=/rootfs`, which tells it where
+  # the host is mounted and STRIPS that prefix from what it emits — so `mountpoint="/rootfs"`
+  # matched zero series. Measured against the live Prometheus 2026-08-31:
+  #   count(node_filesystem_avail_bytes)                       -> 7
+  #   count(node_filesystem_avail_bytes{mountpoint="/rootfs"}) -> (empty)
+  - interval: 1m
+    name: a disk at 8% free — the case the rule exists for
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"}'
+        values: '8+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="ext4"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts:
+          # The selector's own labels ride along, and naming them here is the point: an
+          # alert that says WHICH filesystem is full is the difference between a page you
+          # can act on and one you have to go and investigate.
+          - exp_labels: { severity: critical, mountpoint: '/', fstype: ext4 }
+            exp_annotations:
+              summary: 'host disk below 15% free'
+              description: 'Root filesystem has 8% free. A full rebuild needs more than this — run scripts/docker-gc.sh.'
+
+  - interval: 1m
+    name: a disk with room — stays quiet
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"}'
+        values: '74+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="ext4"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts: []
+
+  - interval: 1m
+    name: tmpfs is not the disk — a full ramdisk must not page anybody
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="tmpfs"}'
+        values: '1+0x30'
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="tmpfs"}'
+        values: '100+0x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskSpaceLow
+        exp_alerts: []
+
+  # =========================================================================================
+  # The other thirteen. Three rules had fixtures and thirteen did not, which is the same
+  # coverage shape that let DiskSpaceLow select `mountpoint="/rootfs"` — a label that has
+  # never existed on this host — and sit in the file looking like protection for months.
+  #
+  # Every rule below gets two cases wherever a near-miss is meaningful: one timeline that
+  # MUST fire, and one that must NOT. The second is the half that catches a selector matching
+  # nothing, because a rule that can never fire passes a fire-only test by staying quiet for
+  # entirely the wrong reason.
+  # =========================================================================================
+
+  # --- ServiceDown ----------------------------------------------------------------------
+  - interval: 1m
+    name: a service stops being scraped for more than 2m
+    input_series:
+      - series: 'up{job="hydromart", service="order-service", instance="order-service:3000"}'
+        values: '1 1 1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: hydromart
+              service: order-service
+              instance: order-service:3000
+            exp_annotations:
+              summary: 'order-service is down'
+              description: 'Prometheus has failed to scrape order-service for >2m (target order-service:3000).'
+
+  - interval: 1m
+    name: a service that is up is not an alert
+    input_series:
+      - series: 'up{job="hydromart", service="order-service", instance="order-service:3000"}'
+        values: '1+0x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ServiceDown
+        exp_alerts: []
+
+  # --- ServiceCrashLooping ----------------------------------------------------------------
+  - interval: 1m
+    name: three restarts inside fifteen minutes
+    # process_start_time_seconds is the boot timestamp: it CHANGES on each restart, so
+    # `changes()` counts restarts. Three distinct new values = 3 changes > 2.
+    input_series:
+      - series: 'process_start_time_seconds{job="hydromart", service="payment-service"}'
+        values: '100 100 200 300 400 400 400'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ServiceCrashLooping
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: hydromart
+              service: payment-service
+            exp_annotations:
+              summary: 'payment-service is crash-looping'
+              description: 'payment-service restarted 3 times in the last 15m.'
+
+  - interval: 1m
+    name: one restart is a deploy, not a loop
+    input_series:
+      - series: 'process_start_time_seconds{job="hydromart", service="payment-service"}'
+        values: '100 100 200 200 200 200 200'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ServiceCrashLooping
+        exp_alerts: []
+
+  # --- HighErrorRate ----------------------------------------------------------------------
+  - interval: 1m
+    name: half of the responses from a service are 5xx
+    input_series:
+      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/orders", method="POST"}'
+        values: '0+60x20'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/orders", method="POST"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: critical, service: order-service }
+            exp_annotations:
+              summary: 'order-service 5xx rate above 5%'
+              description: 'order-service is serving 50% 5xx over the last 5m.'
+
+  - interval: 1m
+    name: four percent errors stays under the threshold
+    # The near-miss that matters: 4% is a bad afternoon, 5% is the page. A rule that fired
+    # here would wake somebody every day and stop being read.
+    input_series:
+      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/orders", method="POST"}'
+        values: '0+4x20'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/orders", method="POST"}'
+        values: '0+96x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  # --- HighLatencyP95 ---------------------------------------------------------------------
+  - interval: 1m
+    name: every request lands in the slow bucket
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="0.5"}'
+        values: '0+0x20'
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="5"}'
+        values: '0+100x20'
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="+Inf"}'
+        values: '0+100x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighLatencyP95
+        exp_alerts:
+          - exp_labels: { severity: warning, service: depot-service }
+            exp_annotations:
+              summary: 'depot-service p95 latency above 1.5s'
+              description: 'depot-service p95 request latency is 4.775s over 5m.'
+
+  - interval: 1m
+    name: fast requests do not page anyone
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="0.5"}'
+        values: '0+100x20'
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="5"}'
+        values: '0+100x20'
+      - series: 'http_request_duration_seconds_bucket{service="depot-service", le="+Inf"}'
+        values: '0+100x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighLatencyP95
+        exp_alerts: []
+
+  # --- ExporterDown -----------------------------------------------------------------------
+  - interval: 1m
+    name: an exporter goes blind and takes its alerts with it
+    input_series:
+      - series: 'up{job="infra", service="node-exporter", instance="node-exporter:9100"}'
+        values: '1 1 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ExporterDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: infra
+              service: node-exporter
+              instance: node-exporter:9100
+            exp_annotations:
+              summary: 'node-exporter exporter is down'
+              description: 'Prometheus cannot scrape the node-exporter exporter — the alerts that depend on it are blind.'
+
+  # --- EventLoopLagHigh -------------------------------------------------------------------
+  - interval: 1m
+    name: the loop stalls for five minutes
+    input_series:
+      - series: 'nodejs_eventloop_lag_seconds{job="hydromart", service="report-service"}'
+        values: '0.4+0x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: EventLoopLagHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: hydromart
+              service: report-service
+            exp_annotations:
+              summary: 'report-service event-loop lag high'
+              description: 'report-service event-loop lag is 400ms (>200ms) for 5m.'
+
+  - interval: 1m
+    name: lag just under the threshold is not an alert
+    input_series:
+      - series: 'nodejs_eventloop_lag_seconds{job="hydromart", service="report-service"}'
+        values: '0.19+0x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: EventLoopLagHigh
+        exp_alerts: []
+
+  # --- HostMemoryLow ----------------------------------------------------------------------
+  - interval: 1m
+    name: under a tenth of host memory left
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100"}'
+        values: '800000000+0x20'
+      - series: 'node_memory_MemTotal_bytes{instance="node-exporter:9100"}'
+        values: '16000000000+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostMemoryLow
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node-exporter:9100 }
+            exp_annotations:
+              summary: 'host memory below 10% available'
+              description: '5% of host memory is available. Builds peak ~1.5GB each — see BATCH in scripts/rebuild-stale.sh.'
+
+  # --- ContainerOOMKilled -----------------------------------------------------------------
+  - interval: 1m
+    name: a container hits its mem_limit
+    input_series:
+      - series: 'container_oom_events_total{name="hydromart-report-service"}'
+        values: '0 0 0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ContainerOOMKilled
+        exp_alerts:
+          - exp_labels: { severity: critical, name: hydromart-report-service }
+            exp_annotations:
+              summary: 'container hydromart-report-service was OOM-killed'
+              description: 'hydromart-report-service hit its memory limit in the last 15m. Either it is leaking or its mem_limit in docker-compose.prod.yml is too low.'
+
+  - interval: 1m
+    name: a container that was never OOM-killed
+    input_series:
+      - series: 'container_oom_events_total{name="hydromart-report-service"}'
+        values: '0+0x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ContainerOOMKilled
+        exp_alerts: []
+
+  # --- PostgresDown -----------------------------------------------------------------------
+  - interval: 1m
+    name: the database stops answering
+    input_series:
+      - series: 'pg_up{instance="postgres-exporter:9187"}'
+        values: '1 1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: PostgresDown
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: postgres-exporter:9187 }
+            exp_annotations:
+              summary: 'Postgres is not answering'
+              description: 'The postgres exporter cannot query the database. Every service is down behind this.'
+
+  # --- PostgresConnectionsNearMax ---------------------------------------------------------
+  - interval: 1m
+    name: ninety percent of max_connections in use
+    input_series:
+      - series: 'pg_stat_database_numbackends{datname="hydromart_order"}'
+        values: '90+0x20'
+      - series: 'pg_settings_max_connections{}'
+        values: '100+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PostgresConnectionsNearMax
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: 'Postgres connections above 80% of max_connections'
+              description: '90% of max_connections in use. Past 100% this presents as random connection errors, not as a database alert.'
+
+  - interval: 1m
+    name: seventy percent is headroom, not an incident
+    input_series:
+      - series: 'pg_stat_database_numbackends{datname="hydromart_order"}'
+        values: '70+0x20'
+      - series: 'pg_settings_max_connections{}'
+        values: '100+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PostgresConnectionsNearMax
+        exp_alerts: []
+
+  # --- PostgresDeadlocks ------------------------------------------------------------------
+  - interval: 1m
+    name: one deadlock in an hour is one too many
+    input_series:
+      - series: 'pg_stat_database_deadlocks{datname="hydromart_depot"}'
+        values: '0+0x30 1+0x40'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PostgresDeadlocks
+        exp_alerts:
+          - exp_labels: { severity: warning, datname: hydromart_depot }
+            exp_annotations:
+              summary: 'Postgres deadlock in hydromart_depot'
+              description: '1 deadlock(s) in the last hour. Deterministic lock ordering is the fix — see reserveAtomic in depot-service.'
+
+  # --- CheckoutFailing --------------------------------------------------------------------
+  - interval: 1m
+    name: one checkout in five is answering 5xx
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="500"}'
+        values: '0+20x30'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="201"}'
+        values: '0+80x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CheckoutFailing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: 'Checkout is failing for 20% of attempts'
+              description: 'POST /orders has been answering 5xx for more than 5% of attempts over 10m.'
+
+  - interval: 1m
+    name: 5xx everywhere EXCEPT checkout does not fire the checkout alert
+    # This is the case that proves the route and method selectors are load-bearing. A rule
+    # that fired here would be a rename of HighErrorRate, and the comment above it in
+    # alert-rules.yml claims it is deliberately not that.
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="500"}'
+        values: '0+100x30'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="GET", status="500"}'
+        values: '0+100x30'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="201"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CheckoutFailing
+        exp_alerts: []
+
+  # --- PaymentConfirmFailing --------------------------------------------------------------
+  - interval: 1m
+    name: the money leg starts erroring
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/payments/:id/confirm", method="POST", status="500"}'
+        values: '0+6x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PaymentConfirmFailing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: 'Payment confirmation is erroring'
+              description: 'POST /payments/:id/confirm has been returning 5xx for 5m. Sales may be recorded with the money leg unsettled.'
+
+  - interval: 1m
+    name: a failing payments LIST is not a failing confirm
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/payments", method="GET", status="500"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PaymentConfirmFailing
+        exp_alerts: []

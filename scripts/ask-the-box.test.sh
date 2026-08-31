@@ -39,6 +39,23 @@ else
   ok "still read-only: nothing it runs starts, stops or writes"
 fi
 
+# The MUTATORS check above reads SHELL. It cannot see inside a program, so the moment
+# ask-the-box.sh started invoking one (backup-objects.mjs, to measure the object buckets)
+# the read-only promise stopped being enforced for that line — a script whose default mode
+# copies gigabytes between buckets would have passed every check on this page.
+#
+# So: any node script it runs must carry --dry-run or --self-test on the same line.
+NODE_CALLS="$(grep -nE "node scripts/[a-z-]+\.mjs" scripts/ask-the-box.sh || true)"
+if [ -n "$NODE_CALLS" ]; then
+  WET="$(printf "%s\n" "$NODE_CALLS" | grep -vE "\-\-(dry-run|self-test)" || true)"
+  if [ -n "$WET" ]; then
+    bad "ask-the-box runs a node script with no --dry-run, so read-only is no longer enforced:"
+    printf "%s\n" "$WET" | sed "s/^/         /"
+  else
+    ok "every node script it runs is pinned to --dry-run or --self-test"
+  fi
+fi
+
 # The three keys whose zero is never a decision.
 #
 # Production served silverDiscountPct = goldDiscountPct = platinumDiscountPct = 0 against
