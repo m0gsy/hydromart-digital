@@ -330,7 +330,14 @@ line "object buckets — how much evidence is there, and would a second provider
 # number a second-provider decision needs, and guessing it is how that decision gets deferred
 # forever.
 if [ -f scripts/backup-objects.mjs ]; then
-  node scripts/backup-objects.mjs --dry-run 2>&1 | grep -vE "^  would copy|^  \.\.\.and" | sed "s/^/  /"
+  # In a SUBSHELL, and that is not decoration. This script deliberately never exports .env —
+  # it reads the keys it reports with sed, so it can say "set" without printing a secret. So
+  # the first version of this question ran with an empty environment and answered
+  # "missing env BACKUP_OFFSITE_DEST" about a box where the very next line of its own output
+  # said `BACKUP_OFFSITE_DEST : set`. The nightly cron sources load-env.sh, so the backup was
+  # never affected; only the question was. The parentheses keep the export from leaking into
+  # the rest of the run.
+  (. ./scripts/load-env.sh >/dev/null 2>&1; node scripts/backup-objects.mjs --dry-run 2>&1) | grep -vE "^  would copy|^  \.\.\.and" | sed "s/^/  /"
 else
   echo "  scripts/backup-objects.mjs is not on this box yet"
 fi
