@@ -79,8 +79,17 @@ const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, l
  * the opening-hours rule has its own tests (test/unit/opening-hours.spec.ts). A depot that
  * is shut belongs in those, not silently underneath every other assertion in this file.
  */
+/*
+ * '24:00', not '23:59'. The close time is exclusive, so a fixture named ALWAYS_OPEN was shut
+ * for one minute a day — and this suite duly failed in CI on a run that reached the express
+ * tests at 16:59:58 UTC, which is 23:59:58 in Asia/Jakarta. Two tests, red, for fifty-eight
+ * seconds of the day, on a change that touched neither.
+ *
+ * A time-dependent fixture that is right 99.93% of the time is worse than one that is wrong
+ * always: it fails on somebody else's pull request, months later, and reads as their bug.
+ */
 const ALWAYS_OPEN = Object.fromEntries(
-  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '23:59' }]),
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '24:00' }]),
 );
 
 const homeDepot = {
@@ -2396,6 +2405,20 @@ describe('OrderService', () => {
   // here at all: the customer read a total with Rp5.000 in it and the order stored one
   // without. These four are the money path.
   describe('express delivery', () => {
+    /*
+     * The clock is pinned, and that is the point: these tests are about the express
+     * surcharge, not about what time CI happens to run. Pinning it also keeps the fixture's
+     * open window from ever mattering again if somebody narrows it.
+     */
+    beforeEach(() => {
+      jest.useFakeTimers({
+        now: new Date('2026-08-31T05:00:00Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
     it('adds the depot surcharge to the order, not just to the preview', async () => {
       await addToCart(20000, 1);
       const order = await service.checkout(customer, { deliveryAddress: address, express: true });
