@@ -45,7 +45,11 @@ fi
 # copies gigabytes between buckets would have passed every check on this page.
 #
 # So: any node script it runs must carry --dry-run or --self-test on the same line.
-NODE_CALLS="$(grep -nE "node scripts/[a-z-]+\.mjs" scripts/ask-the-box.sh || true)"
+# Comments are excluded, and that is not a loophole — it is the difference between reading
+# CODE and reading PROSE. The first version flagged a comment that merely NAMED the script it
+# was documenting, which is how a gate teaches people to phrase their way around it instead of
+# fixing anything.
+NODE_CALLS="$(grep -nE "node scripts/[a-z-]+\.mjs" scripts/ask-the-box.sh | grep -vE "^[0-9]+: *#" || true)"
 if [ -n "$NODE_CALLS" ]; then
   WET="$(printf "%s\n" "$NODE_CALLS" | grep -vE "\-\-(dry-run|self-test)" || true)"
   if [ -n "$WET" ]; then
