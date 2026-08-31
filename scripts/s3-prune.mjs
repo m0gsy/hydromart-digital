@@ -22,7 +22,14 @@
  * the key order IS the age order — no LastModified round trip, and no dependence on a clock
  * that could be wrong on either side.
  */
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  GetBucketVersioningCommand,
+  PutBucketVersioningCommand,
+  PutBucketLifecycleConfigurationCommand,
+} from '@aws-sdk/client-s3';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(name);
@@ -49,6 +56,63 @@ const client = new S3Client({
   },
 });
 
+/*
+ * Versioning first, and it changes what a delete MEANS here.
+ *
+ * The key on the box can PUT and DELETE the same bucket — so anything that reaches the box
+ * reaches the backups, and `rm` is `rm`. With versioning on, a delete writes a marker and the
+ * bytes stay recoverable, which is the difference between ransomware costing an afternoon and
+ * costing the company.
+ *
+ * Enabled through the API rather than left as a console checklist item, because a checklist
+ * item is true on the day somebody reads it. Idempotent: already-Enabled is a no-op.
+ *
+ * The lifecycle rule is the other half. Once versioning is on, THIS SCRIPT's deletes stop
+ * freeing anything — every pruned dump lingers as a noncurrent version, and a bucket that
+ * grows forever is what the pruning was for. So the bucket expires noncurrent versions after
+ * 30 days: long enough that a deletion is recoverable, short enough that it is bounded.
+ * Measured on BiznetGio NEO 2026-08-31: both calls accepted.
+ */
+async function protectBucket() {
+  const state = await client
+    .send(new GetBucketVersioningCommand({ Bucket: bucket }))
+    .catch(() => null);
+  if (state?.Status !== 'Enabled') {
+    await client.send(
+      new PutBucketVersioningCommand({
+        Bucket: bucket,
+        VersioningConfiguration: { Status: 'Enabled' },
+      }),
+    );
+    console.log('prune: versioning ENABLED — a delete is now recoverable, not final.');
+  }
+  await client.send(
+    new PutBucketLifecycleConfigurationCommand({
+      Bucket: bucket,
+      LifecycleConfiguration: {
+        Rules: [
+          {
+            ID: 'expire-noncurrent',
+            Status: 'Enabled',
+            Filter: { Prefix: '' },
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 },
+          },
+        ],
+      },
+    }),
+  );
+}
+
+if (!dryRun) {
+  await protectBucket().catch((err) => {
+    // Not fatal: an unprotected bucket that still receives backups beats a backup run that
+    // aborts because a bucket setting could not be written.
+    console.error(
+      `prune: could not confirm bucket protection (${err?.name ?? err}) — pruning anyway.`,
+    );
+  });
+}
+
 const keys = [];
 let token;
 do {
@@ -63,7 +127,9 @@ keys.sort();
 const doomed = keys.slice(0, Math.max(0, keys.length - keep));
 
 if (doomed.length === 0) {
-  console.log(`prune: ${keys.length} object(s) under ${prefix || '/'}, keeping ${keep} — nothing to remove.`);
+  console.log(
+    `prune: ${keys.length} object(s) under ${prefix || '/'}, keeping ${keep} — nothing to remove.`,
+  );
   process.exit(0);
 }
 
@@ -71,7 +137,9 @@ if (doomed.length === 0) {
 // this is the assertion that keeps that true if the arithmetic above is ever edited.
 const newest = keys[keys.length - 1];
 if (doomed.includes(newest)) {
-  console.error('prune: refusing — the newest object was selected for deletion. That is a bug, not a policy.');
+  console.error(
+    'prune: refusing — the newest object was selected for deletion. That is a bug, not a policy.',
+  );
   process.exit(1);
 }
 
