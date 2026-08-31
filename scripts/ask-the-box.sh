@@ -324,4 +324,15 @@ else
   echo "    no crontab for $(whoami) — scripts/install-host-cron.sh has never run here"
 fi
 
+line "object buckets — how much evidence is there, and would a second provider be affordable"
+# The size of the photographs nobody had ever measured. `--dry-run` lists and compares only:
+# it enables no versioning, copies nothing, and exits before the first PutObject. This is the
+# number a second-provider decision needs, and guessing it is how that decision gets deferred
+# forever.
+if [ -f scripts/backup-objects.mjs ]; then
+  node scripts/backup-objects.mjs --dry-run 2>&1 | grep -vE "^  would copy|^  \.\.\.and" | sed "s/^/  /"
+else
+  echo "  scripts/backup-objects.mjs is not on this box yet"
+fi
+
 printf '\nRead-only: nothing above started, stopped, pulled, or wrote anything.\n'
