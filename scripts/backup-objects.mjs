@@ -318,8 +318,10 @@ if (restore) {
               new PutObjectCommand({
                 Bucket: s.bucket,
                 Key: o.Key.slice(prefix.length),
-                Body: got.Body,
-                ContentLength: o.Size,
+                // Buffered for the same reason as the backup direction above: a streamed body
+                // becomes aws-chunked and this endpoint refuses it. A restore that fails on the
+                // larger half is worse here than there.
+                Body: await got.Body.transformToByteArray(),
                 ContentType: got.ContentType,
               }),
             );
@@ -373,9 +375,16 @@ for (const s of SRC) {
       new PutObjectCommand({
         Bucket: destBucket,
         Key: prefix + o.Key,
-        Body: got.Body,
-        // The stream carries no length of its own, and the SDK will not guess one.
-        ContentLength: o.Size,
+        // Buffered, NOT streamed. Handing the SDK a stream makes it use aws-chunked transfer
+        // encoding, and this endpoint rejects that: 11 of 41 objects came back
+        // InvalidChunkSizeError while the 30 smaller ones went through, which is the worst
+        // shape a bug can have — a backup that half works.
+        //
+        // ponytail: the whole object goes through memory. These are photographs and PDFs;
+        // the largest bucket is 4.6 MB across 9 files. If anything here ever grows past a
+        // few hundred MB, switch to @aws-sdk/lib-storage's Upload, which does real multipart
+        // instead of chunked encoding. Named so the ceiling is not a surprise.
+        Body: await got.Body.transformToByteArray(),
         ContentType: got.ContentType,
       }),
     );
