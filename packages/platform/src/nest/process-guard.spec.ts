@@ -69,6 +69,7 @@ describe('guardProcess', () => {
     alerted.mockReset();
     flushed.mockReset().mockResolvedValue(true);
     if (flushRejects) flushed.mockRejectedValue(new Error('sentry unreachable'));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess('order-service');
     /* eslint-enable @typescript-eslint/no-var-requires */
   };
