@@ -721,7 +721,8 @@ else
     'scripts/deploy.sh' \
     'scripts/smoke.sh' \
     'scripts/check-backup-freshness.sh' \
-    'scripts/install-host-cron.sh'; do
+    'scripts/install-host-cron.sh' \
+    'scripts/backup-objects.mjs'; do
     if ! grep -q "$cmd" "$RUNBOOK"; then
       bad "the runbook no longer mentions $cmd"
     elif [ ! -f "$cmd" ]; then
@@ -780,5 +781,25 @@ if ! awk '/nothing new to ship/,/exit 0/' "$DP" | grep -q '^ *standing_probes$';
 else
   ok "the no-op path runs the probes before it exits"
 fi
+
+# ---------------------------------------------------------------- the object bucket goes offsite
+#
+# The dumps left the box every night; the FILES never did. Two of those prefixes are evidence:
+# `pod/` is the proof a delivery happened, `payment-proof/` the proof money arrived. A restore
+# that brings back every row and none of the photographs is not a recovery.
+if [ ! -f scripts/backup-objects.mjs ]; then
+  bad "scripts/backup-objects.mjs is gone — nothing copies the object bucket anywhere"
+elif ! node scripts/backup-objects.mjs --self-test >/dev/null 2>&1; then
+  bad "backup-objects.mjs --self-test fails; its incremental plan is wrong"
+else
+  ok "backup-objects: the copy plan is idempotent and never proposes a deletion"
+fi
+
+# A script nothing calls is the state backup-offsite.sh sat in for weeks.
+grep -q 'backup-objects.mjs' scripts/install-host-cron.sh ||
+  bad "no cron line runs backup-objects.mjs — the script exists and never runs"
+grep -q 'OBJECTS_LOG' scripts/check-backup-freshness.sh ||
+  bad "check-backup-freshness.sh no longer notices when the object backup STOPS"
+ok "backup-objects: scheduled, and its silence is watched for"
 
 exit "$fails"

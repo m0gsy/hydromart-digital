@@ -38,6 +38,8 @@ cd "$(dirname "$0")/.."
 MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-26}"
 DRILL_MAX_AGE_DAYS="${DRILL_MAX_AGE_DAYS:-9}"
 DRILL_LOG="${DRILL_LOG:-/var/log/hydromart-restore-drill.log}"
+OBJECTS_LOG="${OBJECTS_LOG:-/var/log/hydromart-objects.log}"
+OBJECTS_MAX_AGE_HOURS="${OBJECTS_MAX_AGE_HOURS:-26}"
 BACKUP_DIR="${BACKUP_DIR:-$(hydromart_backup_dir)}"
 
 alert() {
@@ -95,6 +97,31 @@ else
     fails=1
   else
     echo "ok   last restore drill was ${DRILL_DAYS}d ago (limit ${DRILL_MAX_AGE_DAYS}d)"
+  fi
+fi
+
+# --- 2b. the FILES, not just the databases ------------------------------------------------
+# The dumps carry rows that point at photographs: the proof a delivery happened (`pod/`) and
+# the proof money arrived (`payment-proof/`). Those live in the object bucket, and for the
+# whole life of this system nothing copied them anywhere. A restore that brings back every
+# row and none of the evidence is not a recovery, and every check above would have called it
+# one.
+#
+# Same signal as the drill: the log mtime, so a run that FAILED still counts as a run that
+# happened and only true silence is reported.
+if [ ! -f "$OBJECTS_LOG" ]; then
+  echo "!! $OBJECTS_LOG does not exist — the object bucket has never been copied off this" >&2
+  echo "   box. Install the cron block: bash scripts/install-host-cron.sh" >&2
+  alert "the object bucket (delivery and payment evidence) has never been backed up"
+  fails=1
+else
+  OBJ_AGE="$(newest_age_hours "$OBJECTS_LOG")"
+  if [ "${OBJ_AGE:-0}" -gt "$OBJECTS_MAX_AGE_HOURS" ]; then
+    echo "!! the object backup last ran ${OBJ_AGE}h ago (limit ${OBJECTS_MAX_AGE_HOURS}h)." >&2
+    alert "object backup last ran ${OBJ_AGE}h ago (limit ${OBJECTS_MAX_AGE_HOURS}h)"
+    fails=1
+  else
+    echo "ok   the object backup ran ${OBJ_AGE}h ago (limit ${OBJECTS_MAX_AGE_HOURS}h)"
   fi
 fi
 

@@ -17,15 +17,17 @@ dengan tangan gemetar.
 | --- | --- | --- |
 | Dump seluruh cluster, tiap malam 03:00 | `s3://hydromart-backup/db/` | 14 malam (`BACKUP_KEEP`) |
 | `.env` terenkripsi, tiap malam 03:25 | `s3://hydromart-backup/env/` | 14 malam |
+| Berkas objek (foto PoD, bukti transfer, dll), tiap malam 03:40 | `s3://hydromart-backup/objects/<bucket>/` | tidak dipangkas |
 | Kode | GitHub, `main` | seluruh riwayat |
 | Image per commit | `ghcr.io/m0gsy/hydromart-digital-<service>:<sha>` | selama GHCR menyimpannya |
 
 **Yang TIDAK ada, dan harus Anda tahu sebelum mulai:**
 
-- **Berkas objek tidak di-backup.** Foto bukti pengantaran, tanda tangan, foto absen wajah,
-  foto profil hidup di bucket NEO lain (`hydromart-pod`, `hydromart-facer`,
-  `hydromart-products`) dan tidak pernah disalin ke mana pun. Kehilangan AKUN NEO kehilangan
-  keempatnya sekaligus, termasuk backup-nya.
+- **Berkas objek kini disalin, tapi masih di penyedia yang sama.** `scripts/backup-objects.mjs`
+  menyalin SEMUA bucket objek (auth, product, delivery, hr — customer dan payment ikut bucket
+  auth) ke `s3://hydromart-backup/objects/<bucket>/` tiap malam 03:40, dan menyalakan
+  versioning di bucket asalnya. Yang belum tertutup: salinan itu masih di BiznetGio.
+  **Kehilangan AKUN NEO tetap kehilangan keduanya sekaligus.**
 - **RPO 24 jam.** Tidak ada WAL archiving. Kehilangan volume pukul 02:59 membuang hampir
   sehari penuh pesanan dan setoran kurir. Tidak ada cara memulihkannya.
 - **RTO belum pernah diukur di volume produksi.** Angka di bawah adalah urutan langkah, bukan
@@ -108,7 +110,21 @@ Dengan `IMAGE_PREFIX` terisi ini menarik image per-commit dan memakan menit. Tan
 **membangun 19 image di kotak yang baru lahir** dan memakan puluhan menit — lihat "Registry
 mode" di `DEPLOY.md`.
 
-### 6. Buktikan, jangan berasumsi
+### 6. Kembalikan berkas objeknya
+
+```bash
+node scripts/backup-objects.mjs --restore --dry-run   # lihat dulu, selalu
+node scripts/backup-objects.mjs --restore
+```
+
+Database memulihkan BARIS yang menunjuk ke foto; langkah ini memulihkan fotonya. Tanpa ini
+setiap pesanan lama punya bukti pengantaran dan bukti transfer yang mengarah ke berkas yang
+tidak ada — dan itu baru ketahuan saat ada sengketa, bukan hari ini.
+
+`--restore` hanya menulis key yang **belum ada** di bucket hidup. Ia tidak pernah menimpa: kalau
+bucket-nya hilang sebagian, salinan lama tidak boleh mengubur yang masih selamat.
+
+### 7. Buktikan, jangan berasumsi
 
 ```bash
 curl -s https://<API_DOMAIN>/health
@@ -142,6 +158,8 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
   diambil.
 - **Kunci yang menulis backup juga bisa menghapusnya.** Tidak ada object-lock atau versioning
   di bucket. Ransomware dengan akses ke kotak bisa menghapus backup-nya juga.
-- **Berkas objek tidak punya backup sama sekali.**
+- **Salinan objek ada, tapi belum pernah dipulihkan sungguhan.** `--restore` sudah ditulis dan
+  sengaja menolak menimpa objek yang masih hidup, tapi belum pernah dijalankan di volume
+  produksi.
 - **Drill belum pernah dijalankan di volume produksi**, jadi setiap durasi di atas adalah
   urutan langkah, bukan angka.
