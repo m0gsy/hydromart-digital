@@ -741,4 +741,44 @@ else
   ok "runbook: the decrypt and the confirm flag both still match the scripts"
 fi
 
+# ---------------------------------------------------------------- standing probes run on BOTH paths
+#
+# A deploy whose commit is already contained in the running one exits early with "nothing new
+# to ship". That used to mean nothing was CHECKED either — and the probes it skipped ask about
+# the box (`.env`, the public surface, disk, the CSP), none of which is decided by which commit
+# is running. A CSP fix applied by hand was undone by a `git reset --hard`, and every deploy
+# after it was green while the browser dropped every crash report.
+DP=scripts/deploy.sh
+DEF_LINE="$(grep -n '^standing_probes() {' "$DP" | cut -d: -f1)"
+CALL_LINES="$(grep -n '^ *standing_probes$' "$DP" | cut -d: -f1)"
+if [ -z "$DEF_LINE" ]; then
+  bad "deploy.sh has no standing_probes function — the probes cannot run on both paths"
+elif [ "$(printf '%s
+' "$CALL_LINES" | grep -c .)" -lt 2 ]; then
+  bad "standing_probes is called $(printf '%s
+' "$CALL_LINES" | grep -c .) time(s); both the deploy path and the no-op path must call it"
+else
+  ok "standing_probes is called on both the deploy path and the no-op path"
+fi
+
+# bash defines functions as it READS the file. A call above the definition is not a warning,
+# it is `standing_probes: command not found` at runtime — and on the no-op path that is a path
+# nothing in CI ever executes. I wrote exactly this bug while extracting the function.
+if [ -n "$DEF_LINE" ] && [ -n "$CALL_LINES" ]; then
+  FIRST_CALL="$(printf '%s
+' "$CALL_LINES" | head -1)"
+  if [ "$DEF_LINE" -gt "$FIRST_CALL" ]; then
+    bad "standing_probes is defined at line $DEF_LINE but first called at line $FIRST_CALL — bash will not have read it yet"
+  else
+    ok "standing_probes is defined (line $DEF_LINE) before its first call (line $FIRST_CALL)"
+  fi
+fi
+
+# The early exit must come AFTER the probes, or extracting them bought nothing.
+if ! awk '/nothing new to ship/,/exit 0/' "$DP" | grep -q '^ *standing_probes$'; then
+  bad "the no-op path exits without running standing_probes — a green deploy that checked nothing"
+else
+  ok "the no-op path runs the probes before it exits"
+fi
+
 exit "$fails"
