@@ -19,7 +19,22 @@ import type { Page } from '@/lib/types';
  * `total` from the first page decides how many more to ask for, so a list that fits in one
  * page costs exactly one request — the common case stays as cheap as it was.
  */
-export const PAGE_SIZE = 200;
+/*
+ * 100, because that is what the server accepts — `@Max(100)` on the `limit` field of the list
+ * DTO, in 18 of the 23 paginated DTOs in this repo and in every endpoint this helper is used
+ * against.
+ *
+ * It shipped as 200 and every screen using this helper answered
+ * `limit must not be greater than 100` on its FIRST request. The change was meant to lift a
+ * 100-row ceiling; it replaced a truncated list with an error page. Paging still delivers far
+ * more than 100 rows — that is what `page` is for — so nothing about the original goal needed
+ * a page size the API rejects.
+ *
+ * Every test in this repo mocks `api.get`, so no test could have caught it and none did. The
+ * check that would have is scripts/check-page-size.mjs: it compares this number against the
+ * `@Max()` the server actually enforces.
+ */
+export const PAGE_SIZE = 100;
 
 /** Refuses past this. 5,000 products is far beyond any real depot catalogue. */
 export const MAX_ITEMS = 5000;

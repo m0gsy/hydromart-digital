@@ -40,7 +40,15 @@ describe('fetchAllPages', () => {
     expect(rows).toHaveLength(450);
     expect(rows[0]?.id).toBe('p0');
     expect(rows[449]?.id).toBe('p449');
-    expect(calls.map((c) => c.page)).toEqual([1, 2, 3]);
+    // Derived, not typed. This read `[1, 2, 3]` — the page count for PAGE_SIZE 200 — so the
+    // literal quietly encoded a page size the server rejects with 400, and the test went red
+    // when that number was corrected rather than when the behaviour changed. Assert that
+    // every page was walked, in order, whatever the page size is.
+    const expectedPages = Math.ceil(450 / PAGE_SIZE);
+    expect(calls.map((c) => c.page)).toEqual(
+      Array.from({ length: expectedPages }, (_, i) => i + 1),
+    );
+    expect(calls.every((c) => c.limit === PAGE_SIZE)).toBe(true);
   });
 
   it('costs exactly one request when everything fits', async () => {
