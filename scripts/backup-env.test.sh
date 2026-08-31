@@ -71,8 +71,21 @@ fi
 
 # 4. Refuses, loudly, when no certificate is configured — rather than shipping .env in the
 #    clear or silently doing nothing. The state every box is in until somebody sets it up.
-out="$(cd "$WORK" && printf 'X=1\n' >.env && BACKUP_ENV_CERT='' BACKUP_OFFSITE_DEST=s3://b/db \
-  bash "$OLDPWD/scripts/backup-env.sh" 2>&1)"
+# A FAKE repo root, because backup-env.sh does `cd "$(dirname "$0")/.."` and then reads
+# `./.env` — so running it from here would read the developer's own .env, or not, depending
+# on the machine. It did exactly that: green on a laptop that has one, red on CI which does
+# not, and the failure was reported against the cert check that never ran.
+#
+# Copying the script into $WORK/scripts/ makes its own `cd ..` land in $WORK, so the .env it
+# reads is the one this test wrote. The assertion now measures the script instead of the
+# machine it happens to run on.
+mkdir -p "$WORK/root/scripts"
+cp scripts/backup-env.sh "$WORK/root/scripts/"
+cp -r scripts/lib "$WORK/root/scripts/lib" 2>/dev/null || true
+printf 'X=1
+' >"$WORK/root/.env"
+
+out="$(cd "$WORK/root" && BACKUP_ENV_CERT='' BACKUP_OFFSITE_DEST=s3://b/db   bash scripts/backup-env.sh 2>&1)"
 rc=$?
 if [ "$rc" = 2 ] && printf '%s' "$out" | grep -q 'BACKUP_ENV_CERT'; then
   ok "an unconfigured box refuses and names the key to set"
