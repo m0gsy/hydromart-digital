@@ -15,29 +15,44 @@ name: Deploy
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ['CI']
     types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
       mode:
-        description: "deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it)"
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it)'
         type: choice
         default: deploy
         options:
-          [deploy, deploy-all, migrate, rollback, env-inspect, env-fix, env-set, seed-demo, smoke, backup-offsite, backup-objects, storage-policy, install-cron, explain-queries]
+          [
+            deploy,
+            deploy-all,
+            migrate,
+            rollback,
+            env-inspect,
+            env-fix,
+            env-set,
+            seed-demo,
+            smoke,
+            backup-offsite,
+            backup-objects,
+            storage-policy,
+            install-cron,
+            explain-queries,
+          ]
       sha:
-        description: "rollback target SHA (blank = previous good)"
+        description: 'rollback target SHA (blank = previous good)'
         required: false
-        default: ""
+        default: ''
       services:
         description: "env-set only: services to recreate afterwards (space separated, e.g. 'crm web')"
         required: false
-        default: ""
+        default: ''
       demo_phone:
-        description: "seed-demo only: the phone the Play reviewer will sign in with"
+        description: 'seed-demo only: the phone the Play reviewer will sign in with'
         required: false
-        default: "+6281199900001"
+        default: '+6281199900001'
 
 concurrency:
   group: deploy-prod

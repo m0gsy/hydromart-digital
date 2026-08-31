@@ -26,7 +26,24 @@ const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 function staffToken() {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
-  const body = { sub: crypto.randomUUID(), role: 'SUPER_ADMIN', phone: '+620000000000', iat: now, exp: now + 900 };
+  /*
+   * Two hours, not fifteen minutes.
+   *
+   * The flow outgrew its own token: minted once at the start and reused throughout, it
+   * expires mid-run once the suite passes the fifteen-minute mark. The failure then reads
+   * as an auth defect — `create product: HTTP 401 Invalid or expired access token` — and
+   * was diagnosed as one, more than once.
+   *
+   * This is a local test stack, so the TTL protects nothing here; it only has to outlive
+   * the flow, with room for the flow to keep growing.
+   */
+  const body = {
+    sub: crypto.randomUUID(),
+    role: 'SUPER_ADMIN',
+    phone: '+620000000000',
+    iat: now,
+    exp: now + 7200,
+  };
   const data = `${b64(head)}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -48,31 +65,49 @@ function signWebhook(payload) {
 async function api(method, path, { token, body } = {}) {
   const res = await fetch(`${GATEWAY}${path}`, {
     method,
-    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  let json; try { json = text ? JSON.parse(text) : undefined; } catch { json = text; }
+  let json;
+  try {
+    json = text ? JSON.parse(text) : undefined;
+  } catch {
+    json = text;
+  }
   // SEC-4: the gateway moves login tokens into Set-Cookie, so expose them for the
   // callers that need the raw access JWT (registerCustomer reads hm_at).
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   return { status: res.status, body: json, cookies };
 }
 
-function assert(cond, msg) { if (!cond) throw new Error(msg); }
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
 
 /** Pull a cookie value out of a response's Set-Cookie list (name=value; ...). */
 function cookieValue(cookies, name) {
   const hit = cookies.find((c) => c.startsWith(`${name}=`));
   return hit ? hit.slice(name.length + 1).split(';')[0] : undefined;
 }
-function ok(res, step) { assert(res.status >= 200 && res.status < 300, `${step}: HTTP ${res.status} — ${JSON.stringify(res.body)}`); }
+function ok(res, step) {
+  assert(
+    res.status >= 200 && res.status < 300,
+    `${step}: HTTP ${res.status} — ${JSON.stringify(res.body)}`,
+  );
+}
 
 // The console OTP adapter logs (pino JSON): "[DEV OTP] REGISTRATION code for <phone>: NNNNNN (valid ...)"
 async function readOtp(phone) {
   const re = new RegExp(`REGISTRATION code for \\${phone}:\\s*(\\d{4,8})`);
   for (let i = 0; i < 15; i++) {
-    const r = spawnSync('docker', ['compose', ...COMPOSE, 'logs', '--no-log-prefix', 'auth'], { encoding: 'utf8', shell: win });
+    const r = spawnSync('docker', ['compose', ...COMPOSE, 'logs', '--no-log-prefix', 'auth'], {
+      encoding: 'utf8',
+      shell: win,
+    });
     const logs = (r.stdout || '') + (r.stderr || '');
     const m = [...logs.matchAll(new RegExp(re, 'g'))];
     if (m.length) return m[m.length - 1][1];
@@ -84,7 +119,8 @@ async function readOtp(phone) {
 // A unique phone per registration (BR-001 one phone = one account). The DB volume
 // persists across runs, so the timestamp+sequence keeps repeat runs collision-free.
 let phoneSeq = 0;
-const nextPhone = () => `+62811${String(Date.now()).slice(-6)}${String(phoneSeq++ % 100).padStart(2, '0')}`;
+const nextPhone = () =>
+  `+62811${String(Date.now()).slice(-6)}${String(phoneSeq++ % 100).padStart(2, '0')}`;
 
 // A remote depot coordinate jittered ~±100m per run: the DB volume persists, so
 // jitter guarantees THIS run's depot is the nearest one to its own checkout address
@@ -101,7 +137,14 @@ async function createProduct(staff, basePrice = 20000) {
     // isGallon must be explicit: the per-galon delivery fee is charged off this flag,
     // not off the unit label, so a galon seeded without it prices at zero delivery
     // (which is exactly what the fee assertion below catches).
-    body: { name: 'Integration Galon 19L', sku, unit: 'galon', volumeMl: 19000, isGallon: true, basePrice },
+    body: {
+      name: 'Integration Galon 19L',
+      sku,
+      unit: 'galon',
+      volumeMl: 19000,
+      isGallon: true,
+      basePrice,
+    },
   });
   ok(res, 'create product');
   assert(res.body.id, `no product id: ${JSON.stringify(res.body)}`);
@@ -131,8 +174,14 @@ async function createDepot(staff, { lat, lng, deliveryFee, minOrderAmount, servi
       code: `ITEST-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
       name: 'Integration Depot',
       ownershipType: 'HKP',
-      address: 'Jl. Integration No. 1', city: 'Test City', province: 'Test',
-      lat, lng, serviceRadiusKm, deliveryFee, minOrderAmount,
+      address: 'Jl. Integration No. 1',
+      city: 'Test City',
+      province: 'Test',
+      lat,
+      lng,
+      serviceRadiusKm,
+      deliveryFee,
+      minOrderAmount,
     },
   });
   ok(res, 'create depot');
@@ -144,7 +193,14 @@ async function createDepot(staff, { lat, lng, deliveryFee, minOrderAmount, servi
 async function createStock(staff, depotId, productId, quantity) {
   const res = await api('POST', `/depots/api/v1/depots/${depotId}/inventory`, {
     token: staff,
-    body: { itemType: 'PRODUK', productId, label: 'Integration Stock', unit: 'galon', quantity, minimumStock: 0 },
+    body: {
+      itemType: 'PRODUK',
+      productId,
+      label: 'Integration Stock',
+      unit: 'galon',
+      quantity,
+      minimumStock: 0,
+    },
   });
   ok(res, 'create stock line');
   assert(res.body.id, `no stock line id: ${JSON.stringify(res.body)}`);
@@ -165,9 +221,16 @@ async function getOrder(staff, id) {
 
 async function registerCustomer() {
   const phone = nextPhone();
-  ok(await api('POST', '/auth/api/v1/auth/register', { body: { phone, fullName: 'Integration User' } }), 'register');
+  ok(
+    await api('POST', '/auth/api/v1/auth/register', {
+      body: { phone, fullName: 'Integration User' },
+    }),
+    'register',
+  );
   const code = await readOtp(phone);
-  const verify = await api('POST', '/auth/api/v1/auth/otp/verify', { body: { phone, code, purpose: 'REGISTRATION' } });
+  const verify = await api('POST', '/auth/api/v1/auth/otp/verify', {
+    body: { phone, code, purpose: 'REGISTRATION' },
+  });
   ok(verify, 'verify otp');
   // SEC-4: the access JWT now rides in the httpOnly hm_at cookie, not the JSON body.
   // Extract it and use it as the bearer for downstream calls (services still accept it).
@@ -176,7 +239,16 @@ async function registerCustomer() {
   return { phone, token };
 }
 
-const STATUS_SEQ = ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+const STATUS_SEQ = [
+  'CREATED',
+  'CONFIRMED',
+  'PREPARING',
+  'DRIVER_ASSIGNED',
+  'PICKED_UP',
+  'ON_DELIVERY',
+  'DELIVERED',
+  'COMPLETED',
+];
 
 // Walk an order from wherever it is to `target` (BR-012 forward sequence). Read the
 // current status first: the payment->order auto-confirm is fail-open, so the order
@@ -185,7 +257,13 @@ async function advanceTo(staff, orderId, target) {
   const stop = STATUS_SEQ.indexOf(target);
   const cur = (await getOrder(staff, orderId)).status;
   for (let i = STATUS_SEQ.indexOf(cur) + 1; i <= stop; i++) {
-    ok(await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, { token: staff, body: { status: STATUS_SEQ[i] } }), `advance ${STATUS_SEQ[i]}`);
+    ok(
+      await api('PATCH', `/orders/api/v1/orders/${orderId}/status`, {
+        token: staff,
+        body: { status: STATUS_SEQ[i] },
+      }),
+      `advance ${STATUS_SEQ[i]}`,
+    );
   }
 }
 
@@ -199,34 +277,62 @@ async function advanceToCompleted(staff, orderId) {
 //    explicit `depotId` (order.service.ts resolveDepot).
 async function coreLoop(staff) {
   const { productId } = await createProduct(staff);
-  const depot = await createDepot(staff, { ...remote(-6.2, 106.82), deliveryFee: 6000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  const depot = await createDepot(staff, {
+    ...remote(-6.2, 106.82),
+    deliveryFee: 6000,
+    minOrderAmount: 0,
+    serviceRadiusKm: 5,
+  });
   await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }), 'add to cart');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }),
+    'add to cart',
+  );
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
       depotId: depot.id,
-      deliveryAddress: { recipientName: 'Integration User', phone, addressLine: 'Jl. Test 1', city: 'Jakarta', province: 'DKI Jakarta' },
+      deliveryAddress: {
+        recipientName: 'Integration User',
+        phone,
+        addressLine: 'Jl. Test 1',
+        city: 'Jakarta',
+        province: 'DKI Jakarta',
+      },
     },
   });
   ok(checkout, 'checkout');
-  assert(checkout.body.depotId === depot.id, `checkout: picked depot ignored — got ${checkout.body.depotId}`);
+  assert(
+    checkout.body.depotId === depot.id,
+    `checkout: picked depot ignored — got ${checkout.body.depotId}`,
+  );
   const orderId = checkout.body.id;
   const total = checkout.body.total;
   assert(orderId && total > 0, `bad checkout: ${JSON.stringify(checkout.body)}`);
 
-  const pay = await api('POST', '/payments/api/v1/payments', { token, body: { orderId, method: 'CASH', amount: total } });
+  const pay = await api('POST', '/payments/api/v1/payments', {
+    token,
+    body: { orderId, method: 'CASH', amount: total },
+  });
   ok(pay, 'initiate payment');
-  ok(await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff }), 'confirm payment');
+  ok(
+    await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff }),
+    'confirm payment',
+  );
   await advanceToCompleted(staff, orderId);
 
   const finalOrder = await getOrder(staff, orderId);
   assert(finalOrder.status === 'COMPLETED', `order status ${finalOrder.status} != COMPLETED`);
   const loyalty = await api('GET', '/loyalty/api/v1/loyalty/me', { token });
   ok(loyalty, 'loyalty me');
-  assert(loyalty.body.pointsBalance > 0, `expected points > 0, got ${JSON.stringify(loyalty.body)}`);
-  console.log(`PASSED core-loop: order ${orderId} COMPLETED, ${loyalty.body.pointsBalance} loyalty points, total ${total}`);
+  assert(
+    loyalty.body.pointsBalance > 0,
+    `expected points > 0, got ${JSON.stringify(loyalty.body)}`,
+  );
+  console.log(
+    `PASSED core-loop: order ${orderId} COMPLETED, ${loyalty.body.pointsBalance} loyalty points, total ${total}`,
+  );
 }
 
 // 2. Depot routing: checkout routes to the covering depot, applies its per-depot
@@ -234,36 +340,71 @@ async function coreLoop(staff) {
 async function depotRoutedLoop(staff) {
   const { productId, basePrice } = await createProduct(staff);
   const geo = remote(-8.65, 115.22); // Bali, jittered
-  const depot = await createDepot(staff, { ...geo, deliveryFee: 7000, minOrderAmount: 10000, serviceRadiusKm: 5 });
+  const depot = await createDepot(staff, {
+    ...geo,
+    deliveryFee: 7000,
+    minOrderAmount: 10000,
+    serviceRadiusKm: 5,
+  });
   const item = await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
 
-  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }), 'dr: add to cart');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }),
+    'dr: add to cart',
+  );
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
-    body: { deliveryAddress: { recipientName: 'DR User', phone, addressLine: 'Jl. Bali 1', city: 'Denpasar', province: 'Bali', latitude: geo.lat, longitude: geo.lng } },
+    body: {
+      deliveryAddress: {
+        recipientName: 'DR User',
+        phone,
+        addressLine: 'Jl. Bali 1',
+        city: 'Denpasar',
+        province: 'Bali',
+        latitude: geo.lat,
+        longitude: geo.lng,
+      },
+    },
   });
   ok(checkout, 'dr: checkout');
   const order = checkout.body;
   assert(order.depotId === depot.id, `dr: routed to ${order.depotId}, expected ${depot.id}`);
   // Delivery fee is per-galon (perUnitFee 7000 x 2 galons ordered), not flat.
-  assert(order.deliveryFee === 7000 * 2, `dr: per-depot fee ${order.deliveryFee} != ${7000 * 2} (7000/galon x 2)`);
+  assert(
+    order.deliveryFee === 7000 * 2,
+    `dr: per-depot fee ${order.deliveryFee} != ${7000 * 2} (7000/galon x 2)`,
+  );
   const subtotal = basePrice * 2;
   assert(order.subtotal === subtotal, `dr: subtotal ${order.subtotal} != ${subtotal}`);
-  assert(order.total === subtotal + order.deliveryFee - order.discount, `dr: total ${order.total} mismatch`);
+  assert(
+    order.total === subtotal + order.deliveryFee - order.discount,
+    `dr: total ${order.total} mismatch`,
+  );
 
   // Stock reserved at checkout: sellable (available) drops, physical quantity untouched.
   const reserved = await getInventory(staff, item.id);
-  assert(reserved.quantity === 100 && reserved.available === 98, `dr: after reserve ${reserved.available}/${reserved.quantity} != 98/100`);
+  assert(
+    reserved.quantity === 100 && reserved.available === 98,
+    `dr: after reserve ${reserved.available}/${reserved.quantity} != 98/100`,
+  );
 
-  const pay = await api('POST', '/payments/api/v1/payments', { token, body: { orderId: order.id, method: 'CASH', amount: order.total } });
+  const pay = await api('POST', '/payments/api/v1/payments', {
+    token,
+    body: { orderId: order.id, method: 'CASH', amount: order.total },
+  });
   ok(pay, 'dr: initiate payment');
-  ok(await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff }), 'dr: confirm payment');
+  ok(
+    await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff }),
+    'dr: confirm payment',
+  );
   await advanceToCompleted(staff, order.id);
 
   const consumed = await getInventory(staff, item.id);
   assert(consumed.quantity === 98, `dr: after complete physical ${consumed.quantity} != 98`);
-  console.log(`PASSED depot-routed: order ${order.id} -> depot ${depot.id}, fee ${order.deliveryFee}, stock 100->98`);
+  console.log(
+    `PASSED depot-routed: order ${order.id} -> depot ${depot.id}, fee ${order.deliveryFee}, stock 100->98`,
+  );
 }
 
 // 3. Online payment: an EWALLET charge succeeds via the gateway stub (PENDING+reference);
@@ -272,29 +413,54 @@ async function depotRoutedLoop(staff) {
 //    webhook path uses a genuinely-online method: EWALLET or VA.)
 async function onlineWebhookLoop(staff) {
   const { productId } = await createProduct(staff);
-  const depot = await createDepot(staff, { ...remote(-6.9, 107.6), deliveryFee: 6000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  const depot = await createDepot(staff, {
+    ...remote(-6.9, 107.6),
+    deliveryFee: 6000,
+    minOrderAmount: 0,
+    serviceRadiusKm: 5,
+  });
   await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }), 'ow: add to cart');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }),
+    'ow: add to cart',
+  );
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
       depotId: depot.id,
-      deliveryAddress: { recipientName: 'OW User', phone, addressLine: 'Jl. OW 1', city: 'Jakarta', province: 'DKI Jakarta' },
+      deliveryAddress: {
+        recipientName: 'OW User',
+        phone,
+        addressLine: 'Jl. OW 1',
+        city: 'Jakarta',
+        province: 'DKI Jakarta',
+      },
     },
   });
   ok(checkout, 'ow: checkout');
   const orderId = checkout.body.id;
 
-  const pay = await api('POST', '/payments/api/v1/payments', { token, body: { orderId, method: 'EWALLET', amount: checkout.body.total } });
+  const pay = await api('POST', '/payments/api/v1/payments', {
+    token,
+    body: { orderId, method: 'EWALLET', amount: checkout.body.total },
+  });
   ok(pay, 'ow: initiate online payment');
   const reference = pay.body.reference;
-  assert(pay.body.status === 'PENDING' && reference, `ow: expected PENDING+reference, got ${JSON.stringify(pay.body)}`);
+  assert(
+    pay.body.status === 'PENDING' && reference,
+    `ow: expected PENDING+reference, got ${JSON.stringify(pay.body)}`,
+  );
 
   // Bad signature is rejected (InvalidWebhookSignatureError -> 401). The payload must
   // otherwise be VALID — a missing timestamp is a 400 from validation, which would pass
   // an assertion about rejection while proving nothing about the signature check.
-  const badPayload = { reference, event: 'PAID', timestamp: Date.now(), signature: 'deadbeef'.repeat(8) };
+  const badPayload = {
+    reference,
+    event: 'PAID',
+    timestamp: Date.now(),
+    signature: 'deadbeef'.repeat(8),
+  };
   const bad = await api('POST', '/payments/api/v1/payments/webhook', { body: badPayload });
   assert(bad.status === 401, `ow: bad-signature webhook expected 401, got ${bad.status}`);
 
@@ -307,7 +473,10 @@ async function onlineWebhookLoop(staff) {
   assert(good.body.handled === true, `ow: webhook not handled: ${JSON.stringify(good.body)}`);
 
   const order = await getOrder(staff, orderId);
-  assert(order.status === 'CONFIRMED', `ow: order status ${order.status} != CONFIRMED after PAID webhook`);
+  assert(
+    order.status === 'CONFIRMED',
+    `ow: order status ${order.status} != CONFIRMED after PAID webhook`,
+  );
   console.log(`PASSED online-webhook: order ${orderId} PAID via ${reference} -> CONFIRMED`);
 }
 
@@ -317,53 +486,138 @@ async function failurePaths(staff) {
 
   // Below the depot's minimum order (subtotal 20000 < min 100000).
   const geoMin = remote(1.49, 124.84); // Manado
-  await createDepot(staff, { ...geoMin, deliveryFee: 6000, minOrderAmount: 100000, serviceRadiusKm: 5 });
+  await createDepot(staff, {
+    ...geoMin,
+    deliveryFee: 6000,
+    minOrderAmount: 100000,
+    serviceRadiusKm: 5,
+  });
   const c1 = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token: c1.token, body: { productId, quantity: 1 } }), 'fp: cart below-min');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', {
+      token: c1.token,
+      body: { productId, quantity: 1 },
+    }),
+    'fp: cart below-min',
+  );
   const belowMin = await api('POST', '/orders/api/v1/orders/checkout', {
     token: c1.token,
-    body: { deliveryAddress: { recipientName: 'FP', phone: c1.phone, addressLine: 'Jl. Manado', city: 'Manado', province: 'Sulut', latitude: geoMin.lat, longitude: geoMin.lng } },
+    body: {
+      deliveryAddress: {
+        recipientName: 'FP',
+        phone: c1.phone,
+        addressLine: 'Jl. Manado',
+        city: 'Manado',
+        province: 'Sulut',
+        latitude: geoMin.lat,
+        longitude: geoMin.lng,
+      },
+    },
   });
-  assert(belowMin.status === 422, `fp: below-min expected 422, got ${belowMin.status} — ${JSON.stringify(belowMin.body)}`);
+  assert(
+    belowMin.status === 422,
+    `fp: below-min expected 422, got ${belowMin.status} — ${JSON.stringify(belowMin.body)}`,
+  );
 
   // Out of service area: coordinates far from every (Indonesia-clustered) depot.
   const c2 = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token: c2.token, body: { productId, quantity: 1 } }), 'fp: cart out-of-area');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', {
+      token: c2.token,
+      body: { productId, quantity: 1 },
+    }),
+    'fp: cart out-of-area',
+  );
   const outArea = await api('POST', '/orders/api/v1/orders/checkout', {
     token: c2.token,
-    body: { deliveryAddress: { recipientName: 'FP', phone: c2.phone, addressLine: 'Nowhere', city: 'Ocean', province: 'Pacific', latitude: -40, longitude: -100 } },
+    body: {
+      deliveryAddress: {
+        recipientName: 'FP',
+        phone: c2.phone,
+        addressLine: 'Nowhere',
+        city: 'Ocean',
+        province: 'Pacific',
+        latitude: -40,
+        longitude: -100,
+      },
+    },
   });
-  assert(outArea.status === 422, `fp: out-of-area expected 422, got ${outArea.status} — ${JSON.stringify(outArea.body)}`);
+  assert(
+    outArea.status === 422,
+    `fp: out-of-area expected 422, got ${outArea.status} — ${JSON.stringify(outArea.body)}`,
+  );
 
   // Insufficient stock: order 5 units against a depot line holding 1.
   const geoStock = remote(3.59, 98.67); // Medan
-  const stockDepot = await createDepot(staff, { ...geoStock, deliveryFee: 6000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  const stockDepot = await createDepot(staff, {
+    ...geoStock,
+    deliveryFee: 6000,
+    minOrderAmount: 0,
+    serviceRadiusKm: 5,
+  });
   await createStock(staff, stockDepot.id, productId, 1);
   const c3 = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token: c3.token, body: { productId, quantity: 5 } }), 'fp: cart insufficient');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', {
+      token: c3.token,
+      body: { productId, quantity: 5 },
+    }),
+    'fp: cart insufficient',
+  );
   const shortage = await api('POST', '/orders/api/v1/orders/checkout', {
     token: c3.token,
-    body: { deliveryAddress: { recipientName: 'FP', phone: c3.phone, addressLine: 'Jl. Medan', city: 'Medan', province: 'Sumut', latitude: geoStock.lat, longitude: geoStock.lng } },
+    body: {
+      deliveryAddress: {
+        recipientName: 'FP',
+        phone: c3.phone,
+        addressLine: 'Jl. Medan',
+        city: 'Medan',
+        province: 'Sumut',
+        latitude: geoStock.lat,
+        longitude: geoStock.lng,
+      },
+    },
   });
-  assert(shortage.status === 422, `fp: insufficient-stock expected 422, got ${shortage.status} — ${JSON.stringify(shortage.body)}`);
+  assert(
+    shortage.status === 422,
+    `fp: insufficient-stock expected 422, got ${shortage.status} — ${JSON.stringify(shortage.body)}`,
+  );
 
   // No map pin AND no picked depot: nothing can route it, so it must be refused rather
   // than stored with depotId = null (an order no depot queue would ever show).
   const c4 = await registerCustomer();
-  ok(await api('POST', '/orders/api/v1/cart/items', { token: c4.token, body: { productId, quantity: 1 } }), 'fp: cart unrouted');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', {
+      token: c4.token,
+      body: { productId, quantity: 1 },
+    }),
+    'fp: cart unrouted',
+  );
   const unrouted = await api('POST', '/orders/api/v1/orders/checkout', {
     token: c4.token,
-    body: { deliveryAddress: { recipientName: 'FP', phone: c4.phone, addressLine: 'Jl. Tanpa Pin', city: 'Jakarta', province: 'DKI Jakarta' } },
+    body: {
+      deliveryAddress: {
+        recipientName: 'FP',
+        phone: c4.phone,
+        addressLine: 'Jl. Tanpa Pin',
+        city: 'Jakarta',
+        province: 'DKI Jakarta',
+      },
+    },
   });
-  assert(unrouted.status === 422, `fp: unrouted expected 422, got ${unrouted.status} — ${JSON.stringify(unrouted.body)}`);
+  assert(
+    unrouted.status === 422,
+    `fp: unrouted expected 422, got ${unrouted.status} — ${JSON.stringify(unrouted.body)}`,
+  );
   assert(
     unrouted.body.code === 'ORDER_DEPOT_REQUIRED',
     `fp: unrouted expected ORDER_DEPOT_REQUIRED, got ${JSON.stringify(unrouted.body)}`,
   );
 
-  console.log('PASSED failure-paths: below-min 422, out-of-area 422, insufficient-stock 422, unrouted 422');
+  console.log(
+    'PASSED failure-paths: below-min 422, out-of-area 422, insufficient-stock 422, unrouted 422',
+  );
 }
-
 
 /**
  * Poll until `done` is happy, or give up with a message that names the step.
@@ -395,7 +649,7 @@ async function eventually(read, done, message, tries = 20) {
 function roleToken(sub, role, phone, depotId) {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
-  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 900 };
+  const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 7200 };
   const data = `${b64(head)}.${b64(body)}`;
   return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
 }
@@ -441,8 +695,6 @@ async function inviteDriver(staff, depotId) {
   return { id: res.body.id, phone, token: roleToken(res.body.id, 'STAFF_DEPOT', phone, depotId) };
 }
 
-
-
 /*
  * 5. Static QRIS — the payment rail this business actually runs on, and the one no test
  *    anywhere had ever selected.
@@ -457,17 +709,30 @@ async function inviteDriver(staff, depotId) {
 async function qrisLoop(staff) {
   const { productId } = await createProduct(staff);
   const geo = remote(-0.02, 109.34); // Pontianak, jittered
-  const depot = await createDepot(staff, { ...geo, deliveryFee: 4000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  const depot = await createDepot(staff, {
+    ...geo,
+    deliveryFee: 4000,
+    minOrderAmount: 0,
+    serviceRadiusKm: 5,
+  });
   await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
 
-  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }), 'qr: add to cart');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }),
+    'qr: add to cart',
+  );
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
       deliveryAddress: {
-        recipientName: 'QR User', phone, addressLine: 'Jl. QRIS 1',
-        city: 'Pontianak', province: 'Kalbar', latitude: geo.lat, longitude: geo.lng,
+        recipientName: 'QR User',
+        phone,
+        addressLine: 'Jl. QRIS 1',
+        city: 'Pontianak',
+        province: 'Kalbar',
+        latitude: geo.lat,
+        longitude: geo.lng,
       },
     },
   });
@@ -504,11 +769,15 @@ async function qrisLoop(staff) {
 
   // Staff watched their own QRIS notification and pressed confirm. Same manual settle as
   // a transfer; that is the whole design.
-  const confirmed = await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, { token: staff });
+  const confirmed = await api('POST', `/payments/api/v1/payments/${pay.body.id}/confirm`, {
+    token: staff,
+  });
   ok(confirmed, 'qr: staff confirm');
   assert(confirmed.body.status === 'PAID', `qr: after confirm ${confirmed.body.status} != PAID`);
 
-  console.log(`PASSED qris: payment ${pay.body.id} PENDING with no gateway reference, then staff-confirmed PAID`);
+  console.log(
+    `PASSED qris: payment ${pay.body.id} PENDING with no gateway reference, then staff-confirmed PAID`,
+  );
 }
 
 /*
@@ -527,18 +796,31 @@ async function qrisLoop(staff) {
 async function deliveryLeg(staff) {
   const { productId } = await createProduct(staff);
   const geo = remote(-7.25, 112.75); // Surabaya, jittered
-  const depot = await createDepot(staff, { ...geo, deliveryFee: 5000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  const depot = await createDepot(staff, {
+    ...geo,
+    deliveryFee: 5000,
+    minOrderAmount: 0,
+    serviceRadiusKm: 5,
+  });
   await createStock(staff, depot.id, productId, 100);
   const driver = await inviteDriver(staff, depot.id);
   const { phone, token } = await registerCustomer();
 
-  ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }), 'dl: add to cart');
+  ok(
+    await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }),
+    'dl: add to cart',
+  );
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
       deliveryAddress: {
-        recipientName: 'DL User', phone, addressLine: 'Jl. Delivery 1',
-        city: 'Surabaya', province: 'Jatim', latitude: geo.lat, longitude: geo.lng,
+        recipientName: 'DL User',
+        phone,
+        addressLine: 'Jl. Delivery 1',
+        city: 'Surabaya',
+        province: 'Jatim',
+        latitude: geo.lat,
+        longitude: geo.lng,
       },
     },
   });
@@ -610,11 +892,15 @@ async function deliveryLeg(staff) {
   );
 
   ok(
-    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/pickup`, { token: driver.token }),
+    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/pickup`, {
+      token: driver.token,
+    }),
     'dl: pickup',
   );
   ok(
-    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/start`, { token: driver.token }),
+    await api('PATCH', `/deliveries/api/v1/driver/deliveries/${deliveryId}/start`, {
+      token: driver.token,
+    }),
     'dl: start',
   );
 
@@ -678,13 +964,16 @@ async function deliveryLeg(staff) {
     `dl: expected ${deposit.body.expectedAmount} != collected ${order.total}`,
   );
 
-  const verified = await api('POST', `/deliveries/api/v1/settlements/${deposit.body.id}/verify`, { token: staff });
+  const verified = await api('POST', `/deliveries/api/v1/settlements/${deposit.body.id}/verify`, {
+    token: staff,
+  });
   ok(verified, 'dl: verify settlement');
   assert(verified.body.status === 'VERIFIED', `dl: settlement ${verified.body.status} != VERIFIED`);
 
   // And the courier is actually paid for it — the last hop, and the one UAT could never reach.
   const earnings = await eventually(
-    async () => (await api('GET', '/payout/api/v1/courier/earnings/summary', { token: driver.token })).body,
+    async () =>
+      (await api('GET', '/payout/api/v1/courier/earnings/summary', { token: driver.token })).body,
     (e) => Number(e?.availableBalance ?? 0) > 0,
     'dl: courier balance never moved off zero',
   );
@@ -710,4 +999,9 @@ async function main() {
   }
 }
 
-main().then(() => process.exit(0)).catch((e) => { console.error('FLOW FAILED:', e.message); process.exit(1); });
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error('FLOW FAILED:', e.message);
+    process.exit(1);
+  });

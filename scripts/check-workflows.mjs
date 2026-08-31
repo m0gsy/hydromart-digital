@@ -66,7 +66,9 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
    */
   for (const [name, job] of Object.entries(doc.jobs ?? {})) {
     if (job && typeof job === 'object' && !('timeout-minutes' in job) && !job.uses) {
-      problems.push(`${path}: job \`${name}\` has no \`timeout-minutes\` — it can hang for six hours`);
+      problems.push(
+        `${path}: job \`${name}\` has no \`timeout-minutes\` — it can hang for six hours`,
+      );
     }
   }
 
@@ -120,6 +122,34 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
   }
 
   /*
+   * Every step that reaches OUTSIDE this repo declares its own time limit.
+   *
+   * A job-level cap is not enough, and the difference is the whole point. When a JOB hits
+   * its cap GitHub records the run as `cancelled`, not failed: nothing turns red, and the
+   * workflows gated on success — Deploy, Images — simply skip. A Playwright download once
+   * stalled for over two hours that way, and a GPG keyserver call for ten minutes more,
+   * with the whole release quietly not happening.
+   *
+   * A STEP cap fails the step, which fails the job, which is red and names itself.
+   *
+   * The pattern is deliberately broader than `curl`: measured on this repo, the workflows
+   * contain exactly one curl to the outside world and it is already capped — reading only
+   * for curl says "nothing to fix" over `npm ci`, `docker pull` and `apt-get`, which are
+   * the steps that actually hang.
+   */
+  const EXTERNAL = /curl |wget |apt-get |docker pull|npm ci|gpg |--recv-keys|keyserver/;
+  for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+    for (const step of job?.steps ?? []) {
+      if (typeof step?.run !== 'string' || !EXTERNAL.test(step.run)) continue;
+      if (!('timeout-minutes' in step)) {
+        problems.push(
+          `${path}: step \`${step.name ?? '(unnamed)'}\` in job \`${jobName}\` reaches outside ` +
+            'the repo with no `timeout-minutes` — a stall there cancels the run instead of failing it',
+        );
+      }
+    }
+  }
+  /*
    * A `choice` input whose options do not match the branches the script implements. Read
    * from the shell `case` labels in the same file: the workflow that dispatches on a mode
    * writes `mode)` for each one it handles, so the two lists are checkable against each
@@ -134,7 +164,9 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
     const implemented = new Set(cases);
     for (const mode of implemented) {
       if (!offered.has(mode)) {
-        problems.push(`${path}: \`${mode}\` is implemented but is not in \`${name}\` options — nobody can select it`);
+        problems.push(
+          `${path}: \`${mode}\` is implemented but is not in \`${name}\` options — nobody can select it`,
+        );
       }
     }
     for (const mode of offered) {
@@ -165,7 +197,9 @@ const dockerfile = readFileSync(join(DIR, '..', '..', 'apps', 'web', 'Dockerfile
 const compose = readFileSync(join(DIR, '..', '..', 'docker-compose.prod.yml'), 'utf8');
 
 if (!dockerfile.includes(`ARG ${DSN}`)) {
-  problems.push(`apps/web/Dockerfile: no \`ARG ${DSN}\` — the web image ships without a client error reporter`);
+  problems.push(
+    `apps/web/Dockerfile: no \`ARG ${DSN}\` — the web image ships without a client error reporter`,
+  );
 }
 if (!compose.includes(`${DSN}:`)) {
   problems.push(`docker-compose.prod.yml: does not pass ${DSN} to the web build`);
@@ -388,7 +422,11 @@ for (const [jobName, job] of Object.entries(mobileDoc?.jobs ?? {})) {
  * M3b survived months of green CI and four green assertions in mobile-release-gate.test.sh.
  */
 for (const [shape, run, mustNotBe] of [
-  ["a bare `env:` line beside somebody else's `exit 1`", 'test -n "$OTHER" || { echo no; exit 1; }', 'refuse'],
+  [
+    "a bare `env:` line beside somebody else's `exit 1`",
+    'test -n "$OTHER" || { echo no; exit 1; }',
+    'refuse',
+  ],
   ['a step that only warns', 'if [ -z "$X" ]; then echo "::warning::blind"; fi', 'refuse'],
   ['a step that reads it and says nothing', 'echo "$X" > /dev/null', 'warn'],
 ]) {
@@ -404,7 +442,9 @@ for (const [shape, run, mustNotBe] of [
 const exportSteps = (mobileText.match(/npm run build:mobile/g) ?? []).length;
 const mobileDsn = (mobileText.match(new RegExp(`${DSN}:`, 'g')) ?? []).length;
 if (exportSteps > 0 && mobileDsn === 0) {
-  problems.push(`${join(DIR, 'mobile.yml')}: exports the binaries without ${DSN} — every shipped APK is blind`);
+  problems.push(
+    `${join(DIR, 'mobile.yml')}: exports the binaries without ${DSN} — every shipped APK is blind`,
+  );
 }
 if (!/run_attempt/.test(mobileText)) {
   problems.push(
@@ -441,7 +481,9 @@ for (const key of ['cache-from', 'cache-to']) {
     .exec(imagesText)?.[1]
     ?.trim();
   if (!expr) {
-    problems.push(`${join(DIR, 'images.yml')}: no \`${key}\` gha scope — every published build is cold`);
+    problems.push(
+      `${join(DIR, 'images.yml')}: no \`${key}\` gha scope — every published build is cold`,
+    );
     continue;
   }
   for (const entry of imagesDoc?.jobs?.build?.strategy?.matrix?.include ?? []) {
@@ -475,7 +517,9 @@ for (const key of ['cache-from', 'cache-to']) {
 const ciDoc = yaml.load(readFileSync(join(DIR, 'ci.yml'), 'utf8'));
 const shards = ciDoc?.jobs?.test?.strategy?.matrix?.include ?? [];
 if (shards.length === 0) {
-  problems.push(`${join(DIR, 'ci.yml')}: job \`test\` declares no shards — nothing runs the coverage gate`);
+  problems.push(
+    `${join(DIR, 'ci.yml')}: job \`test\` declares no shards — nothing runs the coverage gate`,
+  );
 } else {
   const ROOT = join(DIR, '..', '..');
   const expected = new Set();
@@ -492,7 +536,12 @@ if (shards.length === 0) {
     }
   }
   const listed = [];
-  for (const shard of shards) listed.push(...String(shard.workspaces ?? '').split(/\s+/).filter(Boolean));
+  for (const shard of shards)
+    listed.push(
+      ...String(shard.workspaces ?? '')
+        .split(/\s+/)
+        .filter(Boolean),
+    );
   const seen = new Set();
   for (const name of listed) {
     if (seen.has(name)) {
@@ -500,7 +549,9 @@ if (shards.length === 0) {
     }
     seen.add(name);
     if (!expected.has(name)) {
-      problems.push(`${join(DIR, 'ci.yml')}: \`${name}\` is sharded but has no \`test:cov\` script`);
+      problems.push(
+        `${join(DIR, 'ci.yml')}: \`${name}\` is sharded but has no \`test:cov\` script`,
+      );
     }
   }
   for (const name of expected) {
@@ -526,11 +577,11 @@ if (shards.length === 0) {
  * `seed-demo` on the same page uses a bare `&&` and works, which is what proves the escaping was
  * never needed by anything.
  */
-const deployText = readFileSync(join(DIR, "deploy.yml"), "utf8");
-deployText.split("\n").forEach((line, idx) => {
-  if (line.includes("echo \"run=") && line.includes("\\&")) {
+const deployText = readFileSync(join(DIR, 'deploy.yml'), 'utf8');
+deployText.split('\n').forEach((line, idx) => {
+  if (line.includes('echo "run=') && line.includes('\\&')) {
     problems.push(
-      `${join(DIR, "deploy.yml")}:${idx + 1}: the mode command escapes its && , so the box ` +
+      `${join(DIR, 'deploy.yml')}:${idx + 1}: the mode command escapes its && , so the box ` +
         `sources the env file and never runs the script — green, silent, doing nothing: ${line.trim()}`,
     );
   }

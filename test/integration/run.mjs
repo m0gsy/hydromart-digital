@@ -37,16 +37,21 @@ function run(cmd, args, opts = {}) {
 const compose = (args, opts) => run('docker', ['compose', ...args], opts);
 
 function composeConfig() {
-  const r = spawnSync('docker', ['compose', ...COMPOSE, 'config', '--format', 'json'],
-    { encoding: 'utf8', shell: win });
+  const r = spawnSync('docker', ['compose', ...COMPOSE, 'config', '--format', 'json'], {
+    encoding: 'utf8',
+    shell: win,
+  });
   if (r.status !== 0) throw new Error('docker compose config failed');
   return JSON.parse(r.stdout);
 }
 
 function healthy() {
   // Comma delimiter (no spaces / no shell metachars) so the format survives shell:true on Windows.
-  const r = spawnSync('docker', ['compose', ...COMPOSE, 'ps', '-a', '--format', '{{.Service}},{{.Health}},{{.State}}'],
-    { encoding: 'utf8', shell: win });
+  const r = spawnSync(
+    'docker',
+    ['compose', ...COMPOSE, 'ps', '-a', '--format', '{{.Service}},{{.Health}},{{.State}}'],
+    { encoding: 'utf8', shell: win },
+  );
   const map = {};
   for (const line of (r.stdout || '').trim().split('\n').filter(Boolean)) {
     const [svc, health, state] = line.split(',');
@@ -66,7 +71,10 @@ async function waitHealthy(timeoutMs = 180000) {
     }
     const up = ALL.filter((s) => m[s]?.health === 'healthy');
     process.stdout.write(`\rhealthy ${up.length}/${ALL.length} ...`);
-    if (up.length === ALL.length) { console.log(' all up'); return; }
+    if (up.length === ALL.length) {
+      console.log(' all up');
+      return;
+    }
     await sleep(5000);
   }
   const m = healthy();
@@ -96,7 +104,9 @@ async function main() {
       migrated = true;
       break;
     }
-    console.log(`db:migrate attempt ${attempt} failed (Postgres likely still initialising), retrying in 5s...`);
+    console.log(
+      `db:migrate attempt ${attempt} failed (Postgres likely still initialising), retrying in 5s...`,
+    );
     await sleep(5000);
   }
   if (!migrated) throw new Error('db:migrate failed after 5 attempts');
@@ -124,11 +134,13 @@ async function main() {
   if (ALL.length === 0) throw new Error('no service in the test stack declares a healthcheck');
   console.log(`health gate covers ${ALL.length} service(s): ${ALL.join(' ')}`);
   const buildable = Object.entries(services)
-    .filter(([, v]) => v.build).map(([k]) => k);
+    .filter(([, v]) => v.build)
+    .map(([k]) => k);
   for (let i = 0; i < buildable.length; i += BATCH) {
     const batch = buildable.slice(i, i + BATCH);
     console.log(`building ${batch.join(', ')}`);
-    if (compose([...COMPOSE, 'build', ...batch])) throw new Error(`build failed: ${batch.join(', ')}`);
+    if (compose([...COMPOSE, 'build', ...batch]))
+      throw new Error(`build failed: ${batch.join(', ')}`);
   }
   if (compose([...COMPOSE, 'up', '-d', '--build'])) throw new Error('service boot failed');
   await waitHealthy();
@@ -151,7 +163,8 @@ async function main() {
   // whose secret flow.mjs already defaults to.
   const harnessEnv = {
     ...process.env,
-    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
+    JWT_ACCESS_SECRET:
+      process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
   };
   /*
    * flow.mjs builds every fixture it needs, so this job never seeded anything. The payroll
@@ -167,12 +180,45 @@ async function main() {
     'scripts/payroll-manual-checks.mjs',
   ]) {
     console.log(`\n--- ${harness}`);
-    if (run('node', [harness], { env: harnessEnv })) throw new Error(`${harness} assertions failed`);
+    if (run('node', [harness], { env: harnessEnv }))
+      throw new Error(`${harness} assertions failed`);
   }
   console.log('\nINTEGRATION TEST PASSED');
 }
 
+/*
+ * Dump the service logs BEFORE tearing the stack down.
+ *
+ * A failing flow assertion leaves the only explanation inside the containers, and this path
+ * went straight to `compose down` — so the answer was destroyed at the moment it was needed.
+ * `create product: HTTP 401 Invalid or expired access token` was diagnosed from the message
+ * alone more than once, and wrongly, because nothing here ever printed what product-service
+ * itself said about the token it refused.
+ *
+ * uat.yml and load.yml already capture logs on every run. This is the same thing for the
+ * path that runs on EVERY pull request.
+ */
+function dumpLogs(reason) {
+  console.error(`\n===== service logs (${reason}) =====`);
+  for (const svc of ['gateway', 'auth', 'product', 'order']) {
+    console.error(`\n----- ${svc} -----`);
+    compose([...COMPOSE, 'logs', svc, '--tail', '120', '--no-color']);
+  }
+}
+
 main()
-  .then(() => { process.exitCode = 0; })
-  .catch((e) => { console.error('\nINTEGRATION TEST FAILED:', e.message); process.exitCode = 1; })
-  .finally(() => { if (!KEEP) compose([...COMPOSE, 'down']); });
+  .then(() => {
+    process.exitCode = 0;
+  })
+  .catch((e) => {
+    console.error('\nINTEGRATION TEST FAILED:', e.message);
+    try {
+      dumpLogs(e.message);
+    } catch {
+      /* the dump must never mask the real failure */
+    }
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    if (!KEEP) compose([...COMPOSE, 'down']);
+  });

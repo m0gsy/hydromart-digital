@@ -78,6 +78,11 @@ jobs:
           cache: npm
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       # Same orchestrator the integration job uses, with --keep so the stack survives the
@@ -111,6 +116,11 @@ jobs:
       # Sized off the ceiling rather than the measurement: VUS x DURATION cannot approach
       # this even if the stack gets much faster.
       - name: Seed catalog + staff
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         env:
           SEED_STOCK_QTY: '1000000'
         run: node scripts/seed.mjs
