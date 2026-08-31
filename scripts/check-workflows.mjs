@@ -512,6 +512,30 @@ if (shards.length === 0) {
   }
 }
 
+/*
+ * A deploy mode whose command never runs its script.
+ *
+ * deploy.yml builds each mode's command with `echo "run=..."` into GITHUB_OUTPUT, and two of
+ * them wrote the AND as an escaped pair instead of a bare `&&`. Inside double quotes bash keeps
+ * the backslash, so the box received the escape verbatim and read each `&` as an ARGUMENT to
+ * `.` — it sourced load-env.sh, ignored the rest, and exited 0.
+ *
+ * The SSH step took four seconds, printed nothing, and the run was green. The object backup did
+ * nothing, and so had the manual `backup-offsite` button, for as long as it had existed.
+ *
+ * `seed-demo` on the same page uses a bare `&&` and works, which is what proves the escaping was
+ * never needed by anything.
+ */
+const deployText = readFileSync(join(DIR, "deploy.yml"), "utf8");
+deployText.split("\n").forEach((line, idx) => {
+  if (line.includes("echo \"run=") && line.includes("\\&")) {
+    problems.push(
+      `${join(DIR, "deploy.yml")}:${idx + 1}: the mode command escapes its && , so the box ` +
+        `sources the env file and never runs the script — green, silent, doing nothing: ${line.trim()}`,
+    );
+  }
+});
+
 if (problems.length > 0) {
   console.error('Workflow files that would fail silently:');
   for (const p of problems) console.error(`  - ${p}`);

@@ -213,8 +213,8 @@ jobs:
             # verified and left alone), it never deletes, and it reads the dump back to compare
             # size + sha256 before saying OK. Exit 2 = not configured, 1 = not verifiable,
             # 0 = verified.
-            backup-offsite) echo "run=. ./scripts/load-env.sh \&\& bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
-            backup-objects) echo "run=. ./scripts/load-env.sh \&\& node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
+            backup-offsite) echo "run=. ./scripts/load-env.sh && bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
+            backup-objects) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
