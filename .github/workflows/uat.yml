@@ -62,6 +62,11 @@ jobs:
           cache: npm
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       # M17b. COMPOSE_BAKE alone was the trap: it routes the build through buildx, which is
@@ -89,6 +94,11 @@ jobs:
       # a per-PR gate that slow gets disabled within the week. Report-only, same as the UAT
       # run above; what it produces is screenshots and a per-route verdict to read.
       - name: Build + serve the web app
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 30
         run: |
           npm run build --workspace @hydromart/web
           nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &
@@ -187,7 +197,6 @@ jobs:
             exit 1
           fi
           echo "role browser pass OK for every role"
-
 
       - name: Summarise
         if: always()

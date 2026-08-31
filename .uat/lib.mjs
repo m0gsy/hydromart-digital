@@ -22,12 +22,24 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 export const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET ?? 'hydromart-shared-dev-access-secret-please-change-01';
+const JWT_SECRET =
+  process.env.JWT_ACCESS_SECRET ?? 'hydromart-shared-dev-access-secret-please-change-01';
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
 /** Mint an HS256 token exactly like auth-service signs it. */
-export function mintToken(role, claims = {}, ttl = 3600) {
+/*
+ * Four hours, not one.
+ *
+ * Same family as the integration flow: the token is minted once at the start and used all
+ * the way through, then expires mid-sweep — and the failure reads as an authorisation
+ * defect ("Invalid or expired access token") rather than as a TTL that was too short.
+ *
+ * The last UAT run took 45 minutes against a one-hour TTL, and the harness had just grown
+ * from 366 to 439 cases. Fifteen minutes of headroom is not margin, it is a countdown. The
+ * stack is local, so the TTL guards nothing here; it only has to outlive the sweep.
+ */
+export function mintToken(role, claims = {}, ttl = 14400) {
   const now = Math.floor(Date.now() / 1000);
   /*
    * Drop undefined claims BEFORE spreading them.
@@ -43,7 +55,14 @@ export function mintToken(role, claims = {}, ttl = 3600) {
    * message that said so.
    */
   const given = Object.fromEntries(Object.entries(claims).filter(([, v]) => v !== undefined));
-  const body = { sub: given.sub ?? crypto.randomUUID(), role, phone: given.phone ?? '+620000000000', iat: now, exp: now + ttl, ...given };
+  const body = {
+    sub: given.sub ?? crypto.randomUUID(),
+    role,
+    phone: given.phone ?? '+620000000000',
+    iat: now,
+    exp: now + ttl,
+    ...given,
+  };
   const data = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -81,11 +100,19 @@ export async function api(method, path, opts = {}) {
   return rawApi(method, path, opts);
 }
 
-async function rawApi(method, path, { body, token, headers = {}, base = GATEWAY, raw = false, cookies } = {}) {
+async function rawApi(
+  method,
+  path,
+  { body, token, headers = {}, base = GATEWAY, raw = false, cookies } = {},
+) {
   const h = { ...headers };
   if (body !== undefined && !(body instanceof FormData)) h['content-type'] = 'application/json';
   if (token) h.authorization = `Bearer ${token}`;
-  if (cookies) h.cookie = Object.entries(cookies).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join('; ');
+  if (cookies)
+    h.cookie = Object.entries(cookies)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
   /*
    * Timed HERE, around the fetch only — after the pacer has already waited.
    *
@@ -106,22 +133,47 @@ async function rawApi(method, path, { body, token, headers = {}, base = GATEWAY,
     });
     text = await res.text();
   } catch (e) {
-    return { status: 0, body: { error: String(e.message ?? e) }, text: '', ms: Date.now() - startedAt };
+    return {
+      status: 0,
+      body: { error: String(e.message ?? e) },
+      text: '',
+      ms: Date.now() - startedAt,
+    };
   }
-  if (raw) return { status: res.status, text, headers: res.headers, cookies: parseCookies(res), ms: Date.now() - startedAt };
+  if (raw)
+    return {
+      status: res.status,
+      text,
+      headers: res.headers,
+      cookies: parseCookies(res),
+      ms: Date.now() - startedAt,
+    };
   let json;
-  try { json = text ? JSON.parse(text) : undefined; } catch { json = text; }
-  return { status: res.status, body: json, text, headers: res.headers, cookies: parseCookies(res), ms: Date.now() - startedAt };
+  try {
+    json = text ? JSON.parse(text) : undefined;
+  } catch {
+    json = text;
+  }
+  return {
+    status: res.status,
+    body: json,
+    text,
+    headers: res.headers,
+    cookies: parseCookies(res),
+    ms: Date.now() - startedAt,
+  };
 }
 
 /** Auth issues tokens as httpOnly cookies (hm_at / hm_rt), not in the JSON body. */
 function parseCookies(res) {
   const raw = res.headers.getSetCookie?.() ?? [];
-  return Object.fromEntries(raw.map((c) => {
-    const [pair] = c.split(';');
-    const i = pair.indexOf('=');
-    return [pair.slice(0, i).trim(), pair.slice(i + 1)];
-  }));
+  return Object.fromEntries(
+    raw.map((c) => {
+      const [pair] = c.split(';');
+      const i = pair.indexOf('=');
+      return [pair.slice(0, i).trim(), pair.slice(i + 1)];
+    }),
+  );
 }
 
 /*
@@ -157,10 +209,16 @@ const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),
 export function readOtp(phone) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const r = spawnSync('docker', [...DC, 'logs', '--tail', '300', 'auth'], {
-      cwd: ROOT, encoding: 'utf8', shell: true, maxBuffer: 20e6,
+      cwd: ROOT,
+      encoding: 'utf8',
+      shell: true,
+      maxBuffer: 20e6,
     });
     const text = `${r.stdout || ''}${r.stderr || ''}`;
-    const line = text.split('\n').filter((l) => l.includes('[DEV OTP]') && l.includes(phone)).at(-1);
+    const line = text
+      .split('\n')
+      .filter((l) => l.includes('[DEV OTP]') && l.includes(phone))
+      .at(-1);
     if (line) return line.match(/:\s*(\d{4,8})\s*\(/)?.[1] ?? null;
     sleepSync(300);
   }
@@ -168,7 +226,12 @@ export function readOtp(phone) {
 }
 
 export function dc(...args) {
-  const r = spawnSync('docker', [...DC, ...args], { cwd: ROOT, encoding: 'utf8', shell: true, maxBuffer: 20e6 });
+  const r = spawnSync('docker', [...DC, ...args], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    shell: true,
+    maxBuffer: 20e6,
+  });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 
@@ -178,7 +241,9 @@ export async function loginPhone(phone, fullName) {
   let r = await api('POST', '/auth/api/v1/auth/login', { body: { phone } });
   if (r.status >= 400) {
     purpose = 'REGISTRATION';
-    r = await api('POST', '/auth/api/v1/auth/register', { body: { phone, fullName: fullName ?? 'UAT User' } });
+    r = await api('POST', '/auth/api/v1/auth/register', {
+      body: { phone, fullName: fullName ?? 'UAT User' },
+    });
   }
   if (r.status >= 400) return { ok: false, detail: r };
   const code = readOtp(phone);
@@ -203,7 +268,9 @@ export const evidenceOf = (x) => {
 
 export function record(id, status, actual, note = '') {
   results.push({ id, status, actual: evidenceOf(actual), note });
-  const mark = { Pass: 'PASS', Fail: 'FAIL', Blocked: 'BLCK', 'N/A': 'N/A ', 'Not Run': '----' }[status] ?? status;
+  const mark =
+    { Pass: 'PASS', Fail: 'FAIL', Blocked: 'BLCK', 'N/A': 'N/A ', 'Not Run': '----' }[status] ??
+    status;
   console.log(`${mark} ${id} ${String(actual).slice(0, 140).replace(/\s+/g, ' ')}`);
 }
 
@@ -254,17 +321,27 @@ export async function internalApi(container, port, path, { method = 'POST', body
     console.log(JSON.stringify({ status: r.status, body: await r.text() }));
   })().catch((e) => console.log(JSON.stringify({ status: 0, body: String(e).slice(0, 200) })));`;
   return new Promise((resolve) => {
-    execFile('docker', ['exec', container, 'node', '-e', script], { timeout: 30_000 }, (err, stdout) => {
-      if (err && !stdout) return resolve({ status: 0, body: { error: String(err).slice(0, 200) } });
-      try {
-        const parts = stdout.trim().split(String.fromCharCode(10));
-        const out = JSON.parse(parts[parts.length - 1].trim());
-        let parsed = out.body;
-        try { parsed = JSON.parse(out.body); } catch { /* plain text body */ }
-        resolve({ status: out.status, body: parsed });
-      } catch {
-        resolve({ status: 0, body: { error: stdout.slice(0, 200) } });
-      }
-    });
+    execFile(
+      'docker',
+      ['exec', container, 'node', '-e', script],
+      { timeout: 30_000 },
+      (err, stdout) => {
+        if (err && !stdout)
+          return resolve({ status: 0, body: { error: String(err).slice(0, 200) } });
+        try {
+          const parts = stdout.trim().split(String.fromCharCode(10));
+          const out = JSON.parse(parts[parts.length - 1].trim());
+          let parsed = out.body;
+          try {
+            parsed = JSON.parse(out.body);
+          } catch {
+            /* plain text body */
+          }
+          resolve({ status: out.status, body: parsed });
+        } catch {
+          resolve({ status: 0, body: { error: stdout.slice(0, 200) } });
+        }
+      },
+    );
   });
 }

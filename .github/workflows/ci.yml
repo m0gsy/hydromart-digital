@@ -90,6 +90,11 @@ jobs:
           cache: npm
 
       - name: Pin npm to the version in package.json
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: |
           want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
           [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
@@ -110,6 +115,11 @@ jobs:
             prisma-${{ runner.os }}-
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       # One source for the unit-gate environment, shared by `gate`, `test` and `visual`.
@@ -595,6 +605,11 @@ jobs:
             prisma-${{ runner.os }}-
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       - name: Unit-gate env
@@ -649,6 +664,11 @@ jobs:
             prisma-${{ runner.os }}-
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       - name: Unit-gate env
@@ -836,6 +856,11 @@ jobs:
           cache: npm
 
       - name: Pin npm to the version in package.json
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: |
           want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
           [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
@@ -855,6 +880,11 @@ jobs:
             prisma-${{ runner.os }}-
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       # Pre-start infra and wait until Postgres accepts connections (initdb creates all 13
@@ -914,6 +944,11 @@ jobs:
           cache: npm
 
       - name: Pin npm to the version in package.json
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: |
           want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
           [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
@@ -933,6 +968,11 @@ jobs:
             prisma-${{ runner.os }}-
 
       - name: Install
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       - uses: docker/setup-buildx-action@v3
@@ -975,6 +1015,11 @@ jobs:
           exit 1
 
       - name: Migrate + boot services
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: |
           # pg_isready (via `docker compose exec`) checks Postgres over its in-container
           # unix socket, which can answer on the temporary init server before Postgres
@@ -1059,6 +1104,11 @@ jobs:
             next-${{ runner.os }}-
 
       - name: Build + serve web
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 30
         run: |
           npm run build --workspace @hydromart/web
           nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &

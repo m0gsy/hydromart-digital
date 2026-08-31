@@ -121,6 +121,11 @@ jobs:
           node-version: '22'
 
       - name: Install Capacitor dependencies
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         working-directory: mobile
         run: npm ci
 
@@ -224,9 +229,19 @@ jobs:
         run: test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the APK could not reach the API"; exit 1; }
 
       - name: Install workspace dependencies
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       - name: Install Capacitor dependencies
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         working-directory: mobile
         run: npm ci
 
@@ -398,9 +413,19 @@ jobs:
           }
 
       - name: Install workspace dependencies
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         run: npm ci
 
       - name: Install Capacitor dependencies
+        # Cap on the STEP, not only the job. A job that hits its cap is recorded as
+        # `cancelled`, not failed: nothing turns red and everything gated on success —
+        # Deploy, Images — skips in silence. A step cap fails the step, which fails the
+        # job, which is red and says which step it was.
+        timeout-minutes: 15
         working-directory: mobile
         run: npm ci
 
