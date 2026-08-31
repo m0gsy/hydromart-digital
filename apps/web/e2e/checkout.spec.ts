@@ -41,7 +41,9 @@ test('an authenticated customer can place an order through manual checkout', asy
   await page.locator('#phone').fill('081234567890');
   await page.locator('#addressLine').fill('Jl. Merdeka No. 10, RT 01/RW 02');
   await page.locator('#city').fill('Jakarta Pusat');
-  await page.locator('#province').fill('DKI Jakarta');
+  // No #province and no #postalCode: the form stopped asking for them. This spec is the
+  // only place that drove them through a real browser, so it is also the only place that
+  // would have noticed if the fields came back.
   await page.getByRole('dialog').getByRole('button', { name: /selesai|done/i }).click();
 
   // No map pin on a manually-typed address → pick the fulfilling depot, in its own sheet.
