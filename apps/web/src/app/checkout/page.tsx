@@ -341,27 +341,35 @@ function CheckoutInner() {
   // gates the order itself — the server stays the authority on both.
   const depotState = depotOpenState(depot?.operatingHours, depot?.holidays);
   /*
-   * W11. A shut depot must not take the order at all, not merely withdraw express.
+   * A shut depot withdraws EXPRESS. It does not refuse the order.
    *
-   * An order placed here lands in CREATED, and order-service's `expireAbandoned` cancels
-   * a CREATED order once it is older than `abandonMinutes` — it sweeps on the age of the
-   * row, NOT on the delivery window. So the 23:00 cash order nobody was there to confirm
-   * was silently gone by midnight, and the customer found out by not being delivered to.
-   * Same gate as `outOfServiceArea` below, because it is the same class of thing: an
-   * order the server will not carry, said before the button that spends money.
+   * This gate briefly blocked everything, and that was wrong in a way the repo had already
+   * written down three times — once in the same commit:
    *
-   * `istirahat` deliberately does not gate. An hour's break is not a shut counter, and
-   * somebody is there to confirm the order when it ends.
-   */
-  /*
-   * `depot != null` is load-bearing and was missing on the first cut of this. Since W11 an
-   * absent `operatingHours` reads as SHUT, and `depot` is null while the nearby list is
-   * still in flight and again whenever `GET /depots` fails — so without it this screen
-   * refused to take money mid-fetch, and blamed opening hours for a 502. A depot we do not
-   * have yet is not a depot that is closed. Same shape as `outOfServiceArea` above, which
-   * is why that one names `nearbyLoading`.
+   *   opening-hours.ts:5   "Deliberately NOT used to block scheduled orders: a customer may
+   *                         order at 22:00 for tomorrow morning."
+   *   order.service.ts:437  if (input.express && !expressAvailable) throw ...   ← express only
+   *   order.prisma.repository.ts (W2b, same commit) gives a windowed order four days of
+   *                         grace precisely so the 22:00-for-tomorrow order survives.
+   *
+   * The justification written here was that `expireAbandoned` would silently cancel the
+   * 23:00 order by midnight. W2b removed that in the same commit, so this blocked orders to
+   * avoid a bug that no longer existed — and the orders it blocked were the ones the
+   * four-day scheduling window exists for.
+   *
+   * Measured cost while it was live: both real depots open 08:00-21:00, so checkout refused
+   * money 11 hours a day, every day, at every depot. The server accepted those same orders
+   * without complaint: the screen was stricter than the bill, in the direction of turning
+   * customers away. order.service.ts's own comment says "the screen and the bill cannot
+   * disagree about what was available" — they did.
+   *
+   * So the gate now matches the server exactly: only an EXPRESS order needs somebody at the
+   * counter right now. `depot != null` stays load-bearing — an absent depot reads as SHUT
+   * since W11, and without it this refuses while the nearby list is still loading or after
+   * a failed `GET /depots`.
    */
   const depotClosed = depot != null && depotState === 'tutup';
+  const expressBlocked = express && depotClosed;
 
   // Ongkir estimate, charged per galon exactly as order.service.ts does it. Declared up here
   // because the voucher quote below needs it too: a FREE_SHIPPING voucher is priced against
@@ -1344,7 +1352,7 @@ function CheckoutInner() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || depotClosed}
+            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked}
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
@@ -1417,7 +1425,7 @@ function CheckoutInner() {
         <Button
           type="submit"
           loading={submitting}
-          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || depotClosed}
+          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked}
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >
           {/* Not `placeOrder`: that string ends in an em dash because the rail version is
