@@ -136,6 +136,7 @@ describe('guardProcess', () => {
   it('installs once, however many times it is called', () => {
     install();
     const first = listeners.uncaughtException!.length;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess('order-service');
     expect(listeners.uncaughtException!.length).toBe(first);
   });
