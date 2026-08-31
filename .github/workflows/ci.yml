@@ -1019,7 +1019,14 @@ jobs:
         # `cancelled`, not failed: nothing turns red and everything gated on success —
         # Deploy, Images — skips in silence. A step cap fails the step, which fails the
         # job, which is red and says which step it was.
-        timeout-minutes: 15
+        #
+        # 40, measured, not 15. This step builds every service image before it boots them,
+        # and 15 was a rule of thumb I applied to steps that were not named "Build" — it
+        # then failed a run whose containers had ALL reported Healthy in the same second the
+        # cap fired. A cap that cannot tell a hang from a cold Docker cache is not a safety
+        # net, it is a coin flip. The job cap is 60, so this still fails as a named step
+        # rather than a silent cancellation.
+        timeout-minutes: 40
         run: |
           # pg_isready (via `docker compose exec`) checks Postgres over its in-container
           # unix socket, which can answer on the temporary init server before Postgres
