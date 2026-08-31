@@ -153,9 +153,30 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
 
 ## Yang belum ditutup, dan disebut supaya tidak jadi kejutan
 
-- **Satu penyedia memegang semuanya.** Mesin, satu-satunya salinan database, dan seluruh
-  berkas objek ada di BiznetGio. Salinan di penyedia kedua adalah keputusan biaya yang belum
-  diambil.
+- **Satu penyedia memegang semuanya — dan ternyata itu BUKAN keputusan biaya.** Mesin,
+  satu-satunya salinan database, dan seluruh berkas objek ada di BiznetGio. Alasan yang
+  selalu dipakai untuk menunda adalah ongkos. Diukur 2026-08-31, ongkosnya nol:
+
+  | Yang harus disalin | Ukuran |
+  | --- | --- |
+  | 14 dump database (seluruh riwayat yang disimpan) | **2,9 MB** |
+  | `*-products` — 9 objek | 4,6 MB |
+  | `*-pod` — 7 objek (bukti antar + tanda tangan) | 0,4 MB |
+  | `*-facer` — 25 objek (absen wajah) | 0,2 MB |
+  | **Total** | **~8 MB** |
+
+  Delapan megabyte. Cloudflare R2 memberi 10 GB gratis tanpa biaya egress; Backblaze B2
+  memberi 10 GB gratis. Seluruh sistem ini muat 1.250 kali di dalam kuota gratis salah
+  satunya. Yang menghalangi bukan uang, melainkan ~30 menit menyiapkan bucket kedua dan
+  satu pasang kunci.
+
+  Kodenya sudah tidak menghalangi juga: `backup-offsite.sh` dan `backup-objects.mjs`
+  keduanya membaca `BACKUP_S3_ENDPOINT`, jadi penyedia kedua adalah satu set variabel
+  tambahan, bukan skrip baru.
+
+  **Keputusan Anda**, dan hanya perlu dijawab sekali: buat bucket kedua di penyedia lain,
+  atau terima bahwa kehilangan akun BiznetGio menghilangkan mesin, database, dan seluruh
+  buktinya sekaligus.
 - **Kunci yang menulis backup juga bisa menghapusnya.** Tidak ada object-lock atau versioning
   di bucket. Ransomware dengan akses ke kotak bisa menghapus backup-nya juga.
 - **Salinan objek ada, tapi belum pernah dipulihkan sungguhan.** `--restore` sudah ditulis dan

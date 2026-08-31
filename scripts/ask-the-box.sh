@@ -275,6 +275,66 @@ if [ -n "$PG" ]; then
     sed 's/^/  CANCELLED 55min-3h after creation (the sweep signature): /'
 fi
 
+line "WHO cancelled those orders, and what did they say"
+# The question the sweep-signature check above CANNOT answer, and the reason it must exist.
+#
+# That check looks for cancellations 55min-3h after creation. Asked of production it returned
+# zero, and zero was read as "the sweep has never fired". It had: all six cancellations were
+# more than a DAY old, because there are two sweeps with different windows — abandonMinutes
+# (60, from CREATED) and stalledHours (24, from PREPARING). A signature search that misses
+# the window reports absence and sounds like proof.
+#
+# So this asks without assuming a window at all: who, how long after, from which status, with
+# what note. `changedBy` is a user id OR a service label ('payment-service', 'scheduler'), so
+# the shape of the value already separates a person from a job.
+if [ -n "$PG" ]; then
+  q hydromart_order "
+    select coalesce(h.\"changedBy\",'(null)'),
+           count(*),
+           min(h.\"createdAt\")::date,
+           max(h.\"createdAt\")::date
+    from order_status_history h
+    where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
+    group by 1 order by 2 desc" | sed 's/^/  by | count | first | last: /'
+  echo "  how long after the order was created:"
+  q hydromart_order "
+    select case
+             when h.\"createdAt\" - o.\"createdAt\" < interval '5 minutes'  then 'under 5 min'
+             when h.\"createdAt\" - o.\"createdAt\" < interval '1 hour'     then '5-60 min'
+             when h.\"createdAt\" - o.\"createdAt\" < interval '3 hours'    then '1-3 h'
+             when h.\"createdAt\" - o.\"createdAt\" < interval '1 day'      then '3-24 h'
+             else 'over a day'
+           end,
+           count(*)
+    from order_status_history h join orders o on o.id = h.\"orderId\"
+    where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
+    group by 1 order by 2 desc" | sed 's/^/    /'
+  echo "  the status each one was cancelled FROM (previous history row):"
+  q hydromart_order "
+    select coalesce(prev.status::text,'(none - cancelled from CREATED with no prior row)'), count(*)
+    from order_status_history h
+    join orders o on o.id = h.\"orderId\"
+    left join lateral (
+      select p.status from order_status_history p
+      where p.\"orderId\" = h.\"orderId\" and p.\"createdAt\" < h.\"createdAt\"
+      order by p.\"createdAt\" desc limit 1
+    ) prev on true
+    where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
+    group by 1 order by 2 desc" | sed 's/^/    /'
+  echo "  notes left on the cancellation (reasons, where anyone wrote one):"
+  q hydromart_order "
+    select left(coalesce(h.note,'(no note)'), 70), count(*)
+    from order_status_history h
+    where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
+    group by 1 order by 2 desc" | sed 's/^/    /'
+  echo "  payment method + channel of the cancelled ones:"
+  q hydromart_order "
+    select coalesce(o.\"paymentMethod\"::text,'?'), coalesce(o.channel::text,'?'), count(*)
+    from orders o
+    where o.status = 'CANCELLED' and o.\"createdAt\" > now() - interval '90 days'
+    group by 1,2 order by 3 desc" | sed 's/^/    /'
+fi
+
 line "GALLON DEPOSITS — how many double refunds already happened?"
 # Migration 20260827100000 copied every duplicate into gallon_returns_duplicate_archive
 # before deleting it, and the table comments itself \"nothing reads it\". This reads it.
