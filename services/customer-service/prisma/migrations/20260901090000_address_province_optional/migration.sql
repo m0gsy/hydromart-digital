@@ -1,0 +1,16 @@
+-- The delivery-address form stopped asking for Provinsi and Kode pos.
+--
+-- Indonesian addresses in this business are read by a courier on a motorbike who already has
+-- the street line, the city, the landmark ("patokan") and a map pin. Province and postcode
+-- were two required fields that no delivery, no depot match and no price ever consulted.
+--
+-- The columns STAY. They hold real values on every address and order written so far, those
+-- values print on past orders, and crm-service segments campaigns on the city beside them.
+-- Dropping them would delete history to save a form field. Nullable is the whole change.
+--
+-- ONE-WAY, and measured rather than assumed: once a single row is written without a
+-- province, Postgres refuses to put the constraint back --
+--   ERROR: column "province" of relation "addresses" contains null values
+-- -- so reverting means deciding what to backfill those rows with, not running one ALTER.
+-- Verified on postgres:16-alpine 2026-08-31, both directions.
+ALTER TABLE "addresses" ALTER COLUMN "province" DROP NOT NULL;

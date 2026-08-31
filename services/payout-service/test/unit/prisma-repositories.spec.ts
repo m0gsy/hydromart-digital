@@ -634,7 +634,13 @@ describe('CourierLedgerPrismaRepository', () => {
     count: jest.fn(),
     groupBy: jest.fn(),
   };
-  const ruleModel = { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() };
+  const ruleModel = {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    delete: jest.fn(),
+  };
   const prisma = {
     courierLedgerEntry: ledgerModel,
     courierEarningRule: ruleModel,
@@ -801,7 +807,7 @@ describe('CourierLedgerPrismaRepository', () => {
     ruleModel.findFirst.mockResolvedValueOnce(ruleRow);
     const rule = await repo.currentRule('dep-1');
     expect(ruleModel.findFirst).toHaveBeenCalledWith({
-      where: { depotId: 'dep-1' },
+      where: { depotId: 'dep-1', effectiveDate: { lte: expect.any(Date) } },
       orderBy: { effectiveDate: 'desc' },
       include: TIER_INCLUDE,
     });
@@ -823,7 +829,7 @@ describe('CourierLedgerPrismaRepository', () => {
       .mockResolvedValueOnce({ ...ruleRow, depotId: null }); // network default
     const rule = await repo.currentRule('dep-1');
     expect(ruleModel.findFirst).toHaveBeenNthCalledWith(2, {
-      where: { depotId: null },
+      where: { depotId: null, effectiveDate: { lte: expect.any(Date) } },
       orderBy: { effectiveDate: 'desc' },
       include: TIER_INCLUDE,
     });
@@ -835,13 +841,53 @@ describe('CourierLedgerPrismaRepository', () => {
     const rule = await repo.currentRule(null);
     expect(ruleModel.findFirst).toHaveBeenCalledTimes(1);
     expect(ruleModel.findFirst).toHaveBeenCalledWith({
-      where: { depotId: null },
+      where: { depotId: null, effectiveDate: { lte: expect.any(Date) } },
       orderBy: { effectiveDate: 'desc' },
       include: TIER_INCLUDE,
     });
     expect(rule?.peakEndHour).toBe(20);
   });
 
+  /*
+   * The bug, as a test. This query had no date filter, so it returned the row with the
+   * LATEST effective date whether or not that date had arrived. On production there were
+   * three network rules — 2026-01-01, 2026-08-20 and 2030-01-19 — and couriers were being
+   * paid under the 2030 one.
+   *
+   * `asOf` is a parameter so this is a plain assertion about a boundary rather than a test
+   * that has to move the clock.
+   */
+  it('currentRule refuses a rule whose effective date has not arrived', async () => {
+    ruleModel.findFirst.mockResolvedValueOnce(null);
+    const asOf = new Date('2026-08-31T00:00:00.000Z');
+    await repo.currentRule(null, asOf);
+    expect(ruleModel.findFirst).toHaveBeenCalledWith({
+      where: { depotId: null, effectiveDate: { lte: asOf } },
+      orderBy: { effectiveDate: 'desc' },
+      include: TIER_INCLUDE,
+    });
+  });
+
+  it('findRule reads one rule by id, tiers included', async () => {
+    ruleModel.findUnique.mockResolvedValueOnce(ruleRow);
+    const rule = await repo.findRule('rule-1');
+    expect(ruleModel.findUnique).toHaveBeenCalledWith({
+      where: { id: 'rule-1' },
+      include: TIER_INCLUDE,
+    });
+    expect(rule?.baseFare).toBe(8000);
+  });
+
+  it('findRule returns null for an id that is not there', async () => {
+    ruleModel.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.findRule('nope')).toBeNull();
+  });
+
+  it('deleteRule removes the row', async () => {
+    ruleModel.delete.mockResolvedValueOnce(undefined);
+    await repo.deleteRule('rule-1');
+    expect(ruleModel.delete).toHaveBeenCalledWith({ where: { id: 'rule-1' } });
+  });
   it('currentRule returns null when no rule exists at all', async () => {
     ruleModel.findFirst.mockResolvedValue(null);
     expect(await repo.currentRule('dep-1')).toBeNull();

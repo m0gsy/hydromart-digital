@@ -1,5 +1,21 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -43,5 +59,22 @@ export class EarningRuleController {
       tiers: dto.tiers ?? [],
       effectiveDate: new Date(dto.effectiveDate),
     });
+  }
+
+  /*
+   * Only a rule that has not taken effect yet. The service enforces that by date; this is
+   * the door, not the rule.
+   *
+   * Before this existed a mistyped effective date was permanent: the editor could append
+   * rules and nothing could remove one, so a rule dated 2030 by accident sat in the list
+   * forever — and, until the query beside it was fixed, was the rule actually paying
+   * couriers.
+   */
+  @ApiNoContentResponse({ description: 'Deleted. Refuses a rule whose effective date has passed.' })
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a scheduled (not yet effective) earning rule' })
+  remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.payout.deleteScheduledRule(id);
   }
 }

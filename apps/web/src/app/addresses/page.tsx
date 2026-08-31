@@ -156,8 +156,7 @@ function AddressesInner() {
                   {a.recipientName} · {a.phone}
                 </p>
                 <p className="text-sm text-muted">
-                  {a.addressLine}, {a.city}, {a.province}
-                  {a.postalCode ? ` ${a.postalCode}` : ''}
+                  {a.addressLine}, {a.city}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {!a.isPrimary && (
@@ -311,17 +310,9 @@ function AddressForm({
           placeholder={t('profile.addresses.form.notesPlaceholder')}
         />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label={t('profile.addresses.form.city')} htmlFor="city">
-          <Input id="city" required value={form.city} onChange={set('city')} />
-        </Field>
-        <Field label={t('profile.addresses.form.province')} htmlFor="province">
-          <Input id="province" required value={form.province} onChange={set('province')} />
-        </Field>
-        <Field label={t('profile.addresses.form.postalCode')} htmlFor="postalCode" hint={t('profile.addresses.form.postalHint')}>
-          <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
-        </Field>
-      </div>
+      <Field label={t('profile.addresses.form.city')} htmlFor="city">
+        <Input id="city" required value={form.city} onChange={set('city')} />
+      </Field>
 
       {/* The pin is REQUIRED — depot routing is by distance, so an unpinned address cannot
           be matched to a depot. ponytail: no map picker. One-tap geolocation is the only

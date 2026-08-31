@@ -134,8 +134,8 @@ export class DepotCrmAddressDto {
   addressLine!: string;
   @ApiProperty()
   city!: string;
-  @ApiProperty()
-  province!: string;
+  @ApiProperty({ nullable: true })
+  province!: string | null;
   @ApiProperty({ nullable: true })
   latitude!: number | null;
   @ApiProperty({ nullable: true })

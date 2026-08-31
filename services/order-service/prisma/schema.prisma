@@ -68,7 +68,7 @@ model Order {
   phone         String
   addressLine   String
   city          String
-  province      String
+  province      String?
   postalCode    String?
   latitude      Float?
   longitude     Float?
@@ -267,7 +267,7 @@ model Subscription {
   phone         String
   addressLine   String
   city          String
-  province      String
+  province      String?
   postalCode    String?
   latitude      Float?
   longitude     Float?

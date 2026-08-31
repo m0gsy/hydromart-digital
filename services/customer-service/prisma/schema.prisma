@@ -59,7 +59,10 @@ model Address {
   phone         String
   addressLine   String
   city          String
-  province      String
+  // Kept as a column and never dropped: order snapshots and CRM segmentation still read
+  // historical values. Nullable because the form stopped asking for it — see migration
+  // 20260901090000_address_province_optional.
+  province      String?
   postalCode    String?
   latitude      Float?
   longitude     Float?

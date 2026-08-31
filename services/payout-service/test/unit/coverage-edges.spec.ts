@@ -69,6 +69,12 @@ class Ledger implements CourierLedgerRepository {
   async listRules() {
     return [];
   }
+  async findRule() {
+    return null;
+  }
+  async deleteRule() {
+    return undefined;
+  }
   createRule(): Promise<never> {
     throw new Error('not used');
   }

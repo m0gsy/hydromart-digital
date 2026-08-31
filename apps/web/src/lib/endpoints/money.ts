@@ -116,6 +116,9 @@ courierPayout: {
 earningRules: {
   list: '/payout/api/v1/courier-earning-rules',
   apply: '/payout/api/v1/courier-earning-rules',
+  // Only a rule whose effective date has not arrived; the server answers 409 for any other,
+  // because a rule that has been in force has priced real deliveries.
+  remove: (id: string) => `/payout/api/v1/courier-earning-rules/${id}`,
 },
 
 // Courier expense-claim approvals (payout-service, design 6a; expenseApprove cap).

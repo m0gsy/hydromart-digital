@@ -5,13 +5,19 @@ export type Translate = (key: string, vars?: TVars) => string;
 
 import type { Address } from './types';
 
+/*
+ * No province, no postcode.
+ *
+ * A courier here reads the street line, the city, the landmark ("patokan") and a map
+ * pin. Province and postcode were two required fields that no delivery, no depot match
+ * and no price ever consulted — they were friction at the one screen a customer can't
+ * skip. The columns stay in the database for the addresses already written.
+ */
 export interface AddressForm {
   recipientName: string;
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
-  postalCode: string;
   notes: string;
 }
 
@@ -27,8 +33,6 @@ export function addressToForm(a: Address): AddressForm {
     phone: a.phone,
     addressLine: a.addressLine,
     city: a.city,
-    province: a.province,
-    postalCode: a.postalCode ?? '',
     // Prefill the per-order driver note from the saved landmark; the customer can still edit it.
     notes: a.notes ?? '',
   };
@@ -43,8 +47,6 @@ export interface AddressBookForm {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
-  postalCode: string;
   latitude: string;
   longitude: string;
   notes: string;
@@ -56,8 +58,6 @@ export const EMPTY_ADDRESS_FORM: AddressBookForm = {
   phone: '',
   addressLine: '',
   city: '',
-  province: '',
-  postalCode: '',
   latitude: '',
   longitude: '',
   notes: '',
@@ -71,8 +71,6 @@ export function addressToBookForm(a: Address): AddressBookForm {
     phone: a.phone,
     addressLine: a.addressLine,
     city: a.city,
-    province: a.province,
-    postalCode: a.postalCode ?? '',
     latitude: a.latitude === null ? '' : String(a.latitude),
     longitude: a.longitude === null ? '' : String(a.longitude),
     notes: a.notes ?? '',
@@ -85,7 +83,6 @@ export interface AddressPayload {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
   postalCode?: string;
   latitude?: number;
   longitude?: number;
@@ -113,7 +110,6 @@ export function toAddressPayload(
     phone: form.phone.trim(),
     addressLine: form.addressLine.trim(),
     city: form.city.trim(),
-    province: form.province.trim(),
   };
   // E6: this used to answer `${key} is required.` — the field's CODE name, in English,
   // shown to a customer saving an address. The form marks its required fields already,
@@ -123,8 +119,6 @@ export function toAddressPayload(
   }
 
   const value: AddressPayload = { ...text };
-  const postalCode = form.postalCode.trim();
-  if (postalCode) value.postalCode = postalCode;
   const notes = form.notes.trim();
   if (notes) value.notes = notes;
 

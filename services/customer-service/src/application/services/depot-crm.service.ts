@@ -72,7 +72,7 @@ export interface DepotCrmAddress {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
+  province: string | null;
   latitude: number | null;
   longitude: number | null;
   isPrimary: boolean;
@@ -435,7 +435,7 @@ export class DepotCrmService {
       phone: a.phone,
       addressLine: a.addressLine,
       city: a.city,
-      province: a.province,
+      province: a.province ?? null,
       latitude: a.latitude,
       longitude: a.longitude,
       isPrimary: a.isPrimary,

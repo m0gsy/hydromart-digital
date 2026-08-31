@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { localHour, localMonthKey, startOfLocalMonth } from '@hydromart/platform';
 
 import { computeEarning, tiersReached, tiersValid } from '../../domain/courier-earning';
@@ -40,7 +40,6 @@ export interface CourierEarningsSummary {
   recentEntries: CourierLedgerEntryRecord[];
   recentWithdrawals: CourierWithdrawalRecord[];
 }
-
 
 @Injectable()
 export class CourierPayoutService {
@@ -116,12 +115,7 @@ export class CourierPayoutService {
     // A delivery with no depot on it cannot be counted per depot; it falls back to the
     // courier-wide tally, which is what the whole ladder used to be.
     const scope = event.depotId ?? undefined;
-    const delivered = await this.ledger.countByType(
-      event.courierId,
-      'EARNING',
-      monthStart,
-      scope,
-    );
+    const delivered = await this.ledger.countByType(event.courierId, 'EARNING', monthStart, scope);
     const month = localMonthKey(deliveredAt, tz);
     for (const tier of tiersReached(rule.tiers, delivered)) {
       // NOT keyed by rule id. `applyEarningRule` appends a row rather than editing one, so the
@@ -150,6 +144,33 @@ export class CourierPayoutService {
   /** The earning rule in force for a depot — the courier's goal/tier config (design 6b). */
   effectiveRule(depotId: string | null): Promise<CourierEarningRuleRecord | null> {
     return this.ledger.currentRule(depotId);
+  }
+
+  /*
+   * Remove a rule that has NOT taken effect yet.
+   *
+   * The table is append-only so historical pay stays reproducible, and that stays true:
+   * a rule whose date has arrived has priced real deliveries, and deleting it would make
+   * past payslips unexplainable. So this refuses those, by date, on the server.
+   *
+   * What it does allow is undoing a mistake before it costs anything. A rule dated in the
+   * future has paid nobody, and until now there was no way to remove one at all — a typo
+   * in the year was permanent, and (before the query fix alongside this) also immediately
+   * live. To change a rule that IS in force, apply a new one from today; that is what
+   * effective dating is for, and the screen now says so.
+   */
+  async deleteScheduledRule(id: string, asOf: Date = new Date()): Promise<void> {
+    const rule = await this.ledger.findRule(id);
+    if (!rule) throw new NotFoundException(`Earning rule ${id} not found`);
+    if (rule.effectiveDate.getTime() <= asOf.getTime()) {
+      throw new ConflictException(
+        'This rule has already taken effect and may have priced real deliveries. Apply a new rule from today to change what couriers earn; history stays as it was.',
+      );
+    }
+    await this.ledger.deleteRule(id);
+    this.logger.log(
+      `Deleted scheduled earning rule ${id} (was effective ${rule.effectiveDate.toISOString()})`,
+    );
   }
 
   /**

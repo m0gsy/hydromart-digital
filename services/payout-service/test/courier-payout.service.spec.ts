@@ -104,6 +104,14 @@ class FakeCourierLedger implements CourierLedgerRepository {
   async listRules(): Promise<CourierEarningRuleRecord[]> {
     return this.rules;
   }
+  deleted: string[] = [];
+  async findRule(id: string): Promise<CourierEarningRuleRecord | null> {
+    return this.rules.find((r) => r.id === id) ?? null;
+  }
+  async deleteRule(id: string): Promise<void> {
+    this.deleted.push(id);
+    this.rules = this.rules.filter((r) => r.id !== id);
+  }
   async createRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord> {
     const row: CourierEarningRuleRecord = {
       id: `r-${this.rules.length}`,
@@ -349,6 +357,49 @@ describe('CourierPayoutService', () => {
       const created = await service.applyEarningRule(validRule);
       expect(created.id).toBeDefined();
       expect(await service.listEarningRules()).toHaveLength(1);
+    });
+
+    /*
+     * Append-only protects HISTORY, not mistakes that have not cost anything yet.
+     *
+     * Before this there was no delete at all, so a rule typed with the wrong year could
+     * never be removed — and because the query beside it ignored the date entirely, that
+     * rule was also the one paying couriers. Production had one dated 2030.
+     */
+    it('deletes a rule whose effective date has not arrived', async () => {
+      const created = await service.applyEarningRule({
+        ...validRule,
+        effectiveDate: new Date('2030-01-19'),
+      });
+      await service.deleteScheduledRule(created.id, new Date('2026-08-31'));
+      expect(ledger.deleted).toEqual([created.id]);
+      expect(await service.listEarningRules()).toHaveLength(0);
+    });
+
+    it('refuses to delete a rule that has already taken effect', async () => {
+      const created = await service.applyEarningRule({
+        ...validRule,
+        effectiveDate: new Date('2026-01-01'),
+      });
+      await expect(
+        service.deleteScheduledRule(created.id, new Date('2026-08-31')),
+      ).rejects.toThrow(/already taken effect/);
+      expect(ledger.deleted).toEqual([]);
+    });
+
+    // The boundary itself: effective TODAY is in force, not scheduled.
+    it('refuses a rule effective at exactly the moment asked about', async () => {
+      const now = new Date('2026-08-31T00:00:00.000Z');
+      const created = await service.applyEarningRule({ ...validRule, effectiveDate: now });
+      await expect(service.deleteScheduledRule(created.id, now)).rejects.toThrow(
+        /already taken effect/,
+      );
+    });
+
+    it('reports an id that is not there rather than silently succeeding', async () => {
+      await expect(
+        service.deleteScheduledRule('00000000-0000-0000-0000-000000000000'),
+      ).rejects.toThrow(/not found/);
     });
 
     it('rejects a negative fare', async () => {
