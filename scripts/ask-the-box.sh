@@ -377,9 +377,13 @@ fi
 
 line "cron (L1.4 — is the schedule actually installed?)"
 if crontab -l >/dev/null 2>&1; then
-  crontab -l 2>/dev/null | grep -cE 'backup-db|restore-db|watchdog|check-tls|log-retention|rollback-drill' |
+  # Both interpreters. This read `bash scripts/*.sh` only, so the nightly OBJECT backup —
+  # `node scripts/backup-objects.mjs`, the one carrying delivery and payment evidence off the
+  # box — was invisible to the probe that exists to answer "is the schedule installed?".
+  # A probe that cannot see a job reports the same thing whether it is scheduled or missing.
+  crontab -l 2>/dev/null | grep -cE 'backup-db|backup-objects|restore-db|watchdog|check-tls|log-retention|rollback-drill' |
     sed 's/^/    scheduled hydromart jobs: /'
-  crontab -l 2>/dev/null | sed -n 's/.*bash scripts\/\([a-z-]*\.sh\).*/    - \1/p' | sort -u
+  crontab -l 2>/dev/null | sed -n 's/.*\(bash\|node\) scripts\/\([a-z-]*\.\(sh\|mjs\)\).*/    - \2/p' | sort -u
 else
   echo "    no crontab for $(whoami) — scripts/install-host-cron.sh has never run here"
 fi
