@@ -121,7 +121,7 @@ interface OrderRow {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
+  province: string | null;
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;

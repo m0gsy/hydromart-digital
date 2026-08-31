@@ -29,7 +29,10 @@ export interface ReceiptOutlet {
 
 // Escape user/API text before inlining into the print HTML.
 function esc(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+  return s.replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string,
+  );
 }
 
 /**
@@ -64,7 +67,10 @@ export function printReceipt(
     )
     .join('');
 
-  const discount = order.discount > 0 ? `<tr><td>${esc(t('hrFix.receipt.discount'))}</td><td class="r">−${formatIDR(order.discount)}</td></tr>` : '';
+  const discount =
+    order.discount > 0
+      ? `<tr><td>${esc(t('hrFix.receipt.discount'))}</td><td class="r">−${formatIDR(order.discount)}</td></tr>`
+      : '';
   // Counter sale: the buyer expects to see what they handed over and what came back.
   const cashRows = cash
     ? `<tr><td>${esc(t('hrFix.receipt.cash'))}</td><td class="r">${formatIDR(cash.cashReceived)}</td></tr>` +
@@ -72,7 +78,9 @@ export function printReceipt(
     : '';
   // A non-cash counter sale has no tender rows, so without this the struk would not say how
   // it was paid at all — and a QRIS sale looks identical to an unpaid one.
-  const methodRow = method ? `<tr><td>${esc(t('hrFix.receipt.method'))}</td><td class="r">${esc(method)}</td></tr>` : '';
+  const methodRow = method
+    ? `<tr><td>${esc(t('hrFix.receipt.method'))}</td><td class="r">${esc(method)}</td></tr>`
+    : '';
 
   /*
    * K3.4. Each line appears only when the caller actually knows it — an empty "Kasir:" is
@@ -112,7 +120,7 @@ ${outletLines}
 <div class="muted">${formatDateTime(order.createdAt)} · ${esc(statusLabel(order.status))}</div>
 <div class="muted" style="margin-top:8px">
   ${esc(order.recipientName)} · ${esc(order.phone)}<br>
-  ${esc(order.addressLine)}, ${esc(order.city)}, ${esc(order.province)}
+  ${esc(order.addressLine)}, ${esc(order.city)}${order.province ? `, ${esc(order.province)}` : ''}
 </div>
 <table>
   <tbody>${rows}</tbody>

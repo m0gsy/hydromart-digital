@@ -40,11 +40,16 @@ export class CreateAddressDto {
   @MaxLength(100)
   city!: string;
 
-  @ApiProperty({ example: 'Jawa Barat' })
+  /*
+   * Optional since the form stopped asking. The column stays and old rows keep their value —
+   * order snapshots print it and crm-service segments on the city beside it — so this accepts
+   * a province when one is sent and never demands one.
+   */
+  @ApiPropertyOptional({ example: 'Jawa Barat' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
-  province!: string;
+  province?: string;
 
   @ApiPropertyOptional({ example: '40111' })
   @IsOptional()

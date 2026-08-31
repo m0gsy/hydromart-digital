@@ -124,7 +124,9 @@ function buildDates(t: (k: string) => string): { key: string; num: number }[] {
 type SheetKey = 'address' | 'depot' | 'window' | 'payment' | 'voucher';
 
 /** A manually typed address is unusable to a courier without these. */
-const MANDATORY = ['recipientName', 'phone', 'addressLine', 'city', 'province'] as const;
+// No province: the form stopped asking, so it cannot be required. City stays — crm-service
+// segments campaigns on it.
+const MANDATORY = ['recipientName', 'phone', 'addressLine', 'city'] as const;
 
 const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
   CASH: MoneyIcon,
@@ -176,8 +178,6 @@ function CheckoutInner() {
     phone: customer?.phone ?? '',
     addressLine: '',
     city: '',
-    province: '',
-    postalCode: '',
     notes: '',
   });
   const [method, setMethod] = useState<PaymentMethod>('CASH');
@@ -418,8 +418,6 @@ function CheckoutInner() {
       phone: customer?.phone ?? '',
       addressLine: '',
       city: '',
-      province: '',
-      postalCode: '',
       notes: '',
     });
   }
@@ -523,8 +521,6 @@ function CheckoutInner() {
             phone: form.phone,
             addressLine: form.addressLine,
             city: form.city,
-            province: form.province,
-            postalCode: form.postalCode || undefined,
             latitude: coords.latitude ?? undefined,
             longitude: coords.longitude ?? undefined,
             notes: form.notes || undefined,
@@ -563,8 +559,6 @@ function CheckoutInner() {
               phone: form.phone,
               addressLine: form.addressLine,
               city: form.city,
-              province: form.province,
-              postalCode: form.postalCode || undefined,
               latitude: coords.latitude ?? undefined,
               longitude: coords.longitude ?? undefined,
               // K1.7: the patokan travels with the address, which is the whole point of
@@ -769,17 +763,13 @@ function CheckoutInner() {
           <Field label={t('order.checkout.address')} htmlFor="addressLine">
             <Input id="addressLine" value={form.addressLine} onChange={set('addressLine')} placeholder={t('order.checkout.addressPlaceholder')} />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={t('order.checkout.city')} htmlFor="city">
-              <Input id="city" value={form.city} onChange={set('city')} />
-            </Field>
-            <Field label={t('order.checkout.province')} htmlFor="province">
-              <Input id="province" value={form.province} onChange={set('province')} />
-            </Field>
-            <Field label={t('order.checkout.postalCode')} htmlFor="postalCode" hint={t('order.checkout.optional')}>
-              <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
-            </Field>
-          </div>
+          {/* City only. Province and postcode were two required fields on the screen a
+              customer cannot skip, and nothing downstream read either one — not the depot
+              match (distance), not the price, not the courier. City stays because
+              crm-service segments campaigns on it. */}
+          <Field label={t('order.checkout.city')} htmlFor="city">
+            <Input id="city" value={form.city} onChange={set('city')} />
+          </Field>
           {/* O2. The pin, on the screen that needs it. The address book has required one all
               along; this form simply never offered a way to take it, so every "Simpan
               alamat" here was a 400 nobody saw. Same one-tap control as /addresses — no map

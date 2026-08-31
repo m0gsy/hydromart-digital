@@ -251,7 +251,7 @@ export interface DeliveryAddress {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
+  province?: string | null;
   postalCode?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -259,6 +259,11 @@ export interface DeliveryAddress {
 }
 
 /** A saved delivery address from the customer's address book. */
+/*
+ * `province` and `postalCode` are optional: the delivery-address form stopped asking
+ * for them. Both columns remain in the database and old addresses keep their values,
+ * so anything rendering a historical order still prints what was captured then.
+ */
 export interface Address {
   id: string;
   label: string;
@@ -266,7 +271,7 @@ export interface Address {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
+  province?: string | null;
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;

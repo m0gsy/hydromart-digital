@@ -46,7 +46,11 @@ describe('pickDefaultAddress', () => {
 describe('addressToForm', () => {
   it('maps stored fields and blanks per-order notes', () => {
     const form = addressToForm(make({ id: '1', postalCode: null }));
-    expect(form).toMatchObject({ recipientName: 'Budi', city: 'Bandung', postalCode: '', notes: '' });
+    expect(form).toMatchObject({ recipientName: 'Budi', city: 'Bandung', notes: '' });
+    // Province and postcode left the form; the columns stay in the database for the
+    // addresses already written, so the mapper must not resurrect them as empty strings.
+    expect(form).not.toHaveProperty('province');
+    expect(form).not.toHaveProperty('postalCode');
   });
 });
 
@@ -72,7 +76,7 @@ describe('toAddressPayload', () => {
 
   // The pin is required now (UAT-M2-06): depot routing is by distance, so an address
   // with no coordinates cannot be matched to a depot at all.
-  it('rejects a blank pin and omits only the blank postal code', () => {
+  it('rejects a blank pin, and sends no province the form never asked for', () => {
     expect(toAddressPayload(base, t).ok).toBe(false);
     const r = toAddressPayload({ ...base, latitude: '-6.9147', longitude: '107.6098' }, t);
     expect(r).toEqual({
@@ -83,7 +87,6 @@ describe('toAddressPayload', () => {
         phone: '0812',
         addressLine: 'Jl. Merdeka 10',
         city: 'Bandung',
-        province: 'Jawa Barat',
         latitude: -6.9147,
         longitude: 107.6098,
       },
@@ -91,9 +94,11 @@ describe('toAddressPayload', () => {
   });
 
   it('parses coords when both are provided and in range', () => {
-    const r = toAddressPayload({ ...base, latitude: '-6.9', longitude: '107.6', postalCode: '40111' }, t);
+    const r = toAddressPayload({ ...base, latitude: '-6.9', longitude: '107.6' }, t);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value).toMatchObject({ latitude: -6.9, longitude: 107.6, postalCode: '40111' });
+    if (r.ok) expect(r.value).toMatchObject({ latitude: -6.9, longitude: 107.6 });
+    // The payload must not carry a province the form no longer asks for.
+    if (r.ok) expect(r.value).not.toHaveProperty('province');
   });
 
   it('rejects a half-filled pin', () => {
@@ -110,9 +115,12 @@ describe('toAddressPayload', () => {
 
 describe('addressToBookForm', () => {
   it('stringifies coords and blanks nulls', () => {
-    expect(addressToBookForm(make({ id: '1', latitude: -6.9, longitude: null, postalCode: null }))).toMatchObject(
-      { label: 'Rumah', latitude: '-6.9', longitude: '', postalCode: '' },
+    const form = addressToBookForm(
+      make({ id: '1', latitude: -6.9, longitude: null, postalCode: null }),
     );
+    expect(form).toMatchObject({ label: 'Rumah', latitude: '-6.9', longitude: '' });
+    expect(form).not.toHaveProperty('postalCode');
+    expect(form).not.toHaveProperty('province');
   });
 });
 

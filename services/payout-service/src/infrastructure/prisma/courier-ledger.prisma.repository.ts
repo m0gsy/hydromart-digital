@@ -161,12 +161,31 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     return { items: rows.map((r) => this.toEntry(r as unknown as LedgerRow)), total };
   }
 
-  async currentRule(depotId: string | null): Promise<CourierEarningRuleRecord | null> {
-    // Prefer the depot's own newest rule; fall back to the network default (NULL).
+  async currentRule(
+    depotId: string | null,
+    asOf: Date = new Date(),
+  ): Promise<CourierEarningRuleRecord | null> {
+    /*
+     * `effectiveDate <= asOf`, and its absence was a live money bug.
+     *
+     * This ordered by effective date descending and took the first row, with no filter on
+     * the date at all — so a rule dated in the FUTURE was the one paying couriers today.
+     * The field named "effective date" was a sort key, not a gate, and every word written
+     * about this table ("append-only + effective-dated so historical pay stays
+     * reproducible") described behaviour the query did not have.
+     *
+     * Measured on production 2026-08-31: three network rules, dated 2026-01-01,
+     * 2026-08-20 and 2030-01-19. Couriers were being paid under the 2030 one.
+     *
+     * A typo in the year therefore didn't schedule a change, it made one instantly and
+     * silently, and there was no screen or endpoint that could undo it.
+     */
+    const inForce = { effectiveDate: { lte: asOf } };
+    // Prefer the depot's own newest in-force rule; fall back to the network default (NULL).
     const include = { tiers: { orderBy: { deliveries: 'asc' as const } } };
     const specific = depotId
       ? await this.prisma.courierEarningRule.findFirst({
-          where: { depotId },
+          where: { depotId, ...inForce },
           orderBy: { effectiveDate: 'desc' },
           include,
         })
@@ -174,11 +193,23 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     const row =
       specific ??
       (await this.prisma.courierEarningRule.findFirst({
-        where: { depotId: null },
+        where: { depotId: null, ...inForce },
         orderBy: { effectiveDate: 'desc' },
         include,
       }));
     return row ? this.toRule(row as unknown as FullRuleRow) : null;
+  }
+
+  async findRule(id: string): Promise<CourierEarningRuleRecord | null> {
+    const row = await this.prisma.courierEarningRule.findUnique({
+      where: { id },
+      include: { tiers: { orderBy: { deliveries: 'asc' as const } } },
+    });
+    return row ? this.toRule(row as unknown as FullRuleRow) : null;
+  }
+
+  async deleteRule(id: string): Promise<void> {
+    await this.prisma.courierEarningRule.delete({ where: { id } });
   }
 
   private toRule(r: FullRuleRow): CourierEarningRuleRecord {

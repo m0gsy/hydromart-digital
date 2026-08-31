@@ -83,12 +83,21 @@ export interface CourierLedgerRepository {
     limit: number,
   ): Promise<{ items: CourierLedgerEntryRecord[]; total: number }>;
   /**
-   * The earning rule in force for a depot: the depot's newest rule, or the network
-   * default (depotId NULL) when the depot has none. Null if neither exists.
+   * The earning rule IN FORCE for a depot at `asOf`: the depot's newest rule whose
+   * effective date has arrived, or the network default (depotId NULL) when the depot has
+   * none. Null if neither exists.
+   *
+   * `asOf` is a parameter rather than a `new Date()` inside the query so the boundary is
+   * testable at all — the bug this signature exists to close was invisible precisely
+   * because nothing could ask "which rule applies on a given day?".
    */
-  currentRule(depotId: string | null): Promise<CourierEarningRuleRecord | null>;
+  currentRule(depotId: string | null, asOf?: Date): Promise<CourierEarningRuleRecord | null>;
   /** Every earning rule, newest effective first (rule editor, design 6b). */
   listRules(): Promise<CourierEarningRuleRecord[]>;
   /** Append a new effective-dated rule (network default when depotId is null). */
   createRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord>;
+  /** One rule by id, or null. Used to decide whether it may still be removed. */
+  findRule(id: string): Promise<CourierEarningRuleRecord | null>;
+  /** Remove a rule outright. The caller decides whether that is allowed. */
+  deleteRule(id: string): Promise<void>;
 }

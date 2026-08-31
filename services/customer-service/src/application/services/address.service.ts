@@ -16,7 +16,7 @@ export interface CreateAddressInput {
   phone: string;
   addressLine: string;
   city: string;
-  province: string;
+  province?: string | null;
   postalCode?: string;
   latitude?: number;
   longitude?: number;
