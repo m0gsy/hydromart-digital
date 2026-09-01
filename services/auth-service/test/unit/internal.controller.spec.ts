@@ -17,11 +17,30 @@ describe('InternalAccountController', () => {
     preRegisterCustomer: jest.fn(),
     lookupByIds: jest.fn(),
     updateStaffProfileInternal: jest.fn(),
+    setStaffActiveInternal: jest.fn(),
   };
   const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
   const controller = new InternalAccountController(account as never, audit as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * The route hr-service calls to disable a login when somebody leaves. It had no test at
+   * all, which for a door that switches off access is the wrong thing to be missing.
+   */
+  it('setStaffActive forwards the id and flag, and returns the public customer', async () => {
+    const staff = {
+      id: 'c1',
+      phone: '+628123456789',
+      fullName: 'Budi',
+      role: Role.MANAGER,
+      status: 'ACTIVE',
+    };
+    account.setStaffActiveInternal.mockResolvedValue(staff as never);
+    const res = await controller.setStaffActive({ customerId: 'c1', active: false } as never);
+    expect(account.setStaffActiveInternal).toHaveBeenCalledWith('c1', false);
+    expect(res).toMatchObject({ id: 'c1', role: Role.MANAGER });
+  });
 
   it('forwards the retention cutoff as a Date and returns the count', async () => {
     const out = await controller.purgeAuditLogs({ cutoff: '2026-01-01T00:00:00.000Z' } as never);

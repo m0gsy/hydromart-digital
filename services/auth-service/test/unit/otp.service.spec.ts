@@ -406,6 +406,16 @@ describe('OtpService · Fase E', () => {
       );
     });
 
+    // An adapter can throw something that is not an Error. The log line renders it either
+    // way, and a thrown string must not become a crash on a missing `.message`.
+    it('survives a delivery that throws something that is not an Error', async () => {
+      const customer = activeCustomer();
+      delivery.shouldFail = true;
+      delivery.failMode = 'raw';
+      const result = await service.issue(customer, OtpPurpose.LOGIN);
+      expect(result.deliveryPending).toBe(true);
+    });
+
     it('does not flag delivery as pending on the ordinary happy path', async () => {
       const result = await service.issue(activeCustomer(), OtpPurpose.LOGIN);
       expect(result.deliveryPending ?? false).toBe(false);

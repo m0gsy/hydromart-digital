@@ -25,6 +25,7 @@ import { S3StorageAdapter } from '../../src/infrastructure/storage/s3-storage.ad
 import { LocalDiskStorageAdapter } from '../../src/infrastructure/storage/local-disk-storage.adapter';
 import { CustomerNotificationHttpAdapter } from '../../src/infrastructure/notification/customer-notification.http.adapter';
 import { SmsOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/sms-otp-delivery.adapter';
+import { OtpGatewayUnreachableError } from '../../src/application/ports/otp-delivery.port';
 import { ZenzivaOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/zenziva-otp-delivery.adapter';
 import { CustomerPrismaRepository } from '../../src/infrastructure/prisma/repositories/customer.prisma.repository';
 import { OtpTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/otp-token.prisma.repository';
@@ -207,6 +208,13 @@ describe('SmsOtpDeliveryAdapter text-fallback', () => {
 });
 
 describe('ZenzivaOtpDeliveryAdapter branch gaps', () => {
+  it('renders a non-Error rejection instead of crashing on a missing message', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue('socket exploded');
+    await expect(new ZenzivaOtpDeliveryAdapter(config).send(message)).rejects.toBeInstanceOf(
+      OtpGatewayUnreachableError,
+    );
+  });
+
   const config = buildTestConfig({ ZENZIVA_USERKEY: 'u', ZENZIVA_PASSKEY: 'p' });
 
   afterEach(() => jest.restoreAllMocks());
@@ -253,11 +261,15 @@ describe('ZenzivaOtpDeliveryAdapter branch gaps', () => {
     jest.spyOn(global, 'fetch').mockReturnValue(pending);
 
     const promise = new ZenzivaOtpDeliveryAdapter(config).send(message).catch((e) => e as Error);
-    jest.advanceTimersByTime(15000); // fires the abort() timeout callback
+    // 8000, not 15000: the deadline is now comfortably under the web client's own 15s, so
+    // the browser can no longer give up in the same second the server is still waiting.
+    jest.advanceTimersByTime(8000); // fires the abort() timeout callback
     rejectFetch(new Error('The operation was aborted'));
 
     const err = await promise;
-    expect(err).toBeInstanceOf(Error);
+    // UNREACHABLE, specifically: the message may have been accepted anyway, so the caller
+    // must keep the challenge rather than invalidate a code already on its way.
+    expect(err).toBeInstanceOf(OtpGatewayUnreachableError);
     jest.useRealTimers();
   });
 });

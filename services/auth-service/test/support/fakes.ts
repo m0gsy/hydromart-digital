@@ -87,9 +87,12 @@ export class FakeOtpDelivery implements OtpDeliveryPort {
   public readonly sent: OtpMessage[] = [];
   public shouldFail = false;
   /** Which kind: a gateway that answered "no", or one that did not answer at all. */
-  public failMode: 'rejected' | 'unreachable' = 'rejected';
+  /** `raw` throws something that is not an Error at all — adapters can, and the service
+   *  has to render it without crashing on a missing `.message`. */
+  public failMode: 'rejected' | 'unreachable' | 'raw' = 'rejected';
   async send(message: OtpMessage): Promise<void> {
     if (this.shouldFail) {
+      if (this.failMode === 'raw') throw 'gateway exploded';
       throw this.failMode === 'rejected'
         ? new OtpGatewayRejectedError('test')
         : new OtpGatewayUnreachableError('test');
