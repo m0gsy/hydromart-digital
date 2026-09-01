@@ -16,6 +16,29 @@ export class InvalidWithdrawalAmountError extends DomainError {
   }
 }
 
+export class WithdrawalNotFoundError extends DomainError {
+  readonly code = 'PAYOUT_WITHDRAWAL_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Withdrawal not found.');
+  }
+}
+
+/**
+ * PROCESSING is the only state a withdrawal can be settled from, and settling is what makes
+ * PROCESSING a stage rather than a destination. `WithdrawalStatus` has had PAID and FAILED
+ * since the first migration and nothing in the service ever wrote either, so every payout
+ * ever requested — courier and franchise owner alike — is still PROCESSING while the money
+ * has already left the balance.
+ */
+export class WithdrawalNotProcessingError extends DomainError {
+  readonly code = 'PAYOUT_WITHDRAWAL_NOT_PROCESSING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(status: string) {
+    super(`Withdrawal is already ${status}; only a PROCESSING withdrawal can be settled.`);
+  }
+}
+
 export class InvalidRevenueAmountError extends DomainError {
   readonly code = 'PAYOUT_INVALID_REVENUE_AMOUNT';
   readonly status = HTTP_STATUS.BAD_REQUEST;

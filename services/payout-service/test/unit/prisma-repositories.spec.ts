@@ -82,6 +82,160 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
   });
 });
 
+/*
+ * The way out of PROCESSING. `WithdrawalStatus` has had PAID and FAILED since the first
+ * migration and nothing ever wrote either, so a released payout sat PROCESSING forever with
+ * its debit already gone. FAILED is the half that moves money — the credit and the status
+ * change are one transaction, and the status guard is inside it so two concurrent FAILEDs
+ * cannot both read PROCESSING and both credit.
+ */
+describe('WithdrawalPrismaRepository.settle', () => {
+  const withdrawal = { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() };
+  const ledgerEntry = { create: jest.fn() };
+  const prisma = {
+    withdrawal,
+    ledgerEntry,
+    $transaction: jest.fn((fn) => fn({ withdrawal, ledgerEntry })),
+  } as unknown as PrismaService;
+  const repo = new WithdrawalPrismaRepository(prisma);
+
+  const processing = {
+    id: 'wd-1', franchiseOwnerId: 'own-1', amount: '200000', bankAccountRef: 'BCA',
+    status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+  };
+  const reversal = { sourceRef: 'withdrawal-reversal:wd-1', description: 'Pencairan gagal' };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('marks PAID inside the transaction and posts no ledger row', async () => {
+    withdrawal.findUnique.mockResolvedValue(processing);
+    withdrawal.update.mockResolvedValue({ ...processing, status: 'PAID' });
+
+    const out = await repo.settle({ id: 'wd-1', status: 'PAID', reversal });
+
+    expect(out).toMatchObject({ ok: true, withdrawal: { status: 'PAID' } });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    // PAID is not a money movement: the debit at request time was the money leaving.
+    expect(ledgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('re-credits the owner when the transfer FAILED, keyed for idempotency', async () => {
+    withdrawal.findUnique.mockResolvedValue(processing);
+    withdrawal.update.mockResolvedValue({ ...processing, status: 'FAILED' });
+
+    await repo.settle({ id: 'wd-1', status: 'FAILED', reversal });
+
+    expect(ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'ADJUSTMENT',
+        amount: 200000,
+        sourceRef: 'withdrawal-reversal:wd-1',
+      }),
+    });
+  });
+
+  it('refuses a row that is not PROCESSING, and writes nothing', async () => {
+    withdrawal.findUnique.mockResolvedValue({ ...processing, status: 'PAID' });
+
+    expect(await repo.settle({ id: 'wd-1', status: 'FAILED', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_PROCESSING',
+      status: 'PAID',
+    });
+    expect(withdrawal.update).not.toHaveBeenCalled();
+    expect(ledgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('answers NOT_FOUND rather than throwing, so the caller can 404', async () => {
+    withdrawal.findUnique.mockResolvedValue(null);
+    expect(await repo.settle({ id: 'nope', status: 'PAID', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_FOUND',
+    });
+  });
+
+  it('lists the processing queue oldest first', async () => {
+    withdrawal.findMany.mockResolvedValue([processing]);
+    const rows = await repo.listProcessing(50);
+    expect(rows).toHaveLength(1);
+    expect(withdrawal.findMany).toHaveBeenCalledWith({
+      where: { status: 'PROCESSING' },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  });
+});
+
+describe('CourierWithdrawalPrismaRepository.settle', () => {
+  const courierWithdrawal = { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() };
+  const courierLedgerEntry = { create: jest.fn() };
+  const prisma = {
+    courierWithdrawal,
+    courierLedgerEntry,
+    $transaction: jest.fn((fn) => fn({ courierWithdrawal, courierLedgerEntry })),
+  } as unknown as PrismaService;
+  const repo = new CourierWithdrawalPrismaRepository(prisma);
+
+  const processing = {
+    id: 'cwd-1', courierId: 'cou-1', amount: '120000', bankAccountRef: 'BRI',
+    status: 'PROCESSING', reference: 'CWD-1', createdAt: new Date(), updatedAt: new Date(),
+  };
+  const reversal = { sourceRef: 'withdrawal-reversal:cwd-1', description: 'Penarikan gagal' };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('marks PAID without touching the courier ledger', async () => {
+    courierWithdrawal.findUnique.mockResolvedValue(processing);
+    courierWithdrawal.update.mockResolvedValue({ ...processing, status: 'PAID' });
+
+    expect(await repo.settle({ id: 'cwd-1', status: 'PAID', reversal })).toMatchObject({
+      ok: true,
+    });
+    expect(courierLedgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('re-credits the courier when the transfer FAILED', async () => {
+    courierWithdrawal.findUnique.mockResolvedValue(processing);
+    courierWithdrawal.update.mockResolvedValue({ ...processing, status: 'FAILED' });
+
+    await repo.settle({ id: 'cwd-1', status: 'FAILED', reversal });
+
+    expect(courierLedgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'ADJUSTMENT',
+        amount: 120000,
+        sourceRef: 'withdrawal-reversal:cwd-1',
+      }),
+    });
+  });
+
+  it('refuses a settled row and a missing row', async () => {
+    courierWithdrawal.findUnique.mockResolvedValue({ ...processing, status: 'FAILED' });
+    expect(await repo.settle({ id: 'cwd-1', status: 'PAID', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_PROCESSING',
+      status: 'FAILED',
+    });
+
+    courierWithdrawal.findUnique.mockResolvedValue(null);
+    expect(await repo.settle({ id: 'cwd-1', status: 'PAID', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_FOUND',
+    });
+    expect(courierLedgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('lists the processing queue oldest first', async () => {
+    courierWithdrawal.findMany.mockResolvedValue([processing]);
+    expect(await repo.listProcessing(10)).toHaveLength(1);
+    expect(courierWithdrawal.findMany).toHaveBeenCalledWith({
+      where: { status: 'PROCESSING' },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+  });
+});
+
 describe('WithdrawalPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();

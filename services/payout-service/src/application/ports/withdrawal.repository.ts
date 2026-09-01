@@ -17,11 +17,45 @@ export type WithdrawalOutcome =
   | { ok: true; withdrawal: WithdrawalRecord }
   | { ok: false; balance: number };
 
+/**
+ * Settling a withdrawal: it was PAID and written, it was already settled, or there is no
+ * such row. Three answers rather than a nullable record, because "already PAID" and "never
+ * existed" are a 409 and a 404 and the caller cannot tell them apart from `null`.
+ */
+export type SettleWithdrawalOutcome<T> =
+  | { ok: true; withdrawal: T }
+  | { ok: false; reason: 'NOT_FOUND' }
+  | { ok: false; reason: 'NOT_PROCESSING'; status: WithdrawalStatus };
+
 export interface WithdrawalRepository {
   /** Next value of the shared reference counter (H-13) — see reference-sequence.ts. */
   nextReferenceSequence(): Promise<number>;
   create(data: CreateWithdrawalData): Promise<WithdrawalRecord>;
   listForOwner(franchiseOwnerId: string, limit: number): Promise<WithdrawalRecord[]>;
+
+  /** Withdrawals still awaiting a bank result, oldest first — the HQ release queue. */
+  listProcessing(limit: number): Promise<WithdrawalRecord[]>;
+
+  /**
+   * Move a PROCESSING withdrawal to PAID or FAILED.
+   *
+   * FAILED re-posts the money: the debit went out when the withdrawal was REQUESTED (B-8),
+   * so a transfer the bank rejects has to come back or the owner is short by the amount of
+   * a payment they never received. The schema has said so since the first migration —
+   * "FAILED if the transfer is rejected (a compensating credit re-posts to the ledger)" —
+   * and nothing wrote it. The credit rides in the SAME transaction as the status change,
+   * and carries a `sourceRef` keyed on the withdrawal so a retried settlement cannot credit
+   * twice.
+   *
+   * The status guard is inside the transaction too: a concurrent second FAILED would
+   * otherwise both read PROCESSING and both credit.
+   */
+  settle(input: {
+    id: string;
+    status: Extract<WithdrawalStatus, 'PAID' | 'FAILED'>;
+    /** Only read for FAILED — the compensating credit. */
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<WithdrawalRecord>>;
 
   /**
    * Take money out: check the balance and write both the withdrawal and its matching

@@ -27,6 +27,22 @@ export class RequestWithdrawalDto {
   bankAccountRef!: string;
 }
 
+/**
+ * The bank's answer for one withdrawal. FAILED re-credits the balance, so the reason rides
+ * along and lands on the compensating ledger row — there is no "reason" column, and the row
+ * that gives the money back is the right place for the sentence that explains it.
+ */
+export class SettleWithdrawalDto {
+  @ApiPropertyOptional({
+    example: 'Rekening tujuan tidak aktif',
+    description: 'Why the transfer was rejected. Recorded on the compensating credit.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
 export class ReleasePayoutDto {
   @ApiProperty({ format: 'uuid', description: 'Franchise owner whose balance HQ is releasing.' })
   @IsUUID()
