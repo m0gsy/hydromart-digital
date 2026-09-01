@@ -356,7 +356,6 @@ export const opsFix = {
     deliverHint: 'The fee is charged per gallon and is already inside the total below.',
     deliverAddressPlaceholder: 'Full address',
     deliverCityPlaceholder: 'City',
-    deliverProvincePlaceholder: 'Province',
     deliverRecipientPlaceholder: 'Recipient name',
     deliverPhonePlaceholder: 'Number the courier can call',
     deliverNotesPlaceholder: 'Landmark (optional)',

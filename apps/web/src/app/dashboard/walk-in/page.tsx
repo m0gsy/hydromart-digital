@@ -99,7 +99,6 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [addrPhone, setAddrPhone] = useState('');
   const [addrLine, setAddrLine] = useState('');
   const [addrCity, setAddrCity] = useState('');
-  const [addrProvince, setAddrProvince] = useState('');
   const [addrNotes, setAddrNotes] = useState('');
   /**
    * C12: the buyer, once the cashier has DELIBERATELY looked them up.
@@ -318,13 +317,12 @@ function WalkIn({ depotId }: { depotId: string }) {
    * boxes, not five.
    */
   const deliveryAddress =
-    deliver && addrLine.trim() && addrCity.trim() && addrProvince.trim()
+    deliver && addrLine.trim() && addrCity.trim()
       ? {
           recipientName: (addrName.trim() || name.trim() || t('opsFix.walkIn.deliverRecipientFallback')).slice(0, 120),
           phone: (addrPhone.trim() || phone.trim()).slice(0, 20),
           addressLine: addrLine.trim().slice(0, 255),
           city: addrCity.trim().slice(0, 100),
-          province: addrProvince.trim().slice(0, 100),
           notes: addrNotes.trim() ? addrNotes.trim().slice(0, 255) : undefined,
         }
       : null;
@@ -564,7 +562,6 @@ function WalkIn({ depotId }: { depotId: string }) {
     setAddrPhone('');
     setAddrLine('');
     setAddrCity('');
-    setAddrProvince('');
     setAddrNotes('');
     setBusy(false);
   }
@@ -863,8 +860,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           was no way for an operator to say so, which made all of it unreachable.
 
           Behind a toggle, and the fields only appear when it is on: the sale DTO requires
-          recipient, phone, address, city and province, and a cashier made to type five boxes
-          for every pick-up would go back to writing on paper.
+          recipient, phone, address and city, and a cashier made to type a form for every
+          pick-up would go back to writing on paper. Province left with the customer address
+          form: nothing downstream ever read it.
         */}
         <div className="rounded-xl border border-app p-3">
           <label className="flex cursor-pointer items-center justify-between gap-3">
@@ -888,20 +886,14 @@ function WalkIn({ depotId }: { depotId: string }) {
                 onChange={(e) => setAddrLine(e.target.value)}
                 placeholder={t('opsFix.walkIn.deliverAddressPlaceholder')}
               />
-              <div className="grid grid-cols-2 gap-2.5">
-                <Input
-                  id="wi-addr-city"
-                  value={addrCity}
-                  onChange={(e) => setAddrCity(e.target.value)}
-                  placeholder={t('opsFix.walkIn.deliverCityPlaceholder')}
-                />
-                <Input
-                  id="wi-addr-province"
-                  value={addrProvince}
-                  onChange={(e) => setAddrProvince(e.target.value)}
-                  placeholder={t('opsFix.walkIn.deliverProvincePlaceholder')}
-                />
-              </div>
+              {/* City alone: the counter asks for what the courier reads. Province went with
+                  the customer form — no delivery, depot match or price ever consulted it. */}
+              <Input
+                id="wi-addr-city"
+                value={addrCity}
+                onChange={(e) => setAddrCity(e.target.value)}
+                placeholder={t('opsFix.walkIn.deliverCityPlaceholder')}
+              />
               <div className="grid grid-cols-2 gap-2.5">
                 <Input
                   id="wi-addr-name"

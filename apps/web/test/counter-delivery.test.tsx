@@ -134,7 +134,9 @@ describe('C11 · the copy the cashier reads', () => {
         'deliverIncomplete',
         'deliverAddressPlaceholder',
         'deliverCityPlaceholder',
-        'deliverProvincePlaceholder',
+        // No deliverProvincePlaceholder: the counter stopped asking for a province, and a
+        // dictionary key with no reader is a string somebody will one day put back a field
+        // to use.
         'deliverRecipientPlaceholder',
         'deliverPhonePlaceholder',
         'deliverNotesPlaceholder',
