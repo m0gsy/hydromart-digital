@@ -24,6 +24,11 @@ ALTER TABLE "order_disputes"
 COMMENT ON COLUMN "order_disputes"."customerId" IS
   'UU PDP item 13: which account this dispute belongs to, so an erasure request can find it without matching on customerName. NULL = unknown (counter dispute, or a row from before this column existed).';
 
--- The erasure executor's only query is "every dispute for this customer", so the index is
--- the one that query needs and nothing more.
-CREATE INDEX IF NOT EXISTS "order_disputes_customerId_idx" ON "order_disputes"("customerId");
+-- The index is NOT built here (audit H-39). A plain CREATE INDEX inside a migration takes an
+-- ACCESS EXCLUSIVE lock and blocks every write to the table for the whole build; on a release
+-- that runs before the service starts, that is the deploy hanging on a table the console
+-- writes to. It is registered in scripts/create-indexes.sh instead, which builds it
+-- CONCURRENTLY, out of band, and re-checks the end state.
+--
+-- Nothing needs it in this release anyway: no code reads the column yet. The executor that
+-- will query on it lands one release later, by which time the index is in place.
