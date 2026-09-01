@@ -126,11 +126,15 @@ class FakeClaims implements ExpenseClaimRepository {
 
 const COURIER = 'c-courier';
 const REVIEWER = 'r-reviewer';
-const config = { expenseAutoApproveMaxIdr: () => 50000 } as unknown as PayoutConfigService;
+const RECEIPT_BASE = 'https://nos.jkt-1.neo.id/hydromart-pod';
+const config = {
+  expenseAutoApproveMaxIdr: () => 50000,
+  receiptStorageBaseUrl: RECEIPT_BASE,
+} as unknown as PayoutConfigService;
 
 // M20-15: a receipt is part of the happy path — auto-approve requires one, so the
 // default input carries one and the no-receipt cases pass null explicitly.
-const input = (amount: number, receiptUrl: string | null = 'https://x/receipt.jpg') => ({
+const input = (amount: number, receiptUrl: string | null = `${RECEIPT_BASE}/uploads/r.jpg`) => ({
   category: 'FUEL' as const,
   amount,
   description: 'Bensin',
@@ -310,19 +314,51 @@ describe('ExpenseClaimService', () => {
    * courier app cannot upload one at all (CA-4-21). Whether auto-approval should stand at
    * all until an upload path exists is an owner decision, recorded in the register.
    */
+  /*
+   * What counts as a receipt.
+   *
+   * `isAutoApproved` treats "a receipt is attached" as proof enough to credit a courier's
+   * ledger with NO reviewer, and the only thing behind that was `receiptUrl !== null` — the
+   * literal string `x` bought an auto-approval. Tightening it to "any http(s) URL" only
+   * raised the bar to typing one.
+   *
+   * The bar is now WHERE the receipt came from: the object storage the courier app uploads
+   * to. A courier cannot describe a receipt into existence; they have to photograph one.
+   *
+   * Widen `receiptIsOurs` back to a non-empty check and every case below flips.
+   */
   describe('what counts as a receipt', () => {
-    it.each(['x', 'receipt', 'javascript:alert(1)', 'ftp://host/r.jpg', '/uploads/r.jpg'])(
-      'does not auto-approve on %p',
-      async (receiptUrl) => {
-        const claim = await service.submit(COURIER, input(25000, receiptUrl));
-        expect(claim.status).toBe('PENDING');
-        expect(ledger.entries).toHaveLength(0);
-      },
-    );
+    it.each([
+      ['x'],
+      ['receipt'],
+      ['javascript:alert(1)'],
+      ['ftp://host/r.jpg'],
+      ['/uploads/r.jpg'],
+      // An http(s) URL somebody typed. This is the one the previous fix still admitted.
+      ['https://evil.example.com/r.jpg'],
+      // Starts with the base but is a DIFFERENT bucket — the separator is load-bearing.
+      [`${RECEIPT_BASE}-evil/r.jpg`],
+    ])('does not auto-approve on %p', async (receiptUrl) => {
+      const claim = await service.submit(COURIER, input(25000, receiptUrl));
+      expect(claim.status).toBe('PENDING');
+      expect(ledger.entries).toHaveLength(0);
+    });
 
-    it('still auto-approves on an http(s) receipt url', async () => {
-      const claim = await service.submit(COURIER, input(25000, 'https://cdn/r.jpg'));
+    it('auto-approves a receipt this platform stored', async () => {
+      const claim = await service.submit(COURIER, input(25000, `${RECEIPT_BASE}/uploads/r.jpg`));
       expect(claim.status).toBe('APPROVED');
+    });
+
+    // An unconfigured deployment cannot tell a real receipt from a typed one, and the safe
+    // reading of "I cannot tell" is a claim that waits for a human.
+    it('turns auto-approval OFF entirely when no receipt base is configured', async () => {
+      const unset = new ExpenseClaimService(claims, ledger, {
+        expenseAutoApproveMaxIdr: () => 50000,
+        receiptStorageBaseUrl: '',
+      } as unknown as PayoutConfigService);
+      const claim = await unset.submit(COURIER, input(25000));
+      expect(claim.status).toBe('PENDING');
+      expect(ledger.entries).toHaveLength(0);
     });
   });
 

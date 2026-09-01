@@ -754,6 +754,9 @@ export const hrFix = {
     withdrawFailed: "Gagal menarik saldo. Coba lagi.",
   },
   expenses: {
+    receipt: "Foto struk",
+    receiptHint: "Wajib untuk persetujuan otomatis. Tanpa struk, klaim menunggu persetujuan depot.",
+    receiptPicked: "Struk siap diunggah.",
     submitClaim: "Kirim klaim",
     emptyBody2: "Klaim pengeluaran yang kamu kirim akan muncul di sini.",
     title: "Klaim pengeluaran",

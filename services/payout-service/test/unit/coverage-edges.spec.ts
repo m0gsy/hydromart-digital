@@ -124,7 +124,13 @@ class Claims implements ExpenseClaimRepository {
   }
 }
 
-const config = { expenseAutoApproveMaxIdr: () => 50_000 } as unknown as PayoutConfigService;
+// The receipt base is part of the auto-approve decision now: a claim auto-approves only
+// when its receipt URL came from the bucket the courier app uploads to.
+const RECEIPT_BASE = 'https://nos.jkt-1.neo.id/hydromart-pod';
+const config = {
+  expenseAutoApproveMaxIdr: () => 50_000,
+  receiptStorageBaseUrl: RECEIPT_BASE,
+} as unknown as PayoutConfigService;
 
 describe('ExpenseClaimService edges', () => {
   let ledger: Ledger;
@@ -142,7 +148,7 @@ describe('ExpenseClaimService edges', () => {
       category: 'FUEL',
       amount: 10_000,
       description: 'Bensin',
-      receiptUrl: 'https://x/r.jpg',
+      receiptUrl: `${RECEIPT_BASE}/uploads/r.jpg`,
     });
     expect(claim.depotId).toBeNull();
     expect(claim.status).toBe('APPROVED');

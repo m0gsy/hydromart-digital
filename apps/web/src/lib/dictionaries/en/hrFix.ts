@@ -741,6 +741,9 @@ export const hrFix = {
     withdrawFailed: "Could not withdraw. Try again.",
   },
   expenses: {
+    receipt: "Receipt photo",
+    receiptHint: "Required for automatic approval. Without one the claim waits for the depot.",
+    receiptPicked: "Receipt ready to upload.",
     submitClaim: "Submit claim",
     emptyBody2: "Expense claims you submit will appear here.",
     title: "Expense claims",

@@ -47,6 +47,23 @@ export class PayoutConfigService {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
   /** The one business timezone (H-16). Every day/month boundary here is reckoned in it. */
+  /**
+   * The one place a courier receipt may come from.
+   *
+   * `isAutoApproved` treats "a receipt is attached" as proof enough to credit a courier's
+   * ledger with no reviewer, and the only thing behind that was a non-empty string — so the
+   * literal `x` bought an auto-approval. Then it was "any http(s) URL", which a hand-typed
+   * one still satisfies. This is the actual answer: the URL has to live where THIS platform
+   * put it, which is the same object storage the courier app uploads to.
+   *
+   * EMPTY = auto-approve is OFF. Fail closed on purpose: an unconfigured deployment cannot
+   * tell a real receipt from a typed one, and the safe reading of "I cannot tell" is a
+   * claim that waits for a human, not one that pays itself.
+   */
+  get receiptStorageBaseUrl(): string {
+    return this.config.get<string>('RECEIPT_STORAGE_BASE_URL', '').replace(/\/+$/, '');
+  }
+
   get businessTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
