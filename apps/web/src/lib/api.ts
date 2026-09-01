@@ -265,7 +265,13 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   // Audit F-3: the gateway's rate limiter answers 429 with Retry-After. Nothing read
   // it, so a burst surfaced as "Request failed (429)" on a screen the user had done
   // nothing wrong on. One automatic wait-and-retry absorbs the common case.
-  if (res.status === 429 && !options._rateRetry) {
+  //
+  // Only when a Retry-After is present, and that header is what separates the two kinds of
+  // 429. The gateway sends one: waiting is exactly the right move. A business rule does not
+  // — the OTP resend cooldown answers 429 with `AUTH_OTP_COOLDOWN` and no header, and
+  // retrying it half a second later cannot succeed. That retry bought nothing and delayed
+  // the explanation the customer needed by a round trip.
+  if (res.status === 429 && !options._rateRetry && res.headers?.get?.('retry-after')) {
     await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
     return rawRequest<T>(path, { ...options, _rateRetry: true });
   }
