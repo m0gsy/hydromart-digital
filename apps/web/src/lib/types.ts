@@ -94,6 +94,12 @@ export interface OtpChallenge {
    * still parses; the screens fall back to the same default the server ships with.
    */
   resendCooldownSeconds?: number;
+  /**
+   * True when the SMS gateway had not answered by the time the server replied. The
+   * code is valid and probably arriving, so the screen says "sedang dikirim" rather
+   * than claiming it is already there. Optional so an older gateway still parses.
+   */
+  deliveryPending?: boolean;
 }
 
 export interface Product {

@@ -83,7 +83,8 @@ export default function HqOrderDetailPage() {
             <p className="font-medium">{o.recipientName}</p>
             <p className="text-sm text-muted">{o.phone}</p>
             <p className="text-sm text-muted">
-              {o.addressLine}, {o.city}, {o.province}
+              {o.addressLine}, {o.city}
+              {o.province ? `, ${o.province}` : ''}
               {o.postalCode ? ` ${o.postalCode}` : ''}
             </p>
           </div>

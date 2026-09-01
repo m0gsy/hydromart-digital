@@ -357,7 +357,6 @@ export const opsFix = {
     deliverHint: 'Ongkir dihitung per galon dan sudah masuk ke total di bawah.',
     deliverAddressPlaceholder: 'Alamat lengkap',
     deliverCityPlaceholder: 'Kota',
-    deliverProvincePlaceholder: 'Provinsi',
     deliverRecipientPlaceholder: 'Nama penerima',
     deliverPhonePlaceholder: 'Nomor yang bisa dihubungi kurir',
     deliverNotesPlaceholder: 'Patokan (opsional)',

@@ -82,6 +82,26 @@ describe('rate limiting (F-3)', () => {
 });
 
 describe('request sharing (F-1/F-2)', () => {
+  /*
+   * Retry-After is what separates the two kinds of 429, and only one of them is worth
+   * waiting on.
+   *
+   * The gateway's rate limiter sends the header: the burst passes and a retry succeeds. A
+   * business rule does not — the OTP resend cooldown answers 429 with AUTH_OTP_COOLDOWN and
+   * no header, and it will still be refusing half a second later. Retrying it bought nothing
+   * and delayed the explanation the customer needed by a whole round trip.
+   */
+  it('a 429 with no Retry-After is surfaced at once, not retried', async () => {
+    const fetchMock = vi.fn(async () =>
+      json(429, { code: 'AUTH_OTP_COOLDOWN', message: 'Please wait 31s' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.post('/api/v1/auth/login', { phone: '+628' })).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('concurrent identical GETs cost one round-trip', async () => {
     const fetchMock = vi.fn(async () => json(200, { n: 1 }));
     vi.stubGlobal('fetch', fetchMock);

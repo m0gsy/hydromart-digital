@@ -96,8 +96,8 @@ function numOrNull(v: string): number | null {
 
 /**
  * Coerce the string form into an API payload, or return the first validation error.
- * Required: label/recipientName/phone/addressLine/city/province. Optional: postalCode,
- * and latitude/longitude (both must be supplied together and within range — coords are
+ * Required: label/recipientName/phone/addressLine/city. Optional: notes/patokan and
+ * latitude/longitude (both must be supplied together and within range — coords are
  * what let an order route to a depot).
  */
 export function toAddressPayload(

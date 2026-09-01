@@ -29,8 +29,14 @@ export default function ManagerLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await api.post<OtpChallenge>(endpoints.auth.login, { phone });
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone });
       const params = new URLSearchParams({ phone, purpose: 'LOGIN', next: '/m/manager' });
+      // Same as the customer sign-in: a code still in flight is said to be in flight. This
+      // screen also dropped the server's cooldown and lifetime, so /verify was counting its
+      // own numbers here while the other two screens carried the server's.
+      if (challenge.resendCooldownSeconds) params.set('cd', String(challenge.resendCooldownSeconds));
+      if (challenge.expiresInSeconds) params.set('exp', String(challenge.expiresInSeconds));
+      if (challenge.deliveryPending) params.set('pending', '1');
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal mengirim kode. Coba lagi.');

@@ -28,7 +28,7 @@ import { HealthController } from '../../src/modules/health/health.controller';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { MulterExceptionFilter } from '../../src/modules/auth/multer-exception.filter';
 import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from '../../src/modules/auth/dto/audit.dto';
-import { InviteStaffDto, ListStaffQueryDto } from '../../src/modules/auth/dto/staff.dto';
+import { ImportStaffDto, InviteStaffDto, ListStaffQueryDto, SetStaffDepotDto } from '../../src/modules/auth/dto/staff.dto';
 import { SessionInfoDto } from '../../src/modules/auth/dto/responses.dto';
 import { buildTestConfig } from '../support/fakes';
 
@@ -276,5 +276,34 @@ describe('MulterExceptionFilter', () => {
     const out = run(new MulterError('LIMIT_UNEXPECTED_FILE'));
     expect(out.status).toBe(HttpStatus.BAD_REQUEST);
     expect(out.body?.error).toBe('Bad Request');
+  });
+});
+
+describe('staff DTO decorators that only run when validation does', () => {
+  /*
+   * `@ValidateIf((_, value) => value !== null)` and `@Type(() => InviteStaffDto)` are
+   * functions, and they execute only when something actually validates the DTO. Nothing did,
+   * so two decorators that decide whether a null depot is allowed and whether nested rows are
+   * checked at all were shipped unexercised.
+   */
+  it('SetStaffDepotDto accepts an explicit null and a uuid, and refuses nonsense', () => {
+    const ok = validateSync(plainToInstance(SetStaffDepotDto, { depotId: null }));
+    expect(ok).toHaveLength(0);
+
+    const withId = validateSync(
+      plainToInstance(SetStaffDepotDto, { depotId: '00000000-0000-4000-8000-000000000000' }),
+    );
+    expect(withId).toHaveLength(0);
+
+    const bad = validateSync(plainToInstance(SetStaffDepotDto, { depotId: 'not-a-uuid' }));
+    expect(bad).toHaveLength(1);
+  });
+
+  it('ImportStaffDto validates the rows inside it, not just that it has some', () => {
+    const errors = validateSync(
+      plainToInstance(ImportStaffDto, { rows: [{ phone: 'nope', role: 'CUSTOMER' }] }),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].children?.length).toBeGreaterThan(0);
   });
 });

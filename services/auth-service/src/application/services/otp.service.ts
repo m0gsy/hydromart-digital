@@ -3,6 +3,7 @@ import { maskPhone } from '@hydromart/platform';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
+import { OtpGatewayRejectedError } from '../ports/otp-delivery.port';
 import {
   OtpDeliveryUnavailableError,
   OtpExpiredError,
@@ -91,16 +92,41 @@ export class OtpService {
           ttlSeconds: policy.ttlSeconds,
         });
       } catch (error) {
-        // The challenge above is already stored, so a retry mints a fresh code rather than
-        // landing on a dead end. What must NOT happen is the adapter's raw failure reaching
-        // the client as a 500 — an unreachable SMS gateway is an outage the caller can only
-        // respond to if it is named.
+        // The adapter's raw failure must not reach the client as a 500 — an SMS gateway
+        // that is not working is an outage the caller can only respond to if it is named.
         this.logger.error(
           `OTP delivery failed for ${OtpService.maskPhone(destination)}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
-        throw new OtpDeliveryUnavailableError();
+        /*
+         * The two failures need opposite answers, and giving them the same one is what made
+         * signing in feel broken.
+         *
+         * A REJECTION means nothing was sent. The stored challenge is then worse than
+         * useless: it holds the 60-second resend cooldown against a customer who never got a
+         * code. Clear it and say so — they can ask again straight away.
+         *
+         * NO ANSWER is the opposite. The message may already be arriving; the challenge is
+         * valid, and deleting it would invalidate a code the customer is about to read off
+         * their phone. So the challenge stays AND the request succeeds: they go to the code
+         * screen, which is where the code they are about to receive is typed. Telling them it
+         * failed while their phone buzzes is the behaviour being fixed here.
+         *
+         * The 503 also mattered for a reason unrelated to the customer: it reaches Sentry
+         * through the 5xx path, so a slow gateway used to spend the error budget on an event
+         * per login attempt. This one is logged and counted, not raised.
+         */
+        if (error instanceof OtpGatewayRejectedError) {
+          await this.otpTokens.consumeAllForPurpose(customer.id, purpose, now);
+          throw new OtpDeliveryUnavailableError();
+        }
+        return {
+          phoneMasked: OtpService.maskPhone(destination),
+          expiresInSeconds: policy.ttlSeconds,
+          resendCooldownSeconds: policy.resendCooldownSeconds,
+          deliveryPending: true,
+        };
       }
     }
 

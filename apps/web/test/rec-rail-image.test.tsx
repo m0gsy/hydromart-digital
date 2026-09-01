@@ -82,6 +82,40 @@ describe('home product rail', () => {
     await waitFor(() => expect(screen.queryByRole('img')).toBeNull());
   });
 
+  /*
+   * recommendation-service mirrors a product's NAME off the order item that last bought it,
+   * and an order item is a snapshot of the catalogue on the day of that sale. Rename a
+   * product and the rails kept the old name until somebody bought it again — so 'Beli lagi'
+   * and 'Sering dibeli bersama' disagreed with the product page they link to.
+   *
+   * The catalogue read was already happening for the photo. The name comes from the same
+   * answer now, so it cannot drift.
+   */
+  it('prefers the catalogue name over the one the recommendation carries', async () => {
+    getCached.mockImplementation((path: string) =>
+      String(path).includes('/products/batch')
+        ? Promise.resolve([
+            { id: 'p-1', name: 'Galon Baru + Air 19L', imageUrl: 'https://cdn.test/g.jpg' },
+          ])
+        : Promise.resolve(REC),
+    );
+    renderRail();
+    await screen.findByText('Galon Baru + Air 19L');
+    expect(screen.queryByText('Galon 19L')).toBeNull();
+  });
+
+  // Until the catalogue answers there is nothing better to show, and a blank card is worse
+  // than a stale name.
+  it('falls back to the recommendation name when the catalogue does not answer', async () => {
+    getCached.mockImplementation((path: string) =>
+      String(path).includes('/products/batch')
+        ? Promise.reject(new Error('503'))
+        : Promise.resolve(REC),
+    );
+    renderRail();
+    await screen.findByText('Galon 19L');
+  });
+
   it('falls back to the placeholder for a product with no photo', async () => {
     getCached.mockImplementation((path: string) =>
       String(path).includes('/products/batch')

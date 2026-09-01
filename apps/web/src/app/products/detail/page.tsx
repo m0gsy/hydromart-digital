@@ -28,7 +28,7 @@ import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
 import { useDepotPrices } from '@/lib/depot-price';
 import { memberPrice, useMemberRate } from '@/lib/member';
-import { useRecommendationPhotos } from '@/lib/product-photos';
+import { useRecommendationProducts } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
 import type { Cart, Category, LoyaltyAccount, NearbyDepot, Product, Recommendation } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
@@ -92,7 +92,7 @@ export default function ProductDetailPage() {
   // row, never one per card. Hooks run before the early returns below, so the slice is
   // computed here rather than at the render site.
   const shownRelated = (related ?? []).slice(0, 4);
-  const relatedPhotos = useRecommendationPhotos(shownRelated);
+  const relatedProducts = useRecommendationProducts(shownRelated);
 
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
@@ -334,7 +334,7 @@ export default function ProductDetailPage() {
           <h2 className="mb-4 text-[21px] font-extrabold tracking-tight">{t('shop.pdp.related')}</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {shownRelated.map((item) => (
-              <FbtCard key={item.productId} item={item} imageUrl={relatedPhotos.get(item.productId)} />
+              <FbtCard key={item.productId} item={item} product={relatedProducts.get(item.productId)} />
             ))}
           </div>
         </section>
@@ -346,9 +346,13 @@ export default function ProductDetailPage() {
 // Horizontal mini-card for the frequently-bought row. Duplicates the add-to-cart
 // wiring of ProductRecRail's RailCard — ponytail: the shared rail renders a
 // different (row vs tile) layout, so this page needs its own card shape. The photo
-// lookup is NOT duplicated: `useRecommendationPhotos` is the one both call, because
-// this card being a pre-fix copy of that one is exactly how H1 happened.
-function FbtCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string | null }) {
+// lookup is NOT duplicated: `useRecommendationProducts` is the one both call, because
+// this card being a pre-fix copy of that one is exactly how H1 happened. It now carries the
+// NAME too — recommendation-service mirrors the name off the order item that last bought the
+// product, so after a rename this row disagreed with the page it sits on.
+function FbtCard({ item, product }: { item: Recommendation; product?: Product }) {
+  const name = product?.name ?? item.name;
+  const imageUrl = product?.imageUrl;
   const router = useRouter();
   const { t } = useT();
   const { customer } = useAuth();
@@ -392,7 +396,7 @@ function FbtCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string |
         {imageUrl ? (
           <RemoteImage
             src={imageUrl}
-            alt={item.name}
+            alt={name}
             className="h-full w-full object-cover"
             fallback={<Drop size={30} weight="thin" className="text-brand-300" />}
           />
@@ -401,13 +405,13 @@ function FbtCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string |
         )}
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="line-clamp-2 text-[13.5px] font-bold leading-snug">{item.name}</h3>
+        <h3 className="line-clamp-2 text-[13.5px] font-bold leading-snug">{name}</h3>
         <p className="mt-0.5 text-[13px] text-muted">{item.unit}</p>
       </div>
       <button
         onClick={add}
         disabled={adding}
-        aria-label={t('shop.card.addAria', { name: item.name })}
+        aria-label={t('shop.card.addAria', { name })}
         className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition-colors hover:bg-brand-600 hover:text-on-brand disabled:opacity-50"
       >
         {added ? <Check size={16} weight="bold" /> : <Plus size={16} weight="bold" />}

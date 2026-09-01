@@ -12,17 +12,29 @@ import { cartDepotId } from '@/lib/location-store';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
-import { useRecommendationPhotos } from '@/lib/product-photos';
+import { useRecommendationProducts } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
 import { SectionHeader } from '@/components/ui';
-import type { Cart, Recommendation } from '@/lib/types';
+import type { Cart, Product, Recommendation } from '@/lib/types';
 
 // 1c rec card: mirrors the catalog ProductCard tile, but a Recommendation carries
 // no price, so it drops the price/member chip — name, unit, and a round teal add
 // button that adds without leaving the grid.
 // ponytail: no price because the reorder/trending endpoints don't return one;
 // swap to <ProductCard> once recommendations carry basePrice.
-function RailCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string | null }) {
+/*
+ * `product` is the catalogue's own entry for this recommendation, when it has loaded.
+ *
+ * The NAME comes from it in preference to the recommendation's, because
+ * recommendation-service mirrors the name off the order item that last bought the product —
+ * a snapshot of the catalogue on the day of that sale. After a rename the rails kept the old
+ * name until somebody bought it again, so this card and the product page it links to
+ * disagreed. The recommendation's name stays as the fallback for the moment before the
+ * catalogue answers, and for a product it no longer carries.
+ */
+function RailCard({ item, product }: { item: Recommendation; product?: Product }) {
+  const name = product?.name ?? item.name;
+  const imageUrl = product?.imageUrl;
   const router = useRouter();
   const { t } = useT();
   const { customer } = useAuth();
@@ -67,7 +79,7 @@ function RailCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string 
         {imageUrl ? (
           <RemoteImage
             src={imageUrl}
-            alt={item.name}
+            alt={name}
             className="h-full w-full object-cover"
             fallback={<Drop size={56} weight="thin" className="text-brand-300" />}
           />
@@ -76,13 +88,13 @@ function RailCard({ item, imageUrl }: { item: Recommendation; imageUrl?: string 
         )}
       </div>
       <div className="flex flex-1 flex-col gap-[3px] p-4">
-        <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.3]">{item.name}</h3>
+        <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.3]">{name}</h3>
         <p className="text-[13px] text-muted">{item.unit}</p>
         <div className="mt-3 flex items-center justify-end">
           <button
             onClick={addToCart}
             disabled={adding}
-            aria-label={t('home.rail.addAria', { name: item.name })}
+            aria-label={t('home.rail.addAria', { name })}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
           >
             {added ? <Check size={18} weight="bold" /> : <Plus size={18} weight="bold" />}
@@ -125,7 +137,7 @@ export function ProductRecRail({
   // only once the recommendations are known. A failure here costs the photos, never the
   // rail: the cards fall back to the placeholder they used to always show.
   const shown = (data ?? []).slice(0, 4);
-  const imageFor = useRecommendationPhotos(shown);
+  const productFor = useRecommendationProducts(shown);
 
   if (loading || error || !data || data.length === 0) return null;
 
@@ -146,7 +158,7 @@ export function ProductRecRail({
       />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {shown.map((item) => (
-          <RailCard key={item.productId} item={item} imageUrl={imageFor.get(item.productId)} />
+          <RailCard key={item.productId} item={item} product={productFor.get(item.productId)} />
         ))}
       </div>
     </section>

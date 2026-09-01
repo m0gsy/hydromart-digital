@@ -18,6 +18,8 @@ export const errors = {
     AUTH_OTP_INVALID: 'Kode verifikasi salah.',
     AUTH_OTP_EXPIRED: 'Kode verifikasi sudah kedaluwarsa. Minta kode baru.',
     AUTH_OTP_MAX_ATTEMPTS: 'Terlalu banyak percobaan. Minta kode baru.',
+    AUTH_OTP_COOLDOWN: 'Kode baru bisa diminta sebentar lagi. Cek SMS yang sudah masuk dulu.',
+    AUTH_OTP_UNDELIVERABLE: 'Kode belum bisa dikirim sekarang. Coba lagi.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'Akun ini tidak aktif. Hubungi dukungan Hydromart.',
     // The server already answers this one in Indonesian; it is listed so the English
     // dictionary has somewhere to put its own sentence, not to translate anything.

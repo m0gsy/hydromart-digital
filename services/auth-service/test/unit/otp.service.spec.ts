@@ -329,6 +329,8 @@ describe('OtpService · Fase E', () => {
   });
 
   it('E4 · the number it states is the number it actually refuses on', async () => {
+    // The SAME customer throughout: a cooldown is per account, so a fresh fixture on each
+    // call would make this pass without testing anything.
     const customer = activeCustomer();
     const { resendCooldownSeconds } = await service.issue(customer, OtpPurpose.LOGIN);
 
@@ -357,6 +359,66 @@ describe('OtpService · Fase E', () => {
 
     await expect(service.verify(customer, OtpPurpose.LOGIN, '999999')).rejects.toMatchObject({
       code: 'AUTH_OTP_INVALID',
+    });
+  });
+
+  /*
+   * The 60-second resend cooldown must not be held against a customer who never got a
+   * code — and must not throw away a code that is already on their phone.
+   *
+   * The challenge is stored BEFORE the send, so what happens to it when the send fails
+   * decides whether the customer can try again. Those are two different answers, and
+   * before this they were the same one.
+   */
+  describe('what a failed delivery does to the stored challenge', () => {
+    it('clears it when the gateway REJECTED the send, so a resend works at once', async () => {
+      const customer = activeCustomer();
+      delivery.shouldFail = true;
+      delivery.failMode = 'rejected';
+      await expect(service.issue(customer, OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+        OtpDeliveryUnavailableError,
+      );
+
+      // No cooldown: nothing was sent, so the customer may ask again immediately.
+      delivery.shouldFail = false;
+      const second = await service.issue(customer, OtpPurpose.LOGIN);
+      expect(second.phoneMasked).toBeDefined();
+      expect(delivery.sent).toHaveLength(1);
+    });
+
+    it('SUCCEEDS when the gateway did not answer, flagging that delivery is still in flight', async () => {
+      const customer = activeCustomer();
+      delivery.shouldFail = true;
+      delivery.failMode = 'unreachable';
+
+      // No throw. The challenge is stored and the code is probably arriving, so the caller
+      // goes to the code screen — which is where the code they are about to receive is
+      // typed. Telling them it failed while their phone buzzes is the bug being fixed.
+      const first = await service.issue(customer, OtpPurpose.LOGIN);
+      expect(first.deliveryPending).toBe(true);
+      expect(first.phoneMasked).toBeDefined();
+
+      // The challenge survived, so the cooldown still applies — that is what says "wait"
+      // rather than "try again", and it is why the code on the phone still verifies.
+      delivery.shouldFail = false;
+      await expect(service.issue(customer, OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+        OtpResendCooldownError,
+      );
+    });
+
+    // An adapter can throw something that is not an Error. The log line renders it either
+    // way, and a thrown string must not become a crash on a missing `.message`.
+    it('survives a delivery that throws something that is not an Error', async () => {
+      const customer = activeCustomer();
+      delivery.shouldFail = true;
+      delivery.failMode = 'raw';
+      const result = await service.issue(customer, OtpPurpose.LOGIN);
+      expect(result.deliveryPending).toBe(true);
+    });
+
+    it('does not flag delivery as pending on the ordinary happy path', async () => {
+      const result = await service.issue(activeCustomer(), OtpPurpose.LOGIN);
+      expect(result.deliveryPending ?? false).toBe(false);
     });
   });
 });

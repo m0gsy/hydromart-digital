@@ -53,6 +53,7 @@ export const auth: typeof base = {
     notReceived: "Didn't get the code?",
     resendIn: 'Resend in {n}s',
     resend: 'Resend code',
+    deliverySlow: 'The code is still on its way and may take a few seconds. Wait a moment before asking for a new one.',
     sentTo: 'A new code was sent to {phone}.',
     validFor: 'Code valid for another {time}.',
     expired: 'Code expired. Request a new one.',

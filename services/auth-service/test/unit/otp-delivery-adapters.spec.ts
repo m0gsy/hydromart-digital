@@ -2,6 +2,10 @@ import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { ConsoleOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/sms-otp-delivery.adapter';
 import { ZenzivaOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/zenziva-otp-delivery.adapter';
+import {
+  OtpGatewayRejectedError,
+  OtpGatewayUnreachableError,
+} from '../../src/application/ports/otp-delivery.port';
 import { buildTestConfig } from '../support/fakes';
 
 const message = {
@@ -46,6 +50,45 @@ describe('OTP delivery adapters', () => {
         .mockResolvedValue({ ok: false, status: 400, text: async () => 'bad' } as Response);
       const adapter = new SmsOtpDeliveryAdapter(config);
       await expect(adapter.send(message)).rejects.toThrow(/SMS/);
+    });
+
+    /*
+     * WHICH failure, not just that one happened. The caller decides on this: a gateway that
+     * answered "no" sent nothing, so the stored challenge can go and the customer may ask
+     * again at once; a gateway that never answered may have sent it anyway, and deleting the
+     * challenge would invalidate a code already on their phone.
+     */
+    it('an answered rejection is REJECTED, so the challenge can be cleared', async () => {
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue({ ok: false, status: 400, text: async () => 'bad' } as Response);
+      await expect(new SmsOtpDeliveryAdapter(config).send(message)).rejects.toBeInstanceOf(
+        OtpGatewayRejectedError,
+      );
+    });
+
+    it('a transport failure is UNREACHABLE, because the send may have happened', async () => {
+      jest.spyOn(global, 'fetch').mockRejectedValue(new TypeError('network down'));
+      await expect(new SmsOtpDeliveryAdapter(config).send(message)).rejects.toBeInstanceOf(
+        OtpGatewayUnreachableError,
+      );
+    });
+
+    // The deadline exists so the browser (15s) never gives up before the server does.
+    it('aborts on its own deadline rather than waiting for the gateway', async () => {
+      jest.useFakeTimers();
+      jest.spyOn(global, 'fetch').mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            (init as RequestInit)?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            );
+          }),
+      );
+      const promise = new SmsOtpDeliveryAdapter(config).send(message).catch((e) => e as Error);
+      jest.advanceTimersByTime(8000);
+      await expect(promise).resolves.toBeInstanceOf(OtpGatewayUnreachableError);
+      jest.useRealTimers();
     });
   });
 

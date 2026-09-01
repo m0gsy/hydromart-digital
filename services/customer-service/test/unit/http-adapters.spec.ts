@@ -83,6 +83,18 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
   const cfg = (over: Partial<Record<string, unknown>> = {}) =>
     ({ orderServiceUrl: 'http://order:3004/', internalServiceKey: KEY, ...over }) as unknown as CustomerConfigService;
 
+  /*
+   * `err instanceof Error ? err.message : err` — a rejection that is not an Error takes the
+   * other half, and nothing ever threw one. It is one line of a log message, but it is also
+   * the line that runs while a fail-soft adapter is quietly returning [] to a CRM screen.
+   */
+  it('logs and still fails soft when the rejection is not an Error', async () => {
+    fetchMock.mockRejectedValue('socket exploded');
+    expect(await new OrderCrmHttpAdapter(cfg()).depotCustomerStats('d1')).toEqual([]);
+    fetchMock.mockRejectedValue('socket exploded again');
+    expect(await new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).toEqual([]);
+  });
+
   it('returns [] without fetching when url or key is missing', async () => {
     expect(await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).depotCustomerStats('d1')).toEqual([]);
     expect(await new OrderCrmHttpAdapter(cfg({ internalServiceKey: '' })).depotCustomerStats('d1')).toEqual([]);

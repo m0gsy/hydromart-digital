@@ -12,7 +12,7 @@ import { ResellerService } from './reseller.service';
 export interface ImportCustomerRow {
   fullName: string;
   phone: string;
-  /** Optional address; when addressLine is present, city and province are required. */
+  /** Optional address; when addressLine is present, city is required. Province is taken if given. */
   addressLine?: string;
   city?: string;
   province?: string;
@@ -116,8 +116,16 @@ export class CustomerImportService {
       await this.profiles.upsertFavoriteDepot(customerId, depotId);
 
       if (row.addressLine) {
-        if (!row.city || !row.province) {
-          throw new Error('kota dan provinsi wajib diisi bila alamat ditulis');
+        /*
+         * City only. The delivery-address form stopped asking for a province, and an
+         * importer that still demands one refuses spreadsheets the app itself would never
+         * have produced — a rule enforced in one place and abandoned in the other.
+         *
+         * A province in the file is still accepted and stored: migrating legacy data with
+         * one is exactly what this endpoint is for.
+         */
+        if (!row.city) {
+          throw new Error('kota wajib diisi bila alamat ditulis');
         }
         await this.addresses.create(customerId, {
           label: 'Rumah',

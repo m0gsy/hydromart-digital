@@ -20,11 +20,20 @@ export class OtpChallengeResponseDto {
   })
   resendCooldownSeconds!: number;
 
+  @ApiProperty({
+    example: false,
+    description:
+      'True when the SMS gateway had not answered by the time we replied. The code is valid ' +
+      'and probably on its way; the screen can say so instead of claiming instant delivery.',
+  })
+  deliveryPending!: boolean;
+
   static from(result: OtpChallengeResult): OtpChallengeResponseDto {
     return {
       phoneMasked: result.phoneMasked,
       expiresInSeconds: result.expiresInSeconds,
       resendCooldownSeconds: result.resendCooldownSeconds,
+      deliveryPending: result.deliveryPending ?? false,
     };
   }
 }

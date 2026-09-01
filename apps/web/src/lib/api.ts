@@ -161,9 +161,27 @@ async function refreshSession(): Promise<Session | null> {
         setSession(next);
         return next;
       })
-      .catch(() => {
-        setSession(null);
-        clearTokens();
+      .catch((err: unknown) => {
+        /*
+         * Only a definite NO signs anybody out.
+         *
+         * This used to clear the session on ANY failure, and `rawRequest` throws for
+         * three quite different things: 401 (the credential is dead), 408 (our own 15s
+         * deadline elapsed) and 0 (the socket dropped). The last two mean "no answer",
+         * not "no". Treating them as a refusal signed users out of healthy 30-day
+         * sessions on a train, in a lift, or whenever the box was briefly busy — an
+         * access token lasts 15 minutes, so this path runs constantly and only has to
+         * be unlucky once.
+         *
+         * On anything short of a refusal the session STAYS. The request that triggered
+         * this still fails with its own 401, and the next one refreshes again — which is
+         * the correct outcome when the answer is simply unknown.
+         */
+        const refused = err instanceof ApiError && (err.status === 401 || err.status === 403);
+        if (refused) {
+          setSession(null);
+          clearTokens();
+        }
         return null;
       })
       .finally(() => {
@@ -247,7 +265,13 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   // Audit F-3: the gateway's rate limiter answers 429 with Retry-After. Nothing read
   // it, so a burst surfaced as "Request failed (429)" on a screen the user had done
   // nothing wrong on. One automatic wait-and-retry absorbs the common case.
-  if (res.status === 429 && !options._rateRetry) {
+  //
+  // Only when a Retry-After is present, and that header is what separates the two kinds of
+  // 429. The gateway sends one: waiting is exactly the right move. A business rule does not
+  // — the OTP resend cooldown answers 429 with `AUTH_OTP_COOLDOWN` and no header, and
+  // retrying it half a second later cannot succeed. That retry bought nothing and delayed
+  // the explanation the customer needed by a round trip.
+  if (res.status === 429 && !options._rateRetry && res.headers?.get?.('retry-after')) {
     await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
     return rawRequest<T>(path, { ...options, _rateRetry: true });
   }

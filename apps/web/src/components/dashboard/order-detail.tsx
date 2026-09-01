@@ -294,7 +294,8 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           <p className="font-semibold">{order.recipientName}</p>
           <p className="text-muted">{order.phone}</p>
           <p className="text-muted">
-            {order.addressLine}, {order.city}, {order.province}
+            {order.addressLine}, {order.city}
+            {order.province ? `, ${order.province}` : ''}
             {order.postalCode ? ` ${order.postalCode}` : ''}
           </p>
           {order.notes && <p className="mt-1 text-muted">Catatan: {order.notes}</p>}

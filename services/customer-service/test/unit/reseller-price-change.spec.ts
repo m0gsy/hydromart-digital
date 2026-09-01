@@ -8,13 +8,25 @@ import {
   ResellerPriceChange,
   ResellerRepository,
 } from '../../src/application/ports/reseller.repository';
-import { NothingToScheduleError } from '../../src/domain/errors';
+import { NothingToScheduleError, ResellerNotFoundError } from '../../src/domain/errors';
 
 /**
  * K4.2. Deactivating an agen and changing what they pay used to be a bare UPDATE:
  * instant, unsigned, unannounced. Every case here is one of those three silences.
  */
 
+/*
+ * A hard-coded future date is a fuse, and this one burned down on 2026-09-01.
+ *
+ * NEXT_MONTH was a month ahead when it was typed and the service reads the REAL clock, so
+ * on the first of September "next month" became today: six tests that assert a scheduled
+ * change has NOT been applied yet started finding it applied, on a pull request that touched
+ * neither resellers nor pricing.
+ *
+ * The dates stay literal because they read well in the assertions; what changes is that the
+ * clock is pinned to NOW for this suite, so NEXT_MONTH is a week ahead of "today" forever
+ * rather than for as long as the calendar allowed.
+ */
 const NOW = new Date('2026-08-25T10:00:00.000Z');
 const NEXT_MONTH = new Date('2026-09-01T00:00:00.000Z');
 
@@ -86,10 +98,18 @@ function build(opts: { updateFails?: boolean } = {}) {
   };
 
   const service = new ResellerService(repo, profiles as never, identity as never, notifier as never);
-  return { service, changes, notices, reseller: () => current };
+  return { service, changes, notices, repo, reseller: () => current };
 }
 
 describe('ResellerService price changes (K4.2)', () => {
+  // The service asks the real clock, so the clock has to be told what day it is.
+  beforeEach(() => {
+    jest.useFakeTimers({ now: NOW, doNotFake: ['nextTick', 'setImmediate'] });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('records who dropped the discount, from what, to what', async () => {
     const t = build();
 
@@ -254,6 +274,25 @@ describe('ResellerService price changes (K4.2)', () => {
     expect(history).toHaveLength(2);
     expect(history[0]).toMatchObject({ field: 'flatGallonPriceIdr', appliedAt: null });
     expect(history[1]).toMatchObject({ field: 'discountPct' });
+  });
+
+  it('refuses the history of somebody who is not an agen', async () => {
+    const t = build();
+    // The guard before the depot check: asking for a stranger must not reach the data.
+    t.repo.findById = async () => null;
+    await expect(t.service.priceHistory(staff, 'nobody')).rejects.toBeInstanceOf(
+      ResellerNotFoundError,
+    );
+  });
+
+  it('sweeps with the real clock when no date is passed', async () => {
+    const t = build();
+    // `applyScheduled(now = new Date())` — the cron calls it with nothing, and the default
+    // had never been exercised. Fake timers hold "now" at NOW, so a change dated next month
+    // is correctly not due.
+    await t.service.update(staff, 'c1', { discountPct: 5 }, NEXT_MONTH);
+    const result = await t.service.applyScheduled();
+    expect(result.applied).toBe(0);
   });
 });
 

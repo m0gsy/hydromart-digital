@@ -60,6 +60,9 @@ function RegisterForm() {
         onward.set('cd', String(challenge.resendCooldownSeconds));
       // K1.1: the code's lifetime, so /verify can count it down and say so when it ends.
       if (challenge.expiresInSeconds) onward.set('exp', String(challenge.expiresInSeconds));
+      // The gateway had not answered yet, so /verify says the code is on its way rather
+      // than claiming it has arrived.
+      if (challenge.deliveryPending) onward.set('pending', '1');
       router.push(`/verify?${onward.toString()}`);
     } catch (err) {
       // E8: the other half of one door — a number that already has an account belongs on

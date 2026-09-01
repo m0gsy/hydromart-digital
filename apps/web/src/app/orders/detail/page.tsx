@@ -440,7 +440,8 @@ function OrderDetailInner({ id }: { id: string }) {
                 {order.recipientName} · {order.phone}
               </p>
               <p className="leading-relaxed text-muted">
-                {order.addressLine}, {order.city}, {order.province}
+                {order.addressLine}, {order.city}
+                {order.province ? `, ${order.province}` : ''}
                 {order.postalCode ? ` ${order.postalCode}` : ''}
               </p>
               {order.notes && (

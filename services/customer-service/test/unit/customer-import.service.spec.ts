@@ -162,7 +162,7 @@ describe('CustomerImportService.importCustomers', () => {
     });
   });
 
-  it('fails a row that gives an address without a city or province', async () => {
+  it('fails a row that gives an address without a city', async () => {
     const addresses = { create: jest.fn() };
     const svc = new CustomerImportService(
       new FakeIdentity(),
@@ -176,8 +176,33 @@ describe('CustomerImportService.importCustomers', () => {
     ]);
 
     expect(summary).toMatchObject({ created: 0, failed: 1 });
-    expect(summary.results[0]?.message).toContain('provinsi');
+    expect(summary.results[0]?.message).toContain('kota');
     expect(addresses.create).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Province stopped being required when the delivery-address form stopped asking for it.
+   * An importer that still demanded one refused spreadsheets the app itself would never have
+   * produced — the rule enforced in one place and abandoned in the other.
+   */
+  it('imports an address with a city and no province', async () => {
+    const addresses = { create: jest.fn() };
+    const svc = new CustomerImportService(
+      new FakeIdentity(),
+      makeProfiles() as never,
+      addresses as never,
+      {} as never,
+    );
+
+    const summary = await svc.importCustomers(hq, DEPOT_A, [
+      { ...CUSTOMER, addressLine: 'Jl. Melati 3', city: 'Bekasi' },
+    ]);
+
+    expect(summary).toMatchObject({ created: 1, failed: 0 });
+    expect(addresses.create).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ city: 'Bekasi', province: undefined }),
+    );
   });
 
   it("leaves an already-active account's home depot and address book alone", async () => {

@@ -51,6 +51,7 @@ export const auth = {
     notReceived: 'Tidak menerima kode?',
     resendIn: 'Kirim ulang dalam {n}d',
     resend: 'Kirim ulang kode',
+    deliverySlow: 'Kodenya sedang dikirim dan bisa terlambat beberapa detik. Tunggu sebentar sebelum minta kode baru.',
     sentTo: 'Kode baru dikirim ke {phone}.',
     validFor: 'Kode berlaku {time} lagi.',
     expired: 'Kode kedaluwarsa. Minta kode baru.',

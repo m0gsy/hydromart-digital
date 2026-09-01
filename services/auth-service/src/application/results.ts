@@ -51,6 +51,13 @@ export interface SessionResult {
 
 /** Result of issuing an OTP challenge (no secret returned to the client). */
 export interface OtpChallengeResult {
+  /*
+   * True when the SMS gateway did not answer in time and the code may still be on its
+   * way. The challenge is valid either way — it is stored before the send — so the
+   * customer goes to the code screen rather than into a dead end, and the screen can
+   * say "this one is taking a moment" instead of pretending everything was instant.
+   */
+  deliveryPending?: boolean;
   /** Masked phone the code was sent to, e.g. "+62812****789". */
   phoneMasked: string;
   expiresInSeconds: number;

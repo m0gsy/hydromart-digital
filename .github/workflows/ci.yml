@@ -383,6 +383,16 @@ jobs:
       - name: Web page size fits the server cap
         run: node scripts/check-page-size.mjs
 
+      # Province and postcode left the delivery-address forms. The depot counter kept
+      # asking for a province for another day, because the change was traced through types
+      # and DTOs rather than through every form that collects an address — and the type
+      # checker cannot see a form field, which is a string in JSX.
+      #
+      # A depot and a franchise application keep theirs: those describe a business location
+      # on a map, not a place a courier is driving to tonight.
+      - name: No delivery form asks for a province again
+        run: node scripts/check-address-fields.mjs
+
       - name: Money literal gate self-check
         run: bash scripts/check-money-literals.test.sh
 
