@@ -1,5 +1,16 @@
 name: Deploy
 
+# The run's title says which commit it SHIPPED.
+#
+# A `workflow_run` run is stamped by GitHub with the branch TIP at trigger time, not with
+# the SHA it deploys — and this workflow deploys `workflow_run.head_sha` (M26). Those two
+# differ whenever a second merge lands while a deploy is queued, and then `gh run list`
+# shows a Deploy sitting on a commit it never touched. It cost a real half hour of reading
+# a green deploy next to that commit's RED CI and concluding the gate was broken. The gate
+# was fine; the label was not.
+run-name: >-
+  Deploy ${{ github.event_name == 'workflow_dispatch' && format('{0} (manual {1})', github.sha, inputs.mode) || github.event.workflow_run.head_sha }}
+
 # Deploys to the single production VPS by SSHing in and running scripts/deploy.sh,
 # which rebuilds only changed services (serial, memory-safe), health-checks the
 # gateway, and auto-rolls-back on failure.
@@ -59,6 +70,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A CI that went red on main means THIS COMMIT WAS NOT SHIPPED, and until now the only
+  # evidence was a Deploy run marked `skipped`.
+  #
+  # This repo has been bitten by that exact reading twice already (see the `integration` job
+  # in ci.yml): GitHub renders a skipped run the same shade as a successful one, so nobody
+  # looks. Worse, the next green commit deploys itself AND everything stranded behind it, as
+  # a combination no CI run ever tested — which is the failure mode M26 was written to stop
+  # for two green PRs and does not cover for one red one.
+  #
+  # So the refusal gets a job of its own and that job FAILS. It ships nothing; it exists to
+  # be red next to the commit that did not go out.
+  not-shipped:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion != 'success'
+    steps:
+      - name: Say which commit did not ship, and why
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RESULT: ${{ github.event.workflow_run.conclusion }}
+          RUN: ${{ github.event.workflow_run.html_url }}
+        run: |
+          echo "!! $SHA was NOT deployed: its CI on main concluded '$RESULT'."
+          echo "   $RUN"
+          echo
+          echo "   Production still runs the last green commit. Fix CI on main and the next"
+          echo "   green run deploys this commit ALONG WITH everything merged after it — a"
+          echo "   combination nothing has tested together. Prefer fixing forward quickly, or"
+          echo "   revert the merge that reddened main."
+          exit 1
+
   deploy:
     runs-on: ubuntu-latest
     # `actions: read` is why this file exists in this diff at all.
