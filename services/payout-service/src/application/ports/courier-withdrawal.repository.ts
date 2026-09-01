@@ -1,4 +1,5 @@
 import { WithdrawalStatus } from '../../domain/ledger';
+import { SettleWithdrawalOutcome } from './withdrawal.repository';
 
 export interface CourierWithdrawalRecord {
   id: string;
@@ -29,6 +30,24 @@ export interface CourierWithdrawalRepository {
   nextReferenceSequence(): Promise<number>;
   create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord>;
   listForCourier(courierId: string, limit: number): Promise<CourierWithdrawalRecord[]>;
+
+  /** Courier withdrawals still awaiting a bank result, oldest first — the HQ queue. */
+  listProcessing(limit: number): Promise<CourierWithdrawalRecord[]>;
+
+  /**
+   * The courier twin of WithdrawalRepository.settle — same rule, same reason.
+   *
+   * A courier's balance drops the moment they tap "Tarik saldo". Without this, PROCESSING
+   * was the last state a payout ever reached: the ledger showed the money gone and no code
+   * path could say whether it arrived. A FAILED transfer re-credits inside the same
+   * transaction, idempotent on `sourceRef`.
+   */
+  settle(input: {
+    id: string;
+    status: Extract<WithdrawalStatus, 'PAID' | 'FAILED'>;
+    /** Only read for FAILED — the compensating credit. */
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<CourierWithdrawalRecord>>;
 
   /**
    * The courier twin of WithdrawalRepository.withdrawWithDebit (B-8, B-10).

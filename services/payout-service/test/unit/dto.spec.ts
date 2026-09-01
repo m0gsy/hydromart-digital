@@ -4,7 +4,7 @@ import { validateSync } from 'class-validator';
 import { ApplySchemeDto, ApplySchemeItemDto } from '../../src/modules/dto/commission.dto';
 import { ApplyEarningRuleDto } from '../../src/modules/dto/earning-rule.dto';
 import { SubmitExpenseDto } from '../../src/modules/dto/expense-claim.dto';
-import { RequestWithdrawalDto } from '../../src/modules/dto/payout.dto';
+import { RequestWithdrawalDto, SettleWithdrawalDto } from '../../src/modules/dto/payout.dto';
 
 // Validation is a money boundary — a loosened decorator lets a negative payout or a
 // 500% commission through. These lock the rules that actually guard rupiah, not the
@@ -31,6 +31,30 @@ describe('RequestWithdrawalDto', () => {
     expect(invalidProps(RequestWithdrawalDto, { ...valid, bankAccountRef: '' })).toContain(
       'bankAccountRef',
     );
+  });
+});
+
+/*
+ * The reason a rejected transfer carries. It lands on the compensating ledger row rather
+ * than a column of its own, so the only guard that matters is that it stays a bounded
+ * string — a free-text field that reaches the money ledger without a length is how a log
+ * line becomes a payload.
+ */
+describe('SettleWithdrawalDto', () => {
+  it('accepts no reason at all — PAID does not need one', () => {
+    expect(invalidProps(SettleWithdrawalDto, {})).toEqual([]);
+  });
+
+  it('accepts a short reason', () => {
+    expect(invalidProps(SettleWithdrawalDto, { reason: 'Rekening tutup' })).toEqual([]);
+  });
+
+  it('rejects a reason past 300 characters', () => {
+    expect(invalidProps(SettleWithdrawalDto, { reason: 'x'.repeat(301) })).toContain('reason');
+  });
+
+  it('rejects a non-string reason', () => {
+    expect(invalidProps(SettleWithdrawalDto, { reason: 42 })).toContain('reason');
   });
 });
 

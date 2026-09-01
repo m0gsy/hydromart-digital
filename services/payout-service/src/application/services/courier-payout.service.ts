@@ -6,6 +6,8 @@ import {
   InsufficientBalanceError,
   InvalidEarningRuleError,
   InvalidWithdrawalAmountError,
+  WithdrawalNotFoundError,
+  WithdrawalNotProcessingError,
 } from '../../domain/errors';
 import {
   CourierEarningRuleRecord,
@@ -267,6 +269,44 @@ export class CourierPayoutService {
 
   async withdrawalHistory(courierId: string, limit = 20): Promise<CourierWithdrawalRecord[]> {
     return this.withdrawals.listForCourier(courierId, limit);
+  }
+
+  /** Courier withdrawals the bank has not answered for yet — the HQ release queue. */
+  listProcessingWithdrawals(limit = 100): Promise<CourierWithdrawalRecord[]> {
+    return this.withdrawals.listProcessing(limit);
+  }
+
+  /**
+   * The way out of PROCESSING for a courier's cash-out. See `PayoutService.settleWithdrawal`
+   * — same defect, same shape, and deliberately fixed in one change: the audit's own
+   * rebuttal named the franchise side while the finding named only the courier side, and
+   * closing one would have left a courier and their depot's owner on different rules for
+   * the same money.
+   */
+  async settleWithdrawal(
+    id: string,
+    status: 'PAID' | 'FAILED',
+    actorId: string,
+    reason?: string,
+  ): Promise<CourierWithdrawalRecord> {
+    const outcome = await this.withdrawals.settle({
+      id,
+      status,
+      reversal: {
+        sourceRef: `withdrawal-reversal:${id}`,
+        description: reason?.trim()
+          ? `Penarikan gagal · ${reason.trim()}`
+          : 'Penarikan gagal, saldo dikembalikan',
+      },
+    });
+    if (!outcome.ok) {
+      if (outcome.reason === 'NOT_FOUND') throw new WithdrawalNotFoundError();
+      throw new WithdrawalNotProcessingError(outcome.status);
+    }
+    this.logger.log(
+      `Courier withdrawal ${outcome.withdrawal.reference} marked ${status} by ${actorId}`,
+    );
+    return outcome.withdrawal;
   }
 
   async ledgerPage(

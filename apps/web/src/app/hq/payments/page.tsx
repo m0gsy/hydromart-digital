@@ -11,12 +11,14 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
+  CourierWithdrawal,
   Customer,
   ExecutiveDashboard,
   Page,
   Payment,
   PendingPayout,
   UnsettledMethodBucket,
+  Withdrawal,
 } from '@/lib/types';
 
 // Trailing-30-day window, computed once per mount (client-only).
@@ -82,6 +84,12 @@ export default function HqPaymentsPage() {
   // Real "needs attention" count: payments awaiting HQ refund approval (the queue total).
   const refundsQ = useAsync<Page<Payment>>(() => api.get(endpoints.refunds.queue({ limit: 1 }), true));
   const [releasing, setReleasing] = useState<string | null>(null);
+  const [settling, setSettling] = useState<string | null>(null);
+  // The queue `release` above has been filling with rows nothing could ever move on.
+  const processingQ = useAsync<Withdrawal[]>(() => api.get(endpoints.payout.hqProcessing, true));
+  const courierProcessingQ = useAsync<CourierWithdrawal[]>(() =>
+    api.get(endpoints.payout.hqCourierProcessing, true),
+  );
 
   if (dash.loading) return <Skeleton className="h-96 w-full" />;
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
@@ -103,6 +111,29 @@ export default function HqPaymentsPage() {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
     } finally {
       setReleasing(null);
+    }
+  }
+
+  /*
+   * Answering the bank, for either kind of withdrawal.
+   *
+   * FAILED is not a label change: it re-credits the balance in payout-service's own
+   * transaction, because the debit went out when the withdrawal was REQUESTED. Both answers
+   * are irreversible from this screen, so both confirm first — `window.confirm` is what the
+   * rest of this console still uses, and a ConfirmDialog sweep is its own step (06).
+   */
+  async function settle(id: string, url: string, paid: boolean, reload: () => void) {
+    const question = paid ? t('hq.payments.settle.confirmPaid') : t('hq.payments.settle.confirmFailed');
+    if (!window.confirm(question)) return;
+    setSettling(id);
+    try {
+      await api.post(url, {}, true);
+      toast(paid ? t('hq.payments.settle.markedPaid') : t('hq.payments.settle.markedFailed'), paid ? 'success' : 'info');
+      reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : String(err), 'error');
+    } finally {
+      setSettling(null);
     }
   }
 
@@ -191,7 +222,110 @@ export default function HqPaymentsPage() {
             </ul>
           )}
         </Card>
+
+        {/*
+          * Penarikan menunggu jawaban bank.
+          *
+          * `release` above wrote a row that no code path could ever move on, while the ledger
+          * had already been debited — PROCESSING was the last state a payout reached, on both
+          * the franchise and the courier side. This is the queue that answers it: PAID is the
+          * transfer clearing, GAGAL re-credits the balance in the same transaction. Both are
+          * irreversible, so both ask first.
+          */}
+        <Card className="flex min-w-0 flex-col gap-4 p-5 lg:col-span-2">
+          <h2 className="font-semibold">{t('hq.payments.settle.title')}</h2>
+          <p className="-mt-3 text-xs text-muted">{t('hq.payments.settle.hint')}</p>
+          <WithdrawalQueue
+            heading={t('hq.payments.settle.franchise')}
+            query={processingQ}
+            label={(r) => ownerName(r.franchiseOwnerId)}
+            busyId={settling}
+            onSettle={(row, paid) =>
+              settle(
+                row.id,
+                paid ? endpoints.payout.hqMarkPaid(row.id) : endpoints.payout.hqMarkFailed(row.id),
+                paid,
+                () => processingQ.reload(),
+              )
+            }
+          />
+          <WithdrawalQueue
+            heading={t('hq.payments.settle.courier')}
+            query={courierProcessingQ}
+            label={(r) => shortId(r.courierId)}
+            busyId={settling}
+            onSettle={(row, paid) =>
+              settle(
+                row.id,
+                paid
+                  ? endpoints.payout.hqCourierMarkPaid(row.id)
+                  : endpoints.payout.hqCourierMarkFailed(row.id),
+                paid,
+                () => courierProcessingQ.reload(),
+              )
+            }
+          />
+        </Card>
       </div>
+    </div>
+  );
+}
+
+/** One withdrawal queue — the franchise and the courier lists differ only in whose name it is. */
+function WithdrawalQueue<T extends { id: string; amount: number; reference: string; bankAccountRef: string }>({
+  heading,
+  query,
+  label,
+  busyId,
+  onSettle,
+}: {
+  heading: string;
+  query: { loading: boolean; error: string | null; data: T[] | null; reload: () => void };
+  label: (row: T) => string;
+  busyId: string | null;
+  onSettle: (row: T, paid: boolean) => void;
+}) {
+  const { t } = useT();
+  const rows = query.data ?? [];
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <h3 className="text-xs font-bold uppercase tracking-wide text-muted">{heading}</h3>
+      {query.loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : query.error ? (
+        <ErrorState message={query.error} onRetry={query.reload} />
+      ) : rows.length === 0 ? (
+        <p className="py-3 text-center text-sm text-muted">{t('hq.payments.settle.empty')}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {rows.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-app p-3"
+            >
+              <span className="min-w-0">
+                <span className="truncate font-medium">{label(r)}</span>
+                <span className="mt-0.5 block truncate font-mono text-xs text-muted">
+                  {r.reference} · {r.bankAccountRef}
+                </span>
+                <Money amount={r.amount} className="mt-1 block text-sm font-semibold" />
+              </span>
+              <span className="flex shrink-0 gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={busyId === r.id}
+                  onClick={() => onSettle(r, true)}
+                >
+                  {t('hq.payments.settle.paid')}
+                </Button>
+                <Button variant="danger" disabled={busyId === r.id} onClick={() => onSettle(r, false)}>
+                  {t('hq.payments.settle.failed')}
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

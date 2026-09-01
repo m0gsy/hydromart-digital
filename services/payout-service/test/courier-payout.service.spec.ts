@@ -19,6 +19,11 @@ import type {
   CourierWithdrawalRepository,
   CreateCourierWithdrawalData,
 } from '../src/application/ports/courier-withdrawal.repository';
+import type { SettleWithdrawalOutcome } from '../src/application/ports/withdrawal.repository';
+import {
+  WithdrawalNotFoundError,
+  WithdrawalNotProcessingError,
+} from '../src/domain/errors';
 
 const DEFAULT_RULE: CourierEarningRuleRecord = {
   id: 'rule-1',
@@ -176,19 +181,54 @@ class FakeCourierWithdrawals implements CourierWithdrawalRepository {
     return { ok: true, withdrawal };
   }
 
+  /** Written rows by id — `settle` has to find one and refuse to settle it twice. */
+  rows = new Map<string, CourierWithdrawalRecord>();
+
   async create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord> {
     this.created.push(data);
-    return {
+    const row = {
       ...data,
       id: `w-${this.created.length}`,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    this.rows.set(row.id, row);
+    return row;
   }
   async listForCourier(courierId: string): Promise<CourierWithdrawalRecord[]> {
     return this.created
       .filter((w) => w.courierId === courierId)
       .map((w, i) => ({ ...w, id: `w-${i}`, createdAt: new Date(), updatedAt: new Date() }));
+  }
+  async listProcessing(limit: number): Promise<CourierWithdrawalRecord[]> {
+    return [...this.rows.values()].filter((r) => r.status === 'PROCESSING').slice(0, limit);
+  }
+
+  // Same contract as the real transaction: the status guard and the compensating credit
+  // are one step, so a second FAILED cannot credit again.
+  async settle(input: {
+    id: string;
+    status: 'PAID' | 'FAILED';
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<CourierWithdrawalRecord>> {
+    const row = this.rows.get(input.id);
+    if (!row) return { ok: false, reason: 'NOT_FOUND' };
+    if (row.status !== 'PROCESSING') {
+      return { ok: false, reason: 'NOT_PROCESSING', status: row.status };
+    }
+    const settled = { ...row, status: input.status as WithdrawalStatus, updatedAt: new Date() };
+    this.rows.set(row.id, settled);
+    if (input.status === 'FAILED') {
+      await this.ledger?.create({
+        courierId: row.courierId,
+        depotId: null,
+        type: 'ADJUSTMENT',
+        amount: row.amount,
+        description: input.reversal.description,
+        sourceRef: input.reversal.sourceRef,
+      });
+    }
+    return { ok: true, withdrawal: settled };
   }
 }
 
@@ -225,6 +265,69 @@ describe('CourierPayoutService', () => {
     const entry = await service.recordDeliveryEarning(event('d1', PEAK_UTC, true));
     expect(entry?.type).toBe('EARNING');
     expect(entry?.amount).toBe(8000); // 5000 + 2000 peak + 1000 on-time
+  });
+
+  /*
+   * The way out of PROCESSING, courier side.
+   *
+   * The audit reported this one against the courier path and its own rebuttal named the
+   * franchise path as sharing the defect. It is one change: a courier's balance drops the
+   * moment they tap "Tarik saldo", and until now PROCESSING was the last state that money
+   * ever reached — nothing could say whether the transfer arrived, and a rejected one kept
+   * the courier's money.
+   */
+  describe('settleWithdrawal', () => {
+    const cashOut = async () => {
+      await ledger.create({
+        courierId: COURIER,
+        depotId: null,
+        type: 'EARNING',
+        amount: 300000,
+        description: 'seed',
+        sourceRef: 'seed-1',
+      });
+      return service.requestWithdrawal(COURIER, 120000, 'BCA ···· 4821');
+    };
+
+    it('marks a cleared transfer PAID without touching the balance again', async () => {
+      const w = await cashOut();
+      expect(await ledger.balanceFor(COURIER)).toBe(180000);
+      expect((await service.settleWithdrawal(w.id, 'PAID', 'finance-1')).status).toBe('PAID');
+      expect(await ledger.balanceFor(COURIER)).toBe(180000);
+    });
+
+    it('gives the courier their money back when the bank rejects it', async () => {
+      const w = await cashOut();
+      const failed = await service.settleWithdrawal(w.id, 'FAILED', 'finance-1', 'Rekening salah');
+      expect(failed.status).toBe('FAILED');
+      expect(await ledger.balanceFor(COURIER)).toBe(300000);
+      expect(await ledger.findBySourceRef(`withdrawal-reversal:${w.id}`)).toMatchObject({
+        type: 'ADJUSTMENT',
+        amount: 120000,
+      });
+    });
+
+    it('refuses a second settlement, so the reversal cannot pay twice', async () => {
+      const w = await cashOut();
+      await service.settleWithdrawal(w.id, 'FAILED', 'finance-1');
+      await expect(service.settleWithdrawal(w.id, 'PAID', 'finance-1')).rejects.toBeInstanceOf(
+        WithdrawalNotProcessingError,
+      );
+      expect(await ledger.balanceFor(COURIER)).toBe(300000);
+    });
+
+    it('404s on a withdrawal that does not exist', async () => {
+      await expect(service.settleWithdrawal('w-nope', 'PAID', 'finance-1')).rejects.toBeInstanceOf(
+        WithdrawalNotFoundError,
+      );
+    });
+
+    it('lists what is still waiting on the bank, and drops each one as it is answered', async () => {
+      const w = await cashOut();
+      expect(await service.listProcessingWithdrawals()).toHaveLength(1);
+      await service.settleWithdrawal(w.id, 'PAID', 'finance-1');
+      expect(await service.listProcessingWithdrawals()).toHaveLength(0);
+    });
   });
 
   /*

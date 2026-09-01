@@ -1,10 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { dayStartUtc, localDayKey, startOfLocalMonth } from '@hydromart/platform';
 
 import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  WithdrawalNotFoundError,
+  WithdrawalNotProcessingError,
 } from '../../domain/errors';
 import { LedgerEntryRecord, WithdrawalRecord } from '../../domain/ledger';
 import { CommissionSchemeRepository } from '../ports/commission-scheme.repository';
@@ -59,6 +61,8 @@ export interface OrderRevenueResult {
 
 @Injectable()
 export class PayoutService {
+  private readonly logger = new Logger(PayoutService.name);
+
   constructor(
     @Inject(PAYOUT_TOKENS.LedgerRepository) private readonly ledger: LedgerRepository,
     @Inject(PAYOUT_TOKENS.WithdrawalRepository) private readonly withdrawals: WithdrawalRepository,
@@ -283,6 +287,50 @@ export class PayoutService {
     if (!outcome.ok) {
       throw new InsufficientBalanceError(outcome.balance, amount);
     }
+    return outcome.withdrawal;
+  }
+
+  /** Withdrawals the bank has not answered for yet — the HQ release queue. */
+  listProcessingWithdrawals(limit = 100): Promise<WithdrawalRecord[]> {
+    return this.withdrawals.listProcessing(limit);
+  }
+
+  /**
+   * The way out of PROCESSING, which until now did not exist on either side of the money.
+   *
+   * `WithdrawalStatus` has carried PAID and FAILED since the first migration and the schema
+   * spells out what FAILED means — "a compensating credit re-posts to the ledger" — but no
+   * code in this service ever wrote either value. So every payout ever requested sat
+   * PROCESSING forever while its debit had already left the balance: an owner could not tell
+   * a transfer that cleared from one that was rejected, and a rejected one silently kept
+   * their money.
+   *
+   * PAID is a status change and nothing else — the debit at request time was the money
+   * leaving. FAILED re-credits, in the repository's own transaction.
+   */
+  async settleWithdrawal(
+    id: string,
+    status: 'PAID' | 'FAILED',
+    actorId: string,
+    reason?: string,
+  ): Promise<WithdrawalRecord> {
+    const outcome = await this.withdrawals.settle({
+      id,
+      status,
+      reversal: {
+        sourceRef: `withdrawal-reversal:${id}`,
+        description: reason?.trim()
+          ? `Pencairan gagal · ${reason.trim()}`
+          : 'Pencairan gagal, saldo dikembalikan',
+      },
+    });
+    if (!outcome.ok) {
+      if (outcome.reason === 'NOT_FOUND') throw new WithdrawalNotFoundError();
+      throw new WithdrawalNotProcessingError(outcome.status);
+    }
+    this.logger.log(
+      `Withdrawal ${outcome.withdrawal.reference} marked ${status} by ${actorId}`,
+    );
     return outcome.withdrawal;
   }
 }

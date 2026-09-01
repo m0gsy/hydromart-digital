@@ -82,6 +82,19 @@ payout: {
   release: '/payout/api/v1/payout/hq/release',
   // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
   hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
+  /*
+   * The way out of PROCESSING. `WithdrawalStatus` has carried PAID and FAILED since the
+   * first migration and nothing ever wrote either, so a released payout sat PROCESSING
+   * forever while its debit had already left the balance. Reading the queue is
+   * `hqPayoutRead`; answering it is `hqPayout` (FINANCE/SUPER_ADMIN).
+   */
+  hqProcessing: '/payout/api/v1/payout/hq/withdrawals/processing',
+  hqCourierProcessing: '/payout/api/v1/payout/hq/courier-withdrawals/processing',
+  hqMarkPaid: (id: string) => `/payout/api/v1/payout/hq/withdrawals/${id}/paid`,
+  hqMarkFailed: (id: string) => `/payout/api/v1/payout/hq/withdrawals/${id}/failed`,
+  hqCourierMarkPaid: (id: string) => `/payout/api/v1/payout/hq/courier-withdrawals/${id}/paid`,
+  hqCourierMarkFailed: (id: string) =>
+    `/payout/api/v1/payout/hq/courier-withdrawals/${id}/failed`,
 },
 
 // Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
