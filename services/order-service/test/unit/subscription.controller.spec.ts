@@ -15,6 +15,7 @@ function makeService(): Mocked {
     createForCustomer: jest.fn().mockResolvedValue({ id: 'sub-1' }),
     discountRate: jest.fn().mockReturnValue(0.08),
     changeAddress: jest.fn().mockResolvedValue({ id: 's1', addressLine: 'Jl. Baru 1' }),
+    erasePerson: jest.fn().mockResolvedValue({ erased: 21 }),
   } as unknown as Mocked;
 }
 
@@ -28,6 +29,16 @@ describe('SubscriptionController', () => {
     service = makeService();
     controller = new SubscriptionController(service as unknown as SubscriptionService);
   });
+
+  /*
+   * UU PDP item 13. auth-service's erasure registry calls this; the sweep in the same
+   * controller is exactly why it has to exist.
+   */
+  it('forwards a PDP erasure by customer id', async () => {
+    await controller.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(service.erasePerson).toHaveBeenCalledWith('c1');
+  });
+
 
   it('list: returns the current customer subscriptions', async () => {
     await expect(controller.list(user)).resolves.toEqual(['sub']);

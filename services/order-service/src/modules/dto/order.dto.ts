@@ -642,3 +642,19 @@ export class CounterBuyerResponseDto {
   @ApiProperty({ format: 'uuid' })
   customerId!: string;
 }
+
+/**
+ * UU PDP item 13 — who to forget. `phone` is accepted for symmetry with the other erasure
+ * endpoints; subscriptions are always keyed on `customerId`, so it is not read here.
+ */
+export class PdpAnonymiseDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
+}

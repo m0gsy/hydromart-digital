@@ -23,7 +23,19 @@ export const deleteAccount: typeof base = {
     },
     {
       heading: 'What we keep, and why',
-      body: 'Order, payment, and accounting records must be kept for at least 10 years to meet Indonesian tax and audit obligations — these are exempt from erasure by law, not by our choice. Once your account is anonymised, those records no longer point back to you. Delivery addresses remain as an address line with no name and no phone number attached, because an order that was already delivered still needs the place it went to.',
+      // "no longer point back to you" was untrue: an order row keeps its own COPY of the
+      // recipient name and phone typed at checkout, and that copy is deliberately retained
+      // for ten years with the rest of the financial record. The retention stands; the
+      // sentence is what was wrong. See the note in ../id/deleteAccount.ts.
+      body: 'Order, payment, and accounting records must be kept for at least 10 years to meet Indonesian tax and audit obligations — these are exempt from erasure by law, not by our choice. Your account itself is anonymised, so it can no longer be used to sign in and no longer identifies you. Inside that order history, however, we keep a copy of the recipient name and phone number you entered when ordering, because both are part of the transaction record we are required to retain — that copy is neither deleted nor anonymised. Delivery addresses in your address book remain as an address line with no name and no phone number attached, because an order that was already delivered still needs the place it went to.',
+    },
+    {
+      heading: 'What is deleted in other services',
+      // Written because it was not written anywhere: deletion called one service, and the
+      // rest was never mentioned — not as deleted, not as exempt. The list is a contract
+      // now (the erasure registry), and anything outside it is reported as unenforced
+      // rather than silently skipped.
+      body: 'Beyond your account and profile, deletion also reaches: your notification history and any campaign recipient rows carrying your phone number; the recipient phone on delivery records and the recipient name on proof-of-delivery records; any running subscription — which is cancelled first, so no new order goes out in your name; and support tickets together with the messages you wrote. Proof-of-delivery photos follow their own retention window of at most 12 months, described below.',
     },
     {
       heading: 'Proof of delivery',

@@ -194,6 +194,24 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return count === 1;
   }
 
+  async erasePerson(customerId: string): Promise<number> {
+    // Cancel BEFORE scrubbing, in one transaction: an ACTIVE plan with a blank recipient
+    // keeps shipping to the same address under no name, which is worse than leaving it.
+    const [cancelled, scrubbed] = await this.prisma.$transaction([
+      this.prisma.subscription.updateMany({
+        where: { customerId, status: { in: ['ACTIVE', 'PAUSED'] } },
+        data: { status: 'CANCELLED' },
+      }),
+      this.prisma.subscription.updateMany({
+        where: { customerId },
+        data: { recipientName: '', phone: '', notes: null },
+      }),
+    ]);
+    // The scrub count is the row count; the cancel count is a subset of it.
+    void cancelled;
+    return scrubbed.count;
+  }
+
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
     const [grouped, distinctCustomers] = await Promise.all([
       this.prisma.subscription.groupBy({

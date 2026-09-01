@@ -27,7 +27,21 @@ export const deleteAccount = {
     },
     {
       heading: 'Data yang tetap disimpan, dan mengapa',
-      body: 'Riwayat pesanan, pembayaran, dan catatan keuangan wajib kami simpan minimal 10 tahun untuk memenuhi kewajiban perpajakan dan audit — data ini dikecualikan dari penghapusan oleh hukum, bukan oleh pilihan kami. Setelah akunmu dianonimkan, catatan tersebut tidak lagi menunjuk ke identitasmu. Alamat pengantaran tetap tersimpan sebagai baris alamat tanpa nama dan tanpa nomor telepon, karena pesanan yang sudah diantar tetap membutuhkan tujuan pengantarannya.',
+      // Kalimat ini pernah berbunyi "catatan tersebut tidak lagi menunjuk ke identitasmu",
+      // dan itu tidak benar. Baris pesanan menyimpan SALINAN nama penerima dan nomor telepon
+      // yang diketik saat memesan (813 baris, diukur 2026-08-25 di docs/AUDIT_L3.md §4.2), dan
+      // salinan itu memang sengaja bertahan sepuluh tahun bersama catatan keuangannya.
+      // Keputusan pemilik 2026-09-01: retensinya TETAP; yang salah adalah kalimatnya. Jadi
+      // pengecualiannya dinyatakan, bukan disembunyikan di balik kata "dianonimkan".
+      body: 'Riwayat pesanan, pembayaran, dan catatan keuangan wajib kami simpan minimal 10 tahun untuk memenuhi kewajiban perpajakan dan audit — data ini dikecualikan dari penghapusan oleh hukum, bukan oleh pilihan kami. Akunmu sendiri dianonimkan sehingga tidak bisa lagi dipakai masuk dan tidak lagi menunjuk ke kamu. Namun di dalam riwayat pesanan itu tetap tersimpan salinan nama penerima dan nomor telepon yang kamu isi saat memesan, karena keduanya bagian dari bukti transaksi yang wajib disimpan — salinan itu tidak ikut dihapus dan tidak ikut dianonimkan. Alamat pengantaran pada buku alamatmu tetap tersimpan sebagai baris alamat tanpa nama dan tanpa nomor telepon, karena pesanan yang sudah diantar tetap membutuhkan tujuan pengantarannya.',
+    },
+    {
+      heading: 'Data yang dihapus di layanan lain',
+      // Ditulis karena sebelumnya tidak ada: penghapusan hanya memanggil satu layanan, dan
+      // sisanya tidak pernah disebut di mana pun — bukan sebagai dihapus, bukan sebagai
+      // dikecualikan. Sekarang daftarnya adalah kontrak (registry penghapusan), dan yang di
+      // luar daftar dilaporkan sebagai belum ditegakkan, bukan dilewatkan diam-diam.
+      body: 'Selain akun dan profilmu, penghapusan juga menjangkau: riwayat notifikasi dan daftar penerima kampanye beserta nomor teleponmu; nomor penerima pada catatan pengantaran dan nama penerima pada bukti serah terima; langganan berjalan — yang dibatalkan lebih dulu supaya tidak ada pesanan baru yang terkirim atas namamu; serta tiket dukungan beserta isi pesan yang kamu tulis. Foto bukti serah terima mengikuti masa simpannya sendiri, maksimal 12 bulan, seperti dijelaskan di bawah.',
     },
     {
       heading: 'Bukti pengantaran',

@@ -29,10 +29,11 @@ import {
   OpsNotificationDto,
   OpsReadAllResultDto,
   OpsReadResultDto,
+  PdpAnonymiseDto,
   PurgeNotificationsDto,
   SendNotificationDto,
 } from './dto/notification.dto';
-import { Purge3ResponseDto } from './dto/responses.generated.dto';
+import { PdpErasedResponseDto, Purge3ResponseDto } from './dto/responses.generated.dto';
 
 // Fired by upstream services (order-service) forwarding the acting fulfilment staff
 // member's token; SUPER_ADMIN can trigger manually. Not a customer-facing endpoint.
@@ -126,6 +127,25 @@ export class NotificationController {
   @ApiOperation({ summary: 'Delete notification history older than the cutoff (internal)' })
   purge(@Body() dto: PurgeNotificationsDto): Promise<{ deleted: number }> {
     return this.notifications.purgeOlderThan(new Date(dto.cutoff));
+  }
+
+  /*
+   * UU PDP item 13 — forget one person, on request rather than on a window.
+   *
+   * Erasure used to be one call to customer-service, so `docs/AUDIT_L3.md` §4.2 found
+   * 3.033 notification rows and 17 campaign recipients still carrying the phone number of
+   * people who had asked to be forgotten. auth-service's erasure registry calls this, and
+   * reports it UNENFORCED if it cannot — the gap is named either way.
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Erase one person from notification + campaign history (internal)' })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.notifications.erasePerson(dto.customerId, dto.phone ?? null);
   }
 
   private async dispatch(dto: SendNotificationDto): Promise<NotificationDto> {

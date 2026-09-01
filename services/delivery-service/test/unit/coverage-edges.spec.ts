@@ -346,4 +346,39 @@ describe('edges nothing else exercises', () => {
     expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
     expect(error).toHaveBeenCalledWith(expect.stringContaining('403 Forbidden'));
   });
+
+  /*
+   * UU PDP item 13 — the same rows, on request rather than on a window.
+   *
+   * `purgeProofsOlderThan` above is a 365-day window, and `deliveries.recipientPhone` has
+   * none at all: `docs/AUDIT_L3.md` §4.2 counted 153 of those numbers still on file. The
+   * delivery row itself survives — it is half of a FINANCIAL order — and the person goes.
+   */
+  it('erases the person from a delivery without deleting the delivery', async () => {
+    const repo = new InMemoryDeliveryRepository();
+    const created = await repo.create({
+      orderId: randomUUID(),
+      orderNumber: 'ORD-9',
+      driverId: randomUUID(),
+      depotId: null,
+      destinationAddress: 'Jl. Cikini 1',
+      destinationLat: null,
+      destinationLng: null,
+      recipientPhone: '+628111',
+      customerId: 'cust-1',
+      items: null,
+      codAmount: null,
+      notes: 'pagar hijau',
+      deliveryWindow: null,
+    });
+
+    expect(await repo.erasePerson('cust-1', '+628111')).toBe(1);
+
+    const after = await repo.findById(created.id);
+    expect(after).toMatchObject({ recipientPhone: null, notes: null });
+    // The delivery itself stays: an order that was delivered still needs its delivery.
+    expect(after?.orderNumber).toBe('ORD-9');
+    // Somebody else is untouched, and a retry reports nothing rather than failing.
+    expect(await repo.erasePerson('cust-2', null)).toBe(0);
+  });
 });

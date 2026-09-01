@@ -1211,3 +1211,9 @@ export class DepotDailyRowResponseDto {
   @ApiProperty({ type: Boolean })
   isWalkIn!: boolean;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class PdpErasedResponseDto {
+  @ApiProperty({ type: Number })
+  erased!: number;
+}

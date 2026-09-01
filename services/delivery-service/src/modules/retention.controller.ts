@@ -4,8 +4,8 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { DeliveryService } from '../application/services/delivery.service';
-import { PurgeProofsDto } from './dto/retention.dto';
-import { PurgeExpired2ResponseDto } from './dto/responses.generated.dto';
+import { PdpAnonymiseDto, PurgeProofsDto } from './dto/retention.dto';
+import { PdpErasedResponseDto, PurgeExpired2ResponseDto } from './dto/responses.generated.dto';
 
 /**
  * UU PDP retention sweep, driven by admin-service's purge engine.
@@ -34,5 +34,24 @@ export class RetentionController {
     // `deleted` is the field every purge executor reads; `purged` is kept for the
     // original response shape so an existing caller is not broken by the rename.
     return { purged, deleted: purged };
+  }
+
+  /*
+   * UU PDP item 13 — forget one person, now rather than when a window expires.
+   *
+   * The sweep above is a WINDOW: proofs disappear 365 days after handover, and
+   * `deliveries.recipientPhone` has no window at all. `docs/AUDIT_L3.md` §4.2 counted what
+   * that left: 153 phone numbers and 76 recipient names belonging to people who had asked
+   * to be forgotten. A window is not an answer to "forget me today".
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Scrub one person from deliveries + proofs (internal, UU PDP)' })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.deliveries.erasePerson(dto.customerId, dto.phone ?? null);
   }
 }

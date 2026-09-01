@@ -30,6 +30,15 @@ export class PdpPrismaRepository implements PdpRepository {
    * street still needs a street, and item 12 keeps the order itself for ten years. What
    * goes is everything that names a person — recipient name, phone, free-text notes.
    * Favourites and payment labels are not financial records and are simply removed.
+   *
+   * `reseller_profiles` was the miss `docs/AUDIT_L3.md` §4.2 named most precisely: one
+   * file, two methods, one table. `exportFor` above reads it AS PERSONAL DATA — it is in
+   * the export payload — and this method never touched it. It carries the agen's
+   * registration photo (a KTP or a shopfront), a free-text note, and their home depot.
+   *
+   * Deactivated and scrubbed rather than deleted: the row is referenced by reseller pricing
+   * at checkout and by the per-depot achievement evaluation, so removing it would strand
+   * those. `active: false` stops it being used; the photo and the note are the person.
    */
   async anonymise(customerId: string): Promise<void> {
     await this.prisma.$transaction([
@@ -44,6 +53,10 @@ export class PdpPrismaRepository implements PdpRepository {
       this.prisma.customerProfile.updateMany({
         where: { customerId },
         data: { birthdate: null, lastBirthdayRewardYear: null },
+      }),
+      this.prisma.resellerProfile.updateMany({
+        where: { customerId },
+        data: { photoUrl: null, note: null, active: false },
       }),
     ]);
   }

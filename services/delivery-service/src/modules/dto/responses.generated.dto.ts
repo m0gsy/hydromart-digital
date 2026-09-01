@@ -408,3 +408,9 @@ export class DepositedCodResponseDto {
   @ApiProperty({ type: Number })
   settlements!: number;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class PdpErasedResponseDto {
+  @ApiProperty({ type: Number })
+  erased!: number;
+}

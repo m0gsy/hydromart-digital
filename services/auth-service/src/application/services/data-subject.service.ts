@@ -15,6 +15,14 @@ import {
   anonymisedIdentity,
   isDecidable,
 } from '../../domain/data-subject/data-subject-request';
+import {
+  ERASURE_EXECUTORS,
+  ERASURE_EXEMPTIONS,
+  ErasureExecutor,
+  ErasureExemption,
+  ErasureOutcome,
+  ErasureSubject,
+} from '../ports/erasure-executor.port';
 import { ConsentService } from './consent.service';
 import { CustomerDataPort } from '../ports/customer-data.port';
 import { CustomerRepository } from '../ports/customer.repository';
@@ -71,6 +79,10 @@ export class DataSubjectService {
     // Optional so existing construction sites (and the PDP specs) are untouched; the staff
     // deletion path logs and continues when it is absent rather than half-failing.
     @Optional() @Inject(HR_DIRECTORY_PORT) private readonly hr?: HrDirectoryPort,
+    // Optional for the same reason as `hr`: every existing construction site (and the PDP
+    // specs) keeps working, and an absent registry reports nothing rather than half-failing.
+    @Optional() @Inject(ERASURE_EXECUTORS) private readonly erasers?: ErasureExecutor[],
+    @Optional() @Inject(ERASURE_EXEMPTIONS) private readonly exemptions?: ErasureExemption[],
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -146,6 +158,13 @@ export class DataSubjectService {
     }
 
     await this.customerData.anonymise(found.customerId);
+    // Read BEFORE `anonymiseCustomer` below: half the rows that survived erasure are keyed
+    // on a phone with a null customerId, and once the account is scrubbed that key is gone.
+    const account = await this.customers.findById(found.customerId);
+    const coverage = await this.eraseEverywhere({
+      customerId: found.customerId,
+      phone: account?.phone ?? null,
+    });
     await this.requests.anonymiseCustomer(found.customerId, anonymisedIdentity(found.customerId));
     const request = await this.requests.decide({
       id,
@@ -159,9 +178,59 @@ export class DataSubjectService {
       success: true,
       ipAddress: null,
       userAgent: null,
-      metadata: { requestId: id, subject: found.customerId },
+      // The coverage report rides on the audit row, so "what was actually erased" is a
+      // question the trail can answer months later without re-running anything.
+      metadata: { requestId: id, subject: found.customerId, coverage },
     });
     return { request };
+  }
+
+  /**
+   * Fan the erasure out across every service the registry names, and REPORT the rest.
+   *
+   * The shape is `purge-executor.registry.ts`, and so is the rule it exists for: a dataset
+   * with no executor is `UNENFORCED`, never skipped in silence. Before this, erasure was
+   * one call to customer-service, and `docs/AUDIT_L3.md` §4.2 counted what that left
+   * standing — 4.124 rows across eight tables, including 21 subscriptions still placing
+   * orders to the phone number of somebody who had asked to be forgotten.
+   *
+   * Never throws. The account is already anonymised by the time this runs, and raising
+   * here would report a failure for a deletion that has in fact largely happened. A
+   * failed executor is recorded as `FAILED` with its message, which is a row a human can
+   * act on — unlike an exception that rolls the whole request back to PENDING and loses
+   * which halves succeeded.
+   */
+  private async eraseEverywhere(subject: ErasureSubject): Promise<ErasureOutcome[]> {
+    const outcomes: ErasureOutcome[] = (this.exemptions ?? []).map((e) => ({
+      dataset: e.dataset,
+      coverage: 'EXEMPT' as const,
+      rows: null,
+      note: e.reason,
+    }));
+
+    for (const executor of this.erasers ?? []) {
+      if (!executor.configured) {
+        outcomes.push({
+          dataset: executor.dataset,
+          coverage: 'UNENFORCED',
+          rows: null,
+          note:
+            executor.unenforcedReason ??
+            'Owner service is not configured in this environment.',
+        });
+        this.logger.warn(`Erasure UNENFORCED for ${executor.dataset}: owner not configured`);
+        continue;
+      }
+      try {
+        const rows = await executor.erase(subject);
+        outcomes.push({ dataset: executor.dataset, coverage: 'ERASED', rows, note: '' });
+      } catch (error) {
+        const note = (error as Error).message;
+        outcomes.push({ dataset: executor.dataset, coverage: 'FAILED', rows: null, note });
+        this.logger.error(`Erasure FAILED for ${executor.dataset}: ${note}`);
+      }
+    }
+    return outcomes;
   }
 
   /**
@@ -223,6 +292,9 @@ export class DataSubjectService {
     }
 
     await this.customerData.anonymise(targetId);
+    // Same fan-out as the customer path: a deleted staff account is a person too, and their
+    // phone sits in the same crm/delivery/admin tables. One definition of "deleted".
+    const coverage = await this.eraseEverywhere({ customerId: targetId, phone: target.phone ?? null });
     await this.requests.anonymiseCustomer(targetId, anonymisedIdentity(targetId));
     let employeeAnonymised = true;
     if (this.hr && target.role !== Role.FRANCHISE_OWNER) {
@@ -246,7 +318,7 @@ export class DataSubjectService {
       success: true,
       ipAddress: null,
       userAgent: null,
-      metadata: { subject: targetId, role: target.role, employeeAnonymised },
+      metadata: { subject: targetId, role: target.role, employeeAnonymised, coverage },
     });
     return { deleted: true, employeeAnonymised };
   }

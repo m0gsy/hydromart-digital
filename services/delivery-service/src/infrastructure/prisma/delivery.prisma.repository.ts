@@ -465,6 +465,28 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    // OR on the phone as well as the id: a delivery created before the customer registered
+    // carries the number and no id, and that is the row the audit counted.
+    const match = phone
+      ? [{ customerId }, { recipientPhone: phone }]
+      : [{ customerId }];
+    const [deliveries, proofs] = await this.prisma.$transaction([
+      this.prisma.delivery.updateMany({
+        where: { OR: match },
+        data: { recipientPhone: null, notes: null },
+      }),
+      // The proof's recipient NAME only. Photo, signature and GPS belong to the 365-day
+      // retention sweep, which deletes the objects too — racing it here would leave rows
+      // pointing at files nobody deleted.
+      this.prisma.proofOfDelivery.updateMany({
+        where: { delivery: { OR: match } },
+        data: { recipientName: '' },
+      }),
+    ]);
+    return deliveries.count + proofs.count;
+  }
+
   async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
     // Read the URLs before the rows go: once they are deleted there is nothing left to say
     // which objects in the bucket belonged to them (H-22).

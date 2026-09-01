@@ -500,3 +500,52 @@ describe('PushSubscriptionPrismaRepository', () => {
     });
   });
 });
+
+/*
+ * UU PDP item 13 — forget one person, now rather than when a window expires.
+ *
+ * `docs/AUDIT_L3.md` §4.2 counted what "when the window expires" left standing here: 3.033
+ * rows in `notifications` and 17 in `campaign_recipients`, each keyed on a phone number the
+ * owner had asked us to forget. Delete `erasePerson` and every case below fails.
+ */
+describe('NotificationPrismaRepository.erasePerson', () => {
+  const notification = { deleteMany: jest.fn() };
+  const campaignRecipient = { deleteMany: jest.fn() };
+  const webPushSubscription = { deleteMany: jest.fn() };
+  const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
+  const prisma = {
+    notification,
+    campaignRecipient,
+    webPushSubscription,
+    $transaction,
+  } as unknown as PrismaService;
+  const repo = new NotificationPrismaRepository(prisma);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    notification.deleteMany.mockResolvedValue({ count: 3033 });
+    campaignRecipient.deleteMany.mockResolvedValue({ count: 17 });
+    webPushSubscription.deleteMany.mockResolvedValue({ count: 2 });
+  });
+
+  it('matches on id OR phone, in one transaction, and totals the rows', async () => {
+    expect(await repo.erasePerson('cust-1', '+628111')).toBe(3052);
+
+    expect($transaction).toHaveBeenCalledTimes(1);
+    // OR, not AND: a campaign recipient who never registered has a phone and no id, and
+    // that is exactly the row the audit counted.
+    expect(notification.deleteMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }, { phone: '+628111' }] },
+    });
+    expect(campaignRecipient.deleteMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }, { phone: '+628111' }] },
+    });
+    // A device endpoint belongs to one person and to nothing else.
+    expect(webPushSubscription.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
+  });
+
+  it('falls back to the id alone when no phone is known', async () => {
+    await repo.erasePerson('cust-1', null);
+    expect(notification.deleteMany).toHaveBeenCalledWith({ where: { OR: [{ customerId: 'cust-1' }] } });
+  });
+});

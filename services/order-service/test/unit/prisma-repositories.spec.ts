@@ -1386,3 +1386,46 @@ describe('OrderPrismaRepository', () => {
     expect(await repo.segmentCustomerIds({}, 10)).toEqual([]);
   });
 });
+
+/*
+ * UU PDP item 13 — a subscription is not history.
+ *
+ * It is a standing instruction that keeps placing orders, and `docs/AUDIT_L3.md` §4.2
+ * measured 21 rows still carrying the name and phone of somebody who had asked to be
+ * forgotten — with the nightly sweep still shipping water to them. The ORDER of the two
+ * writes is the fix: cancel, then scrub. Swap them and an ACTIVE plan keeps delivering to
+ * the same door under a blank name, which is worse than doing nothing.
+ */
+describe('SubscriptionPrismaRepository.erasePerson', () => {
+  const subscription = { updateMany: jest.fn() };
+  const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
+  const prisma = { subscription, $transaction } as unknown as PrismaService;
+  const repo = new SubscriptionPrismaRepository(prisma);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    subscription.updateMany
+      .mockResolvedValueOnce({ count: 2 })
+      .mockResolvedValueOnce({ count: 3 });
+  });
+
+  it('cancels first, then scrubs, in one transaction — and reports every row', async () => {
+    expect(await repo.erasePerson('cust-1')).toBe(3);
+
+    expect($transaction).toHaveBeenCalledTimes(1);
+    const [cancel, scrub] = subscription.updateMany.mock.calls.map((c) => c[0]);
+    // ACTIVE and PAUSED both: a paused plan resumes, and a resumed plan ships.
+    expect(cancel).toEqual({
+      where: { customerId: 'cust-1', status: { in: ['ACTIVE', 'PAUSED'] } },
+      data: { status: 'CANCELLED' },
+    });
+    expect(scrub).toEqual({
+      where: { customerId: 'cust-1' },
+      data: { recipientName: '', phone: '', notes: null },
+    });
+    // Cancel is issued before the scrub — the whole point.
+    expect(subscription.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      subscription.updateMany.mock.invocationCallOrder[1],
+    );
+  });
+});

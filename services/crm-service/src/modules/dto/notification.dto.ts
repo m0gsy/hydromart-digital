@@ -117,3 +117,22 @@ export class PurgeNotificationsDto {
   @IsISO8601()
   cutoff!: string;
 }
+
+/**
+ * UU PDP item 13 — forget one person, on request.
+ *
+ * `phone` rides along because half these rows carry no `customerId` at all: a campaign
+ * recipient who never registered, a notification sent before the account existed. Erasing
+ * by id alone is exactly how `crm.campaign_recipients` stayed populated after a deletion.
+ */
+export class PdpAnonymiseDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: '+628123456789' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
+}

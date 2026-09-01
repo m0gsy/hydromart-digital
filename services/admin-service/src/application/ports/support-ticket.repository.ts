@@ -71,4 +71,20 @@ export interface SupportTicketRepository {
   assign(id: string, assigneeId: string): Promise<SupportTicketRecord | null>;
   /** Mark RESOLVED. Null when unknown. */
   resolve(id: string): Promise<SupportTicketRecord | null>;
+  /**
+   * UU PDP item 13: forget one person's complaints.
+   *
+   * `docs/AUDIT_L3.md` §4.2 counted 14 tickets holding `customerPhone`, plus the free text
+   * in `ticket_messages` — a queue whose whole workflow is phoning whoever is on the row.
+   * Neither table has a retention policy at all, so nothing would ever have removed them.
+   *
+   * Scrub, not delete: the ticket is also the record that somebody complained and how it
+   * was resolved, which is an operational fact about the depot rather than about the
+   * person. What goes is the person — the phone, the free-text reference, and the customer
+   * messages' bodies. Staff replies stay: they are the depot's own words.
+   *
+   * Matched on id OR phone, because a ticket staff opened at the counter has a phone and
+   * no id (see the `customerId` note on the model). Idempotent.
+   */
+  erasePerson(customerId: string, phone: string | null): Promise<number>;
 }

@@ -640,6 +640,18 @@ export class DeliveryService {
    * H-22: the row alone was never erasure. The photo is of someone's doorstep, often with
    * them in frame, and it outlived the record by however long the bucket kept it.
    */
+  /**
+   * UU PDP item 13: scrub one person from this service's rows.
+   *
+   * Called by auth-service's erasure registry, which reports a dataset it cannot reach as
+   * UNENFORCED rather than skipping it — so the endpoint existing is half the fix.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
+    const erased = await this.deliveries.erasePerson(customerId, phone);
+    this.logger.log(`PDP erasure: scrubbed ${erased} delivery row(s) for ${customerId}`);
+    return { erased };
+  }
+
   async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {
     const { count: purged, urls } = await this.deliveries.purgeProofsBefore(cutoff);
     for (const url of urls) {

@@ -112,6 +112,24 @@ describe('PushController', () => {
 });
 
 describe('NotificationController', () => {
+  /*
+   * UU PDP item 13. auth-service's erasure registry calls this; before it existed, deletion
+   * was one call to customer-service and `docs/AUDIT_L3.md` §4.2 counted 3.050 crm rows
+   * left carrying the phone numbers of people who had asked to be forgotten.
+   */
+  it('forwards a PDP erasure with the phone the registry sent', async () => {
+    const notifications = { erasePerson: jest.fn().mockResolvedValue({ erased: 3050 }) };
+    const ctrl = new NotificationController(notifications as never);
+
+    expect(await ctrl.pdpAnonymise({ customerId: 'c1', phone: '+628111' } as never)).toEqual({
+      erased: 3050,
+    });
+    expect(notifications.erasePerson).toHaveBeenCalledWith('c1', '+628111');
+
+    await ctrl.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(notifications.erasePerson).toHaveBeenLastCalledWith('c1', null);
+  });
+
   it("lists the current customer's inbox", async () => {
     const notifications = { listForCustomer: jest.fn().mockResolvedValue([notifRecord()]) };
     const out = await new NotificationController(notifications as never).listMine(user);

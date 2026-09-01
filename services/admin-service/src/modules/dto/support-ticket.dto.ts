@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../domain/ticket';
 import {
@@ -171,4 +171,20 @@ export class SupportTicketDto {
       messages: record.messages.map(TicketMessageDto.from),
     };
   }
+}
+
+/**
+ * UU PDP item 13 — who to forget. `phone` rides along because a ticket staff opened at the
+ * counter carries the number and no `customerId`.
+ */
+export class PdpAnonymiseDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
 }

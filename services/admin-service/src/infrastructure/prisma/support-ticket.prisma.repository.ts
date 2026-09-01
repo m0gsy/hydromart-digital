@@ -128,6 +128,33 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     return this.findById(id);
   }
 
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    // OR on the phone: a ticket staff opened at the counter carries the number and no id.
+    const match = phone
+      ? [{ customerId }, { customerPhone: phone }]
+      : [{ customerId }];
+    const mine = await this.prisma.supportTicket.findMany({
+      where: { OR: match },
+      select: { id: true },
+    });
+    if (mine.length === 0) return 0;
+    const ids = mine.map((t) => t.id);
+    await this.prisma.$transaction([
+      this.prisma.supportTicket.updateMany({
+        where: { id: { in: ids } },
+        // A blank reference reads as a data bug; the tombstone says what happened.
+        data: { customerRef: 'Pengguna dihapus', customerPhone: '-' },
+      }),
+      // The CUSTOMER's own words only. Staff replies are the depot's record of how it was
+      // handled, and erasing those would erase the depot's answer, not the person.
+      this.prisma.ticketMessage.updateMany({
+        where: { ticketId: { in: ids }, authorType: 'CUSTOMER' },
+        data: { body: '[dihapus atas permintaan pemilik data]' },
+      }),
+    ]);
+    return ids.length;
+  }
+
   async resolve(id: string): Promise<SupportTicketRecord | null> {
     const existing = await this.prisma.supportTicket.findUnique({ where: { id } });
     if (!existing) return null;

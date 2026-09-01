@@ -40,6 +40,21 @@ export interface NotificationRepository {
    */
   deleteOlderThan(cutoff: Date): Promise<number>;
 
+  /**
+   * UU PDP item 13: forget one person NOW, not when their retention window happens to
+   * expire. `docs/AUDIT_L3.md` §4.2 counted what "when the window expires" left standing —
+   * 3.033 rows in `notifications` and 17 in `campaign_recipients`, each keyed on a phone
+   * number the owner had asked us to forget.
+   *
+   * DELETE rather than scrub: these tables already have a DELETE retention executor and a
+   * 90-day window, so removal is the treatment their own policy prescribes. Web-push
+   * subscriptions go too — a device endpoint belongs to one person and to nothing else.
+   *
+   * Matched on id OR phone, because a recipient who never registered has no id.
+   * Idempotent: a retry deletes nothing and is not an error.
+   */
+  erasePerson(customerId: string, phone: string | null): Promise<number>;
+
   /** Append a notification audit row. */
   record(data: RecordNotificationData): Promise<NotificationRecord>;
 

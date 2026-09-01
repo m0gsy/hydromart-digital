@@ -357,4 +357,150 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     customers.findById.mockResolvedValueOnce(null);
     expect((await service.exportFor(CUSTOMER)).account).toEqual({});
   });
+
+  /*
+   * The erasure REGISTRY (UU PDP item 13, docs/AUDIT_L3.md §4.2).
+   *
+   * Before it, "delete my account" was one HTTP call to customer-service, and §4.2 counted
+   * what that left standing on the live cluster: 4.124 rows across eight tables, including
+   * 21 subscriptions still placing orders to the phone number of somebody who had asked to
+   * be forgotten. The registry does not promise completeness — it promises that whatever is
+   * not covered is NAMED, exactly as `purge-executor.registry.ts` does for retention.
+   *
+   * Delete the `eraseEverywhere` call in `approve` and every case below fails.
+   */
+  describe('erasure registry', () => {
+    const withRegistry = (
+      erasers: unknown[],
+      exemptions: { dataset: string; reason: string }[] = [],
+    ) =>
+      new DataSubjectService(
+        requests as never,
+        customers as never,
+        customerData as never,
+        audit as never,
+        new ConsentService(new InMemoryConsentRepository()),
+        undefined,
+        erasers as never,
+        exemptions as never,
+      );
+
+    const executor = (dataset: string, over: Partial<{ configured: boolean; rows: number; fail: string; unenforcedReason: string }> = {}) => ({
+      dataset,
+      configured: over.configured ?? true,
+      unenforcedReason: over.unenforcedReason,
+      erase: jest.fn(async () => {
+        if (over.fail) throw new Error(over.fail);
+        return over.rows ?? 1;
+      }),
+    });
+
+    it('fans the erasure out and reports what each owner did', async () => {
+      const crm = executor('crm.messages', { rows: 3050 });
+      const subs = executor('order.subscriptions', { rows: 21 });
+      const svc = withRegistry([crm, subs]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      await svc.approve(created.id, STAFF);
+
+      // The phone rides along: half the surviving rows carry a number and no id.
+      expect(crm.erase).toHaveBeenCalledWith({ customerId: CUSTOMER, phone: '+628111' });
+      const coverage = audit.record.mock.calls.at(-1)?.[0].metadata.coverage;
+      expect(coverage).toEqual(
+        expect.arrayContaining([
+          { dataset: 'crm.messages', coverage: 'ERASED', rows: 3050, note: '' },
+          { dataset: 'order.subscriptions', coverage: 'ERASED', rows: 21, note: '' },
+        ]),
+      );
+    });
+
+    // The whole point. A dataset nobody can reach is a ROW in the report, not an omission.
+    it('reports an unreachable owner as UNENFORCED rather than skipping it', async () => {
+      const svc = withRegistry([executor('crm.messages', { configured: false })]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      await svc.approve(created.id, STAFF);
+
+      expect(audit.record.mock.calls.at(-1)?.[0].metadata.coverage).toContainEqual(
+        expect.objectContaining({ dataset: 'crm.messages', coverage: 'UNENFORCED' }),
+      );
+    });
+
+    // A dataset that is known and deliberately has no executor yet carries its own reason,
+    // not the generic "not configured" — `depot.order_disputes` has no customerId column.
+    it('carries the declared reason for a dataset with no executor yet', async () => {
+      const svc = withRegistry([
+        executor('depot.order_disputes', { configured: false, unenforcedReason: 'no customerId column' }),
+      ]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      await svc.approve(created.id, STAFF);
+
+      expect(audit.record.mock.calls.at(-1)?.[0].metadata.coverage).toContainEqual(
+        expect.objectContaining({ coverage: 'UNENFORCED', note: 'no customerId column' }),
+      );
+    });
+
+    /*
+     * A failing owner must not roll back a deletion that has largely happened — the account
+     * is already anonymised by this point. It is recorded as FAILED with its message, which
+     * a human can act on; an exception would lose which halves succeeded.
+     */
+    it('records a failing owner as FAILED and still completes the request', async () => {
+      const svc = withRegistry([executor('crm.messages', { fail: 'owner responded 503' })]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      const result = await svc.approve(created.id, STAFF);
+
+      expect(result.request.status).toBe('COMPLETED');
+      expect(audit.record.mock.calls.at(-1)?.[0].metadata.coverage).toContainEqual(
+        expect.objectContaining({ dataset: 'crm.messages', coverage: 'FAILED', note: 'owner responded 503' }),
+      );
+    });
+
+    /*
+     * `order.orders` is the row the console audit called a Kritis defect and AUDIT_L3 §4.2
+     * called a written decision. AUDIT_L3 is right, and the decision now has somewhere to
+     * live: an EXEMPT row with its reason, in the same report as everything else.
+     */
+    it('reports a written exemption as EXEMPT with its reason', async () => {
+      const svc = withRegistry([], [{ dataset: 'order.orders', reason: 'FINANCIAL, 10 tahun' }]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      await svc.approve(created.id, STAFF);
+
+      expect(audit.record.mock.calls.at(-1)?.[0].metadata.coverage).toContainEqual({
+        dataset: 'order.orders',
+        coverage: 'EXEMPT',
+        rows: null,
+        note: 'FINANCIAL, 10 tahun',
+      });
+    });
+
+    // An account row that has already gone (a retried approve) must not stop the fan-out:
+    // the id still erases everything keyed on it, and only the phone-keyed rows are lost.
+    it('sends a null phone rather than failing when the account row is already gone', async () => {
+      const crm = executor('crm.messages');
+      const svc = withRegistry([crm]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+      customers.findById.mockResolvedValueOnce(null);
+
+      await svc.approve(created.id, STAFF);
+
+      expect(crm.erase).toHaveBeenCalledWith({ customerId: CUSTOMER, phone: null });
+    });
+
+    // Read BEFORE `anonymiseCustomer`: once the account is scrubbed the phone key is gone,
+    // and the rows keyed on it would be unreachable forever.
+    it('reads the phone before the account is anonymised', async () => {
+      const crm = executor('crm.messages');
+      const svc = withRegistry([crm]);
+      const created = await svc.request(CUSTOMER, 'DELETE', null);
+
+      await svc.approve(created.id, STAFF);
+
+      expect(crm.erase).toHaveBeenCalledWith(expect.objectContaining({ phone: '+628111' }));
+      expect(requests.anonymised).toEqual([CUSTOMER]);
+    });
+  });
 });

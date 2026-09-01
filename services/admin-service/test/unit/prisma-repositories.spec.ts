@@ -1019,3 +1019,58 @@ describe('WebhookPrismaRepository', () => {
     expect(model.delete).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * UU PDP item 13 — forget one person's complaints.
+ *
+ * `docs/AUDIT_L3.md` §4.2 counted 14 tickets holding `customerPhone` plus the free text in
+ * `ticket_messages`, and NEITHER table has a retention policy at all — so before this,
+ * nothing would ever have removed them, not on request and not on a window.
+ */
+describe('SupportTicketPrismaRepository.erasePerson', () => {
+  const supportTicket = { findMany: jest.fn(), updateMany: jest.fn() };
+  const ticketMessage = { updateMany: jest.fn() };
+  const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
+  const prisma = { supportTicket, ticketMessage, $transaction } as unknown as PrismaService;
+  const repo = new SupportTicketPrismaRepository(prisma);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    supportTicket.updateMany.mockResolvedValue({ count: 2 });
+    ticketMessage.updateMany.mockResolvedValue({ count: 5 });
+  });
+
+  it('scrubs the person from the ticket and their own messages, keeping staff replies', async () => {
+    supportTicket.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+
+    expect(await repo.erasePerson('cust-1', '+628111')).toBe(2);
+
+    // OR on the phone: a ticket staff opened at the counter has a number and no id.
+    expect(supportTicket.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }, { customerPhone: '+628111' }] },
+      select: { id: true },
+    });
+    expect(supportTicket.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['t1', 't2'] } },
+      data: { customerRef: 'Pengguna dihapus', customerPhone: '-' },
+    });
+    // Only the CUSTOMER's words. A staff reply is the depot's record of how it was handled.
+    expect(ticketMessage.updateMany).toHaveBeenCalledWith({
+      where: { ticketId: { in: ['t1', 't2'] }, authorType: 'CUSTOMER' },
+      data: { body: '[dihapus atas permintaan pemilik data]' },
+    });
+  });
+
+  it('writes nothing at all when the person has no tickets', async () => {
+    supportTicket.findMany.mockResolvedValue([]);
+
+    expect(await repo.erasePerson('cust-1', null)).toBe(0);
+
+    expect($transaction).not.toHaveBeenCalled();
+    expect(supportTicket.updateMany).not.toHaveBeenCalled();
+    expect(supportTicket.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }] },
+      select: { id: true },
+    });
+  });
+});

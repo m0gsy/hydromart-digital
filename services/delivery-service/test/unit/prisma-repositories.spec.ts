@@ -1006,3 +1006,53 @@ describe('ShiftPrismaRepository', () => {
     expect(shift.findMany).toHaveBeenCalledWith({ where: {}, orderBy: { checkInAt: 'desc' } });
   });
 });
+
+/*
+ * UU PDP item 13 — forget one person, now rather than when a window expires.
+ *
+ * `docs/AUDIT_L3.md` §4.2 counted 153 rows in `deliveries.recipientPhone` with NO window at
+ * all, and 76 recipient names on proofs that do have one — 365 days, which means the row
+ * goes some day, not the day the person asked.
+ *
+ * Scrub, not delete: the delivery is the other half of an order, and orders are FINANCIAL
+ * (ten years, a written exemption in the erasure registry). What goes is the person.
+ */
+describe('DeliveryPrismaRepository.erasePerson', () => {
+  const delivery = { updateMany: jest.fn() };
+  const proofOfDelivery = { updateMany: jest.fn() };
+  const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
+  const prisma = { delivery, proofOfDelivery, $transaction } as unknown as PrismaService;
+  const repo = new DeliveryPrismaRepository(prisma);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delivery.updateMany.mockResolvedValue({ count: 153 });
+    proofOfDelivery.updateMany.mockResolvedValue({ count: 76 });
+  });
+
+  it('scrubs the recipient on deliveries and their proofs, in one transaction', async () => {
+    expect(await repo.erasePerson('cust-1', '+628111')).toBe(229);
+
+    expect($transaction).toHaveBeenCalledTimes(1);
+    // OR on the phone: a delivery created before the customer registered has the number
+    // and no id, and that is the row the audit counted.
+    expect(delivery.updateMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] },
+      data: { recipientPhone: null, notes: null },
+    });
+    // The recipient NAME only. Photo, signature and GPS belong to the 365-day retention
+    // sweep, which deletes the objects too — racing it here would strand files.
+    expect(proofOfDelivery.updateMany).toHaveBeenCalledWith({
+      where: { delivery: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] } },
+      data: { recipientName: '' },
+    });
+  });
+
+  it('falls back to the id alone when no phone is known', async () => {
+    await repo.erasePerson('cust-1', null);
+    expect(delivery.updateMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }] },
+      data: { recipientPhone: null, notes: null },
+    });
+  });
+});

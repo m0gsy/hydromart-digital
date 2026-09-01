@@ -38,3 +38,9 @@ export class VapidPublicKey3ResponseDto {
   @ApiProperty({ type: String })
   key!: string;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class PdpErasedResponseDto {
+  @ApiProperty({ type: Number })
+  erased!: number;
+}

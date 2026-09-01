@@ -55,6 +55,18 @@ export class NotificationService {
   }
 
   /**
+   * UU PDP item 13: forget one person across every table this service keeps them in.
+   *
+   * Called by auth-service's erasure registry, which reports a dataset it cannot reach as
+   * UNENFORCED rather than skipping it — so this endpoint existing at all is half the fix.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
+    const erased = await this.repo.erasePerson(customerId, phone);
+    this.logger.log(`PDP erasure: removed ${erased} crm row(s) for ${customerId}`);
+    return { erased };
+  }
+
+  /**
    * Whether this customer still wants push. Optional dependency: crm predates the port,
    * and a deployment that has not wired it must keep sending rather than go quiet.
    */

@@ -160,6 +160,29 @@ describe('NotificationService.purgeOlderThan (retention enforcement)', () => {
     // Nothing is left, so a second sweep deletes nothing rather than failing.
     expect(await service.purgeOlderThan(far)).toEqual({ deleted: 0 });
   });
+
+  /*
+   * UU PDP item 13 — the same rows, but on request rather than on a window.
+   *
+   * The sweep above is a WINDOW: 90 days. `docs/AUDIT_L3.md` §4.2 counted 3.033 notification
+   * rows still carrying the phone numbers of people who had asked to be forgotten, because a
+   * window is not an answer to "forget me today". Delete `erasePerson` and this fails.
+   */
+  it('erases one person on request, by id or by phone, and is idempotent', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo, { send: jest.fn() } as never);
+    const row = (customerId: string | null, phone: string) =>
+      repo.record({ event: 'X', phone, message: 'm', customerId, status: 'SENT', error: null } as never);
+
+    await row('cust-1', '+628111');
+    // No id at all — the shape that survived every previous deletion.
+    await row(null, '+628111');
+    await row('cust-2', '+628222');
+
+    expect(await service.erasePerson('cust-1', '+628111')).toEqual({ erased: 2 });
+    // Somebody else's history is untouched, and a retry erases nothing rather than failing.
+    expect(await service.erasePerson('cust-1', '+628111')).toEqual({ erased: 0 });
+  });
 });
 
 /**

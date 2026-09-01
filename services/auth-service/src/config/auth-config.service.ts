@@ -138,6 +138,16 @@ export class AuthConfigService {
    * fail-closed rule hr-service already applies to AUTH_SERVICE_URL in the other
    * direction.
    */
+  /**
+   * Base URL of one peer, or an empty string when this environment does not reach it.
+   *
+   * The erasure registry needs six peers by name and has to be able to say "this one is
+   * not configured here" — an unreachable owner is reported UNENFORCED, never skipped.
+   */
+  serviceUrl(envKey: string): string {
+    return (this.config.get<string>(envKey) ?? '').replace(/\/+$/, '');
+  }
+
   get hrDirectory(): { hrUrl: string; internalKey: string } {
     return {
       hrUrl: this.config.get<string>('HR_SERVICE_URL', ''),

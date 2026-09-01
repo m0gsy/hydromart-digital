@@ -72,3 +72,9 @@ export class List3ResponseDto {
   @ApiProperty({ type: Number })
   limit!: number;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class PdpErasedResponseDto {
+  @ApiProperty({ type: Number })
+  erased!: number;
+}

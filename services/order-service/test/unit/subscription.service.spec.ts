@@ -121,6 +121,42 @@ describe('SubscriptionService', () => {
 
   const seedProduct = () => catalog.seed({ id: randomUUID(), basePrice: 8000 });
 
+  /*
+   * UU PDP item 13 — the second Kritis the console audit found, from the customer app's
+   * side, and the same 21 rows `docs/AUDIT_L3.md` §4.2 counted from the database's side.
+   *
+   * `processDue` reads ACTIVE plans and places orders from their address snapshot, so a
+   * plan that outlived its owner's deletion kept sending water to a phone number somebody
+   * had asked us to forget. Cancelling is what stops that; scrubbing alone would not.
+   */
+  it('cancels and scrubs a deleted person plans, so the sweep stops shipping to them', async () => {
+    const customerId = randomUUID();
+    const product = seedProduct();
+    await service.create(customerId, {
+      productId: product.id,
+      quantity: 2,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-01-01T00:00:00.000Z'),
+      address: {
+        recipientName: 'Budi',
+        phone: '+628111',
+        addressLine: 'Jl. Cikini 1',
+        city: 'Jakarta',
+        province: 'DKI',
+        postalCode: '10330',
+        notes: 'pagar hijau',
+      },
+    } as never);
+
+    expect(await service.erasePerson(customerId)).toEqual({ erased: 1 });
+
+    const [row] = subs.rows;
+    expect(row.status).toBe('CANCELLED');
+    expect(row).toMatchObject({ recipientName: '', phone: '', notes: null });
+    // The sweep can no longer find it, which is the outcome that matters.
+    expect(await subs.findDue(new Date('2030-01-01T00:00:00.000Z'))).toEqual([]);
+  });
+
   it('discountRate: quotes the depot ladder the sweep will actually charge', () => {
     // Same config the sweep prices against — the shop cannot quote a different saving.
     expect(service.discountRate(homeDepot.id)).toBe(0.05);

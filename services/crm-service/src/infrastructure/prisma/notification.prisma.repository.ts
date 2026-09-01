@@ -41,6 +41,20 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return count;
   }
 
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    // OR, not AND: a campaign recipient who never registered has a phone and no id, and a
+    // notification written after registration has both. Either match is the same person.
+    const match = phone
+      ? [{ customerId }, { phone }]
+      : [{ customerId }];
+    const [notifications, recipients, subscriptions] = await this.prisma.$transaction([
+      this.prisma.notification.deleteMany({ where: { OR: match } }),
+      this.prisma.campaignRecipient.deleteMany({ where: { OR: match } }),
+      this.prisma.webPushSubscription.deleteMany({ where: { customerId } }),
+    ]);
+    return notifications.count + recipients.count + subscriptions.count;
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const row = await this.prisma.notification.create({
       data: {

@@ -1,6 +1,8 @@
 import { DataSubjectController } from '../../src/modules/auth/data-subject.controller';
 import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
+import { RemoteErasureExecutor } from '../../src/infrastructure/http/remote-erasure.executor';
+import { UnenforcedErasure } from '../../src/infrastructure/http/unenforced-erasure.executor';
 import { anonymisedIdentity, isDecidable } from '../../src/domain/data-subject/data-subject-request';
 import { isConsentPurpose } from '../../src/domain/data-subject/consent';
 import { ConsentPrismaRepository } from '../../src/infrastructure/prisma/repositories/consent.prisma.repository';
@@ -322,5 +324,90 @@ describe('isConsentPurpose', () => {
     expect(isConsentPurpose('MARKETING')).toBe(true);
     expect(isConsentPurpose('ANALYTICS')).toBe(false);
     expect(isConsentPurpose(null)).toBe(false);
+  });
+});
+
+/*
+ * RemoteErasureExecutor — the erasure half of the registry (UU PDP item 13).
+ *
+ * It mirrors `RemotePurgeExecutor` in admin-service down to the rule that matters: it
+ * RAISES rather than answering 0. An erasure that quietly reports "nothing changed" when
+ * the call never landed is indistinguishable from "there was nothing to change", and that
+ * confusion is exactly what `docs/AUDIT_L3.md` §4.2 measured — 4.124 rows nobody knew were
+ * still there.
+ */
+describe('RemoteErasureExecutor', () => {
+  const fetchMock = jest.fn();
+  const originalFetch = global.fetch;
+  const subject = { customerId: 'cust-1', phone: '+628111' };
+  const make = (url = 'https://crm.example.com', key = 'k') =>
+    new RemoteErasureExecutor('crm.messages', url, '/api/v1/notifications/internal/pdp-anonymise', key);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = fetchMock as never;
+  });
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('posts the subject with the internal key and reports the rows the owner changed', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ erased: 3050 }) });
+
+    expect(await make().erase(subject)).toBe(3050);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://crm.example.com/api/v1/notifications/internal/pdp-anonymise');
+    expect(init.headers['x-internal-key']).toBe('k');
+    // The PHONE rides along: a campaign recipient who never registered has no id.
+    expect(JSON.parse(init.body)).toEqual(subject);
+  });
+
+  it('answers null when the owner does not say how many, rather than inventing 0', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+    expect(await make().erase(subject)).toBeNull();
+  });
+
+  it('survives an owner that answers with something that is not JSON', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error('not json');
+      },
+    });
+    expect(await make().erase(subject)).toBeNull();
+  });
+
+  it('raises on a rejected call instead of reporting a silent success', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    await expect(make().erase(subject)).rejects.toThrow('crm.messages: owner responded 503');
+  });
+
+  it('raises when the owner cannot be reached at all', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(make().erase(subject)).rejects.toThrow('owner unreachable');
+  });
+
+  // `configured: false` is what puts a dataset on the UNENFORCED path rather than silently
+  // succeeding — the same rule purge-executor.registry.ts follows.
+  it('is unconfigured without a URL or a key', () => {
+    expect(make('', 'k').configured).toBe(false);
+    expect(make('https://x', '').configured).toBe(false);
+    expect(make().configured).toBe(true);
+  });
+});
+
+/*
+ * A dataset the registry KNOWS holds this person and cannot erase yet. It exists so the gap
+ * is a ROW in the coverage report with the reason and the next step, rather than an
+ * omission from it — `depot.order_disputes` has no `customerId` column, so erasing by name
+ * would delete other people's disputes.
+ */
+describe('UnenforcedErasure', () => {
+  it('reports itself unconfigured, carries the reason, and touches nothing', async () => {
+    const declared = new UnenforcedErasure('depot.order_disputes', 'no customerId column');
+    expect(declared.configured).toBe(false);
+    expect(declared.unenforcedReason).toBe('no customerId column');
+    expect(await declared.erase()).toBeNull();
   });
 });

@@ -681,6 +681,21 @@ export class InMemoryOrderRepository implements OrderRepository {
 export class InMemorySubscriptionRepository implements SubscriptionRepository {
   rows: SubscriptionRecord[] = [];
 
+  /**
+   * PDP erasure. Cancel first, then scrub — the order is the point: an ACTIVE plan with a
+   * blank recipient keeps shipping to the same address under no name.
+   */
+  async erasePerson(customerId: string): Promise<number> {
+    const mine = this.rows.filter((r) => r.customerId === customerId);
+    for (const row of mine) {
+      if (row.status !== 'CANCELLED') row.status = 'CANCELLED';
+      row.recipientName = '';
+      row.phone = '';
+      row.notes = null;
+    }
+    return mine.length;
+  }
+
   async create(data: CreateSubscriptionData): Promise<SubscriptionRecord> {
     const now = nextDate();
     const rec: SubscriptionRecord = {
