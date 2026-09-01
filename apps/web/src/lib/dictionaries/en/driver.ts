@@ -15,6 +15,7 @@ export const driver = {
     confirmPickup: 'Confirm goods picked up',
     startDelivery: 'Start delivery',
     completeWithPod: 'Complete · capture proof',
+    collectCashFirst: 'Collect {amount} first · open the order',
   },
   deliveryFail: {
     title: 'Mark delivery failed',

@@ -240,7 +240,7 @@ describe('edges nothing else exercises', () => {
     const repo = new InMemoryDeliveryRepository();
     const orders = new FakeOrderCoordination();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
     const service = new DeliveryService(
       repo,
       orders,
@@ -273,7 +273,7 @@ describe('edges nothing else exercises', () => {
   it('refuses a contact attempt on a delivery that has already ended', async () => {
     const repo = new InMemoryDeliveryRepository();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
     const service = new DeliveryService(
       repo,
       new FakeOrderCoordination(),
@@ -303,7 +303,7 @@ describe('edges nothing else exercises', () => {
   it('logs a non-Error rejection from the bucket and keeps purging', async () => {
     const repo = new InMemoryDeliveryRepository();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
     // Buckets reject with strings and with objects, not only with Errors — and the sweep
     // has to survive either, because the proof ROW is already deleted by then.
     const storage = { put: jest.fn(), remove: jest.fn().mockRejectedValue('403 Forbidden') };

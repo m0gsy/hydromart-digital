@@ -257,6 +257,75 @@ describe('ExpenseClaimService', () => {
    * they read is the other half: with no `depotId` filter it answered with every depot's
    * claims, which is where the ids come from.
    */
+  /*
+   * AUTHZ-B3 — the SUBMIT path, which AUTHZ-A5 left open.
+   *
+   * `depotId` off the request body decided two things: whose books the claim landed on,
+   * and — through `expenseAutoApproveMaxIdr(depotId)` — the ceiling under which it credited
+   * the courier's ledger with nobody in the loop. A courier could name any depot in the
+   * network and file against whichever had the highest auto-approve threshold, on a route
+   * whose sibling paths (`approve`, `reject`, the queue) had all been closed already.
+   *
+   * Remove the `assertDepotAccess` in `submit` and the first case below files the claim
+   * instead of refusing.
+   */
+  describe('filing against another depot', () => {
+    const courier = {
+      sub: COURIER,
+      role: Role.STAFF_DEPOT,
+      depotId: 'depot-1',
+      depotIds: ['depot-1'],
+    } as unknown as AuthenticatedUser;
+
+    it('refuses a claim aimed at a depot that is not the courier own', async () => {
+      await expect(
+        service.submit(COURIER, { ...input(25000), depotId: 'depot-lain' }, courier),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(claims.rows).toHaveLength(0);
+      expect(ledger.entries).toHaveLength(0);
+    });
+
+    it('files against the token depot when the body names none', async () => {
+      const claim = await service.submit(
+        COURIER,
+        { ...input(25000), depotId: null },
+        courier,
+      );
+      expect(claim.depotId).toBe('depot-1');
+    });
+
+    it('still accepts the courier own depot', async () => {
+      await expect(
+        service.submit(COURIER, input(25000), courier),
+      ).resolves.toMatchObject({ depotId: 'depot-1', status: 'APPROVED' });
+    });
+  });
+
+  /*
+   * The other half of the same route: `isAutoApproved` treats "a receipt is attached" as
+   * proof enough to credit a ledger, and the only thing behind that was `!== null`. The
+   * literal string `x` bought an auto-approval.
+   *
+   * This is a floor, not a verification — nothing here can fetch the receipt, and the
+   * courier app cannot upload one at all (CA-4-21). Whether auto-approval should stand at
+   * all until an upload path exists is an owner decision, recorded in the register.
+   */
+  describe('what counts as a receipt', () => {
+    it.each(['x', 'receipt', 'javascript:alert(1)', 'ftp://host/r.jpg', '/uploads/r.jpg'])(
+      'does not auto-approve on %p',
+      async (receiptUrl) => {
+        const claim = await service.submit(COURIER, input(25000, receiptUrl));
+        expect(claim.status).toBe('PENDING');
+        expect(ledger.entries).toHaveLength(0);
+      },
+    );
+
+    it('still auto-approves on an http(s) receipt url', async () => {
+      const claim = await service.submit(COURIER, input(25000, 'https://cdn/r.jpg'));
+      expect(claim.status).toBe('APPROVED');
+    });
+  });
+
   describe('reviewing another depot claim', () => {
     const outsider = {
       sub: REVIEWER,

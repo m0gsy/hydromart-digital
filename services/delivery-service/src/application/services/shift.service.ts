@@ -6,6 +6,7 @@ import {
   InvalidShiftTransitionError,
   NotAtDepotError,
   ShiftAlreadyOpenError,
+  ShiftHasActiveDeliveriesError,
   ShiftNotFoundError,
 } from '../../domain/errors';
 import { haversineMeters } from '../../domain/geo';
@@ -19,6 +20,7 @@ import {
   expectedEndAt,
   isOpen,
 } from '../../domain/shift';
+import { DeliveryRepository } from '../ports/delivery.repository';
 import { DepotLocationPort } from '../ports/depot-location.port';
 import {
   ShiftQuery,
@@ -41,6 +43,7 @@ export class ShiftService {
 
   constructor(
     @Inject(DELIVERY_TOKENS.ShiftRepository) private readonly shifts: ShiftRepository,
+    @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
     private readonly config: DeliveryConfigService,
   ) {}
@@ -95,10 +98,30 @@ export class ShiftService {
     return this.view(shift);
   }
 
-  /** Ends the shift. Any running break is banked first so the total stays honest. */
+  /**
+   * Ends the shift. Any running break is banked first so the total stays honest.
+   *
+   * C1-B — and it refuses while deliveries are still on the road.
+   *
+   * Nothing checked. A courier could close the shift with three ASSIGNED deliveries in
+   * hand and then finish them: the settlement window had already closed, so the COD they
+   * collected afterwards was money the deposit never expected — it simply did not appear.
+   * The other half is the courier's own: `/driver` reads the task list off an OPEN shift,
+   * so closing it locked them out of the very deliveries they were still holding, with no
+   * way back in (the depot has no reopen).
+   *
+   * The count is the same `countActiveByDriver` dispatch already uses to decide whether a
+   * courier is free, so "still on the road" means exactly what it means everywhere else:
+   * ASSIGNED, PICKED_UP, ON_DELIVERY. Failing or rescheduling a delivery clears it — those
+   * are the ways out that already exist and the message names them.
+   */
   async checkOut(driverId: string, id: string, lat: number, lng: number): Promise<ShiftView> {
     const shift = await this.ownedOpenShift(driverId, id);
     this.assertTransition(shift.status, ShiftStatus.ENDED);
+    const active = await this.deliveries.countActiveByDriver(driverId);
+    if (active > 0) {
+      throw new ShiftHasActiveDeliveriesError(active);
+    }
     const now = new Date();
     const patched = await this.shifts.patchStatus(id, {
       ...this.bankRunningBreak(shift, now),

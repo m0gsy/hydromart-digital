@@ -9,7 +9,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
-import { Badge, Button, Card, CenterState, ErrorState, LoadError, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -17,6 +17,9 @@ import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Broadcast, CourierPerformance, Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
 import { mondayWib } from '@/lib/wib';
+
+/** Rupiah, no decimals — the same formatter the delivery detail screen uses. */
+const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
 
@@ -184,8 +187,27 @@ function DriverConsole() {
                 {t('driver.home.startDelivery')}
               </Button>
             )}
+            {/*
+              * C1-C: a cash order is finished on the DETAIL screen, never here.
+              *
+              * The C1(c) gate — "while this delivery still owes cash, closing it is not the
+              * next step, taking the money is" — lives on `/driver/deliveries/detail`, and
+              * this screen has its own PoD button that never had it. So the shortest path
+              * through the app was also the one that closed a COD delivery without
+              * collecting: proof captured, order DELIVERED, payment still PENDING, and the
+              * end-of-shift deposit expecting nothing at all.
+              *
+              * Not a second copy of the gate — a second gate is a second thing to drift.
+              * The button routes to the one screen that owns it. `codAmount` is already on
+              * the row, so this costs no extra request, and a prepaid delivery keeps the
+              * one-tap path it always had.
+              */}
             {d.status === 'ON_DELIVERY' &&
-              (capturing === d.id ? (
+              (d.codAmount != null && d.codAmount > 0 ? (
+                <LinkButton href={`/driver/deliveries/detail?id=${d.id}`} className="w-full">
+                  {t('driver.home.collectCashFirst', { amount: IDR.format(d.codAmount) })}
+                </LinkButton>
+              ) : capturing === d.id ? (
                 <PodCapture
                   deliveryId={d.id}
                   orderNumber={d.orderNumber}
