@@ -99,15 +99,33 @@ const ok2xx = (r) => r.status >= 200 && r.status < 300;
 const day = (d) => d.toISOString().slice(0, 10);
 
 /** A Mon-Fri run of `count` weekdays starting the next Monday at least `minAhead` days out. */
+/*
+ * A run of weekdays that stays inside ONE calendar month.
+ *
+ * The month part is not decoration. `period` is taken from the FIRST day of the run and the
+ * payroll assertions compare a whole leave against it, so a run that crosses a month boundary
+ * charges only the half that landed inside — the check then reads as a payroll bug instead of
+ * a calendar accident.
+ *
+ * It went off on 2026-09-01: 21 days ahead was 22 September, the next Monday the 28th, and
+ * Mon-Fri from there is 28-30 September plus 1-2 October. The leave was four working days and
+ * only two of them were in the period, so "expected exactly 4 fewer" found 2.
+ *
+ * Advancing by whole weeks keeps the start on a Monday, and every month has a Monday whose
+ * week fits inside it, so this always terminates.
+ */
 function weekdayRun(count, minAhead = 21) {
   const d = new Date(Date.now() + minAhead * 86_400_000);
   while (d.getUTCDay() !== 1) d.setUTCDate(d.getUTCDate() + 1);
-  const days = [];
-  for (let i = 0; days.length < count; i += 1) {
-    const c = new Date(d.getTime() + i * 86_400_000);
-    if (c.getUTCDay() !== 0 && c.getUTCDay() !== 6) days.push(c);
+  for (;;) {
+    const days = [];
+    for (let i = 0; days.length < count; i += 1) {
+      const c = new Date(d.getTime() + i * 86_400_000);
+      if (c.getUTCDay() !== 0 && c.getUTCDay() !== 6) days.push(c);
+    }
+    if (days[0].getUTCMonth() === days[days.length - 1].getUTCMonth()) return days;
+    d.setUTCDate(d.getUTCDate() + 7);
   }
-  return days;
 }
 
 // One phone per employee this run. It used to be `${stamp}${suffix.length}` — the LENGTH of
