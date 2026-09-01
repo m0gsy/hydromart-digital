@@ -58,16 +58,12 @@ export function EmployeeSelect({
    * reachable: a name that is not in the first twenty is found by typing more of it, which
    * is exactly what the 100-row list could not offer.
    */
+  // Built here, and the call below stays on ONE line on purpose: check-endpoint-contracts
+  // reads `api.<verb>(endpoints.a.b)` literally, and a call split across lines becomes one
+  // more site whose HTTP verb nothing verifies.
+  const filter = { status: 'ACTIVE', pageSize: 20, search: search.trim() || undefined };
   const employees = useAsync<HrPage<Employee>>(
-    () =>
-      api.getCached<HrPage<Employee>>(
-        endpoints.hr.employees({
-          status: 'ACTIVE',
-          pageSize: 20,
-          search: search.trim() || undefined,
-        }),
-        true,
-      ),
+    () => api.getCached<HrPage<Employee>>(endpoints.hr.employees(filter), true),
     [search],
   );
 
