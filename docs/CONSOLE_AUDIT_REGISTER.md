@@ -75,7 +75,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 31 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 1
 
-**Per status** (1 September 2026, sesudah langkah 01): `TERBUKA` 268 · `SUDAH DIPERBAIKI` 6 ·
+**Per status** (1 September 2026, sesudah langkah 04): `TERBUKA` 260 · `SUDAH DIPERBAIKI` 14 ·
 `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 1
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
@@ -256,8 +256,8 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 | ID | Bagian | Tingkat | Judul | file:baris | Kelas akar | Status | Bukti re-cek | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `CA-3-01` | §31 | Kritis | Hapus akun tidak menyentuh order-service: nama, nomor HP, dan titik GPS pelanggan tetap utuh 10 tahun, padahal halaman hapus-akun menjanjikan sebaliknya | `apps/web/src/lib/dictionaries/id/deleteAccount.ts:30` | `pdp-registry` | TERBUKA | `body: 'Riwayat pesanan, pembayaran, dan catatan keuangan wajib kami simpan minimal 10 tahun untuk memenuhi kewajiban per` | — |
-| `CA-3-02` | §31 | Kritis | Langganan tetap berjalan setelah akun dihapus: pesanan baru terus dibuat atas nama orang yang sudah minta dilupakan | `services/order-service/src/application/services/subscription.service.ts:243` | `sweep-tanpa-penonton` | TERBUKA | `async processDue(now: Date): Promise<SubscriptionSweepResult> {` | — |
+| `CA-3-01` | §31 | Kritis | Hapus akun tidak menyentuh order-service: nama, nomor HP, dan titik GPS pelanggan tetap utuh 10 tahun, padahal halaman hapus-akun menjanjikan sebaliknya | `apps/web/src/lib/dictionaries/id/deleteAccount.ts:30` | `pdp-registry` | SUDAH DIPERBAIKI | registry penghapusan di auth-service + teks /hapus-akun diperbaiki: pengecualian `order.orders` dinyatakan apa adanya, bukan disembunyikan di balik kata "dianonimkan" | #419 |
+| `CA-3-02` | §31 | Kritis | Langganan tetap berjalan setelah akun dihapus: pesanan baru terus dibuat atas nama orang yang sudah minta dilupakan | `services/order-service/src/application/services/subscription.service.ts:243` | `sweep-tanpa-penonton` | SUDAH DIPERBAIKI | `erasePerson` di order-service MEMBATALKAN langganan lebih dulu, baru menghapus snapshot alamatnya — sweep tidak bisa lagi menemukannya | #419 |
 | `CA-3-03` | §32 | Tinggi | Foto profil dan foto pendaftaran agen (KTP) tidak pernah dihapus dari bucket saat akun dihapus — hanya kolomnya yang dikosongkan | `services/auth-service/src/application/ports/storage.port.ts:22` | `pdp-registry` | TERBUKA | `put(input: StoragePutInput): Promise<StoragePutResult>;` | — |
 | `CA-3-04` | §32 | Tinggi | Depot tutup memblokir SEMUA pesanan, termasuk slot terjadwal yang justru dirancang server untuk diterima | `apps/web/src/app/checkout/page.tsx:364` | `sweep-tanpa-penonton` | SUDAH DIPERBAIKI | checkout/page.tsx:371-372 `const depotClosed = ...; const expressBlocked = express && depotClosed;` | #405 |
 | `CA-3-05` | §32 | Tinggi | Akun yang sudah didaftarkan tapi belum verifikasi tidak bisa masuk, dan disuruh menghubungi dukungan | `apps/web/src/app/login/page.tsx:104` | `jalur-uang` | TERBUKA | `// least reads "Nomor ini belum terdaftar", but still leaves the visitor to find` | — |
@@ -403,19 +403,19 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 01 | Sapu depot-scope pada seluruh route by-id | `depot-scope-by-id` | CA-2-03 + CA-4-04 ditutup (PR #416); sisanya diratchet, lihat di bawah |
 | 02 | Beri `PROCESSING` jalan keluar — kurir **dan** pemilik waralaba | `jalur-uang` | CA-4-01 + sisi `payout.service.ts:280` |
 | 03 | Klaim biaya, tutup shift, gerbang COD | `jalur-uang` | CA-4-02, CA-4-05, CA-4-12..15 |
-| 04 | Registry penghapusan PDP + perbaiki teks /hapus-akun | `pdp-registry` | CA-3-01 + sembilan tabel AUDIT_L3 §4.2 |
+| 04 | Registry penghapusan PDP + perbaiki teks /hapus-akun | `pdp-registry` | CA-3-01 + CA-3-02 ditutup (PR #419); 8 dari 9 tabel AUDIT_L3 §4.2 punya eksekutor, `depot.order_disputes` dilaporkan UNENFORCED beserta alasannya |
 | 05 | Hentikan halaman HQ membaca proyeksi publik | `proyeksi-publik` | CA-2-04 |
 | 06 | Sapu ConfirmDialog ke aksi yang tidak bisa dibatalkan | `confirm-dialog` | semua baris berkelas itu |
 | 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | semua baris berkelas itu |
 | 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | — |
-| 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01, CA-3-02 |
+| 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01 (CA-3-02 sudah ditutup di langkah 04) |
 | 10+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |
 
 ### Gerbang yang sudah dipasang
 
 | Gerbang | Dipasang di | Apa yang ia jaga |
 | --- | --- | --- |
-| `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **63** pada 1 September 2026 (turun dari 83 begitu gerbangnya belajar membaca `@Can` di tingkat KELAS — 22 di antaranya tidak pernah lubang). Uji-diri: `scripts/check-depot-scope.test.sh`. |
+| `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416, diperbaiki #418 dan #419) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **63** pada 1 September 2026 (turun dari 83 begitu gerbangnya belajar membaca `@Can` di tingkat KELAS — 22 di antaranya tidak pernah lubang). Uji-diri: `scripts/check-depot-scope.test.sh`. |
 
 Baseline 63 itu bukan 63 lubang. Sebagian besar adalah baris milik pelanggan
 (`cart/items/:productId`), baris se-jaringan (`products/:id`) atau baris milik kurir yang

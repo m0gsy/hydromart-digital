@@ -240,6 +240,20 @@ export class SubscriptionService {
    * Each subscription is isolated: a placement failure logs and skips (never blocks
    * the rest), and the schedule only advances when the order was actually placed.
    */
+  /**
+   * UU PDP item 13: cancel and scrub this person's standing instructions.
+   *
+   * Called by auth-service's erasure registry. This is the fix for the console audit's
+   * second Kritis as much as for the retention gap behind it: the sweep below reads ACTIVE
+   * plans and places orders from their address snapshot, so a plan that outlived its
+   * owner's deletion kept sending water — and `docs/AUDIT_L3.md` §4.2 counted 21 of them.
+   */
+  async erasePerson(customerId: string): Promise<{ erased: number }> {
+    const erased = await this.subs.erasePerson(customerId);
+    this.logger.log(`PDP erasure: cancelled and scrubbed ${erased} subscription(s) for ${customerId}`);
+    return { erased };
+  }
+
   async processDue(now: Date): Promise<SubscriptionSweepResult> {
     const due = await this.subs.findDue(now);
     let placed = 0;

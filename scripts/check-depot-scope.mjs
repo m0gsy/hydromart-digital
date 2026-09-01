@@ -135,6 +135,8 @@ function servicesOf(svcDir) {
 }
 
 const findings = [];
+// key -> the line it was found on, for the message only. See the note on `key` below.
+const lineOf = new Map();
 const servicesRoot = join(ROOT, 'services');
 for (const svc of readdirSync(servicesRoot)) {
   const svcSrc = join(servicesRoot, svc, 'src');
@@ -192,7 +194,18 @@ for (const svc of readdirSync(servicesRoot)) {
         }
       }
       if (!guarded) {
-        findings.push(`${rel}:${i + 1} ${m[1]} ${route} @Can(${can ?? '-'})`);
+        /*
+         * The key carries NO line number, on purpose.
+         *
+         * The first version keyed on `file:line`, and the first PR that added a comment
+         * above a route turned every entry below it into "5 closed, 5 new" — a red gate
+         * over an edit that changed no behaviour at all. A route's identity is its file,
+         * verb, path and capability; where it happens to sit in the file is a detail that
+         * moves whenever anybody writes a sentence.
+         */
+        const key = `${rel} ${m[1]} ${route} @Can(${can ?? '-'})`;
+        findings.push(key);
+        lineOf.set(key, i + 1);
       }
     }
   }
@@ -225,7 +238,7 @@ if (fixed.length) {
 }
 if (added.length) {
   console.error(`  ${added.length} NEW by-id route(s) with no depot-scope check:`);
-  for (const f of added) console.error(`    + ${f}`);
+  for (const f of added) console.error(`    + ${f}  (line ${lineOf.get(f) ?? '?'})`);
   console.error(
     '\nA by-id route reachable by a depot-scoped role must assert the row\'s depot —\n' +
       "`assertDepotAccess(user, row.depotId)` where the row is loaded, or name the path\n" +

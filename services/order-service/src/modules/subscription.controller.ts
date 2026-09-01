@@ -21,9 +21,10 @@ import {
   CreateSubscriptionDto,
   CreateSubscriptionForCustomerDto,
   DepotScopeQueryDto,
+  PdpAnonymiseDto,
 } from './dto/order.dto';
 import { SubscriptionNetworkSummaryView, SubscriptionSweepResult } from '../application/services/subscription.service';
-import { Discount2ResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
+import { Discount2ResponseDto, PdpErasedResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -187,5 +188,27 @@ export class SubscriptionController {
   @ApiOperation({ summary: 'Place orders for all due subscriptions (internal, spec 7b)' })
   processDue(): Promise<SubscriptionSweepResult> {
     return this.subscriptions.processDue(new Date());
+  }
+
+  /*
+   * UU PDP item 13 — cancel and scrub one person's standing instructions.
+   *
+   * The sweep above is exactly why this exists. It reads ACTIVE plans and places orders
+   * from their address snapshot, so a plan that outlived its owner's deletion kept sending
+   * water to somebody who had asked to be forgotten — `docs/AUDIT_L3.md` §4.2 counted 21
+   * such rows, and the console audit found the same thing from the customer app's side.
+   *
+   * Orders are NOT touched: FINANCIAL class, ten years, and written into the erasure
+   * registry's exemption list rather than left as an unexplained gap.
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Cancel and scrub one person's subscriptions (internal)" })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.subscriptions.erasePerson(dto.customerId);
   }
 }

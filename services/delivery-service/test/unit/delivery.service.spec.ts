@@ -955,4 +955,15 @@ describe('DeliveryService', () => {
       expect(d.deliveryWindow).toBeNull();
     });
   });
+
+  /*
+   * UU PDP item 13. The registry in auth-service calls this; the repository does the work
+   * and this is the layer that reports it, so a failed erasure is visible in the log rather
+   * than only in a coverage report.
+   */
+  it('reports how many delivery rows an erasure touched', async () => {
+    jest.spyOn(repo, 'erasePerson').mockResolvedValue(229);
+    expect(await service.erasePerson('cust-1', '+628111')).toEqual({ erased: 229 });
+    expect(repo.erasePerson).toHaveBeenCalledWith('cust-1', '+628111');
+  });
 });

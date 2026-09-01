@@ -553,6 +553,7 @@ describe('SupportTicketsController', () => {
     reply: jest.fn(),
     assign: jest.fn(),
     resolve: jest.fn(),
+    erasePerson: jest.fn(),
   };
   const controller = new SupportTicketsController(tickets as unknown as SupportTicketService);
   const withMessage = makeSupportTicket({
@@ -567,6 +568,23 @@ describe('SupportTicketsController', () => {
     ],
   });
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * UU PDP item 13. `@Public()` + InternalAuthGuard on the route OVERRIDES the class-level
+   * `@Can('hqConsole')`: the caller is auth-service's erasure registry with the shared
+   * internal key, not a console session.
+   */
+  it('forwards a PDP erasure with the phone the registry sent', async () => {
+    tickets.erasePerson.mockResolvedValue({ erased: 14 });
+
+    expect(await controller.pdpAnonymise({ customerId: 'c1', phone: '+628111' } as never)).toEqual({
+      erased: 14,
+    });
+    expect(tickets.erasePerson).toHaveBeenCalledWith('c1', '+628111');
+
+    await controller.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(tickets.erasePerson).toHaveBeenLastCalledWith('c1', null);
+  });
 
   it('list forwards status/priority filters and maps the message thread', async () => {
     tickets.list.mockResolvedValue([withMessage]);

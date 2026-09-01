@@ -138,6 +138,25 @@ describe('RetentionController', () => {
     // `deleted` is what the purge engine reads; `purged` keeps the original shape.
     expect(out).toEqual({ purged: 3, deleted: 3 });
   });
+
+  /*
+   * UU PDP item 13 — the same rows, on request rather than on a window.
+   *
+   * The purge above is a WINDOW: 365 days for proofs, and none at all for
+   * `deliveries.recipientPhone`. A window is not an answer to "forget me today".
+   */
+  it('erases one person on request, with the phone the registry sent', async () => {
+    const deliveries = { erasePerson: jest.fn().mockResolvedValue({ erased: 229 }) };
+    const controller = new RetentionController(deliveries as never);
+
+    expect(await controller.pdpAnonymise({ customerId: 'c1', phone: '+628111' } as never)).toEqual({
+      erased: 229,
+    });
+    expect(deliveries.erasePerson).toHaveBeenCalledWith('c1', '+628111');
+
+    await controller.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(deliveries.erasePerson).toHaveBeenLastCalledWith('c1', null);
+  });
 });
 
 describe('SettlementController (cashier)', () => {

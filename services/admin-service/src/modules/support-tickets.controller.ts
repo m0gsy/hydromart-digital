@@ -1,14 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { SupportTicketService } from '../application/services/support-ticket.service';
+import { PdpErasedResponseDto } from './dto/responses.generated.dto';
 import {
   AssignTicketDto,
   CreateTicketDto,
   ReplyTicketDto,
   SupportTicketDto,
+  PdpAnonymiseDto,
   SupportTicketQueryDto,
 } from './dto/support-ticket.dto';
 
@@ -20,6 +22,26 @@ import {
 @Controller({ path: 'tickets', version: '1' })
 export class SupportTicketsController {
   constructor(private readonly tickets: SupportTicketService) {}
+
+  /*
+   * UU PDP item 13 — forget one person's complaints.
+   *
+   * `@Public()` + InternalAuthGuard, which OVERRIDES the class-level `@Can('hqConsole')`:
+   * the caller is auth-service's erasure registry with the shared internal key, not a
+   * console session. Neither `support_tickets` nor `ticket_messages` has a retention
+   * policy at all, so before this endpoint nothing would ever have removed the 14 rows
+   * `docs/AUDIT_L3.md` §4.2 counted.
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Scrub one person from the ticket queue (internal, UU PDP)' })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.tickets.erasePerson(dto.customerId, dto.phone ?? null);
+  }
 
   @ApiOkResponse({ type: SupportTicketDto, isArray: true })
   @Get()

@@ -379,6 +379,24 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
 export class InMemorySupportTicketRepository implements SupportTicketRepository {
   rows: SupportTicketRecord[] = [];
 
+  /**
+   * PDP erasure. Matches on id OR phone — a ticket staff opened at the counter has a phone
+   * and no id. The customer's own messages are blanked; staff replies stay.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    const mine = this.rows.filter(
+      (r) => r.customerId === customerId || (phone !== null && r.customerPhone === phone),
+    );
+    for (const row of mine) {
+      row.customerRef = 'Pengguna dihapus';
+      row.customerPhone = '-';
+      for (const m of row.messages ?? []) {
+        if (m.authorType === 'CUSTOMER') m.body = '[dihapus atas permintaan pemilik data]';
+      }
+    }
+    return mine.length;
+  }
+
   /** K1.5: scoped by customerId and nothing else — never by phone number. */
   async listForCustomer(customerId: string, limit: number): Promise<SupportTicketRecord[]> {
     return this.rows

@@ -225,6 +225,19 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     return before - this.records.length;
   }
 
+  /**
+   * PDP erasure. Matches on id OR phone for the same reason the real one does: a campaign
+   * recipient who never registered has a phone and no id. Campaign recipients and web-push
+   * subscriptions have no in-memory stand-in here, so this counts the notification rows only.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    const before = this.records.length;
+    this.records = this.records.filter(
+      (r) => r.customerId !== customerId && (phone === null || r.phone !== phone),
+    );
+    return before - this.records.length;
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
     this.records.push(rec);

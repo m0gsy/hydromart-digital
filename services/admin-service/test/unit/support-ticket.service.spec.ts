@@ -109,4 +109,37 @@ describe('SupportTicketService', () => {
     await expect(service.assign('nope', 's')).rejects.toBeInstanceOf(SupportTicketNotFoundError);
     await expect(service.resolve('nope')).rejects.toBeInstanceOf(SupportTicketNotFoundError);
   });
+
+  /*
+   * UU PDP item 13 — forget one person's complaints.
+   *
+   * Neither `support_tickets` nor `ticket_messages` has a retention policy at all, so
+   * before this endpoint nothing would EVER have removed the 14 rows `docs/AUDIT_L3.md`
+   * §4.2 counted. Scrub, not delete: that a complaint happened and how it was resolved is
+   * a fact about the depot; the phone number and the customer's words are the person.
+   */
+  it('scrubs the person from their tickets and leaves everyone else alone', async () => {
+    const mine = await service.createForCustomer('cust-1', {
+      subject: 'Air keruh',
+      customerRef: '+628111',
+      customerPhone: '+628111',
+      orderRef: null,
+      body: 'Galonnya keruh',
+    });
+    await service.createForCustomer('cust-2', {
+      subject: 'Telat',
+      customerRef: '+628222',
+      customerPhone: '+628222',
+      orderRef: null,
+      body: 'Kurirnya telat',
+    });
+
+    expect(await service.erasePerson('cust-1', '+628111')).toEqual({ erased: 1 });
+
+    const scrubbed = await service.get(mine.id);
+    expect(scrubbed).toMatchObject({ customerRef: 'Pengguna dihapus', customerPhone: '-' });
+    expect(scrubbed.messages[0].body).toBe('[dihapus atas permintaan pemilik data]');
+    // Somebody else's complaint is untouched.
+    expect(repo.rows.find((r) => r.customerId === 'cust-2')?.customerPhone).toBe('+628222');
+  });
 });

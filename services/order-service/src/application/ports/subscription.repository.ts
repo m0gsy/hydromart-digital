@@ -98,6 +98,25 @@ export interface SubscriptionRepository {
    * a year ago and has delivered every week since is not in trouble.
    */
   recordFailure(id: string, message: string, at: Date): Promise<number>;
+  /**
+   * UU PDP item 13: forget one person's standing instructions.
+   *
+   * Two writes, one transaction, and the ORDER matters. A subscription is not history: it
+   * is an instruction that keeps placing orders. `docs/AUDIT_L3.md` §4.2 measured 21 rows
+   * still carrying the name and phone of somebody who had asked to be forgotten — and the
+   * nightly sweep was still shipping water to them (the console audit's second Kritis).
+   *
+   * So: CANCEL first, then scrub the snapshot. Scrubbing an ACTIVE plan would keep the
+   * water going to the same door under a blank name, which is worse than doing nothing.
+   *
+   * Orders themselves are NOT touched: FINANCIAL class, ten years, declared in the export
+   * payload's `notIncluded` and in the erasure registry's written exemptions.
+   *
+   * Idempotent: a retry finds the rows already cancelled and scrubbed, and reports them
+   * again rather than failing.
+   */
+  erasePerson(customerId: string): Promise<number>;
+
   /** Network aggregate of ACTIVE subscriptions for the HQ console (18c). */
   networkSummary(): Promise<SubscriptionNetworkSummary>;
 }

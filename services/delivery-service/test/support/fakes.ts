@@ -159,6 +159,19 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const row = this.rows.find((r) => r.orderId === orderId);
     return row ? clone(row) : null;
   }
+  /** PDP erasure: the person goes, the delivery stays (it is half of a FINANCIAL order). */
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    let n = 0;
+    for (const row of this.rows) {
+      if (row.customerId !== customerId && (phone === null || row.recipientPhone !== phone)) continue;
+      row.recipientPhone = null;
+      row.notes = null;
+      if (row.proof) row.proof.recipientName = '';
+      n += 1;
+    }
+    return n;
+  }
+
   async countActiveByDriver(driverId: string): Promise<number> {
     return this.rows.filter((r) => r.driverId === driverId && ACTIVE.includes(r.status)).length;
   }

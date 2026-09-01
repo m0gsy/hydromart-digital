@@ -17,6 +17,16 @@ export class SupportTicketService {
     private readonly repo: SupportTicketRepository,
   ) {}
 
+  /**
+   * UU PDP item 13: scrub one person from the complaint queue.
+   *
+   * Called by auth-service's erasure registry. Neither of these tables has a retention
+   * policy at all, so before this endpoint nothing would EVER have removed them.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
+    return { erased: await this.repo.erasePerson(customerId, phone) };
+  }
+
   /** Support tickets (Design 15a), newest first, optionally filtered. */
   list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]> {
     return this.repo.list(filter);

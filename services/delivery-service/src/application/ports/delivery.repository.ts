@@ -301,6 +301,24 @@ export interface DeliveryRepository {
    */
   purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }>;
   /**
+   * UU PDP item 13: forget one person, now rather than when a window expires.
+   *
+   * `docs/AUDIT_L3.md` §4.2 measured what "when the window expires" left standing here:
+   * 153 rows in `deliveries.recipientPhone` with no window at all, and 76 recipient names
+   * on proofs that DO have one — 365 days, which means the row disappears some day, not the
+   * day the person asked.
+   *
+   * Scrub, not delete. A delivery is the other half of an order, and orders are FINANCIAL
+   * (ten years, written into the erasure registry's exemptions); deleting the delivery
+   * would leave an order nobody can explain. What goes is the person: the recipient's phone
+   * on the delivery, the recipient's name on the proof. The proof PHOTO stays until its own
+   * 365-day sweep — the objects are the retention executor's job and it already deletes
+   * them, and racing it from here would leave rows pointing at nothing.
+   *
+   * Idempotent: a retry rewrites the same blanks and reports the same count.
+   */
+  erasePerson(customerId: string, phone: string | null): Promise<number>;
+  /**
    * Delivery SLA aggregates over the window: delivered on-time vs breached +
    * failures. When `depotIds` is a non-empty array, only deliveries snapshotted
    * to one of those depots count (null-depot deliveries excluded) — used for
