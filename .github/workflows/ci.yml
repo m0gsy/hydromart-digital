@@ -188,6 +188,18 @@ jobs:
       - name: Route-authz gate can go red
         run: bash scripts/check-route-authz.test.sh
 
+      # AUTHZ-B1/B2 — "who may call it" and "whose row is it" are different questions, and
+      # only the first had a gate. DepotScopeGuard's own class comment says it cannot see
+      # by-id routes: they carry no `depotId` to compare. Two Kritis IDORs lived in exactly
+      # that gap — `PATCH /depots/:id` let a manager rewrite any depot's bank account, and
+      # `GET payments/for-order/:orderId` let a courier read any depot's payment history.
+      # Both are closed; this keeps the count from growing back.
+      - name: By-id routes are depot-scoped (AUTHZ-B1/B2)
+        run: node scripts/check-depot-scope.mjs
+
+      - name: Depot-scope gate can go red
+        run: bash scripts/check-depot-scope.test.sh
+
       - name: Index pre-build table parses (no database needed)
         run: bash scripts/create-indexes.test.sh
 

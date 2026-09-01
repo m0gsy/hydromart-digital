@@ -322,8 +322,13 @@ export class PaymentController {
   // ASSISTANT_SUPERVISOR that `orderQueue` had already let into the screen this serves.
   @Can('paymentRead')
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
-  listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
-    return this.payments.listAll({ orderId, limit: 20 });
+  // AUTHZ-B2: the caller now rides along, because `paymentRead` reaches four depot-scoped
+  // roles and `:orderId` is invisible to DepotScopeGuard. See `listForOrderAs`.
+  listForOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ): Promise<Page<PaymentRecord>> {
+    return this.payments.listForOrderAs(orderId, user);
   }
 
   /*
