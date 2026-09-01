@@ -720,6 +720,12 @@ model OrderDispute {
   depotId        String             @db.Uuid
   depot          Depot              @relation(fields: [depotId], references: [id], onDelete: Restrict)
   orderRef       String
+  /// UU PDP item 13: which account this dispute belongs to, so an erasure request can find
+  /// it without matching on `customerName` — which would erase the disputes of everybody
+  /// who shares the name. NULL = unknown: a counter dispute for a walk-in, or a row from
+  /// before this column existed. Nothing READS it in the release that adds it; the erasure
+  /// executor lands one release later, after the column is on the live database.
+  customerId     String?            @db.Uuid
   customerName   String
   category       DisputeCategory
   description    String
@@ -736,6 +742,7 @@ model OrderDispute {
   updatedAt      DateTime           @updatedAt
 
   @@index([depotId, status, createdAt])
+  @@index([customerId])
   @@map("order_disputes")
 }
 

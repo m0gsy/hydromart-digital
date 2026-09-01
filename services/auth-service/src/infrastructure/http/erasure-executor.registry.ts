@@ -82,10 +82,11 @@ const UNENFORCED_DATASETS: { dataset: string; reason: string }[] = [
   {
     dataset: 'depot.order_disputes',
     reason:
-      'depot.order_disputes (18 baris, AUDIT_L3 §4.2) memegang customerName + orderRef dan ' +
-      'TIDAK punya kolom customerId. Menghapus berdasarkan nama akan menghapus sengketa ' +
-      'orang lain yang kebetulan senama. Langkah berikutnya: migrasi menambah customerId ' +
-      'satu rilis lebih dulu, baru eksekutornya.',
+      'depot.order_disputes (18 baris, AUDIT_L3 §4.2) memegang customerName + orderRef. ' +
+      'Kolom customerId sudah ditambahkan (migrasi 20260901120000) dan sengaja belum dibaca ' +
+      'siapa pun di rilis ini — kolom dulu, kode yang membacanya rilis berikutnya. ' +
+      'Eksekutornya menyusul begitu kolom itu ada di basis data produksi. Sampai saat itu ' +
+      'dataset ini UNENFORCED, bukan dilewatkan diam-diam.',
   },
 ];
 
