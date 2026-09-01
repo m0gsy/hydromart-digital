@@ -407,7 +407,7 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 05 | Hentikan halaman HQ membaca proyeksi publik | `proyeksi-publik` | CA-2-04 |
 | 06 | Sapu ConfirmDialog ke aksi yang tidak bisa dibatalkan | `confirm-dialog` | semua baris berkelas itu |
 | 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | semua baris berkelas itu |
-| 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | — |
+| 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | `scripts/report-damaged-rows.sh` (PR #423). Keputusan pemilik: BACA SAJA, tanpa mode tulis sama sekali; `check-report-damaged-rows.test.sh` yang menjaminnya. Belum dijalankan siapa pun. |
 | 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01 (CA-3-02 sudah ditutup di langkah 04) |
 | 10+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |
 
