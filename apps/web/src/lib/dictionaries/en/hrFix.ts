@@ -1504,6 +1504,9 @@ export const hrFix = {
   employeeSelect: {
     label: "Employee",
     placeholder: "Select an employee…",
+    searchPlaceholder: "Type a name or employee code…",
+    noMatch: "No matching employee.",
+    loadFailed: "Could not load the employee list.",
   },
   accountEdit: {
     emailHint: "name@email.com",
