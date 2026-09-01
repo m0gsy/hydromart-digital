@@ -134,7 +134,14 @@ function VerifyForm() {
     setResent(null);
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.resendOtp, { phone, purpose });
-      setResent(t('auth.verify.sentTo', { phone: challenge.phoneMasked }));
+      // The resend can hit a slow gateway exactly like the first send did, so it says the
+      // same honest thing. Claiming "kode dikirim" while the message is still in flight is
+      // the behaviour being fixed — here as well as on the three screens that lead here.
+      setResent(
+        challenge.deliveryPending
+          ? t('auth.verify.deliverySlow')
+          : t('auth.verify.sentTo', { phone: challenge.phoneMasked }),
+      );
       // A fresh challenge means fresh attempts, so the box opens again.
       setSpent(false);
       setCode('');
