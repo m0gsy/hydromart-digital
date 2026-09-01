@@ -123,6 +123,36 @@ describe('PaymentService', () => {
         status: PaymentStatus.PAID,
       });
     });
+
+    /*
+     * AUTHZ-B2 — the READ half, which AUTHZ-2 left open.
+     *
+     * `GET payments/for-order/:orderId` was `listAll({ orderId })` behind
+     * `@Can('paymentRead')`, and `paymentRead` reaches STAFF_DEPOT, KEPALA_DEPOT,
+     * SUPERVISOR and ASSISTANT_SUPERVISOR — all depot-scoped. `DepotScopeGuard` never saw
+     * the route because the parameter is called `orderId`, so one order UUID read any
+     * depot's payment history. Delete the `assertOrderDepotAccess` call in `listForOrderAs`
+     * and the first expectation below returns rows instead of throwing.
+     */
+    it('refuses an order\'s payment history to a depot head of another depot', async () => {
+      const p = await paymentAtDepotB();
+      await expect(service.listForOrderAs(p.orderId, outsider)).rejects.toThrow(/depot/i);
+      await expect(service.listForOrderAs(p.orderId, insider)).resolves.toMatchObject({
+        total: 1,
+      });
+      // Unscoped callers are untouched, and cost no order lookup.
+      await expect(service.listForOrderAs(p.orderId, undefined)).resolves.toMatchObject({
+        total: 1,
+      });
+    });
+
+    // Same fail-closed rule as settling: an order whose depot cannot be read is not
+    // readable by a depot-scoped caller either.
+    it('refuses the history when the order depot cannot be read', async () => {
+      const p = await paymentAtDepotB();
+      orders.orderDepots.clear();
+      await expect(service.listForOrderAs(p.orderId, insider)).rejects.toThrow(/depot/i);
+    });
   });
 
   it('initiates an online payment with a gateway charge and reference', async () => {

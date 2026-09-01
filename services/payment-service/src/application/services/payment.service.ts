@@ -269,14 +269,51 @@ export class PaymentService {
    * Fails CLOSED: an order whose depot cannot be read is not settleable by a depot-scoped
    * caller. Unscoped callers (FINANCE, SUPER_ADMIN) never reach the lookup at all.
    */
-  private async assertSettleableBy(
+  private assertSettleableBy(
     user: AuthenticatedUser | undefined,
     payment: PaymentRecord,
   ): Promise<void> {
+    return this.assertOrderDepotAccess(user, payment.orderId, payment.depotId);
+  }
+
+  /**
+   * The same question one step earlier: may this caller touch the money on THIS ORDER?
+   *
+   * AUTHZ-B2 pulled it out of `assertSettleableBy` because reading an order's payments
+   * needs it too and there is no payment row to start from — `GET for-order/:orderId` is
+   * handed the order id and nothing else. `paymentDepotId` short-circuits the lookup when
+   * a row is already in hand (a counter sale carries its own till).
+   */
+  private async assertOrderDepotAccess(
+    user: AuthenticatedUser | undefined,
+    orderId: string,
+    paymentDepotId?: string | null,
+  ): Promise<void> {
     if (!user || !isDepotScoped(user.role as PlatformRole)) return;
-    const depotId =
-      payment.depotId ?? (await this.orderCoordination.getOrderDepot(payment.orderId));
+    const depotId = paymentDepotId ?? (await this.orderCoordination.getOrderDepot(orderId));
     assertDepotAccess(user, depotId);
+  }
+
+  /**
+   * An order's payments, for a STAFF caller — scoped to the order's depot.
+   *
+   * AUTHZ-B2. `listAll({ orderId })` behind `@Can('paymentRead')` was the whole route, and
+   * `paymentRead` includes STAFF_DEPOT, KEPALA_DEPOT, SUPERVISOR and ASSISTANT_SUPERVISOR —
+   * every one of them depot-scoped. `DepotScopeGuard` never saw it: the parameter is called
+   * `orderId`, and the guard only reads `depotId`/`depotIds`. So a courier holding one order
+   * UUID — a number the queue screens print — read any depot's payment history: amounts,
+   * methods, transfer proof references, settlement state.
+   *
+   * Renaming the parameter cannot fix this one (an order id is not a depot id), so the
+   * check goes where the depot can be learned: order-service, through the same internal
+   * lookup `assertSettleableBy` already uses. Fails closed on an unreadable order.
+   */
+  async listForOrderAs(
+    orderId: string,
+    user: AuthenticatedUser | undefined,
+  ): Promise<Page<PaymentRecord>> {
+    await this.assertOrderDepotAccess(user, orderId);
+    return this.listAll({ orderId, limit: 20 });
   }
 
   async getAny(id: string): Promise<PaymentRecord> {

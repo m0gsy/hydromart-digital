@@ -40,6 +40,7 @@ describe('PaymentController', () => {
     rejectRefund: jest.fn(),
     handleWebhook: jest.fn(),
     availableMethods: jest.fn(),
+    listForOrderAs: jest.fn(),
   };
   // K2.1b: the controller now owns a storage port. `put` resolves to a URL by default;
   // the tests that care about the failure arm override it.
@@ -88,9 +89,12 @@ describe('PaymentController', () => {
     expect(svc.listForCustomer).toHaveBeenCalledWith('user-1', query);
   });
 
-  it('listForOrder reads an order across customers with a fixed limit', async () => {
-    expect(await controller.listForOrder('order-9')).toBe('RESULT');
-    expect(svc.listAll).toHaveBeenCalledWith({ orderId: 'order-9', limit: 20 });
+  // AUTHZ-B2: the staff route goes through `listForOrderAs`, which is the one that knows the
+  // caller. The internal route below still uses the unscoped read, on purpose.
+  it('listForOrder forwards the caller so the order depot can be checked', async () => {
+    expect(await controller.listForOrder(user, 'order-9')).toBe('RESULT');
+    expect(svc.listForOrderAs).toHaveBeenCalledWith('order-9', user);
+    expect(svc.listAll).not.toHaveBeenCalled();
   });
 
   /*

@@ -174,11 +174,17 @@ export class DepotController {
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotDirectory')
-  @Get('manage/:id')
+  // AUTHZ-B1: the param is named `depotId`, not `id`, and that name is the whole guard.
+  // `DepotScopeGuard` reads `depotId`/`depotIds` out of query, body and route params — a
+  // route that calls its depot `:id` is invisible to it, so `depotDirectory` (KEPALA_DEPOT,
+  // MANAGER — both depot-scoped) handed any depot's full record, bank account included, to
+  // anyone who knew a UUID. Renaming the param changes no URL and adds no branch; it just
+  // puts the value where the guard already looks.
+  @Get('manage/:depotId')
   @ApiOperation({ summary: 'Get one depot in full, incl. payment + ownership (staff)' })
   async manageOne(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('depotId', ParseUUIDPipe) id: string,
   ): Promise<DepotRecord> {
     const depot = await this.depots.get(id, false);
     // A franchise owner may only open their OWN depot's record.
@@ -249,10 +255,14 @@ export class DepotController {
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
-  @Patch(':id')
+  // AUTHZ-B1, and this is the one that moved money. `depotAdmin` is MANAGER + SUPER_ADMIN,
+  // and MANAGER is depot-scoped — so with the param called `:id` a manager could PATCH the
+  // bank account and QRIS of EVERY depot in the network, their own or not. Same rename, same
+  // reason: `DepotScopeGuard` only ever looked for a parameter called `depotId`.
+  @Patch(':depotId')
   @ApiOperation({ summary: 'Update a depot: hours, delivery zone/fee, holidays (admin)' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('depotId', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDepotDto,
   ): Promise<DepotRecord> {
     return this.depots.update(id, dto);
@@ -261,14 +271,16 @@ export class DepotController {
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
-  @Post(':id/qris')
+  // AUTHZ-B1 — see `update` above. Writing another depot's QRIS is writing where its
+  // customers' money lands.
+  @Post(':depotId/qris')
   @ApiOperation({
     summary: 'Upload the depot static QRIS image (admin); returns the updated depot',
   })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: QRIS_MAX_BYTES } }))
   async uploadQris(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('depotId', ParseUUIDPipe) id: string,
     @UploadedFile() file?: UploadedImage,
   ): Promise<DepotRecord> {
     if (!file) {
@@ -307,10 +319,11 @@ export class DepotController {
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
-  @Delete(':id')
+  // AUTHZ-B1 — see `update` above.
+  @Delete(':depotId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a depot (soft delete, admin)' })
-  remove(@Param('id', ParseUUIDPipe) id: string): Promise<DepotRecord> {
+  remove(@Param('depotId', ParseUUIDPipe) id: string): Promise<DepotRecord> {
     return this.depots.deactivate(id);
   }
 }
