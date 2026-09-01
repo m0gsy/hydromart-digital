@@ -7,30 +7,39 @@
 // conflict in the same file. Splitting it by area changes no path and no call site:
 // `endpoints` is still one object, assembled in ./index.ts.
 
+/** Filters the HR employee directory accepts. Named so the builder below fits on one line. */
+export interface HrEmployeeQuery {
+  depotId?: string;
+  status?: string;
+  departmentId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * `?a=1&b=2`, or an empty string when nothing was asked for.
+ *
+ * Exists so `employees` can be a single-expression builder. It used to have a block body,
+ * and `check-endpoint-contracts` reads the endpoints table with a line-by-line matcher —
+ * so the path was never recorded and every `api.get(endpoints.hr.employees…)` call site
+ * counted as one whose HTTP verb nothing verifies. Six of them.
+ */
+function hrQuery(q: HrEmployeeQuery): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) {
+    if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+  }
+  const qs = p.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const hr = {
 // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
 // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.
 hr: {
-  employees: (
-    q: {
-      depotId?: string;
-      status?: string;
-      departmentId?: string;
-      search?: string;
-      page?: number;
-      pageSize?: number;
-    } = {},
-  ) => {
-    const p = new URLSearchParams();
-    if (q.depotId) p.set('depotId', q.depotId);
-    if (q.status) p.set('status', q.status);
-    if (q.departmentId) p.set('departmentId', q.departmentId);
-    if (q.search) p.set('search', q.search);
-    if (q.page) p.set('page', String(q.page));
-    if (q.pageSize) p.set('pageSize', String(q.pageSize));
-    const qs = p.toString();
-    return `/employees/api/v1/employees${qs ? `?${qs}` : ''}`;
-  },
+  // eslint-disable-next-line max-len -- one line on purpose: check-endpoint-contracts' name map reads `name: (…) => '/path'` on a SINGLE line, and a block-bodied builder is invisible to it — six call sites' HTTP verbs went unverified because of this one.
+  employees: (q: HrEmployeeQuery = {}) => `/employees/api/v1/employees${hrQuery(q)}`,
   employee: (id: string) => `/employees/api/v1/employees/${id}`,
   employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
   createEmployee: '/employees/api/v1/employees',

@@ -1522,6 +1522,9 @@ export const hrFix = {
   employeeSelect: {
     label: "Karyawan",
     placeholder: "Pilih karyawan…",
+    searchPlaceholder: "Ketik nama atau kode karyawan…",
+    noMatch: "Tidak ada karyawan yang cocok.",
+    loadFailed: "Daftar karyawan gagal dimuat.",
   },
   accountEdit: {
     emailHint: "nama@email.com",
