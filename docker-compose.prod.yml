@@ -543,6 +543,13 @@ services:
       <<: *shared
       PAYOUT_SERVICE_PORT: 3016
       PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
+      # Where a courier expense receipt is allowed to come from. It is the SAME bucket the
+      # courier app uploads to (delivery-service serves proof photos from it), because that
+      # upload is what produces the URL — a receipt this service will trust is one this
+      # platform stored, not one somebody typed.
+      #
+      # Blank = auto-approve OFF, which is what an unconfigured box gets.
+      RECEIPT_STORAGE_BASE_URL: ${DELIVERY_STORAGE_PUBLIC_BASE_URL:-}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3016/api/v1/health"]
       interval: 30s

@@ -13,28 +13,6 @@ import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-cla
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
-/**
- * Whether a receipt reference is one this platform could have produced.
- *
- * `isAutoApproved` treats "a receipt is attached" as proof enough to credit a courier's
- * ledger without a reviewer, and the only thing standing behind that was
- * `receiptUrl !== null` — so the literal string `x` bought an auto-approval. This does not
- * pretend to VERIFY the receipt (nothing in this service can fetch it, and the courier app
- * has no way to upload one at all — see CA-4-21); it refuses the shapes that were never a
- * receipt in the first place, which is the cheapest honest floor.
- *
- * Owner decision still owed: whether auto-approval should stand at all until an upload path
- * exists. Recorded in the register rather than decided here.
- */
-function hasUsableReceipt(receiptUrl: string | null): boolean {
-  if (!receiptUrl) return false;
-  try {
-    const { protocol } = new URL(receiptUrl);
-    return protocol === 'https:' || protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
 
 export interface SubmitExpenseInput {
   category: ExpenseCategory;
@@ -87,7 +65,7 @@ export class ExpenseClaimService {
     const auto = isAutoApproved(
       input.amount,
       this.config.expenseAutoApproveMaxIdr(depotId),
-      hasUsableReceipt(receiptUrl),
+      this.receiptIsOurs(receiptUrl),
     );
 
     const claim = await this.claims.create({
@@ -172,6 +150,30 @@ export class ExpenseClaimService {
     return this.claims
       .searchForDepot(scope, status, page, limit)
       .then(({ items, total }) => buildPage(items, total, page, limit));
+  }
+
+  /**
+   * Whether this receipt is one THIS platform stored.
+   *
+   * `isAutoApproved` treats "a receipt is attached" as proof enough to credit a courier's
+   * ledger with no reviewer in the loop, and the only thing behind that was
+   * `receiptUrl !== null` — so the literal string `x` bought an auto-approval. A tightening
+   * to "any http(s) URL" only raised the bar to typing one.
+   *
+   * So the bar is where the receipt actually comes from: the object storage the courier app
+   * uploads to. A courier can no longer describe a receipt into existence; they have to
+   * photograph one, and the upload is what produces a URL under this prefix.
+   *
+   * Blank config = OFF, not "accept anything". A deployment that has not said where receipts
+   * live cannot tell a real one from a typed one, and the safe reading of "I cannot tell" is
+   * a claim that waits for a human.
+   */
+  private receiptIsOurs(receiptUrl: string | null): boolean {
+    const base = this.config.receiptStorageBaseUrl;
+    if (!receiptUrl || !base) return false;
+    // Prefix plus a separator: `https://cdn/hydromart-pod` must not admit
+    // `https://cdn/hydromart-pod-evil/…`, which starts with it.
+    return receiptUrl.startsWith(`${base}/`);
   }
 
   private async loadPending(

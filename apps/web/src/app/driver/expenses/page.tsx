@@ -7,10 +7,11 @@ import { ArrowLeft, Receipt } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { compressImage } from '@/lib/image';
 import type { ExpenseCategory, ExpenseClaim, ExpenseClaimStatus, Page } from '@/lib/types';
 
 const WHEN = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -45,6 +46,7 @@ function Expenses() {
   const [category, setCategory] = useState<ExpenseCategory>('FUEL');
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
+  const [receipt, setReceipt] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,13 +56,33 @@ function Expenses() {
     setBusy(true);
     setError(null);
     try {
+      /*
+       * CA-4-21 + the auto-approve gate. The screen has always promised "small claims are
+       * approved automatically", and the server has always required a receipt for that — and
+       * there was no way to attach one. So the promise could not be kept, and the only thing
+       * that COULD satisfy the server was a URL typed by hand, which is why payout-service
+       * now only trusts a URL from this bucket.
+       *
+       * Same upload the incident and proof screens use — one storage path, one place where a
+       * receipt can come from.
+       */
+      let receiptUrl: string | undefined;
+      if (receipt) {
+        const blob = await compressImage(receipt);
+        const res = await uploadFile(
+          endpoints.deliveries.driver.upload,
+          new File([blob], 'receipt.jpg', { type: blob.type || 'image/jpeg' }),
+        );
+        receiptUrl = res.url;
+      }
       await api.post(
         endpoints.courierPayout.expenses,
-        { category, amount: want, description: desc.trim(), depotId: depotId ?? undefined },
+        { category, amount: want, description: desc.trim(), depotId: depotId ?? undefined, receiptUrl },
         true,
       );
       setAmount('');
       setDesc('');
+      setReceipt(null);
       await load.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.expenses.submitFailed'));
@@ -116,6 +138,19 @@ function Expenses() {
             onChange={(e) => setDesc(e.target.value)}
             maxLength={280}
           />
+        </Field>
+        <Field label={t('hrFix.expenses.receipt')} htmlFor="receipt">
+          <input
+            id="receipt"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm"
+          />
+          <p className="mt-1 text-[11px] text-[color:var(--muted)]">
+            {receipt ? t('hrFix.expenses.receiptPicked') : t('hrFix.expenses.receiptHint')}
+          </p>
         </Field>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button loading={busy} disabled={want <= 0 || desc.trim() === ''} className="w-full" onClick={submit}>

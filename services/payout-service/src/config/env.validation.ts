@@ -6,6 +6,16 @@ export const envValidationSchema = Joi.object({
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PAYOUT_SERVICE_PORT: Joi.number().port().default(3016),
+  /*
+   * Where a courier expense receipt is allowed to come from — the public base URL of the
+   * object storage the courier app uploads to (the same one delivery-service serves proof
+   * photos from).
+   *
+   * Optional, and blank means auto-approve is OFF rather than "accept anything". A claim
+   * that credits a ledger with nobody in the loop must not be reachable by typing a URL,
+   * and a deployment that has not said where receipts live cannot tell the difference.
+   */
+  RECEIPT_STORAGE_BASE_URL: Joi.string().allow('').default(''),
   PAYOUT_DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
