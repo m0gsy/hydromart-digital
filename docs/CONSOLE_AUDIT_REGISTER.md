@@ -415,9 +415,9 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 
 | Gerbang | Dipasang di | Apa yang ia jaga |
 | --- | --- | --- |
-| `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **83** pada 1 September 2026. Uji-diri: `scripts/check-depot-scope.test.sh`. |
+| `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **63** pada 1 September 2026 (turun dari 83 begitu gerbangnya belajar membaca `@Can` di tingkat KELAS — 22 di antaranya tidak pernah lubang). Uji-diri: `scripts/check-depot-scope.test.sh`. |
 
-Baseline 83 itu bukan 83 lubang. Sebagian besar adalah baris milik pelanggan
+Baseline 63 itu bukan 63 lubang. Sebagian besar adalah baris milik pelanggan
 (`cart/items/:productId`), baris se-jaringan (`products/:id`) atau baris milik kurir yang
 dijaga kepemilikan, bukan depot. Yang dijanjikan gerbang ini bukan "semuanya aman", melainkan
 "jumlahnya tidak bisa bertambah tanpa ada yang melihat" — persis aturan
