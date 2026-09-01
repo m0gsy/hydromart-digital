@@ -9,7 +9,10 @@ import { TokenService } from '../../src/application/services/token.service';
 
 // Delegation only: the controller maps the DTO + request context onto its service and
 // wraps the result in the response DTO. The services themselves are unit-tested elsewhere.
+// The DTO always states deliveryPending, so the shape these routes return carries it too:
+// false on the ordinary path, true when the SMS gateway had not answered by reply time.
 const CHALLENGE = { phoneMasked: '+62812****890', expiresInSeconds: 300 };
+const CHALLENGE_RESPONSE = { ...CHALLENGE, resendCooldownSeconds: undefined, deliveryPending: false };
 const SESSION = {
   tokenType: 'Bearer' as const,
   accessToken: 'at',
@@ -60,7 +63,7 @@ describe('AuthController', () => {
       email: 'budi@example.com',
       context: CONTEXT,
     });
-    expect(res).toEqual(CHALLENGE);
+    expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
   it('verifyOtp() forwards phone/code/purpose and returns a session', async () => {
@@ -87,7 +90,7 @@ describe('AuthController', () => {
       purpose: OtpPurpose.LOGIN,
       context: CONTEXT,
     });
-    expect(res).toEqual(CHALLENGE);
+    expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
   it('login() requests an OTP challenge for the phone', async () => {
@@ -96,7 +99,7 @@ describe('AuthController', () => {
       phone: '+628123456789',
       context: CONTEXT,
     });
-    expect(res).toEqual(CHALLENGE);
+    expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
   it('refresh() rotates the refresh token', async () => {

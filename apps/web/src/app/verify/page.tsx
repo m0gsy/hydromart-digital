@@ -54,6 +54,14 @@ function VerifyForm() {
    */
   const issuedLifetime = Number(params.get('exp'));
 
+  /*
+   * The SMS gateway had not answered when the server replied, so the code is on its way
+   * rather than already delivered. Saying so is the difference between waiting calmly for
+   * a few seconds and pressing resend into a 60-second cooldown, which is what the old
+   * dead-end error left people doing.
+   */
+  const deliveryPending = params.get('pending') === '1';
+
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,6 +222,9 @@ function VerifyForm() {
               {t('auth.verify.validFor', { time: mmss(lifetime) })}
             </p>
           ))}
+        {deliveryPending && !resent && (
+          <p className="text-center text-sm text-muted">{t('auth.verify.deliverySlow')}</p>
+        )}
         {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
         {error && (
           <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="alert">

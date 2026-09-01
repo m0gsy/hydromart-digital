@@ -161,9 +161,27 @@ async function refreshSession(): Promise<Session | null> {
         setSession(next);
         return next;
       })
-      .catch(() => {
-        setSession(null);
-        clearTokens();
+      .catch((err: unknown) => {
+        /*
+         * Only a definite NO signs anybody out.
+         *
+         * This used to clear the session on ANY failure, and `rawRequest` throws for
+         * three quite different things: 401 (the credential is dead), 408 (our own 15s
+         * deadline elapsed) and 0 (the socket dropped). The last two mean "no answer",
+         * not "no". Treating them as a refusal signed users out of healthy 30-day
+         * sessions on a train, in a lift, or whenever the box was briefly busy — an
+         * access token lasts 15 minutes, so this path runs constantly and only has to
+         * be unlucky once.
+         *
+         * On anything short of a refusal the session STAYS. The request that triggered
+         * this still fails with its own 401, and the next one refreshes again — which is
+         * the correct outcome when the answer is simply unknown.
+         */
+        const refused = err instanceof ApiError && (err.status === 401 || err.status === 403);
+        if (refused) {
+          setSession(null);
+          clearTokens();
+        }
         return null;
       })
       .finally(() => {

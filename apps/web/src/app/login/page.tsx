@@ -93,6 +93,11 @@ function LoginForm() {
       // `expiresInSeconds`; both screens dropped it, so /verify could not say the code
       // was about to die and could not tell a dead one from an unlucky one before a guess.
       if (challenge.expiresInSeconds) params.set('exp', String(challenge.expiresInSeconds));
+      // The gateway did not answer in time, so the code is on its way rather than
+      // already delivered. /verify says so instead of leaving somebody staring at an
+      // empty inbox wondering whether to press resend — which the cooldown would
+      // refuse anyway.
+      if (challenge.deliveryPending) params.set('pending', '1');
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       // E8: one door. An unknown number used to stop here on a 404 — which since E6 at

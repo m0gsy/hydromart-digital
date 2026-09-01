@@ -3,6 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import { OtpDeliveryPort, OtpMessage } from '../../application/ports/otp-delivery.port';
 import { AuthConfigService } from '../../config/auth-config.service';
+import {
+  OtpGatewayRejectedError,
+  OtpGatewayUnreachableError,
+} from '../../application/ports/otp-delivery.port';
 
 /**
  * Delivers OTP codes over Zenziva's masking SMS API. Selected via
@@ -19,7 +23,20 @@ import { AuthConfigService } from '../../config/auth-config.service';
  */
 @Injectable()
 export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
-  private static readonly TIMEOUT_MS = 15000;
+  /*
+   * 8 seconds, and the number is chosen against the CALLER's deadline rather than picked.
+   *
+   * This was 15000 — exactly the web client's own `TIMEOUT_MS`. Two equal deadlines mean
+   * the browser gives up in the same second the server is still waiting, so the user read
+   * "Server terlalu lama menjawab" while the SMS was on its way: a login that looked
+   * broken, could not be retried for the 60-second resend cooldown, and worked after a
+   * refresh with the code that had already arrived.
+   *
+   * An inner deadline has to be comfortably shorter than the outer one or the outer one
+   * always wins. 8s leaves the request room to answer — with a real error if Zenziva is
+   * slow — before the browser stops listening.
+   */
+  private static readonly TIMEOUT_MS = 8000;
   private readonly logger = new Logger(ZenzivaOtpDeliveryAdapter.name);
 
   constructor(private readonly config: AuthConfigService) {}
@@ -42,6 +59,16 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
         }).toString(),
         signal: controller.signal,
       });
+    } catch (error) {
+      /*
+       * Aborted or unreachable: the send may well have happened anyway. Zenziva can
+       * accept the message and answer slowly, so "we stopped waiting" is not "it failed"
+       * — and the caller has to be able to tell those apart before it decides whether to
+       * throw away a challenge whose code is possibly already on the customer's phone.
+       */
+      throw new OtpGatewayUnreachableError(
+        error instanceof Error ? error.message : String(error),
+      );
     } finally {
       clearTimeout(timer);
     }
@@ -49,14 +76,14 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       this.logger.error(`Zenziva OTP delivery failed (HTTP ${response.status}): ${detail}`);
-      throw new Error(`Zenziva OTP delivery failed with status ${response.status}`);
+      throw new OtpGatewayRejectedError(`Zenziva answered HTTP ${response.status}`);
     }
 
     // Deliberately not logged with the body — the response echoes the destination number.
     const body = (await response.json().catch(() => null)) as { status?: string; text?: string } | null;
     if (!body || String(body.status) !== '1') {
       this.logger.error(`Zenziva rejected the OTP send: status=${body?.status} text=${body?.text}`);
-      throw new Error(`Zenziva rejected the OTP send (status ${body?.status ?? 'unknown'})`);
+      throw new OtpGatewayRejectedError(`Zenziva status ${body?.status ?? 'unknown'}`);
     }
   }
 

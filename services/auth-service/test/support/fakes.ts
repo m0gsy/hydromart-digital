@@ -16,7 +16,7 @@ import {
   CreateCustomerData,
   CustomerRepository,
 } from '../../src/application/ports/customer.repository';
-import { OtpDeliveryPort, OtpMessage } from '../../src/application/ports/otp-delivery.port';
+import { OtpDeliveryPort, OtpGatewayRejectedError, OtpGatewayUnreachableError, OtpMessage } from '../../src/application/ports/otp-delivery.port';
 import {
   CreateOtpTokenData,
   OtpTokenRecord,
@@ -86,9 +86,13 @@ export class FakeCrypto implements CryptoPort {
 export class FakeOtpDelivery implements OtpDeliveryPort {
   public readonly sent: OtpMessage[] = [];
   public shouldFail = false;
+  /** Which kind: a gateway that answered "no", or one that did not answer at all. */
+  public failMode: 'rejected' | 'unreachable' = 'rejected';
   async send(message: OtpMessage): Promise<void> {
     if (this.shouldFail) {
-      throw new Error('delivery failed');
+      throw this.failMode === 'rejected'
+        ? new OtpGatewayRejectedError('test')
+        : new OtpGatewayUnreachableError('test');
     }
     this.sent.push(message);
   }
