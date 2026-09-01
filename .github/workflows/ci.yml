@@ -200,6 +200,11 @@ jobs:
       - name: Depot-scope gate can go red
         run: bash scripts/check-depot-scope.test.sh
 
+      # Step 08 of the console-audit sweep is a REPORT, and the owner's decision was that it
+      # carries no write path at all. A promise in a comment is not a guarantee; this is.
+      - name: The damaged-row report cannot write
+        run: bash scripts/check-report-damaged-rows.test.sh
+
       - name: Index pre-build table parses (no database needed)
         run: bash scripts/create-indexes.test.sh
 
