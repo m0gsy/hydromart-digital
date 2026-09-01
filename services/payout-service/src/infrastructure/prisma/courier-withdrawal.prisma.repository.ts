@@ -7,6 +7,7 @@ import {
   CourierWithdrawalRepository,
   CreateCourierWithdrawalData,
 } from '../../application/ports/courier-withdrawal.repository';
+import { SettleWithdrawalOutcome } from '../../application/ports/withdrawal.repository';
 import { PrismaService } from './prisma.service';
 import { nextReferenceSequence } from './reference-sequence';
 
@@ -92,6 +93,57 @@ export class CourierWithdrawalPrismaRepository implements CourierWithdrawalRepos
           sourceRef: `withdrawal:${input.reference}`,
         },
       });
+      return { ok: true as const, withdrawal: this.toWithdrawal(row as unknown as WithdrawalRow) };
+    });
+  }
+
+  async listProcessing(limit: number): Promise<CourierWithdrawalRecord[]> {
+    const rows = await this.prisma.courierWithdrawal.findMany({
+      where: { status: 'PROCESSING' },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => this.toWithdrawal(r as unknown as WithdrawalRow));
+  }
+
+  async settle(input: {
+    id: string;
+    status: Extract<WithdrawalStatus, 'PAID' | 'FAILED'>;
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<CourierWithdrawalRecord>> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = (await tx.courierWithdrawal.findUnique({
+        where: { id: input.id },
+      })) as unknown as WithdrawalRow | null;
+      if (!current) return { ok: false as const, reason: 'NOT_FOUND' as const };
+      if (current.status !== 'PROCESSING') {
+        return {
+          ok: false as const,
+          reason: 'NOT_PROCESSING' as const,
+          status: current.status as WithdrawalStatus,
+        };
+      }
+
+      const row = await tx.courierWithdrawal.update({
+        where: { id: input.id },
+        data: { status: input.status },
+      });
+
+      if (input.status === 'FAILED') {
+        // Same rule as the franchise ledger: the WITHDRAWAL debit already went out, so a
+        // rejected transfer has to come back inside this transaction. `sourceRef` is unique,
+        // so settling twice credits once.
+        await tx.courierLedgerEntry.create({
+          data: {
+            courierId: current.courierId,
+            depotId: null,
+            type: 'ADJUSTMENT',
+            amount: Number(current.amount),
+            description: input.reversal.description,
+            sourceRef: input.reversal.sourceRef,
+          },
+        });
+      }
       return { ok: true as const, withdrawal: this.toWithdrawal(row as unknown as WithdrawalRow) };
     });
   }

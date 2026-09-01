@@ -2,6 +2,8 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  WithdrawalNotFoundError,
+  WithdrawalNotProcessingError,
 } from '../src/domain/errors';
 import { PayoutService } from '../src/application/services/payout.service';
 import type {
@@ -10,6 +12,7 @@ import type {
 } from '../src/application/ports/ledger.repository';
 import type {
   CreateWithdrawalData,
+  SettleWithdrawalOutcome,
   WithdrawalOutcome,
   WithdrawalRepository,
 } from '../src/application/ports/withdrawal.repository';
@@ -145,12 +148,54 @@ class FakeWithdrawals implements WithdrawalRepository {
   // the same ledger fake rather than tracking a second, drifting number.
   constructor(private readonly ledger?: FakeLedger) {}
 
+  /** Written rows, by id — `settle` has to find one and refuse to settle it twice. */
+  rows = new Map<string, WithdrawalRecord>();
+  private nextId = 0;
+
   async create(data: CreateWithdrawalData): Promise<WithdrawalRecord> {
     this.created.push(data);
-    return { ...data, id: 'w-1', createdAt: new Date(), updatedAt: new Date() };
+    this.nextId += 1;
+    const row = {
+      ...data,
+      id: `w-${this.nextId}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.rows.set(row.id, row);
+    return row;
   }
   async listForOwner(): Promise<WithdrawalRecord[]> {
     return [];
+  }
+  async listProcessing(limit: number): Promise<WithdrawalRecord[]> {
+    return [...this.rows.values()].filter((r) => r.status === 'PROCESSING').slice(0, limit);
+  }
+
+  // Same contract as the real transaction: the status guard and the compensating credit are
+  // one step, so a second FAILED cannot credit again.
+  async settle(input: {
+    id: string;
+    status: 'PAID' | 'FAILED';
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<WithdrawalRecord>> {
+    const row = this.rows.get(input.id);
+    if (!row) return { ok: false, reason: 'NOT_FOUND' };
+    if (row.status !== 'PROCESSING') {
+      return { ok: false, reason: 'NOT_PROCESSING', status: row.status };
+    }
+    const settled = { ...row, status: input.status as WithdrawalStatus, updatedAt: new Date() };
+    this.rows.set(row.id, settled);
+    if (input.status === 'FAILED') {
+      await this.ledger?.create({
+        franchiseOwnerId: row.franchiseOwnerId,
+        depotId: null,
+        type: 'ADJUSTMENT',
+        amount: row.amount,
+        description: input.reversal.description,
+        sourceRef: input.reversal.sourceRef,
+      });
+    }
+    return { ok: true, withdrawal: settled };
   }
 
   // Single-threaded stand-in for the advisory-locked withdraw (B-8). It cannot reproduce
@@ -245,6 +290,77 @@ describe('PayoutService.requestWithdrawal', () => {
       InsufficientBalanceError,
     );
     expect(withdrawals.created).toHaveLength(1);
+  });
+});
+
+/*
+ * The way out of PROCESSING.
+ *
+ * `WithdrawalStatus` has had PAID and FAILED since the first migration and the schema
+ * comment spells FAILED out — "a compensating credit re-posts to the ledger" — but nothing
+ * in this service ever wrote either value. Every payout ever requested was still PROCESSING
+ * with its debit already gone, on both the franchise and the courier side.
+ *
+ * Delete `settleWithdrawal` and every case below fails to compile; neuter its FAILED arm and
+ * the balance assertions fail. That is the point: the money has to come back.
+ */
+describe('PayoutService.settleWithdrawal', () => {
+  const setup = async () => {
+    const ledger = new FakeLedger([500000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
+    const w = await svc.requestWithdrawal('owner-1', 200000, 'BCA ···· 4821');
+    return { ledger, withdrawals, svc, w };
+  };
+
+  it('marks a cleared transfer PAID and leaves the balance where the debit put it', async () => {
+    const { ledger, svc, w } = await setup();
+    expect(await ledger.balanceFor('owner-1')).toBe(300000);
+
+    const paid = await svc.settleWithdrawal(w.id, 'PAID', 'finance-1');
+    expect(paid.status).toBe('PAID');
+    // PAID is not a second money movement — the debit at request time WAS the money leaving.
+    expect(await ledger.balanceFor('owner-1')).toBe(300000);
+  });
+
+  it('gives the money back when the bank rejects the transfer', async () => {
+    const { ledger, svc, w } = await setup();
+    const failed = await svc.settleWithdrawal(w.id, 'FAILED', 'finance-1', 'Rekening tutup');
+    expect(failed.status).toBe('FAILED');
+    expect(await ledger.balanceFor('owner-1')).toBe(500000);
+    const credit = ledger.entries.at(-1);
+    expect(credit).toMatchObject({ type: 'ADJUSTMENT', amount: 200000 });
+    // The reason lands on the row that gives the money back; there is no reason column.
+    expect(credit?.description).toContain('Rekening tutup');
+    // Keyed on the withdrawal, so a retried settle credits once — the same idempotency
+    // rule every other write in this ledger already follows.
+    expect(await ledger.findBySourceRef(`withdrawal-reversal:${w.id}`)).toMatchObject({
+      amount: 200000,
+    });
+  });
+
+  it('refuses to settle the same withdrawal twice', async () => {
+    const { ledger, svc, w } = await setup();
+    await svc.settleWithdrawal(w.id, 'FAILED', 'finance-1');
+    await expect(svc.settleWithdrawal(w.id, 'FAILED', 'finance-1')).rejects.toBeInstanceOf(
+      WithdrawalNotProcessingError,
+    );
+    // And crucially the second attempt credited nothing.
+    expect(await ledger.balanceFor('owner-1')).toBe(500000);
+  });
+
+  it('404s on a withdrawal that does not exist', async () => {
+    const { svc } = await setup();
+    await expect(svc.settleWithdrawal('w-nope', 'PAID', 'finance-1')).rejects.toBeInstanceOf(
+      WithdrawalNotFoundError,
+    );
+  });
+
+  it('lists what is still waiting on the bank, and drops each one as it is answered', async () => {
+    const { svc, w } = await setup();
+    expect(await svc.listProcessingWithdrawals()).toHaveLength(1);
+    await svc.settleWithdrawal(w.id, 'PAID', 'finance-1');
+    expect(await svc.listProcessingWithdrawals()).toHaveLength(0);
   });
 });
 

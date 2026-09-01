@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { WithdrawalRecord, WithdrawalStatus } from '../../domain/ledger';
 import {
   CreateWithdrawalData,
+  SettleWithdrawalOutcome,
   WithdrawalOutcome,
   WithdrawalRepository,
 } from '../../application/ports/withdrawal.repository';
@@ -89,6 +90,60 @@ export class WithdrawalPrismaRepository implements WithdrawalRepository {
           description: input.description,
         },
       });
+      return { ok: true as const, withdrawal: this.toWithdrawal(row as unknown as WithdrawalRow) };
+    });
+  }
+
+  async listProcessing(limit: number): Promise<WithdrawalRecord[]> {
+    const rows = await this.prisma.withdrawal.findMany({
+      where: { status: 'PROCESSING' },
+      // Oldest first: the queue is a worklist, and the payout that has been waiting longest
+      // is the one somebody is asking about.
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => this.toWithdrawal(r as unknown as WithdrawalRow));
+  }
+
+  async settle(input: {
+    id: string;
+    status: Extract<WithdrawalStatus, 'PAID' | 'FAILED'>;
+    reversal: { sourceRef: string; description: string };
+  }): Promise<SettleWithdrawalOutcome<WithdrawalRecord>> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = (await tx.withdrawal.findUnique({
+        where: { id: input.id },
+      })) as unknown as WithdrawalRow | null;
+      if (!current) return { ok: false as const, reason: 'NOT_FOUND' as const };
+      if (current.status !== 'PROCESSING') {
+        return {
+          ok: false as const,
+          reason: 'NOT_PROCESSING' as const,
+          status: current.status as WithdrawalStatus,
+        };
+      }
+
+      const row = await tx.withdrawal.update({
+        where: { id: input.id },
+        data: { status: input.status },
+      });
+
+      if (input.status === 'FAILED') {
+        // The debit posted when the withdrawal was requested. A rejected transfer that only
+        // flipped a status would leave the owner short by the amount of a payment they never
+        // received — so the credit is part of the same transaction, not a follow-up job.
+        // `sourceRef` is unique, so a retried settle credits once.
+        await tx.ledgerEntry.create({
+          data: {
+            franchiseOwnerId: current.franchiseOwnerId,
+            depotId: null,
+            type: 'ADJUSTMENT',
+            amount: Number(current.amount),
+            description: input.reversal.description,
+            sourceRef: input.reversal.sourceRef,
+          },
+        });
+      }
       return { ok: true as const, withdrawal: this.toWithdrawal(row as unknown as WithdrawalRow) };
     });
   }
