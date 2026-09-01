@@ -40,6 +40,18 @@ FAIL=0
 # One statement against one service DB.
 psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 2>&1; }
 
+# order_disputes_customerId_idx is deliberately NOT in the table below yet.
+#
+# The deploy builds these indexes BEFORE it runs migrations, and the column they index has
+# to exist first. Registering it in the same release as the migration that adds
+# order_disputes."customerId" made the build fail on a column that was not there — and this
+# script did exactly what it should: refused, rather than letting the migration build it
+# under an ACCESS EXCLUSIVE lock. The deploy rolled back cleanly and production stayed on
+# the previous release.
+#
+# It goes in with the erasure executor that reads the column, one release AFTER the column
+# — the same "column first, code later" order the migration's own header states.
+#
 # db|index name|CREATE INDEX CONCURRENTLY statement. One line per index; keep the index
 # name identical to the one the migration creates, or the migration will build a second
 # copy under Prisma's default name.
@@ -53,7 +65,6 @@ depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXIS
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")
 depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_issues_orderId_key" ON "gallon_issues"("orderId")
 depot|gallon_returns_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_returns_orderId_key" ON "gallon_returns"("orderId")
-depot|order_disputes_customerId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "order_disputes_customerId_idx" ON "order_disputes"("customerId")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_customerId_createdAt_idx" ON "reseller_price_changes"("customerId", "createdAt" DESC)
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")

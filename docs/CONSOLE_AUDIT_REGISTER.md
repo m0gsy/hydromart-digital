@@ -415,6 +415,7 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 
 | Gerbang | Dipasang di | Apa yang ia jaga |
 | --- | --- | --- |
+| `scripts/create-indexes.sh` | Deploy | Membangun indeks CONCURRENTLY SEBELUM migrasi jalan, dan **menolak** kalau gagal alih-alih membiarkan migrasi membangunnya di bawah kunci. Ia menangkap kesalahan saya sendiri: indeks yang didaftarkan di rilis yang sama dengan kolomnya. Aturannya: kolom satu rilis, indeks + kode pembacanya rilis berikutnya. |
 | `.github/workflows/deploy.yml` — job `not-shipped` | Deploy (PR #420) | CI yang merah di `main` berarti commit itu TIDAK terkirim, dan satu-satunya buktinya dulu adalah run Deploy bertanda `skipped` — warna yang sama dengan sukses. Sekarang ada job yang MERAH di sebelah commit yang tidak jadi berangkat. Judul run-nya juga kini menyebut SHA yang benar-benar dikapalkan, bukan ujung branch. |
 | `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416, diperbaiki #418 dan #419) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **63** pada 1 September 2026 (turun dari 83 begitu gerbangnya belajar membaca `@Can` di tingkat KELAS — 22 di antaranya tidak pernah lubang). Uji-diri: `scripts/check-depot-scope.test.sh`. |
 
