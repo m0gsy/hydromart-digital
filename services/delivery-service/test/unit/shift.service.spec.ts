@@ -9,8 +9,14 @@ import {
   ShiftNotFoundError,
   StaleCaptureError,
 } from '../../src/domain/errors';
+import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { ShiftStatus } from '../../src/domain/shift';
-import { FakeDepotLocation, InMemoryShiftRepository, buildTestConfig } from '../support/fakes';
+import {
+  FakeDepotLocation,
+  InMemoryDeliveryRepository,
+  InMemoryShiftRepository,
+  buildTestConfig,
+} from '../support/fakes';
 
 const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
 const AT_DEPOT = { lat: -6.9147, lng: 107.6098 };
@@ -18,14 +24,16 @@ const FAR_AWAY = { lat: -6.2088, lng: 106.8456 };
 
 describe('ShiftService', () => {
   let repo: InMemoryShiftRepository;
+  let deliveries: InMemoryDeliveryRepository;
   let depots: FakeDepotLocation;
   let service: ShiftService;
   const driver = randomUUID();
 
   beforeEach(() => {
     repo = new InMemoryShiftRepository();
+    deliveries = new InMemoryDeliveryRepository();
     depots = new FakeDepotLocation();
-    service = new ShiftService(repo, depots, buildTestConfig());
+    service = new ShiftService(repo, deliveries, depots, buildTestConfig());
   });
 
   const checkIn = (driverId = driver) =>
@@ -207,6 +215,90 @@ describe('ShiftService', () => {
       await expect(
         service.checkOut(driver, shift.id, AT_DEPOT.lat, AT_DEPOT.lng),
       ).rejects.toBeInstanceOf(ShiftNotFoundError);
+    });
+
+    /*
+     * C1-B. Nothing checked whether the courier was still holding deliveries.
+     *
+     * Closing the shift closes the settlement window, so COD collected on a delivery
+     * finished afterwards is money the deposit never expects — it simply does not appear.
+     * And `/driver` reads its task list off an OPEN shift, so the courier locked themselves
+     * out of the deliveries they were still carrying, with no reopen anywhere.
+     *
+     * Delete the `countActiveByDriver` guard in `checkOut` and the first case below closes
+     * the shift instead of refusing.
+     */
+    it('refuses to close while deliveries are still on the road', async () => {
+      const shift = await checkIn();
+      await deliveries.create({
+        orderId: randomUUID(),
+        orderNumber: 'ORD-1',
+        driverId: driver,
+        depotId: DEPOT_ID,
+        destinationAddress: 'Jl. Cikini 1',
+        destinationLat: AT_DEPOT.lat,
+        destinationLng: AT_DEPOT.lng,
+        recipientPhone: null,
+        customerId: null,
+        items: null,
+        codAmount: 45000,
+        notes: null,
+        deliveryWindow: null,
+      });
+
+      await expect(
+        service.checkOut(driver, shift.id, AT_DEPOT.lat, AT_DEPOT.lng),
+      ).rejects.toMatchObject({ code: 'SHIFT_HAS_ACTIVE_DELIVERIES' });
+      // The shift is still the courier's way back into that delivery.
+      await expect(service.current(driver)).resolves.toMatchObject({ id: shift.id });
+    });
+
+    it('closes once the road is clear', async () => {
+      const shift = await checkIn();
+      const d = await deliveries.create({
+        orderId: randomUUID(),
+        orderNumber: 'ORD-2',
+        driverId: driver,
+        depotId: DEPOT_ID,
+        destinationAddress: 'Jl. Cikini 2',
+        destinationLat: AT_DEPOT.lat,
+        destinationLng: AT_DEPOT.lng,
+        recipientPhone: null,
+        customerId: null,
+        items: null,
+        codAmount: null,
+        notes: null,
+        deliveryWindow: null,
+      });
+      // Failing it is one of the two ways out the refusal message names.
+      deliveries.rows.find((r) => r.id === d.id)!.status = DeliveryStatus.FAILED;
+
+      await expect(
+        service.checkOut(driver, shift.id, AT_DEPOT.lat, AT_DEPOT.lng),
+      ).resolves.toMatchObject({ status: ShiftStatus.ENDED });
+    });
+
+    // Another courier's load is not this courier's problem.
+    it('ignores deliveries held by a different courier', async () => {
+      const shift = await checkIn();
+      await deliveries.create({
+        orderId: randomUUID(),
+        orderNumber: 'ORD-3',
+        driverId: randomUUID(),
+        depotId: DEPOT_ID,
+        destinationAddress: 'Jl. Cikini 3',
+        destinationLat: AT_DEPOT.lat,
+        destinationLng: AT_DEPOT.lng,
+        recipientPhone: null,
+        customerId: null,
+        items: null,
+        codAmount: null,
+        notes: null,
+        deliveryWindow: null,
+      });
+      await expect(
+        service.checkOut(driver, shift.id, AT_DEPOT.lat, AT_DEPOT.lng),
+      ).resolves.toMatchObject({ status: ShiftStatus.ENDED });
     });
   });
 

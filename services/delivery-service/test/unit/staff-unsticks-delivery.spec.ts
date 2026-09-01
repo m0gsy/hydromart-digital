@@ -54,7 +54,7 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
     const shiftRepo = new InMemoryShiftRepository();
     const config = buildTestConfig();
     const depots = new FakeDepotLocation();
-    shifts = new ShiftService(shiftRepo, depots, config);
+    shifts = new ShiftService(shiftRepo, repo, depots, config);
     service = new DeliveryService(
       repo,
       orders,

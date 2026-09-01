@@ -139,6 +139,23 @@ export class InvalidShiftTransitionError extends DomainError {
   }
 }
 
+/**
+ * A courier tried to close their shift while deliveries were still on the road.
+ *
+ * Closing the shift ends the settlement window: the COD on a delivery completed after
+ * check-out is money the deposit no longer expects, and the courier is locked out of the
+ * task list they were holding. The shift stays open until the road is clear.
+ */
+export class ShiftHasActiveDeliveriesError extends DomainError {
+  readonly code = 'SHIFT_HAS_ACTIVE_DELIVERIES';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(count: number) {
+    super(
+      `Masih ada ${count} pengantaran berjalan. Selesaikan, gagalkan, atau jadwalkan ulang dulu sebelum tutup shift.`,
+    );
+  }
+}
+
 /** Dispatch tried to assign a courier who is not checked in and ONLINE. */
 export class DriverNotOnShiftError extends DomainError {
   readonly code = 'DELIVERY_DRIVER_NOT_ON_SHIFT';

@@ -70,13 +70,19 @@ describe('CourierPayoutController', () => {
       depotId: 'd1',
       receiptUrl: 'http://r',
     } as SubmitExpenseDto);
-    expect(expenses.submit).toHaveBeenCalledWith('courier-1', {
-      category: 'FUEL',
-      amount: 25000,
-      description: 'bensin',
-      depotId: 'd1',
-      receiptUrl: 'http://r',
-    });
+    // AUTHZ-B3: the caller rides along now — the body used to decide both the books the
+    // claim lands on and the auto-approve threshold it is measured against.
+    expect(expenses.submit).toHaveBeenCalledWith(
+      'courier-1',
+      {
+        category: 'FUEL',
+        amount: 25000,
+        description: 'bensin',
+        depotId: 'd1',
+        receiptUrl: 'http://r',
+      },
+      user,
+    );
   });
 
   it('submitExpense falls back to null for omitted optionals', async () => {
@@ -85,13 +91,17 @@ describe('CourierPayoutController', () => {
       amount: 10000,
       description: 'x',
     } as SubmitExpenseDto);
-    expect(expenses.submit).toHaveBeenCalledWith('courier-1', {
-      category: 'OTHER',
-      amount: 10000,
-      description: 'x',
-      depotId: null,
-      receiptUrl: null,
-    });
+    expect(expenses.submit).toHaveBeenCalledWith(
+      'courier-1',
+      {
+        category: 'OTHER',
+        amount: 10000,
+        description: 'x',
+        depotId: null,
+        receiptUrl: null,
+      },
+      user,
+    );
   });
 
   it('expenseHistory delegates sub + page + limit', async () => {

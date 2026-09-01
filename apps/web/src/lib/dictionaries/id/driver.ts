@@ -16,6 +16,7 @@ export const driver = {
     confirmPickup: 'Konfirmasi barang diambil',
     startDelivery: 'Mulai antar',
     completeWithPod: 'Selesaikan · ambil bukti',
+    collectCashFirst: 'Ambil uang {amount} dulu · buka pesanan',
   },
   deliveryFail: {
     title: 'Tandai pengantaran gagal',

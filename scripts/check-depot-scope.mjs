@@ -148,6 +148,15 @@ for (const svc of readdirSync(servicesRoot)) {
     const src = readFileSync(file, 'utf8');
     const lines = src.split('\n');
     const rel = relative(ROOT, file).replace(/\\/g, '/');
+    /*
+     * A `@Can(...)` on the CONTROLLER CLASS authorises every handler that does not override
+     * it — `HqPayoutController` is `@Can('hqPayout')`, FINANCE and SUPER_ADMIN, and not one
+     * of its six withdrawal routes repeats that. Reading only the decorators above each
+     * route called all six "no `@Can`", which this gate treats as reachable-by-anyone, and
+     * reported the routes that gave PROCESSING its way out as three fresh holes.
+     */
+    const classCan =
+      (src.match(/@Can\(\s*['"]([^'"]+)['"][\s\S]{0,400}?@Controller\(/) || [])[1] ?? null;
     for (let i = 0; i < lines.length; i++) {
       const m = lines[i].match(/@(Get|Post|Patch|Put|Delete)\(\s*['"`]([^'"`]*)['"`]\s*\)/);
       if (!m) continue;
@@ -159,7 +168,7 @@ for (const svc of readdirSync(servicesRoot)) {
 
       const decorators = lines.slice(Math.max(0, i - 10), i + 5).join('\n');
       if (/@Public\(/.test(decorators) && /InternalAuthGuard/.test(decorators)) continue;
-      const can = (decorators.match(/@Can\(\s*['"]([^'"]+)['"]/) || [])[1] ?? null;
+      const can = (decorators.match(/@Can\(\s*['"]([^'"]+)['"]/) || [])[1] ?? classCan;
       const reachable = can
         ? (CAPS[can] ?? []).some((r) => SCOPED_ROLES.includes(r))
         : !/@Public\(/.test(decorators);

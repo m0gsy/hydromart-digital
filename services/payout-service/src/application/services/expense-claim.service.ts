@@ -13,6 +13,29 @@ import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-cla
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
+/**
+ * Whether a receipt reference is one this platform could have produced.
+ *
+ * `isAutoApproved` treats "a receipt is attached" as proof enough to credit a courier's
+ * ledger without a reviewer, and the only thing standing behind that was
+ * `receiptUrl !== null` — so the literal string `x` bought an auto-approval. This does not
+ * pretend to VERIFY the receipt (nothing in this service can fetch it, and the courier app
+ * has no way to upload one at all — see CA-4-21); it refuses the shapes that were never a
+ * receipt in the first place, which is the cheapest honest floor.
+ *
+ * Owner decision still owed: whether auto-approval should stand at all until an upload path
+ * exists. Recorded in the register rather than decided here.
+ */
+function hasUsableReceipt(receiptUrl: string | null): boolean {
+  if (!receiptUrl) return false;
+  try {
+    const { protocol } = new URL(receiptUrl);
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export interface SubmitExpenseInput {
   category: ExpenseCategory;
   amount: number;
@@ -36,14 +59,35 @@ export class ExpenseClaimService {
    * amount is at or under the depot's threshold AND a receipt is attached; otherwise it
    * waits for a reviewer (M20-15).
    */
-  async submit(courierId: string, input: SubmitExpenseInput): Promise<ExpenseClaimRecord> {
+  async submit(
+    courierId: string,
+    input: SubmitExpenseInput,
+    courier?: AuthenticatedUser,
+  ): Promise<ExpenseClaimRecord> {
     if (!(input.amount > 0)) throw new InvalidExpenseAmountError();
-    const depotId = input.depotId ?? null;
+    /*
+     * AUTHZ-B3 — the depot comes from the TOKEN, not the form.
+     *
+     * `depotId` decides two things: whose books the claim lands on, and — through
+     * `expenseAutoApproveMaxIdr(depotId)` — the threshold under which it credits the
+     * courier's ledger with no human in the loop. Both were read straight off the request
+     * body. A courier could name any depot in the network, pick whichever had the highest
+     * auto-approve ceiling, and file against it; the same file already calls
+     * `assertDepotAccess` on the review path (AUTHZ-A5, `loadPending`) and on the queue,
+     * so the submit path was the one door left open.
+     *
+     * The body value stays accepted only when it agrees with the caller's own scope, so an
+     * internal caller with no principal and the existing tests keep working; a courier who
+     * names somebody else's depot is refused rather than quietly re-pointed.
+     */
+    const claimed = input.depotId ?? null;
+    if (courier && claimed) assertDepotAccess(courier, claimed);
+    const depotId = claimed ?? courier?.depotId ?? null;
     const receiptUrl = input.receiptUrl?.trim() || null;
     const auto = isAutoApproved(
       input.amount,
       this.config.expenseAutoApproveMaxIdr(depotId),
-      receiptUrl !== null,
+      hasUsableReceipt(receiptUrl),
     );
 
     const claim = await this.claims.create({

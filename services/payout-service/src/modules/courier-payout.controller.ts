@@ -96,13 +96,19 @@ export class CourierPayoutController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SubmitExpenseDto,
   ): Promise<ExpenseClaimRecord> {
-    return this.expenses.submit(user.sub, {
-      category: dto.category,
-      amount: dto.amount,
-      description: dto.description,
-      depotId: dto.depotId ?? null,
-      receiptUrl: dto.receiptUrl ?? null,
-    });
+    // AUTHZ-B3: the caller rides along so the service can refuse a depot that is not
+    // theirs — the body used to decide both the books and the auto-approve threshold.
+    return this.expenses.submit(
+      user.sub,
+      {
+        category: dto.category,
+        amount: dto.amount,
+        description: dto.description,
+        depotId: dto.depotId ?? null,
+        receiptUrl: dto.receiptUrl ?? null,
+      },
+      user,
+    );
   }
 
   @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
