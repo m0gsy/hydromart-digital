@@ -75,7 +75,8 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 31 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 1
 
-**Per status:** `TERBUKA` 270 · `SUDAH DIPERBAIKI` 4 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 1
+**Per status** (1 September 2026, sesudah langkah 01): `TERBUKA` 268 · `SUDAH DIPERBAIKI` 6 ·
+`DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 1
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
 > satu baris CA-5 memayungi **14 sweep**. Merencanakan 460 tiket melebihkan pekerjaan sekitar dua
@@ -103,7 +104,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | `CA-1-13` | §5 | Sedang | Reset setelan denda dan tarif absen tanpa konfirmasi | `apps/web/src/app/hr/settings/page.tsx:115` | `confirm-dialog` | TERBUKA | — | — |
 | `CA-1-14` | §5 | Rendah | Absen manual menimpa catatan kehadiran yang sudah ada | `apps/web/src/app/hr/attendance/page.tsx:96` | `lain` | TERBUKA | — | — |
 | `CA-1-15` | §5 | Rendah | Batalkan pengajuan cuti sendiri tanpa konfirmasi | `apps/web/src/app/hr/me/leave/page.tsx:176` | `confirm-dialog` | TERBUKA | — | — |
-| `CA-1-16` | §6 | Tinggi | Antrean cuti berhenti di 20 permohonan, tanpa halaman 2 | `apps/web/src/app/hr/leave/page.tsx:53 · endpoints/hr.ts:217` | `lain` | TERBUKA | `api.get<HrPage<LeaveRequest>>(endpoints.hr.leaveQueue({ status: status \\|\\| undefined }), true),` | — |
+| `CA-1-16` | §6 | Tinggi | Antrean cuti berhenti di 20 permohonan, tanpa halaman 2 | `apps/web/src/app/hr/leave/page.tsx:53 · endpoints/hr.ts:217` | `lain` | TERBUKA | `api.get<HrPage<LeaveRequest>>(endpoints.hr.leaveQueue({ status: status \|\| undefined }), true),` | — |
 | `CA-1-17` | §6 | Tinggi | Pemilih karyawan terkunci di 100 orang aktif | `apps/web/src/components/hr/employee-select.tsx:44` | `lain` | KEPUTUSAN | komentar berkode `ponytail:` di employee-select.tsx:42-43 menyatakan 100 = `@Max` DTO dan menyebut picker cari-sambil-ketik sebagai perbaikan yang benar — TANYA PEMILIK | — |
 | `CA-1-18` | §6 | Sedang | Setiap daftar berhenti di 100 baris walau totalnya ditulis di judul | `employees:87 · attendance:31,:89 · payroll:30 · audit:21 · assets:57` | `lain` | TERBUKA | — | — |
 | `CA-1-19` | §6 | Rendah | Riwayat absensi karyawan sendiri terkunci 60 baris terakhir | `apps/web/src/app/hr/me/attendance/page.tsx:17` | `lain` | TERBUKA | — | — |
@@ -183,7 +184,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CA-2-01` | §16 | Dicoret | “Persetujuan klaim pengeluaran kurir tidak dibatasi depot” | `services/payout-service/src/application/services/expense-claim.service.ts:133–142` | `depot-scope-by-id` | DITOLAK | dicoret oleh audit sendiri di §16 — penjagaannya ada di kode, dengan komentar berkode yang menamainya | — |
 | `CA-2-02` | §16 | Dicoret | “Head office bisa mencetak SUPER_ADMIN untuk nomornya sendiri” | `services/auth-service/src/application/services/account.service.ts:304–307` | `gerbang-kapabilitas` | DITOLAK | dicoret oleh audit sendiri di §16 — penjagaannya ada di kode, dengan komentar berkode yang menamainya | — |
-| `CA-2-03` | §17 | Kritis | Manajer bisa mengubah rekening bank dan QRIS SETIAP depot di jaringan | `services/depot-service/src/modules/depot.controller.ts:251, :263, :309` | `depot-scope-by-id` | TERBUKA | `@Can('depotAdmin')` | — |
+| `CA-2-03` | §17 | Kritis | Manajer bisa mengubah rekening bank dan QRIS SETIAP depot di jaringan | `services/depot-service/src/modules/depot.controller.ts:251, :263, :309` | `depot-scope-by-id` | SUDAH DIPERBAIKI | parameter jadi `:depotId` pada `manage/:depotId`, `PATCH`, `POST :depotId/qris`, `DELETE` — `DepotScopeGuard` akhirnya melihatnya | #416 |
 | `CA-2-04` | §17 | Kritis | Detail depot HQ membaca proyeksi publik — menyuntingnya menghapus rekening bank depot | `apps/web/src/app/hq/depots/detail/page.tsx:42` | `proyeksi-publik` | TERBUKA | `const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.detail(id), true), [id]);` | — |
 | `CA-2-05` | §18 | Tinggi | “Blokir” di antrean fraud tidak memblokir apa pun | `apps/web/src/app/hq/fraud/page.tsx:114 · fraud-flag.service.ts:35` | `lain` | TERBUKA | `<Button variant="danger" onClick={() => act(r, 'block')}>` | — |
 | `CA-2-06` | §18 | Tinggi | IP allowlist dan timeout sesi disimpan, tidak ditegakkan di mana pun | `apps/web/src/app/hq/security/page.tsx:97–110 · security-policy.service.ts:31` | `lain` | TERBUKA | `<div className="flex flex-col gap-6">` | — |
@@ -196,7 +197,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | `CA-2-13` | §20 | Tinggi | Tarif kurir bertanggal depan langsung berlaku saat disimpan | `services/payout-service/src/infrastructure/prisma/courier-ledger.prisma.repository.ts:164` | `jalur-uang` | SUDAH DIPERBAIKI | `currentRule(depotId, asOf)` kini menyaring `effectiveDate <= asOf`; komentarnya menyebut ukuran produksi 2026-08-31 | #413 |
 | `CA-2-14` | §20 | Tinggi | Skema komisi bertanggal depan juga langsung berlaku | `services/payout-service/src/infrastructure/prisma/commission-scheme.prisma.repository.ts:31, :39` | `jalur-uang` | TERBUKA | `// silently stops being paid.` | — |
 | `CA-2-15` | §21 | Tinggi | Konsol depot memilih depot default dari daftar seluruh jaringan, bukan depot milik penggunanya | `apps/web/src/lib/depot-context.tsx:68, :91` | `depot-scope-by-id` | TERBUKA | `.get<Page<Depot>>(endpoints.depots.browse({ limit: 100 }), true)` | — |
-| `CA-2-16` | §21 | Tinggi | FINANCE dan MARKETING memegang kapabilitas yang layarnya hanya ada di /hq — dan isHq() menolak keduanya | `apps/web/src/lib/roles.ts:68` | `gerbang-kapabilitas` | TERBUKA | `export function isHq(role: string \\| null \\| undefined): boolean {` | — |
+| `CA-2-16` | §21 | Tinggi | FINANCE dan MARKETING memegang kapabilitas yang layarnya hanya ada di /hq — dan isHq() menolak keduanya | `apps/web/src/lib/roles.ts:68` | `gerbang-kapabilitas` | TERBUKA | `export function isHq(role: string \| null \| undefined): boolean {` | — |
 | `CA-2-17` | §21 | Tinggi | FINANCE mendarat di konsol HR dan terkurung di sana | `apps/web/src/lib/roles.ts:266` | `gerbang-kapabilitas` | TERBUKA | `}` | — |
 | `CA-2-18` | §21 | Tinggi | Konsol operator memakai daftar menu ketiga yang di-hardcode dan tidak difilter kapabilitas | `apps/web/src/components/operator/operator-shell.tsx:30–61` | `gerbang-kapabilitas` | TERBUKA | `const primaryTabs: Tab[] = [` | — |
 | `CA-2-19` | §21 | Tinggi | Halaman peringkat depot gagal total untuk HEAD_OFFICE dan DIREKTUR | `apps/web/src/app/hq/scorecard/page.tsx:33, :37` | `gerbang-kapabilitas` | TERBUKA | `const settings = useAsync<SettingsSchema>(() => fetchSettingsSchema('/payout/api/v1', null), []);` | — |
@@ -215,7 +216,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | `CA-2-32` | §25 | Tinggi | Pembebanan selisih setoran ke kurir dikirim tanpa jaminan sampai | `services/delivery-service/src/application/services/settlement.service.ts:155` | `jalur-uang` | TERBUKA | `if (charged) {` | — |
 | `CA-2-33` | §25 | Tinggi | Daftar pelanggan berisiko churn tidak dibatasi depot saat switcher di “Semua depot” | `services/forecast-service/src/modules/forecast.controller.ts:139` | `depot-scope-by-id` | TERBUKA | `async churn(@Query() query: ChurnQueryDto): Promise<{ customers: ChurnItem[] }> {` | — |
 | `CA-2-34` | §25 | Tinggi | Menolak refund pada pesanan yang sudah dibatalkan menahan uang pelanggan tanpa jejak | `apps/web/src/app/hq/refunds/page.tsx:33` | `jalur-uang` | TERBUKA | `async function decide(r: RefundQueueItem, approved: boolean) {` | — |
-| `CA-2-35` | §25 | Tinggi | “Harga tetap” di form aturan harga tidak menghasilkan harga tetap | `apps/web/src/app/hq/forms/pricing-rule/page.tsx:62` | `jalur-uang` | TERBUKA | `// Map the 3-way UI onto the backend's PERCENT\\|FIXED. Fixed = absolute target price,` | — |
+| `CA-2-35` | §25 | Tinggi | “Harga tetap” di form aturan harga tidak menghasilkan harga tetap | `apps/web/src/app/hq/forms/pricing-rule/page.tsx:62` | `jalur-uang` | TERBUKA | `// Map the 3-way UI onto the backend's PERCENT\|FIXED. Fixed = absolute target price,` | — |
 | `CA-2-36` | §25 | Tinggi | Kotak masuk insiden depot tidak punya form lapor | `apps/web/src/app/dashboard/incidents/page.tsx:179` | `lain` | TERBUKA | `const list = useAsync<DepotIncident[]>(` | — |
 | `CA-2-37` | §25 | Tinggi | Setiap webhook yang dibuat dari konsol dikirim tanpa tanda tangan, selamanya | `apps/web/src/app/hq/webhooks/page.tsx:153` | `lain` | TERBUKA | `await api.post(endpoints.admin.webhooks.create, { url: url.trim(), events: eventList }, true);` | — |
 | `CA-2-38` | §25 | Tinggi | Baris tabel pesanan HQ hanya bisa dibuka dengan tetikus | `apps/web/src/app/hq/orders/page.tsx:118` | `lain` | TERBUKA | `<tr` | — |
@@ -332,8 +333,8 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CA-4-01` | §41 | Kritis | Penarikan saldo kurir memotong saldo tapi tidak punya jalur pembayaran — status PROCESSING selamanya | `services/payout-service/src/application/services/courier-payout.service.ts:233` | `jalur-uang` | TERBUKA | `* then post a WITHDRAWAL debit so the balance drops immediately.` | — |
 | `CA-4-02` | §41 | Kritis | Klaim biaya auto-approve dan mengkredit ledger kurir berdasarkan depotId dan receiptUrl yang dikirim klien sendiri | `services/payout-service/src/application/services/expense-claim.service.ts:43` | `depot-scope-by-id` | TERBUKA | `const auto = isAutoApproved(` | — |
-| `CA-4-03` | §41 | Kritis | Uang COD yang sudah dipungut hilang dari setoran begitu pengantaran ditandai Gagal atau Jadwal Ulang | `apps/web/src/app/driver/deliveries/detail/page.tsx:280` | `jalur-uang` | TERBUKA | `{(delivery.status === 'ASSIGNED' \\|\\|` | — |
-| `CA-4-04` | §41 | Kritis | Riwayat pembayaran pesanan depot manapun bisa dibaca kurir dengan satu UUID | `services/payment-service/src/modules/payment.controller.ts:325` | `depot-scope-by-id` | TERBUKA | `listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {` | — |
+| `CA-4-03` | §41 | Kritis | Uang COD yang sudah dipungut hilang dari setoran begitu pengantaran ditandai Gagal atau Jadwal Ulang | `apps/web/src/app/driver/deliveries/detail/page.tsx:280` | `jalur-uang` | TERBUKA | `{(delivery.status === 'ASSIGNED' \|\|` | — |
+| `CA-4-04` | §41 | Kritis | Riwayat pembayaran pesanan depot manapun bisa dibaca kurir dengan satu UUID | `services/payment-service/src/modules/payment.controller.ts:325` | `depot-scope-by-id` | SUDAH DIPERBAIKI | `listForOrderAs()` membaca depot pesanan lewat order-service lalu `assertDepotAccess`; gagal tertutup kalau pesanannya tak terbaca | #416 |
 | `CA-4-05` | §41 | Kritis | Kurir bisa tutup shift lalu menyelesaikan antaran — uang COD-nya lolos dari setoran | `services/delivery-service/src/application/services/shift.service.ts:99` | `jalur-uang` | TERBUKA | `async checkOut(driverId: string, id: string, lat: number, lng: number): Promise<ShiftView> {` | — |
 | `CA-4-06` | §42 | Tinggi | KPI beranda manajer mobile adalah angka seluruh jaringan, dipajang di bawah nama depotnya | `apps/web/src/app/m/manager/page.tsx:77` | `depot-scope-by-id` | TERBUKA | `const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(), true), []);` | — |
 | `CA-4-07` | §42 | Tinggi | Konsol manajer mobile terkunci ke depot pertama jaringan — antrean approval depot sendiri tak pernah muncul | `apps/web/src/app/m/manager/approvals/page.tsx:70` | `depot-scope-by-id` | TERBUKA | `? api.get(endpoints.approvals.list({ depotId: scopedId, status: 'PENDING' }), true)` | — |
@@ -399,7 +400,7 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | # | Langkah | Kelas akar | Baris register yang ditutupnya |
 | --- | --- | --- | --- |
 | 00 | Register + pass re-cek (dokumen ini) | — | — |
-| 01 | Sapu depot-scope pada seluruh route by-id | `depot-scope-by-id` | semua baris berkelas itu |
+| 01 | Sapu depot-scope pada seluruh route by-id | `depot-scope-by-id` | CA-2-03 + CA-4-04 ditutup (PR #416); sisanya diratchet, lihat di bawah |
 | 02 | Beri `PROCESSING` jalan keluar — kurir **dan** pemilik waralaba | `jalur-uang` | CA-4-01 + sisi `payout.service.ts:280` |
 | 03 | Klaim biaya, tutup shift, gerbang COD | `jalur-uang` | CA-4-02, CA-4-05, CA-4-12..15 |
 | 04 | Registry penghapusan PDP + perbaiki teks /hapus-akun | `pdp-registry` | CA-3-01 + sembilan tabel AUDIT_L3 §4.2 |
@@ -409,6 +410,19 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | — |
 | 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01, CA-3-02 |
 | 10+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |
+
+### Gerbang yang sudah dipasang
+
+| Gerbang | Dipasang di | Apa yang ia jaga |
+| --- | --- | --- |
+| `scripts/check-depot-scope.mjs` + `scripts/depot-scope-baseline.json` | CI job `gate` (PR #416) | Tiap route by-id yang bisa dicapai peran ber-scope depot dan tidak menyebut `assertDepotAccess`/`depotScopeIds` masuk hitungan. Angkanya hanya boleh TURUN: baseline **83** pada 1 September 2026. Uji-diri: `scripts/check-depot-scope.test.sh`. |
+
+Baseline 83 itu bukan 83 lubang. Sebagian besar adalah baris milik pelanggan
+(`cart/items/:productId`), baris se-jaringan (`products/:id`) atau baris milik kurir yang
+dijaga kepemilikan, bukan depot. Yang dijanjikan gerbang ini bukan "semuanya aman", melainkan
+"jumlahnya tidak bisa bertambah tanpa ada yang melihat" — persis aturan
+`purge-executor.registry.ts`: di luar daftar dilaporkan, bukan dilewatkan diam-diam. Tiap PR
+berikutnya yang meninjau satu route menurunkan angkanya lewat `--write`.
 
 ### Aturan yang mengikat tiap PR
 

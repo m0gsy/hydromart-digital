@@ -391,4 +391,72 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .expect(200)
       .expect((r) => expect(r.body.active).toBe(true));
   });
+
+  /*
+   * AUTHZ-B1 — the by-id depot routes, from another depot's manager.
+   *
+   * `DepotScopeGuard` only ever reads a parameter called `depotId`/`depotIds`. These four
+   * routes called theirs `:id`, so the guard saw nothing to check and `depotAdmin`
+   * (MANAGER + SUPER_ADMIN, and MANAGER is depot-scoped) could rewrite the bank account and
+   * QRIS of every depot in the network. Rename the params back to `:id` and every
+   * expectation below flips from 403 to 200 — which is the point of the test.
+   *
+   * `manage/:depotId` is in here too and is the read half: `depotDirectory` includes
+   * KEPALA_DEPOT, and that record carries `paymentBankAccountNumber`.
+   */
+  it('refuses the by-id depot routes to a manager of another depot (AUTHZ-B1)', async () => {
+    const mine = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'SCOPE-A', name: 'Depot Scope A' })
+        .expect(201)
+    ).body.id;
+    const theirs = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'SCOPE-B', name: 'Depot Scope B' })
+        .expect(201)
+    ).body.id;
+
+    const mgrAtMine = signStaff(Role.MANAGER, mine);
+    const headAtMine = signStaff(Role.KEPALA_DEPOT, mine);
+
+    // Own depot: unchanged, all four still work.
+    await request(server())
+      .patch(`/api/v1/depots/${mine}`)
+      .set(auth(mgrAtMine))
+      .send({ deliveryFee: 6000 })
+      .expect(200);
+    await request(server())
+      .get(`/api/v1/depots/manage/${mine}`)
+      .set(auth(headAtMine))
+      .expect(200)
+      .expect((r) => expect(r.body.id).toBe(mine));
+
+    // Another depot: refused before the service ever loads the row.
+    await request(server())
+      .patch(`/api/v1/depots/${theirs}`)
+      .set(auth(mgrAtMine))
+      .send({ paymentBankAccountNumber: '000' })
+      .expect(403);
+    await request(server())
+      .post(`/api/v1/depots/${theirs}/qris`)
+      .set(auth(mgrAtMine))
+      .attach('file', Buffer.from([0xff, 0xd8, 0xff, 0xe0]), 'qris.jpg')
+      .expect(403);
+    await request(server()).delete(`/api/v1/depots/${theirs}`).set(auth(mgrAtMine)).expect(403);
+    await request(server())
+      .get(`/api/v1/depots/manage/${theirs}`)
+      .set(auth(headAtMine))
+      .expect(403);
+
+    // And the write never landed. Read it back as head office, which is not depot-scoped.
+    await request(server())
+      .get(`/api/v1/depots/manage/${theirs}`)
+      .set(auth(signStaff(Role.HEAD_OFFICE)))
+      .expect(200)
+      .expect((r) => expect(r.body.paymentBankAccountNumber).toBeNull());
+  });
 });
