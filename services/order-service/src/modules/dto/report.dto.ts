@@ -20,6 +20,15 @@ export class SalesReportQueryDto {
   @IsIn(['daily', 'monthly'])
   granularity?: 'daily' | 'monthly';
 
+  /**
+   * Comma-separated depot ids the report is narrowed to. Omitted, a depot-scoped caller is
+   * narrowed to their own depots by the controller — never widened to the network.
+   */
+  @ApiPropertyOptional({ description: 'Comma-separated depot ids to scope the report to.' })
+  @IsOptional()
+  @IsString()
+  depotIds?: string;
+
   @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
@@ -221,6 +230,15 @@ export class TopReportQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  /**
+   * Comma-separated depot ids the report is narrowed to. Omitted, a depot-scoped caller is
+   * narrowed to their own depots by the controller — never widened to the network.
+   */
+  @ApiPropertyOptional({ description: 'Comma-separated depot ids to scope the report to.' })
+  @IsOptional()
+  @IsString()
+  depotIds?: string;
 
   @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
   @IsOptional()

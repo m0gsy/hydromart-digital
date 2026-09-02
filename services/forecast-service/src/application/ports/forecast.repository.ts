@@ -107,9 +107,14 @@ export interface ForecastRepository {
   /**
    * Customer-activity snapshots, oldest lastOrderAt first (most at-risk first). When depotId is
    * set, restricted to that depot. Returns up to `limit` rows; the service ranks + slices.
+   *
+   * `depotIds` is the caller's depot scope and wins over `depotId` when both are given — a
+   * scoped caller that named no depot still gets only their own. An EMPTY set matches no
+   * rows on purpose: an account responsible for no depot reads nothing, never everything.
    */
   listCustomerActivity(query: {
     depotId?: string | null;
+    depotIds?: readonly string[];
     limit: number;
   }): Promise<CustomerActivityRow[]>;
   /**

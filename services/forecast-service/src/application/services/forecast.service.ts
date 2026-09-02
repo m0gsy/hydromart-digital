@@ -264,7 +264,14 @@ export class ForecastService {
   }
 
   async churnList(params: {
+    /** The depot whose model scores the list. Null/omitted = the global model. */
     depotId?: string | null;
+    /**
+     * The depots the ROWS may come from — the caller's scope, which is not the same thing
+     * as the depot the model belongs to: a manager over three depots reads all three
+     * through the global model, and must not read the other ninety.
+     */
+    depotIds?: readonly string[];
     limit?: number;
     windowDays?: number;
     now?: Date;
@@ -278,7 +285,11 @@ export class ForecastService {
     const now = params.now ?? new Date();
 
     // Repo returns the oldest `limit` (index-ordered by lastOrderAt asc) — already the most at-risk.
-    const rows = await this.repo.listCustomerActivity({ depotId: params.depotId, limit });
+    const rows = await this.repo.listCustomerActivity({
+      depotId: params.depotId,
+      depotIds: params.depotIds,
+      limit,
+    });
     const churnModel = await this.churnModelFor(params.depotId ?? null);
 
     const customers = rows

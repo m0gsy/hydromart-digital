@@ -92,9 +92,34 @@ describe('DashboardController', () => {
   } as unknown as DashboardService;
   const controller = new DashboardController(stub);
 
+  const headOffice = { sub: 'hq-1', role: 'HEAD_OFFICE', phone: null, depotId: null } as never;
+  const manager = (...depotIds: string[]) =>
+    ({ sub: 'mgr-1', role: 'MANAGER', phone: null, depotId: depotIds[0] ?? null, depotIds }) as never;
+
   it('delegates executive with the parsed range + token', async () => {
-    await expect(controller.executive({ from: 'a', to: 'b' }, 'Bearer t')).resolves.toBe('exec');
-    expect(stub.executive).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t');
+    await expect(controller.executive({ from: 'a', to: 'b' }, 'Bearer t', headOffice)).resolves.toBe(
+      'exec',
+    );
+    expect(stub.executive).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t', undefined);
+  });
+
+  /*
+   * CA-4-06. `dashboard` admits three depot-scoped roles and this route carries no depotId,
+   * so DepotScopeGuard had nothing to compare: a depot manager was served the network's
+   * revenue, and the mobile console printed it under one depot's name.
+   */
+  it("scopes the executive dashboard to a manager's own depots", async () => {
+    await controller.executive({}, 'Bearer t', manager('d1', 'd2'));
+    expect(stub.executive).toHaveBeenLastCalledWith({ from: undefined, to: undefined }, 'Bearer t', [
+      'd1',
+      'd2',
+    ]);
+  });
+
+  it('lets a manager narrow to ONE of their depots, and refuses one that is not theirs', async () => {
+    await controller.executive({ depotId: 'd2' }, 'Bearer t', manager('d1', 'd2'));
+    expect(stub.executive).toHaveBeenLastCalledWith(expect.anything(), 'Bearer t', ['d2']);
+    expect(() => controller.executive({ depotId: 'd9' }, 'Bearer t', manager('d1'))).toThrow();
   });
 
   it('delegates monthlyPnl with depotId + month', async () => {

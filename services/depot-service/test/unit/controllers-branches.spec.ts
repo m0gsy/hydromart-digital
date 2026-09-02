@@ -859,6 +859,7 @@ describe('DepotController', () => {
   const svc = {
     browse: jest.fn(),
     listAllActive: jest.fn(),
+    listByIds: jest.fn(),
     findNearby: jest.fn(),
     listMine: jest.fn(),
     get: jest.fn(),
@@ -873,6 +874,7 @@ describe('DepotController', () => {
     storage.put.mockResolvedValue({ url: 'https://cdn.example/qris/abc.png', key: 'qris/abc.png' });
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
     svc.listAllActive.mockResolvedValue([]);
+    svc.listByIds.mockResolvedValue([]);
     // browse/get now map through PublicDepotView, so the stubs have to return real rows.
     svc.browse.mockResolvedValue({
       items: [{ id: DEPOT, name: 'D' }],
@@ -890,6 +892,57 @@ describe('DepotController', () => {
     svc.findNearby.mockResolvedValue([
       { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', distanceKm: 1.2, withinService: true },
     ]);
+  });
+
+  /*
+   * CA-2-15 / CA-4-09. Every staff console built its depot switcher from `GET /depots` —
+   * the ANONYMOUS network directory — so a depot-scoped account opened the console on
+   * whichever depot the network returned first, and the mobile manager console, which had
+   * no switcher, never got off it. This route is the caller's own set, and it is the same
+   * set the API enforces, so the switcher cannot offer a depot the next call will refuse.
+   */
+  describe('scope', () => {
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    const scoped = (...depotIds: string[]) =>
+      ({ sub: 'kd-1', role: 'KEPALA_DEPOT', depotId: depotIds[0] ?? null, depotIds }) as never;
+
+    it("answers a depot-scoped account with its OWN depots, never the network", async () => {
+      svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }]);
+      const out = await c.scope(scoped(DEPOT));
+      expect(svc.listByIds).toHaveBeenCalledWith([DEPOT]);
+      expect(svc.listAllActive).not.toHaveBeenCalled();
+      expect(svc.browse).not.toHaveBeenCalled();
+      expect(out.map((d) => d.id)).toEqual([DEPOT]);
+    });
+
+    it('answers a manager with every depot in their resolved set', async () => {
+      svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }, { id: OTHER, name: 'E' }]);
+      await c.scope({ sub: 'm', role: 'MANAGER', depotId: DEPOT, depotIds: [DEPOT, OTHER] } as never);
+      expect(svc.listByIds).toHaveBeenCalledWith([DEPOT, OTHER]);
+    });
+
+    it('leaves head office with the whole active network', async () => {
+      svc.listAllActive.mockResolvedValue([{ id: DEPOT, name: 'D' }]);
+      const out = await c.scope({ sub: 'hq', role: 'HEAD_OFFICE', depotId: null } as never);
+      expect(svc.listByIds).not.toHaveBeenCalled();
+      expect(out).toHaveLength(1);
+    });
+
+    it('resolves a franchise owner from ownership, not from a supervision chain', async () => {
+      const out = await c.scope({ sub: 'own-1', role: 'FRANCHISE_OWNER', depotId: null } as never);
+      expect(svc.listMine).toHaveBeenCalledWith('own-1');
+      expect(svc.listByIds).not.toHaveBeenCalled();
+      expect(out.map((d) => d.id)).toEqual([DEPOT]);
+    });
+
+    it('publishes no bank details on a route every staff role can reach', async () => {
+      svc.listByIds.mockResolvedValue([
+        { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', ownerId: 'own-1' },
+      ]);
+      const [one] = await c.scope(scoped(DEPOT));
+      expect(one).not.toHaveProperty('paymentBankAccountNumber');
+      expect(one).not.toHaveProperty('ownerId');
+    });
   });
 
   /*

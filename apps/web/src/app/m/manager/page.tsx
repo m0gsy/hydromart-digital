@@ -73,8 +73,18 @@ function StatTile({
 export default function ManagerHomePage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const { selected, depots, scopedId } = useDepot();
-  const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(), true), []);
+  const { selected, depots, scopedId, ready } = useDepot();
+  // The KPI card is the depot named in the header, not the network. It asked for the
+  // unscoped executive dashboard — every depot's orders and every depot's revenue — and
+  // printed the answer directly under one depot's name. The scoped id goes in the request;
+  // the server refuses it if this account is not responsible for that depot.
+  const dash = useAsync<ExecutiveDashboard>(
+    () =>
+      scopedId
+        ? api.get(endpoints.dashboard.executive({ depotId: scopedId }), true)
+        : Promise.resolve(null as unknown as ExecutiveDashboard),
+    [scopedId],
+  );
   const counts = useAsync<ApprovalCounts>(
     () => (scopedId ? api.get(endpoints.approvals.counts(scopedId), true) : Promise.resolve(null as unknown as ApprovalCounts)),
     [scopedId],
@@ -105,7 +115,7 @@ export default function ManagerHomePage() {
         <p className="mt-0.5 text-[12.5px] font-semibold text-brand-700">{depotName}</p>
       </header>
 
-      {dash.loading ? (
+      {dash.loading || !ready ? (
         <Skeleton className="h-36 w-full" />
       ) : dash.error || !dash.data ? (
         <ErrorState message={dash.error ?? t('hrFix.managerHome.loadFailed')} onRetry={dash.reload} />

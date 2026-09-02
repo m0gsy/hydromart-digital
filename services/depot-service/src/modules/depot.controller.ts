@@ -23,7 +23,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
+import { Can, CurrentUser, AuthenticatedUser, depotScopeIds, InternalAuthGuard, Public, Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
@@ -156,6 +156,43 @@ export class DepotController {
   @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
   manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
     return this.depots.browse(query, false);
+  }
+
+  /**
+   * The depots THIS caller may act on — the list every staff console's depot switcher is
+   * built from. Declared before `:id` so the static `scope` segment wins the route match.
+   *
+   * The consoles used to build that switcher from `GET /depots` — the anonymous browse of
+   * the whole network. A kepala depot therefore opened /dashboard with somebody else's
+   * depot pre-selected (the network's first, alphabetically by whatever the page returned),
+   * and every scoped screen underneath it asked for that depot until it was refused. The
+   * mobile manager console had no switcher at all, so it never got past that first depot:
+   * its approval queue was permanently another depot's queue.
+   *
+   * The answer is the same set the server already enforces with — `depotScopeIds`, filled
+   * in by DepotScopeGuard — so the switcher can no longer offer a depot the API will
+   * refuse, and an unscoped role (HQ, finance, direktur) still sees the whole network.
+   *
+   * A franchise owner is resolved from ownership instead, the same rule `manage/:depotId`
+   * applies: their depots come from `Depot.ownerId`, not from a supervision chain.
+   *
+   * PublicDepotView, not the full record: a switcher needs a name and a code, and this
+   * route is reachable by every signed-in staff role — bank details are not theirs to see.
+   */
+  @ApiOkResponse({ type: PublicDepotView, isArray: true })
+  @ApiBearerAuth()
+  @Get('scope')
+  @ApiOperation({ summary: "Depots the calling account may act on (its own scope)" })
+  async scope(@CurrentUser() user: AuthenticatedUser): Promise<PublicDepotView[]> {
+    if (user.role === Role.FRANCHISE_OWNER) {
+      return (await this.depots.listMine(user.sub)).map(PublicDepotView.from);
+    }
+    const allowed = depotScopeIds(user);
+    // `undefined` = unscoped caller: the whole active network, the answer browse gave.
+    const depots = allowed
+      ? await this.depots.listByIds([...allowed])
+      : await this.depots.listAllActive();
+    return depots.map(PublicDepotView.from);
   }
 
   // Franchise owner's own depots (active + inactive). Declared before `:id` so the

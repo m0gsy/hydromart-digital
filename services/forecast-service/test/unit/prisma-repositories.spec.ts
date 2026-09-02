@@ -229,6 +229,24 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
     });
   });
 
+  /*
+   * CA-2-33. The caller's scope wins over the single `depotId`: a manager who chose "Semua
+   * depot" still reads only their own. An empty scope matches nothing — an account with no
+   * depot reads no customers, not every customer.
+   */
+  it('filters activity by the caller depot scope, and an empty scope matches nothing', async () => {
+    customerActivity.findMany.mockResolvedValue([]);
+    await repo.listCustomerActivity({ depotIds: ['depot-1', 'depot-2'], limit: 10 });
+    expect(customerActivity.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { depotId: { in: ['depot-1', 'depot-2'] } } }),
+    );
+
+    await repo.listCustomerActivity({ depotIds: [], limit: 10 });
+    expect(customerActivity.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { depotId: { in: [] } } }),
+    );
+  });
+
   // S2. The depot CRM card scores one customer, so it reads one row by primary key rather
   // than filtering the at-risk list — which would report LOW for anyone outside the top-N.
   it('finds one customer activity row by primary key', async () => {

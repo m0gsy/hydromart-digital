@@ -77,8 +77,45 @@ describe('ForecastController', () => {
   });
 
   it('churn delegates (no ownership check)', async () => {
-    await ctrl.churn({ depotId: UUID, limit: 10, days: 30 });
-    expect(forecasts.churnList).toHaveBeenCalledWith({ depotId: UUID, limit: 10, windowDays: 30 });
+    await ctrl.churn({ depotId: UUID, limit: 10, days: 30 }, user());
+    expect(forecasts.churnList).toHaveBeenCalledWith({
+      depotId: UUID,
+      depotIds: [UUID],
+      limit: 10,
+      windowDays: 30,
+    });
+  });
+
+  /*
+   * CA-2-33. `depotId` is optional here and `churn` admits MANAGER, so the CRM screen set to
+   * "Semua depot" sent no depot at all and this handler answered with every at-risk customer
+   * in the network — the guard had nothing in the request to compare against.
+   */
+  describe('churn depot scope', () => {
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    const manager = (...depotIds: string[]) =>
+      user({ role: Role.MANAGER, depotId: depotIds[0] ?? null, depotIds });
+
+    it("narrows a manager who named no depot to their own depots", async () => {
+      await ctrl.churn({}, manager(UUID, OTHER));
+      expect(forecasts.churnList).toHaveBeenCalledWith(
+        expect.objectContaining({ depotIds: [UUID, OTHER] }),
+      );
+    });
+
+    it('refuses a manager asking for a depot outside their scope', async () => {
+      await expect(ctrl.churn({ depotId: OTHER }, manager(UUID))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(forecasts.churnList).not.toHaveBeenCalled();
+    });
+
+    it('leaves marketing and head office reading the whole network', async () => {
+      await ctrl.churn({}, user({ role: Role.MARKETING }));
+      expect(forecasts.churnList).toHaveBeenCalledWith(
+        expect.objectContaining({ depotId: undefined, depotIds: undefined }),
+      );
+    });
   });
 
   // S2. A 200 with nulls, not a 404: "this customer has never ordered" is an answer, and

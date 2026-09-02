@@ -152,9 +152,24 @@ export interface CrmDepotSummary {
  * so the dashboard degrades gracefully rather than propagating a downstream blip.
  */
 export interface DashboardSourcesPort {
-  sales(range: DateRange, token: string): Promise<SalesReport | null>;
-  topCustomers(range: DateRange, limit: number, token: string): Promise<TopCustomers | null>;
-  topDepots(range: DateRange, limit: number, token: string): Promise<TopDepots | null>;
+  /**
+   * `depotIds` scopes the report to a set of depots; omit for the whole network. The three
+   * report reads below all take it, because the executive dashboard is served to depot
+   * managers as well as head office and their answer must not be the same one.
+   */
+  sales(range: DateRange, token: string, depotIds?: string[]): Promise<SalesReport | null>;
+  topCustomers(
+    range: DateRange,
+    limit: number,
+    token: string,
+    depotIds?: string[],
+  ): Promise<TopCustomers | null>;
+  topDepots(
+    range: DateRange,
+    limit: number,
+    token: string,
+    depotIds?: string[],
+  ): Promise<TopDepots | null>;
   /** SLA over the window; `depotIds` scopes it per-franchise (omit for global). */
   deliverySla(range: DateRange, token: string, depotIds?: string[]): Promise<DeliverySla | null>;
   /** Depots owned by the calling franchise owner (depot-service GET /depots/mine). */

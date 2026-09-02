@@ -23,6 +23,7 @@ import {
   Can,
   CurrentUser,
   AuthenticatedUser,
+  depotScopeIds,
   InternalAuthGuard,
   Public,
   Role,
@@ -136,9 +137,24 @@ export class ForecastController {
   @Can('churn')
   @Get('churn')
   @ApiOperation({ summary: 'At-risk customers ranked by recency-driven churn risk' })
-  async churn(@Query() query: ChurnQueryDto): Promise<{ customers: ChurnItem[] }> {
+  async churn(
+    @Query() query: ChurnQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ customers: ChurnItem[] }> {
+    /*
+     * `churn` admits MANAGER, a depot-SCOPED role, and `depotId` here is OPTIONAL — so the
+     * screen's "Semua depot" setting sent no depot at all and this handler answered with
+     * every at-risk customer in the network, names and order history included. The guard
+     * could not catch it: with no depotId in the request there was nothing to compare.
+     *
+     * `depotScopeIds` is the same answer every other list read gives — the caller's own
+     * depots, `undefined` for marketing/head office (the network, unchanged), a refusal for
+     * a scoped account with no depots. Asking for a depot outside the set is refused.
+     */
+    const scope = depotScopeIds(user, query.depotId);
     return this.forecasts.churnList({
       depotId: query.depotId,
+      depotIds: scope,
       limit: query.limit,
       windowDays: query.days,
     });

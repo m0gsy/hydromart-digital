@@ -146,6 +146,52 @@ describe('DashboardService', () => {
     expect(result.sources).toEqual({ order: 'ok', delivery: 'ok' });
   });
 
+  /*
+   * CA-4-06. The scope has to reach all four reads. Forwarding it to three of them and
+   * leaving the fourth global is the failure this pins: delivery-service reads an EMPTY
+   * `depotIds` as "no filter", so an account responsible for no depot would have been shown
+   * the whole network's SLA next to three empty cards.
+   */
+  it("passes the caller's depot scope to every source it reads", async () => {
+    const sources = new InMemoryDashboardSources();
+    const spies = {
+      sales: jest.spyOn(sources, 'sales'),
+      topCustomers: jest.spyOn(sources, 'topCustomers'),
+      topDepots: jest.spyOn(sources, 'topDepots'),
+      deliverySla: jest.spyOn(sources, 'deliverySla'),
+    };
+    const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+
+    await service.executive({}, 'Bearer t', ['depot-1', 'depot-2']);
+    expect(spies.sales).toHaveBeenCalledWith(expect.anything(), 'Bearer t', ['depot-1', 'depot-2']);
+    expect(spies.topCustomers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Number),
+      'Bearer t',
+      ['depot-1', 'depot-2'],
+    );
+    expect(spies.topDepots).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Number),
+      'Bearer t',
+      ['depot-1', 'depot-2'],
+    );
+    expect(spies.deliverySla).toHaveBeenCalledWith(expect.anything(), 'Bearer t', [
+      'depot-1',
+      'depot-2',
+    ]);
+
+    // An empty scope asks delivery-service nothing rather than asking it globally.
+    spies.deliverySla.mockClear();
+    const empty = await service.executive({}, 'Bearer t', []);
+    expect(spies.deliverySla).not.toHaveBeenCalled();
+    expect(empty.deliverySla).toBeNull();
+
+    // No scope at all is head office: every source is still asked for the whole network.
+    await service.executive({}, 'Bearer t');
+    expect(spies.sales).toHaveBeenLastCalledWith(expect.anything(), 'Bearer t', undefined);
+  });
+
   // §G-3: the depots card next to this one has always listed names; the customers card
   // listed the first eight characters of a UUID.
   it('puts the account name on each top customer, and copes without one', async () => {

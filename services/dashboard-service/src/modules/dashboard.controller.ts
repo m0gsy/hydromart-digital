@@ -1,7 +1,7 @@
 import { Controller, Get, Headers, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, depotScopeIds } from '@hydromart/platform';
 
 import {
   DashboardService,
@@ -20,14 +20,30 @@ import { ExecutiveDashboardResponseDto, FranchiseDashboardResponseDto, MonthlyOp
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
+  /*
+   * `dashboard` admits MANAGER, SUPERVISOR and ASSISTANT_SUPERVISOR — three depot-scoped
+   * roles — and this endpoint carries no depotId, so DepotScopeGuard had nothing to compare
+   * and served all three the whole network's revenue. The mobile manager home printed that
+   * number under the name of a single depot.
+   *
+   * `depotScopeIds` gives the same answer the rest of the platform gives: the caller's own
+   * depots, `undefined` for head office (the network, unchanged), a refusal for a scoped
+   * account with no depots. An explicit `depotId` narrows within that set — a manager over
+   * several depots asking about the one their screen names — and is refused outside it.
+   */
   @ApiOkResponse({ type: ExecutiveDashboardResponseDto })
   @Get('executive')
   @ApiOperation({ summary: 'Executive operational dashboard (sales + top lists + delivery SLA)' })
   executive(
     @Query() query: ExecutiveQueryDto,
     @Headers('authorization') token: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ExecutiveDashboard> {
-    return this.dashboard.executive({ from: query.from, to: query.to }, token);
+    return this.dashboard.executive(
+      { from: query.from, to: query.to },
+      token,
+      depotScopeIds(user, query.depotId),
+    );
   }
 
   @ApiOkResponse({ type: MonthlyOperationalPnlResponseDto })

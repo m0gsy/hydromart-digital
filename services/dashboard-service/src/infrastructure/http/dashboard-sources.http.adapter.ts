@@ -78,25 +78,47 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
   // the DashboardSourcesPort contract. Results are intersected to the owner's depots
   // upstream in DashboardService.
 
-  async sales(range: DateRange, _token: string): Promise<SalesReport | null> {
+  /**
+   * The depot filter these reads forward. Written even when the set is EMPTY: this BFF
+   * fetches as the trusted system principal, so an omitted filter is the whole network —
+   * exactly the answer a caller responsible for no depot must not get.
+   */
+  private applyDepots(params: URLSearchParams, depotIds?: string[]): void {
+    if (depotIds) params.set('depotIds', depotIds.join(','));
+  }
+
+  async sales(range: DateRange, _token: string, depotIds?: string[]): Promise<SalesReport | null> {
     const params = new URLSearchParams({ granularity: 'monthly' });
     this.applyRange(params, range);
+    this.applyDepots(params, depotIds);
     return this.getInternal<SalesReport>(
       `${this.config.orderServiceUrl}/api/v1/reports/sales?${params.toString()}`,
     );
   }
 
-  async topCustomers(range: DateRange, limit: number, _token: string): Promise<TopCustomers | null> {
+  async topCustomers(
+    range: DateRange,
+    limit: number,
+    _token: string,
+    depotIds?: string[],
+  ): Promise<TopCustomers | null> {
     const params = new URLSearchParams({ limit: String(limit) });
     this.applyRange(params, range);
+    this.applyDepots(params, depotIds);
     return this.getInternal<TopCustomers>(
       `${this.config.orderServiceUrl}/api/v1/reports/top-customers?${params.toString()}`,
     );
   }
 
-  async topDepots(range: DateRange, limit: number, _token: string): Promise<TopDepots | null> {
+  async topDepots(
+    range: DateRange,
+    limit: number,
+    _token: string,
+    depotIds?: string[],
+  ): Promise<TopDepots | null> {
     const params = new URLSearchParams({ limit: String(limit) });
     this.applyRange(params, range);
+    this.applyDepots(params, depotIds);
     return this.getInternal<TopDepots>(
       `${this.config.orderServiceUrl}/api/v1/reports/top-depots?${params.toString()}`,
     );
