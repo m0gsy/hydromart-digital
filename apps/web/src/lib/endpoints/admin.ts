@@ -116,6 +116,15 @@ admin: {
   },
   // SLA policy (19d) — HEAD_OFFICE + SUPER_ADMIN. GET current, PUT to replace.
   slaPolicy: '/admin/api/v1/sla-policy',
+  /*
+   * CA-5-01: the seventeen scheduled sweeps and how each one is doing.
+   *
+   * The list comes from the crontab's own job registry, not from the table — so a sweep
+   * that has NEVER reported appears as NEVER RUN instead of not appearing. That was the
+   * whole defect: the outcome went into empty marker files inside the scheduler container,
+   * and the healthcheck read one of them as a single yes/no for all seventeen at once.
+   */
+  sweeps: '/admin/api/v1/sweeps',
   // Retention windows + read-only backup status (19e) — SUPER_ADMIN. GET list+backup, PUT one row.
   retention: {
     list: '/admin/api/v1/retention',

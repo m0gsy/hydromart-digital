@@ -762,6 +762,14 @@ services:
     environment:
       <<: *shared
       TZ: ${SCHEDULER_TZ:-${PRICING_TZ:-Asia/Jakarta}}
+      # CA-5-01: where sweep.sh posts each tick's outcome, so /hq/health can show a job that
+      # has STOPPED — including one that has never run at all, which the per-job marker files
+      # inside this container could not express (an absent file and a job with nothing to do
+      # look identical, and the healthcheck reads one shared file for all seventeen).
+      #
+      # Blank disables reporting rather than failing the sweep: the observer must never be
+      # able to break the thing it observes.
+      ADMIN_SERVICE_HOST: ${ADMIN_SERVICE_HOST:-admin:3017}
     depends_on:
       order: { condition: service_healthy }
     volumes:

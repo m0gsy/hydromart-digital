@@ -12,6 +12,7 @@ import { ScheduledReportPrismaRepository } from '../../src/infrastructure/prisma
 import { SecurityPolicyPrismaRepository } from '../../src/infrastructure/prisma/security-policy.prisma.repository';
 import { SlaPolicyPrismaRepository } from '../../src/infrastructure/prisma/sla-policy.prisma.repository';
 import { SupportTicketPrismaRepository } from '../../src/infrastructure/prisma/support-ticket.prisma.repository';
+import { SweepRunPrismaRepository } from '../../src/infrastructure/prisma/sweep-run.prisma.repository';
 import { SystemSettingsPrismaRepository } from '../../src/infrastructure/prisma/system-settings.prisma.repository';
 import { WebhookPrismaRepository } from '../../src/infrastructure/prisma/webhook.prisma.repository';
 
@@ -1072,5 +1073,78 @@ describe('SupportTicketPrismaRepository.erasePerson', () => {
       where: { OR: [{ customerId: 'cust-1' }] },
       select: { id: true },
     });
+  });
+});
+
+/*
+ * CA-5-01. The streak fields are computed HERE, from the row already in the table, because
+ * the scheduler has no memory: sweep.sh writes marker files a container restart wipes, so a
+ * retried tick would otherwise double-count its own failure.
+ */
+describe('SweepRunPrismaRepository', () => {
+  const model = { findUnique: jest.fn(), upsert: jest.fn(), findMany: jest.fn() };
+  const prisma = { sweepRun: model } as unknown as PrismaService;
+  const repo = new SweepRunPrismaRepository(prisma);
+  const at = new Date('2026-09-02T10:00:00Z');
+
+  beforeEach(() => {
+    model.findUnique.mockReset();
+    model.upsert.mockReset().mockImplementation(async (args: { create: unknown }) => args.create);
+    model.findMany.mockReset().mockResolvedValue([]);
+  });
+
+  it('starts a job at zero failures and stamps its first success', async () => {
+    model.findUnique.mockResolvedValue(null);
+
+    await repo.record({ job: 'a/b', host: 'order:3004', ok: true, detail: null, at });
+
+    expect(model.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { job: 'a/b' },
+        update: expect.objectContaining({ lastOkAt: at, consecutiveFailures: 0, ok: true }),
+      }),
+    );
+  });
+
+  it('never moves lastOkAt on a failing round', async () => {
+    const lastOkAt = new Date('2026-08-30T03:00:00Z');
+    model.findUnique.mockResolvedValue({ lastOkAt, consecutiveFailures: 2 });
+
+    await repo.record({ job: 'a/b', host: 'order:3004', ok: false, detail: 'boom', at });
+
+    // "Ran a minute ago" must not overwrite "last worked three days ago" — collapsing the
+    // two is exactly how a job failing every tick read as healthy.
+    expect(model.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ lastRunAt: at, lastOkAt, consecutiveFailures: 3 }),
+      }),
+    );
+  });
+
+  it('clears the failure streak on a good round', async () => {
+    model.findUnique.mockResolvedValue({ lastOkAt: null, consecutiveFailures: 9 });
+
+    await repo.record({ job: 'a/b', host: 'order:3004', ok: true, detail: null, at });
+
+    expect(model.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ consecutiveFailures: 0 }) }),
+    );
+  });
+
+  it('counts the first failure of a job that has never reported', async () => {
+    model.findUnique.mockResolvedValue(null);
+
+    await repo.record({ job: 'a/b', host: 'order:3004', ok: false, detail: null, at });
+
+    expect(model.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ consecutiveFailures: 1, lastOkAt: null }),
+      }),
+    );
+  });
+
+  it('reads every row unpaged — the table holds one per crontab line', async () => {
+    await repo.list();
+    expect(model.findMany).toHaveBeenCalledWith();
   });
 });
