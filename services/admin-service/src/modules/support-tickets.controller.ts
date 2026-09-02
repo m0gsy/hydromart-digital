@@ -18,7 +18,7 @@ import {
 // newest-first) + reply / assign / resolve. Threads live in child ticket_messages.
 @ApiTags('Support tickets')
 @ApiBearerAuth()
-@Can('hqConsole')
+@Can('hqBackOffice')
 @Controller({ path: 'tickets', version: '1' })
 export class SupportTicketsController {
   constructor(private readonly tickets: SupportTicketService) {}
@@ -26,7 +26,7 @@ export class SupportTicketsController {
   /*
    * UU PDP item 13 — forget one person's complaints.
    *
-   * `@Public()` + InternalAuthGuard, which OVERRIDES the class-level `@Can('hqConsole')`:
+   * `@Public()` + InternalAuthGuard, which OVERRIDES the class-level `@Can('hqBackOffice')`:
    * the caller is auth-service's erasure registry with the shared internal key, not a
    * console session. Neither `support_tickets` nor `ticket_messages` has a retention
    * policy at all, so before this endpoint nothing would ever have removed the 14 rows

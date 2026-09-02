@@ -22,7 +22,7 @@ export class AuditController {
   // HQ audit trail (feature 8a): recent privileged actions across services, newest
   // first. Read is head-office / super-admin only.
   @ApiOkResponse({ type: List3ResponseDto })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get('auth/audit')
   @ApiOperation({ summary: 'List recent audit entries (HQ, paginated, newest first)' })
   async list(@Query() query: AuditQueryDto): Promise<{

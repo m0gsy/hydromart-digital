@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { SquaresFour } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { hqGroupsForRole } from '@/components/hq/hq-rail';
+import { hqGroupsForRole } from '@/lib/hq-nav';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';

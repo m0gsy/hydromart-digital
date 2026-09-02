@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 
 import { AccessDeniedHq } from '@/components/hq/access-denied';
 import { HqBottomNav } from '@/components/hq/hq-bottom-nav';
-import { HqRail, capForHqPath } from '@/components/hq/hq-rail';
+import { HqRail } from '@/components/hq/hq-rail';
+import { capForHqPath } from '@/lib/hq-nav';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
 import { can, isHq } from '@/lib/roles';

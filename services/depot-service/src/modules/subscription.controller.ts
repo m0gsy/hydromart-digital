@@ -76,7 +76,7 @@ export class SubscriptionController {
    * Declared before `@Get()` so the static `admin` segment wins.
    */
   @ApiOkResponse({ type: SubscriptionNetworkCountsResponseDto })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get('admin/summary')
   @ApiOperation({ summary: 'Network aggregate of depot-created subscriptions (18c)' })
   networkSummary(): Promise<{ activeSubscriptions: number; activeSubscribers: number }> {

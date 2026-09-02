@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
 import { type Capability, type Role } from '@hydromart/access';
-import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 

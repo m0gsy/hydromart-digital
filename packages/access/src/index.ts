@@ -371,11 +371,45 @@ export const CAPABILITIES = {
   // record is not the power to create or deactivate a depot — that stays depotAdmin, and
   // the screen now gates its write controls separately.
   depotDirectory: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FRANCHISE_OWNER', 'SUPER_ADMIN'],
-  // admin-service + a few HQ-only routes elsewhere — back-office tooling that is not a
-  // depot power: feature flags, SLA policies, support tickets, scheduled reports,
-  // export logs, incident register, system health, network subscriptions, audit trail.
-  // One knob rather than fifteen identical hand-written role pairs.
-  hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * The /hq DOOR, and nothing else.
+   *
+   * It used to be both: the door AND the capability on thirteen back-office controllers
+   * (feature flags, SLA policy, support tickets, scheduled reports, export logs, the
+   * incident register, system health, network subscriptions, the audit trail). Those are
+   * now `hqBackOffice` below. Keeping them on one name was fine while the three roles
+   * holding it were identical — and stopped being fine the moment a fourth role needed the
+   * door: FINANCE would have arrived holding the SLA policy PUT and the incident POST as
+   * a side effect of being let in. A door is not a lock, which is the whole subject of
+   * this sweep.
+   *
+   * FINANCE is on this list. Measured 2026-09-02: seven of FINANCE's nineteen
+   * capabilities have screens ONLY under /hq — refunds, HQ payouts, franchise payouts,
+   * reconciliation, commission runs, tax settings, the invoice template — and three of
+   * them (`refundQueue`, `hqPayout`, `commissionRuns`) are held by FINANCE and SUPER_ADMIN
+   * and nobody else. With no door, approving a refund, paying a withdrawal and running
+   * commissions were all jobs only the superuser account could do. That is the whole
+   * reason for this line.
+   *
+   * MARKETING is deliberately NOT here (owner decision, 2 September 2026). It already has
+   * a working depot console — campaigns, promotions, vouchers, churn, redemptions — and
+   * only two of its screens are HQ-only.
+   *
+   * The rail decides what FINANCE actually sees: every one of the 61 /hq items now carries
+   * the capability its own page needs (`check-console-gates.mjs` holds that true), so this
+   * grant opens nine doors, not sixty-one.
+   */
+  hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  /*
+   * The back-office tooling that used to ride on `hqConsole`: feature flags, SLA policies,
+   * support tickets, scheduled reports, export logs, the incident register, system health,
+   * network subscriptions, the audit trail. Reads AND writes — the SLA policy is a PUT and
+   * an incident is a POST — so this is a real power, not a view.
+   *
+   * Exactly the three roles that held `hqConsole` before FINANCE was added to the door, so
+   * nothing anybody could do yesterday changed.
+   */
+  hqBackOffice: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // admin-service — a staff member's OWN notification channel preferences. Deliberately
   // the widest capability in this map and safely so: the row is keyed by the caller's auth
   // `sub`, so holding it lets an account change nothing but what its own phone buzzes for.

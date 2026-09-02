@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 
 /**
  * What each role is actually offered in the HQ console.

@@ -307,7 +307,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: CustomerResponseDto })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get('customer/:customerId')
   @ApiOperation({ summary: 'One customer lifetime value + recent orders (17e Customer 360)' })
   customer(@Param('customerId', ParseUUIDPipe) customerId: string): Promise<CustomerSummary> {

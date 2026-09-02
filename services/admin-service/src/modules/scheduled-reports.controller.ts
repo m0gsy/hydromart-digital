@@ -29,7 +29,7 @@ import {
 // longer advisory: the sweep below reads it. Toggling `enabled` pauses without deleting.
 @ApiTags('Scheduled reports')
 @ApiBearerAuth()
-@Can('hqConsole')
+@Can('hqBackOffice')
 @Controller({ path: 'scheduled-reports', version: '1' })
 export class ScheduledReportsController {
   constructor(

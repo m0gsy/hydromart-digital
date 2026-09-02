@@ -31,7 +31,7 @@ export class ExportLogsController {
   constructor(private readonly exports: ExportLogService) {}
 
   @ApiOkResponse({ type: List3ResponseDto })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get()
   @ApiOperation({ summary: 'List export log entries (13c, paginated, newest first)' })
   async list(@Query() query: ExportLogQueryDto): Promise<{
@@ -60,7 +60,7 @@ export class ExportLogsController {
     description: 'The stored file, as an attachment. Not JSON — no DTO to declare.',
     content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
   })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get(':id/download')
   @ApiOperation({ summary: 'Download the file a scheduled report produced (15c)' })
   async download(

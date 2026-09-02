@@ -6,6 +6,7 @@
 // together. Covered by test/roles.test.ts.
 import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
 
+import { hqItemsForRole } from './hq-nav';
 import { isServedHere } from './deep-link';
 import { isNativeShell } from './platform';
 
@@ -239,6 +240,18 @@ export function staffDoor(pathname: string | null | undefined): string {
   return isServedHere('/hq/login') ? '/hq/login' : '/login';
 }
 
+/**
+ * The /hq screens a role may open, in rail order.
+ *
+ * `lib/hq-nav.ts` imports `can` and `isHq` from here, so this is a cycle — and a safe one:
+ * neither module CALLS the other while it is being evaluated. `HQ_GROUPS` is a table of
+ * literals, `consoleHome` only reads it when somebody signs in. Written down because the
+ * next person to see two files importing each other will want to know it was checked.
+ */
+function hqLanding(role: string | null | undefined): string[] {
+  return hqItemsForRole(role).map((i) => i.href);
+}
+
 export function consoleHome(
   role: string | null | undefined,
   native: boolean = isNativeShell(),
@@ -251,7 +264,14 @@ export function consoleHome(
   const first = (...candidates: string[]): string | null =>
     candidates.find((c) => isServedHere(c)) ?? null;
   if (isHq(role)) {
-    const home = first('/hq', '/dashboard', '/hr/me');
+    /*
+     * `/hq` is the overview, and the overview is a `dashboard` screen — every number on it
+     * comes from `dashboard/executive`. FINANCE holds the console door and not `dashboard`,
+     * so sending it here would land it on the one page in the console it cannot read, on
+     * every sign-in. The first rail item the role can actually use is the honest home;
+     * for head office and the director that is still `/hq`, so nothing moves for them.
+     */
+    const home = first(...hqLanding(role), '/dashboard', '/hr/me');
     if (home) return home;
   }
   if (canUseCourierApp(role)) {
