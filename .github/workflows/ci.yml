@@ -240,6 +240,17 @@ jobs:
       - name: Scheduler sweep self-check
         run: bash scripts/scheduler/sweep.test.sh
 
+      # CA-5-01, step 09 of the console-audit sweep. check-scheduler-routes proves a sweep
+      # CAN run; this proves somebody would know if it stopped. The seventeen sweeps
+      # reported only into marker files inside the scheduler container, and the healthcheck
+      # read one of them for all seventeen at once — so a job that had never run once was
+      # indistinguishable from one that ran a minute ago.
+      - name: Every scheduled sweep has a watcher (CA-5-01)
+        run: node scripts/check-sweep-observer.mjs
+
+      - name: Sweep-observer gate can go red
+        run: bash scripts/check-sweep-observer.test.sh
+
       # H-49: a service added to compose without a scrape target is a service no alert
       # can fire about. hr-service was in exactly that state from the day it shipped.
       - name: Prometheus targets match compose
