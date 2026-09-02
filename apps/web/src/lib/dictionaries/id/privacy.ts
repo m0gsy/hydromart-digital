@@ -7,7 +7,7 @@
 // terjadi sampai 29 Agustus 2026 (versi tertulis '1.0', dokumennya belum ada).
 export const privacy = {
   title: 'Kebijakan Privasi',
-  effective: 'Berlaku sejak 29 Agustus 2026',
+  effective: 'Berlaku sejak 2 September 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
@@ -37,7 +37,13 @@ export const privacy = {
     },
     {
       heading: 'Penyimpanan & retensi',
-      body: 'Data akun disimpan selama akunmu aktif. Bukti pengantaran (foto, tanda tangan, nama penerima, lokasi) disimpan maksimal 12 bulan sejak penyerahan, lalu dihapus otomatis. Berkas foto/tanda tangan di penyimpanan objek dihapus melalui aturan siklus-hidup bucket dengan jangka yang sama.',
+      // CA-3-07 dan CA-3-53: dua jenis data yang benar-benar kami simpan tidak pernah
+      // disebut di sini sama sekali — foto bukti transfer yang diunggah pelanggan saat
+      // membayar, dan data pemohon waralaba di formulir publik /waralaba. Keduanya sudah
+      // berjalan sejak lama; yang hilang adalah kalimatnya. Keputusan pemilik 2026-09-02:
+      // foto bukti transfer 12 bulan (sama dengan bukti pengantaran), pengajuan waralaba
+      // yang ditolak 24 bulan.
+      body: 'Data akun disimpan selama akunmu aktif. Bukti pengantaran (foto, tanda tangan, nama penerima, lokasi) disimpan maksimal 12 bulan sejak penyerahan, lalu dihapus otomatis. Berkas foto/tanda tangan di penyimpanan objek dihapus melalui aturan siklus-hidup bucket dengan jangka yang sama. Foto bukti transfer yang kamu unggah saat membayar disimpan maksimal 12 bulan sejak pembayaran, lalu berkasnya dihapus dari penyimpanan objek — catatan pembayarannya sendiri tetap disimpan sebagai catatan keuangan, tanpa fotonya. Kalau kamu mengajukan kemitraan waralaba lewat formulir publik, nama, nomor WhatsApp, dan titik lokasi calon depot yang kamu isi kami simpan untuk meninjau pengajuan itu; pengajuan yang ditolak dihapus paling lama 24 bulan sejak keputusannya.',
     },
     {
       heading: 'Keamanan',

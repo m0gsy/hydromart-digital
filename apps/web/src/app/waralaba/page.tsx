@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CrosshairSimple } from '@phosphor-icons/react';
 
+import { PrivacyLink } from '@/components/privacy-sheet';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -42,6 +43,15 @@ export default function FranchiseApplicationPage() {
   const copy = locale === 'en' ? franchiseEN : franchiseID;
 
   const [form, setForm] = useState({ ...EMPTY });
+  /*
+   * CA-3-53. This form collected a name, a WhatsApp number and a GPS pin from a member of
+   * the public with no consent asked, no policy linked and no retention stated. Never
+   * pre-ticked, and kept OUT of `EMPTY` on purpose so "kirim pengajuan lain" starts the
+   * next applicant from an unticked box rather than inheriting the previous person's act.
+   * The server refuses a submission without it too (`SubmitFranchiseApplicationDto`) — a
+   * checkbox the client alone enforces is a checkbox curl skips.
+   */
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +97,7 @@ export default function FranchiseApplicationPage() {
     if (!form.lat || !form.lng || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       return setError(copy.needLocation);
     }
+    if (!consent) return setError(copy.needConsent);
     if (
       !Number.isFinite(investmentAmount) ||
       investmentAmount < 0 ||
@@ -110,9 +121,11 @@ export default function FranchiseApplicationPage() {
         lng,
         investmentAmount,
         projectedMonthlyRevenue,
+        privacyConsent: true,
       });
       setReceipt(sent);
       setForm({ ...EMPTY });
+      setConsent(false);
     } catch (err) {
       // A taken depot code and the 3/hour throttle both come back with a real message;
       // only an unrecognized failure falls through to the generic line.
@@ -247,6 +260,25 @@ export default function FranchiseApplicationPage() {
             </Field>
           </div>
         </section>
+
+        <label className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-muted">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+            /* The visible sentence names the policy through a nested button, and a nested
+               control does not contribute to the label its checkbox is computed from — so a
+               screen reader would announce a consent with the thing consented to missing.
+               Same reason as the register form's box. */
+            aria-label={`${copy.consentPre}${copy.consentPrivacy}${copy.consentPost}`}
+          />
+          <span>
+            {copy.consentPre}
+            <PrivacyLink>{copy.consentPrivacy}</PrivacyLink>
+            {copy.consentPost}
+          </span>
+        </label>
 
         {error && <p className="text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
         <Button type="submit" loading={busy}>

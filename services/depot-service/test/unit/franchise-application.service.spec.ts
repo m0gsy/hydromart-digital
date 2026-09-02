@@ -50,7 +50,16 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (patch.stage !== undefined) row.stage = patch.stage;
     if (patch.checklist !== undefined) row.checklist = patch.checklist;
+    // The rejection IS the last write, which is what makes updatedAt a decision date.
+    row.updatedAt = new Date(row.updatedAt.getTime() + 1);
     return row;
+  }
+  async purgeRejectedBefore(cutoff: Date) {
+    const doomed = this.rows.filter(
+      (r) => r.stage === FranchiseAppStage.REJECTED && r.updatedAt.getTime() < cutoff.getTime(),
+    );
+    this.rows = this.rows.filter((r) => !doomed.includes(r));
+    return doomed.length;
   }
 }
 
@@ -155,5 +164,38 @@ describe('FranchiseApplicationService', () => {
     await expect(
       service.patch(created.id, { stage: FranchiseAppStage.SURVEY }),
     ).rejects.toBeInstanceOf(ApplicationAlreadyDecidedError);
+  });
+});
+
+/*
+ * CA-3-53. A rejected application is a name, a WhatsApp number and a GPS pin belonging to
+ * somebody we told no, and it had no retention window at all — the table only ever grew.
+ * Owner decision 2026-09-02: 24 months, counted from the decision.
+ */
+describe('FranchiseApplicationService.purgeRejectedOlderThan', () => {
+  const FAR_FUTURE = new Date(2_000_000_000_000);
+
+  it('deletes rejected applications older than the cutoff and keeps everything else', async () => {
+    const repo = new InMemoryApplicationRepository();
+    const service = new FranchiseApplicationService(repo, depotsWithCodes());
+
+    const rejected = await service.create(APP({ proposedCode: 'AAA-01' }));
+    const approved = await service.create(APP({ proposedCode: 'BBB-01' }));
+    const pending = await service.create(APP({ proposedCode: 'CCC-01' }));
+    await service.reject(rejected.id);
+    await service.approve(approved.id);
+
+    expect(await service.purgeRejectedOlderThan(FAR_FUTURE)).toEqual({ deleted: 1 });
+    expect(repo.rows.map((r) => r.id).sort()).toEqual([approved.id, pending.id].sort());
+  });
+
+  it('leaves a rejection that is still inside its window alone', async () => {
+    const repo = new InMemoryApplicationRepository();
+    const service = new FranchiseApplicationService(repo, depotsWithCodes());
+    const rejected = await service.create(APP({ proposedCode: 'AAA-02' }));
+    await service.reject(rejected.id);
+
+    expect(await service.purgeRejectedOlderThan(new Date(0))).toEqual({ deleted: 0 });
+    expect(repo.rows).toHaveLength(1);
   });
 });

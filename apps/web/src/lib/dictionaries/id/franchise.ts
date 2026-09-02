@@ -26,6 +26,15 @@ export const franchise = {
   money: 'Rencana keuangan',
   investmentAmount: 'Nilai investasi (Rp)',
   projectedMonthlyRevenue: 'Proyeksi omzet per bulan (Rp)',
+  // CA-3-53: formulir ini mengumpulkan nama, nomor WhatsApp, dan titik GPS tanpa pernah
+  // meminta persetujuan dan tanpa pernah menautkan kebijakan privasi. Kalimatnya dipecah
+  // supaya "Kebijakan Privasi" bisa jadi tombol yang membuka policy di tempat — link
+  // `target="_blank"` tidak berfungsi di WebView Android (lihat components/privacy-sheet).
+  consentPre: 'Saya setuju data yang saya isi di formulir ini diproses sesuai ',
+  consentPrivacy: 'Kebijakan Privasi',
+  consentPost:
+    ' Hydromart. Pengajuan yang ditolak dihapus paling lama 24 bulan sejak keputusannya.',
+  needConsent: 'Persetujuan pemrosesan data wajib dicentang sebelum mengirim.',
   submit: 'Kirim pengajuan',
   needName: 'Nama pemohon wajib diisi.',
   needPhone: 'Nomor WhatsApp belum benar. Contoh: 081234567890.',

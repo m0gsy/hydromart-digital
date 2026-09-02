@@ -53,4 +53,16 @@ export interface FranchiseApplicationRepository {
   ): Promise<{ items: FranchiseApplicationRecord[]; total: number }>;
   findById(id: string): Promise<FranchiseApplicationRecord | null>;
   update(id: string, patch: UpdateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
+  /**
+   * CA-3-53 — retention. Delete REJECTED applications decided before `cutoff`.
+   *
+   * REJECTED only. An approved application became a depot, and its row is the paper trail
+   * of how that depot came to exist. A pending one has not been decided at all, so no
+   * clock has started on it.
+   *
+   * `updatedAt` stands in for a decision date: the last write to a rejected row IS its
+   * rejection, and adding a `decidedAt` column would be a migration whose writer could not
+   * ship in the same release.
+   */
+  purgeRejectedBefore(cutoff: Date): Promise<number>;
 }

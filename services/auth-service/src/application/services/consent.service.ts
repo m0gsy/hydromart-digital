@@ -29,8 +29,14 @@ import { AUTH_TOKENS } from '../tokens';
  * written for the first time. So every production row still names a version whose Terms
  * document did not exist on the day it was agreed to, and `pendingAcceptance` below is
  * what makes that fact answerable instead of merely stored.
+ *
+ * 2026-09-02: the privacy policy gained two disclosures it should always have carried —
+ * payment-proof photos (CA-3-07) and franchise-applicant data (CA-3-53). Bumping costs
+ * nothing anybody can be locked out by: `pendingAcceptance` is read-only, so an older
+ * acceptance stays granted and the bump only moves those accounts onto the "still to be
+ * asked" list.
  */
-export const CONSENT_DOCUMENT_VERSION = '2026-08-29';
+export const CONSENT_DOCUMENT_VERSION = '2026-09-02';
 
 export interface ConsentStateEntry {
   purpose: ConsentPurpose;

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { Injectable } from '@nestjs/common';
@@ -28,4 +28,8 @@ export class LocalDiskStorageAdapter implements StoragePort {
     return { url: `${this.config.storagePublicBaseUrl}/uploads/${key}`, key };
   }
 
+  /** `force` makes a missing file a success, which is what idempotent removal means here. */
+  async remove(key: string): Promise<void> {
+    await rm(join(this.config.storageLocalDir, key), { force: true });
+  }
 }

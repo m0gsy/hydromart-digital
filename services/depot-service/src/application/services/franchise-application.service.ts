@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import {
   ApplicationAlreadyDecidedError,
@@ -48,6 +48,8 @@ export interface ApproveResult {
  */
 @Injectable()
 export class FranchiseApplicationService {
+  private readonly logger = new Logger(FranchiseApplicationService.name);
+
   constructor(
     @Inject(DEPOT_TOKENS.FranchiseApplicationRepository)
     private readonly applications: FranchiseApplicationRepository,
@@ -120,6 +122,23 @@ export class FranchiseApplicationService {
     const app = await this.applications.findById(id);
     if (!app) throw new FranchiseApplicationNotFoundError();
     return app;
+  }
+
+  /**
+   * CA-3-53 — retention sweep, driven by admin-service's purge engine.
+   *
+   * The cutoff is passed in rather than computed here: the retention policy table is the
+   * one place that decides how long anything is kept, exactly as the proof-of-delivery
+   * sweep works. This service owns the rows, never the rule.
+   */
+  async purgeRejectedOlderThan(cutoff: Date): Promise<{ deleted: number }> {
+    const deleted = await this.applications.purgeRejectedBefore(cutoff);
+    if (deleted > 0) {
+      this.logger.log(
+        `Purged ${deleted} rejected franchise application(s) decided before ${cutoff.toISOString()}`,
+      );
+    }
+    return { deleted };
   }
 }
 

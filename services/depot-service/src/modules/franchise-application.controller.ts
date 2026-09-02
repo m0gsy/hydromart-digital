@@ -9,11 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
-import { Can, Public } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   ApproveResult,
@@ -25,6 +26,8 @@ import { Page } from '../application/pagination';
 import {
   ListApplicationsQueryDto,
   PatchApplicationDto,
+  PurgeRejectedApplicationsDto,
+  PurgeRejectedResponseDto,
   SubmitFranchiseApplicationDto,
   SubmittedApplicationView,
 } from './dto/franchise-application.dto';
@@ -52,6 +55,26 @@ export class FranchiseApplicationController {
    * route that writes rows a human then has to read, and nobody applies for five depots
    * in an hour. ponytail: no captcha — add one only if the queue starts collecting junk.
    */
+  /*
+   * CA-3-53 — retention. Rejected applications had no window at all: a name, a WhatsApp
+   * number and a GPS pin belonging to somebody we told no, kept forever. Declared before
+   * ':id' so the static segment wins the route match.
+   *
+   * `@Public()` + InternalAuthGuard OVERRIDES the class-level `@Can('franchiseApplications')`:
+   * the caller is admin-service's retention sweep with the shared internal key, not a
+   * console session.
+   */
+  @ApiOkResponse({ type: PurgeRejectedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/purge-rejected')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete rejected applications older than the cutoff (internal, UU PDP)' })
+  purgeRejected(@Body() dto: PurgeRejectedApplicationsDto): Promise<{ deleted: number }> {
+    return this.applications.purgeRejectedOlderThan(new Date(dto.cutoff));
+  }
+
   @ApiOkResponse({ type: SubmittedApplicationView })
   @Public()
   @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
