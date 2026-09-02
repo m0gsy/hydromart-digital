@@ -18,6 +18,7 @@ import {
 import { useConfirm } from '@/components/confirm';
 import { Sheet } from '@/components/overlay';
 import { QuantityStepper } from '@/components/quantity-stepper';
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { ErrorState, LinkButton, Money, Skeleton, StickyActionBar } from '@/components/ui';
@@ -262,8 +263,22 @@ function CartInner() {
               key={line.productId}
               className="surface flex flex-wrap items-center gap-4 rounded-[20px] p-4 shadow-card"
             >
-              <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[14px] bg-[color:var(--surface-soft)]">
-                <Drop size={30} weight="thin" className="text-brand-300" />
+              {/*
+                The basket showed a grey droplet for every line — three identical tiles
+                above three different products, on the screen where somebody checks they
+                picked the right thing before paying. The photo was never missing from the
+                catalogue; it was dropped in order-service, two adapters upstream.
+              */}
+              <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-[color:var(--surface-soft)]">
+                {line.imageUrl ? (
+                  <RemoteImage
+                    src={line.imageUrl}
+                    alt={line.productName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Drop size={30} weight="thin" className="text-brand-300" />
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-bold">{line.productName}</p>

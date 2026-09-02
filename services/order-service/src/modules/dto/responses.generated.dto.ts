@@ -388,6 +388,8 @@ export class CartLineResponseDto {
   lineTotal!: number;
   @ApiProperty({ type: Boolean })
   isGallon!: boolean;
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl!: string | null;
 }
 
 /** Mirrors `CartResellerView` exactly — generated for audit D-6, no field added or removed. */

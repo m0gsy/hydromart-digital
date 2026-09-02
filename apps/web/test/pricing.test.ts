@@ -16,6 +16,7 @@ function line(unit: string, quantity: number, isGallon = unit.trim().toLowerCase
   return {
     productId: 'p1',
     productName: 'Air',
+    imageUrl: null,
     sku: 'SKU',
     unit,
     unitPrice: 20000,

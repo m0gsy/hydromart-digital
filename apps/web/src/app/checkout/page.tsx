@@ -43,7 +43,7 @@ import { api, ApiError } from '@/lib/api';
 import { useQueryParam } from '@/lib/use-query-param';
 import { voucherToApply } from '@/lib/vouchers';
 import { endpoints } from '@/lib/endpoints';
-import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
+import { addressToForm, numOrNull, pickDefaultAddress } from '@/lib/addresses';
 import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
 import { currentPosition, geoReason } from '@/lib/geo';
 import { useLocation } from '@/lib/location-context';
@@ -220,6 +220,7 @@ function CheckoutInner() {
   const [pinAccuracy, setPinAccuracy] = useState<number | null>(null);
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [showManualPin, setShowManualPin] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ latitude: number | null; longitude: number | null }>({
     latitude: null,
@@ -820,6 +821,53 @@ function CheckoutInner() {
               <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
                 {pinError}
               </p>
+            )}
+            {/*
+              The way out when the phone cannot answer.
+              `/addresses` has had this since it shipped; checkout had the same button, the
+              same failure and no second door — so a WebView that could not produce a fix
+              (reported from a real OPPO, 2 September 2026) left the pin permanently empty,
+              and with "simpan alamat" ticked that is a required field nothing can fill.
+              Shown only after a failure: nobody types coordinates by choice.
+            */}
+            {pinError && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowManualPin((v) => !v)}
+                  className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
+                >
+                  {showManualPin
+                    ? t('profile.addresses.pin.hideManual')
+                    : t('profile.addresses.pin.showManual')}
+                </button>
+                {showManualPin && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Latitude" htmlFor="ck-lat" hint={t('profile.addresses.form.latHint')}>
+                      <Input
+                        id="ck-lat"
+                        inputMode="decimal"
+                        placeholder="-6.9147"
+                        value={coords.latitude ?? ''}
+                        onChange={(e) =>
+                          setCoords((c) => ({ ...c, latitude: numOrNull(e.target.value) }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Longitude" htmlFor="ck-lng" hint={t('profile.addresses.form.lngHint')}>
+                      <Input
+                        id="ck-lng"
+                        inputMode="decimal"
+                        placeholder="107.6098"
+                        value={coords.longitude ?? ''}
+                        onChange={(e) =>
+                          setCoords((c) => ({ ...c, longitude: numOrNull(e.target.value) }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

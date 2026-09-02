@@ -97,10 +97,17 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         <div
           className={
             'surface absolute z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-app p-2 shadow-lg ' +
-            // compact instance sits on the right of the depot-card header; anchor
-            // the panel to that edge so its 288px width opens inward, not past the
-            // viewport. left-anchored otherwise (full-width empty-state button).
-            (compact ? 'right-0' : 'left-0')
+            /*
+             * `right-0` anchors the panel's RIGHT edge to the trigger's, which opens it
+             * leftward — correct beside a right-hand card header, and wrong in the app bar,
+             * where the trigger sits at the left of a 360pt screen and 288pt of panel then
+             * runs off the left edge. `max-w` caps the width; it cannot move the box back
+             * on screen. Photographed on a real phone: the list read "encari lokasi…".
+             *
+             * Phones anchor left, where the trigger always is. The right-anchored form
+             * returns from `sm:` up, where the card header it was drawn for lives.
+             */
+            (compact ? 'left-0 sm:left-auto sm:right-0' : 'left-0')
           }
         >
           <button

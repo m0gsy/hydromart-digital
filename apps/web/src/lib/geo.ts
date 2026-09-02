@@ -15,6 +15,8 @@
  *    report that read as "izin sudah di-allow tapi tetap ditolak". The reason now survives
  *    to the screen, so the message can name what actually happened.
  */
+import { tryPlugin } from './capacitor';
+
 export type GeoFailure =
   /** The permission really was refused — by Android, or by the WebView layer above it. */
   | 'denied'
@@ -53,7 +55,75 @@ const reasonOf = (err: unknown): GeoFailure => {
   return 'timeout';
 };
 
+/**
+ * The native fix, when there is a native side to ask.
+ *
+ * `navigator.geolocation` inside an Android WebView is not the platform's location API — it
+ * is Chromium's, and Chromium's NETWORK provider is the one a coarse-only permission can
+ * use. In a WebView that provider is frequently unable to answer at all, so the request
+ * neither resolves nor errors: it runs out the clock. On the customer build, which declares
+ * only ACCESS_COARSE_LOCATION (the Play declaration says Approximate location, deliberately
+ * — see MainActivity), that leaves no working path at all, and every attempt spent 28
+ * seconds arriving at "Sinyal lokasi belum ketemu" whether the phone knew where it was or
+ * not. Reported from a real OPPO, 2 September 2026, on three separate screens.
+ *
+ * The Capacitor plugin calls Android's own location API, which coarse permission does
+ * satisfy. It is asked FIRST in the shell and not at all in a browser.
+ *
+ * Every failure here falls through to the browser path rather than propagating: an absent
+ * plugin is an older binary, and a failing one must not be worse than not having tried.
+ * The reason the caller shows still comes from the web API, which has the codes.
+ */
+async function nativePosition(): Promise<GeolocationPosition | null> {
+  const state = await tryPlugin<{ location?: string; coarseLocation?: string }>(
+    'Geolocation',
+    'checkPermissions',
+  );
+  if (!state.ok) return null;
+  const granted = (p?: string) => p === 'granted';
+  if (!granted(state.value.location) && !granted(state.value.coarseLocation)) {
+    const asked = await tryPlugin<{ location?: string; coarseLocation?: string }>(
+      'Geolocation',
+      'requestPermissions',
+    );
+    // A refusal here is the real thing — the OS dialog was shown and answered.
+    if (!asked.ok) return null;
+    if (!granted(asked.value.location) && !granted(asked.value.coarseLocation)) {
+      throw new GeoError('denied');
+    }
+  }
+  // Coarse on purpose: a depot is picked by neighbourhood, and asking for high accuracy on
+  // a binary with no ACCESS_FINE_LOCATION is asking for a fix that cannot arrive.
+  const fix = await tryPlugin<{
+    coords?: { latitude?: number; longitude?: number; accuracy?: number };
+    timestamp?: number;
+  }>('Geolocation', 'getCurrentPosition', {
+    enableHighAccuracy: false,
+    timeout: 20_000,
+    maximumAge: 300_000,
+  });
+  const lat = fix.ok ? fix.value.coords?.latitude : undefined;
+  const lng = fix.ok ? fix.value.coords?.longitude : undefined;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+  return {
+    coords: {
+      latitude: lat,
+      longitude: lng,
+      accuracy: fix.ok ? (fix.value.coords?.accuracy ?? Number.NaN) : Number.NaN,
+      altitude: null,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+      toJSON: () => ({}),
+    },
+    timestamp: (fix.ok ? fix.value.timestamp : undefined) ?? 0,
+    toJSON: () => ({}),
+  } as GeolocationPosition;
+}
+
 export async function currentPosition(): Promise<GeolocationPosition> {
+  const native = await nativePosition();
+  if (native) return native;
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
     throw new GeoError('unsupported');
   }

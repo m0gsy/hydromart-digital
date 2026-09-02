@@ -88,3 +88,103 @@ describe('geoReason', () => {
     expect(geoReason(undefined)).toBe('timeout');
   });
 });
+
+/*
+ * The native leg, added 2 September 2026 after three screens on a real OPPO spent 28
+ * seconds each arriving at "Sinyal lokasi belum ketemu".
+ *
+ * `navigator.geolocation` inside an Android WebView is Chromium's implementation, not the
+ * platform's, and its network provider — the only one a coarse-only permission can use —
+ * frequently cannot answer in a WebView at all. The customer binary declares only
+ * ACCESS_COARSE_LOCATION on purpose, so there was no working path left: the request ran out
+ * the clock whether or not the phone knew where it was.
+ *
+ * What is testable here is the contract: the shell is asked first, a phone that answers is
+ * believed, and every way the plugin can let us down falls through to the web API rather
+ * than becoming a worse failure than not having tried.
+ */
+describe('currentPosition inside the native shell', () => {
+  /** A `window.Capacitor` whose Geolocation plugin answers with the given implementations. */
+  function withPlugin(impl: Record<string, (o?: unknown) => Promise<unknown>>) {
+    vi.stubGlobal('window', { Capacitor: { Plugins: { Geolocation: impl } } });
+  }
+
+  const granted = { location: 'granted', coarseLocation: 'granted' };
+
+  it('takes the native fix and never touches the web API', async () => {
+    const { calls } = withGeolocation(position(-1));
+    withPlugin({
+      checkPermissions: () => Promise.resolve(granted),
+      getCurrentPosition: () =>
+        Promise.resolve({ coords: { latitude: -6.25, longitude: 106.99, accuracy: 480 }, timestamp: 7 }),
+    });
+
+    await expect(currentPosition()).resolves.toMatchObject({
+      coords: { latitude: -6.25, longitude: 106.99, accuracy: 480 },
+    });
+    // The whole point: the web API is the thing that could not answer.
+    expect(calls).toHaveLength(0);
+  });
+
+  it('asks for permission when it does not have it yet', async () => {
+    const asked: string[] = [];
+    withPlugin({
+      checkPermissions: () => {
+        asked.push('check');
+        return Promise.resolve({ location: 'prompt', coarseLocation: 'prompt' });
+      },
+      requestPermissions: () => {
+        asked.push('request');
+        return Promise.resolve({ location: 'denied', coarseLocation: 'granted' });
+      },
+      getCurrentPosition: () =>
+        Promise.resolve({ coords: { latitude: -6.3, longitude: 107, accuracy: 900 }, timestamp: 1 }),
+    });
+
+    // Coarse alone is a position, and coarse alone is all this binary ever declared.
+    await expect(currentPosition()).resolves.toMatchObject({ coords: { latitude: -6.3 } });
+    expect(asked).toEqual(['check', 'request']);
+  });
+
+  it('reports a real refusal as denied, without falling back', async () => {
+    const { calls } = withGeolocation(position(-1));
+    withPlugin({
+      checkPermissions: () => Promise.resolve({ location: 'prompt', coarseLocation: 'prompt' }),
+      requestPermissions: () => Promise.resolve({ location: 'denied', coarseLocation: 'denied' }),
+    });
+
+    // The OS dialog was shown and answered. Retrying through the web API would only ask
+    // Chromium to re-derive the same no.
+    await expect(currentPosition()).rejects.toMatchObject({ reason: 'denied' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('falls through to the web API when there is no plugin at all', async () => {
+    const { calls } = withGeolocation(position(-6.9));
+    vi.stubGlobal('window', {});
+    await expect(currentPosition()).resolves.toMatchObject({ coords: { latitude: -6.9 } });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('falls through when the plugin is there and cannot produce a fix', async () => {
+    const { calls } = withGeolocation(position(-6.9));
+    withPlugin({
+      checkPermissions: () => Promise.resolve(granted),
+      getCurrentPosition: () => Promise.reject(new Error('location unavailable')),
+    });
+    // An older binary, a phone with location services off, a plugin that threw: none of
+    // them may end worse than the path that existed before the plugin did.
+    await expect(currentPosition()).resolves.toMatchObject({ coords: { latitude: -6.9 } });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('falls through when the plugin answers without coordinates', async () => {
+    const { calls } = withGeolocation(position(-6.9));
+    withPlugin({
+      checkPermissions: () => Promise.resolve(granted),
+      getCurrentPosition: () => Promise.resolve({ timestamp: 3 }),
+    });
+    await expect(currentPosition()).resolves.toMatchObject({ coords: { latitude: -6.9 } });
+    expect(calls).toHaveLength(1);
+  });
+});

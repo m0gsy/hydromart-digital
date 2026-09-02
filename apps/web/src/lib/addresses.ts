@@ -89,7 +89,13 @@ export interface AddressPayload {
   notes?: string;
 }
 
-function numOrNull(v: string): number | null {
+/**
+ * A typed coordinate, or null for anything that is not one — blank included.
+ *
+ * Exported since the checkout sheet grew its own manual lat/lng fields: `Number('')` is 0,
+ * and 0,0 is a real place in the Atlantic that an emptied field must never quietly become.
+ */
+export function numOrNull(v: string): number | null {
   const n = Number(v);
   return v.trim() !== '' && Number.isFinite(n) ? n : null;
 }
