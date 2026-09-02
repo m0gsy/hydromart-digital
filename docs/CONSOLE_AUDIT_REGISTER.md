@@ -76,8 +76,8 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 34 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (empat baris Bagian VI ditemukan saat menyapu, bukan saat membaca audit)
 
-**Per status** (2 September 2026, sesudah langkah 07b, dihitung dari baris tabel di bawah):
-`TERBUKA` 248 · `SUDAH DIPERBAIKI` 31 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
+**Per status** (dihitung ulang dari baris tabel oleh `scripts/register-tally.mjs`, jangan diketik tangan):
+`TERBUKA` 247 · `SUDAH DIPERBAIKI` 32 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
 baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 dan #429.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
