@@ -22,6 +22,7 @@ import {
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../application/ports/inventory.repository';
+import { NegativeStockError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 interface ItemRow {
@@ -199,19 +200,62 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return this.toItem(row);
   }
 
+  /**
+   * One statement decides the new quantity, and Postgres decides the order.
+   *
+   * This used to read the line in the service, add the delta in Node, and write the
+   * ABSOLUTE result back (audit CA-2-21). Two people adjusting the same line inside the
+   * same few milliseconds both read the same "before", and the second write silently
+   * erased the first: the movement ledger showed both corrections, the shelf count showed
+   * one of them. Nothing reported it — the numbers simply stopped agreeing with the shelf.
+   *
+   * The write is now relative (`quantity + delta`) under the row lock the UPDATE itself
+   * takes, and the floor is in the WHERE rather than in a Node `if`, so a concurrent sale
+   * can no longer sneak a line below zero between the check and the write. `quantityBefore`
+   * / `quantityAfter` come from the row the statement returned, not from the caller's stale
+   * read, so the ledger records what actually happened rather than what was expected to.
+   */
   async applyMovement(
     itemId: string,
-    newQuantity: number,
     movement: RecordMovementData,
   ): Promise<InventoryItemRecord> {
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.inventoryItem.update({
-        where: { id: itemId },
-        data: { quantity: newQuantity },
-      }),
-      this.prisma.stockMovement.create({ data: movement }),
-    ]);
-    return this.toItem(updated);
+    /*
+     * The floor is NOT universal, and that distinction is the whole of it.
+     *
+     * A SALE records reality: the gallon left the shelf, and refusing to write it does not
+     * put it back — it just makes the count disagree with the world and hides the disagreement.
+     * depot-service has always allowed a sale to take a line negative for exactly that reason.
+     *
+     * Every other movement is somebody TYPING a number, and those are the ones a concurrent
+     * sale can sneak underneath: the service pre-checks the floor against a read, and without
+     * this clause the write could still land below zero in the gap between the two.
+     */
+    const floored = movement.type !== StockMovementType.SALE;
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<ItemRow[]>(Prisma.sql`
+        UPDATE "inventory_items"
+           SET "quantity" = "quantity" + ${movement.delta}, "updatedAt" = NOW()
+         WHERE "id" = ${itemId}::uuid
+           ${floored ? Prisma.sql`AND "quantity" + ${movement.delta} >= 0` : Prisma.empty}
+        RETURNING *
+      `);
+      const row = rows[0];
+      if (!row) {
+        // No row matched: either the line is gone, or the delta would take it below zero.
+        // The service's own pre-check catches the ordinary case; this is the one only a
+        // concurrent write can open, and it fails the movement instead of writing a
+        // quantity nobody can explain.
+        throw new NegativeStockError();
+      }
+      await tx.stockMovement.create({
+        data: {
+          ...movement,
+          quantityBefore: row.quantity - movement.delta,
+          quantityAfter: row.quantity,
+        },
+      });
+      return this.toItem(row);
+    });
   }
 
   async hasMovementForOrder(itemId: string, orderId: string): Promise<boolean> {

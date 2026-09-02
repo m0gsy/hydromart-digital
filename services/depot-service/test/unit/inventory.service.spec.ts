@@ -287,6 +287,23 @@ describe('InventoryService', () => {
     expect(moves[0].delta).toBe(-30);
   });
 
+  // CA-2-21. Two staff correcting the same line at the same time both read 100; the write
+  // used to be the finished number, so whichever saved second wrote 100-30 or 100-10 over
+  // the other and one correction vanished from the shelf count while both stayed in the
+  // ledger. Interleaved here on purpose: they start together and land together.
+  it('keeps both of two adjustments that start from the same read', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR);
+    await Promise.all([
+      inventory.adjust(item.id, -30, 'pecah', ACTOR),
+      inventory.adjust(item.id, -10, 'bocor', ACTOR),
+    ]);
+    expect((await inventory.get(item.id)).quantity).toBe(60);
+    const moves = await inventory.movements(item.id);
+    // And the ledger tells the same story the shelf does: 100 -> 70 -> 60, no overlap.
+    const adjustments = moves.filter((m) => m.type === StockMovementType.ADJUSTMENT);
+    expect(adjustments.map((m) => m.quantityAfter).sort((a, b) => a - b)).toEqual([60, 70]);
+  });
+
   it('refuses an adjustment that would go negative', async () => {
     const item = await inventory.createLine(depotId, raw(), ACTOR);
     await expect(inventory.adjust(item.id, -200, null, ACTOR)).rejects.toBeInstanceOf(
