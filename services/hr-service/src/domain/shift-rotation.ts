@@ -62,6 +62,25 @@ export function shiftIdForDay(
   return pattern[onDate.getUTCDay()] ?? null;
 }
 
+/**
+ * The clock span of a shift, in minutes. A shift is PRESENCE, not paid work: "08:00–17:00"
+ * is nine hours at the depot with the break inside it, which is why payroll subtracts the
+ * break from this before calling it a working day.
+ *
+ * An end that reads earlier than its start is a night shift crossing midnight, not a
+ * negative day. Unparseable times yield 0, which payroll reads as "no shift here" and falls
+ * back to the depot's configured standard — a malformed row must not invent wages.
+ */
+export function shiftSpanMinutes(startTime: string, endTime: string): number {
+  const minutes = (hhmm: string): number => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : NaN;
+  };
+  const span = minutes(endTime) - minutes(startTime);
+  if (!Number.isFinite(span)) return 0;
+  return span > 0 ? span : span + 1440;
+}
+
 /** Where a start time came from — logged and shown so a late mark stays explainable. */
 export type ShiftStartSource = 'employee-assignment' | 'employee-shift' | 'depot-shift' | 'config';
 

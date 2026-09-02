@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds, localMonthKey } from '@hydromart/platform';
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -14,7 +14,12 @@ import {
 } from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
 import { rupiah } from '../../domain/rupiah';
-import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
+import { DayRule, formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
+import {
+  assignmentInForce,
+  parseRotationPattern,
+  shiftSpanMinutes,
+} from '../../domain/shift-rotation';
 import {
   Pph21YearToDate,
   StatutoryInput,
@@ -42,6 +47,7 @@ import {
   DeductionRepository,
 } from '../ports/adjustment.repository';
 import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
+import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
@@ -52,6 +58,24 @@ import {
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** getUTCDay: 0 = Sunday. Friday is the one weekday with its own break length (D2). */
+const FRIDAY = 5;
+
+/**
+ * The rota HR built, reduced to the two numbers payroll reckons with.
+ *
+ * Resolved once per employee per period, from the assignment in force on the FIRST day of
+ * the month: a rota that changes mid-month is rare, and reading the shift tables once per
+ * employee instead of once per attended day keeps generation the number of queries it was.
+ */
+interface Rota {
+  /** Weekdays this employee does not work: their rotation's blank days, else the depot's. */
+  offWeekdays: ReadonlySet<number>;
+  /** How a day that fell on this weekday is reckoned — its shift, net of that day's break. */
+  ruleFor(weekday: number, offDay: boolean): DayRule;
+  /** One number for the whole period: the divisor behind the overtime minute rate. */
+  standardMinutes: number;
+}
 
 @Injectable()
 export class PayrollService {
@@ -69,6 +93,7 @@ export class PayrollService {
     @Optional() @Inject(LOAN_REPOSITORY) private readonly loans?: LoanRepository,
     @Optional() @Inject(SALES_PORT) private readonly sales?: SalesPort,
     @Optional() @Inject(ALLOWANCE_REPOSITORY) private readonly allowances?: AllowanceRepository,
+    @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
   ) {}
 
   /**
@@ -83,6 +108,7 @@ export class PayrollService {
     if (!PERIOD_RE.test(periodMonth)) {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
     }
+    this.assertPeriodClosed(periodMonth);
     const employee = await this.employees.getById(user, employeeId); // 404 + depot check
 
     const existing = await this.repo.findByEmployeeAndPeriod(employeeId, periodMonth);
@@ -120,7 +146,7 @@ export class PayrollService {
       { presentDays, lateDays, leaveDays, pendingDays },
       allowanceRows,
       bonusRows,
-      workingDays,
+      rota,
       rules,
       workedDays,
       dailyGallons,
@@ -128,7 +154,7 @@ export class PayrollService {
       this.attendance.summary(employeeId, from, to),
       this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
       this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
-      this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
+      this.rotaFor(employee, from),
       this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
       this.attendance.listWorkedMinutes(employeeId, from, to),
       wantsDailyBonus
@@ -139,8 +165,14 @@ export class PayrollService {
         : null,
     ]);
 
+    // CA-1-38 — the expected working days are the ones the ROTA expects, so both of these
+    // now take the rota's off-weekdays rather than reading the depot CSV a second time.
+    const workingDays = this.bonusRules
+      ? await this.workingDays(periodMonth, employee.depotId, from, to, rota.offWeekdays)
+      : 0;
+
     // D3 — the slice of the period this person was actually on the payroll for.
-    const window = await this.employmentWindow(employee, periodMonth, from, to);
+    const window = await this.employmentWindow(employee, periodMonth, from, to, rota.offWeekdays);
     if (window.employedDays === 0 && window.periodDays > 0) {
       throw new BadRequestException(
         `Karyawan tidak bekerja pada periode ${periodMonth} (masuk ${dayKey(employee.joinDate)}` +
@@ -255,7 +287,7 @@ export class PayrollService {
     // Overtime (M24-17). A weekly-off day and a national holiday are the same thing to
     // payroll — neither was an expected working day — so both are paid at the off-day
     // multiplier and every worked minute on them counts, not just the excess.
-    const overtime = await this.overtimeBonus(employee, periodMonth, from, to, workedDays);
+    const overtime = await this.overtimeBonus(employee, periodMonth, from, to, workedDays, rota);
     if (overtime) items.push(overtime);
 
     // DEDUCTION lines: lateness + absence, then manual rows.
@@ -593,20 +625,23 @@ export class PayrollService {
     from: Date,
     to: Date,
     days: WorkedMinutesRow[],
+    rota: Rota,
   ): Promise<PayrollItemInput | null> {
     const depotId = employee.depotId;
-    const standardWorkingMinutes = this.config.standardWorkingMinutes(depotId);
     if (days.length === 0) return null;
 
     // The off-day test is the union of the weekly-off weekdays and the dated national
-    // holidays — the two are deliberately indistinguishable here (M24-17).
-    const weeklyOff = parseWeeklyOffDays(this.config.weeklyOffDays(depotId));
+    // holidays — the two are deliberately indistinguishable here (M24-17). The weekly-off
+    // half now comes from THIS employee's rota (CA-1-38): a depot-wide CSV paid an off-day
+    // multiplier to somebody whose rotation had them rostered that day, and paid a plain
+    // rate to somebody working through the rest day their own rotation gave them.
     const holidayDates = new Set(
       this.holidays ? await this.holidays.listDates(depotId, from, to) : [],
     );
-    const isOffDay = (workDate: string): boolean =>
-      holidayDates.has(workDate) ||
-      weeklyOff.has(new Date(`${workDate}T00:00:00.000Z`).getUTCDay());
+    const ruleFor = (workDate: string): DayRule => {
+      const weekday = new Date(`${workDate}T00:00:00.000Z`).getUTCDay();
+      return rota.ruleFor(weekday, holidayDates.has(workDate) || rota.offWeekdays.has(weekday));
+    };
 
     const breakdown = splitOvertime(
       days.map((d) => ({
@@ -614,8 +649,7 @@ export class PayrollService {
         workDate: d.workDate.toISOString().slice(0, 10),
         workingMinutes: d.workingMinutes,
       })),
-      standardWorkingMinutes,
-      isOffDay,
+      ruleFor,
     );
     if (breakdown.totalMinutes === 0) return null;
 
@@ -627,8 +661,8 @@ export class PayrollService {
         : employee.employmentStatus === 'TRAINING'
           ? this.config.dailyRateTraining(depotId)
           : 0,
-      await this.workingDays(periodMonth, depotId, from, to),
-      standardWorkingMinutes,
+      await this.workingDays(periodMonth, depotId, from, to, rota.offWeekdays),
+      rota.standardMinutes,
     );
     const amount = overtimePay(breakdown, perMinute, {
       multiplier: this.config.overtimeMultiplierPct(depotId) / 100,
@@ -664,12 +698,12 @@ export class PayrollService {
     periodMonth: string,
     from: Date,
     to: Date,
+    offDays: ReadonlySet<number>,
   ): Promise<{ employedDays: number; periodDays: number; fraction: number }> {
     const holidayDates = this.holidays
       ? await this.holidays.listDates(employee.depotId, from, to)
       : [];
     const holidays = new Set(holidayDates);
-    const offDays = parseWeeklyOffDays(this.config.weeklyOffDays(employee.depotId));
 
     const join = employee.joinDate ? dayKey(employee.joinDate) : dayKey(from);
     const exit = employee.exitDate ? dayKey(employee.exitDate) : dayKey(to);
@@ -688,21 +722,105 @@ export class PayrollService {
     };
   }
 
-  /** Expected working days in the period: calendar days − weekly-off − holidays. */
+  /** Expected working days in the period: calendar days − the rota's off days − holidays. */
   private async workingDays(
     periodMonth: string,
     depotId: string | null,
     from: Date,
     to: Date,
+    offDays: ReadonlySet<number>,
   ): Promise<number> {
     const [year, month] = periodMonth.split('-').map(Number);
     const holidayDates = this.holidays ? await this.holidays.listDates(depotId, from, to) : [];
-    return workingDaysInMonth(
-      year,
-      month,
-      new Set(holidayDates),
-      parseWeeklyOffDays(this.config.weeklyOffDays(depotId)),
-    );
+    return workingDaysInMonth(year, month, new Set(holidayDates), offDays);
+  }
+
+  /**
+   * CA-1-38 — the rota HR actually built, for the employee and the period.
+   *
+   * Payroll used to read two depot-wide config values and nothing else: every employee of a
+   * depot had the same standard day and the same weekly rest days, however carefully HR had
+   * built the shift rotation on the /hr/shift screen. The rotation decided who was LATE
+   * (attendance reads it, see domain/shift-rotation.ts) and then decided nothing about what
+   * anybody was paid.
+   *
+   * The precedence mirrors attendance's, most specific first: the employee's own assignment
+   * for the period, then their fixed shift, then the depot's, then the depot's configured
+   * standard. A rotation names a shift per weekday, so a blank weekday IS that employee's
+   * rest day and replaces the depot's CSV entirely — a rotation is a whole week, not a
+   * supplement to one.
+   *
+   * A shift is a CLOCK SPAN, not a working day: "08:00–17:00" is nine hours of presence with
+   * the break inside it, so the break comes off before it counts as a standard day. The
+   * configured `standardWorkingMinutes` is already net (it ships as 480 = eight hours), so
+   * nothing is taken off that one. The whole-period `standardMinutes` — the divisor behind
+   * the overtime minute rate — is the shift span only when the rota is uniform; a rota that
+   * mixes shift LENGTHS has no single "a day is this long", and inventing one would change
+   * the wage divisor on a guess, so it falls back to the configured standard.
+   */
+  private async rotaFor(employee: Employee, from: Date): Promise<Rota> {
+    const depotId = employee.depotId;
+    const configStandard = this.config.standardWorkingMinutes(depotId);
+    const offWeekdays = parseWeeklyOffDays(this.config.weeklyOffDays(depotId));
+    /** Shift span by weekday, from a rotation; empty when the rota is a single shift. */
+    const spans = new Map<number, number>();
+    let flatSpan: number | null = null;
+
+    if (this.shifts) {
+      const inForce = assignmentInForce(
+        await this.shifts.listAssignmentsUpTo(employee.id, from),
+        from,
+      );
+      const rotation = inForce?.rotationId
+        ? await this.shifts.findRotationById(inForce.rotationId)
+        : null;
+      if (rotation) {
+        const pattern = parseRotationPattern(rotation.pattern);
+        offWeekdays.clear();
+        // De-duplicated: a weekly pattern names two or three shifts across seven days, and
+        // this must not be seven queries.
+        const byId = new Map<string, number>();
+        for (let weekday = 0; weekday <= 6; weekday++) {
+          const shiftId = pattern[weekday] ?? null;
+          if (!shiftId) {
+            offWeekdays.add(weekday);
+            continue;
+          }
+          if (!byId.has(shiftId)) {
+            const shift = await this.shifts.findById(shiftId);
+            // A dangling id (see ShiftService.remove) means no span, not a zero-hour day.
+            byId.set(shiftId, shift ? shiftSpanMinutes(shift.startTime, shift.endTime) : 0);
+          }
+          const span = byId.get(shiftId) ?? 0;
+          if (span > 0) spans.set(weekday, span);
+        }
+      } else {
+        const shiftId = inForce?.shiftId ?? employee.shiftId;
+        const shift = shiftId
+          ? await this.shifts.findById(shiftId)
+          : await this.shifts.findActiveForDepot(depotId);
+        const span = shift ? shiftSpanMinutes(shift.startTime, shift.endTime) : 0;
+        flatSpan = span > 0 ? span : null;
+      }
+    }
+
+    const netOf = (span: number, isFriday: boolean): number =>
+      Math.max(0, span - this.config.breakMinutes(isFriday, depotId));
+    const rostered = new Set<number>(spans.size > 0 ? spans.values() : []);
+    if (flatSpan !== null) rostered.add(flatSpan);
+    const uniformSpan = rostered.size === 1 ? [...rostered][0] : null;
+    return {
+      offWeekdays,
+      standardMinutes: uniformSpan === null ? configStandard : netOf(uniformSpan, false),
+      ruleFor: (weekday, offDay) => {
+        const span = spans.get(weekday) ?? flatSpan;
+        return {
+          standardMinutes: span === null ? configStandard : netOf(span, weekday === FRIDAY),
+          breakMinutes: this.config.breakMinutes(weekday === FRIDAY, depotId),
+          offDay,
+        };
+      },
+    };
   }
 
   private basePay(employee: Employee, presentDays: number, employedFraction = 1): number {
@@ -751,6 +869,8 @@ export class PayrollService {
     if (!PERIOD_RE.test(periodMonth)) {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
     }
+    // Once, here, rather than thirty identical failures collected one per employee.
+    this.assertPeriodClosed(periodMonth);
     // Through `EmployeeService.list`, which applies `depotScopeIds` — a depot manager
     // cannot batch a depot that is not theirs, and does not need a second check here.
     const { rows } = await this.employees.list(user, {
@@ -778,6 +898,29 @@ export class PayrollService {
       }
     }
     return { generated, failed };
+  }
+
+  /**
+   * CA-1-06 — a month that has not finished cannot be paid.
+   *
+   * Every number on the slip is reckoned over the WHOLE period: `employmentWindow` counts
+   * the month's working days, and `autoAbsentDays` is that count minus the days somebody
+   * turned up for. Generated on the 10th, the twenty days that have not happened yet are
+   * twenty no-shows, and the absence fine is charged for all of them. Nothing warned about
+   * it, and approving the draft locks it — `generate` refuses to re-run once a payroll
+   * leaves DRAFT, so the wrong number is the final one.
+   *
+   * The month is cut in the business zone, not UTC: for the first seven hours of the 1st
+   * WIB, `toISOString()` still names last month, and refusing to pay a month that HAS ended
+   * is the same bug pointing the other way.
+   */
+  private assertPeriodClosed(periodMonth: string): void {
+    // "YYYY-MM" sorts as it dates, so a string compare IS "this month or later".
+    if (periodMonth >= localMonthKey(new Date(), this.config.timeZone)) {
+      throw new BadRequestException(
+        `Periode ${periodMonth} belum selesai. Payroll baru bisa dibuat setelah bulan itu berakhir.`,
+      );
+    }
   }
 
   /** [first-day, last-day] of a YYYY-MM as UTC-midnight dates (matches @db.Date storage). */

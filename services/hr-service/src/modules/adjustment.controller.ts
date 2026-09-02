@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser, ImportSummary } from '@hydromart/platform';
@@ -34,6 +34,18 @@ export class BonusController {
   create(@Body() dto: CreateBonusDto, @CurrentUser() user: AuthenticatedUser): Promise<Bonus> {
     return this.adjustments.addBonus(user, dto);
   }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @Delete(':id')
+  @HttpCode(204)
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Delete a bonus typed by mistake (period must still be DRAFT)' })
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.adjustments.removeBonus(user, id);
+  }
 }
 
 @ApiTags('HR Deductions')
@@ -64,5 +76,17 @@ export class DeductionController {
   @ApiOperation({ summary: 'Bulk-import deductions from the CSV wizard' })
   import(@Body() dto: ImportDeductionsDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
     return this.adjustments.importDeductions(user, dto.rows);
+  }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @Delete(':id')
+  @HttpCode(204)
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Delete a deduction typed by mistake (period must still be DRAFT)' })
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.adjustments.removeDeduction(user, id);
   }
 }

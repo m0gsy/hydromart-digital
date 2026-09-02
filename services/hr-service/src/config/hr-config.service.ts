@@ -90,6 +90,17 @@ export class HrConfigService {
       depotId,
     );
   }
+  /**
+   * D2 — the unpaid break subtracted from a day of at least six hours before overtime is
+   * reckoned. 90 minutes on Friday, 60 on every other day; a depot that pays its break
+   * overrides the pair to 0. No env var: this is a rota number, changed from the settings
+   * screen, and a release is the wrong unit of change for it.
+   */
+  breakMinutes(isFriday: boolean, depotId: string | null = null): number {
+    return isFriday
+      ? this.tunableNum('breakMinutesFriday', 90, depotId)
+      : this.tunableNum('breakMinutes', 60, depotId);
+  }
   /** Weekly non-working weekdays as a CSV ("0,6"); '' = every day is a working day. */
   /** M24-17: ×100 so the settings store stays integer-only (150 = 1.5×). */
   overtimeMultiplierPct(depotId: string | null = null): number {

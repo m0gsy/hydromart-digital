@@ -28,6 +28,14 @@ export class BonusPrismaRepository implements BonusRepository {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  findById(id: string): Promise<Bonus | null> {
+    return this.prisma.bonus.findUnique({ where: { id } });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.bonus.delete({ where: { id } });
+  }
 }
 
 @Injectable()
@@ -50,5 +58,13 @@ export class DeductionPrismaRepository implements DeductionRepository {
       where: { employeeId, periodMonth },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  findById(id: string): Promise<Deduction | null> {
+    return this.prisma.deduction.findUnique({ where: { id } });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.deduction.delete({ where: { id } });
   }
 }

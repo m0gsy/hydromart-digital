@@ -2,6 +2,7 @@ import {
   loanDeductionFor,
   loanRemainingAfter,
   loanIsSettled,
+  nextPeriod,
   type LoanTerms,
 } from '../../src/domain/loan';
 
@@ -45,6 +46,39 @@ describe('loanIsSettled', () => {
   it('is true only once cleared', () => {
     expect(loanIsSettled(loan, '2026-09')).toBe(false);
     expect(loanIsSettled(loan, '2026-10')).toBe(true);
+  });
+});
+
+describe('nextPeriod', () => {
+  it('walks a month forward, rolling the year at December', () => {
+    expect(nextPeriod('2026-07')).toBe('2026-08');
+    expect(nextPeriod('2026-09')).toBe('2026-10');
+    expect(nextPeriod('2026-12')).toBe('2027-01');
+  });
+});
+
+// CA-1-05. The balance shown next to a kasbon was months-elapsed × installment: a month
+// whose payroll never ran, or one that could only afford part of an installment, counted as
+// collected. The badge said "Lunas" over a debt payroll was still deducting — and
+// `loanDeductionFor` had already been given the real ledger (D4), so the two numbers on the
+// same screen came from two different sources.
+describe('loanRemainingAfter with the real repayment ledger', () => {
+  it('keeps owing what was never actually collected', () => {
+    // Four months elapsed: the calendar says cleared.
+    expect(loanRemainingAfter(loan, '2026-10')).toBe(0);
+    expect(loanIsSettled(loan, '2026-10')).toBe(true);
+    // The payslips only ever took 300.000.
+    expect(loanRemainingAfter(loan, '2026-10', 300_000)).toBe(700_000);
+    expect(loanIsSettled(loan, '2026-10', 300_000)).toBe(false);
+  });
+
+  it('a period whose payroll was never generated shows the full balance', () => {
+    expect(loanRemainingAfter(loan, '2026-07', 0)).toBe(1_000_000);
+  });
+
+  it('never reports a negative balance when the ledger over-collected', () => {
+    expect(loanRemainingAfter(loan, '2026-10', 1_500_000)).toBe(0);
+    expect(loanIsSettled(loan, '2026-10', 1_500_000)).toBe(true);
   });
 });
 

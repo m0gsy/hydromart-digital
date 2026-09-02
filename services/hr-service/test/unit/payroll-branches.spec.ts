@@ -154,6 +154,10 @@ function build(opts: {
     weeklyOffDays: () => '',
     tenureRaiseLadder: () => opts.ladder ?? '',
     standardWorkingMinutes: () => 480,
+    // D2: 60 minutes unpaid break, 90 on Friday. Stubbed to 0 here so every pre-existing
+    // arithmetic case keeps asserting what it was written to assert; the break itself is
+    // covered by overtime.spec.ts, which exercises both values directly.
+    breakMinutes: () => 0,
     overtimeMultiplierPct: () => 150,
     overtimeOffDayMultiplierPct: () => 200,
     // Depot SOP settings stay off here — these fixtures pin the OLD payroll.
@@ -404,12 +408,12 @@ describe('PayrollService net floor and loan rollover (D4)', () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 200_000 as never },
       summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
-      // Started 2026-05, so by 2026-09 five installments have "elapsed" and the old
+      // Started 2026-04, so by 2026-08 five installments have "elapsed" and the old
       // arithmetic calls the loan settled. The ledger says only 600.000 was ever taken.
-      loans: [{ ...kasbon, startPeriod: '2026-05' }],
+      loans: [{ ...kasbon, startPeriod: '2026-04' }],
       repaid: { l1: 600_000 },
     });
-    await svc.generate(user, 'e1', '2026-09');
+    await svc.generate(user, 'e1', '2026-08');
     expect(repo.lastWrite!.items.find((i) => i.label === 'Cicilan: Kasbon')).toMatchObject({
       amount: 300_000,
     });
@@ -419,10 +423,10 @@ describe('PayrollService net floor and loan rollover (D4)', () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 200_000 as never },
       summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
-      loans: [{ ...kasbon, startPeriod: '2026-05' }],
+      loans: [{ ...kasbon, startPeriod: '2026-04' }],
       repaid: { l1: 900_000 },
     });
-    await svc.generate(user, 'e1', '2026-09');
+    await svc.generate(user, 'e1', '2026-08');
     expect(repo.lastWrite!.items.find((i) => i.label === 'Cicilan: Kasbon')).toMatchObject({
       amount: 100_000,
     });
