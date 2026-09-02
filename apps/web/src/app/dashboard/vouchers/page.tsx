@@ -6,7 +6,7 @@ import { Lock, Ticket } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -196,7 +196,7 @@ function VoucherEditor({
           </Field>
         )}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
           {voucher ? t('hrFix.vouchers.save') : t('hrFix.vouchers.create')}
@@ -262,7 +262,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
 
   return (
     <Card className="flex flex-col gap-3 border-brand-200 p-4">
-      <h3 className="font-semibold">Beri {voucher.code} ke pelanggan</h3>
+      <h3 className="font-semibold">{t('hrFix.vouchers.giveTitle', { code: voucher.code })}</h3>
       {done !== null ? (
         <>
           <p className="text-sm text-muted">
@@ -300,7 +300,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
               <span className="text-muted">{found.phone}</span>
             </p>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button onClick={grant} loading={busy} disabled={!found}>
               Beri voucher

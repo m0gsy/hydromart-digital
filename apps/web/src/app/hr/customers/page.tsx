@@ -46,11 +46,12 @@ export default function HrCustomersPage() {
             {t('hrFix.hrCustomers.customers2')}
           </h1>
           <p className="mt-1 text-[13px] text-muted">
-            Hanya lihat. Data dibaca langsung dari direktori depot.
+            {t('hrFix.hrCustomers.readOnly')}
             {depot && (
               <>
                 {' '}
-                Depot: <strong className="text-[color:var(--text)]">{depot.name}</strong>
+                {t('hrFix.hrCustomers.depotLabel')}{' '}
+                <strong className="text-[color:var(--text)]">{depot.name}</strong>
               </>
             )}
           </p>

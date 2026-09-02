@@ -271,6 +271,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
           {targets.map((tg, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <select
+                aria-label={t('hrFix.announcements.audience')}
                 value={tg.dimension}
                 onChange={(e) =>
                   setTarget(i, { dimension: e.target.value as AnnouncementDimension, value: '' })
@@ -285,6 +286,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
               </select>
               {announcementTargetNeedsValue(tg.dimension) && (
                 <select
+                  aria-label={t('hrFix.announcements.pick')}
                   value={tg.value}
                   onChange={(e) => setTarget(i, { value: e.target.value })}
                   className="surface-elevated min-w-48 rounded-lg border border-app px-3 py-2.5 text-sm"

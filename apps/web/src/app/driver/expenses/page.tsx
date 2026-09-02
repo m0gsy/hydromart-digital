@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Receipt } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -152,7 +152,7 @@ function Expenses() {
             {receipt ? t('hrFix.expenses.receiptPicked') : t('hrFix.expenses.receiptHint')}
           </p>
         </Field>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        <FormError message={error} />
         <Button loading={busy} disabled={want <= 0 || desc.trim() === ''} className="w-full" onClick={submit}>
           {t('hrFix.expenses.submitClaim')}
         </Button>

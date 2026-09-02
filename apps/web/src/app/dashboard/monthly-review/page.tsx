@@ -159,7 +159,8 @@ function MonthlyReviewBody() {
           {MONTH} · {depotName}
         </h1>
         <p className="text-sm text-on-brand/80">
-          untuk rapat bulanan head office{customer?.fullName ? ` · ${customer.fullName}` : ''}
+          {t('hrFix.monthlyReview.forMeeting')}
+          {customer?.fullName ? ` · ${customer.fullName}` : ''}
         </p>
       </Card>
 

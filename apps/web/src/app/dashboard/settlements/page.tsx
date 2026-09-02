@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { CaretDown, Lock, Money, Wallet } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -179,7 +179,7 @@ function SettlementRow({
               >
                 <Input id={`note-${s.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.settlements.notePlaceholder')} />
               </Field>
-              {error && <p className="text-sm font-medium text-[color:var(--danger)]">{error}</p>}
+              <FormError message={error} />
               <div className="flex gap-2">
                 <Button onClick={() => act('verify')} loading={busy === 'verify'} className="flex-1">
                   {t('opsFix.settlements.verify')}

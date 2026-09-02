@@ -456,6 +456,7 @@ export const hq = {
     depotsHint:
       'A depot with no assistant is visible to HQ and up only. This is the bottom rung — without it the chain above resolves to no depots at all.',
     noAssistant: 'Unassigned',
+    assistantFor: 'Assistant supervisor for {depot}',
     staffHead: "One account's place in the chain",
     pickStaff: 'Pick an account',
     pickStaffNone: '— pick —',

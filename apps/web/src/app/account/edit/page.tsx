@@ -53,6 +53,9 @@ function EditProfileInner() {
 
   // ponytail: two photo labels are locale-ternary chrome (like /register) — promote
   // to dictionary keys if this screen grows.
+  // i18n-ok: both locales are written out here, so nobody ever reads the wrong language.
+  // This is the twenty-strong `locale === 'en' ? … : …` pattern, not untranslated copy;
+  // converting all of it is its own change, not a fix to a defect.
   const photoHint = locale === 'en' ? 'Add a photo (optional)' : 'Tambahkan foto (opsional)';
   const changePhoto = locale === 'en' ? 'Change photo' : 'Ganti foto';
   const initial = (customer.fullName ?? customer.phone ?? '?').charAt(0).toUpperCase();

@@ -75,7 +75,7 @@ export default function HrDashboardPage() {
           </Card>
 
           <Card className="space-y-3 p-5">
-            <h3 className="font-bold">Absensi Hari Ini ({data.workDate})</h3>
+            <h3 className="font-bold">{t('hrFix.home.attendanceToday', { date: data.workDate })}</h3>
             <Groups rows={data.attendanceToday} label={(k) => t(ATTENDANCE_STATUS_LABEL[k as AttendanceStatus]) ?? k} />
           </Card>
 

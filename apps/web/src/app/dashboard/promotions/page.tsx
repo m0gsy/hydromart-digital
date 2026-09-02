@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle, Lock, Megaphone } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
@@ -150,7 +150,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
           <Input type="date" value={form.endsAt} onChange={set('endsAt')} />
         </Field>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
           {promo ? t('hrFix.promotions.save') : t('hrFix.promotions.create')}

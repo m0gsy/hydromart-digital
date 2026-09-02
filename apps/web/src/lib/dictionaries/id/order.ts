@@ -97,6 +97,7 @@ export const order = {
     itemCountOther: '{n} item',
   },
   detail: {
+    payDirect: 'Pembayaran masuk langsung ke {depot}.',
     placedMeta: 'Dipesan {date} · {n} item · Total',
     items: 'Item',
     subtotal: 'Subtotal',

@@ -101,7 +101,7 @@ export default function CalendarPage() {
         {shifts.error && <ErrorState message={shifts.error} onRetry={shifts.reload} />}
         {shifts.data && (
           <ul className="divide-y divide-[color:var(--border)]">
-            {shifts.data.length === 0 && <li className="py-2 text-sm text-muted">Belum ada shift (pakai default {`{workStartTime}`}).</li>}
+            {shifts.data.length === 0 && <li className="py-2 text-sm text-muted">{t('hrFix.calendar.noShift')}</li>}
             {shifts.data.map((s) => (
               <li key={s.id} className="flex items-center justify-between py-2 text-sm">
                 <span><b>{s.name}</b> · {s.startTime}–{s.endTime}{s.active ? '' : ` (${t('hrFix.calendar.inactive')})`}{s.depotId ? ` · ${t('hrFix.calendar.depot')}` : ''}</span>

@@ -11,7 +11,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { LiveNav } from '@/components/driver/live-nav';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
-import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, FormError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -185,7 +185,7 @@ function Detail() {
         </ol>
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       {delivery.status === 'ASSIGNED' && (
         <Button loading={busy} className="w-full" onClick={() => act(() => api.patch(endpoints.deliveries.driver.pickup(id), undefined, true))}>
@@ -304,7 +304,9 @@ function Detail() {
               )}
             </div>
           ) : (
-            <div className="text-red-600">Gagal: {delivery.failureReason}</div>
+            <div className="text-red-600">
+              {t('hrFix.deliveryDetail.failedReason', { reason: delivery.failureReason ?? '' })}
+            </div>
           )}
         </Card>
       )}

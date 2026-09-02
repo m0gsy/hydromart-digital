@@ -64,7 +64,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
   return (
     <Card className="divide-y divide-[color:var(--border)] border-amber-300">
       <div className="p-3 text-sm font-bold">
-        Absen menunggu persetujuan ({data.total})
+        {t('hrFix.attendance.pendingTitle', { count: data.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
       </div>
       {data.rows.map((a) => (

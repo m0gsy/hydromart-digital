@@ -459,6 +459,7 @@ export const hq = {
     depotsHint:
       'Depot tanpa asisten hanya terlihat oleh HQ ke atas. Ini anak tangga paling bawah — tanpa ini, rantai di atasnya tidak menghasilkan depot apa pun.',
     noAssistant: 'Belum ditugaskan',
+    assistantFor: 'Asisten supervisor untuk {depot}',
     staffHead: 'Posisi satu akun di rantai',
     pickStaff: 'Pilih akun',
     pickStaffNone: '— pilih —',

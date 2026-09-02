@@ -750,8 +750,7 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
       {failed.length > 0 && (
         <div className="rounded-lg bg-[color:var(--danger-bg)] px-3 py-2.5" role="alert">
           <p className="text-sm font-semibold text-[color:var(--danger)]">
-            {failed.length} baris gagal disimpan — angkanya masih tersimpan di layar, coba
-            lagi.
+            {t('opsFix.inv.opnameFailed', { n: failed.length })}
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {failed.map((f) => (

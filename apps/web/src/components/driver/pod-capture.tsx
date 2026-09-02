@@ -5,7 +5,7 @@ import { useT } from '@/lib/locale-context';
 import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { currentPosition, GeoError } from '@/lib/geo';
 import { compressImage } from '@/lib/image';
@@ -201,7 +201,10 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
 
       <div className="space-y-2">
         <span className="text-sm font-medium">{t('hrFix.pod.photo')}</span>
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--muted)] hover:border-brand-500">
+        {/* `sr-only`, not `hidden`: display:none takes the input out of the tab order, and
+            the label around it is not focusable, so proof-of-delivery could only be
+            photographed by tapping. Same defect, same fix as components/csv-import.tsx. */}
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--muted)] hover:border-brand-500 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
           <Camera size={20} />
           {photo ? t('hrFix.pod.replacePhoto') : t('hrFix.pod.takePhoto')}
           <input
@@ -209,7 +212,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
             accept="image/*"
             capture="environment"
             onChange={pickPhoto}
-            className="hidden"
+            className="sr-only"
           />
         </label>
         {photoPreview && (
@@ -272,7 +275,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         />
       </Field>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       <Button onClick={submit} disabled={submitting} className="w-full">
         {submitting ? t('hrFix.pod.sending') : t('hrFix.pod.finish')}

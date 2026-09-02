@@ -237,6 +237,17 @@ const PATTERNS = [
    * wrapped node carries is normalised away before the Indonesian-word test.
    */
   { kind: 'jsx', re: />([^<>{}]{3,})</g },
+  /*
+   * THE HOLE THE `jsx` PATTERN LEFT: a text node that shares its line with a `{expr}`.
+   *
+   * `>([^<>{}]{3,})<` needs prose fenced by two TAGS, so `{n} baris siap`, `Pembayaran ·
+   * {label}` and `Terima .xlsx dan .csv. Maksimal {MAX} baris.` all ended at the `{` before
+   * any `<` arrived and were never seen. That is not a rare shape — it is what every
+   * sentence with a number or a name in it looks like, and the audit's "hardcoded
+   * Indonesian in 14+ files" was almost entirely this. Anchored on the hole as well as on
+   * the tags: `>` or `}` … `<` or `{`.
+   */
+  { kind: 'jsxHole', re: /[>}]([^<>{}]{4,})[<{]/g },
   // JSX props that render.
   {
     kind: 'prop',
@@ -251,7 +262,10 @@ const PATTERNS = [
   // Messages handed straight to the user.
   {
     kind: 'call',
-    re: /(?:toast|confirm|alert|setError|setMsg|setNotice)\(\s*(?:'([^']{3,})'|"([^"]{3,})"|`([^`${}]{3,})`)/g,
+    // Any setter whose name ENDS in Error/Msg/Message/Notice, not the four spellings that
+    // happened to exist when this was written: `setFileError` in components/csv-import.tsx
+    // held two untranslated sentences that this list walked straight past.
+    re: /(?:toast|confirm|alert|set[A-Za-z]*(?:Error|Msg|Message|Notice))\(\s*(?:'([^']{3,})'|"([^"]{3,})"|`([^`${}]{3,})`)/g,
   },
   /**
    * The four shapes a browser pass found copy hiding in, none of which the patterns above
@@ -267,6 +281,15 @@ const PATTERNS = [
   {
     kind: 'ternary',
     re: /\?\s*(?:'([^']{3,})'|"([^"]{3,})")\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g,
+  },
+  // …and its SECOND branch, which needs its own pattern. The reader below takes
+  // `m[1] ?? m[2] ?? m[3] ?? m[4]` — the first group that matched and no further — so
+  // `busy ? 'Memproses…' : 'Setujui'` was judged entirely on "Memproses…", and the
+  // Approve button on the mobile manager's approval sheet stayed hardcoded through two
+  // sweeps that both reported clean.
+  {
+    kind: 'ternary2',
+    re: /\?\s*(?:'[^']{3,}'|"[^"]{3,}")\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g,
   },
   // A bare array of strings used as options/labels.
   { kind: 'array', re: /\[\s*(?:'([^']{3,})'|"([^"]{3,})")\s*,/g },
@@ -311,6 +334,9 @@ for (const file of walk(ROOT)) {
   // points at the wrong place.
   const scannable = blankComments(src);
   for (const { re, kind } of PATTERNS) {
+    // JSX text only exists in a .tsx. Run `jsxHole` over a .ts and it reads type aliases
+    // and endpoint builders as prose — `export interface DepotAdmin extends Depot` was one.
+    if (kind === 'jsxHole' && !file.endsWith('.tsx')) continue;
     for (const m of scannable.matchAll(re)) {
       let s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
       // A template literal is judged on the prose between its holes, not on the
@@ -319,7 +345,7 @@ for (const file of walk(ROOT)) {
       // A wrapped JSX text node carries the indentation Prettier gave it. Collapse it, or
       // the same string reads differently depending on how deep in the tree it sits — and
       // the baseline could never match it twice running.
-      if (kind === 'jsx') {
+      if (kind === 'jsx' || kind === 'jsxHole') {
         s = s.replace(/\s+/g, ' ').trim();
         /*
          * `<` and `>` are comparison operators as well as tag delimiters, so once the
@@ -335,6 +361,13 @@ for (const file of walk(ROOT)) {
         if (/\|\||&&|=>|\)\s*:|\?\s*\(/.test(s)) continue;
         if (/\w\.\w+\(/.test(s)) continue;
       }
+      /*
+       * `jsxHole` runs between a brace and a tag, so it can also straddle plain code —
+       * `if (target.error)`, `(depot.operatingHours ??`, a type alias, a URL path. Three
+       * tells, none of which occurs in UI prose: a property access with no space around
+       * the dot, a nullish coalesce, and a slash between two word characters.
+       */
+      if (kind === 'jsxHole' && /[a-zA-Z]\.[a-zA-Z]|\?\?|\w\/\w/.test(s)) continue;
       if (!s || isCode(s) || !ID_RE.test(s)) continue;
       if (hits.has(s)) continue;
       hits.set(s, src.slice(0, m.index).split(/\r?\n/).length);

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Star, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, CenterState, ErrorState, LinkButton, Skeleton } from '@/components/ui';
+import { Button, CenterState, ErrorState, FormError, LinkButton, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -120,6 +120,7 @@ function Form({ order }: { order: Order }) {
 
       {/* comment */}
       <textarea
+        aria-label={copy.commentPlaceholder}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder={copy.commentPlaceholder}
@@ -139,7 +140,7 @@ function Form({ order }: { order: Order }) {
         than half-built. The column stays (zero rows, so no migration) and the server still
         accepts the field, so nothing already shipped breaks; what goes is the promise.
       */}
-      {error && <p className="mt-3 text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
+      <FormError message={error} className="mt-3" />
 
       <Button onClick={submit} loading={saving} className="mt-4 w-full">
         {copy.submit}

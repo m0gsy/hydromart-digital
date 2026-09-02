@@ -5,7 +5,7 @@ import { useT } from '@/lib/locale-context';
 import { Drop, Gauge, Info, Lock, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, FormError, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -197,7 +197,7 @@ function MeterBody() {
               />
             </label>
           </div>
-          {saveError && <p className="text-sm text-[color:var(--danger)]">{saveError}</p>}
+          <FormError message={saveError} />
           <Button
             disabled={saving || nothingToSave || !depot}
             onClick={() =>
@@ -247,9 +247,10 @@ function MeterBody() {
               }
               hint={
                 data?.varianceGallons != null
-                  ? `± ${num(Math.abs(data.varianceGallons), 1)} galon setara (acuan ${num(
-                      (data.referenceVolumeMl ?? 0) / 1000,
-                    )} L)`
+                  ? t('hrFix.meter.varianceHint', {
+                      gallons: num(Math.abs(data.varianceGallons), 1),
+                      liters: num((data.referenceVolumeMl ?? 0) / 1000),
+                    })
                   : 'belum bisa dibandingkan'
               }
               tone={data?.overTolerance ? 'danger' : 'plain'}
@@ -282,7 +283,7 @@ function MeterBody() {
             <Card className="flex items-start gap-3 bg-brand-50 p-4">
               <Warning size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
               <p className="text-[12.5px] text-brand-800/80">
-                <strong>{data.unmeasuredLines} baris pesanan</strong>{t('hrFix.meter.noVolumeHint')}</p>
+                <strong>{t('hrFix.meter.orderLines', { count: data.unmeasuredLines })}</strong>{t('hrFix.meter.noVolumeHint')}</p>
             </Card>
           )}
 
@@ -290,8 +291,7 @@ function MeterBody() {
             <Card className="flex items-start gap-3 border border-[color:var(--danger)] p-4">
               <Warning size={22} weight="fill" className="mt-0.5 shrink-0 text-[color:var(--danger)]" />
               <p className="text-[12.5px]">
-                Selisih melewati ambang {num(data.toleranceLiters)} liter. Cek galon yang keluar
-                tanpa tercatat, kebocoran, atau salah ketik angka meteran.
+                {t('hrFix.meter.overThreshold', { liters: num(data.toleranceLiters) })}
               </p>
             </Card>
           )}

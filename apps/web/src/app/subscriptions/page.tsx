@@ -5,7 +5,7 @@ import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-ico
 
 import { RequireAuth } from '@/components/require-auth';
 import { ConfirmDialog } from '@/components/overlay';
-import { Button, Chip, ErrorState, Field, LinkButton, LoadError, Skeleton } from '@/components/ui';
+import { Button, Chip, ErrorState, Field, FormError, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -342,7 +342,7 @@ function Panel() {
             )
           )}
 
-          {error && <p className="text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
+          <FormError message={error} />
           <Button type="submit" loading={saving} disabled={!productId || !chosenAddress}>
             {copy.start}
           </Button>

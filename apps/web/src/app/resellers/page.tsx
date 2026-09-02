@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
-import { Button, Card, ErrorState, Field, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, FormError, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
@@ -115,7 +115,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
         <Field label={t('hrFix.resellers.joinDate')}>
           <Input type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
         </Field>
-        {error && <p className="text-sm text-red-600 sm:col-span-3">{error}</p>}
+        <FormError message={error} />
         <div className="sm:col-span-3">
           <Button type="submit" loading={busy}>
             {t('hrFix.resellers.addReseller2')}

@@ -11,7 +11,7 @@ import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, NearbyDepot, Page } from '@/lib/types';
-import { LoadError } from '@/components/ui';
+import { FormError, LoadError } from '@/components/ui';
 
 // Delivery-location control for the Home hero. Two ways to set a location:
 // browser geolocation ("use my location"), or pick a depot's city from the
@@ -118,7 +118,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
             <Crosshair size={18} className="text-brand-600" />
             {geoBusy ? t('home.location.searching') : t('home.location.useMyLocation')}
           </button>
-          {geoError && <p className="px-3 py-1 text-xs text-red-600">{geoError}</p>}
+          <FormError message={geoError} className="px-3 py-1 text-xs" />
 
           <div className="mt-1 border-t border-app pt-1">
             <p className="px-3 py-1 text-xs font-semibold text-muted">{t('home.location.orPickCity')}</p>

@@ -356,6 +356,7 @@ export default function HqHierarchyPage() {
                 ))}
               </div>
               <select
+                aria-label={t('hq.hierarchy.addDirect')}
                 value=""
                 disabled={busy}
                 onChange={(e) =>
@@ -402,6 +403,7 @@ function DepotRow({
         {depot.code} · {depot.name}
       </span>
       <select
+        aria-label={t('hq.hierarchy.assistantFor', { depot: depot.name })}
         value={depot.assistantSupervisorId ?? ''}
         disabled={busy}
         onChange={(e) => onChange(e.target.value)}

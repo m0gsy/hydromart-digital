@@ -173,7 +173,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
             <div className="flex items-center gap-2">
               <Warning size={18} weight="fill" className="text-red-600" />
               <span className="text-[13.5px] font-bold text-red-800">
-                Stok menipis · {data.lowStock.length}
+                {t('hrFix.operatorSummary.lowStockCount', { count: data.lowStock.length })}
               </span>
             </div>
             {data.lowStock.length === 0 ? (
@@ -197,7 +197,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
             </div>
             <div className="flex items-center justify-between text-[12.5px]">
               <span className="text-[color:var(--text-muted)]">
-                {data.pending.length} kurir belum setor
+                {t('hrFix.operatorSummary.notSettled', { count: data.pending.length })}
               </span>
               <Money amount={codOutstanding} className="font-bold" />
             </div>

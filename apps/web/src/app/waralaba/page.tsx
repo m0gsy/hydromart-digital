@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { CrosshairSimple } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
@@ -280,7 +280,7 @@ export default function FranchiseApplicationPage() {
           </span>
         </label>
 
-        {error && <p className="text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
+        <FormError message={error} />
         <Button type="submit" loading={busy}>
           {copy.submit}
         </Button>

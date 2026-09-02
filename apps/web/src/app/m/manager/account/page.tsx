@@ -56,7 +56,7 @@ export default function ManagerAccountPage() {
             {customer?.fullName ?? 'Manajer'}
           </div>
           <div className="mt-0.5 truncate text-[12.5px] text-[color:var(--text-muted)]">
-            Manajer depot · {depotName}
+            {t('mgrFix.mMgr.depotManager', { depot: depotName })}
           </div>
         </div>
       </Card>

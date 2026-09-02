@@ -170,7 +170,7 @@ function CheckIn() {
       )}
 
       {error && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm text-red-600">
+        <p role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-red-600">
           <WarningCircle size={16} weight="fill" />
           {error}
         </p>

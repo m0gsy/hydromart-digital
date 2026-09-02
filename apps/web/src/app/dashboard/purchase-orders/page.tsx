@@ -310,11 +310,11 @@ function Body() {
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">
-          PO untuk{' '}
+          {t('opsFix.poDraft.poFor')}{' '}
           <strong className="text-[color:var(--text)]">
             {scopedDepot.name} · {scopedDepot.code}
           </strong>{' '}
-          (dari switcher).
+          {t('opsFix.poDraft.fromSwitcher')}
         </p>
       )}
 

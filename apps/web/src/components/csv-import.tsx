@@ -245,9 +245,7 @@ export function CsvImport({
 
     const kind = classifyImportFile(file.name);
     if (kind === 'legacy') {
-      setFileError(
-        'Format lama (.xls / .ods) tidak bisa dibaca. Buka filenya, lalu "Save As" → Excel Workbook (.xlsx).',
-      );
+      setFileError(t('opsFix.import.legacyFormat'));
       return;
     }
     if (kind === 'unsupported') {
@@ -261,7 +259,7 @@ export function CsvImport({
         kind === 'spreadsheet' ? await parseXlsxRecords(file) : parseCsvRecords(await file.text());
     } catch {
       // A file with the right extension can still be corrupt or password-protected.
-      setFileError('File tidak bisa dibaca. Pastikan tidak rusak atau terkunci password.');
+      setFileError(t('opsFix.import.unreadableFile'));
       return;
     }
 
@@ -340,19 +338,31 @@ export function CsvImport({
         <div className="flex flex-wrap items-center gap-2.5">
           <Button variant="secondary" onClick={downloadTemplate}>
             <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadTemplate')}</Button>
-          <label className="inline-flex">
+          {/*
+           * `sr-only`, not `hidden`.
+           *
+           * The input carried `className="hidden"`, which is `display:none` — and a
+           * display:none control is not in the tab order at all. The `<span>` beside it
+           * never was either, so on EVERY bulk-import screen the only way to choose a file
+           * was a mouse: a keyboard tabbed straight from "Unduh template" past the picker.
+           * `sr-only` hides it just as completely and keeps the tab stop, the same way
+           * `resellers/reseller-photo.tsx` already hides its own. `focus-within` on the
+           * label then draws the ring, because the tab stop is a child of it and nothing
+           * would otherwise show where the focus went.
+           */}
+          <label className="inline-flex rounded-lg focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
             <input
               type="file"
               accept=".xlsx,.xlsm,.csv,text/csv"
               onChange={onPick}
-              className="hidden"
+              className="sr-only"
             />
             <span className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white">
               <UploadSimple size={16} weight="bold" />{t('opsFix.import.pickFile')}</span>
           </label>
         </div>
         <p className="text-[12.5px] text-muted">
-          Terima .xlsx dan .csv. Maksimal {MAX_IMPORT_ROWS} baris. Kolom wajib:{' '}
+          {t('opsFix.import.accepts', { max: MAX_IMPORT_ROWS })}{' '}
           {columns
             .filter((c) => c.required)
             .map((c) => c.key)

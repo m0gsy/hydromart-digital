@@ -5,7 +5,7 @@ import { UserCircle } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, Field, Input, Money } from '@/components/ui';
+import { Button, Card, Field, FormError, Input, Money } from '@/components/ui';
 import { Sheet } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -131,7 +131,7 @@ export default function HqCustomersPage() {
         </Button>
       </form>
 
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      <FormError message={error} />
 
       {!customer && !error && <p className="py-4 text-center text-sm text-muted">{t('hq.customers.prompt')}</p>}
 

@@ -209,7 +209,9 @@ export default function ApprovalDetailPage() {
             disabled={busy !== null}
             className="flex-1 rounded-xl border border-red-200 py-3 text-sm font-extrabold text-red-600 disabled:opacity-60"
           >
-            {busy === 'REJECT' ? 'Memproses…' : 'Tolak'}
+            {busy === 'REJECT'
+              ? t('hrFix.approvalDetail.deciding')
+              : t('hrFix.approvalDetail.reject')}
           </button>
           <button
             type="button"
@@ -217,12 +219,18 @@ export default function ApprovalDetailPage() {
             disabled={busy !== null}
             className="flex-1 rounded-xl bg-brand-600 py-3 text-sm font-extrabold text-on-brand disabled:opacity-60"
           >
-            {busy === 'APPROVE' ? 'Memproses…' : 'Setujui'}
+            {busy === 'APPROVE'
+              ? t('hrFix.approvalDetail.deciding')
+              : t('hrFix.approvalDetail.approve')}
           </button>
         </footer>
       ) : (
         <footer className="border-t border-app bg-[color:var(--surface)] p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] text-center text-sm text-[color:var(--text-muted)]">
-          Item ini sudah {a.status === 'APPROVED' ? 'disetujui' : 'ditolak'}.
+          {t(
+            a.status === 'APPROVED'
+              ? 'hrFix.approvalDetail.alreadyApproved'
+              : 'hrFix.approvalDetail.alreadyRejected',
+          )}
         </footer>
       )}
     </div>

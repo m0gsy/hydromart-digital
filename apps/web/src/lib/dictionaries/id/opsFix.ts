@@ -6,6 +6,9 @@ export const opsFix = {
     whatsappFormat: "Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.",
   },
   import: {
+    accepts: 'Terima .xlsx dan .csv. Maksimal {max} baris. Kolom wajib:',
+    unreadableFile: 'File tidak bisa dibaca. Pastikan tidak rusak atau terkunci password.',
+    legacyFormat: 'Format lama (.xls / .ods) tidak bisa dibaca. Buka filenya, lalu "Save As" → Excel Workbook (.xlsx).',
     downloadFailedRows: 'Unduh baris gagal',
     downloadProblemRows: 'Unduh baris bermasalah',
     pickFile: 'Pilih file',
@@ -164,6 +167,8 @@ export const opsFix = {
     error: 'Gagal menyimpan titik pesan ulang.',
   },
   poDraft: {
+    fromSwitcher: '(dari switcher).',
+    poFor: 'PO untuk',
     sendToSupplier: "Kirim ke pemasok",
     receive: "Terima → RECEIPT",
     fromForecast: "Buat dari forecast",
@@ -272,6 +277,7 @@ export const opsFix = {
     counterCash: 'Kas konter {amount}',
     counterCashNone: 'Kas konter —',
     dailyTitle: 'Laporan harian · {date}',
+    datePicker: 'Tanggal laporan',
     loadError: 'Gagal memuat laporan.',
     ordersDone: 'Pesanan selesai',
     ordersDoneHint: 'Diproses hari ini',
@@ -367,6 +373,7 @@ export const opsFix = {
     saleSaved: "Penjualan {order} tersimpan.",
     saleVoided: "Penjualan {order} dibatalkan.",
     reload: "Muat ulang",
+    priceUnreadable: "Harga khusus depot tidak terbaca — total memakai harga dasar katalog.",
     subtotal: "Subtotal",
     discount: "Diskon",
     agenPrice: "Harga agen",
@@ -667,6 +674,7 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Sebelumnya seluruhnya hardcoded.
   cashbook: {
+    closeBookAt: 'Tutup buku harian ada di',
     exportExcel: "Ekspor Excel",
     dailyReport: "Laporan harian",
     title: 'Buku kas',

@@ -30,7 +30,12 @@ export default function MyPayrollPage() {
             <Link key={p.id} href={`/hr/me/payroll/detail?id=${p.id}`} className="flex items-center justify-between gap-2 p-4 hover:bg-brand-50">
               <div>
                 <p className="font-semibold tabular-nums">{p.periodMonth}</p>
-                <p className="text-xs text-muted">{p.presentDays} hari · {fmtDate(p.createdAt)}</p>
+                <p className="text-xs text-muted">
+                  {t('hrFix.myPayroll.daysAndDate', {
+                    days: p.presentDays,
+                    date: fmtDate(p.createdAt),
+                  })}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Money amount={Number(p.net)} className="font-bold" />

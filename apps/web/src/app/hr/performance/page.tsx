@@ -170,9 +170,12 @@ function PerformanceInner() {
               </Button>
               {computed?.score.final != null && (
                 <p className="w-full text-xs text-muted">
-                  Terukur: absensi {computed.score.attendance ?? '—'} · disiplin{' '}
-                  {computed.score.discipline ?? '—'} · penjualan {computed.score.sales ?? '—'} · akhir{' '}
-                  {computed.score.final}. Komponen yang tidak terukur tidak ikut dihitung.
+                  {t('hrFix.performance.measured', {
+                    attendance: computed.score.attendance ?? '—',
+                    discipline: computed.score.discipline ?? '—',
+                    sales: computed.score.sales ?? '—',
+                    final: computed.score.final,
+                  })}
                 </p>
               )}
             </Card>
@@ -279,8 +282,12 @@ function ScoreDashboard({
                   <td className="py-2">
                     <span className="font-medium">{r.fullName}</span>
                     <span className="block text-xs text-muted">
-                      {r.employeeCode} · {r.position} · {r.inputs.presentDays}/
-                      {r.inputs.workingDays} hari, {r.inputs.lateDays}× terlambat
+                      {r.employeeCode} · {r.position} ·{' '}
+                      {t('hrFix.performance.rowDays', {
+                        present: r.inputs.presentDays,
+                        working: r.inputs.workingDays,
+                        late: r.inputs.lateDays,
+                      })}
                     </span>
                   </td>
                   <td className="py-2 text-right tabular-nums">{fmtScore(r.score.attendance)}</td>

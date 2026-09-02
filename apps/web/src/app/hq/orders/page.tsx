@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ClipboardText } from '@phosphor-icons/react';
@@ -121,8 +122,22 @@ export default function HqOrdersPage() {
                   onClick={() => router.push(`/hq/orders/detail?id=${o.id}`)}
                 >
                   <td className="px-4 py-3">
-                    <span className="block font-mono text-xs">{o.orderNumber}</span>
-                    <span className="block text-xs text-muted">{formatDateTime(o.createdAt)}</span>
+                    {/*
+                     * The row's `onClick` is a mouse convenience and nothing else — a
+                     * `<tr>` has no tab stop, so before this link the ONLY way to open a
+                     * network order was to click it. The order number is the row's name,
+                     * so it is what carries the link; `stopPropagation` keeps the row
+                     * handler from navigating a second time behind it, the same guard the
+                     * assign cell below already uses.
+                     */}
+                    <Link
+                      href={`/hq/orders/detail?id=${o.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    >
+                      <span className="block font-mono text-xs">{o.orderNumber}</span>
+                      <span className="block text-xs text-muted">{formatDateTime(o.createdAt)}</span>
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <span className="block font-medium">{o.recipientName}</span>
