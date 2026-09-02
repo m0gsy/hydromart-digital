@@ -35,12 +35,79 @@ const HEALTH = {
   total: 1,
 };
 
+/*
+ * CA-5-01. The four states the seventeen scheduled sweeps can be in, and the fourth is the
+ * one that used to be invisible: a job that has NEVER reported. The old per-job marker
+ * files could not express it — an absent file and a job with nothing to do looked
+ * identical — and the container healthcheck read one shared file as a single yes/no for all
+ * seventeen at once.
+ */
+const SWEEPS = [
+  {
+    job: 'webhooks/deliveries/process',
+    label: 'Webhook mitra',
+    everyMinutes: 5,
+    verdict: 'NEVER_RAN',
+    dormantReason: null,
+    lastRunAt: null,
+    lastOkAt: null,
+    ok: null,
+    detail: null,
+    consecutiveFailures: 0,
+    host: null,
+    overdueAfterMinutes: 15,
+  },
+  {
+    job: 'orders/outbox/internal/process',
+    label: 'Efek pesanan tertunda',
+    everyMinutes: 10,
+    verdict: 'FAILING',
+    dormantReason: null,
+    lastRunAt: new Date(Date.now() - 60_000).toISOString(),
+    lastOkAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    ok: false,
+    detail: 'ronde mati: 0 dari 40 berhasil',
+    consecutiveFailures: 12,
+    host: 'order:3004',
+    overdueAfterMinutes: 25,
+  },
+  {
+    job: 'subscriptions/process-due',
+    label: 'Langganan jatuh tempo',
+    everyMinutes: 60,
+    verdict: 'OK',
+    dormantReason: null,
+    lastRunAt: new Date(Date.now() - 120_000).toISOString(),
+    lastOkAt: new Date(Date.now() - 120_000).toISOString(),
+    ok: true,
+    detail: null,
+    consecutiveFailures: 0,
+    host: 'order:3004',
+    overdueAfterMinutes: 125,
+  },
+  {
+    job: 'loyalty/internal/expire',
+    label: 'Kedaluwarsa poin',
+    everyMinutes: 1440,
+    verdict: 'DORMANT',
+    dormantReason: 'Sengaja dimatikan (keputusan pemilik 2 September 2026).',
+    lastRunAt: new Date(Date.now() - 3600_000).toISOString(),
+    lastOkAt: null,
+    ok: true,
+    detail: null,
+    consecutiveFailures: 0,
+    host: 'loyalty:3010',
+    overdueAfterMinutes: 2885,
+  },
+];
+
 beforeEach(() => {
   toast.mockReset();
   post.mockReset().mockResolvedValue({ delivered: 4, failed: 1, ingested: 120 });
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
     if (p.includes('/outbox/pending')) return Promise.resolve({ PENDING: 7, DONE: 900, DEAD: 2 });
+    if (p.includes('/sweeps')) return Promise.resolve(SWEEPS);
     return Promise.resolve(HEALTH);
   });
 });
@@ -98,5 +165,48 @@ describe('/hq/health · read-model backfills', () => {
     // `/recommendations/`, plural — the gateway maps that segment, and the singular form
     // resolves to no route at all. It was written singular first.
     expect(String(post.mock.calls[0]![0])).toContain('/recommendations/api/v1/');
+  });
+});
+
+/*
+ * CA-5-01 — seventeen scheduled sweeps that ran with nobody watching.
+ *
+ * Measured on the dev box the day this shipped: FailingStreak 1472, every sweep failing for
+ * ~25 hours, and two jobs with no marker file of EITHER kind. Learning any of it needed
+ * `docker inspect`.
+ */
+describe('/hq/health · the scheduled sweeps (CA-5-01)', () => {
+  it('names a sweep that has never run, rather than leaving it out', async () => {
+    open();
+    expect(await screen.findByText('Webhook mitra')).toBeTruthy();
+    expect(await screen.findByText('Belum pernah jalan')).toBeTruthy();
+  });
+
+  it('shows "last run" and "last succeeded" as different answers', async () => {
+    open();
+    // The shape the old shared heartbeat rendered as perfectly healthy: ran a minute ago,
+    // last actually worked three days ago.
+    expect(await screen.findByText('1 menit lalu')).toBeTruthy();
+    expect(await screen.findByText('3 hari lalu')).toBeTruthy();
+  });
+
+  it('counts the failing streak and quotes what the round said', async () => {
+    open();
+    expect(await screen.findByText('12 kali gagal berturut-turut')).toBeTruthy();
+    expect(await screen.findByText(/ronde mati/)).toBeTruthy();
+  });
+
+  it('says a deliberately-off sweep is off, and why', async () => {
+    open();
+    expect(await screen.findByText('Sengaja dimatikan')).toBeTruthy();
+    // Without the reason the quiet row reads as a fault — and "fixing" this particular one
+    // writes permanently to every customer's points balance.
+    expect(await screen.findByText(/keputusan pemilik/)).toBeTruthy();
+  });
+
+  it('counts the broken ones in the header, and does not count the dormant one', async () => {
+    open();
+    // 2 of 4: NEVER_RAN and FAILING. OK and DORMANT are not problems.
+    expect(await screen.findByText('2 dari 4 sapuan bermasalah')).toBeTruthy();
   });
 });
