@@ -54,6 +54,7 @@ const E2E_DEPOT = {
 describe('Order HTTP flows (e2e)', () => {
   let app: INestApplication;
   let customerToken: string;
+  const STAFF_DEPOT = '00000000-0000-4000-8000-0000000000d1';
   let staffToken: string;
   // HQ actor: a bypass role for the by-id depot guard, so it can drive an unrouted
   // order (this e2e's ADDRESS has no coords, so orders never resolve a depot).
@@ -152,8 +153,15 @@ describe('Order HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    /*
+     * A MANAGER token carries a depot in production — auth-service always issues one —
+     * and a depot-scoped role WITHOUT one is refused deliberately by depotScopeIds
+     * ("Akun ini belum diberi tanggung jawab depot manapun"). Reports are depot-scoped
+     * now, so this fixture has to be the shape the real token is, or it tests a token
+     * that cannot exist.
+     */
     staffToken = jwt.sign(
-      { sub: randomUUID(), role: Role.MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: STAFF_DEPOT },
       { secret },
     );
     adminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
