@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import { ToastProvider } from '@/components/toast';
 import { OrderDetail } from '@/components/dashboard/order-detail';
@@ -52,7 +53,9 @@ const draw = (order: Order) =>
   render(
     <LocaleProvider>
       <ToastProvider>
-        <OrderDetail order={order} onClose={() => {}} onChanged={() => {}} />
+        <ConfirmProvider>
+          <OrderDetail order={order} onClose={() => {}} onChanged={() => {}} />
+        </ConfirmProvider>
       </ToastProvider>
     </LocaleProvider>,
   );

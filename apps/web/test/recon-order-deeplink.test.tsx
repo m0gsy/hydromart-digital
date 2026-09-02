@@ -27,6 +27,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { LocaleProvider } from '@/lib/locale-context';
+import { ConfirmProvider } from '@/components/confirm';
 import { ToastProvider } from '@/components/toast';
 import OrdersQueuePage from '@/app/dashboard/orders/page';
 
@@ -68,7 +69,9 @@ const view = () =>
   render(
     <LocaleProvider>
       <ToastProvider>
-        <OrdersQueuePage />
+        <ConfirmProvider>
+          <OrdersQueuePage />
+        </ConfirmProvider>
       </ToastProvider>
     </LocaleProvider>,
   );
