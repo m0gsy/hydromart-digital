@@ -12,7 +12,7 @@ import { useT } from '@/lib/locale-context';
 import { useEffectiveCapabilities, type CapabilityHolders } from '@/lib/use-effective-capabilities';
 
 // Full rail size (every ready surface) — the denominator for the visible/total counter.
-const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
+const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).length;
 
 const ROLES: Role[] = [
   'SUPER_ADMIN',

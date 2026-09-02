@@ -28,7 +28,7 @@ const hrefs = (role: string) => hqItemsForRole(role).map((i) => i.href);
 
 describe('HQ nav per role', () => {
   it('offers a super admin every ready screen', () => {
-    const ready = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
+    const ready = HQ_GROUPS.flatMap((g) => g.items).length;
     expect(hqItemsForRole('SUPER_ADMIN')).toHaveLength(ready);
   });
 

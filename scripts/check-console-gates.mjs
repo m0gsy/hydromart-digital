@@ -51,8 +51,10 @@ const ARROW_WRAP = new RegExp('=>' + String.fromCharCode(92) + 's*' + String.fro
 function railItems() {
   const text = readFileSync(RAIL, 'utf8');
   const items = [];
+  // `cap` is required by the type as of step 07b, so "ungated" is now a compile error
+  // rather than a number this script counts. The count stays because a text scan cannot
+  // know that, and because a zero that is checked is worth more than one that is assumed.
   for (const m of text.matchAll(/\{\s*href: '([^']+)',\s*labelKey: '([^']+)'[^}]*\}/g)) {
-    if (!/ready: true/.test(m[0])) continue;
     items.push({ href: m[1], cap: /cap: '([^']+)'/.exec(m[0])?.[1] ?? null });
   }
   return items;

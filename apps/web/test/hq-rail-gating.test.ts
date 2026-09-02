@@ -147,7 +147,7 @@ describe('capForHqPath', () => {
   it('gives every gated rail item a page rule, and both agree', async () => {
     const { capForHqPath, HQ_GROUPS } = await import('@/lib/hq-nav');
     for (const item of HQ_GROUPS.flatMap((g) => g.items)) {
-      if (!item.ready || !item.cap) continue;
+
       // If these two ever disagree, the rail hides a link whose page still opens.
       expect(capForHqPath(item.href)).toBe(item.cap);
     }
