@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { SquaresFour } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
+import { Drop } from '@phosphor-icons/react';
+
+import { HQ_ICONS } from '@/components/hq/hq-rail';
 import { hqGroupsForRole } from '@/lib/hq-nav';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -35,7 +38,7 @@ export default function HqSitemapPage() {
               {t(`hq.groups.${g.headKey}`)}
             </p>
             {g.items.map((i) => {
-              const Ic = i.icon;
+              const Ic = HQ_ICONS[i.href] ?? Drop;
               return (
                 <Link
                   key={i.href}

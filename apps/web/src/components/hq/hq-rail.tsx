@@ -2,7 +2,67 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Drop, ShieldCheck, Sun, Moon, Command } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import {
+  Archive,
+  ArrowsClockwise,
+  Article,
+  Bell,
+  Broadcast,
+  Buildings,
+  CalendarCheck,
+  ChartBar,
+  ChartLineUp,
+  ChatCircleDots,
+  ClipboardText,
+  ClockCounterClockwise,
+  Command,
+  Crown,
+  Drop,
+  Export,
+  FileArrowDown,
+  FileText,
+  Flag,
+  Gauge,
+  Handshake,
+  Heartbeat,
+  IdentificationBadge,
+  ImageIcon,
+  Invoice,
+  Key,
+  ListChecks,
+  Lock,
+  MagnifyingGlass,
+  Megaphone,
+  Moon,
+  Package,
+  Percent,
+  Plugs,
+  Receipt,
+  Recycle,
+  Scales,
+  ShieldCheck,
+  ShieldWarning,
+  SlidersHorizontal,
+  Sparkle,
+  SquaresFour,
+  Storefront,
+  Sun,
+  Tag,
+  Ticket,
+  Timer,
+  Translate,
+  TreeStructure,
+  TrendUp,
+  Trophy,
+  Truck,
+  UploadSimple,
+  UserCircle,
+  UserGear,
+  UsersThree,
+  Wallet,
+  WarningOctagon,
+} from '@phosphor-icons/react';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { hqGroupsForRole } from '@/lib/hq-nav';
@@ -15,6 +75,80 @@ import { useTheme } from '@/lib/theme-context';
 // Paired with the same literal in command-palette.tsx.
 const HQ_COMMAND_EVENT = 'hq:command-open';
 
+
+/**
+ * The picture for each door.
+ *
+ * Kept OUT of `lib/hq-nav.ts` and here, with the component that draws it. The model moved
+ * to `lib` so `roles.ts` could answer "where does this role land" from the same table — and
+ * `roles.ts` is imported by nearly every page, so the fifty-five console icons travelled
+ * with it into the customer bundle. Measured by the Lighthouse ratchet: /products grew
+ * 19KB and /login 23KB for a table neither page renders. An icon is a view detail; the
+ * href and the capability are the model.
+ */
+export const HQ_ICONS: Record<string, Icon> = {
+  '/hq': ChartLineUp,
+  '/hq/search': MagnifyingGlass,
+  '/hq/access': ShieldCheck,
+  '/hq/depots': Storefront,
+  '/hq/hierarchy': TreeStructure,
+  '/dashboard': Gauge,
+  '/hq/staff': UserGear,
+  '/hr': UsersThree,
+  '/hq/applications': FileText,
+  '/hq/franchise': Buildings,
+  '/hq/payments': Wallet,
+  '/hq/pricing': Tag,
+  '/hq/vouchers': Ticket,
+  '/hq/refunds': Receipt,
+  '/hq/reconciliation': Scales,
+  '/hq/reports/export': Export,
+  '/hq/tax': Invoice,
+  '/hq/inventory': Package,
+  '/hq/returns': Recycle,
+  '/hq/roster': Truck,
+  '/hq/orders': ClipboardText,
+  '/hq/notifications': Bell,
+  '/hq/analytics': TrendUp,
+  '/hq/scorecard': Trophy,
+  '/hq/compare': ChartBar,
+  '/hq/forecast': ChartLineUp,
+  '/hq/churn': UsersThree,
+  '/hq/campaigns': Megaphone,
+  '/hq/promotions': ImageIcon,
+  '/hq/customers': UserCircle,
+  '/resellers': Handshake,
+  '/hq/catalog': Package,
+  '/hq/loyalty': Crown,
+  '/hq/subscriptions': ArrowsClockwise,
+  '/hq/forms/pricing-rule': SlidersHorizontal,
+  '/hq/forms/voucher': Ticket,
+  '/hq/forms/commission': Percent,
+  '/hq/forms/segment': UsersThree,
+  '/hq/staff/import': UploadSimple,
+  '/hq/broadcast': Broadcast,
+  '/hq/incidents': WarningOctagon,
+  '/hq/tickets': ChatCircleDots,
+  '/hq/fraud': ShieldWarning,
+  '/hq/scheduled-reports': CalendarCheck,
+  '/hq/onboarding': ListChecks,
+  '/hq/audit': ClockCounterClockwise,
+  '/hq/flags': Flag,
+  '/hq/health': Heartbeat,
+  '/hq/exports': FileArrowDown,
+  '/hq/api-keys': Key,
+  '/hq/webhooks': Plugs,
+  '/hq/sla-policy': Timer,
+  '/hq/forecast-models': ChartLineUp,
+  '/hq/retention': Archive,
+  '/hq/pdp': ShieldCheck,
+  '/hq/security': Lock,
+  '/hq/profile': IdentificationBadge,
+  '/hq/wizard': Sparkle,
+  '/hq/invoice-template': Article,
+  '/hq/content': Translate,
+  '/hq/sitemap': SquaresFour,
+};
 
 export function HqRail() {
   const { customer } = useAuth();
@@ -51,7 +185,7 @@ export function HqRail() {
               </p>
               {items.map((item) => {
                 const on = isActive(item.href);
-                const Ic = item.icon;
+                const Ic = HQ_ICONS[item.href] ?? Drop;
                 return (
                   <Link
                     key={item.href}
