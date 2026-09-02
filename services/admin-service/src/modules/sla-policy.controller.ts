@@ -11,7 +11,7 @@ import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
 // yet read this policy (cross-service wiring is a later change, not done here).
 @ApiTags('SLA policy')
 @ApiBearerAuth()
-@Can('hqConsole')
+@Can('hqBackOffice')
 @Controller({ path: 'sla-policy', version: '1' })
 export class SlaPolicyController {
   constructor(private readonly policy: SlaPolicyService) {}

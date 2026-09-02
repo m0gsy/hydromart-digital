@@ -26,7 +26,7 @@ import {
 // incident_updates rows.
 @ApiTags('Incidents')
 @ApiBearerAuth()
-@Can('hqConsole')
+@Can('hqBackOffice')
 @Controller({ path: 'incidents', version: '1' })
 export class IncidentsController {
   constructor(private readonly incidents: IncidentService) {}

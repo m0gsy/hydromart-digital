@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 
 /**
  * What each role is actually offered in the HQ console.
@@ -28,7 +28,7 @@ const hrefs = (role: string) => hqItemsForRole(role).map((i) => i.href);
 
 describe('HQ nav per role', () => {
   it('offers a super admin every ready screen', () => {
-    const ready = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
+    const ready = HQ_GROUPS.flatMap((g) => g.items).length;
     expect(hqItemsForRole('SUPER_ADMIN')).toHaveLength(ready);
   });
 

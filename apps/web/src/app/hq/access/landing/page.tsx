@@ -5,14 +5,14 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
 import { type Capability, type Role } from '@hydromart/access';
-import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 
 import { useEffectiveCapabilities, type CapabilityHolders } from '@/lib/use-effective-capabilities';
 
 // Full rail size (every ready surface) — the denominator for the visible/total counter.
-const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
+const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).length;
 
 const ROLES: Role[] = [
   'SUPER_ADMIN',

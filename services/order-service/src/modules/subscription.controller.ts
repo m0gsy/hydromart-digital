@@ -51,7 +51,7 @@ export class SubscriptionController {
   }
 
   @ApiOkResponse({ type: SubscriptionNetworkSummaryResponseDto })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get('admin/summary')
   @ApiOperation({ summary: 'HQ network subscription aggregate (18c)' })
   adminSummary(): Promise<SubscriptionNetworkSummaryView> {

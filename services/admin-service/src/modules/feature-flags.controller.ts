@@ -15,7 +15,7 @@ export class FeatureFlagsController {
   constructor(private readonly flags: FeatureFlagService) {}
 
   @ApiOkResponse({ type: FeatureFlagDto, isArray: true })
-  @Can('hqConsole')
+  @Can('hqBackOffice')
   @Get()
   @ApiOperation({ summary: 'List all feature flags (8b)' })
   async list(): Promise<FeatureFlagDto[]> {

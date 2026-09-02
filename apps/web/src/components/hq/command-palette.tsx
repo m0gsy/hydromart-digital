@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, MagnifyingGlass } from '@phosphor-icons/react';
 
-import { hqItemsForRole } from '@/components/hq/hq-rail';
+import { hqItemsForRole } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 

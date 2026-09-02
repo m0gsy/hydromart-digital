@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { HQ_GROUPS, hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqItemsForRole } from '@/lib/hq-nav';
 
 /*
  * Measured 2026-08-17 by a per-role browser sweep: DIREKTUR reached /hq and then 403'd on
@@ -121,32 +121,109 @@ describe('HQ rail offers a role only what it can use', () => {
  */
 describe('capForHqPath', () => {
   it('answers with the item capability', async () => {
-    const { capForHqPath } = await import('@/components/hq/hq-rail');
+    const { capForHqPath } = await import('@/lib/hq-nav');
     expect(capForHqPath('/hq/api-keys')).toBe('platformAdmin');
     expect(capForHqPath('/hq/roster')).toBe('driverRoster');
   });
 
   it('carries the gate down to a detail screen', async () => {
-    const { capForHqPath } = await import('@/components/hq/hq-rail');
+    const { capForHqPath } = await import('@/lib/hq-nav');
     // /hq/depots/detail is not its own rail row; it inherits its parent's rule rather
     // than being the one unguarded way into depot data.
     expect(capForHqPath('/hq/staff/import')).toBe('staffAdmin');
     expect(capForHqPath('/hq/tax/anything/deeper')).toBe('taxSettings');
   });
 
-  it('is null where the console gate is the whole rule', async () => {
-    const { capForHqPath } = await import('@/components/hq/hq-rail');
-    expect(capForHqPath('/hq')).toBeNull();
+  it('is null only where no rail row claims the path', async () => {
+    const { capForHqPath } = await import('@/lib/hq-nav');
     expect(capForHqPath(null)).toBeNull();
     expect(capForHqPath('/somewhere/else')).toBeNull();
+    // `/hq` itself is NOT one of those: the overview is a `dashboard` screen — every number
+    // on it comes from `dashboard/executive` — so a console role without that capability is
+    // refused it, and lands on its own first door instead (see `consoleHome`).
+    expect(capForHqPath('/hq')).toBe('dashboard');
   });
 
   it('gives every gated rail item a page rule, and both agree', async () => {
-    const { capForHqPath, HQ_GROUPS } = await import('@/components/hq/hq-rail');
+    const { capForHqPath, HQ_GROUPS } = await import('@/lib/hq-nav');
     for (const item of HQ_GROUPS.flatMap((g) => g.items)) {
-      if (!item.ready || !item.cap) continue;
+
       // If these two ever disagree, the rail hides a link whose page still opens.
       expect(capForHqPath(item.href)).toBe(item.cap);
     }
+  });
+});
+
+/*
+ * The owner's decision of 2 September 2026, and the measurement behind it.
+ *
+ * Seven of FINANCE's nineteen capabilities have screens ONLY under /hq — and three of them
+ * (`refundQueue`, `hqPayout`, `commissionRuns`) are held by FINANCE and SUPER_ADMIN and
+ * nobody else. With no door, approving a refund, paying a withdrawal and running
+ * commissions were jobs only the superuser account could do. FINANCE now holds `hqConsole`.
+ *
+ * These tests are the shape of that grant: what it opens, and — the part that took the
+ * work — what it does NOT.
+ */
+describe('FINANCE at the /hq door', () => {
+  const hrefsOf = (role: string) => hqItemsForRole(role).map((i) => i.href);
+
+  it('opens the money screens it holds the capability for', async () => {
+    const { isHq } = await import('@/lib/roles');
+    expect(isHq('FINANCE')).toBe(true);
+    const finance = hrefsOf('FINANCE');
+    for (const href of [
+      '/hq/payments',
+      '/hq/refunds',
+      '/hq/franchise',
+      '/hq/reconciliation',
+      '/hq/forms/commission',
+      '/hq/tax',
+      '/hq/invoice-template',
+    ]) {
+      expect(finance).toContain(href);
+    }
+  });
+
+  it('does not come with the back office attached', () => {
+    const finance = hrefsOf('FINANCE');
+    /*
+     * `hqConsole` used to be the door AND the capability on thirteen back-office
+     * controllers — the SLA policy PUT, the incident POST, support tickets, feature flags,
+     * the audit trail. Letting a fourth role through the door would have handed it all of
+     * that as a side effect. Those routes are `hqBackOffice` now.
+     */
+    for (const href of [
+      '/hq/health',
+      '/hq/incidents',
+      '/hq/tickets',
+      '/hq/scheduled-reports',
+      '/hq/exports',
+      '/hq/audit',
+      '/hq/subscriptions',
+    ]) {
+      expect(finance).not.toContain(href);
+    }
+    // Nor the rest of the console: depots, staff, catalogue, the executive dashboard.
+    for (const href of ['/hq', '/hq/depots', '/hq/staff', '/hq/catalog', '/hq/analytics']) {
+      expect(finance).not.toContain(href);
+    }
+  });
+
+  it('lands somewhere it can actually read', async () => {
+    const { consoleHome } = await import('@/lib/roles');
+    // `/hq` is the `dashboard` overview, which FINANCE cannot read — sending it there would
+    // put a full-page error in front of it on every sign-in.
+    const home = consoleHome('FINANCE', false);
+    expect(home).not.toBe('/hq');
+    expect(hrefsOf('FINANCE')).toContain(home);
+    // Head office is unmoved.
+    expect(consoleHome('HEAD_OFFICE', false)).toBe('/hq');
+  });
+
+  it('leaves MARKETING where it was — outside the door, in its own console', async () => {
+    const { isHq, consoleHome } = await import('@/lib/roles');
+    expect(isHq('MARKETING')).toBe(false);
+    expect(consoleHome('MARKETING', false)).toBe('/dashboard/campaigns');
   });
 });

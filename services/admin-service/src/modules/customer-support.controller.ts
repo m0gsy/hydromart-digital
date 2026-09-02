@@ -17,7 +17,7 @@ import { RaiseComplaintDto, SupportTicketDto } from './dto/support-ticket.dto';
  * customer on a page with nothing on it that reaches a person.
  *
  * A separate controller on its own path rather than two more routes on the staff one:
- * that class carries `@Can('hqConsole')` for every route in it and a `GET :id` that would
+ * that class carries `@Can('hqBackOffice')` for every route in it and a `GET :id` that would
  * shadow anything added beside it. Two audiences, two doors.
  *
  * Signed-in only, and that is a decision rather than an oversight. An unauthenticated

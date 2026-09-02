@@ -9,7 +9,7 @@ import { SystemHealthDto } from './dto/system-health.dto';
 // Design 13b — aggregate system health. Head-office + super-admin oversight.
 @ApiTags('System health')
 @ApiBearerAuth()
-@Can('hqConsole')
+@Can('hqBackOffice')
 @Controller({ path: 'system-health', version: '1' })
 export class SystemHealthController {
   constructor(private readonly health: SystemHealthService) {}
