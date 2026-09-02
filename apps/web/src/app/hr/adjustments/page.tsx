@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { useT } from '@/lib/locale-context';
 import { Button, Card, Input, LinkButton, Money, SectionHeader } from '@/components/ui';
@@ -24,6 +25,7 @@ type Kind = 'bonus' | 'deduction';
 export default function AdjustmentsPage() {
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { askReason } = useConfirm();
   const { t } = useT();
   const isAdmin = canManageHr(customer?.role);
 
@@ -80,6 +82,37 @@ export default function AdjustmentsPage() {
 
   const types = kind === 'bonus' ? BONUS_TYPES : DEDUCTION_TYPES;
 
+  /*
+   * CA-1-09 — undo a typo.
+   *
+   * Deleting is not editing: an adjustment that has already entered an APPROVED payroll is
+   * refused by the server, so this is only ever the "typed it wrong a minute ago" path.
+   * Behind `askReason` because the money moves either way and the reason is what the next
+   * person reads on the audit row.
+   */
+  const removeAdjustment = async (row: { id: string }, which: Kind) => {
+    const reason = await askReason({
+      title: t('hrFix.adjustments.remove'),
+      message: t('hrFix.adjustments.removeConfirm'),
+      label: t('hrFix.adjustments.note'),
+      tone: 'danger',
+    });
+    if (reason === null) return;
+    setBusy(true);
+    try {
+      const path =
+        which === 'bonus'
+          ? endpoints.hr.deleteBonus(row.id)
+          : endpoints.hr.deleteDeduction(row.id);
+      await api.del(path, true);
+      await load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.adjustments.removeError'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader
@@ -107,13 +140,31 @@ export default function AdjustmentsPage() {
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-green-700">{t('hrFix.adjustments.bonus')}</h3>
               {bonuses.length === 0 ? <p className="text-sm text-muted">—</p> : bonuses.map((b) => (
-                <div key={b.id} className="flex justify-between py-1 text-sm"><span>{b.type}{b.note ? ` · ${b.note}` : ''} <span className="text-muted">· {fmtDate(b.createdAt)}</span></span><Money amount={Number(b.amount)} /></div>
+                <div key={b.id} className="flex justify-between py-1 text-sm"><span>{b.type}{b.note ? ` · ${b.note}` : ''} <span className="text-muted">· {fmtDate(b.createdAt)}</span></span><span className="flex items-center"><Money amount={Number(b.amount)} />{isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => void removeAdjustment(b, 'bonus')}
+                      disabled={busy}
+                      className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                    >
+                      {t('hrFix.adjustments.remove')}
+                    </button>
+                  )}</span></div>
               ))}
             </Card>
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-red-700">{t('hrFix.adjustments.deduction')}</h3>
               {deductions.length === 0 ? <p className="text-sm text-muted">—</p> : deductions.map((d) => (
-                <div key={d.id} className="flex justify-between py-1 text-sm"><span>{d.type}{d.note ? ` · ${d.note}` : ''} <span className="text-muted">· {fmtDate(d.createdAt)}</span></span><Money amount={Number(d.amount)} /></div>
+                <div key={d.id} className="flex justify-between py-1 text-sm"><span>{d.type}{d.note ? ` · ${d.note}` : ''} <span className="text-muted">· {fmtDate(d.createdAt)}</span></span><span className="flex items-center"><Money amount={Number(d.amount)} />{isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => void removeAdjustment(d, 'deduction')}
+                      disabled={busy}
+                      className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                    >
+                      {t('hrFix.adjustments.remove')}
+                    </button>
+                  )}</span></div>
               ))}
             </Card>
           </div>

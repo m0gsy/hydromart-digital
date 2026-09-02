@@ -140,9 +140,15 @@ hr: {
   bonuses: (employeeId: string, periodMonth: string) =>
     `/bonuses/api/v1/bonuses?employeeId=${encodeURIComponent(employeeId)}&periodMonth=${encodeURIComponent(periodMonth)}`,
   createBonus: '/bonuses/api/v1/bonuses',
+  /*
+   * CA-1-09. Both DELETE routes existed and no screen called either, so a bonus typed with
+   * an extra zero could only be undone with SQL — and it entered the next payroll meanwhile.
+   */
+  deleteBonus: (id: string) => `/bonuses/api/v1/bonuses/${encodeURIComponent(id)}`,
   deductions: (employeeId: string, periodMonth: string) =>
     `/deductions/api/v1/deductions?employeeId=${encodeURIComponent(employeeId)}&periodMonth=${encodeURIComponent(periodMonth)}`,
   createDeduction: '/deductions/api/v1/deductions',
+  deleteDeduction: (id: string) => `/deductions/api/v1/deductions/${encodeURIComponent(id)}`,
   performance: (employeeId: string) =>
     `/performance/api/v1/performance?employeeId=${encodeURIComponent(employeeId)}`,
   createPerformance: '/performance/api/v1/performance',
