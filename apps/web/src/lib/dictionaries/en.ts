@@ -189,6 +189,8 @@ export const en: Dictionary = {
   },
   common: {
     confirm: 'Confirm',
+    confirmTitle: 'Confirm this action',
+    reason: 'Reason',
     cancel: 'Cancel',
     close: 'Close',
     done: 'Done',

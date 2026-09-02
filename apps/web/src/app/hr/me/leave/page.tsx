@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import {
   Badge,
@@ -42,6 +43,7 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
 export default function MyLeavePage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [type, setType] = useState<LeaveType>('ANNUAL');
   const [startDate, setStart] = useState('');
   const [endDate, setEnd] = useState('');
@@ -87,6 +89,14 @@ export default function MyLeavePage() {
   }
 
   async function cancel(id: string) {
+    // CA-1-15: cancelling withdraws the request from the approver's queue; re-filing it
+    // means starting the approval chain over, and the dates may no longer be free.
+    const ok = await confirm({
+      title: t('hrFix.myLeave.cancel'),
+      message: t('hrFix.myLeave.cancelConfirm'),
+      confirmLabel: t('hrFix.myLeave.cancel'),
+    });
+    if (!ok) return;
     try {
       await api.patch(endpoints.hr.cancelLeave(id), {}, true);
       toast(t('hrFix.myLeave.cancelled'));
@@ -174,7 +184,7 @@ export default function MyLeavePage() {
               )}
               {(r.status === 'PENDING_MANAGER' || r.status === 'PENDING_HR') && (
                 <Button variant="secondary" onClick={() => cancel(r.id)}>
-                  Batalkan
+                  {t('hrFix.myLeave.cancel')}
                 </Button>
               )}
             </div>

@@ -33,6 +33,26 @@ export class CapabilityOverridePrismaRepository implements CapabilityOverrideRep
     });
   }
 
+  async applyAll(
+    changes: { capability: string; roles: Role[] | null }[],
+    updatedBy: string | null,
+  ): Promise<void> {
+    if (changes.length === 0) return;
+    await this.prisma.$transaction(
+      changes.map((c) => {
+        if (c.roles === null) {
+          return this.prisma.capabilityOverride.deleteMany({ where: { capability: c.capability } });
+        }
+        const value = c.roles as unknown as PrismaRole[];
+        return this.prisma.capabilityOverride.upsert({
+          where: { capability: c.capability },
+          create: { capability: c.capability, roles: value, updatedBy },
+          update: { roles: value, updatedBy },
+        });
+      }),
+    );
+  }
+
   async remove(capability: string): Promise<void> {
     // deleteMany, not delete: resetting a capability that was never overridden is a
     // no-op, not a 404 — the caller asked for "back to default" and that is the state.

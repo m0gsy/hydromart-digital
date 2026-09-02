@@ -39,7 +39,12 @@ auth: {
   // RBAC matrix (F2): read the effective map, retune or reset one capability. Writes
   // are accessMatrixWrite (super-admin by default) and reach the guards within a TTL.
   matrix: '/auth/api/v1/access/matrix',
-  capability: (name: string) => `/auth/api/v1/access/matrix/${encodeURIComponent(name)}`,
+  // Every changed capability in ONE transaction. This used to be a per-capability
+  // `PUT /access/matrix/:capability` that the editor called in a loop, which left the
+  // matrix half applied when one call failed. Those single-capability routes still exist
+  // and are still exercised by `scripts/f6-dynamic-matrix.mjs`; nothing in the app calls
+  // them any more, so the client entry is gone with the loop.
+  capabilityBatch: '/auth/api/v1/access/matrix',
   // Current user's active device sessions (19b) + revoke one by id.
   sessions: '/auth/api/v1/sessions',
   revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,

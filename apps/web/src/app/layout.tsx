@@ -7,6 +7,7 @@ import { LocaleSync } from '@/components/locale-sync';
 import { NativeBridge } from '@/components/native-bridge';
 import { PushForeground } from '@/components/push-foreground';
 import { SentryInit } from '@/components/sentry-init';
+import { ConfirmProvider } from '@/components/confirm';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
@@ -115,18 +116,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LocaleProvider>
             <AuthProvider>
               <ToastProvider>
-                {/* K5.3: a device that has never been asked adopts the person's stored
-                    language. Inside both providers it needs; app-wide, because the
-                    adoption used to live on /account and fired nowhere else. */}
-                <LocaleSync />
-                {/* Needs the toast, so it cannot live in NativeBridge above. */}
-                <PushForeground />
-                {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank
-                    — the SDK is not even downloaded in that case. */}
-                <SentryInit />
-                {/* Shop chrome vs. bare console — the cart/location providers ride the
-                    shop branch, so consoles never fetch a cart. */}
-                <AppShell>{children}</AppShell>
+                {/* Destructive actions ask before they act, from any screen, in one
+                    line — see components/confirm.tsx. */}
+                <ConfirmProvider>
+                  {/* K5.3: a device that has never been asked adopts the person's stored
+                      language. Inside both providers it needs; app-wide, because the
+                      adoption used to live on /account and fired nowhere else. */}
+                  <LocaleSync />
+                  {/* Needs the toast, so it cannot live in NativeBridge above. */}
+                  <PushForeground />
+                  {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank
+                      — the SDK is not even downloaded in that case. */}
+                  <SentryInit />
+                  {/* Shop chrome vs. bare console — the cart/location providers ride the
+                      shop branch, so consoles never fetch a cart. */}
+                  <AppShell>{children}</AppShell>
+                </ConfirmProvider>
               </ToastProvider>
             </AuthProvider>
           </LocaleProvider>

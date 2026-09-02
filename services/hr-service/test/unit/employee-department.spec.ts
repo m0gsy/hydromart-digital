@@ -109,6 +109,9 @@ class FakeDepartments implements DepartmentRepository {
   async create(): Promise<Department> {
     throw new Error('not used');
   }
+  async countEmployees(): Promise<number> {
+    throw new Error('not used');
+  }
   async update(): Promise<Department> {
     throw new Error('not used');
   }

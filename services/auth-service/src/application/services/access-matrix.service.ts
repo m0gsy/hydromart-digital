@@ -93,6 +93,41 @@ export class AccessMatrixService {
     await this.refresh();
   }
 
+  /**
+   * Apply a whole screenful of matrix edits at once. `roles: null` means "back to the
+   * compiled default", the same thing `reset` does for one capability.
+   *
+   * Two properties the one-at-a-time path could not have. Every name and every role is
+   * checked BEFORE anything is written, so a typo in the fifth edit no longer lands the
+   * first four; and the writes go down as one transaction, so a failure halfway leaves
+   * the matrix exactly as it was. The RBAC matrix is the one table where "half applied"
+   * means a permission set that nobody chose and nobody can see they are living under.
+   */
+  async applyAll(
+    changes: { capability: string; roles: string[] | null }[],
+    actorId: string | null,
+  ): Promise<void> {
+    const seen = new Set<string>();
+    const planned = changes.map((change) => {
+      const known = this.assertKnown(change.capability);
+      if (seen.has(known)) {
+        throw new BadRequestException(`Capability disebut dua kali: ${known}`);
+      }
+      seen.add(known);
+      if (change.roles === null) return { capability: known, roles: null };
+      const unknownRole = change.roles.find((r) => !VALID_ROLES.has(r));
+      if (unknownRole !== undefined) {
+        throw new BadRequestException(`Peran tidak dikenal: ${unknownRole}`);
+      }
+      if (known === 'accessMatrixWrite' && !change.roles.includes(Role.SUPER_ADMIN)) {
+        throw new BadRequestException('SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite.');
+      }
+      return { capability: known, roles: [...new Set(change.roles)] as AccessRole[] };
+    });
+    await this.overrides.applyAll(planned, actorId);
+    await this.refresh();
+  }
+
   async reset(capability: string): Promise<void> {
     await this.overrides.remove(this.assertKnown(capability));
     await this.refresh();

@@ -379,6 +379,8 @@ export const hrFix = {
     noEmployees: "No employees yet",
   },
   settings: {
+    scopeDepot: "this depot",
+    scopeGlobal: "the whole network",
     notFilled: "(not filled in)",
     title: "Payroll configuration",
     subtitle: "GLOBAL defaults (SUPER_ADMIN) or a per-depot override",
@@ -392,6 +394,7 @@ export const hrFix = {
     saveFailed: "Could not save",
   },
   departments: {
+    deleteConfirm: "Delete the department {name}? The server refuses while any employee still points at it.",
     emptyBody2: "No departments yet — employees show as “Not set”.",
     delete2: "Delete",
     name2: "Name",
@@ -471,6 +474,9 @@ export const hrFix = {
     fillIdDate: "Enter an employeeId and a date",
     manual: "Manual entry",
     manualSaved: "Manual attendance saved",
+    adjustTitle: "Correct this attendance record",
+    adjustPrompt: "Change the status from {from} to {to}. The reason is filed against the attendance row and read back when payroll is questioned.",
+    adjustConfirm: "Correct it",
     corrected: "Corrected",
   },
   employees: {
@@ -934,6 +940,8 @@ export const hrFix = {
     noCustomers: "No customers yet",
   },
   myLeave: {
+    cancel: "Cancel it",
+    cancelConfirm: "Withdraw this leave request? It leaves your approver's queue, and re-filing starts the approval chain again.",
     quotaLine: "Quota {quota} days · used {used} · left {left}",
     apply2: "Request leave",
     holidayHint: "Public holidays and weekly days off inside the range do not count against your quota.",
@@ -1312,6 +1320,10 @@ export const hrFix = {
     emptyBody: "Your payslips will appear here.",
   },
   managerPricing: {
+    enableTitle: "Switch this price rule on?",
+    disableTitle: "Switch this price rule off?",
+    enableConfirm: "The {rule} rule starts pricing this depot from the next order onward.",
+    disableConfirm: "The {rule} rule stops applying immediately and this depot falls back to catalogue prices from the next order. Head office approved this rule.",
     subtitle: 'Turn depot pricing rules on or off.',
     noDepots2: "No depot has been configured yet.",
     emptyBody2: "Depot pricing rules will appear here.",
@@ -1450,6 +1462,9 @@ export const hrFix = {
     managerOnly: "Depot managers only",
   },
   offlineBanner: {
+    discardTitle: "Discard this?",
+    discardConfirm: "Discard \"{kind}\" from the queue? This is the only copy — it is not retried and never reaches the server. If it is a COD confirmation, the cash was taken and will never be recorded.",
+    discardConfirmLabel: "Discard",
     sendNow2: "Send now",
     clearAria: "Clear the offline data",
   },
@@ -1489,6 +1504,8 @@ export const hrFix = {
     downloadFailed: "Download failed",
     netPay: "Net pay",
     approved: "Payroll approved",
+    approveConfirm: "Approve this payroll run of {net}? Once approved, the figures can no longer be edited from this screen.",
+    markPaidConfirm: "Mark this {net} payroll as paid? This states the transfers have left the bank, and it cannot be undone here.",
     markPaid: "Mark as paid",
     markedPaid: "Marked as paid",
     deduction: "Deductions",
@@ -1590,6 +1607,7 @@ export const hrFix = {
     netPay: "Net pay",
   },
   settingsExtra: {
+    resetConfirm: "Remove this override for {scope}? The value falls back to the wider rule — a different number, applied to everyone's pay, with no undo on this screen.",
     overrideRemoved: "Override removed",
     resetFailed: "Reset failed",
   },

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChatCircleText, Lock, PaperPlaneTilt } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { CampaignReport } from '@/components/dashboard/campaign-report';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
@@ -186,13 +187,20 @@ function CampaignCard({
   onChanged: () => void;
 }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send() {
-    if (!window.confirm(t('dashboard.campaigns.sendConfirm', { name: campaign.name, n: campaign.totalRecipients }))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t('dashboard.campaigns.sendNow'),
+      message: t('dashboard.campaigns.sendConfirm', {
+        name: campaign.name,
+        n: campaign.totalRecipients,
+      }),
+      confirmLabel: t('dashboard.campaigns.sendNow'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

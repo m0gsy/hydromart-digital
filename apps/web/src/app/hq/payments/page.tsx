@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Wallet } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -55,6 +56,7 @@ function Stat({
 export default function HqPaymentsPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const range = useMemo(defaultRange, []);
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
   const unsettledQ = useAsync<UnsettledMethodBucket[]>(() =>
@@ -119,12 +121,15 @@ export default function HqPaymentsPage() {
    *
    * FAILED is not a label change: it re-credits the balance in payout-service's own
    * transaction, because the debit went out when the withdrawal was REQUESTED. Both answers
-   * are irreversible from this screen, so both confirm first — `window.confirm` is what the
-   * rest of this console still uses, and a ConfirmDialog sweep is its own step (06).
+   * are irreversible from this screen, so both ask first.
    */
   async function settle(id: string, url: string, paid: boolean, reload: () => void) {
-    const question = paid ? t('hq.payments.settle.confirmPaid') : t('hq.payments.settle.confirmFailed');
-    if (!window.confirm(question)) return;
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: paid ? t('hq.payments.settle.confirmPaid') : t('hq.payments.settle.confirmFailed'),
+      tone: paid ? 'primary' : 'danger',
+    });
+    if (!ok) return;
     setSettling(id);
     try {
       await api.post(url, {}, true);

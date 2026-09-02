@@ -391,6 +391,8 @@ export const hrFix = {
     noEmployees: "Belum ada karyawan",
   },
   settings: {
+    scopeDepot: "depot ini",
+    scopeGlobal: "seluruh jaringan",
     notFilled: "(belum diisi)",
     title: "Konfigurasi Gaji",
     subtitle: "Default GLOBAL (SUPER_ADMIN) atau override per depot",
@@ -404,6 +406,7 @@ export const hrFix = {
     saveFailed: "Gagal menyimpan",
   },
   departments: {
+    deleteConfirm: "Hapus departemen {name}? Karyawan yang masih menunjuk ke departemen ini membuat penghapusan ditolak server.",
     emptyBody2: "Belum ada departemen — karyawan tampil “Belum diatur”.",
     delete2: "Hapus",
     name2: "Nama",
@@ -483,6 +486,9 @@ export const hrFix = {
     fillIdDate: "Isi employeeId & tanggal",
     manual: "Entri manual",
     manualSaved: "Absensi manual disimpan",
+    adjustTitle: "Koreksi absensi",
+    adjustPrompt: "Ubah status dari {from} menjadi {to}. Alasannya tercatat di baris absensi dan dibaca ulang saat penggajian dipertanyakan.",
+    adjustConfirm: "Koreksi",
     corrected: "Dikoreksi",
   },
   employees: {
@@ -948,6 +954,8 @@ export const hrFix = {
     noCustomers: "Belum ada pelanggan",
   },
   myLeave: {
+    cancel: "Batalkan",
+    cancelConfirm: "Batalkan pengajuan cuti ini? Pengajuan ditarik dari antrean atasan, dan mengajukan ulang berarti memulai persetujuan dari awal.",
     quotaLine: "Kuota {quota} hari · terpakai {used} · sisa {left}",
     apply2: "Ajukan Cuti",
     holidayHint: "Hari libur nasional dan libur mingguan di dalam rentang tidak memotong kuota.",
@@ -1329,6 +1337,10 @@ export const hrFix = {
     emptyBody: "Slip gaji kamu akan muncul di sini.",
   },
   managerPricing: {
+    enableTitle: "Aktifkan aturan harga?",
+    disableTitle: "Matikan aturan harga?",
+    enableConfirm: "Aturan {rule} langsung dipakai untuk menghitung harga di depot ini, mulai pesanan berikutnya.",
+    disableConfirm: "Aturan {rule} berhenti dipakai seketika, dan harga di depot ini kembali ke katalog mulai pesanan berikutnya. Aturan ini disetujui kantor pusat.",
     subtitle: 'Aktif/nonaktifkan aturan harga depot.',
     noDepots2: "Belum ada depot yang dikonfigurasi.",
     emptyBody2: "Aturan harga depot akan tampil di sini.",
@@ -1468,6 +1480,9 @@ export const hrFix = {
     managerOnly: "Halaman khusus manajer depot",
   },
   offlineBanner: {
+    discardTitle: "Buang data ini?",
+    discardConfirm: "Buang \"{kind}\" dari antrean? Ini satu-satunya salinannya — tidak dikirim ulang dan tidak pernah sampai ke server. Kalau ini konfirmasi COD, uangnya sudah diterima tapi tidak akan pernah tercatat.",
+    discardConfirmLabel: "Buang",
     sendNow2: "Kirim sekarang",
     clearAria: "Hapus data offline",
   },
@@ -1507,6 +1522,8 @@ export const hrFix = {
     downloadFailed: "Gagal unduh",
     netPay: "Gaji Bersih (Net)",
     approved: "Payroll disetujui",
+    approveConfirm: "Setujui penggajian ini senilai {net}? Sesudah disetujui, angkanya tidak bisa lagi diubah dari layar ini.",
+    markPaidConfirm: "Tandai penggajian {net} ini sudah dibayar? Ini pernyataan bahwa transfernya sudah keluar dari bank, dan tidak bisa dibatalkan di sini.",
     markPaid: "Tandai Dibayar",
     markedPaid: "Ditandai dibayar",
     deduction: "Potongan",
@@ -1608,6 +1625,7 @@ export const hrFix = {
     netPay: "Gaji Bersih (Net)",
   },
   settingsExtra: {
+    resetConfirm: "Hapus override ini untuk {scope}? Nilainya kembali ke aturan yang lebih luas — angka lain, langsung berlaku ke gaji semua orang, tanpa undo di layar ini.",
     overrideRemoved: "Override dihapus",
     resetFailed: "Gagal reset",
   },

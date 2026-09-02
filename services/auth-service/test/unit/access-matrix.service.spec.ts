@@ -25,6 +25,31 @@ class FakeOverrides implements CapabilityOverrideRepository {
     this.rows.delete(capability);
     return Promise.resolve();
   }
+
+  /** Set to the capability the transaction should blow up on, as a real one would. */
+  failOn: string | null = null;
+
+  applyAll(
+    changes: { capability: string; roles: AccessRole[] | null }[],
+    updatedBy: string | null,
+  ): Promise<void> {
+    // A real `$transaction` writes nothing when any statement throws. The fake has to
+    // behave the same way or the test proves the opposite of what it claims.
+    if (changes.some((c) => c.capability === this.failOn)) {
+      return Promise.reject(new Error('transaction rolled back'));
+    }
+    for (const change of changes) {
+      if (change.roles === null) this.rows.delete(change.capability);
+      else
+        this.rows.set(change.capability, {
+          capability: change.capability,
+          roles: change.roles,
+          updatedBy,
+          updatedAt: new Date(0),
+        });
+    }
+    return Promise.resolve();
+  }
 }
 
 describe('AccessMatrixService', () => {
@@ -133,5 +158,106 @@ describe('AccessMatrixService', () => {
   it('serves the patch the other services poll', async () => {
     await service.set('approvals', [Role.SUPERVISOR], null);
     expect(await service.patch()).toEqual({ approvals: [Role.SUPERVISOR] });
+  });
+});
+
+/*
+ * The matrix editor sends a whole screenful at once. One request per capability in a loop
+ * meant a rejection partway through left the earlier ones enforced, while the screen still
+ * showed every change as unsaved — and its Reset button only restored the local grid.
+ */
+describe('AccessMatrixService.applyAll', () => {
+  let repo: FakeOverrides;
+  let service: AccessMatrixService;
+
+  beforeEach(() => {
+    repo = new FakeOverrides();
+    service = new AccessMatrixService(repo);
+    loadOverrides({});
+  });
+  afterEach(() => loadOverrides({}));
+
+  it('writes every change and makes them all live', async () => {
+    await service.applyAll(
+      [
+        { capability: 'approvals', roles: [Role.MANAGER] },
+        { capability: 'staffAdmin', roles: [Role.SUPER_ADMIN, Role.HR] },
+      ],
+      'admin-1',
+    );
+    expect(repo.rows.size).toBe(2);
+    expect(rolesFor('approvals')).toEqual([Role.MANAGER]);
+    expect(can('staffAdmin', Role.HR)).toBe(true);
+  });
+
+  it('writes NOTHING when one capability name is unknown', async () => {
+    await expect(
+      service.applyAll(
+        [
+          { capability: 'approvals', roles: [Role.MANAGER] },
+          { capability: 'inventoryWirte', roles: [Role.MANAGER] },
+        ],
+        null,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.rows.size).toBe(0);
+    expect(rolesFor('approvals')).toEqual(CAPABILITIES.approvals);
+  });
+
+  it('writes NOTHING when one role is unknown', async () => {
+    await expect(
+      service.applyAll(
+        [
+          { capability: 'approvals', roles: [Role.MANAGER] },
+          { capability: 'staffAdmin', roles: ['WIZARD'] },
+        ],
+        null,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.rows.size).toBe(0);
+  });
+
+  it('still refuses to lock everyone out of the matrix itself', async () => {
+    await expect(
+      service.applyAll([{ capability: 'accessMatrixWrite', roles: [Role.MANAGER] }], null),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.rows.size).toBe(0);
+  });
+
+  it('leaves the matrix untouched when the transaction fails', async () => {
+    await service.set('approvals', [Role.SUPERVISOR], null);
+    repo.failOn = 'staffAdmin';
+
+    await expect(
+      service.applyAll(
+        [
+          { capability: 'approvals', roles: [Role.MANAGER] },
+          { capability: 'staffAdmin', roles: [Role.HR] },
+        ],
+        null,
+      ),
+    ).rejects.toThrow(/rolled back/);
+    expect(repo.rows.get('approvals')?.roles).toEqual([Role.SUPERVISOR]);
+    expect(repo.rows.has('staffAdmin')).toBe(false);
+  });
+
+  it('treats null roles as a reset', async () => {
+    await service.set('approvals', [Role.SUPERVISOR], null);
+    await service.applyAll([{ capability: 'approvals', roles: null }], null);
+    expect(repo.rows.has('approvals')).toBe(false);
+    expect(rolesFor('approvals')).toEqual(CAPABILITIES.approvals);
+  });
+
+  it('rejects the same capability twice in one payload', async () => {
+    await expect(
+      service.applyAll(
+        [
+          { capability: 'approvals', roles: [Role.MANAGER] },
+          { capability: 'approvals', roles: [Role.SUPERVISOR] },
+        ],
+        null,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.rows.size).toBe(0);
   });
 });

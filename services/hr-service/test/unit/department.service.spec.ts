@@ -39,6 +39,11 @@ class FakeRepo implements DepartmentRepository {
   async delete(id: string): Promise<void> {
     this.rows = this.rows.filter((r) => r.id !== id);
   }
+  /** How many employees the next `remove` will find pointing at the department. */
+  employeesInDepartment = 0;
+  async countEmployees(): Promise<number> {
+    return this.employeesInDepartment;
+  }
   async findById(id: string): Promise<Department | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
@@ -181,5 +186,40 @@ describe('DepartmentService.remove', () => {
     const d = await svc.create(hr, { code: 'FIN', name: 'Keuangan' });
     await svc.remove(manager(DEPOT_A), d.id);
     expect(repo.rows).toHaveLength(0);
+  });
+});
+
+describe('DepartmentService.remove', () => {
+  /*
+   * CA-1-12. `Employee.departmentId` carries no foreign key, so nothing in Postgres stops
+   * a delete that strands its members — they simply read "Belum diatur" afterwards, with
+   * no record they were ever in a unit.
+   */
+  it('refuses while employees still point at the department, and says how many', async () => {
+    const { repo, svc } = make();
+    const row = await svc.create(hr, { code: 'FIN', name: 'Keuangan', active: true });
+    repo.employeesInDepartment = 3;
+
+    await expect(svc.remove(hr, row.id)).rejects.toBeInstanceOf(ConflictException);
+    await expect(svc.remove(hr, row.id)).rejects.toThrow(/3 karyawan/);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('deletes an empty one', async () => {
+    const { repo, svc } = make();
+    const row = await svc.create(hr, { code: 'OPS', name: 'Operasi', active: true });
+    repo.employeesInDepartment = 0;
+
+    await svc.remove(hr, row.id);
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it("still refuses another depot's department before it counts anything", async () => {
+    const { repo, svc } = make();
+    const row = await svc.create(hr, { code: 'GDG', name: 'Gudang', depotId: DEPOT_A, active: true });
+    repo.employeesInDepartment = 0;
+
+    await expect(svc.remove(manager(DEPOT_B), row.id)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.rows).toHaveLength(1);
   });
 });

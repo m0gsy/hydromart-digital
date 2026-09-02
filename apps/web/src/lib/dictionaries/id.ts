@@ -195,6 +195,12 @@ export const id = {
   },
   common: {
     confirm: 'Konfirmasi',
+    // Title for the shared confirm dialog when the screen has no better one of its own.
+    // Deliberately not a question: the question is the message under it.
+    confirmTitle: 'Konfirmasi tindakan',
+    // Label above the reason box in the same dialog. Four screens used to ask for this
+    // through `window.prompt`, which cannot be translated at all.
+    reason: 'Alasan',
     cancel: 'Batal',
     close: 'Tutup',
     done: 'Selesai',

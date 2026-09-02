@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import { ArrowsClockwise, CloudSlash, Trash } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Button } from '@/components/ui';
 import {
   discard,
@@ -35,8 +36,25 @@ const LABELS: Record<QueuedJob['kind'], string> = {
  */
 export function OfflineQueueBanner() {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [jobs, setJobs] = useState<QueuedJob[]>(pending());
   const [busy, setBusy] = useState(false);
+
+  /*
+   * CA-4-14 — the trash icon dropped a queued job on one tap, with no question, from a
+   * banner that is on every courier and HR screen. What is queued here is the only copy:
+   * a COD confirmation the courier has already taken cash for, a proof-of-delivery photo,
+   * a clock-in. Discarding one does not retry anything and does not reach the server — the
+   * money or the attendance simply never happened, and the courier finds out at cash-up.
+   */
+  const drop = async (job: QueuedJob) => {
+    const ok = await confirm({
+      title: t('hrFix.offlineBanner.discardTitle'),
+      message: t('hrFix.offlineBanner.discardConfirm', { kind: t(LABELS[job.kind]) }),
+      confirmLabel: t('hrFix.offlineBanner.discardConfirmLabel'),
+    });
+    if (ok) await discard(job.id);
+  };
 
   useEffect(() => {
     const off = subscribe(setJobs);
@@ -74,7 +92,7 @@ export function OfflineQueueBanner() {
             <button
               type="button"
               aria-label={t('hrFix.offlineBanner.clearAria')}
-              onClick={() => void discard(job.id)}
+              onClick={() => void drop(job)}
               className="shrink-0 text-amber-900/70 hover:text-red-700"
             >
               <Trash size={16} />

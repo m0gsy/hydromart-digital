@@ -3,6 +3,7 @@ import { order as base } from '../id/order';
 // English — mirrors the shape of id/order.ts (the source of truth for keys).
 export const order: typeof base = {
   cart: {
+    clearConfirm: "Empty the {n} items from your cart? There is no undo — you would build it again from scratch.",
     inStock: "In stock",
     title: 'Cart',
     itemCount: '— {n} item',

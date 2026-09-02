@@ -1,5 +1,12 @@
 // English mirror of id/mgrFix.ts — SAME shape, NO `as const`. See the id file for context.
 export const mgrFix = {
+  approvalDecide: {
+    approveTitle: "Approve this request?",
+    rejectTitle: "Reject this request?",
+    thisItem: "this request",
+    approveConfirm: "Approve {kind}? The money moves as soon as this is saved, and this screen cannot undo it.",
+    rejectConfirm: "Reject {kind}? The shortfall stays charged to whoever filed it, and this decision cannot be undone from this screen.",
+  },
   approvalKind: {
     OPNAME_VARIANCE: 'Stock-count variance',
     DEPOSIT_REFUND: 'Gallon deposit refund',

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Lock, Tag } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Badge,
@@ -266,11 +267,16 @@ function RuleCard({
   onChanged: () => void;
 }) {
   const { t, locale } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
-    if (!window.confirm(t('dashboard.pricing.deleteConfirm'))) return;
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: t('dashboard.pricing.deleteConfirm'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

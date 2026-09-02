@@ -53,6 +53,24 @@ export class DepartmentService {
   async remove(user: AuthenticatedUser, id: string): Promise<void> {
     const department = await this.get(id);
     if (department.depotId) assertDepotAccess(user, department.depotId);
+    /*
+     * CA-1-12 — the delete had no reference check on either side of the wire.
+     *
+     * `Employee.departmentId` is a plain UUID, deliberately (same service, no relation
+     * nav), which means the database will not stop this: the department row goes, the
+     * employee rows keep pointing at an id that no longer exists, and every one of those
+     * people reads as "Belum diatur" on the roster. Nothing records that they were in a
+     * unit at all, so there is no way back except from a backup.
+     *
+     * Refuse instead, and say how many. Deactivating (`active: false`) is the operation
+     * that was actually wanted: it hides the unit from the pickers and keeps the history.
+     */
+    const inUse = await this.repo.countEmployees(id);
+    if (inUse > 0) {
+      throw new ConflictException(
+        `Departemen masih dipakai ${inUse} karyawan. Pindahkan mereka dulu, atau nonaktifkan departemennya.`,
+      );
+    }
     await this.repo.delete(id);
   }
 

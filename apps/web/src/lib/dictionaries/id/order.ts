@@ -2,6 +2,7 @@
 // Bahasa Indonesia — source of truth for keys. en/order.ts mirrors this shape.
 export const order = {
   cart: {
+    clearConfirm: "Kosongkan {n} barang dari keranjang? Tidak ada undo — keranjangnya harus disusun ulang dari awal.",
     inStock: "Stok tersedia",
     title: 'Keranjang',
     itemCount: '— {n} item',

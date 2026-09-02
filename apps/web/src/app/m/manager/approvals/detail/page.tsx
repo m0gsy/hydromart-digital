@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Badge, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -25,6 +26,7 @@ const num = (v: unknown) => Number(v ?? 0);
 
 export default function ApprovalDetailPage() {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const id = useQueryParam('id');
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
@@ -32,6 +34,27 @@ export default function ApprovalDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const decide = async (decision: 'APPROVE' | 'REJECT') => {
+    /*
+     * CA-4-44 — "Tolak" and "Setujui" sit side by side, same width, in a sticky footer at
+     * the bottom of a phone screen, and neither asked anything. What they decide is a cash
+     * shortfall, a deposit refund or a stock variance: money either moves or somebody is
+     * held responsible for it, and the screen navigates away immediately afterwards with
+     * no way back to the item.
+     */
+    const approve = decision === 'APPROVE';
+    const ok = await confirm({
+      title: approve ? t('mgrFix.approvalDecide.approveTitle') : t('mgrFix.approvalDecide.rejectTitle'),
+      message: t(
+        approve ? 'mgrFix.approvalDecide.approveConfirm' : 'mgrFix.approvalDecide.rejectConfirm',
+        {
+          kind: t(
+            (detail.data && KIND_LABEL[detail.data.type]) ?? 'mgrFix.approvalDecide.thisItem',
+          ),
+        },
+      ),
+      tone: approve ? 'primary' : 'danger',
+    });
+    if (!ok) return;
     setBusy(decision);
     setError(null);
     try {

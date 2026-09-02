@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { useConfirm } from '@/components/confirm';
 import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
@@ -17,6 +18,7 @@ export default function HrSettingsPage() {
   const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const superAdmin = isSuperAdmin(customer?.role);
   const [scope, setScope] = useState<'GLOBAL' | 'DEPOT'>('GLOBAL');
   const [depotId, setDepotId] = useState('');
@@ -58,6 +60,17 @@ export default function HrSettingsPage() {
   }
 
   async function reset(key: string) {
+    // CA-1-13: these are the fine rates and absence deductions. Removing an override does
+    // not restore a blank — it puts the row back on whatever the wider scope says, which
+    // is a different number, applied to everybody's pay, with no undo on this screen.
+    const ok = await confirm({
+      title: t('hrFix.settings.reset'),
+      message: t('hrFix.settingsExtra.resetConfirm', {
+        scope: scope === 'DEPOT' ? t('hrFix.settings.scopeDepot') : t('hrFix.settings.scopeGlobal'),
+      }),
+      confirmLabel: t('hrFix.settings.reset'),
+    });
+    if (!ok) return;
     try {
       await api.del(endpoints.hr.resetSetting, { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key }, true);
       toast(t('hrFix.settingsExtra.overrideRemoved'));
