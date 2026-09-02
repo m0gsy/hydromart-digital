@@ -866,6 +866,8 @@ export class DepotSalesResponseDto {
   orderCount!: number;
   @ApiProperty({ type: Number })
   revenue!: number;
+  @ApiProperty({ type: Number })
+  commissionBase!: number;
 }
 
 /** Mirrors the response of this route (`ReportRangeView & { items: DepotSales[] }`). */

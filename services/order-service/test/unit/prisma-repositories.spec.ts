@@ -1077,12 +1077,26 @@ describe('OrderPrismaRepository', () => {
     ]);
   });
 
-  it('ranks top depots by revenue', async () => {
+  it('ranks top depots by revenue, and carries the commission base beside it', async () => {
     order.groupBy.mockResolvedValue([
-      { depotId: 'depot-1', _sum: { total: dec(400000) }, _count: { _all: 3 } },
+      // CA-2-09: two DIFFERENT numbers. `total` is what the customer paid (goods + ongkir
+      // − discount); `subtotal` is the goods before discount, which is what
+      // payout-service charges the franchise percentage on. The reconciliation statement
+      // was recomputing HQ's cut from the first while the second was being billed.
+      { depotId: 'depot-1', _sum: { total: dec(400000), subtotal: dec(370000) }, _count: { _all: 3 } },
     ]);
     const out = await repo.topDepots({}, 5);
-    expect(out).toEqual([{ depotId: 'depot-1', orderCount: 3, revenue: 400000 }]);
+    expect(out).toEqual([
+      { depotId: 'depot-1', orderCount: 3, revenue: 400000, commissionBase: 370000 },
+    ]);
+  });
+
+  it('reports a zero commission base rather than NaN when the aggregate is empty', async () => {
+    order.groupBy.mockResolvedValue([
+      { depotId: 'depot-1', _sum: { total: dec(400000), subtotal: null }, _count: { _all: 3 } },
+    ]);
+    const out = await repo.topDepots({}, 5);
+    expect(out[0].commissionBase).toBe(0);
   });
 
   it('sums shipping billed by depot', async () => {

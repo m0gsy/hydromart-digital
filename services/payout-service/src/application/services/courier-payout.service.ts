@@ -39,6 +39,19 @@ export interface DeliveryCompletedEvent {
 export interface CourierEarningsSummary {
   availableBalance: number;
   monthEarnings: number;
+  /**
+   * Paid deliveries THIS MONTH at the courier's own depot — the exact tally
+   * `awardIncentives` walks the ladder with (CA-4-18).
+   *
+   * The goal screen had no monthly count to show, so it drew the incentive rungs against a
+   * WEEKLY delivered count from delivery-service while the rungs themselves, and the bonus
+   * that pays them, are monthly. A courier at 40 of 50 deliveries for the month was shown a
+   * locked rung and "10 lagi" against a week that had 12 in it: the same rung read as
+   * further away every Monday, and a rung the server had already paid could still show
+   * locked. Counted from the ledger, not from a second source, because the ledger is what
+   * pays.
+   */
+  monthDeliveries: number;
   recentEntries: CourierLedgerEntryRecord[];
   recentWithdrawals: CourierWithdrawalRecord[];
 }
@@ -216,17 +229,29 @@ export class CourierPayoutService {
     return entry;
   }
 
-  async summary(courierId: string): Promise<CourierEarningsSummary> {
+  async summary(courierId: string, depotId: string | null = null): Promise<CourierEarningsSummary> {
     // Same boundary as the incentive tally above: "this month's earnings" on the courier's
     // screen must mean the month they are living in, not the server's.
     const monthStart = startOfLocalMonth(new Date(), this.config.businessTimeZone);
-    const [availableBalance, monthEarnings, recent, recentWithdrawals] = await Promise.all([
-      this.ledger.balanceFor(courierId),
-      this.ledger.sumByType(courierId, 'EARNING', monthStart),
-      this.ledger.listForCourier(courierId, 1, 8),
-      this.withdrawals.listForCourier(courierId, 5),
-    ]);
-    return { availableBalance, monthEarnings, recentEntries: recent.items, recentWithdrawals };
+    // Scoped exactly as `awardIncentives` scopes it: the rungs belong to ONE depot's earning
+    // rule and that depot pays them, so the screen must count where the payer counts.
+    // Undefined (not null) is the courier-wide tally the ladder falls back to.
+    const scope = depotId ?? undefined;
+    const [availableBalance, monthEarnings, monthDeliveries, recent, recentWithdrawals] =
+      await Promise.all([
+        this.ledger.balanceFor(courierId),
+        this.ledger.sumByType(courierId, 'EARNING', monthStart),
+        this.ledger.countByType(courierId, 'EARNING', monthStart, scope),
+        this.ledger.listForCourier(courierId, 1, 8),
+        this.withdrawals.listForCourier(courierId, 5),
+      ]);
+    return {
+      availableBalance,
+      monthEarnings,
+      monthDeliveries,
+      recentEntries: recent.items,
+      recentWithdrawals,
+    };
   }
 
   /**

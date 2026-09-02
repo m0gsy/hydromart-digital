@@ -34,7 +34,9 @@ describe('CourierPayoutController', () => {
 
   it('summary delegates with user.sub', async () => {
     await controller.summary(user);
-    expect(payout.summary).toHaveBeenCalledWith('courier-1');
+    // CA-4-18: the depot comes off the TOKEN — the ladder shown and the deliveries counted
+    // against it must belong to the same depot, and a client-supplied one could not be.
+    expect(payout.summary).toHaveBeenCalledWith('courier-1', null);
   });
 
   it('earningRule delegates the depot from the token, null when unassigned', async () => {

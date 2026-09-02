@@ -24,7 +24,12 @@ export interface TopCustomers {
 export interface TopDepots {
   from: string | null;
   to: string | null;
-  items: { depotId: string; orderCount: number; revenue: number }[];
+  /**
+   * `revenue` is `subtotal + ongkir − discount`; `commissionBase` is the goods total before
+   * discount, which is what payout-service charges the franchise percentage on (CA-2-09).
+   * Two different numbers, and the reconciliation statement needs both.
+   */
+  items: { depotId: string; orderCount: number; revenue: number; commissionBase: number }[];
 }
 
 export interface DeliverySla {

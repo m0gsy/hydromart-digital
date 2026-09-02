@@ -32,7 +32,7 @@ const TOP_CUSTOMERS: TopCustomers = {
 const TOP_DEPOTS: TopDepots = {
   from: null,
   to: null,
-  items: [{ depotId: 'depot-1', orderCount: 30, revenue: 900_000 }],
+  items: [{ depotId: 'depot-1', orderCount: 30, revenue: 900_000, commissionBase: 850_000 }],
 };
 
 // depot-1 is in the top-depots report; depot-2 is not (reads 0 revenue).

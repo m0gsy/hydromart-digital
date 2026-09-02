@@ -41,8 +41,25 @@ function ShiftGoal() {
   const monthTarget = rule.data?.monthlyTarget ?? 0;
   const pct = monthTarget > 0 ? Math.min(100, Math.round((month / monthTarget) * 100)) : 0;
   const tiers = rule.data?.tiers ?? [];
+  /*
+   * CA-4-18 — two counts, two windows, and they may not be swapped for each other.
+   *
+   * `perf.delivered` is delivery-service's WEEKLY roll-up (it takes a `weekStart` and
+   * windows seven days). The incentive rungs below are MONTHLY: `awardIncentives` counts
+   * EARNING ledger rows since the start of the courier's month, at their depot, and pays
+   * the rung off that. The ladder used the weekly number against the monthly thresholds,
+   * so a courier on 40 of the month's 50 was shown a locked rung and "10 lagi" against a
+   * week holding 12 — the rung drifted further away every Monday, and one the server had
+   * already paid could still read as locked.
+   *
+   * The thresholds are business values and are untouched. What is fixed is the unit:
+   * `monthDeliveries` is the payer's own tally, from the ledger that pays it.
+   */
   const delivered = perf.data.delivered;
-  const deliveryTarget = perf.data.target || tiers[0]?.deliveries || 0;
+  const monthDelivered = earnings.data.monthDeliveries;
+  // The weekly card's own weekly target. It used to fall back to `tiers[0].deliveries` —
+  // a MONTHLY rung — so an unset weekly target printed a month's goal on a week's count.
+  const deliveryTarget = perf.data.target;
 
   // Remaining shift from the real check-in window; null once the shift has ended.
   const endMs = shift.data?.expectedEndAt ? new Date(shift.data.expectedEndAt).getTime() : null;
@@ -83,7 +100,9 @@ function ShiftGoal() {
         <Card className="flex-1 p-3.5">
           <div className="text-xl font-extrabold tabular-nums">{delivered}</div>
           <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
-            {t('courierFix.shiftGoal.deliveriesLabel', { target: deliveryTarget })}
+            {deliveryTarget > 0
+              ? t('courierFix.shiftGoal.deliveriesLabel', { target: deliveryTarget })
+              : t('courierFix.shiftGoal.deliveriesNoTarget')}
           </div>
         </Card>
         <Card className="flex-1 p-3.5">
@@ -99,15 +118,24 @@ function ShiftGoal() {
       {rule.error && <LoadError onRetry={rule.reload} />}
 
       {tiers.length > 0 && (
-        <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
-          {t('courierFix.shiftGoal.tiersHeading')}
+        <div className="px-1 pt-2">
+          <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+            {t('courierFix.shiftGoal.tiersHeading')}
+          </div>
+          {/* Says the window out loud: the rungs are monthly and the card above is weekly,
+              and nothing on this screen used to distinguish them. */}
+          <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+            {t('courierFix.shiftGoal.tiersWindow', { n: monthDelivered })}
+          </div>
         </div>
       )}
       <div className="flex flex-col gap-2.5">
         {tiers.map((tier) => {
-          const achieved = delivered >= tier.deliveries;
-          const isTarget = !achieved && tiers.filter((x) => x.deliveries > delivered)[0]?.deliveries === tier.deliveries;
-          const short = tier.deliveries - delivered;
+          const achieved = monthDelivered >= tier.deliveries;
+          const isTarget =
+            !achieved &&
+            tiers.filter((x) => x.deliveries > monthDelivered)[0]?.deliveries === tier.deliveries;
+          const short = tier.deliveries - monthDelivered;
           const amount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(tier.bonus);
           return (
             <Card

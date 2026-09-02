@@ -19,7 +19,8 @@ export interface ApplySchemeInput {
 /**
  * Commission schemes (design 21c). Effective-dated per-depot payout percentages.
  * "Terapkan skema baru" appends a new row per depot with the chosen effective date;
- * the current pct per depot is always the latest-dated row (see listCurrent).
+ * the pct in force per depot is the latest row whose effective date has ARRIVED — a
+ * scheme dated ahead is scheduled, not applied (see listCurrent).
  */
 @Injectable()
 export class CommissionService {

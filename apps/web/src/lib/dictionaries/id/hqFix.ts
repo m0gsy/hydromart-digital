@@ -16,6 +16,16 @@ export const hqFix = {
   recon: {
     schemeUnreadable: "Komisi (skema tidak terbaca)",
     schemeMissing: "Komisi (belum ada skema)",
+    /*
+     * CA-2-08 dan CA-2-09 — dua baris yang bukan penjumlah, dan diberi nama supaya terlihat.
+     *
+     * Ongkir sudah ada di dalam "Total penjualan" (`order.total` = subtotal + ongkir −
+     * diskon), jadi menambahkannya lagi membayar ongkir dua kali. Dasar komisi bukan
+     * penjualan: payout-service menagih persentasenya atas barang sebelum diskon, dan tanpa
+     * baris ini angka komisinya tidak bisa dicocokkan dengan apa pun di layar yang sama.
+     */
+    shippingIncluded: 'Ongkir tertagih (sudah termasuk total penjualan)',
+    commissionBase: 'Dasar komisi (barang sebelum diskon)',
   },
   toggleCol: 'Beri/cabut semua kapabilitas untuk peran ini',
   roleDetail: 'Lihat rincian hak peran ini',
