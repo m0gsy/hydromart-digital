@@ -56,6 +56,10 @@ export function HqRail() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    // The active screen was marked by colour and weight alone, which says
+                    // nothing to a screen reader — the whole rail read as sixty
+                    // indistinguishable links.
+                    aria-current={on ? 'page' : undefined}
                     className={
                       'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
                       (on
