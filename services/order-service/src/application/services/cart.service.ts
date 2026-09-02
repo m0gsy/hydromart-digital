@@ -31,6 +31,8 @@ export interface CartLineView {
    * but labelled "Botol 19L" previewed Rp0 ongkir and was then billed per galon.
    */
   isGallon: boolean;
+  /** The catalogue photo, so the basket shows what the shop showed. Null = none. */
+  imageUrl: string | null;
 }
 
 /**
@@ -186,6 +188,7 @@ export class CartService {
       quantity: i.quantity,
       lineTotal: i.lineTotal,
       isGallon: i.isGallon,
+      imageUrl: products.get(i.productId)?.imageUrl ?? null,
     }));
 
     // A9 asks the DEPOT question, not the pricing-switch question: turning the switch off

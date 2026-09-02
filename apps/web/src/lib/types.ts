@@ -225,6 +225,8 @@ export interface CartLine {
   lineTotal: number;
   /** Catalog flag delivery is charged on — see `galonQuantity` in lib/pricing.ts. */
   isGallon: boolean;
+  /** The catalogue photo, so the basket shows what the shop showed. Null = none. */
+  imageUrl: string | null;
 }
 
 /**

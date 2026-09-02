@@ -24,6 +24,7 @@ const base: Cart = {
     {
       productId: 'p1',
       productName: 'Galon 19L',
+      imageUrl: null,
       sku: 'AIR-19L',
       unit: 'Galon 19L',
       unitPrice: 22_000,

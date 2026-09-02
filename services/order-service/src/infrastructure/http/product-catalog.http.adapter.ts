@@ -12,6 +12,7 @@ interface ProductResponse {
   volumeMl: number | null;
   isGallon: boolean;
   basePrice: number;
+  imageUrl?: string | null;
   active: boolean;
 }
 
@@ -51,6 +52,9 @@ export class ProductCatalogHttpAdapter implements ProductCatalogPort {
       volumeMl: body.volumeMl ?? null,
       isGallon: body.isGallon ?? false,
       basePrice: body.basePrice,
+      // `?? null` for the same reason as volumeMl: an older product-service omits it, and
+      // undefined would reach the client as a missing key rather than "no photo".
+      imageUrl: body.imageUrl ?? null,
       active: body.active,
     };
   }

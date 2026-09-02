@@ -9,6 +9,15 @@ export interface CatalogProduct {
   /** Refillable galon line — drives the per-galon delivery fee. */
   isGallon: boolean;
   basePrice: number;
+  /**
+   * Primary catalogue photo, or null for a product that has none.
+   *
+   * Carried purely so the CART can show what the shop showed. It was dropped here, so
+   * every line in the basket rendered the same grey droplet placeholder — three identical
+   * tiles above three different products, on the screen where somebody checks they picked
+   * the right thing before paying.
+   */
+  imageUrl: string | null;
   active: boolean;
 }
 

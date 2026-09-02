@@ -156,3 +156,36 @@ describe('LocationSelector', () => {
     await waitFor(() => expect(screen.getByText('home.location.noDepots')).toBeTruthy());
   });
 });
+
+/*
+ * Photographed on a real phone, 2 September 2026: the app-bar panel opened off the LEFT
+ * edge of the screen and the list read "encari lokasi…".
+ *
+ * `right-0` anchors the panel's right edge to its trigger's, which opens it leftward. That
+ * is correct beside the depot card's right-hand header and wrong in the app bar, where the
+ * trigger sits at the left of a 360pt screen and 288pt of panel has nowhere to go.
+ * `max-w-[calc(100vw-2rem)]` caps the width; it cannot move the box back on screen.
+ */
+describe('where the panel opens', () => {
+  const panel = () => document.querySelector('[class*="absolute"][class*="z-20"]');
+
+  it('anchors left on a phone and right again from sm: up', async () => {
+    render(<LocationSelector compact />, { wrapper: LocationProvider });
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    await waitFor(() => expect(panel()).toBeTruthy());
+
+    const cls = panel()?.className ?? '';
+    expect(cls).toContain('left-0');
+    expect(cls).toContain('sm:right-0');
+    // The width cap stays: it is what keeps a 288pt panel inside a 320pt screen.
+    expect(cls).toContain('max-w-[calc(100vw-2rem)]');
+  });
+
+  it('leaves the full-width instance anchored left, as it always was', async () => {
+    show();
+    open();
+    await waitFor(() => expect(panel()).toBeTruthy());
+    expect(panel()?.className).toContain('left-0');
+    expect(panel()?.className).not.toContain('sm:right-0');
+  });
+});
