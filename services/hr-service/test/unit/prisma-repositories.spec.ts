@@ -137,6 +137,17 @@ describe('DepartmentPrismaRepository', () => {
     await expect(repo.findById('id1')).resolves.toBe(out);
   });
 
+  it('counts the employees still pointing at a department', async () => {
+    const p = makePrisma();
+    m(p, 'employee').count.mockResolvedValue(4);
+    const repo = new DepartmentPrismaRepository(asService(p));
+
+    // `Employee.departmentId` has no foreign key, so this count is the only thing between
+    // a delete and a set of employees stranded in a unit that no longer exists.
+    await expect(repo.countEmployees('dep-1')).resolves.toBe(4);
+    expect(m(p, 'employee').count).toHaveBeenCalledWith({ where: { departmentId: 'dep-1' } });
+  });
+
   it('list(depotId) includes the network-wide ones; list() takes every row', async () => {
     const p = makePrisma();
     m(p, 'department').findMany.mockResolvedValue([]);

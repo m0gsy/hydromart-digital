@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError, getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
+import { formatIDR } from '@/lib/format';
 import { PAYROLL_STATUS_LABEL, type Payroll, type PayrollStatus } from '@/lib/hr';
 import { canRunPayroll } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -21,11 +23,20 @@ export default function PayrollDetailPage() {
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
 
   const { data, error, loading, reload } = useAsync<Payroll>(() => api.get<Payroll>(endpoints.hr.payrollById(id), true), [id]);
 
-  async function act(path: string, ok: string) {
+  /*
+   * CA-1-11 — both buttons below move real money and neither asked. "Setujui" freezes a
+   * payroll run somebody may still be correcting; "Tandai Dibayar" says the transfers
+   * left the bank. Neither has an undo on this screen, and the two sit side by side in
+   * the same place, so a mis-tap on a phone is one pixel of travel from the right button.
+   */
+  async function act(path: string, ok: string, question: string, confirmLabel: string) {
+    if (!(await confirm({ title: confirmLabel, message: question, tone: 'primary', confirmLabel })))
+      return;
     setBusy(true);
     try {
       await api.post(path, undefined, true);
@@ -95,8 +106,36 @@ export default function PayrollDetailPage() {
 
       {canRun && (
         <div className="flex gap-3">
-          {p.status === 'DRAFT' && <Button onClick={() => act(endpoints.hr.approvePayroll(id), t('hrFix.payrollDetail.approved'))} loading={busy}>{t('hrFix.payrollDetail.approve')}</Button>}
-          {p.status === 'APPROVED' && <Button onClick={() => act(endpoints.hr.payPayroll(id), t('hrFix.payrollDetail.markedPaid'))} loading={busy}>{t('hrFix.payrollDetail.markPaid')}</Button>}
+          {p.status === 'DRAFT' && (
+            <Button
+              onClick={() =>
+                act(
+                  endpoints.hr.approvePayroll(id),
+                  t('hrFix.payrollDetail.approved'),
+                  t('hrFix.payrollDetail.approveConfirm', { net: formatIDR(Number(p.net)) }),
+                  t('hrFix.payrollDetail.approve'),
+                )
+              }
+              loading={busy}
+            >
+              {t('hrFix.payrollDetail.approve')}
+            </Button>
+          )}
+          {p.status === 'APPROVED' && (
+            <Button
+              onClick={() =>
+                act(
+                  endpoints.hr.payPayroll(id),
+                  t('hrFix.payrollDetail.markedPaid'),
+                  t('hrFix.payrollDetail.markPaidConfirm', { net: formatIDR(Number(p.net)) }),
+                  t('hrFix.payrollDetail.markPaid'),
+                )
+              }
+              loading={busy}
+            >
+              {t('hrFix.payrollDetail.markPaid')}
+            </Button>
+          )}
         </div>
       )}
     </div>

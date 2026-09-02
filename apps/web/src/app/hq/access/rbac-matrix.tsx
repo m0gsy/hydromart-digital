@@ -269,22 +269,27 @@ export function RbacMatrix() {
   }
 
   /**
-   * Write each changed capability. A capability dragged back to its compiled default is
-   * DELETEd rather than stored as an identical override, so the table only ever holds
-   * real deviations and "reset to default" stays a meaningful state.
+   * Write every changed capability, as one transaction.
+   *
+   * A capability dragged back to its compiled default is sent as `roles: null` — a DELETE
+   * server-side — rather than stored as an identical override, so the table only ever
+   * holds real deviations and "reset to default" stays a meaningful state.
+   *
+   * CA-2-62: this was a `for` loop of one request per capability. A rejection on the
+   * fourth of seven left three permission changes live and four not; the screen still
+   * showed all seven as unsaved, because `setBaseline` never ran; and pressing Reset put
+   * the grid back locally while the three that DID land stayed live. The result was an
+   * RBAC matrix nobody had chosen and nothing on screen admitted to.
    */
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      for (const cap of changed) {
+      const changes = changed.map((cap) => {
         const roles = ROLES.filter((r) => grid[cap].includes(r));
-        if (sameRoles(roles, CAPABILITIES[cap])) {
-          await api.del(endpoints.auth.capability(cap), true);
-        } else {
-          await api.put(endpoints.auth.capability(cap), { roles }, true);
-        }
-      }
+        return { capability: cap, roles: sameRoles(roles, CAPABILITIES[cap]) ? null : roles };
+      });
+      await api.put(endpoints.auth.capabilityBatch, { changes }, true);
       setBaseline(grid);
       setShowDiff(false);
     } catch (err) {

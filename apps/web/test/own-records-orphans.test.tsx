@@ -38,7 +38,15 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
+
+/** Every console screen renders inside the app's confirm provider; so must these. */
+const Providers = ({ children }: { children: React.ReactNode }) => (
+  <ConfirmProvider>
+    <LocaleProvider>{children}</LocaleProvider>
+  </ConfirmProvider>
+);
 import DriverEarningsHistoryPage from '@/app/driver/earnings/history/page';
 import AccountPage from '@/app/account/page';
 
@@ -83,7 +91,7 @@ describe('/driver/earnings/history · the courier’s own cash-book', () => {
   });
 
   it('reads the paged ledger, not the summary', async () => {
-    render(<DriverEarningsHistoryPage />, { wrapper: LocaleProvider });
+    render(<DriverEarningsHistoryPage />, { wrapper: Providers });
     expect(await screen.findByText('Upah 9 pengiriman')).toBeTruthy();
     expect(get.mock.calls.some((c) => String(c[0]).includes('/courier/ledger'))).toBe(true);
     expect(get.mock.calls.some((c) => String(c[0]).includes('earnings/summary'))).toBe(false);
@@ -95,7 +103,7 @@ describe('/driver/earnings/history · the courier’s own cash-book', () => {
    * money they received.
    */
   it('shows money out as money out', async () => {
-    const { container } = render(<DriverEarningsHistoryPage />, { wrapper: LocaleProvider });
+    const { container } = render(<DriverEarningsHistoryPage />, { wrapper: Providers });
     await screen.findByText('Selisih setoran 19 Agt');
     const text = container.textContent ?? '';
     expect(text).toContain('−'); // the minus on the deduction
@@ -107,7 +115,7 @@ describe('/driver/earnings/history · the courier’s own cash-book', () => {
   // with two more pages in it.
   it('derives the page count from total, not from a field the server never sends', async () => {
     const user = userEvent.setup();
-    render(<DriverEarningsHistoryPage />, { wrapper: LocaleProvider });
+    render(<DriverEarningsHistoryPage />, { wrapper: Providers });
     expect(await screen.findByText('Hal 1 dari 3')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Berikutnya' }));
     await waitFor(() =>
@@ -117,7 +125,7 @@ describe('/driver/earnings/history · the courier’s own cash-book', () => {
 
   it('says so when there is nothing, instead of an empty page', async () => {
     get.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 });
-    render(<DriverEarningsHistoryPage />, { wrapper: LocaleProvider });
+    render(<DriverEarningsHistoryPage />, { wrapper: Providers });
     expect(await screen.findByText('Belum ada catatan')).toBeTruthy();
   });
 });
@@ -158,7 +166,7 @@ describe('/account · consent history (UU PDP)', () => {
 
   it('is collapsed until asked for, then shows every decision with its date', async () => {
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
 
     // Collapsed: the current state is what somebody opens this sheet for.

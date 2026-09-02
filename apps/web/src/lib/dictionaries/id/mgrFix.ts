@@ -3,6 +3,13 @@
 // and the manager-mobile home/notifications. Consumed via t('mgrFix.*'); en/mgrFix.ts
 // mirrors this exact shape. NO `as const` (coordinator registers the fragment).
 export const mgrFix = {
+  approvalDecide: {
+    approveTitle: "Setujui pengajuan ini?",
+    rejectTitle: "Tolak pengajuan ini?",
+    thisItem: "pengajuan ini",
+    approveConfirm: "Setujui {kind}? Uangnya bergerak begitu ini disimpan, dan layar ini tidak bisa membatalkannya.",
+    rejectConfirm: "Tolak {kind}? Selisihnya tetap menjadi tanggungan orang yang mengajukannya, dan keputusan ini tidak bisa dibatalkan dari layar ini.",
+  },
   approvalKind: {
     OPNAME_VARIANCE: 'Selisih opname',
     DEPOSIT_REFUND: 'Refund deposit galon',

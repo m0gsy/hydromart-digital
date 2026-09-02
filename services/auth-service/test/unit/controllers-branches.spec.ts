@@ -369,6 +369,7 @@ describe('AccessController', () => {
     view: jest.fn().mockResolvedValue({ defaults: {}, overrides: {}, effective: {} }),
     set: jest.fn().mockResolvedValue(undefined),
     reset: jest.fn().mockResolvedValue(undefined),
+    applyAll: jest.fn().mockResolvedValue(undefined),
     patch: jest.fn().mockResolvedValue({ staffAdmin: ['SUPER_ADMIN'] }),
   };
   const controller = new AccessController(matrix as never);
@@ -390,6 +391,37 @@ describe('AccessController', () => {
     expect(matrix.set).toHaveBeenCalledWith('staffAdmin', ['SUPER_ADMIN'], 'admin-1');
     await controller.reset('staffAdmin');
     expect(matrix.reset).toHaveBeenCalledWith('staffAdmin');
+  });
+
+  it('passes a whole screenful of edits down as one call, null meaning reset', async () => {
+    await controller.applyAll(
+      {
+        changes: [
+          { capability: 'staffAdmin', roles: ['SUPER_ADMIN'] },
+          { capability: 'approvals', roles: null },
+        ],
+      } as never,
+      { sub: 'admin-1' } as never,
+    );
+    expect(matrix.applyAll).toHaveBeenCalledTimes(1);
+    expect(matrix.applyAll).toHaveBeenCalledWith(
+      [
+        { capability: 'staffAdmin', roles: ['SUPER_ADMIN'] },
+        { capability: 'approvals', roles: null },
+      ],
+      'admin-1',
+    );
+  });
+
+  it('reads a missing roles field as a reset rather than an empty grant', async () => {
+    await controller.applyAll(
+      { changes: [{ capability: 'approvals' }] } as never,
+      { sub: 'admin-1' } as never,
+    );
+    expect(matrix.applyAll).toHaveBeenCalledWith(
+      [{ capability: 'approvals', roles: null }],
+      'admin-1',
+    );
   });
 
   it('serves the override patch the other services poll', async () => {

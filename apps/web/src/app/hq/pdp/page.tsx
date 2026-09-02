@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, Warning } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Button, Card, Chip, ErrorState, Skeleton } from '@/components/ui';
 import { ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
@@ -25,6 +26,7 @@ import type { ConsentLagReport, DataSubjectRequest } from '@/lib/types';
 export default function HqPdpPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { askReason } = useConfirm();
   const [onlyPending, setOnlyPending] = useState(true);
   const { data, error, loading, reload } = useAsync<DataSubjectRequest[]>(
     () => api.get(endpoints.pdp.queue(onlyPending ? 'PENDING' : undefined), true),
@@ -56,12 +58,18 @@ export default function HqPdpPage() {
   }
 
   async function reject(row: DataSubjectRequest) {
-    const reason = window.prompt(t('hq.pdp.rejectPrompt'));
-    // A refusal without a reason tells the customer nothing, and the API refuses it too.
-    if (!reason || !reason.trim()) return;
+    // A refusal without a reason tells the customer nothing, and the API refuses it too —
+    // so the box is required and the button stays disabled until it has something in it.
+    const reason = await askReason({
+      title: t('hq.pdp.reject'),
+      message: t('hq.pdp.rejectPrompt'),
+      label: t('hq.pdp.reason'),
+      confirmLabel: t('hq.pdp.reject'),
+    });
+    if (!reason) return;
     setBusy(row.id);
     try {
-      await api.post(endpoints.pdp.reject(row.id), { reason: reason.trim() }, true);
+      await api.post(endpoints.pdp.reject(row.id), { reason }, true);
       toast(t('hq.pdp.rejected'), 'success');
       reload();
     } catch (err) {
@@ -141,14 +149,19 @@ export default function HqPdpPage() {
                   )}
                 </div>
                 {row.status === 'PENDING' && (
+                  // CA-2-62: `loading` disables the button it is on and nothing else, so
+                  // while an approval was in flight the Reject beside it stayed live —
+                  // two opposite decisions on one request, racing, and whichever answered
+                  // last is what the customer is told. Both lock while either runs.
                   <div className="flex gap-2">
                     <Button
                       loading={busy === row.id}
+                      disabled={busy !== null}
                       onClick={() => (row.type === 'DELETE' ? setConfirmDelete(row) : approve(row))}
                     >
                       {t('hq.pdp.approve')}
                     </Button>
-                    <Button variant="secondary" onClick={() => reject(row)}>
+                    <Button variant="secondary" disabled={busy !== null} onClick={() => reject(row)}>
                       {t('hq.pdp.reject')}
                     </Button>
                   </div>

@@ -24,6 +24,10 @@ export class DepartmentPrismaRepository implements DepartmentRepository {
     await this.prisma.department.delete({ where: { id } });
   }
 
+  countEmployees(departmentId: string): Promise<number> {
+    return this.prisma.employee.count({ where: { departmentId } });
+  }
+
   findById(id: string): Promise<Department | null> {
     return this.prisma.department.findUnique({ where: { id } });
   }

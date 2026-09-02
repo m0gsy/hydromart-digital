@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Archive } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Button, Card, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { Sheet } from '@/components/overlay';
@@ -26,26 +27,68 @@ function backupTone(status: string): 'success' | 'danger' | 'neutral' {
   return 'neutral';
 }
 
+/** What `POST /admin/api/v1/retention/purge` answers, dry run or not. */
+interface PurgeRun {
+  totalDeleted: number;
+  unenforced: string[];
+  entries: { dataset: string; outcome: string; deleted: number; eligible?: number }[];
+}
+
 export default function HqRetentionPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const query = useAsync<RetentionOverview>(() => api.get(endpoints.admin.retention.list, true));
   const [editing, setEditing] = useState<RetentionPolicy | null>(null);
   const [sweeping, setSweeping] = useState(false);
+  // What the last preview said. Cleared by a real run, so a stale plan can never be the
+  // number somebody reads while deciding.
+  const [plan, setPlan] = useState<PurgeRun | null>(null);
 
   /**
    * Runs the policy now. The result names every dataset with no executor, so a sweep that
    * deleted nothing is distinguishable from a policy nobody enforces — the exact confusion
    * this page used to create by showing windows that never applied.
+   *
+   * CA-2-44 — one button, no question, permanent deletion across every customer dataset
+   * at once. The service has had `dryRun` since it was written (retention.controller.ts:61)
+   * and the client path builder has always taken the flag (`endpoints.admin.retention.purge`)
+   * — the page simply never passed it. So the preview is not new work: it is the switch
+   * that was already there, wired to a button, and the real run now states the number the
+   * preview just produced before it deletes anything.
    */
-  async function runSweep() {
+  async function preview() {
     setSweeping(true);
     try {
-      const result = await api.post<{ totalDeleted: number; unenforced: string[] }>(
-        endpoints.admin.retention.purge(),
-        {},
-        true,
+      const result = await api.post<PurgeRun>(endpoints.admin.retention.purge(true), {}, true);
+      setPlan(result);
+      toast(
+        t('hq.retention.previewDone', {
+          n: String(result.totalDeleted),
+          gaps: String(result.unenforced.length),
+        }),
+        'info',
       );
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.retention.sweepError'), 'error');
+    } finally {
+      setSweeping(false);
+    }
+  }
+
+  async function runSweep() {
+    const ok = await confirm({
+      title: t('hq.retention.runSweep'),
+      message: plan
+        ? t('hq.retention.sweepConfirmPlanned', { n: String(plan.totalDeleted) })
+        : t('hq.retention.sweepConfirmUnplanned'),
+      confirmLabel: t('hq.retention.runSweep'),
+    });
+    if (!ok) return;
+    setSweeping(true);
+    try {
+      const result = await api.post<PurgeRun>(endpoints.admin.retention.purge(), {}, true);
+      setPlan(null);
       toast(
         t('hq.retention.sweepDone', {
           n: String(result.totalDeleted),
@@ -75,11 +118,38 @@ export default function HqRetentionPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button loading={sweeping} onClick={runSweep}>
+        <Button variant="secondary" loading={sweeping} onClick={preview}>
+          {t('hq.retention.preview')}
+        </Button>
+        <Button variant="danger" loading={sweeping} onClick={runSweep}>
           {t('hq.retention.runSweep')}
         </Button>
         <span className="text-xs text-muted">{t('hq.retention.sweepHint')}</span>
       </div>
+
+      {plan && (
+        <Card className="flex flex-col gap-2 p-4">
+          <p className="text-sm font-semibold">
+            {t('hq.retention.planTitle', { n: String(plan.totalDeleted) })}
+          </p>
+          <ul className="flex flex-col gap-1 text-sm text-muted">
+            {plan.entries
+              .filter((e) => e.deleted > 0 || (e.eligible ?? 0) > 0 || e.outcome === 'UNENFORCED')
+              .map((e) => (
+                <li key={e.dataset} className="flex justify-between gap-3">
+                  <span className="font-mono text-xs">{e.dataset}</span>
+                  <span className="tabular-nums">
+                    {e.outcome === 'UNENFORCED'
+                      ? t('hq.retention.planUnenforced')
+                      : t('hq.retention.planRows', {
+                          n: String(e.deleted || e.eligible || 0),
+                        })}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </Card>
+      )}
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[560px] border-collapse text-sm">

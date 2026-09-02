@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import { Tag } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Card, CenterState, ErrorState, Skeleton, Toggle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -39,11 +40,29 @@ function adjustmentLabel(r: PricingRule): string {
 
 function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
   const { t, locale } = useT();
+  const { confirm } = useConfirm();
   const [on, setOn] = useState(rule.active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function toggle(next: boolean) {
+    /*
+     * CA-4-40 — one tap on a phone switched an HQ-approved price rule off, or back on,
+     * with no question. The control is a switch inside a scrolling list, so the tap that
+     * does it is the same gesture as the tap that scrolls past it, and the effect is on
+     * the price every customer of this depot is quoted from that second on.
+     */
+    const ok = await confirm({
+      title: next
+        ? t('hrFix.managerPricing.enableTitle')
+        : t('hrFix.managerPricing.disableTitle'),
+      message: t(
+        next ? 'hrFix.managerPricing.enableConfirm' : 'hrFix.managerPricing.disableConfirm',
+        { rule: adjustmentLabel(rule) },
+      ),
+      tone: next ? 'primary' : 'danger',
+    });
+    if (!ok) return;
     setOn(next); // optimistic
     setBusy(true);
     setError(null);

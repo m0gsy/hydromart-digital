@@ -1430,6 +1430,13 @@ export const hq = {
     loadError: 'Could not load the consent-lag report.',
   },
   retention: {
+    preview: 'Preview (deletes nothing)',
+    previewDone: 'Preview: {n} rows are eligible, {gaps} datasets unenforced. Nothing was deleted.',
+    planTitle: 'Sweep plan: {n} rows would be deleted',
+    planRows: '{n} rows',
+    planUnenforced: 'unenforced',
+    sweepConfirmPlanned: 'Permanently delete the {n} rows the preview just listed? Deleted customer data cannot be restored from this screen.',
+    sweepConfirmUnplanned: 'Run the sweep without a preview? Rows past their window are deleted permanently, and you have not seen the count. Previewing first is safer.',
     runSweep: 'Run retention sweep',
     sweepHint:
       'Deletes data past its window for datasets that have an executor. Financial data is never touched.',

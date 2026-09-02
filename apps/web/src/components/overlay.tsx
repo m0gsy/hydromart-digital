@@ -154,7 +154,20 @@ export function Sheet({
   );
 }
 
-/** A small confirm dialog — replaces window.confirm for destructive actions. */
+/**
+ * A small confirm dialog — replaces window.confirm for destructive actions.
+ *
+ * `reason` turns it into the replacement for `window.prompt` as well. Four screens asked
+ * for a reason with a native prompt: an attendance correction, a PDP rejection, a delivery
+ * that failed, an order cancelled by ops. Each of those strings is filed as the RECORD of
+ * why — and a native prompt cannot be styled, cannot be translated, is suppressed outright
+ * in a WebView on some Android builds (so the action ran with `null`, or silently did not
+ * run at all), and accepts a blank string that reads back later as evidence nobody wrote.
+ * Required by default: the confirm button stays disabled until something is typed.
+ *
+ * `onConfirm` receives the trimmed reason (`''` when there is no `reason` field), so the
+ * existing zero-argument callers keep working untouched.
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -163,6 +176,7 @@ export function ConfirmDialog({
   cancelLabel,
   tone = 'danger',
   loading,
+  reason,
   onConfirm,
   onClose,
 }: {
@@ -173,12 +187,21 @@ export function ConfirmDialog({
   cancelLabel?: string;
   tone?: 'danger' | 'primary';
   loading?: boolean;
-  onConfirm: () => void;
+  reason?: { label: string; placeholder?: string; optional?: boolean };
+  onConfirm: (reason: string) => void;
   onClose: () => void;
 }) {
   useOverlay(open, onClose);
   const { t } = useT();
+  const [text, setText] = useState('');
+  // Each opening starts blank. Without this the next rejection inherits the last one's
+  // reason, which is the failure mode that makes a written record worthless.
+  useEffect(() => {
+    if (open) setText('');
+  }, [open]);
   if (!open) return null;
+  const trimmed = text.trim();
+  const blocked = !!reason && !reason.optional && trimmed === '';
 
   return (
     <Portal>
@@ -200,11 +223,30 @@ export function ConfirmDialog({
         >
           <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
           <p className="text-sm text-muted">{message}</p>
+          {reason && (
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {reason.label}
+              <textarea
+                autoFocus
+                rows={3}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={reason.placeholder}
+                className="w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-normal outline-none focus:border-brand-500"
+              />
+            </label>
+          )}
           <div className="mt-2 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               {cancelLabel ?? t('common.cancel')}
             </Button>
-            <Button type="button" variant={tone} onClick={onConfirm} loading={loading}>
+            <Button
+              type="button"
+              variant={tone}
+              onClick={() => onConfirm(trimmed)}
+              loading={loading}
+              disabled={blocked}
+            >
               {confirmLabel ?? t('common.confirm')}
             </Button>
           </div>

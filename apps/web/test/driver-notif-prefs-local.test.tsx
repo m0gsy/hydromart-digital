@@ -31,6 +31,7 @@ vi.mock('@/lib/push', () => ({
   requestPushOnce: vi.fn(),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import DriverSettingsPage from '@/app/driver/settings/page';
@@ -59,11 +60,13 @@ afterEach(() => vi.clearAllMocks());
 
 const view = () =>
   render(
-    <LocaleProvider>
+    <ConfirmProvider>
+      <LocaleProvider>
       <ThemeProvider>
         <DriverSettingsPage />
       </ThemeProvider>
-    </LocaleProvider>,
+      </LocaleProvider>
+    </ConfirmProvider>,
   );
 
 describe('K5.1 · courier notification switches', () => {

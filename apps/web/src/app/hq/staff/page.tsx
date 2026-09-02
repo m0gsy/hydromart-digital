@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { UserGear } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -232,6 +233,7 @@ function DepotPicker({
   onMoved: () => void;
 }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,9 +246,14 @@ function DepotPicker({
 
   async function move(depotId: string) {
     const target = depots.find((d) => d.id === depotId)?.name ?? t('hq.staff.noDepot');
-    if (!window.confirm(t('hq.staff.depotMoveConfirm', { name: staff.fullName || staff.phone, depot: target }))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: t('hq.staff.depotMoveConfirm', {
+        name: staff.fullName || staff.phone,
+        depot: target,
+      }),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

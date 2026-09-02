@@ -10,7 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 import { Can } from '@hydromart/platform';
 
@@ -27,6 +35,28 @@ export class SetCapabilityRolesDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   roles!: string[];
+}
+
+export class CapabilityChangeDto {
+  @IsString()
+  @MaxLength(64)
+  capability!: string;
+
+  /** `null` resets the capability to its compiled default. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(32)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  roles!: string[] | null;
+}
+
+export class ApplyMatrixDto {
+  @IsArray()
+  @ArrayMaxSize(256)
+  @ValidateNested({ each: true })
+  @Type(() => CapabilityChangeDto)
+  changes!: CapabilityChangeDto[];
 }
 
 /**
@@ -51,6 +81,30 @@ export class AccessController {
   @ApiOperation({ summary: 'Compiled defaults, the super-admin overrides, and the effective matrix' })
   view(): Promise<AccessMatrixView> {
     return this.matrix.view();
+  }
+
+  /*
+   * The whole screenful at once, in one transaction.
+   *
+   * The editor used to send one request per changed capability in a loop. A failure on
+   * the fourth of seven left three edits enforced and four not, while the screen still
+   * showed all seven as unsaved — and its "Reset" button only put the local grid back,
+   * so the operator's way out of a half-applied matrix silently changed nothing on the
+   * server. Validation now runs over every change before the first write.
+   */
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Put('matrix')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Apply every changed capability as one transaction' })
+  async applyAll(
+    @Body() dto: ApplyMatrixDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.applyAll(
+      dto.changes.map((c) => ({ capability: c.capability, roles: c.roles ?? null })),
+      user.sub,
+    );
   }
 
   @ApiOkResponse({ description: 'No content.' })

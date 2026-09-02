@@ -15,6 +15,7 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Sheet } from '@/components/overlay';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
@@ -32,6 +33,7 @@ import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types
 function CartInner() {
   const { t } = useT();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { apply, bump } = useCart();
   const { location } = useLocation();
 
@@ -124,6 +126,16 @@ function CartInner() {
   }
 
   async function clear() {
+    // CA-3-29: "Kosongkan keranjang" sat next to the per-line trash icons, ran instantly,
+    // and had no undo — a cart built over several sessions, gone on one tap. The failure
+    // path below restores the lines locally, but only for a request that FAILED; a
+    // successful clear nobody meant is simply gone.
+    const ok = await confirm({
+      title: t('order.cart.clear'),
+      message: t('order.cart.clearConfirm', { n: String(totalQty) }),
+      confirmLabel: t('order.cart.clear'),
+    });
+    if (!ok) return;
     const prev = lines;
     setLines([]);
     bump(-totalQty);

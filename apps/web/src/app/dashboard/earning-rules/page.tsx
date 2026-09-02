@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Coins, Lock, Plus } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Badge,
@@ -279,11 +280,16 @@ function RuleRow({
   onDeleted: () => void;
 }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function remove() {
-    if (!window.confirm(t('opsFix.earningRules.deleteConfirm'))) return;
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: t('opsFix.earningRules.deleteConfirm'),
+    });
+    if (!ok) return;
     setBusy(true);
     setErr(null);
     try {

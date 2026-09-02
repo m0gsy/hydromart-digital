@@ -360,4 +360,48 @@ describe('remaining prisma repository paths', () => {
       where: { capability: 'never-set' },
     });
   });
+
+  it('applies a batch of matrix edits inside one transaction', async () => {
+    const capabilityOverride = {
+      upsert: jest.fn().mockReturnValue('upsert-op'),
+      deleteMany: jest.fn().mockReturnValue('delete-op'),
+    };
+    const $transaction = jest.fn().mockResolvedValue([]);
+    const repo = new CapabilityOverridePrismaRepository({
+      capabilityOverride,
+      $transaction,
+    } as unknown as PrismaService);
+
+    await repo.applyAll(
+      [
+        { capability: 'staffAdmin', roles: ['SUPER_ADMIN'] as never },
+        { capability: 'approvals', roles: null },
+      ],
+      'admin-1',
+    );
+
+    // ONE transaction, both operations inside it: a rejection cannot leave the first
+    // capability written and the second not.
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect($transaction.mock.calls[0][0]).toEqual(['upsert-op', 'delete-op']);
+    expect(capabilityOverride.upsert).toHaveBeenCalledWith({
+      where: { capability: 'staffAdmin' },
+      create: { capability: 'staffAdmin', roles: ['SUPER_ADMIN'], updatedBy: 'admin-1' },
+      update: { roles: ['SUPER_ADMIN'], updatedBy: 'admin-1' },
+    });
+    expect(capabilityOverride.deleteMany).toHaveBeenCalledWith({
+      where: { capability: 'approvals' },
+    });
+  });
+
+  it('does not open a transaction for an empty batch', async () => {
+    const $transaction = jest.fn();
+    const repo = new CapabilityOverridePrismaRepository({
+      capabilityOverride: {},
+      $transaction,
+    } as unknown as PrismaService);
+
+    await repo.applyAll([], null);
+    expect($transaction).not.toHaveBeenCalled();
+  });
 });

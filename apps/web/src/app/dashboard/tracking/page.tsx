@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useConfirm } from '@/components/confirm';
 import { DeliveryDetail } from '@/components/dashboard/delivery-detail';
 import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
@@ -75,6 +76,7 @@ function DeliveryCard({
   onChanged: () => void;
 }) {
   const { t } = useT();
+  const { askReason } = useConfirm();
   const [busy, setBusy] = useState<'release' | 'cancel' | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -90,7 +92,12 @@ function DeliveryCard({
    * guess what goes wrong in the field.
    */
   async function act(kind: 'release' | 'cancel') {
-    const reason = window.prompt(t(`opsFix.tracking.${kind}Prompt`))?.trim();
+    const reason = await askReason({
+      title: t(`opsFix.tracking.${kind}`),
+      message: t(`opsFix.tracking.${kind}Prompt`),
+      label: t('common.reason'),
+      confirmLabel: t(`opsFix.tracking.${kind}`),
+    });
     if (!reason) return;
     setBusy(kind);
     setActionError(null);

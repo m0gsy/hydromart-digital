@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -18,6 +19,7 @@ export default function DepartmentsPage() {
   const { customer } = useAuth();
   const { depots } = useDepot();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const isAdmin = canManageHr(customer?.role);
 
   const departments = useAsync<Department[]>(
@@ -63,9 +65,18 @@ export default function DepartmentsPage() {
     }
   }
 
-  async function remove(id: string) {
+  async function remove(d: Department) {
+    // CA-1-12: a ghost button that deleted a department on one tap. The row it removes is
+    // referenced by employee records, so this is not only "are you sure" — the server now
+    // refuses when anyone still points at it, and this says so before the request.
+    const ok = await confirm({
+      title: t('hrFix.departments.delete2'),
+      message: t('hrFix.departments.deleteConfirm', { name: `${d.code} · ${d.name}` }),
+      confirmLabel: t('hrFix.departments.delete2'),
+    });
+    if (!ok) return;
     try {
-      await api.del(endpoints.hr.deleteDepartment(id), true);
+      await api.del(endpoints.hr.deleteDepartment(d.id), true);
       toast(t('hrFix.departments.deleted'));
       departments.reload();
     } catch (e) {
@@ -106,7 +117,7 @@ export default function DepartmentsPage() {
                     <Button variant="ghost" onClick={() => toggle(d)}>
                       {d.active ? t('hrFix.departments.deactivate') : t('hrFix.departments.activate')}
                     </Button>
-                    <Button variant="ghost" onClick={() => remove(d.id)}>
+                    <Button variant="ghost" onClick={() => remove(d)}>
                       {t('hrFix.departments.delete2')}
                     </Button>
                   </span>

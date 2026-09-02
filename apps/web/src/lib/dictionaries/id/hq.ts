@@ -1434,6 +1434,13 @@ export const hq = {
     loadError: 'Gagal memuat laporan ketertinggalan persetujuan.',
   },
   retention: {
+    preview: 'Pratinjau (tanpa menghapus)',
+    previewDone: 'Pratinjau: {n} baris memenuhi syarat, {gaps} dataset belum ditegakkan. Belum ada yang dihapus.',
+    planTitle: 'Rencana sapuan: {n} baris akan dihapus',
+    planRows: '{n} baris',
+    planUnenforced: 'belum ditegakkan',
+    sweepConfirmPlanned: 'Hapus permanen {n} baris sesuai pratinjau barusan? Data pelanggan yang terhapus tidak bisa dikembalikan dari layar ini.',
+    sweepConfirmUnplanned: 'Jalankan sapuan tanpa pratinjau? Baris yang lewat masa simpan akan dihapus permanen, dan jumlahnya belum pernah kamu lihat. Pratinjau dulu lebih aman.',
     runSweep: 'Jalankan sapuan retensi',
     sweepHint:
       'Menghapus data yang lewat masa simpan untuk dataset yang punya eksekutor. Data keuangan tidak pernah disentuh.',

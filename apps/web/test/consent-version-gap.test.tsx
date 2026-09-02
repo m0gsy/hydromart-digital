@@ -51,7 +51,15 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
+
+/** Every console screen renders inside the app's confirm provider; so must these. */
+const Providers = ({ children }: { children: React.ReactNode }) => (
+  <ConfirmProvider>
+    <LocaleProvider>{children}</LocaleProvider>
+  </ConfirmProvider>
+);
 import AccountPage from '@/app/account/page';
 import HqPdpPage from '@/app/hq/pdp/page';
 
@@ -111,7 +119,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
   it('says the wording moved, names the version, and links to both documents', async () => {
     mockAccount(OWED);
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
 
     expect(await screen.findByText('Syarat & kebijakan sudah diperbarui')).toBeTruthy();
@@ -137,7 +145,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
   it('blocks nothing: no extra modal, the sheet still closes, the toggles still write', async () => {
     mockAccount(OWED);
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
     await screen.findByText('Syarat & kebijakan sudah diperbarui');
 
@@ -166,7 +174,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
   it('says out loud that ignoring it changes nothing', async () => {
     mockAccount(OWED);
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
 
     expect(
@@ -179,7 +187,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
   it('re-confirms through the existing consent PUT, one call per owed purpose', async () => {
     mockAccount(OWED);
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
     await user.click(await screen.findByRole('button', { name: 'Setujui teks terbaru' }));
 
@@ -201,7 +209,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
       enforcement: 'UNENFORCED',
     });
     const user = userEvent.setup();
-    render(<AccountPage />, { wrapper: LocaleProvider });
+    render(<AccountPage />, { wrapper: Providers });
     await user.click(await screen.findByText('Persetujuan data'));
     // The toggles are up, so the sheet has rendered — and the notice is not in it.
     expect(await screen.findByText('Promo dan penawaran')).toBeTruthy();
@@ -242,7 +250,7 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
   });
 
   it('reads the report, bounded — never the whole base in one call', async () => {
-    render(<HqPdpPage />, { wrapper: LocaleProvider });
+    render(<HqPdpPage />, { wrapper: Providers });
     await screen.findByText('Ketertinggalan persetujuan');
     const call = get.mock.calls.map((c) => String(c[0])).find((p) => p.includes('/consents/report'));
     expect(call).toBeTruthy();
@@ -255,7 +263,7 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
    * is printed as its own figure and the overlap is stated.
    */
   it('prints all five totals as figures, and says they do not add up', async () => {
-    render(<HqPdpPage />, { wrapper: LocaleProvider });
+    render(<HqPdpPage />, { wrapper: Providers });
     expect(await screen.findByText('1200')).toBeTruthy();
     expect(screen.getByText('3')).toBeTruthy();
     expect(screen.getByText('40')).toBeTruthy();
@@ -269,14 +277,14 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
   // Day one reads as ~100% outdated because the migration backfilled every row at '1.0'.
   // Without this sentence the screen is an incident report about a correct answer.
   it('explains the day-one backfill instead of raising an alarm', async () => {
-    render(<HqPdpPage />, { wrapper: LocaleProvider });
+    render(<HqPdpPage />, { wrapper: Providers });
     expect(
       await screen.findByText((s) => s.includes('"1.0"') && s.includes('bukan tanda bahaya')),
     ).toBeTruthy();
   });
 
   it('keeps "never asked" and "refused" apart, on the rows and in words', async () => {
-    render(<HqPdpPage />, { wrapper: LocaleProvider });
+    render(<HqPdpPage />, { wrapper: Providers });
     expect(await screen.findByText('Belum pernah ditanya: Kebijakan privasi & pemrosesan data'))
       .toBeTruthy();
     expect(screen.getByText('Menolak: Syarat & ketentuan layanan')).toBeTruthy();
@@ -287,7 +295,7 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
 
   it('pages with nextCursor, and stops when the server says there is no next', async () => {
     const user = userEvent.setup();
-    render(<HqPdpPage />, { wrapper: LocaleProvider });
+    render(<HqPdpPage />, { wrapper: Providers });
     await screen.findByText('Halaman 1');
 
     await user.click(screen.getByRole('button', { name: 'Berikutnya' }));

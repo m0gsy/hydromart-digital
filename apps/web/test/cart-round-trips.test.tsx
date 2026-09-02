@@ -46,6 +46,7 @@ vi.mock('@/lib/auth-context', () => ({ useAuth: () => session }));
 
 import CartPage from '@/app/cart/page';
 import { CartProvider } from '@/lib/cart-context';
+import { ConfirmProvider } from '@/components/confirm';
 
 /** Only the cart read is scripted; every other GET on the page fails soft. */
 function scriptGets() {
@@ -69,9 +70,11 @@ afterEach(() => vi.clearAllMocks());
 
 async function renderCart() {
   render(
-    <CartProvider>
-      <CartPage />
-    </CartProvider>,
+    <ConfirmProvider>
+      <CartProvider>
+        <CartPage />
+      </CartProvider>
+    </ConfirmProvider>,
   );
   // The page renders a skeleton until its own cart read lands.
   await waitFor(() => expect(screen.getByText('Galon 19L')).toBeTruthy());
