@@ -34,7 +34,11 @@ export default function HqOnboardingPage() {
 
   const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const depot = useAsync<DepotAdmin | null>(
-    () => (depotId ? api.get<DepotAdmin>(endpoints.depots.detail(depotId), true) : Promise.resolve(null)),
+    // Same trap as hq/depots/detail: `depots.detail` is the public projection, which
+    // carries no payment fields — so the "payments" step below, whose whole test is
+    // `paymentBankAccountNumber || paymentQrisImageUrl`, could never turn green no matter
+    // how the depot was set up.
+    () => (depotId ? api.get<DepotAdmin>(endpoints.depots.manageDetail(depotId), true) : Promise.resolve(null)),
     [depotId],
   );
   const inv = useAsync<InventoryItem[]>(
