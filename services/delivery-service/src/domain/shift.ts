@@ -74,3 +74,22 @@ export function breakSecondsRemaining(breakSecondsUsed: number, quotaMinutes: nu
 export function expectedEndAt(checkInAt: Date, shiftLengthHours: number): Date {
   return new Date(checkInAt.getTime() + shiftLengthHours * 3_600_000);
 }
+
+/**
+ * Is this open shift one nobody ever checked out of? (CA-4-19)
+ *
+ * A shift has no closer but the courier's own check-out, so a phone that ran flat leaves
+ * one open for ever. The next morning's check-in at the same depot then handed that shift
+ * straight back — a replay branch written for an offline retry seconds later, with no
+ * clock on it — and the courier carried on inside yesterday's shift: yesterday's break
+ * quota already spent, an `expectedEndAt` in the past, and every COD collected today
+ * settling against a window that was supposed to have closed.
+ *
+ * Stale is measured against `expectedEndAt` — the end this shift froze for itself at
+ * check-in — and nothing else. No new tunable: the retry this branch was written for fires
+ * seconds to minutes after a check-in, which is hours before that end, so the bound the
+ * shift already carries separates a replay from yesterday with no number to agree on.
+ */
+export function isStale(expectedEnd: Date, now: Date): boolean {
+  return now.getTime() > expectedEnd.getTime();
+}

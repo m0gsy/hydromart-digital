@@ -7,13 +7,22 @@ import { EmployeeSelect } from '@/components/hr/employee-select';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
 import { Card, LinkButton, SectionHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { canManageHr } from '@/lib/roles';
+import { canManageHr, canRunPayroll } from '@/lib/roles';
 
 /** Allowances are per employee, so this page is a picker plus the same panel the detail page shows. */
 export default function AllowancesPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const isAdmin = canManageHr(customer?.role);
+  /*
+   * CA-1-27 — two buttons, two capabilities, and they are genuinely not the same one.
+   *
+   * `POST /allowances/import` is `@Can('hrPayroll')` (an allowance is salary) and
+   * `POST /loans/import` is `@Can('hrAdmin')` (a kasbon is employee master data). One
+   * `canManageHr` gated both, so FINANCE — which runs payroll and holds `hrPayroll` — was
+   * shown neither, and HEAD_OFFICE was shown an allowance import the server refuses.
+   */
+  const canImportAllowances = canRunPayroll(customer?.role);
+  const canImportLoans = canManageHr(customer?.role);
   const [employeeId, setEmployeeId] = useState('');
 
   return (
@@ -22,14 +31,18 @@ export default function AllowancesPage() {
         title={t('hrFix.hrAllowances.title')}
         subtitle={t('hrFix.hrAllowances.subtitle')}
         action={
-          isAdmin ? (
+          canImportAllowances || canImportLoans ? (
             <div className="flex gap-2">
-              <LinkButton href="/hr/allowances/import" variant="secondary">
-                Import Excel
-              </LinkButton>
-              <LinkButton href="/hr/loans/import" variant="secondary">
-                Import Kasbon
-              </LinkButton>
+              {canImportAllowances && (
+                <LinkButton href="/hr/allowances/import" variant="secondary">
+                  Import Excel
+                </LinkButton>
+              )}
+              {canImportLoans && (
+                <LinkButton href="/hr/loans/import" variant="secondary">
+                  Import Kasbon
+                </LinkButton>
+              )}
             </div>
           ) : undefined
         }
@@ -41,7 +54,7 @@ export default function AllowancesPage() {
         <EmployeeSelect value={employeeId} onChange={setEmployeeId} />
       </Card>
 
-      {employeeId && <EmployeeAllowances employeeId={employeeId} isAdmin={isAdmin} />}
+      {employeeId && <EmployeeAllowances employeeId={employeeId} />}
     </div>
   );
 }

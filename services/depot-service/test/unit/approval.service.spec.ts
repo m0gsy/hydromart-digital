@@ -1,6 +1,10 @@
 import { ApprovalService } from '../../src/application/services/approval.service';
 import { ApprovalStatus, ApprovalType } from '../../src/domain/approval';
-import { ApprovalAlreadyDecidedError, ApprovalNotFoundError } from '../../src/domain/errors';
+import {
+  ApprovalAlreadyDecidedError,
+  ApprovalNotFoundError,
+  ApprovalSelfDecideError,
+} from '../../src/domain/errors';
 import { OwnershipType } from '../../src/domain/inventory';
 import { DepotService } from '../../src/application/services/depot.service';
 import {
@@ -103,5 +107,60 @@ describe('ApprovalService', () => {
     const counts = await service.counts(depotId);
     expect(counts.total).toBe(1);
     expect(counts.byType.OPNAME_VARIANCE).toBe(1);
+  });
+
+  /*
+   * CA-2-20, owner decision D7 (2 September 2026).
+   *
+   * `submittedBy` is the account that performed the act being reviewed — the stock count
+   * whose loss this is, the gallon return whose refund this is — and every one of those acts
+   * is reachable by a MANAGER, who is also the role holding `approvals`. So one account could
+   * count a shortfall, raise the item for it, and sign it off, and the ledger would show two
+   * names that were the same name.
+   *
+   * The refusal IS the escalation: nothing is deleted, no status is invented, the item stays
+   * PENDING in the same queue for the next approver.
+   */
+  describe('CA-2-20 · nobody decides their own item', () => {
+    it('refuses APPROVE from the person who raised it', async () => {
+      const a = await raise(-240_000);
+      await expect(service.decide(a.id, 'APPROVE', null, SUBMITTER)).rejects.toBeInstanceOf(
+        ApprovalSelfDecideError,
+      );
+    });
+
+    it('refuses REJECT too — a rejection is a decision about your own item', async () => {
+      const a = await raise(-240_000);
+      await expect(service.decide(a.id, 'REJECT', null, SUBMITTER)).rejects.toBeInstanceOf(
+        ApprovalSelfDecideError,
+      );
+    });
+
+    it('refuses HOLD too — parking your own item is still deciding it', async () => {
+      const a = await raise(-240_000);
+      await expect(service.decide(a.id, 'HOLD', 'nanti', SUBMITTER)).rejects.toBeInstanceOf(
+        ApprovalSelfDecideError,
+      );
+    });
+
+    it('leaves the item PENDING and decidable by somebody else', async () => {
+      const a = await raise(-240_000);
+      await expect(service.decide(a.id, 'APPROVE', null, SUBMITTER)).rejects.toThrow();
+
+      // The refusal must not consume the item: this is an escalation, not a dead end.
+      const still = await service.get(a.id);
+      expect(still.status).toBe(ApprovalStatus.PENDING);
+      expect(still.decidedAt).toBeNull();
+
+      const approved = await service.decide(a.id, 'APPROVE', 'ditinjau manajer lain', MANAGER);
+      expect(approved.status).toBe(ApprovalStatus.APPROVED);
+      expect(approved.decidedBy).toBe(MANAGER);
+    });
+
+    it('still lets a different account decide normally', async () => {
+      const a = await raise(-240_000);
+      const ok = await service.decide(a.id, 'APPROVE', null, MANAGER);
+      expect(ok.status).toBe(ApprovalStatus.APPROVED);
+    });
   });
 });

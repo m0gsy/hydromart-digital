@@ -24,7 +24,8 @@ import { usePathname } from 'next/navigation';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
-import { canManageHr } from '@/lib/roles';
+import { isServedHere } from '@/lib/deep-link';
+import { canManageHr, isHq } from '@/lib/roles';
 
 interface NavItem {
   href: string;
@@ -61,7 +62,23 @@ export function HrRail() {
   const pathname = usePathname();
   const { customer } = useAuth();
   const isAdmin = canManageHr(customer?.role);
-  const items = ITEMS.filter((i) => !i.adminOnly || isAdmin);
+  /*
+   * CA-2-17 — the way back out.
+   *
+   * This rail is nineteen HR screens and a sign-out button, and that was the whole of it:
+   * every account that reached the HR console for any reason had two ways to leave, the
+   * browser's back button and signing out. The ops rail has carried an `/hq` door for
+   * exactly this reason since it was built; the HR rail never did, so a role whose console
+   * is elsewhere — FINANCE reads HR payroll, and its landing used to drop it here — arrived
+   * somewhere it could not leave. Same gate and same binary check as the ops rail's door,
+   * because the Ops app prunes the whole `/hq` subtree.
+   */
+  const items = [
+    ...(isHq(customer?.role) && isServedHere('/hq')
+      ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
+      : []),
+    ...ITEMS.filter((i) => !i.adminOnly || isAdmin),
+  ];
 
   return (
     <nav

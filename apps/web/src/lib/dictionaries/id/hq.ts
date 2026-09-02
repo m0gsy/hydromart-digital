@@ -228,6 +228,8 @@ export const hq = {
       other: 'Lainnya',
     },
     caps: {
+      approvalThresholdWrite: "Ambang persetujuan (ubah)",
+      settingsRead: "Setelan (lihat)",
       dashboard: 'Dashboard eksekutif',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Lihat inventori',

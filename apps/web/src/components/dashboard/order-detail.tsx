@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { useConfirm } from '@/components/confirm';
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { Sheet } from '@/components/overlay';
@@ -13,7 +14,7 @@ import { formatDateTime, mediaUrl } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { useAuth } from '@/lib/auth-context';
-import { canConfirmPayment } from '@/lib/roles';
+import { can, canConfirmPayment } from '@/lib/roles';
 import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Order, Page, Payment } from '@/lib/types';
@@ -24,7 +25,11 @@ const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as 
 export function PaymentSettle({ order }: { order: Order }) {
   const { t } = useT();
   const { customer } = useAuth();
+  const { askReason } = useConfirm();
   const canConfirm = canConfirmPayment(customer?.role);
+  // CA-2-24 — the same capability payment-service checks on POST :id/refund, so the button
+  // is offered to exactly the roles the server will serve and to nobody else.
+  const canRefund = can('refundIssue', customer?.role);
   const { data, error: readError, reload } = useAsync<Page<Payment>>(
     () => api.get(endpoints.payments.forOrderStaff(order.id), true),
     [order.id],
@@ -56,6 +61,43 @@ export function PaymentSettle({ order }: { order: Order }) {
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.payFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /*
+   * CA-2-24 — start a refund on a payment that already settled.
+   *
+   * `refundIssue` (FINANCE + MANAGER) has been on the RBAC matrix and on the route since
+   * the refund queue shipped, and no screen in the console ever called it: the only refunds
+   * that could be started were the ones a customer's own cancellation started for them. A
+   * wrong charge, a short delivery or a duplicate QRIS scan had no path at all — the row on
+   * the reconciliation screen named the problem and nothing on it could act.
+   *
+   * `askReason`, not `confirm`: the reason is what the customer and the audit trail read
+   * back, and a refund is not undoable, which is the rule step 06 wrote for this whole
+   * console. Above the HQ threshold the server parks it for finance instead of moving
+   * money, and the row simply comes back as it was.
+   */
+  async function refund() {
+    if (!payment) return;
+    const reason = await askReason({
+      title: t('hrFix.orderDetail.refundTitle'),
+      message: t('hrFix.orderDetail.refundMessage', { order: order.orderNumber }),
+      label: t('hrFix.orderDetail.refundReason'),
+      placeholder: t('hrFix.orderDetail.refundReasonHint'),
+      confirmLabel: t('hrFix.orderDetail.refundConfirm'),
+      tone: 'danger',
+    });
+    if (reason === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(endpoints.payments.refund(payment.id), { reason }, true);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.refundFailed'));
     } finally {
       setBusy(false);
     }
@@ -122,6 +164,11 @@ export function PaymentSettle({ order }: { order: Order }) {
       {canConfirm && pending && (
         <Button onClick={confirm} loading={busy}>
           Konfirmasi lunas
+        </Button>
+      )}
+      {canRefund && payment.status === 'PAID' && (
+        <Button variant="secondary" onClick={refund} loading={busy}>
+          {t('hrFix.orderDetail.refundAction')}
         </Button>
       )}
     </div>

@@ -34,12 +34,15 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'd1' }, ready: true }),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { ToastProvider } from '@/components/toast';
 import { LocaleProvider } from '@/lib/locale-context';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <LocaleProvider>
-    <ToastProvider>{children}</ToastProvider>
+    <ToastProvider>
+      <ConfirmProvider>{children}</ConfirmProvider>
+    </ToastProvider>
   </LocaleProvider>
 );
 

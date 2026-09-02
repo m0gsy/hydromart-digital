@@ -252,6 +252,9 @@ function hqLanding(role: string | null | undefined): string[] {
   return hqItemsForRole(role).map((i) => i.href);
 }
 
+/** A screen INSIDE the HQ console, as opposed to a door the rail carries out of it. */
+const isHqPath = (href: string) => href === '/hq' || href.startsWith('/hq/');
+
 export function consoleHome(
   role: string | null | undefined,
   native: boolean = isNativeShell(),
@@ -270,8 +273,21 @@ export function consoleHome(
      * so sending it here would land it on the one page in the console it cannot read, on
      * every sign-in. The first rail item the role can actually use is the honest home;
      * for head office and the director that is still `/hq`, so nothing moves for them.
+     *
+     * CA-2-17: "the first rail item" is not the same as "the first HQ SCREEN". The HQ rail
+     * carries three doors OUT of the console — `/dashboard`, `/hr`, `/resellers` — and the
+     * one FINANCE reaches first is `/hr`, so a finance account signed in at the staff door
+     * and landed in the HR console every single time. Measured 2026-09-02:
+     * `consoleHome('FINANCE')` returned `/hr`. Worse than a wrong home, the HR rail has no
+     * door back (the ops rail has one), so it arrived somewhere it could not leave —
+     * "terkurung di sana", exactly as the card says.
+     *
+     * So: an actual `/hq` screen first, and the cross-console doors only as the fallback
+     * they were meant to be. Nothing moves for head office or the director, whose first
+     * item is `/hq` either way.
      */
-    const home = first(...hqLanding(role), '/dashboard', '/hr/me');
+    const rail = hqLanding(role);
+    const home = first(...rail.filter(isHqPath), ...rail, '/dashboard', '/hr/me');
     if (home) return home;
   }
   if (canUseCourierApp(role)) {

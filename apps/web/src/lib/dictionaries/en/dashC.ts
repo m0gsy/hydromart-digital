@@ -132,6 +132,8 @@ export const dashC = {
       SUPER_ADMIN: 'Super admin',
     },
     cap: {
+      approvalThresholdWrite: "Approval threshold (edit)",
+      settingsRead: "Settings (view)",
       dashboard: 'Executive dashboard',
       orderQueue: 'Order queue',
       inventoryRead: 'Inventory (view)',

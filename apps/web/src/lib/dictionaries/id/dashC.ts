@@ -134,6 +134,8 @@ export const dashC = {
       SUPER_ADMIN: 'Super admin',
     },
     cap: {
+      approvalThresholdWrite: "Ambang persetujuan (ubah)",
+      settingsRead: "Setelan (lihat)",
       dashboard: 'Dashboard eksekutif',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Inventory (lihat)',

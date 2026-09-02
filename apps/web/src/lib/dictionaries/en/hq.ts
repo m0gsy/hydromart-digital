@@ -225,6 +225,8 @@ export const hq = {
       other: 'Other',
     },
     caps: {
+      approvalThresholdWrite: "Approval threshold (edit)",
+      settingsRead: "Settings (view)",
       dashboard: 'Executive dashboard',
       orderQueue: 'Order queue',
       inventoryRead: 'View inventory',

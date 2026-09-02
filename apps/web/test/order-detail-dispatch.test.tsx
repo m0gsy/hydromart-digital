@@ -17,6 +17,7 @@ vi.mock('@/lib/auth-context', () => ({
 }));
 
 import { OrderDetail } from '@/components/dashboard/order-detail';
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 
 const DRIVERS = [
@@ -70,8 +71,10 @@ afterEach(() => vi.clearAllMocks());
 const renderDetail = () =>
   render(
     <LocaleProvider>
-      <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
-    </LocaleProvider>,
+        <ConfirmProvider>
+          <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
+        </ConfirmProvider>
+      </LocaleProvider>,
   );
 
 describe('OrderDetail courier assignment when the shift view fails', () => {

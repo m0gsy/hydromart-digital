@@ -181,6 +181,7 @@ export class LeaveService {
   ): Promise<LeaveRequest> {
     const request = await this.get(id);
     assertDepotAccess(user, request.depotId);
+    await this.assertMayDecide(user, request);
     return this.applyDecision(request, approve ? 'MANAGER_APPROVE' : 'MANAGER_REJECT', {
       actor: user.sub,
       note,
@@ -195,10 +196,42 @@ export class LeaveService {
   ): Promise<LeaveRequest> {
     const request = await this.get(id);
     assertDepotAccess(user, request.depotId);
+    await this.assertMayDecide(user, request);
     return this.applyDecision(request, approve ? 'HR_APPROVE' : 'HR_REJECT', {
       actor: user.sub,
       note,
     });
+  }
+
+  /**
+   * Two stages, two people — CA-1-40.
+   *
+   * Both decision paths checked one thing: does this account reach the request's depot.
+   * `leaveApprove` (stage 1) is MANAGER + HR and `hrAdmin` (stage 2) includes HR, so an HR
+   * staffer with an employee record of their own held BOTH stages over their OWN
+   * application — the two-stage flow collapsed into one click by the applicant.
+   *
+   * Two rules, in the one place both stages pass through:
+   *
+   * 1. The applicant never decides their own request, at either stage. A rejection is a
+   *    decision too, so this is not "cannot self-approve": `cancel()` is the path an
+   *    applicant has over their own row, and it stays untouched.
+   * 2. Stage 2 is not signed by whoever signed stage 1. Two signatures from one account are
+   *    one signature written twice, which is exactly what "dua tahap sekaligus" describes.
+   *
+   * `findByAuthSubjectId` rather than `getSelf`: an approver with no employee record of
+   * their own is normal (head office, the superuser) and must not 404 here.
+   */
+  private async assertMayDecide(user: AuthenticatedUser, request: LeaveRequest): Promise<void> {
+    if (request.managerDecidedBy && request.managerDecidedBy === user.sub) {
+      throw new ForbiddenException(
+        'Tahap kedua harus diputuskan orang lain, bukan pemutus tahap pertama',
+      );
+    }
+    const self = await this.employees.findByAuthSubjectId(user.sub);
+    if (self && self.id === request.employeeId) {
+      throw new ForbiddenException('Tidak bisa memutuskan pengajuan cuti Anda sendiri');
+    }
   }
 
   // ── internals ───────────────────────────────────────────────────────

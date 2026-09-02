@@ -331,4 +331,60 @@ describe('ShiftService', () => {
       expect(atDepot[0].driverId).toBe(driver);
     });
   });
+
+  /*
+   * CA-4-19 — a shift nobody ever checked out of.
+   *
+   * A shift has no closer but the courier's own check-out, so a phone that ran flat leaves
+   * one open for ever. The next morning's check-in at the same depot then handed that shift
+   * straight back — a replay branch written for an offline retry seconds later, with no
+   * clock on it — and the courier carried on inside yesterday's shift: yesterday's break
+   * quota already spent, an expectedEndAt in the past, and every COD collected today
+   * settling against a window that should have closed.
+   */
+  describe('CA-4-19 · a forgotten shift is closed, not handed back', () => {
+    /** Drag the open shift's declared end into the past, as an abandoned one would be. */
+    const abandon = async () => {
+      const shift = await checkIn();
+      const row = repo.rows.find((r) => r.id === shift.id)!;
+      row.expectedEndAt = new Date(Date.now() - 26 * 3_600_000);
+      return row;
+    };
+
+    it('opens a NEW shift rather than resuming yesterday\'s', async () => {
+      const yesterday = await abandon();
+      const today = await checkIn();
+      expect(today.id).not.toBe(yesterday.id);
+      expect(today.status).toBe(ShiftStatus.ONLINE);
+    });
+
+    it('closes the abandoned shift at the end it declared for itself, not now', async () => {
+      const yesterday = await abandon();
+      const declaredEnd = yesterday.expectedEndAt;
+      await checkIn();
+
+      const closed = repo.rows.find((r) => r.id === yesterday.id)!;
+      expect(closed.status).toBe(ShiftStatus.ENDED);
+      // A shift abandoned on Monday did not end on Wednesday: every report over these rows
+      // reads this timestamp.
+      expect(closed.checkOutAt?.getTime()).toBe(declaredEnd.getTime());
+    });
+
+    it('records no check-out position, which is how an auto-close is told apart', async () => {
+      const yesterday = await abandon();
+      await checkIn();
+      const closed = repo.rows.find((r) => r.id === yesterday.id)!;
+      expect(closed.checkOutLat).toBeNull();
+      expect(closed.checkOutLng).toBeNull();
+    });
+
+    it('still treats a same-shift retry as a replay, not as a new shift', async () => {
+      // The offline retry this branch was written for fires seconds after the check-in —
+      // hours before the declared end — so it must keep returning the same shift.
+      const first = await checkIn();
+      const replay = await checkIn();
+      expect(replay.id).toBe(first.id);
+      expect(replay.status).toBe(ShiftStatus.ONLINE);
+    });
+  });
 });
