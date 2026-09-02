@@ -190,10 +190,21 @@ export interface DeliveryPingState {
   lastLng: number | null;
 }
 
-/** One delivered order in a settlement window: its id and the COD written at assignment. */
-export interface DeliveredCod {
+/**
+ * One order a courier may be holding cash for in a settlement window: its id, the COD
+ * written at assignment, and how the delivery ENDED.
+ *
+ * CA-4-03: the status is here because the expectation is not symmetric. A DELIVERED order
+ * owes its COD whether or not the courier remembered to press "Terima uang" — the goods
+ * left the van. A FAILED or RESCHEDULED one owes nothing by default, because nothing was
+ * handed over; it owes exactly the cash payment-service says was actually PAID, and no
+ * more. Reading `codAmount` on those would invent a debt out of a delivery that never
+ * happened.
+ */
+export interface CodBearing {
   orderId: string;
   codAmount: number | null;
+  status: DeliveryStatus;
 }
 
 export interface DeliveryRepository {
@@ -221,8 +232,21 @@ export interface DeliveryRepository {
    * PAID, so payment-service alone answers zero for a courier who collected the cash and
    * skipped "Terima uang" — and the settlement then expected nothing. The COD written on
    * the delivery row at assignment is the half of the answer that survives that.
+   *
+   * CA-4-03: this used to select `status = DELIVERED` only, and that is where collected
+   * money went missing. A courier can take the cash at the door and then mark the delivery
+   * Gagal (wrong goods, a dispute) or Jadwal-ulang — both are reachable from ON_DELIVERY —
+   * and the row then failed the filter entirely. The cash was real, it was in the courier's
+   * pocket, and the end-of-shift expectation did not mention it: no shortfall, no dispute,
+   * no trace. Now every delivery the courier CLOSED in this window is returned, whatever it
+   * closed as, and the caller decides what each one owes.
+   *
+   * "Closed in this window" is read from the timestamp each ending actually writes:
+   * `deliveredAt` for DELIVERED, `failedAt` for FAILED, and the status-history row for
+   * RESCHEDULED — which has no completion column of its own (`rescheduledFor` is the FUTURE
+   * slot, not when the courier gave it back).
    */
-  deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]>;
+  codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]>;
   /**
    * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
    * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.

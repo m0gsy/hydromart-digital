@@ -10,12 +10,12 @@ import { RemoteImage } from '@/components/remote-image';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { LiveNav } from '@/components/driver/live-nav';
 import { PodCapture } from '@/components/driver/pod-capture';
-import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE, codOutstanding } from '@/components/driver/status';
+import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { Delivery, DeliveryStatus, Payment } from '@/lib/types';
+import type { Delivery, DeliveryStatus } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -37,22 +37,19 @@ function Detail() {
   /*
    * C1(c): the delivery, plus whether it still owes cash at the door.
    *
-   * Two reads in one loader so the screen cannot show a Selesai button and a payment
-   * state that were true at two different moments.
+   * CA-4-03: this used to be TWO reads, and the second one was a guess. The screen called
+   * the STAFF payment route with the courier's own token and swallowed every failure into
+   * `.catch(() => false)` — so a 403 (that route is guarded by `paymentSettle`, which not
+   * every dispatching role holds), a 429, and a phone that lost signal between the two
+   * requests ALL rendered the green "cash already taken" badge over an unpaid order.
    *
-   * The COD read FAILS OPEN on purpose. This is a nudge, not a lock: the server never
-   * blocks proof of delivery either, deliberately (H-8 — a lost proof is unrecoverable,
-   * a lagging order is not). If payment-service cannot answer, a courier standing at the
-   * door with the goods already handed over must still be able to record it.
+   * The server decides it now, from the internal key, and hands back `cashHeld` on the
+   * delivery itself. One read, one moment, no 403 to swallow — and `codDue` is simply its
+   * inverse for an order that carries a COD at all.
    */
   const d = useAsync<{ delivery: Delivery; codDue: boolean }>(async () => {
     const delivery = await api.get<Delivery>(endpoints.deliveries.driver.get(id), true);
-    if (!delivery.codAmount) return { delivery, codDue: false };
-    const codDue = await api
-      .get<{ items: Payment[] }>(endpoints.payments.forOrderStaff(delivery.orderId), true)
-      .then((r) => codOutstanding(delivery.codAmount, r.items))
-      .catch(() => false);
-    return { delivery, codDue };
+    return { delivery, codDue: Boolean(delivery.codAmount) && !delivery.cashHeld };
   }, [id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

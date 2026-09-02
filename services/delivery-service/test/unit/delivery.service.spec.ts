@@ -142,7 +142,7 @@ describe('DeliveryService', () => {
     const CASH_ORDER = randomUUID();
 
     it('charges the payment amount for a CASH order, ignoring what the caller sent', async () => {
-      payments.payments.set(CASH_ORDER, { method: 'CASH', amount: 175_000 });
+      payments.payments.set(CASH_ORDER, { method: 'CASH', amount: 175_000, status: 'PENDING' });
       const d = await service.assign(
         staff,
         {
@@ -160,7 +160,7 @@ describe('DeliveryService', () => {
 
     it('sends no COD for a non-cash payment, and none at all when there is no payment row', async () => {
       const transfer = randomUUID();
-      payments.payments.set(transfer, { method: 'TRANSFER', amount: 90_000 });
+      payments.payments.set(transfer, { method: 'TRANSFER', amount: 90_000, status: 'PENDING' });
       const paid = await service.assign(
         staff,
         { orderId: transfer, orderNumber: 'HM-TF', driverId: driver, destinationAddress: 'Jl. A' },
@@ -313,7 +313,7 @@ describe('DeliveryService', () => {
 
   it('snapshots recipient phone, line-items and COD amount onto the delivery', async () => {
     const orderId = randomUUID();
-    payments.payments.set(orderId, { method: 'CASH', amount: 84_000 });
+    payments.payments.set(orderId, { method: 'CASH', amount: 84_000, status: 'PENDING' });
     const d = await service.assign(
       staff,
       {
@@ -965,5 +965,110 @@ describe('DeliveryService', () => {
     jest.spyOn(repo, 'erasePerson').mockResolvedValue(229);
     expect(await service.erasePerson('cust-1', '+628111')).toEqual({ erased: 229 });
     expect(repo.erasePerson).toHaveBeenCalledWith('cust-1', '+628111');
+  });
+
+  /*
+   * CA-4-03 — the courier-facing half of the collected-cash leak.
+   *
+   * A courier can take the money at the door and only then mark the delivery Gagal or
+   * Jadwal-ulang. Owner decision D1 (2 September 2026): ask them where the money went, and
+   * make the answer move it. "Returned" reverses the payment, which takes it out of the
+   * end-of-shift deposit; "still holding it" leaves the payment PAID, which is exactly what
+   * puts it back in.
+   */
+  describe('CA-4-03 cash held when a delivery does not deliver', () => {
+    const cashOrder = async (status: string) => {
+      const orderId = randomUUID();
+      payments.payments.set(orderId, { method: 'CASH', amount: 90_000, status });
+      const d = await assign(driver, orderId);
+      await service.pickup(driver, d.id, AUTH);
+      await service.start(driver, d.id, AUTH);
+      return d;
+    };
+
+    it('reverses the payment when the courier says they handed the cash back (fail)', async () => {
+      const d = await cashOrder('PAID');
+
+      await service.fail(driver, d.id, 'Barang rusak', AUTH, true);
+
+      expect(payments.reversals).toHaveLength(1);
+      expect(payments.reversals[0].orderId).toBe(d.orderId);
+      // The audit trail must name the courier, not the service that happened to call it.
+      expect(payments.reversals[0].changedBy).toBe(driver);
+      expect(payments.reversals[0].reason).toContain('gagal');
+    });
+
+    it('reverses the payment when the courier says they handed the cash back (reschedule)', async () => {
+      const d = await cashOrder('PAID');
+
+      await service.reschedule(driver, d.id, {
+        rescheduledFor: new Date(Date.now() + 86_400_000),
+        cashReturned: true,
+        authorization: AUTH,
+      });
+
+      expect(payments.reversals).toHaveLength(1);
+      expect(payments.reversals[0].reason).toContain('dijadwalkan ulang');
+    });
+
+    it('reverses NOTHING when the courier says they are still holding it', async () => {
+      const d = await cashOrder('PAID');
+
+      await service.fail(driver, d.id, 'Barang rusak', AUTH, false);
+
+      // Left PAID on purpose: that is what puts the money back into the shift deposit.
+      expect(payments.reversals).toHaveLength(0);
+    });
+
+    it('reverses nothing when the cash was never collected', async () => {
+      const d = await cashOrder('PENDING');
+
+      // Even an emphatic yes cannot refund money the payment book says was never taken.
+      await service.fail(driver, d.id, 'Alamat tidak ditemukan', AUTH, true);
+
+      expect(payments.reversals).toHaveLength(0);
+    });
+
+    it('refuses the whole transition when the reversal cannot be confirmed', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnReverse = true;
+
+      await expect(service.fail(driver, d.id, 'Barang rusak', AUTH, true)).rejects.toThrow();
+
+      // Deliberately NOT fail-open, unlike cancelOrderFor: swallowing this would end the
+      // delivery with the payment still PAID, silently charging the courier at settlement
+      // for money they had just handed back.
+      const after = await repo.findById(d.id);
+      expect(after?.status).not.toBe('FAILED');
+    });
+
+    it('tells the courier they are holding cash, without asking payment-service twice', async () => {
+      const d = await cashOrder('PAID');
+
+      const view = await service.getForDriver(driver, d.id);
+
+      expect(view.cashHeld).toBe(true);
+    });
+
+    it('assumes the courier holds the cash when payment-service cannot answer', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnRead = true;
+
+      const view = await service.getForDriver(driver, d.id);
+
+      // Fails OPEN, and open means TRUE: one extra question beats silently losing the
+      // money. The old client did the opposite — .catch(() => false).
+      expect(view.cashHeld).toBe(true);
+    });
+
+    it('never asks about cash on a prepaid order', async () => {
+      const orderId = randomUUID();
+      payments.payments.set(orderId, { method: 'TRANSFER', amount: 90_000, status: 'PAID' });
+      const d = await assign(driver, orderId);
+
+      const view = await service.getForDriver(driver, d.id);
+
+      expect(view.cashHeld).toBe(false);
+    });
   });
 });

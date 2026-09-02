@@ -140,7 +140,7 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Reverse a voided counter sale's payment (internal service auth)" })
   voidForOrder(@Body() dto: VoidForOrderDto): Promise<PaymentRecord | null> {
-    return this.payments.voidForOrder(dto.orderId, dto.reason, 'order-service');
+    return this.payments.voidForOrder(dto.orderId, dto.reason, dto.changedBy ?? 'order-service');
   }
 
   /**

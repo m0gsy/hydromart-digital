@@ -6,7 +6,7 @@ import { DeliveryStatus } from '../../domain/delivery-status';
 import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
-  DeliveredCod,
+  CodBearing,
   DeliveredRow,
   DeliveryItem,
   DeliveryPingState,
@@ -246,16 +246,35 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     };
   }
 
-  async deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]> {
+  async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {
     const rows = await this.prisma.delivery.findMany({
       where: {
         driverId,
-        status: DeliveryStatus.DELIVERED,
-        deliveredAt: { gte: from, lte: to },
+        OR: [
+          // The three ways a courier finishes with a delivery, each read from the timestamp
+          // that ending actually writes. Only the first of these used to be here, and the
+          // other two are where collected cash went missing (CA-4-03).
+          { status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lte: to } },
+          { status: DeliveryStatus.FAILED, failedAt: { gte: from, lte: to } },
+          {
+            // RESCHEDULED has no completion column of its own — `rescheduledFor` is the
+            // FUTURE slot the courier picked, not the moment they handed the job back. The
+            // status-history row is the only exact record of when that happened, and
+            // `updatedAt` is not a substitute: a later re-assignment moves it.
+            status: DeliveryStatus.RESCHEDULED,
+            history: {
+              some: { status: DeliveryStatus.RESCHEDULED, createdAt: { gte: from, lte: to } },
+            },
+          },
+        ],
       },
-      select: { orderId: true, codAmount: true },
+      select: { orderId: true, codAmount: true, status: true },
     });
-    return rows.map((r) => ({ orderId: r.orderId, codAmount: r.codAmount }));
+    return rows.map((r) => ({
+      orderId: r.orderId,
+      codAmount: r.codAmount,
+      status: r.status as DeliveryStatus,
+    }));
   }
 
   async driverDeliveredInWindow(

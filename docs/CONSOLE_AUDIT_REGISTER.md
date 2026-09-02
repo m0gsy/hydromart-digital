@@ -335,7 +335,7 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CA-4-01` | §41 | Kritis | Penarikan saldo kurir memotong saldo tapi tidak punya jalur pembayaran — status PROCESSING selamanya | `services/payout-service/src/application/services/courier-payout.service.ts:233` | `jalur-uang` | SUDAH DIPERBAIKI | `settleWithdrawal()` di kedua sisi: PAID mengubah status, FAILED mengembalikan saldo lewat kredit ADJUSTMENT ber-`sourceRef` di transaksi yang sama | #417 |
 | `CA-4-02` | §41 | Kritis | Klaim biaya auto-approve dan mengkredit ledger kurir berdasarkan depotId dan receiptUrl yang dikirim klien sendiri | `services/payout-service/src/application/services/expense-claim.service.ts:43` | `depot-scope-by-id` | SUDAH DIPERBAIKI | `submit()` kini menerima pemanggilnya: `assertDepotAccess` atas depot yang diminta, jatuh ke depot token kalau body kosong; dan hanya URL http(s) yang dihitung sebagai struk | #418 |
-| `CA-4-03` | §41 | Kritis | Uang COD yang sudah dipungut hilang dari setoran begitu pengantaran ditandai Gagal atau Jadwal Ulang | `apps/web/src/app/driver/deliveries/detail/page.tsx:280` | `jalur-uang` | TERBUKA | TERBUKA setelah langkah 03: memerlukan STATUS pembayaran, bukan hanya jumlahnya — `OrderPaymentPort.forOrder()` hanya mengembalikan `{ method, amount }`. Memperluas port itu adalah langkahnya sendiri. | — |
+| `CA-4-03` | §41 | Kritis | Uang COD yang sudah dipungut hilang dari setoran begitu pengantaran ditandai Gagal atau Jadwal Ulang | `apps/web/src/app/driver/deliveries/detail/page.tsx:280` | `jalur-uang` | SUDAH DIPERBAIKI | `codBearingInWindow` kini mengembalikan SETIAP antaran yang ditutup kurir di jendela shift — DELIVERED lewat `deliveredAt`, FAILED lewat `failedAt`, RESCHEDULED lewat baris status-history-nya (`rescheduledFor` adalah slot masa depan, bukan saat pekerjaannya dikembalikan). `owedFor` menagih COD hanya untuk DELIVERED; FAILED/RESCHEDULED menagih persis tunai yang masih PAID | #434 |
 | `CA-4-04` | §41 | Kritis | Riwayat pembayaran pesanan depot manapun bisa dibaca kurir dengan satu UUID | `services/payment-service/src/modules/payment.controller.ts:325` | `depot-scope-by-id` | SUDAH DIPERBAIKI | `listForOrderAs()` membaca depot pesanan lewat order-service lalu `assertDepotAccess`; gagal tertutup kalau pesanannya tak terbaca | #416 |
 | `CA-4-05` | §41 | Kritis | Kurir bisa tutup shift lalu menyelesaikan antaran — uang COD-nya lolos dari setoran | `services/delivery-service/src/application/services/shift.service.ts:99` | `jalur-uang` | SUDAH DIPERBAIKI | `checkOut()` menolak selama `countActiveByDriver > 0` — hitungan yang sama yang dipakai dispatch untuk memutuskan kurir bebas | #418 |
 | `CA-4-06` | §42 | Tinggi | KPI beranda manajer mobile adalah angka seluruh jaringan, dipajang di bawah nama depotnya | `apps/web/src/app/m/manager/page.tsx:77` | `depot-scope-by-id` | TERBUKA | `const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(), true), []);` | — |
@@ -424,8 +424,9 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 06 | Sapu ConfirmDialog ke aksi yang tidak bisa dibatalkan | `confirm-dialog` | 11 baris ditutup (PR #427): CA-1-11/12/13/15/70, CA-2-44, CA-2-62 (SAPUAN), CA-3-29, CA-4-14, CA-4-40, CA-4-44. Kelas ini habis. `useConfirm()` menggantikan pemasangan manual, dan `no-native-dialogs.test.ts` melarang `window.confirm/prompt/alert` kembali masuk |
 | 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | CA-2-60 dan CA-2-16 ditutup (PR #428 + #429): 61 halaman /hq menjaga dirinya dari tabel rail, item tanpa gerbang 45 → 0 dan diratchet; FINANCE diberi pintunya sesudah semua pintu bergerbang, dan `hqConsole` dipecah jadi pintu + `hqBackOffice`. Tiga klausul sisa jadi CA-6-02..04; baris kelas ini yang bukan soal gerbang rail (CA-1-40, CA-2-20, CA-2-24, CA-4-19, CA-2-67, CA-2-11) memang aturan server yang hilang, bukan pintu tanpa kunci — dikerjakan di Fase 9 |
 | 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | `scripts/report-damaged-rows.sh` (PR #423). Keputusan pemilik: BACA SAJA, tanpa mode tulis sama sekali; `check-report-damaged-rows.test.sh` yang menjaminnya. Belum dijalankan siapa pun. |
-| 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01 (CA-3-02 sudah ditutup di langkah 04). DUA rilis: **09a** memasang tabel `sweep_runs` + gerbang `check-sweep-observer.mjs` (bagian cakupannya SKIPPED sampai pembacanya ada); **09b** memasang penulis, pembaca dan kartunya di /hq/health, lalu gerbang cakupan itu menyala. Tabel satu rilis lebih dulu daripada kode yang membacanya |
-| 10+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |
+| 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01 (CA-3-02 sudah ditutup di langkah 04). DUA rilis: **09a** memasang tabel `sweep_runs` + gerbang `check-sweep-observer.mjs` (bagian cakupannya SKIPPED sampai pembacanya ada, PR #433); **09b** memasang penulis, pembaca dan kartunya di /hq/health, lalu gerbang cakupan itu menyala. Tabel satu rilis lebih dulu daripada kode yang membacanya |
+| 10 | Uang COD yang sudah dipungut lalu antarannya gagal | `jalur-uang` | CA-4-03 ditutup (PR #434). Kritis terakhir. `OrderPaymentPort` diperluas dengan STATUS pembayaran — tanpa itu tidak ada yang bisa membedakan "COD tertulis di baris antaran" dari "uangnya benar-benar sudah dipegang". Keputusan pemilik D1 dipasang sebagai satu pertanyaan di layar Gagal dan Jadwal-ulang; jawaban "sudah dikembalikan" membalik pembayarannya lewat `internal/void-for-order` yang sudah ada, jadi baris itu berhenti PAID dan setoran berhenti menagihnya — tanpa kolom baru, tanpa migrasi |
+| 11+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |
 
 ### Gerbang yang sudah dipasang
 
@@ -454,6 +455,46 @@ berikutnya yang meninjau satu route menurunkan angkanya lewat `--write`.
   CI bukan bukti terpasang di prod.
 - **Perbaikan data produksi**: skripnya ditulis, tidak dijalankan. Dry-run by default, cetak
   hitungan baris dulu.
+
+
+---
+
+## Keputusan pemilik — 2 September 2026
+
+Dua belas pertanyaan diajukan sekaligus di awal sesi, sesudah sapuan yang membaca kode
+nyata di balik ke-248 baris TERBUKA. Semuanya sudah dijawab. Ini kontraknya: PR yang
+mengerjakan barisnya mengikuti kolom **Jawaban**, tidak menafsir ulang.
+
+| # | Baris | Pertanyaan | Jawaban |
+| --- | --- | --- | --- |
+| D1 ✅ | `CA-4-03` (#434) | Kurir sudah memungut tunai lalu antaran ditandai Gagal/Jadwal-ulang — uangnya dikembalikan di tempat atau disetor? | **Tanya kurirnya, catat jawabannya.** Layar bertanya "uang sudah dikembalikan ke pelanggan?"; kalau BELUM, pesanan itu ikut ditagihkan di setoran. Tidak pernah memotong upah kurir atas uang yang benar-benar sudah ia kembalikan, tidak pernah kehilangan uang yang masih ia pegang, dan jawabannya jadi bukti saat sengketa |
+| D2 | `CA-1-38`, `CA-1-39` | Berapa menit istirahat yang tidak dibayar? | **90 menit hari Jumat, 60 menit hari lain.** Dipotong otomatis dari hari yang jam kerjanya ≥6 jam. Setelan per depot (nilai awal 60/90) supaya bisa diubah tanpa rilis; depot yang memang membayar jam istirahat mengisi 0 |
+| D3 | `CA-2-52`, klausul faktur `CA-2-63` | Memungut PPN? | **Belum PKP — PPN 0%.** Faktur berhenti menampilkan baris PPN; total pesanan tidak berubah sama sekali. Tarif tetap bisa disetel di /hq/tax untuk saat pengukuhan terbit |
+| D4 | `CA-1-45`, `CA-1-46` | Dasar THR dan prorata cuti tahun pertama | **PP 36/2021**: THR = gaji pokok + tunjangan tetap, prorata masa kerja/12. Cuti diprorata di tahun pertama, penuh mulai tahun kedua. "Tunjangan tetap" = yang dibayar rutin tanpa syarat kehadiran |
+| D5 | `CA-4-49` | Foto bukti serah & insiden di bucket publik | **Kunci.** Bucket jadi privat, tiap layar meminta tautan berumur **15 menit**. Langkah ops mengubah bucket harus jalan BERSAMAAN dengan rilisnya, kalau tidak semua foto tampil kosong |
+| D6 | `CA-3-07`, `CA-3-53` | Masa simpan foto bukti bayar + persetujuan formulir waralaba | **Bukti bayar 12 bulan** (menyamai bukti pengantaran). **Centang persetujuan wajib + tautan kebijakan** di /waralaba; lamaran ditolak dihapus **24 bulan**. Dua kalimat masuk Kebijakan Privasi |
+| D7 | `CA-2-20` | Batas auto-pass & setujui-sendiri | **Batas auto-pass hanya SUPER_ADMIN/HEAD_OFFICE**, dan pengaju **tidak boleh** menyetujui pengajuannya sendiri — otomatis naik satu tingkat ke atasannya |
+| D8 | `CA-2-34` | Boleh menolak refund atas pesanan yang sudah dibatalkan? | **Boleh, tapi tidak pernah diam-diam**: alasan wajib diisi, tercatat di jejak audit, dan otomatis dikirim ke pelanggan |
+| D9 | sapuan loyalty (`CA-5-01`) | Penghangusan poin 12 bulan dinyalakan? | **Tetap MATI.** Layar pemantauan menampilkannya sebagai "sengaja dimatikan", bukan "rusak" — saldo pelanggan tidak berubah sebagai efek samping pekerjaan pemantauan |
+| D10 | `CA-2-07` | Saklar Feature flag COD tersimpan MATI | **COD harus HIDUP.** Nilai flag produksi disetel ACTIVE lewat skrip dry-run yang mencetak barisnya dulu, **satu rilis sebelum** penegakan dipasang. Tiga saklar lain dikonfirmasi sebelum ditegakkan |
+| D11 | `CA-2-17` | MARKETING diberi pintu /hq? | **Ya**, sama seperti FINANCE di #429. Rail HQ sudah menyaring menu per kapabilitas sejak #428, jadi MARKETING hanya melihat layar yang jadi haknya |
+| D12 | `CA-3-55` | 30 hari kerja vs 3x24 jam di /hapus-akun | **Samakan ke 3x24 jam** — tenggat UU PDP 27/2022 yang sudah diukur kode dan sudah ditampilkan LEWAT BATAS di antrean HQ. Satu kalimat di halaman publik yang dibetulkan |
+
+### Premis yang gugur saat ditanyakan
+
+Sapuan yang sama membaca kode di balik tiap baris dan menemukan tujuh klaim yang sudah
+tidak berlaku. Masing-masing masih harus diverifikasi ulang oleh PR yang menyentuhnya
+sebelum barisnya ditutup — dicatat di sini supaya tidak dikerjakan dua kali:
+
+| Baris | Yang gugur |
+| --- | --- |
+| `CA-3-06` | Klausul "tidak pernah ikut terhapus" MATI — `erasure-executor.registry.ts:69` mendaftarkan `admin.support_tickets`. Klausul ekspor masih hidup |
+| `CA-3-62` | `cart/page.tsx:273` sudah merender `RemoteImage`, dengan komentar yang menamai perbaikannya |
+| `CA-4-45` | `m/manager/login/page.tsx:37-39` sudah meneruskan ketiga parameter ke /verify |
+| `CA-2-42` | SEPARUH gugur: antrean persetujuan HARGA memang terisi (`endpoints/money.ts:179`) |
+| `CA-2-69` | 1 dari 28 klausul mati: checklist go-live tidak lagi mentok 5/6 (ditutup bersama CA-6-01 di #426) |
+| `CA-2-66` | 1 dari 16 klausul mati: Customer 360 tidak lagi menampilkan Rp 0 saat laporannya gagal (DEFECT-01) |
+| `CA-6-04` | Premis SEPERTI DITULIS mati — gerbang halamannya sudah pindah; temuannya berpindah layar dan tetap harus dikerjakan |
 
 ### Berhenti dan tanya
 

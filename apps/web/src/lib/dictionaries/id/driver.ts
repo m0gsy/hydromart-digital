@@ -58,6 +58,20 @@ export const driver = {
     confirm: 'Konfirmasi pembayaran',
     confirmError: 'Gagal konfirmasi. Coba lagi.',
   },
+  /*
+   * CA-4-03. Asked when a delivery ends as Gagal or Jadwal-ulang and the server says this
+   * courier is still holding its cash. Both answers move real money, so the wording says
+   * what each one DOES rather than just yes/no — the courier is the only person who knows
+   * the answer, and they are standing on a doorstep when they give it.
+   */
+  cashReturned: {
+    title: 'Uang tunai {amount} sudah diterima. Dikembalikan ke pelanggan?',
+    why: 'Jawaban ini menentukan setoran akhir shift Anda. Wajib diisi.',
+    yes: 'Sudah saya kembalikan',
+    yesHint: 'Uang kembali ke pelanggan — tidak ditagihkan di setoran Anda.',
+    no: 'Masih saya pegang',
+    noHint: 'Uang ikut disetor ke depot di akhir shift.',
+  },
   reschedule: {
     title: 'Jadwal ulang pengantaran',
     slots: {

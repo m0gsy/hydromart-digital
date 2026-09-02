@@ -224,6 +224,28 @@ describe('PaymentController', () => {
     expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');
   });
 
+  /*
+   * CA-4-03. This route stopped having exactly one caller. delivery-service now uses it
+   * when a courier hands cash back at the door, and the payment history was recording
+   * `order-service` for both — naming the wrong actor on a money reversal, which is the
+   * same class of defect the audit raised as CA-2-67.
+   *
+   * The default above stays, so the counter-void caller is untouched.
+   */
+  it('records who actually reversed it when the caller says so', async () => {
+    await controller.voidForOrder({
+      orderId: 'order-9',
+      reason: 'Kurir mengembalikan tunai di tempat',
+      changedBy: 'courier-42',
+    } as never);
+    expect(svc.voidForOrder).toHaveBeenCalledWith(
+      'order-9',
+      'Kurir mengembalikan tunai di tempat',
+      'courier-42',
+    );
+  });
+
+
   it('cashCollectedByOrder forwards the order ids from the body', async () => {
     await controller.cashCollectedByOrder({ orderIds: ['o1', 'o2'] } as never);
     expect(svc.cashCollected).toHaveBeenCalledWith(['o1', 'o2']);

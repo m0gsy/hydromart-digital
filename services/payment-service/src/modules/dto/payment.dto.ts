@@ -64,6 +64,21 @@ export class VoidForOrderDto {
   @IsString()
   @MaxLength(255)
   reason!: string;
+
+  /**
+   * Which service reversed it. Optional, defaulting to the historical `order-service` so
+   * the counter-void caller keeps working unchanged.
+   *
+   * CA-4-03: this route stopped having exactly one caller. delivery-service now uses it
+   * when a courier hands cash back at the door, and the payment history was recording
+   * `order-service` for both — naming the wrong actor on a money reversal, which is the
+   * same class of defect as CA-2-67 ("perubahan setelan uang tidak pernah masuk log").
+   */
+  @ApiPropertyOptional({ example: 'delivery-service' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  changedBy?: string;
 }
 
 /** Shift close: how much cash one depot took over the shift window. */

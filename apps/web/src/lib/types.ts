@@ -1307,6 +1307,13 @@ export interface Delivery {
   recipientPhone?: string | null;
   items?: DeliveryItem[] | null;
   codAmount?: number | null;
+  /**
+   * CA-4-03: does the courier currently hold this order's cash? Decided by the SERVER from
+   * payment-service, because `codAmount` is written at assignment and never cleared — it
+   * says cash SHOULD be collected here, never that it WAS. Only present on the courier's
+   * own delivery read; absent elsewhere, which reads as false.
+   */
+  cashHeld?: boolean;
   /** Delivery note / landmark (patokan) snapshotted from the order. */
   notes?: string | null;
   /**

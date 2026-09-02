@@ -249,21 +249,55 @@ describe('DeliveryPrismaRepository', () => {
 
   // C1: the COD is selected alongside the id — it is the half of the expected deposit
   // that survives a courier never confirming the payment.
-  it('deliveredCodInWindow maps to order ids with their COD', async () => {
+  //
+  // CA-4-03: and the status, because the caller owes a DELIVERED order its COD but owes a
+  // FAILED or RESCHEDULED one only the cash payment-service still reports as PAID.
+  it('codBearingInWindow maps to order ids with their COD and how they ended', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-01-31');
     delivery.findMany.mockResolvedValue([
-      { orderId: 'ord-1', codAmount: 150000 },
-      { orderId: 'ord-2', codAmount: null },
+      { orderId: 'ord-1', codAmount: 150000, status: DeliveryStatus.DELIVERED },
+      { orderId: 'ord-2', codAmount: null, status: DeliveryStatus.FAILED },
     ]);
-    expect(await repo.deliveredCodInWindow('drv-1', from, to)).toEqual([
-      { orderId: 'ord-1', codAmount: 150000 },
-      { orderId: 'ord-2', codAmount: null },
+    expect(await repo.codBearingInWindow('drv-1', from, to)).toEqual([
+      { orderId: 'ord-1', codAmount: 150000, status: DeliveryStatus.DELIVERED },
+      { orderId: 'ord-2', codAmount: null, status: DeliveryStatus.FAILED },
     ]);
     expect(delivery.findMany).toHaveBeenCalledWith({
-      where: { driverId: 'drv-1', status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lte: to } },
-      select: { orderId: true, codAmount: true },
+      where: {
+        driverId: 'drv-1',
+        OR: [
+          { status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lte: to } },
+          { status: DeliveryStatus.FAILED, failedAt: { gte: from, lte: to } },
+          {
+            status: DeliveryStatus.RESCHEDULED,
+            history: {
+              some: { status: DeliveryStatus.RESCHEDULED, createdAt: { gte: from, lte: to } },
+            },
+          },
+        ],
+      },
+      select: { orderId: true, codAmount: true, status: true },
     });
+  });
+
+  /*
+   * CA-4-03, the shape that made the money invisible: the query must not be reachable by a
+   * single `status` equality any more. If somebody collapses the OR back to DELIVERED, the
+   * assertion above already fails — this one names WHY, so the next reader does not "tidy"
+   * it back.
+   */
+  it('asks for failed and rescheduled deliveries too, not only delivered ones', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    await repo.codBearingInWindow('drv-1', new Date('2026-01-01'), new Date('2026-01-31'));
+    const where = delivery.findMany.mock.calls[0][0].where as {
+      OR: { status: string }[];
+      status?: string;
+    };
+    expect(where.status).toBeUndefined();
+    expect(where.OR.map((c) => c.status).sort()).toEqual(
+      [DeliveryStatus.DELIVERED, DeliveryStatus.FAILED, DeliveryStatus.RESCHEDULED].sort(),
+    );
   });
 
   it('driverDeliveredInWindow maps rows and unwraps deliveredAt', async () => {
