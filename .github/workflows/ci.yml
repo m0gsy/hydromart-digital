@@ -200,6 +200,14 @@ jobs:
       - name: Depot-scope gate can go red
         run: bash scripts/check-depot-scope.test.sh
 
+      # Step 07 of the console-audit sweep. The /hq rail's `cap` field is now an access rule
+      # on both sides — it hides the link AND `hq/layout.tsx` refuses the page on it — so a
+      # `cap` naming a capability the server does not check is worse than none: it looks
+      # enforced. Three shipped that way; `/hq/roster` was gated on a depot capability no
+      # head-office role holds, over data delivery-service serves to two of them.
+      - name: Console gates name the capability the server checks
+        run: node scripts/check-console-gates.mjs
+
       # Step 08 of the console-audit sweep is a REPORT, and the owner's decision was that it
       # carries no write path at all. A promise in a comment is not a guarantee; this is.
       - name: The damaged-row report cannot write
