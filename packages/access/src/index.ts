@@ -271,6 +271,19 @@ export const CAPABILITIES = {
   // depot-service — the manager approval queue: opname-variance, deposit-refund and
   // COD-settlement-variance decisions that exceed the depot's auto-pass thresholds.
   approvals: ['MANAGER', 'SUPER_ADMIN'],
+  /*
+   * depot-service — raise the bar an approval item has to clear before a human sees it.
+   *
+   * CA-2-20, owner decision D7 (2 September 2026): the auto-pass threshold may be changed
+   * ONLY by SUPER_ADMIN/HEAD_OFFICE. It was an ordinary per-depot setting, so it rode on
+   * `depotAdmin` — the same MANAGER who decides the queue could raise their own depot's
+   * threshold until nothing reached it, and then approve what little did. One person
+   * holding all three of raise, submit and decide is the whole of that card.
+   *
+   * DIREKTUR is deliberately absent, exactly as on `pdpRequests`: this is the dial that
+   * decides how much money moves unreviewed.
+   */
+  approvalThresholdWrite: ['HEAD_OFFICE', 'SUPER_ADMIN'],
   // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
   // courier commission runs, monthly ops review. Depot manager + the office finance team.
   depotFinance: ['MANAGER', 'SUPERVISOR', 'FINANCE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -358,6 +371,25 @@ export const CAPABILITIES = {
   // depotAdmin). Replaces the `user.role !== 'SUPER_ADMIN'` string compare that was
   // copy-pasted into 14 settings endpoints.
   settingsGlobal: ['SUPER_ADMIN'],
+  /*
+   * Every service — READ the business tunables and their effective values.
+   *
+   * Six settings controllers carried ONE `@Can('depotAdmin')` on the class, so the schema
+   * GET — a read of numbers like the scorecard weighting or the platform fee — was gated on
+   * the capability that EDITS a depot. `depotAdmin` is MANAGER + SUPER_ADMIN, so head office
+   * and the director could not read a single one.
+   *
+   * That was not theoretical (CA-2-19): /hq/scorecard reads `scorecardRevenueWeightPct` from
+   * payout's slice and returns `<ErrorState>` for the whole page when it fails, so the depot
+   * league table was a full-page error for HEAD_OFFICE and DIREKTUR — the two roles the rail
+   * offers it to — and worked for nobody but the superuser. /hq/reconciliation (CA-2-11) hit
+   * the same wall and printed the platform fee as "—" instead.
+   *
+   * Reading a tunable is not the power to change one: every write on those controllers keeps
+   * `depotAdmin`, and a GLOBAL write still needs `settingsGlobal` on top. FINANCE is here
+   * because the reconciliation statement is theirs.
+   */
+  settingsRead: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // auth-service — edit this very matrix. Guarded so that a super admin cannot be
   // removed from it (see the write service), otherwise the lock could be locked away.
   accessMatrixWrite: ['SUPER_ADMIN'],

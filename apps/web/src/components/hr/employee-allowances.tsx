@@ -14,6 +14,8 @@ import {
   type Allowance,
   type AllowanceType,
 } from '@/lib/hr';
+import { useAuth } from '@/lib/auth-context';
+import { canRunPayroll } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { todayWib } from '@/lib/wib';
 
@@ -21,15 +23,20 @@ import { todayWib } from '@/lib/wib';
  * Recurring pay components. Unlike a bonus (one period, one row) an allowance repeats every
  * payroll run until it lapses, so it is stopped rather than deleted — a past payslip has to
  * stay explainable.
+ *
+ * CA-1-27: the write gate is asked FOR here rather than passed in. Both screens that render
+ * this panel handed it one `isAdmin` computed from `hrAdmin` — the capability for employee
+ * master data — while `allowance.controller.ts` guards POST, POST /import and PATCH
+ * /:id/deactivate with `hrPayroll`, because an allowance is salary. The two lists are not
+ * the same list in either direction: HEAD_OFFICE and DIREKTUR hold `hrAdmin` and were shown
+ * an "Tambah tunjangan" form the server refuses, and FINANCE holds `hrPayroll` and was shown
+ * no form at all on a screen it is meant to run. A panel that knows which capability its own
+ * writes need cannot be handed the wrong answer by a third caller.
  */
-export function EmployeeAllowances({
-  employeeId,
-  isAdmin,
-}: {
-  employeeId: string;
-  isAdmin: boolean;
-}) {
+export function EmployeeAllowances({ employeeId }: { employeeId: string }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const isAdmin = canRunPayroll(customer?.role);
   const { toast: notify } = useToast();
   const [type, setType] = useState<AllowanceType>('TRANSPORT');
   const [amount, setAmount] = useState('');

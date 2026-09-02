@@ -18,6 +18,11 @@ export class SettingsController {
 
   @ApiOkResponse({ type: Schema3ResponseDto })
   @Get('schema')
+  // CA-2-19/CA-2-11: reading the tunables is not editing a depot. The class gate is
+  // `depotAdmin` (MANAGER + SUPER_ADMIN), which shut head office, the director and finance
+  // out of every number this returns — so /hq/scorecard was a full-page error for the two
+  // roles its rail offers it to. Writes below keep `depotAdmin`.
+  @Can('settingsRead')
   @ApiOperation({ summary: 'Setting defs + effective values for an optional depot' })
   schema(@Query('depotId') depotId?: string): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
     return this.settings.schema(depotId ?? null);

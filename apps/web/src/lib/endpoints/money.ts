@@ -23,6 +23,16 @@ payments: {
   forOrders: '/payments/api/v1/payments/for-orders',
   // Staff: confirm a payment as received (cash/transfer/QRIS).
   confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
+  /*
+   * CA-2-24: RAISE a refund on a settled payment (`refundIssue` — FINANCE + MANAGER).
+   *
+   * The route has always existed and nothing in the console called it. The RBAC matrix
+   * advertised the power to every manager who read it, and the only refunds that could
+   * actually be started were the ones a customer's own cancellation started for them —
+   * a wrong charge, a short delivery, a duplicate QRIS scan had no path at all. Above the
+   * HQ threshold this parks in `refunds.queue` for finance rather than moving money.
+   */
+  refund: (id: string) => `/payments/api/v1/payments/${id}/refund`,
   // K2.1b: the payer attaches their transfer/QRIS receipt to their own payment.
   // Multipart, one call: upload and attach together, because the customer is online.
   proof: (id: string) => `/payments/api/v1/payments/${id}/proof`,

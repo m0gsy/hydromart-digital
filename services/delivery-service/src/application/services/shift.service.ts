@@ -19,6 +19,7 @@ import {
   canTransition,
   expectedEndAt,
   isOpen,
+  isStale,
 } from '../../domain/shift';
 import { DeliveryRepository } from '../ports/delivery.repository';
 import { DepotLocationPort } from '../ports/depot-location.port';
@@ -71,9 +72,17 @@ export class ShiftService {
        *
        * A shift open at a DIFFERENT depot is not a replay; it is a courier trying to be in
        * two places, and that must still be refused.
+       *
+       * CA-4-19: a shift PAST ITS OWN EXPECTED END is not a replay either. A shift has no
+       * closer but the courier's own check-out, so a flat battery leaves one open for ever —
+       * and this branch handed it straight back the next morning, silently. The courier
+       * carried on inside yesterday's shift with yesterday's break quota already spent and
+       * today's COD settling against a window that should have closed. Closing it here is
+       * also the only closer a forgotten shift has ever had.
        */
-      if (open.depotId === depotId) return this.view(open);
-      throw new ShiftAlreadyOpenError();
+      if (open.depotId !== depotId) throw new ShiftAlreadyOpenError();
+      if (!isStale(open.expectedEndAt, new Date())) return this.view(open);
+      await this.closeStale(open);
     }
 
     const depot = await this.loadDepot(depotId);
@@ -195,6 +204,31 @@ export class ShiftService {
       throw new DepotLookupError();
     }
     return depot;
+  }
+
+  /**
+   * Close a shift nobody checked out of, at the end it declared for itself (CA-4-19).
+   *
+   * `checkOutAt` is `expectedEndAt`, not `now`: a shift abandoned on Monday did not end on
+   * Wednesday, and every report over these rows reads that timestamp. The check-out
+   * coordinates stay null — which is the honest record of an auto-close and how one is told
+   * apart from a courier who stood at the depot and pressed the button.
+   *
+   * A running break is banked against the same instant so the totals still add up, and the
+   * active-delivery refusal `checkOut` carries is deliberately NOT repeated: that guard
+   * protects a courier from orphaning work they are still holding, and this shift was
+   * abandoned hours ago. Refusing here would leave them unable to check in at all.
+   */
+  private async closeStale(shift: ShiftRecord): Promise<void> {
+    await this.shifts.patchStatus(shift.id, {
+      ...this.bankRunningBreak(shift, shift.expectedEndAt),
+      status: ShiftStatus.ENDED,
+      checkOutAt: shift.expectedEndAt,
+    });
+    this.logger.warn(
+      `Shift ${shift.id} (driver ${shift.driverId}) auto-closed at its expected end ` +
+        `${shift.expectedEndAt.toISOString()} — never checked out`,
+    );
   }
 
   /** Adds a running break's elapsed seconds to the total and clears the marker. */

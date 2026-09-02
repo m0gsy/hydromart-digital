@@ -141,7 +141,7 @@ export default function EmployeeDetailPage() {
         <Row label={t('hrFix.employeeDetail.contractEnd')} value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
       </Card>
 
-      <EmployeeAllowances employeeId={id} isAdmin={isAdmin} />
+      <EmployeeAllowances employeeId={id} />
       <EmployeeDocuments employeeId={id} isAdmin={isAdmin} />
       <EmployeeAssets employeeId={id} />
 

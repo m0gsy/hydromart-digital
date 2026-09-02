@@ -266,6 +266,22 @@ export class ApprovalAlreadyDecidedError extends DomainError {
   }
 }
 
+/**
+ * The account that raised an approval item tried to decide it (CA-2-20, owner decision D7).
+ *
+ * FORBIDDEN, not CONFLICT: the item is perfectly decidable, just not by this person. It
+ * stays PENDING in the queue so the level above — another `approvals` holder, and above the
+ * depot manager that is the superuser — decides it instead. That is the escalation: nothing
+ * is thrown away, one signature is refused.
+ */
+export class ApprovalSelfDecideError extends DomainError {
+  readonly code = 'APPROVAL_SELF_DECIDE';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Pengaju tidak boleh memutuskan pengajuannya sendiri — teruskan ke atasan.');
+  }
+}
+
 export class SupplierNotFoundError extends DomainError {
   readonly code = 'SUPPLIER_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

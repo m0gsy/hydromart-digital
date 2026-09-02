@@ -10,6 +10,7 @@ import {
 import {
   ApprovalAlreadyDecidedError,
   ApprovalNotFoundError,
+  ApprovalSelfDecideError,
   DepotNotFoundError,
 } from '../../domain/errors';
 import { DepotConfigService } from '../../config/depot-config.service';
@@ -90,7 +91,23 @@ export class ApprovalService {
     return this.require(id);
   }
 
-  /** Manager decision: APPROVE / REJECT / HOLD. Terminal items cannot be re-decided. */
+  /**
+   * Manager decision: APPROVE / REJECT / HOLD. Terminal items cannot be re-decided.
+   *
+   * CA-2-20, owner decision D7: nor can the person who raised it.
+   *
+   * `submittedBy` is the account that performed the act being reviewed — the stock count
+   * whose loss this is, the gallon return whose refund this is — and every one of those
+   * acts is reachable by a MANAGER, who is also the role that holds `approvals`. So one
+   * account could count a shortfall, raise the item for it, and sign it off, and the ledger
+   * would show two names that were the same name. HOLD is refused with the rest: parking
+   * your own item is still a decision about it.
+   *
+   * The refusal is the escalation. Nothing is deleted and no status is invented: the item
+   * stays PENDING, in the same queue, for the next `approvals` holder — another manager, or
+   * above a lone manager the superuser — to decide. Paired with `approvalThresholdWrite`,
+   * which stops the same person from simply raising the bar until nothing is reviewed.
+   */
   async decide(
     id: string,
     decision: ApprovalDecision,
@@ -100,6 +117,9 @@ export class ApprovalService {
     const current = await this.require(id);
     if (current.status === ApprovalStatus.APPROVED || current.status === ApprovalStatus.REJECTED) {
       throw new ApprovalAlreadyDecidedError();
+    }
+    if (current.submittedBy === decidedBy) {
+      throw new ApprovalSelfDecideError();
     }
     const status = DECISION_STATUS[decision];
     return this.approvals.update(id, {

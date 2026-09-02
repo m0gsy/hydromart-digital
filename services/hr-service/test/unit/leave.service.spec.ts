@@ -439,6 +439,8 @@ describe('LeaveService without optional collaborators', () => {
     const employees = {
       getSelf: async () => unlinked,
       findByIdInternal: async () => ({ ...SUPERVISOR, authSubjectId: null }),
+      // CA-1-40 asks who the decider is; an approver with no employee row is normal.
+      findByAuthSubjectId: async () => null,
     } as unknown as EmployeeService;
     const config = {
       weeklyOffDays: () => '',
@@ -474,6 +476,8 @@ describe('LeaveService without optional collaborators', () => {
     const employees = {
       getSelf: async () => EMPLOYEE,
       findByIdInternal: async () => EMPLOYEE,
+      // CA-1-40: the decider lookup. Null = this approver has no employee row of their own.
+      findByAuthSubjectId: async () => null,
     } as unknown as EmployeeService;
     const config = {
       weeklyOffDays: () => '',
@@ -486,5 +490,64 @@ describe('LeaveService without optional collaborators', () => {
     const approved = await svc.decideHr(hr, req.id, true);
     expect(approved.status).toBe('APPROVED');
     expect(writes).toHaveLength(5);
+  });
+});
+
+/*
+ * CA-1-40 — two stages, two people.
+ *
+ * Both decision paths checked exactly one thing: does this account reach the request's depot.
+ * `leaveApprove` (stage 1) is MANAGER + HR and `hrAdmin` (stage 2) includes HR, so an HR
+ * staffer with an employee record of their own held BOTH stages over their OWN application —
+ * the two-stage flow collapsed into one click by the applicant.
+ */
+describe('LeaveService · CA-1-40 nobody signs both stages, nobody signs their own', () => {
+  /** An HR account that is ALSO the applicant — the exact overlap the card describes. */
+  function selfApplicant(ctx: ReturnType<typeof make>) {
+    (ctx.employees as { findByAuthSubjectId: unknown }).findByAuthSubjectId = async (
+      accountId: string,
+    ) => (accountId === 'hr-1' ? { ...EMPLOYEE, authSubjectId: 'hr-1' } : null);
+  }
+
+  it('refuses stage 1 from the applicant', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    selfApplicant(ctx);
+    await expect(ctx.svc.decideManager(hr, req.id, true)).rejects.toThrow(/sendiri/i);
+  });
+
+  it('refuses stage 2 from the applicant', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+    selfApplicant(ctx);
+    await expect(ctx.svc.decideHr(hr, req.id, true)).rejects.toThrow(/sendiri/i);
+  });
+
+  it('refuses stage 2 from whoever signed stage 1', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    // One account holding both capabilities signs stage 1, then reaches for stage 2.
+    await ctx.svc.decideManager(hr, req.id, true);
+    // Two signatures from one account are one signature written twice.
+    await expect(ctx.svc.decideHr(hr, req.id, true)).rejects.toThrow(/orang lain/i);
+  });
+
+  it('still allows the normal two-person path', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+    const done = await ctx.svc.decideHr(hr, req.id, true);
+    expect(done.status).toBe('APPROVED');
+  });
+
+  it('does not 404 an approver who has no employee record of their own', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    // Head office and the superuser have no Employee row; findByAuthSubjectId returns null.
+    // `getSelf` would have thrown here, which is why the guard uses the lookup that cannot.
+    await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+    const done = await ctx.svc.decideHr(hr, req.id, true);
+    expect(done.status).toBe('APPROVED');
   });
 });
