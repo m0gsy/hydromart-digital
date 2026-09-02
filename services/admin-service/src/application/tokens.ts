@@ -17,4 +17,5 @@ export const ADMIN_TOKENS = {
   SecurityPolicyRepository: Symbol('SecurityPolicyRepository'),
   AdminNotificationPrefRepository: Symbol('AdminNotificationPrefRepository'),
   OnboardingStateRepository: Symbol('OnboardingStateRepository'),
+  SweepRunRepository: Symbol('SweepRunRepository'),
 } as const;

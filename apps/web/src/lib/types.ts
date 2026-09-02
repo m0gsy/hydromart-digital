@@ -2052,6 +2052,34 @@ export interface Incident {
   note: string | null;
   updates: IncidentUpdate[];
 }
+
+/**
+ * CA-5-01: one scheduled sweep as /hq/health shows it.
+ *
+ * The list is driven by the crontab's own job registry in admin-service, never by the
+ * table of runs — a sweep that has NEVER reported must appear as NEVER_RAN rather than
+ * not appear, which is exactly what the per-job marker files inside the scheduler
+ * container could not express.
+ */
+export type SweepVerdict = 'OK' | 'FAILING' | 'OVERDUE' | 'NEVER_RAN' | 'DORMANT';
+
+export interface SweepStatus {
+  job: string;
+  label: string;
+  everyMinutes: number;
+  verdict: SweepVerdict;
+  /** Why this sweep is switched off, when it is. Null for every live sweep. */
+  dormantReason: string | null;
+  lastRunAt: string | null;
+  /** Last run that actually WORKED — a different claim from lastRunAt, kept separate. */
+  lastOkAt: string | null;
+  ok: boolean | null;
+  detail: string | null;
+  consecutiveFailures: number;
+  host: string | null;
+  overdueAfterMinutes: number;
+}
+
 export interface SystemHealth {
   services: ServiceHealth[];
   upCount: number;

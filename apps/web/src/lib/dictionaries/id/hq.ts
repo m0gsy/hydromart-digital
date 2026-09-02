@@ -1265,6 +1265,35 @@ export const hq = {
       done: '{n} pesanan diserap.',
       failed: 'Gagal membangun ulang.',
     },
+  /*
+   * CA-5-01. Kata-katanya sengaja menyebut apa yang TERJADI, bukan sekadar sehat/rusak:
+   * "belum pernah jalan" dan "gagal" adalah dua kegagalan yang berbeda, dan yang pertama
+   * justru yang selama ini tidak bisa dilihat sama sekali.
+   */
+  sweeps: {
+    title: 'Sapuan terjadwal',
+    subtitle:
+      'Pekerjaan latar yang menjalankan jalur uang dan penghapusan data UU PDP. Daftarnya ' +
+      'datang dari jadwal, bukan dari laporan — jadi sapuan yang belum pernah jalan tetap ' +
+      'muncul di sini.',
+    job: 'Pekerjaan',
+    verdict: 'Keadaan',
+    lastRun: 'Terakhir jalan',
+    lastOk: 'Terakhir berhasil',
+    every: 'Jadwal',
+    OK: 'Jalan',
+    FAILING: 'Gagal',
+    OVERDUE: 'Terlambat',
+    NEVER_RAN: 'Belum pernah jalan',
+    DORMANT: 'Sengaja dimatikan',
+    allRunning: 'Semua {total} sapuan jalan',
+    brokenCount: '{n} dari {total} sapuan bermasalah',
+    consecutive: '{n} kali gagal berturut-turut',
+    everyMinutes: 'tiap {n} menit',
+    minutesAgo: '{n} menit lalu',
+    hoursAgo: '{n} jam lalu',
+    daysAgo: '{n} hari lalu',
+  },
   health: {
     title: 'Kesehatan sistem',
     subtitle: 'Status & latensi langsung per microservice',

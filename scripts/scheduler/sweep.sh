@@ -64,6 +64,29 @@ notify_failure() {
     "$ALERT_WEBHOOK_URL" >/dev/null 2>&1 || true
 }
 
+# CA-5-01 — tell somebody. The two heartbeats below this line are files inside THIS
+# container: no console reads them, and the healthcheck reads one of them as a single
+# yes/no for all seventeen jobs at once. So a job that had never run once looked exactly
+# like one that ran a minute ago, as long as some OTHER job had recently succeeded.
+#
+# admin-service keeps one row per job, and /hq/health renders the crontab's own job list
+# against it — so a sweep that never reports shows as NEVER RUN rather than not showing.
+#
+# Fire-and-forget, and deliberately so: the observer must never be able to fail the thing
+# it observes. A sweep that worked but could not be reported is still a sweep that worked,
+# and `|| true` keeps the exit code the round's own. The row simply goes stale, which the
+# screen already renders as OVERDUE.
+report_run() {
+  [ -z "${ADMIN_SERVICE_HOST:-}" ] && return 0
+  # busybox has no jq; the detail is truncated and stripped of the quotes and backslashes
+  # that would break the hand-built JSON below.
+  detail="$(printf '%s' "${2:-}" | tr -d '"\\' | tr '\n' ' ' | cut -c1-300)"
+  wget -q -O- -T 10 --header='content-type: application/json' \
+    --header="x-internal-key: ${INTERNAL_SERVICE_KEY}" \
+    --post-data="{\"job\":\"${path}\",\"host\":\"${host}\",\"ok\":$1,\"detail\":\"${detail}\"}" \
+    "http://${ADMIN_SERVICE_HOST}/api/v1/sweeps/internal/record" >/dev/null 2>&1 || true
+}
+
 # J7 — a 200 is not a verdict.
 #
 # Every check above this line is about the TRANSPORT. The body went straight to the
@@ -87,15 +110,18 @@ if body="$(wget -q -O- -T "$TIMEOUT" --header="x-internal-key: ${INTERNAL_SERVIC
   if echo "$body" | tr -d ' ' | grep -q '"ok":false'; then
     echo "${now} FAILED ${path} — answered 200 but reported a dead round: ${body}" >&2
     : > "$STATE/$slug.failed"
+    report_run false "$body"
     notify_failure
   else
     echo "${now} swept ${path}"
     # Two heartbeats: one per job for diagnosis, one shared for the container healthcheck.
     : > "$STATE/$slug.ok"
     : > "$STATE/last-success"
+    report_run true "$body"
   fi
 else
   echo "${now} FAILED ${path}" >&2
   : > "$STATE/$slug.failed"
+  report_run false "tidak ada jawaban dari ${host}"
   notify_failure
 fi

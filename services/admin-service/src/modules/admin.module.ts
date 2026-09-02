@@ -63,6 +63,9 @@ import { FraudFlagsController } from './fraud-flags.controller';
 import { IncidentsController } from './incidents.controller';
 import { SlaPolicyController } from './sla-policy.controller';
 import { RetentionController } from './retention.controller';
+import { SweepController } from './sweep.controller';
+import { SweepService } from '../application/services/sweep.service';
+import { SweepRunPrismaRepository } from '../infrastructure/prisma/sweep-run.prisma.repository';
 import { SecurityPolicyController } from './security-policy.controller';
 import { NotificationPrefsController } from './notification-prefs.controller';
 import { OnboardingController } from './onboarding.controller';
@@ -114,6 +117,8 @@ const providers: Provider[] = [
     useClass: AdminNotificationPrefPrismaRepository,
   },
   { provide: ADMIN_TOKENS.OnboardingStateRepository, useClass: OnboardingStatePrismaRepository },
+    SweepService,
+    { provide: ADMIN_TOKENS.SweepRunRepository, useClass: SweepRunPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   // Registered even though neither controller takes a `depotId` today: the next
@@ -142,6 +147,7 @@ const providers: Provider[] = [
     IncidentsController,
     SlaPolicyController,
     RetentionController,
+    SweepController,
     SecurityPolicyController,
     NotificationPrefsController,
     OnboardingController,

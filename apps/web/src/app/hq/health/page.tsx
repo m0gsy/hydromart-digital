@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowsClockwise, Heartbeat, Queue } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
+import { SweepCard } from '@/components/hq/sweep-card';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -194,6 +195,8 @@ export default function HqHealthPage() {
           </Badge>
         }
       />
+
+      <SweepCard />
 
       <OutboxCard />
 
