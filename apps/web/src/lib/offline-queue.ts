@@ -108,6 +108,15 @@ export interface GallonReturnPayload {
 export interface DeliveryFailPayload {
   deliveryId: string;
   reason: string;
+  /**
+   * CA-4-03: the courier had already collected this order's cash and has handed it back.
+   *
+   * Carried through the offline queue like everything else here, because the answer is
+   * given on a doorstep and the doorstep is exactly where the signal is worst. Losing it
+   * would mean the payment stays PAID and the courier is charged at the end of the shift
+   * for money they gave back.
+   */
+  cashReturned?: boolean;
 }
 
 export interface DeliveryReschedulePayload {
@@ -115,6 +124,15 @@ export interface DeliveryReschedulePayload {
   rescheduledFor: string;
   slot?: string;
   note?: string;
+  /**
+   * CA-4-03: the courier had already collected this order's cash and has handed it back.
+   *
+   * Carried through the offline queue like everything else here, because the answer is
+   * given on a doorstep and the doorstep is exactly where the signal is worst. Losing it
+   * would mean the payment stays PAID and the courier is charged at the end of the shift
+   * for money they gave back.
+   */
+  cashReturned?: boolean;
 }
 
 export type Job =
@@ -318,8 +336,8 @@ async function run(job: Job, capturedAt: string): Promise<unknown> {
    * delivery-service, not a change here.
    */
   if (job.kind === 'deliveryFail') {
-    const { deliveryId, reason } = job.payload;
-    return api.patch(endpoints.deliveries.driver.fail(deliveryId), { reason }, true);
+    const { deliveryId, ...rest } = job.payload;
+    return api.patch(endpoints.deliveries.driver.fail(deliveryId), rest, true);
   }
   if (job.kind === 'deliveryReschedule') {
     const { deliveryId, ...rest } = job.payload;

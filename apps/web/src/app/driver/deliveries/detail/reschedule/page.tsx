@@ -4,10 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, CalendarCheck } from '@phosphor-icons/react';
 
+import { CashReturnedAsk } from '@/components/driver/cash-returned-ask';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { runOrQueue } from '@/lib/offline-queue';
+import { useAsync } from '@/lib/use-async';
+import type { Delivery } from '@/lib/types';
 import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -25,6 +29,18 @@ function Reschedule() {
   const [when, setWhen] = useState('');
   const [slot, setSlot] = useState('');
   const [note, setNote] = useState('');
+  /*
+   * CA-4-03: a reschedule is not a delivery, so the end-of-shift deposit used to stop
+   * mentioning this order entirely — including any cash the courier had already taken at
+   * the door. Whether they are holding it is the SERVER’s answer (`cashHeld`), never a
+   * guess from `codAmount`, which is written at assignment and never cleared.
+   */
+  const delivery = useAsync<Delivery>(
+    () => api.get<Delivery>(endpoints.deliveries.driver.get(id), true),
+    [id],
+  );
+  const [cashReturned, setCashReturned] = useState<boolean | null>(null);
+  const mustAnswerCash = Boolean(delivery.data?.cashHeld);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +58,7 @@ function Reschedule() {
           rescheduledFor: new Date(when).toISOString(),
           slot: slot || undefined,
           note: note || undefined,
+          cashReturned: cashReturned ?? false,
         },
       });
       router.replace('/driver');
@@ -84,9 +101,17 @@ function Reschedule() {
         </Field>
       </Card>
 
+      {mustAnswerCash && (
+        <CashReturnedAsk
+          amount={delivery.data?.codAmount}
+          value={cashReturned}
+          onChange={setCashReturned}
+        />
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <Button loading={busy} disabled={!when} className="flex w-full items-center justify-center gap-2" onClick={submit}>
+      <Button loading={busy} disabled={!when || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2" onClick={submit}>
         <CalendarCheck size={19} weight="fill" />
         {t('driver.reschedule.submit')}
       </Button>

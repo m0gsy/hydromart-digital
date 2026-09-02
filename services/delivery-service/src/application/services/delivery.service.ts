@@ -102,12 +102,30 @@ export interface NoShowStatus {
   canMarkNoShow: boolean;
 }
 
+/**
+ * A delivery as its own courier sees it, plus the one thing the delivery row cannot say:
+ * whether the money for it is currently in the courier's pocket (CA-4-03).
+ *
+ * `codAmount` is written at assignment and never cleared, so it answers "should cash be
+ * collected here", not "was it". Only the payment book answers the second, and the screens
+ * that end a delivery need it to know whether to ask about the money at all.
+ */
+export interface DriverDeliveryView extends DeliveryRecord {
+  cashHeld: boolean;
+}
+
 export interface RescheduleInput {
   rescheduledFor: Date;
   slot?: string;
   note?: string;
   /** Forwarded so the order can be handed back to dispatch on the caller's behalf. */
   authorization?: string;
+  /**
+   * The courier already took the cash and has handed it back to the customer (CA-4-03).
+   * Defaults false — "the courier still has it" — because that is the answer that keeps
+   * the money visible in the shift deposit rather than writing it off. See `settleHeldCash`.
+   */
+  cashReturned?: boolean;
 }
 
 @Injectable()
@@ -367,12 +385,14 @@ export class DeliveryService {
     id: string,
     reason: string,
     authorization = '',
+    cashReturned = false,
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     // Already failed, by this driver: a replay, not a second failure. See `replayed`.
     if (delivery.status === DeliveryStatus.FAILED) return delivery;
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
+    await this.settleHeldCash(delivery, driverId, cashReturned, 'gagal');
     await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
@@ -381,6 +401,56 @@ export class DeliveryService {
       { failedAt: new Date(), failureReason: reason },
       driverId,
       reason,
+    );
+  }
+
+  /**
+   * The money half of ending a delivery that did not deliver (CA-4-03).
+   *
+   * A courier can take the cash at the door and only then discover the goods are wrong, or
+   * agree a new slot — both Gagal and Jadwal-ulang are reachable from ON_DELIVERY. Until
+   * now the delivery simply stopped being DELIVERED and the end-of-shift deposit, which
+   * only counted DELIVERED rows, stopped mentioning the money at all. No shortfall, no
+   * dispute, no trace: the one shape of missing cash nothing in the system could see.
+   *
+   * Owner decision D1 (2 September 2026) is that the courier is asked rather than assumed
+   * about, because both assumptions cost somebody real money. Assume the cash went back to
+   * the customer and it vanishes from the books. Assume the courier kept it and a courier
+   * who did the right thing gets a shortfall that can be charged against their pay.
+   *
+   *   cashReturned = true   the notes are back with the customer -> reverse the payment,
+   *                         so it stops being PAID and the deposit stops asking for it
+   *   cashReturned = false  the courier still has it -> leave the payment PAID, which is
+   *                         precisely what puts it back into the expected deposit
+   *
+   * No-op unless payment-service reports this order's payment as CASH and PAID. Everything
+   * else — prepaid, no payment row, a PENDING COD never collected — is a delivery with no
+   * money attached, and `cashReturned` is meaningless for it.
+   *
+   * Deliberately NOT fail-open, unlike `cancelOrderFor` below. That one may swallow an
+   * outage because a lost failure REPORT is unrecoverable while a stuck order is not. Here
+   * the trade runs the other way: swallowing the outage would mark the delivery ended while
+   * the payment stayed PAID, which silently charges the courier for money they handed back.
+   * So a reversal that cannot be confirmed refuses the whole transition, and the courier can
+   * try again with the goods and the cash still in a known state.
+   */
+  private async settleHeldCash(
+    delivery: DeliveryRecord,
+    driverId: string,
+    cashReturned: boolean,
+    outcome: string,
+  ): Promise<void> {
+    if (!cashReturned) return;
+    const payment = await this.payments.forOrder(delivery.orderId);
+    if (payment?.method !== 'CASH' || payment.status !== 'PAID') return;
+    await this.payments.reverseCash(
+      delivery.orderId,
+      `Kurir mengembalikan tunai di tempat — pengantaran ${outcome} (${delivery.orderNumber}).`,
+      driverId,
+    );
+    this.logger.log(
+      `Delivery ${delivery.id} ${outcome}: cash of ${payment.amount} returned to the customer ` +
+        `by driver ${driverId}; payment reversed so the shift deposit does not ask for it.`,
     );
   }
 
@@ -499,6 +569,7 @@ export class DeliveryService {
       return delivery;
     }
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
+    await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
     const updated = await this.deliveries.applyStatus(
       id,
       delivery.status,
@@ -606,12 +677,40 @@ export class DeliveryService {
     return this.deliveries.updateLocation(id, lat, lng, eta);
   }
 
-  async getForDriver(driverId: string, id: string): Promise<DeliveryRecord> {
+  /**
+   * The courier's own view of one delivery, plus whether they are holding its cash.
+   *
+   * CA-4-03. `cashHeld` used to be decided on the phone: the screen called the STAFF
+   * payment route with the courier's own token and turned any failure into
+   * `.catch(() => false)`. Three separate things therefore rendered as "cash already
+   * taken" — a 403 (the route is guarded by `paymentSettle`, which not every dispatching
+   * role holds), a 429, and a phone that lost signal between the two requests. Deciding it
+   * here removes all three: the internal key never 403s.
+   *
+   * Fails OPEN, and open here means TRUE. If payment-service cannot answer, the courier is
+   * asked whether they returned the cash rather than not asked — one extra tap against
+   * silently losing the money. A wrong `true` costs nothing downstream: `settleHeldCash`
+   * re-reads the payment and does nothing unless it really is CASH and PAID, and the
+   * deposit is computed from payment-service directly, never from this flag.
+   *
+   * An order with no COD never had cash at the door, so it is answered without asking.
+   */
+  async getForDriver(driverId: string, id: string): Promise<DriverDeliveryView> {
     const delivery = await this.deliveries.findById(id);
     if (!delivery || delivery.driverId !== driverId) {
       throw new DeliveryNotFoundError();
     }
-    return delivery;
+    if (!delivery.codAmount) return { ...delivery, cashHeld: false };
+    try {
+      const payment = await this.payments.forOrder(delivery.orderId);
+      return { ...delivery, cashHeld: payment?.method === 'CASH' && payment.status === 'PAID' };
+    } catch (error) {
+      this.logger.warn(
+        `payment status unreadable for order ${delivery.orderId} (${(error as Error).message}) — ` +
+          'assuming the courier is holding the cash so they are asked rather than not asked',
+      );
+      return { ...delivery, cashHeld: true };
+    }
   }
 
   async getAny(id: string): Promise<DeliveryRecord> {

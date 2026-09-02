@@ -19,10 +19,11 @@ import {
   surplusNeedsNote,
   appendNote,
 } from '../../domain/settlement';
+import { DeliveryStatus } from '../../domain/delivery-status';
 import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
-import { DeliveryRepository } from '../ports/delivery.repository';
+import { CodBearing, DeliveryRepository } from '../ports/delivery.repository';
 import { DepositedCod, SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
@@ -49,6 +50,35 @@ export class SettlementService {
   ) {}
 
   /**
+   * What ONE closed delivery adds to the expected deposit (CA-4-03).
+   *
+   * The two cases are not symmetric, and treating them as one is how this went wrong in
+   * both directions at once:
+   *
+   *   DELIVERED            the goods left the van, so the COD is owed whether or not the
+   *                        courier remembered to press "Terima uang". `max` covers the
+   *                        skipped confirmation (C1) and also the order paid in cash
+   *                        without a COD ever being written on the row.
+   *
+   *   FAILED, RESCHEDULED  nothing was handed over, so nothing is owed BY DEFAULT — using
+   *                        `codAmount` here would invent a debt out of a delivery that
+   *                        never happened, and charge the courier for it. What IS owed is
+   *                        exactly the cash payment-service still reports as PAID: money
+   *                        the courier took at the door and did not give back.
+   *
+   * That last clause is the owner's decision of 2 September 2026 (D1) made arithmetic. A
+   * courier who hands the cash back at the door records it, the payment goes REFUNDED, and
+   * it stops being PAID — so it drops out of this sum on its own, with the reversal written
+   * in the payment book rather than in a flag on the delivery. A courier who keeps the
+   * money is still holding it, the payment is still PAID, and the deposit still asks for it.
+   */
+  private owedFor(delivery: CodBearing, paidCash: number): number {
+    return delivery.status === DeliveryStatus.DELIVERED
+      ? Math.max(delivery.codAmount ?? 0, paidCash)
+      : paidCash;
+  }
+
+  /**
    * Courier deposits their shift's cash (design 2d). The expected total is snapshotted
    * here, so a later refund can't move the debt, and fails closed if payment-service is
    * unreachable (never understate the expected).
@@ -61,6 +91,9 @@ export class SettlementService {
    * dispute, no trace. So each order is worth `max(codAmount, cash PAID)` — per order,
    * because a shift can hold both an unconfirmed COD and an unrelated cash payment, and
    * one aggregate max would report only the larger of the two.
+   *
+   * CA-4-03: and it is every delivery the courier CLOSED in the window, not only the ones
+   * that ended DELIVERED. See `owedFor` for why the two are not worth the same.
    */
   async submit(
     driverId: string,
@@ -79,19 +112,19 @@ export class SettlementService {
       throw new SettlementAlreadyExistsError();
     }
 
-    const delivered = await this.deliveries.deliveredCodInWindow(
+    const closed = await this.deliveries.codBearingInWindow(
       driverId,
       shift.checkInAt,
       shift.checkOutAt,
     );
-    const orderIds = delivered.map((d) => d.orderId);
+    const orderIds = closed.map((d) => d.orderId);
 
     let expectedAmount: number;
     try {
       const collected = await this.cash.sumCollected(orderIds, authorization);
       const paid = new Map(collected.byOrder.map((r) => [r.orderId, r.amountIdr]));
       expectedAmount = this.config.settlementExpectFromCod(shift.depotId)
-        ? delivered.reduce((sum, d) => sum + Math.max(d.codAmount ?? 0, paid.get(d.orderId) ?? 0), 0)
+        ? closed.reduce((sum, d) => sum + this.owedFor(d, paid.get(d.orderId) ?? 0), 0)
         : Math.round(collected.total);
       expectedAmount = Math.round(expectedAmount);
     } catch (error) {

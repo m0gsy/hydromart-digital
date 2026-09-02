@@ -9,7 +9,7 @@ import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery
 import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import {
   CreateDeliveryData,
-  DeliveredCod,
+  CodBearing,
   DeliveredRow,
   DeliveryQuery,
   DeliveryPingState,
@@ -209,17 +209,25 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
-  async deliveredCodInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredCod[]> {
+  async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {
+    // Mirrors the Prisma query: each ending is matched on the timestamp it actually writes.
+    // RESCHEDULED has none of its own, so the status-history row is the anchor there too
+    // (`rescheduledFor` is the future slot, not the moment the job was handed back).
+    const inWindow = (at: Date | null | undefined): boolean =>
+      at != null && at.getTime() >= from.getTime() && at.getTime() <= to.getTime();
     return this.rows
-      .filter(
-        (r) =>
-          r.driverId === driverId &&
-          r.status === DeliveryStatus.DELIVERED &&
-          r.deliveredAt !== null &&
-          r.deliveredAt.getTime() >= from.getTime() &&
-          r.deliveredAt.getTime() <= to.getTime(),
-      )
-      .map((r) => ({ orderId: r.orderId, codAmount: r.codAmount }));
+      .filter((r) => {
+        if (r.driverId !== driverId) return false;
+        if (r.status === DeliveryStatus.DELIVERED) return inWindow(r.deliveredAt);
+        if (r.status === DeliveryStatus.FAILED) return inWindow(r.failedAt);
+        if (r.status === DeliveryStatus.RESCHEDULED) {
+          return (r.history ?? []).some(
+            (h) => h.status === DeliveryStatus.RESCHEDULED && inWindow(h.createdAt),
+          );
+        }
+        return false;
+      })
+      .map((r) => ({ orderId: r.orderId, codAmount: r.codAmount, status: r.status }));
   }
   async driverDeliveredInWindow(
     driverId: string,
@@ -785,11 +793,26 @@ export class FakeOrderPayment implements OrderPaymentPort {
   throwOnRead = false;
   calls: string[] = [];
 
+  /** Reversals recorded by `reverseCash`, in order — what the settlement stops asking for. */
+  reversals: { orderId: string; reason: string; changedBy: string }[] = [];
+  throwOnReverse = false;
+
   async forOrder(orderId: string): Promise<OrderPaymentSnapshot | null> {
     this.calls.push(orderId);
     if (this.throwOnRead) {
       throw new Error('payment-service down');
     }
     return this.payments.get(orderId) ?? null;
+  }
+
+  async reverseCash(orderId: string, reason: string, changedBy: string): Promise<void> {
+    if (this.throwOnReverse) {
+      throw new Error('payment-service down');
+    }
+    this.reversals.push({ orderId, reason, changedBy });
+    // The real service moves the row to REFUNDED, which is what drops it out of
+    // `cash-collected`. Mirrored here so a test can assert the settlement follows.
+    const existing = this.payments.get(orderId);
+    if (existing) this.payments.set(orderId, { ...existing, status: 'REFUNDED' });
   }
 }

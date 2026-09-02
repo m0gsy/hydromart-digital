@@ -214,6 +214,19 @@ export class FailDeliveryDto {
   @IsNotEmpty()
   @MaxLength(255)
   reason!: string;
+
+  /**
+   * CA-4-03: did the courier hand the cash back to the customer at the door?
+   *
+   * Optional and false by default, and that default is the safe one: 'the courier still
+   * has it' keeps the money in the end-of-shift deposit, where it is visible and can be
+   * disputed. The other default would write it off silently. Only consulted when
+   * payment-service reports this order's payment as CASH and PAID.
+   */
+  @ApiPropertyOptional({ default: false, description: 'Courier returned the collected cash to the customer.' })
+  @IsOptional()
+  @IsBoolean()
+  cashReturned?: boolean;
 }
 
 export class RecordContactAttemptDto {
@@ -245,6 +258,19 @@ export class RescheduleDeliveryDto {
   @IsString()
   @MaxLength(255)
   note?: string;
+
+  /**
+   * CA-4-03: did the courier hand the cash back to the customer at the door?
+   *
+   * Optional and false by default, and that default is the safe one: 'the courier still
+   * has it' keeps the money in the end-of-shift deposit, where it is visible and can be
+   * disputed. The other default would write it off silently. Only consulted when
+   * payment-service reports this order's payment as CASH and PAID.
+   */
+  @ApiPropertyOptional({ default: false, description: 'Courier returned the collected cash to the customer.' })
+  @IsOptional()
+  @IsBoolean()
+  cashReturned?: boolean;
 }
 
 export class ListDeliveriesQueryDto {

@@ -15,6 +15,7 @@ import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform
 
 import {
   DeliveryService,
+  DriverDeliveryView,
   NoShowStatus,
 } from '../application/services/delivery.service';
 import { ContactMethod } from '../domain/no-show';
@@ -54,7 +55,7 @@ export class DriverDeliveryController {
   get(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<DeliveryRecord> {
+  ): Promise<DriverDeliveryView> {
     return this.deliveries.getForDriver(user.sub, id);
   }
 
@@ -129,7 +130,7 @@ export class DriverDeliveryController {
     @Headers('authorization') authorization?: string,
   ): Promise<DeliveryRecord> {
     // Forwarded so the failure can cancel the order (and release its stock hold).
-    return this.deliveries.fail(user.sub, id, dto.reason, authorization);
+    return this.deliveries.fail(user.sub, id, dto.reason, authorization, dto.cashReturned);
   }
 
   @ApiOkResponse({ type: NoShowStatusResponseDto })
@@ -173,6 +174,7 @@ export class DriverDeliveryController {
       rescheduledFor: new Date(dto.rescheduledFor),
       slot: dto.slot,
       note: dto.note,
+      cashReturned: dto.cashReturned,
       authorization,
     });
   }

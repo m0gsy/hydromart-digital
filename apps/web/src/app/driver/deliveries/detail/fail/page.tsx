@@ -4,10 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, XCircle } from '@phosphor-icons/react';
 
+import { CashReturnedAsk } from '@/components/driver/cash-returned-ask';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { runOrQueue } from '@/lib/offline-queue';
+import { useAsync } from '@/lib/use-async';
+import type { Delivery } from '@/lib/types';
 import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -24,6 +28,17 @@ function Fail() {
   const { t } = useT();
   const id = useQueryParam('id');
   const [reason, setReason] = useState('');
+  /*
+   * CA-4-03: whether this courier is holding the order's cash is the SERVER's answer, not
+   * a guess from `codAmount` — that column says cash should be collected here, never that
+   * it was. Read here so the question below appears only when there is real money at stake.
+   */
+  const delivery = useAsync<Delivery>(
+    () => api.get<Delivery>(endpoints.deliveries.driver.get(id), true),
+    [id],
+  );
+  const [cashReturned, setCashReturned] = useState<boolean | null>(null);
+  const mustAnswerCash = Boolean(delivery.data?.cashHeld);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +50,10 @@ function Fail() {
     try {
       // K2.9: a failed delivery is a state the courier cannot re-derive later — they have
       // already left. Queued rather than lost when the signal drops.
-      await runOrQueue({ kind: 'deliveryFail', payload: { deliveryId: id, reason: value } });
+      await runOrQueue({
+        kind: 'deliveryFail',
+        payload: { deliveryId: id, reason: value, cashReturned: cashReturned ?? false },
+      });
       router.replace('/driver');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.deliveryFail.error'));
@@ -73,9 +91,17 @@ function Fail() {
         </Field>
       </Card>
 
+      {mustAnswerCash && (
+        <CashReturnedAsk
+          amount={delivery.data?.codAmount}
+          value={cashReturned}
+          onChange={setCashReturned}
+        />
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <Button loading={busy} disabled={!reason.trim()} className="flex w-full items-center justify-center gap-2 bg-red-600 hover:bg-red-700" onClick={submit}>
+      <Button loading={busy} disabled={!reason.trim() || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2 bg-red-600 hover:bg-red-700" onClick={submit}>
         <XCircle size={19} weight="fill" />
         {t('driver.deliveryFail.submit')}
       </Button>

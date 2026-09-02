@@ -627,10 +627,10 @@ describe('OrderPaymentHttpAdapter', () => {
 
   it('reads the order payment over the internal key, never a bearer', async () => {
     fetchMock.mockResolvedValueOnce(
-      res({ body: { items: [{ method: 'CASH', amount: 175000 }], total: 1 } }),
+      res({ body: { items: [{ method: 'CASH', amount: 175000, status: 'PENDING' }], total: 1 } }),
     );
     const out = await new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER);
-    expect(out).toEqual({ method: 'CASH', amount: 175000 });
+    expect(out).toEqual({ method: 'CASH', amount: 175000, status: 'PENDING' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`http://payment:3004/api/v1/payments/internal/for-order/${ORDER}`);
     expect((init.headers as Record<string, string>)['x-internal-key']).toBe(KEY);

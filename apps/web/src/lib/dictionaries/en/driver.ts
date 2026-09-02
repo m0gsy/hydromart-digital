@@ -57,6 +57,14 @@ export const driver = {
     confirm: 'Confirm payment',
     confirmError: 'Could not confirm. Try again.',
   },
+  cashReturned: {
+    title: 'You already took {amount} in cash. Returned to the customer?',
+    why: 'This answer decides your end-of-shift deposit. Required.',
+    yes: 'I returned it',
+    yesHint: 'The money goes back to the customer — not charged to your deposit.',
+    no: 'I still have it',
+    noHint: 'The money is deposited at the depot at the end of your shift.',
+  },
   reschedule: {
     title: 'Reschedule delivery',
     slots: {
