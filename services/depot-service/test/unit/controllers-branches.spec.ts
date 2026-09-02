@@ -300,6 +300,7 @@ describe('FranchiseApplicationController', () => {
     approve: jest.fn(),
     reject: jest.fn(),
     create: jest.fn(),
+    purgeRejectedOlderThan: jest.fn(),
   };
   const c = new FranchiseApplicationController(svc as never);
   beforeEach(() => jest.clearAllMocks());
@@ -371,6 +372,21 @@ describe('FranchiseApplicationController', () => {
     await c.reject(ID);
     expect(svc.reject).toHaveBeenCalledWith(ID);
   });
+  /*
+   * D6: rejected applications are purged at 24 months. Internal-key only — the caller is a
+   * scheduled sweep with no token, the same door every other retention job uses.
+   */
+  it('hands the purge cutoff through as a Date, not a string', async () => {
+    svc.purgeRejectedOlderThan.mockResolvedValue({ deleted: 4 });
+    const cutoff = '2024-09-02T00:00:00.000Z';
+
+    await c.purgeRejected({ cutoff } as never);
+
+    const passed = svc.purgeRejectedOlderThan.mock.calls[0][0];
+    expect(passed).toBeInstanceOf(Date);
+    expect(passed.toISOString()).toBe(cutoff);
+  });
+
 });
 
 describe('GallonIssueController', () => {

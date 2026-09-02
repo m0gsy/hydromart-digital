@@ -1,8 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  Equals,
+  IsBoolean,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
@@ -131,6 +134,26 @@ export class SubmitFranchiseApplicationDto {
   @IsInt()
   @Min(0)
   projectedMonthlyRevenue!: number;
+
+  /*
+   * CA-3-53. The only unauthenticated write in this service collects a name, a WhatsApp
+   * number and a GPS pin, and asked for consent nowhere — not on the form, not here. The
+   * tick is REQUIRED at the API boundary and not only in the browser, because a checkbox
+   * the client alone enforces is a checkbox `curl` never sees.
+   *
+   * ponytail: the fact of consent is carried by the refusal, not by a stored timestamp —
+   * every row accepted after this release was accepted with the box ticked. The ceiling:
+   * a `privacyConsentAt` column when someone has to prove WHEN a specific applicant
+   * agreed. That is a migration, and this repo lands a column one release before the code
+   * that writes it.
+   */
+  @ApiProperty({
+    example: true,
+    description: 'Applicant ticked the privacy-policy consent. Must be true (UU PDP).',
+  })
+  @IsBoolean()
+  @Equals(true, { message: 'privacyConsent wajib true — persetujuan pemrosesan data.' })
+  privacyConsent!: boolean;
 }
 
 /**
@@ -151,4 +174,21 @@ export class SubmittedApplicationView {
       submittedAt: r.submittedAt,
     };
   }
+}
+
+/**
+ * Retention sweep body. admin-service computes the cutoff from the retention policy;
+ * depot-service only owns the rows, never the rule. Same shape as delivery-service's
+ * `PurgeProofsDto`, because it is the same purge engine on the other end.
+ */
+export class PurgeRejectedApplicationsDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601()
+  cutoff!: string;
+}
+
+/** What the sweep reads back. `deleted` is the field every purge executor looks for. */
+export class PurgeRejectedResponseDto {
+  @ApiProperty({ example: 3 })
+  deleted!: number;
 }

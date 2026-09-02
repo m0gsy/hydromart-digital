@@ -88,4 +88,11 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     });
     return this.toRecord(row as unknown as ApplicationRow);
   }
+
+  async purgeRejectedBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.franchiseApplication.deleteMany({
+      where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
+    });
+    return count;
+  }
 }

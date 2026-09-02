@@ -13,7 +13,7 @@ export const deleteAccount: typeof base = {
   steps: [
     'In the app: open Account → Data & privacy → Delete account, then confirm. Your request enters a queue and is decided by the head-office team.',
     'Without the app: email privacy@hydromart-digital.com from your registered email address, or quote the phone number on your account. We verify your identity before acting.',
-    'You will be notified once the request has been processed. Requests are completed within 30 working days of verification.',
+    'You will be notified once the request has been processed. Requests are completed within 3x24 hours of verification.',
   ],
 
   sections: [

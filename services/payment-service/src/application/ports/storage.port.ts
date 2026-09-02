@@ -27,4 +27,11 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /**
+   * Delete one object by key. CA-3-07: the payment ROW is a financial record and stays for
+   * ten years, but the photo attached to it is a picture of somebody's bank app — a name,
+   * an account number, a balance — and it was kept forever because nothing could delete it.
+   * Idempotent: a key that is already gone is a success.
+   */
+  remove(key: string): Promise<void>;
 }

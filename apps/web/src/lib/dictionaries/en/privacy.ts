@@ -3,7 +3,7 @@ import { privacy as base } from '../id/privacy';
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
   title: 'Privacy Policy',
-  effective: 'Effective 29 August 2026',
+  effective: 'Effective 2 September 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
   sections: [
@@ -33,7 +33,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'Storage & retention',
-      body: 'Account data is kept while your account is active. Proof-of-delivery data (photo, signature, recipient name, location) is kept for at most 12 months after hand-over, then deleted automatically. Photo/signature files in object storage are removed by a bucket lifecycle rule on the same schedule.',
+      body: 'Account data is kept while your account is active. Proof-of-delivery data (photo, signature, recipient name, location) is kept for at most 12 months after hand-over, then deleted automatically. Photo/signature files in object storage are removed by a bucket lifecycle rule on the same schedule. A payment-proof photo you upload when paying is kept for at most 12 months after the payment, after which the file is deleted from object storage — the payment record itself is retained as a financial record, without the photo. If you apply for a franchise partnership through the public form, the name, WhatsApp number, and proposed-site location you enter are kept so we can review that application; rejected applications are deleted at most 24 months after the decision.',
     },
     {
       heading: 'Security',

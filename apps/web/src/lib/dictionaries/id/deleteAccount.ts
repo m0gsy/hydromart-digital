@@ -17,7 +17,11 @@ export const deleteAccount = {
   steps: [
     'Lewat aplikasi: buka Akun → Data & privasi → Hapus akun, lalu konfirmasi. Permintaanmu masuk ke antrean dan diputuskan tim kantor pusat.',
     'Tanpa aplikasi: kirim email ke privacy@hydromart-digital.com dari alamat email yang terdaftar, atau sebutkan nomor telepon akunmu. Kami akan memverifikasi identitasmu sebelum memproses.',
-    'Kamu akan menerima konfirmasi setelah permintaan diproses. Permintaan diproses paling lambat 30 hari kerja sejak diverifikasi.',
+    // CA-3-55: halaman ini menjanjikan 30 hari kerja sementara aplikasi menjanjikan DAN
+    // mengukur 3x24 jam (`lib/pdp-sla.ts` = 72 jam; antrean /hq/pdp menandai baris yang
+    // lewat batas itu merah). Dua janji untuk satu kewajiban, dan yang publik justru yang
+    // paling longgar. Keputusan pemilik 2026-09-02: samakan ke 3x24 jam.
+    'Kamu akan menerima konfirmasi setelah permintaan diproses. Permintaan diproses paling lambat 3x24 jam sejak diverifikasi.',
   ],
 
   sections: [

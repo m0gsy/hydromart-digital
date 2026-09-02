@@ -518,6 +518,7 @@ describe('FranchiseApplicationPrismaRepository', () => {
     count: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    deleteMany: jest.fn(),
   };
   const prisma = { franchiseApplication: model } as unknown as PrismaService;
   const repo = new FranchiseApplicationPrismaRepository(prisma);
@@ -606,6 +607,21 @@ describe('FranchiseApplicationPrismaRepository', () => {
       data: { checklist: { legal: false } },
     });
   });
+  it('purges only REJECTED applications older than the cutoff (D6)', async () => {
+    model.deleteMany.mockResolvedValue({ count: 3 });
+    const cutoff = new Date('2024-09-02T00:00:00Z');
+
+    expect(await repo.purgeRejectedBefore(cutoff)).toBe(3);
+    expect(model.deleteMany).toHaveBeenCalledWith({
+      where: { stage: 'REJECTED', updatedAt: { lt: cutoff } },
+    });
+  });
+
+  it('reports zero rather than throwing when nothing is old enough', async () => {
+    model.deleteMany.mockResolvedValue({ count: 0 });
+    expect(await repo.purgeRejectedBefore(new Date())).toBe(0);
+  });
+
 });
 
 describe('GallonIssuePrismaRepository', () => {
