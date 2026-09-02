@@ -40,7 +40,22 @@ export default function HqDepotDetailPage() {
   const [busy, setBusy] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
 
-  const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.detail(id), true), [id]);
+  /*
+   * The ADMIN record, not the public one.
+   *
+   * `depots.detail` is the `@Public()` projection: no payment fields, no `ownerId`, no
+   * `ownershipType`, no `contactPhone`, and — because it is served with `activeOnly` —
+   * no suspended depot at all. Typed here as `DepotAdmin`, that lie reached three things
+   * at once. The edit form below is prefilled from this object and PATCHes every field it
+   * holds, so saving any change wrote `paymentBankAccountNumber: null` over the depot's
+   * bank account, its QRIS and its WhatsApp number; the ownership badge always read
+   * "central"; and a suspended depot 404'd on the one screen carrying its Reactivate
+   * button. `manage/:depotId` is the same row in full, behind `depotDirectory`.
+   */
+  const depot = useAsync<DepotAdmin>(
+    () => api.get(endpoints.depots.manageDetail(id), true),
+    [id],
+  );
   const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range30()), true));
   const inv = useAsync<InventoryItem[]>(() => api.get(endpoints.inventory.lines(id), true), [id]);
   const staff = useAsync<{ items: Customer[] }>(

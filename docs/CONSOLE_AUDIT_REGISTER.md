@@ -67,16 +67,18 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 | Yang dihitung | Angka |
 | --- | --- |
-| Baris register, seluruhnya | **280** |
+| Baris register, seluruhnya | **281** |
 | — kartu individual (§50: 219 + 2 dicoret) | 221 |
 | — baris dari tabel ringkas | 59 |
-| Kritis / Tinggi / Sedang / Rendah | 9 / 67 / 100 / 43 |
+| — temuan sapuan, di luar laporan sumber (Bagian VI) | 1 |
+| Kritis / Tinggi / Sedang / Rendah | 9 / 68 / 100 / 43 |
 | Baris SAPUAN | 11 |
 
-**Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 31 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 1
+**Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 31 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (satu ditemukan saat menyapu, Bagian VI)
 
-**Per status** (1 September 2026, sesudah langkah 04): `TERBUKA` 260 · `SUDAH DIPERBAIKI` 14 ·
-`DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 1
+**Per status** (2 September 2026, sesudah langkah 05, dihitung dari baris tabel di bawah):
+`TERBUKA` 258 · `SUDAH DIPERBAIKI` 18 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — CA-1-17,
+satu-satunya baris KEPUTUSAN, dijawab pemilik pada 1 September dan ditutup di #421.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
 > satu baris CA-5 memayungi **14 sweep**. Merencanakan 460 tiket melebihkan pekerjaan sekitar dua
@@ -185,7 +187,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | `CA-2-01` | §16 | Dicoret | “Persetujuan klaim pengeluaran kurir tidak dibatasi depot” | `services/payout-service/src/application/services/expense-claim.service.ts:133–142` | `depot-scope-by-id` | DITOLAK | dicoret oleh audit sendiri di §16 — penjagaannya ada di kode, dengan komentar berkode yang menamainya | — |
 | `CA-2-02` | §16 | Dicoret | “Head office bisa mencetak SUPER_ADMIN untuk nomornya sendiri” | `services/auth-service/src/application/services/account.service.ts:304–307` | `gerbang-kapabilitas` | DITOLAK | dicoret oleh audit sendiri di §16 — penjagaannya ada di kode, dengan komentar berkode yang menamainya | — |
 | `CA-2-03` | §17 | Kritis | Manajer bisa mengubah rekening bank dan QRIS SETIAP depot di jaringan | `services/depot-service/src/modules/depot.controller.ts:251, :263, :309` | `depot-scope-by-id` | SUDAH DIPERBAIKI | parameter jadi `:depotId` pada `manage/:depotId`, `PATCH`, `POST :depotId/qris`, `DELETE` — `DepotScopeGuard` akhirnya melihatnya | #416 |
-| `CA-2-04` | §17 | Kritis | Detail depot HQ membaca proyeksi publik — menyuntingnya menghapus rekening bank depot | `apps/web/src/app/hq/depots/detail/page.tsx:42` | `proyeksi-publik` | TERBUKA | `const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.detail(id), true), [id]);` | — |
+| `CA-2-04` | §17 | Kritis | Detail depot HQ membaca proyeksi publik — menyuntingnya menghapus rekening bank depot | `apps/web/src/app/hq/depots/detail/page.tsx:42` | `proyeksi-publik` | SUDAH DIPERBAIKI | kini `api.get(endpoints.depots.manageDetail(id), true)`; selain rekening, ini juga yang membuat depot waralaba berlencana "pusat" dan depot ditangguhkan 404 di layar tombol aktifkan-kembali | #426 |
 | `CA-2-05` | §18 | Tinggi | “Blokir” di antrean fraud tidak memblokir apa pun | `apps/web/src/app/hq/fraud/page.tsx:114 · fraud-flag.service.ts:35` | `lain` | TERBUKA | `<Button variant="danger" onClick={() => act(r, 'block')}>` | — |
 | `CA-2-06` | §18 | Tinggi | IP allowlist dan timeout sesi disimpan, tidak ditegakkan di mana pun | `apps/web/src/app/hq/security/page.tsx:97–110 · security-policy.service.ts:31` | `lain` | TERBUKA | `<div className="flex flex-col gap-6">` | — |
 | `CA-2-07` | §18 | Sedang | Kill switch yang tidak membunuh apa pun — “Cash on delivery: MATI” sementara COD jalan | `apps/web/src/app/hq/flags/page.tsx:46 · admin-service/prisma/seed.mjs:11–15` | `jalur-uang` | TERBUKA | — | — |
@@ -391,6 +393,17 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 | `CA-5-01` | §50/k7 | SAPUAN | SAPUAN · 14 sweep terjadwal berjalan tanpa penonton di jalur uang dan PDP — subscriptions, retention, payments, loyalty, orders, deliveries, fraud-flags, webhooks, campaigns, announcements, customers, profile, reports, scheduled-reports. Tidak satu pun punya halaman, jadi audit yang digerakkan halaman tidak melihatnya; Kritis §31 kedua ADALAH salah satu sweep ini, ditemukan lewat gejalanya di aplikasi pelanggan. | `scripts/scheduler/crontab` | `sweep-tanpa-penonton` | TERBUKA | — | — |
 
 
+## Bagian VI — Temuan sapuan (tidak ada di laporan sumber)
+
+Cacat yang ditemukan saat mengerjakan sapuan, bukan saat membaca audit. Dicatat di sini
+supaya kelas akarnya punya jumlah instans yang jujur: `proyeksi-publik` bukan satu halaman,
+melainkan dua.
+
+| ID | Bagian | Tingkat | Judul | file:baris | Kelas akar | Status | Bukti re-cek | PR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `CA-6-01` | langkah 05 | Tinggi | Ceklis onboarding HQ tidak akan pernah mencentang langkah pembayaran | `apps/web/src/app/hq/onboarding/page.tsx:37` | `proyeksi-publik` | SUDAH DIPERBAIKI | langkah `payments` diuji `paymentBankAccountNumber \|\| paymentQrisImageUrl`, dua kolom yang tidak ada di `PublicDepotView`; kini membaca `manageDetail` | #426 |
+
+
 ---
 
 ## Urutan kerja
@@ -404,7 +417,7 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 02 | Beri `PROCESSING` jalan keluar — kurir **dan** pemilik waralaba | `jalur-uang` | CA-4-01 + sisi `payout.service.ts:280` |
 | 03 | Klaim biaya, tutup shift, gerbang COD | `jalur-uang` | CA-4-02, CA-4-05, CA-4-12..15 |
 | 04 | Registry penghapusan PDP + perbaiki teks /hapus-akun | `pdp-registry` | CA-3-01 + CA-3-02 ditutup (PR #419); 8 dari 9 tabel AUDIT_L3 §4.2 punya eksekutor, `depot.order_disputes` dilaporkan UNENFORCED beserta alasannya |
-| 05 | Hentikan halaman HQ membaca proyeksi publik | `proyeksi-publik` | CA-2-04 |
+| 05 | Hentikan halaman HQ membaca proyeksi publik | `proyeksi-publik` | CA-2-04 + CA-6-01 ditutup (PR #426). Kelas ini habis: `manageDetail` sekarang satu-satunya pembaca staf, dan tiga pemanggil `depots.detail` yang tersisa semuanya PATCH/DELETE, bukan GET |
 | 06 | Sapu ConfirmDialog ke aksi yang tidak bisa dibatalkan | `confirm-dialog` | semua baris berkelas itu |
 | 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | semua baris berkelas itu |
 | 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | `scripts/report-damaged-rows.sh` (PR #423). Keputusan pemilik: BACA SAJA, tanpa mode tulis sama sekali; `check-report-damaged-rows.test.sh` yang menjaminnya. Belum dijalankan siapa pun. |
