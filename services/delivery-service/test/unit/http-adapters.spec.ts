@@ -465,6 +465,37 @@ describe('the 5s timeout actually aborts', () => {
     return assertion;
   }
 
+  /*
+   * CA-4-03. Both of this adapter's calls are money questions asked of another service, so
+   * a hung payment-service must not hold a courier's screen open at the doorstep. The
+   * reversal one matters most: it is armed while the courier is standing there having just
+   * handed cash back, and it fails CLOSED — the delivery refuses to end rather than ending
+   * with the payment still PAID, which would charge them for it at settlement.
+   */
+  it('order payment read gives up and rethrows', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new OrderPaymentHttpAdapter(makeConfig()).forOrder(
+          'a2f0d0f8-0000-4000-8000-000000000001',
+        ),
+      ).rejects.toThrow(/aborted/),
+    );
+  });
+
+  it('cash reversal gives up and rethrows rather than ending the delivery', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new OrderPaymentHttpAdapter(makeConfig()).reverseCash(
+          'a2f0d0f8-0000-4000-8000-000000000001',
+          'dikembalikan',
+          'drv-7',
+        ),
+      ).rejects.toThrow(/aborted/),
+    );
+  });
+
   it('cash collection gives up and rethrows', async () => {
     global.fetch = hang() as never;
     await settleAfterTimeout(
@@ -624,6 +655,65 @@ describe('EventPublisherHttpAdapter', () => {
  */
 describe('OrderPaymentHttpAdapter', () => {
   const ORDER = 'a2f0d0f8-0000-4000-8000-000000000001';
+
+  /*
+   * CA-4-03 — the reversal. Reached when a courier answers "sudah saya kembalikan" on a
+   * delivery they are ending as Gagal or Jadwal-ulang.
+   *
+   * Fails CLOSED like every other call here, and the direction matters: a swallowed failure
+   * would end the delivery with the payment still PAID, which silently charges the courier
+   * at settlement for money they had just handed back.
+   */
+  it('reverses a collected cash payment over the internal key, naming who did it', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: {} }));
+
+    await new OrderPaymentHttpAdapter(makeConfig()).reverseCash(ORDER, 'dikembalikan', 'drv-7');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://payment:3004/api/v1/payments/internal/void-for-order');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['x-internal-key']).toBe(KEY);
+    expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+    // The audit trail must name the courier, not the service that happened to call it.
+    expect(JSON.parse(String(init.body))).toEqual({
+      orderId: ORDER,
+      reason: 'dikembalikan',
+      changedBy: 'drv-7',
+    });
+  });
+
+  it('throws when payment-service refuses the reversal', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 }));
+
+    await expect(
+      new OrderPaymentHttpAdapter(makeConfig()).reverseCash(ORDER, 'r', 'drv-7'),
+    ).rejects.toThrow('503');
+  });
+
+  it('refuses to reverse anything when the internal key is not configured', async () => {
+    // Blank key = fail-closed, the rule .env.example already states for this key.
+    await expect(
+      new OrderPaymentHttpAdapter(makeConfig({ internalServiceKey: '' })).reverseCash(
+        ORDER,
+        'r',
+        'drv-7',
+      ),
+    ).rejects.toThrow('not configured');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a payment with no status rather than guessing where the money is', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({ body: { items: [{ method: 'CASH', amount: 90000 }], total: 1 } }),
+    );
+
+    // Defaulting to PENDING would say "the courier is not holding it" about an order that
+    // may well be PAID; defaulting to PAID would invent a debt. Neither is ours to guess.
+    await expect(
+      new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER),
+    ).rejects.toThrow('no status');
+  });
+
 
   it('reads the order payment over the internal key, never a bearer', async () => {
     fetchMock.mockResolvedValueOnce(
