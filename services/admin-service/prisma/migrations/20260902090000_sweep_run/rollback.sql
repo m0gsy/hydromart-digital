@@ -1,0 +1,11 @@
+-- Reverses 20260902090000_sweep_run.
+--
+-- Drops the only durable record of which scheduled sweeps have run and which have not.
+-- Nothing else reads or writes it, so the loss is confined to observability: after this
+-- the seventeen sweeps in scripts/scheduler/crontab go back to reporting into empty marker
+-- files inside the scheduler container, where the container healthcheck reads exactly one
+-- of them and answers a single yes/no for all seventeen at once.
+--
+-- Safe to run: no other table references it, and every row is rebuilt within one tick of
+-- each sweep's own schedule once the table is back.
+DROP TABLE IF EXISTS "sweep_runs";

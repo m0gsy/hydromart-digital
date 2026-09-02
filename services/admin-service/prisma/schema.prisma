@@ -474,3 +474,33 @@ model OnboardingState {
 
   @@map("onboarding_state")
 }
+
+/// One scheduled sweep, as of its last tick (CA-5-01). One row per crontab line, keyed by
+/// the sweep path `scripts/scheduler/sweep.sh` is invoked with, upserted every run.
+///
+/// Deliberately not a history log. The question this exists to answer is "is this sweep
+/// alive", which the last run answers on its own; keeping only that also keeps the table at
+/// seventeen rows forever, so it needs no purge job and holds no personal data.
+///
+/// A job that has never reported has NO ROW — and that is the case the reader must show
+/// loudest, because it is the one the old marker files hid completely. The list of jobs
+/// that OUGHT to be here comes from the crontab, never from this table.
+model SweepRun {
+  /// The sweep path, exactly as the crontab passes it (`orders/outbox/internal/process`).
+  job                 String    @id
+  /// The service the sweep was posted to (`order:3004`), so a misrouted job is visible.
+  host                String
+  lastRunAt           DateTime
+  /// Whether that last run accomplished anything — the service's own `ok`, not HTTP 200.
+  ok                  Boolean
+  /// Short human-readable tail of the response, or the failure line.
+  detail              String?
+  /// Last run that actually WORKED. Separate from `lastRunAt` for the same reason
+  /// BackupStatus separates its drill columns: ran and worked are different claims, and
+  /// collapsing them is how a job failing every tick reads as healthy.
+  lastOkAt            DateTime?
+  /// Failures since the last success. Zero after any ok.
+  consecutiveFailures Int       @default(0)
+
+  @@map("sweep_runs")
+}
