@@ -226,6 +226,26 @@ export class SettlementSurplusNoteRequiredError extends DomainError {
   }
 }
 
+/**
+ * CA-2-32 — the shortfall charge could not be handed to payout-service, so the deposit is
+ * left awaiting a ruling rather than recorded as charged.
+ *
+ * The push used to be fire-and-forget: `verify` wrote `chargedToDriver: true`, the debit
+ * never landed, and the settlement then said the courier had been charged money nobody
+ * ever took off them. 422 like its neighbours — the cashier's request was fine, the
+ * service the money moves in was not, and pressing the button again is the whole remedy.
+ */
+export class SettlementChargeUndeliverableError extends DomainError {
+  readonly code = 'SETTLEMENT_CHARGE_UNDELIVERABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Pembebanan selisih ke kurir belum tercatat di buku upahnya, jadi setoran ini belum ' +
+        'diverifikasi. Coba lagi.',
+    );
+  }
+}
+
 /** The PAID-cash total could not be read from payment-service — fail closed (money). */
 export class SettlementSyncError extends DomainError {
   readonly code = 'SETTLEMENT_SYNC_FAILED';

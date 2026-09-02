@@ -735,8 +735,12 @@ export class FakeCourierPayout implements CourierPayoutPort {
   async deliveryCompleted(event: DeliveryCompletedEvent): Promise<void> {
     this.events.push(event);
   }
-  async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<void> {
+  /** CA-2-32: flip to false to stand in for a payout-service that never took the debit. */
+  variancePostAccepted = true;
+  async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<boolean> {
+    if (!this.variancePostAccepted) return false;
     this.variances.push(event);
+    return true;
   }
 }
 

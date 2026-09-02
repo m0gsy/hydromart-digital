@@ -21,7 +21,20 @@ export class DriverIncidentController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ReportIncidentDto,
   ): Promise<IncidentDto> {
-    const record = await this.incidents.report(user.sub, dto);
+    /*
+     * CA-4-46: the depot comes from the courier's own token, not from the body.
+     *
+     * The app never sent one, so every incident — accidents included — was stored with a
+     * null depot, and the HIGH-severity alert that goes to ops carries `depotId` as the
+     * only thing saying WHICH depot's courier is in trouble. It went out addressed to
+     * nobody. The token already knows: a courier is depot staff and carries their depot in
+     * every request. The body field stays as the fallback for the one caller that has a
+     * depot the token does not (a courier lent to another depot for a day).
+     */
+    const record = await this.incidents.report(user.sub, {
+      ...dto,
+      depotId: user.depotId ?? dto.depotId,
+    });
     return IncidentDto.from(record);
   }
 

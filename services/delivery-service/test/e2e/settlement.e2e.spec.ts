@@ -16,6 +16,7 @@ import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { ShiftStatus } from '../../src/domain/shift';
 import {
   FakeCashCollection,
+  FakeCourierPayout,
   InMemoryDeliveryRepository,
   InMemorySettlementRepository,
   InMemoryShiftRepository,
@@ -32,6 +33,13 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   const deliveries = new InMemoryDeliveryRepository();
   const settlements = new InMemorySettlementRepository();
   const cash = new FakeCashCollection();
+  /*
+   * CA-2-32: the shortfall debit is now POSTED before the settlement claims it was, and a
+   * push that does not land refuses the verify. This suite never overrode the payout port,
+   * so it was reaching the real HTTP adapter with no payout-service behind it — harmless
+   * while the call was fire-and-forget, and a 422 the moment it stopped being.
+   */
+  const payout = new FakeCourierPayout();
 
   beforeAll(async () => {
     process.env.DELIVERY_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
@@ -121,6 +129,8 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       .useValue(settlements)
       .overrideProvider(DELIVERY_TOKENS.CashCollection)
       .useValue(cash)
+      .overrideProvider(DELIVERY_TOKENS.CourierPayout)
+      .useValue(payout)
       .compile();
 
     app = moduleRef.createNestApplication();
