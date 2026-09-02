@@ -14,13 +14,7 @@ import { can } from '@/lib/roles';
 import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import { useAsync } from '@/lib/use-async';
 import { downloadXlsx } from '@/lib/xlsx';
-import type {
-  CommissionScheme,
-  DepotAdmin,
-  ExecutiveDashboard,
-  GallonOutstanding,
-  Page,
-} from '@/lib/types';
+import type { CommissionScheme, GallonOutstanding, NetworkDashboard } from '@/lib/types';
 
 interface ShippingByDepot {
   items: { depotId: string; shippingBilled: number }[];
@@ -54,7 +48,7 @@ function defaultRange(): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-// Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (executive topDepots),
+// Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (network roll-up, per depot),
 // ongkir (order shipping-by-depot), refunds (order refunds-by-depot, fed by payment-service
 // coordination) and gallon deposit (depot gallon-outstanding netDeposit) are all real;
 // the franchise commission comes from the depot's own scheme, and the platform fee now comes
@@ -65,8 +59,25 @@ export default function HqReconciliationPage() {
   const { toast } = useToast();
   const range = useMemo(defaultRange, []);
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
-  const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
+  /*
+   * CA-2-10. Two ceilings stacked on one screen, and the second one was the money.
+   *
+   * The depot picker listed 100 depots, so past the hundredth there was no statement to
+   * open at all. Worse, `sales` came from `dashboard.executive`, whose `topDepots` is a
+   * TOP-TEN report (`DashboardService.TOP_LIMIT = 10`): every depot outside the ten highest-
+   * earning in the network found itself with `sales = null`, so its commission, its platform
+   * fee and its net payout were all "—". A franchise owner outside the top ten could not be
+   * reconciled — not "was reconciled slowly", could not be reconciled — and nothing on the
+   * page named the reason.
+   *
+   * `dashboard.network` is the same service, same capability (`@Can('dashboard')` covers the
+   * whole controller), answering per depot for EVERY depot, and it already distinguishes a
+   * depot that sold nothing from a depot the revenue report could not account for: the
+   * latter comes back `revenue: null` (audit E-3), which is exactly the "—" this statement
+   * already knows how to print. It also carries each depot's name and code, so the separate
+   * directory read is gone rather than paged.
+   */
+  const rollup = useAsync<NetworkDashboard>(() => api.getCached(endpoints.hq.rollup(range), true));
   const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
   const refundsByDepot = useAsync<RefundsByDepot>(() => api.get(endpoints.reports.refundsByDepot(range), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
@@ -78,9 +89,9 @@ export default function HqReconciliationPage() {
   // Resolved BEFORE the loading guard so the settings read below can be a hook keyed on the
   // depot actually on screen. Hooks may not sit after an early return, and reading the
   // GLOBAL value instead would quietly ignore a per-depot override — another wrong number.
-  const items = depots.data?.items ?? [];
-  const selected = depotId || items[0]?.id || '';
-  const depot = items.find((d) => d.id === selected) ?? null;
+  const items = rollup.data?.depots ?? [];
+  const selected = depotId || items[0]?.depotId || '';
+  const depot = items.find((d) => d.depotId === selected) ?? null;
 
   /*
    * Payout's settings slice, scoped to this depot: GLOBAL value unless the depot overrides.
@@ -97,27 +108,30 @@ export default function HqReconciliationPage() {
     [selected, maySeeSettings],
   );
 
-  if (depots.loading || dash.loading) return <Skeleton className="h-96 w-full" />;
-  if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
-  if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
+  if (rollup.loading) return <Skeleton className="h-96 w-full" />;
+  if (rollup.error) return <ErrorState message={rollup.error} onRetry={rollup.reload} />;
 
-  // Real: this depot's revenue in the window (null when outside the top-depots list).
-  const topRow = dash.data?.topDepots?.items.find((r) => r.depotId === selected) ?? null;
-  const sales = topRow?.revenue ?? null;
+  // Real: this depot revenue in the window. Still null when the source report could not
+  // account for this depot — the roll-up says so itself rather than folding it to Rp 0, and
+  // every row below propagates that null rather than settling against a made-up figure.
+  //
+  // CA-2-10/CA-2-25: read from the WHOLE depot list, not the top-ten slice. A depot outside
+  // the top ten used to reconcile against nothing at all.
+  const sales = depot?.revenue ?? null;
   /*
    * CA-2-09 — the base HQ actually bills, not a second one derived on screen.
    *
    * `sales` is `SUM(order.total)`, and `total` is `subtotal + ongkir − discount`. What
    * payout-service charges the franchise percentage against is `order.subtotal`, pushed as
-   * `commissionBaseIdr` by `order.service.ts:1671` on every completed order, for a reason
-   * written there: ongkir is money the depot pays a courier, not margin HQ has a claim on,
-   * and a voucher HQ funded must not shrink HQ's own cut.
+   * `commissionBaseIdr` on every completed order, for a reason written there: ongkir is
+   * money the depot pays a courier, not margin HQ has a claim on, and a voucher HQ funded
+   * must not shrink HQ's own cut.
    *
-   * So the two sides disagreed by (ongkir − discount) on every statement, and the CHARGED
+   * So the two sides disagreed by (ongkir - discount) on every statement, and the CHARGED
    * side is the correct one — it is the invoice. This screen was moved to follow it: the
    * server was not touched, because the bill is not a display bug.
    */
-  const commissionBase = topRow?.commissionBase ?? null;
+  const commissionBase = depot?.commissionBase ?? null;
 
   /**
    * The franchise cut comes from the depot's own commission scheme — the same row
@@ -265,7 +279,7 @@ export default function HqReconciliationPage() {
         </label>
         <select id="recon-depot" className={SELECT_CLASS} value={selected} onChange={(e) => setDepotId(e.target.value)}>
           {items.map((d) => (
-            <option key={d.id} value={d.id}>
+            <option key={d.depotId} value={d.depotId}>
               {d.name} · {d.code}
             </option>
           ))}

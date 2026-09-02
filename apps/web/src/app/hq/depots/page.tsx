@@ -7,12 +7,11 @@ import { MagnifyingGlass, Storefront } from '@phosphor-icons/react';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { DepotForm } from '@/components/hq/depot-form';
 import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { fetchAllDepots } from '@/lib/all-depots';
 import type { DepotForm as DepotFormValues } from '@/lib/depots';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, Page } from '@/lib/types';
+import type { DepotAdmin } from '@/lib/types';
 
 const PREFILL_KEY = 'hq.onboard.prefill';
 
@@ -43,11 +42,17 @@ export default function HqDepotsPage() {
     }
   }, []);
 
-  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
-  const items = list.data?.items ?? [];
+  /*
+   * CA-2-26. The network depot directory listed 100 depots, and the search box above it
+   * filters CLIENT-SIDE — so past the hundredth, searching for a depot by name returned
+   * "tidak ada depot", which is the same answer this screen gives for a depot that does not
+   * exist. A directory that cannot find an entry it holds is worse than a slow one.
+   */
+  const list = useAsync<DepotAdmin[]>(() => fetchAllDepots());
+  const items = list.data ?? [];
 
   const filtered = useMemo(() => {
-    const source = list.data?.items ?? [];
+    const source = list.data ?? [];
     const q = query.trim().toLowerCase();
     if (!q) return source;
     return source.filter((d) =>

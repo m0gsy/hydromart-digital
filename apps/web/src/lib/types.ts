@@ -996,6 +996,13 @@ export interface NetworkDepotRow {
   /** Null when this depot fell outside the top-N revenue report — not a depot that sold
    *  nothing. Render `—`, never Rp 0 (audit E-3). */
   revenue: number | null;
+  /**
+   * CA-2-09: the goods total BEFORE discount, which is what payout-service charges the
+   * franchise percentage on. `revenue` is what the customer paid; these are two different
+   * numbers and the reconciliation statement needs the billed one. Null on the same terms
+   * as `revenue`.
+   */
+  commissionBase: number | null;
   orderCount: number | null;
   slaRate: number | null;
   avgMinutes: number | null;

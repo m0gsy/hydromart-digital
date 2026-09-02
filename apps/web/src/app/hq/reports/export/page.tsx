@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Export } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
@@ -13,13 +13,7 @@ import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type {
-  DepotAdmin,
-  ExecutiveDashboard,
-  Page,
-  RevenueByProduct,
-  UnsettledMethodBucket,
-} from '@/lib/types';
+import type { NetworkDashboard, RevenueByProduct, UnsettledMethodBucket } from '@/lib/types';
 
 type RangeKey = 'd7' | 'd30' | 'quarter' | 'custom';
 type GroupKey = 'depot' | 'product' | 'method';
@@ -65,9 +59,22 @@ export default function HqReportsExportPage() {
   const fromIso = safeIso(from);
   const toIso = safeIso(to, true);
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
-  const dash = useAsync<ExecutiveDashboard>(
-    () => api.get(endpoints.dashboard.executive({ from: fromIso, to: toIso }), true),
+  /*
+   * CA-2-25. This read `dashboard.executive`, whose `topDepots` is a TOP-TEN report —
+   * `DashboardService.TOP_LIMIT = 10` — and wrote its ten rows into a workbook headed
+   * "Pendapatan per depot". A network of forty depots exported four of them and said
+   * nothing; the file reaches finance looking exactly like a complete one, because a
+   * spreadsheet has no way to say which rows it is missing.
+   *
+   * `dashboard.network` is the same service answering the same question per depot, one row
+   * for EVERY depot, and it already carries the honesty this row needs: a depot that fell
+   * outside its source report comes back with `revenue: null` and `sources.order: 'partial'`
+   * rather than a confident zero (audit E-3). It also carries each depot's name, which is
+   * why the separate depot-directory read this screen used to do for the label column is
+   * gone rather than widened.
+   */
+  const rollup = useAsync<NetworkDashboard>(
+    () => api.getCached(endpoints.hq.rollup({ from: fromIso, to: toIso }), true),
     [fromIso, toIso],
   );
   // Product grouping: order-service revenue-by-product. Method grouping: payment-service
@@ -81,15 +88,17 @@ export default function HqReportsExportPage() {
     [fromIso, toIso],
   );
 
-  // Real rows for the "depot" grouping: join executive topDepots to depot names.
-  const depotRows: ExportRow[] = (() => {
-    const names = new Map((depots.data?.items ?? []).map((d) => [d.id, d.name]));
-    return (dash.data?.topDepots?.items ?? []).map((r) => ({
-      label: names.get(r.depotId) ?? r.depotId,
-      orders: r.orderCount,
-      revenue: r.revenue,
-    }));
-  })();
+  // Real rows for the "depot" grouping: one per depot in the network, named by the roll-up
+  // itself. A depot whose revenue the source report could not account for reads 0 here and
+  // is refused an export below rather than being quietly written as a zero.
+  const depotRows: ExportRow[] = (rollup.data?.depots ?? []).map((r) => ({
+    label: r.name,
+    orders: r.orderCount ?? 0,
+    revenue: r.revenue ?? 0,
+  }));
+  // 'partial' means some depots fell outside the source revenue report; 'unavailable' means
+  // there was no report at all. Either way the per-depot figures are not the whole month.
+  const depotRowsIncomplete = rollup.data != null && rollup.data.sources.order !== 'ok';
   const productRows: ExportRow[] = (byProduct.data?.items ?? []).map((r) => ({
     label: r.productName,
     orders: r.orderCount,
@@ -102,7 +111,7 @@ export default function HqReportsExportPage() {
   }));
 
   const isDepot = group === 'depot';
-  const active = group === 'depot' ? dash : group === 'product' ? byProduct : byMethod;
+  const active = group === 'depot' ? rollup : group === 'product' ? byProduct : byMethod;
   const rows: ExportRow[] = isDepot ? depotRows : group === 'product' ? productRows : methodRows;
 
   /**
@@ -113,6 +122,16 @@ export default function HqReportsExportPage() {
   async function runExport() {
     if (rows.length === 0) {
       toast(t('hq.reportsExport.empty'), 'error');
+      return;
+    }
+    /*
+     * Refuse rather than write a wrong file. Every other honesty rule on this screen is a
+     * "—" somebody can see; a workbook is read somewhere else entirely, by somebody who has
+     * no way to know a row is missing. There is no marking that survives a spreadsheet, so
+     * the only honest answer to an incomplete source is not to produce one.
+     */
+    if (isDepot && depotRowsIncomplete) {
+      toast(t('hqFix.reportsExport.depotsIncomplete'), 'error');
       return;
     }
     const headers = [
@@ -210,11 +229,14 @@ export default function HqReportsExportPage() {
         <h2 className="mb-3 flex items-center gap-2 font-semibold">
           {t('hq.reportsExport.preview')}
         </h2>
-        {/* The names come from a second read; without it the label column falls back to
-            raw depot ids — and the workbook is built from these rows, so the file goes to
-            finance with UUIDs where the depot names belong. */}
-        {isDepot && depots.error && <LoadError onRetry={depots.reload} className="mb-3" />}
-        {active.loading || (isDepot && depots.loading) ? (
+        {/* Said on the screen as well as at the export, because somebody reads the preview
+            and writes the number down without pressing the button at all. */}
+        {isDepot && depotRowsIncomplete && (
+          <p className="mb-3 text-xs font-medium text-[color:var(--danger)]" role="alert">
+            {t('hqFix.reportsExport.depotsIncomplete')}
+          </p>
+        )}
+        {active.loading ? (
           <Skeleton className="h-40 w-full" />
         ) : active.error ? (
           <ErrorState message={active.error} onRetry={active.reload} />

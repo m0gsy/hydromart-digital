@@ -546,6 +546,50 @@ export function FormError({
   );
 }
 
+/**
+ * What a truncated list has to say about itself.
+ *
+ * Eleven console screens read one page of a paginated endpoint and rendered it as the list.
+ * Nothing on any of them was wrong to look at — that is the whole problem: 100 rows of 512
+ * look exactly like 100 rows of 100, so the only way to find out was to count the depots by
+ * hand. This states the two numbers and offers the rest, and it is deliberately rendered
+ * even when there is no more to load: "512 dari 512" is the sentence that makes "100 dari
+ * 512" legible as a shortfall rather than as a decoration.
+ *
+ * Not a scroll sentinel. An audit trail and an approvals queue are read by people who need
+ * to know how much they have NOT seen; infinite scroll answers that question by hiding it.
+ */
+export function ListFooter({
+  shown,
+  total,
+  hasMore,
+  onMore,
+  loading,
+}: {
+  shown: number;
+  total: number;
+  hasMore: boolean;
+  onMore: () => void;
+  loading?: boolean;
+}) {
+  const { t } = useT();
+  // An empty list already says so through its own empty state; two sentences saying
+  // "0 dari 0" under it would be noise.
+  if (total === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-3 py-1">
+      <span className="text-xs tabular-nums text-muted">
+        {t('common.shownOfTotal', { shown, total })}
+      </span>
+      {hasMore && (
+        <Button variant="secondary" onClick={onMore} loading={loading}>
+          {t('common.loadMore')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Segmented ---------- */
 /**
  * A pill-in-a-track switch for two or three mutually exclusive options. Extracted rather

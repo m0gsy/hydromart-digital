@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
-import { Badge, Card, ErrorState, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, Input, LinkButton, ListFooter, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -19,6 +19,17 @@ import {
 import { canManageHr } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
+
+/*
+ * CA-1-18. The header of this screen prints `data.total` — the real headcount, straight from
+ * the server — directly above a list that stopped at 100 rows and said nothing. "412
+ * karyawan" over 100 of them is not a small omission: it is the screen contradicting itself,
+ * with the true number in the larger type.
+ *
+ * 100 is also the server's `@Max`, so this cannot be widened, only paged.
+ */
+const PAGE_SIZE = 100;
 
 const STATUS_TONE: Record<EmployeeStatus, 'success' | 'neutral' | 'danger'> = {
   ACTIVE: 'success',
@@ -77,19 +88,23 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState<EmployeeStatus | ''>('');
   const [departmentId, setDepartmentId] = useState('');
 
-  const { data, error, loading, reload } = useAsync<HrPage<Employee>>(
-    () =>
-      api.get<HrPage<Employee>>(
-        endpoints.hr.employees({
-          search: search || undefined,
-          status: status || undefined,
-          departmentId: departmentId || undefined,
-          pageSize: 100,
-        }),
-        true,
-      ),
+  const list = usePagedList<Employee>(
+    (page) =>
+      api
+        .get<HrPage<Employee>>(
+          endpoints.hr.employees({
+            search: search || undefined,
+            status: status || undefined,
+            departmentId: departmentId || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          }),
+          true,
+        )
+        .then((p) => ({ items: p.rows, total: p.total })),
     [search, status, departmentId],
   );
+  const reload = list.reload;
   // K-9: reference data — getCached, like every other department/depot read on main.
   const departments = useAsync<Department[]>(
     () => api.getCached<Department[]>(endpoints.hr.departments(), true),
@@ -101,7 +116,7 @@ export default function EmployeesPage() {
     <div className="mx-auto max-w-5xl space-y-5">
       <SectionHeader
         title={t('hrFix.employees.title')}
-        subtitle={data ? `${data.total} karyawan` : undefined}
+        subtitle={list.rows.length > 0 ? `${list.total} karyawan` : undefined}
         action={
           canManageHr(customer?.role) ? (
             <div className="flex gap-2">
@@ -150,20 +165,20 @@ export default function EmployeesPage() {
         </select>
       </div>
 
-      {loading && (
+      {list.loading && list.rows.length === 0 && (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-14" />
           ))}
         </div>
       )}
-      {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && (
+      {list.error && <ErrorState message={list.error} onRetry={reload} />}
+      {!list.loading && !list.error && list.rows.length === 0 && (
         <Card className="p-8 text-center text-sm text-muted">{t('hrFix.employees.empty')}</Card>
       )}
-      {data && data.rows.length > 0 && (
+      {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
-          {data.rows.map((e) => (
+          {list.rows.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 p-4">
               <Link href={`/hr/employees/detail?id=${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{e.fullName}</p>
@@ -184,6 +199,13 @@ export default function EmployeesPage() {
           ))}
         </Card>
       )}
+      <ListFooter
+        shown={list.rows.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={list.loading}
+      />
     </div>
   );
 }

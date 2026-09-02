@@ -6,14 +6,23 @@ import { useState } from 'react';
 import { ClipboardText } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, ListFooter, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { statusLabel, tone } from '@/lib/order-status';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { Depot, Order, Page } from '@/lib/types';
+
+/*
+ * CA-2-40. The network order queue read its newest 50 and rendered them as the queue, and
+ * the unrouted tray — the one tray whose rows exist BECAUSE nothing else will ever show
+ * them — did the same. An order that reached no depot and is older than the fiftieth
+ * unrouted one had no screen in this product at all.
+ */
+const PAGE_SIZE = 50;
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -52,13 +61,17 @@ export default function HqOrdersPage() {
   const [assigning, setAssigning] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const list = useAsync<Page<Order>>(
-    () => api.get(endpoints.orders.manage({ limit: 50, unrouted: tray || undefined }), true),
+  const list = usePagedList<Order>(
+    (page) =>
+      api.get<Page<Order>>(
+        endpoints.orders.manage({ page, limit: PAGE_SIZE, unrouted: tray || undefined }),
+        true,
+      ),
     [tray],
   );
   // Only needed for the tray's assign control; the public active list is enough.
   const depots = useAsync<Page<Depot>>(() => api.get(endpoints.depots.browse({ limit: 100 })));
-  const items = list.data?.items ?? [];
+  const items = list.rows;
 
   async function assign(orderId: string, depotId: string) {
     if (!depotId) return;
@@ -94,7 +107,7 @@ export default function HqOrdersPage() {
         </p>
       )}
 
-      {list.loading ? (
+      {list.loading && items.length === 0 ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
@@ -176,6 +189,13 @@ export default function HqOrdersPage() {
           </table>
         </Card>
       )}
+      <ListFooter
+        shown={items.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={list.loading}
+      />
     </div>
   );
 }

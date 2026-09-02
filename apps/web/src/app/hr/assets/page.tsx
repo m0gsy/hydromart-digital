@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, ListFooter, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -26,6 +26,10 @@ import {
 } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
+
+/** The DTO's `@Max` on `pageSize`; asking for more is a 400, not a longer answer. */
+const PAGE_SIZE = 100;
 
 const STATUSES: AssetStatus[] = ['AVAILABLE', 'ASSIGNED', 'RETURNED', 'MAINTENANCE', 'LOST'];
 
@@ -48,16 +52,24 @@ export default function AssetsPage() {
   const [type, setType] = useState<'' | AssetType>('');
   const [open, setOpen] = useState<string | null>(null);
 
-  const assets = useAsync<{ rows: EmployeeAsset[]; total: number }>(
-    () =>
-      api.get<{ rows: EmployeeAsset[]; total: number }>(
-        endpoints.hr.assets({
-          ...(status ? { status } : {}),
-          ...(type ? { type } : {}),
-          pageSize: 100,
-        }),
-        true,
-      ),
+  /*
+   * CA-1-18. The asset register stopped at 100 rows. A register that cannot show every row
+   * cannot answer the question it exists for — where is item 101, and who is holding it —
+   * and it gave no sign that a row was missing rather than absent. 100 is the DTO's `@Max`.
+   */
+  const assets = usePagedList<EmployeeAsset>(
+    (page) =>
+      api
+        .get<{ rows: EmployeeAsset[]; total: number }>(
+          endpoints.hr.assets({
+            ...(status ? { status } : {}),
+            ...(type ? { type } : {}),
+            page,
+            pageSize: PAGE_SIZE,
+          }),
+          true,
+        )
+        .then((p) => ({ items: p.rows, total: p.total })),
     [status, type],
   );
   // Only used to name a holder and to fill the recipient picker — the roster is small.
@@ -123,17 +135,17 @@ export default function AssetsPage() {
           </label>
         </div>
 
-        {assets.loading && <Skeleton className="h-32" />}
+        {assets.loading && assets.rows.length === 0 && <Skeleton className="h-32" />}
         {assets.error && <ErrorState message={assets.error} onRetry={assets.reload} />}
         {/* The roster names every holder and fills the hand-over picker. Unread, an assigned
             asset reads as held by nobody and there is no one to hand it to. */}
         {employees.error && <LoadError onRetry={employees.reload} />}
-        {assets.data && (
+        {!assets.error && (
           <ul className="divide-y divide-[color:var(--border)]">
-            {assets.data.rows.length === 0 && (
+            {!assets.loading && assets.rows.length === 0 && (
               <li className="py-3 text-sm text-muted">{t('hrFix.assets.empty')}</li>
             )}
-            {assets.data.rows.map((a) => (
+            {assets.rows.map((a) => (
               <li key={a.id} className="space-y-2 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -171,6 +183,13 @@ export default function AssetsPage() {
             ))}
           </ul>
         )}
+        <ListFooter
+          shown={assets.rows.length}
+          total={assets.total}
+          hasMore={assets.hasMore}
+          onMore={assets.loadMore}
+          loading={assets.loading}
+        />
       </Card>
 
       {isAdmin && <NewAsset onCreated={assets.reload} />}

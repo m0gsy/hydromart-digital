@@ -6,11 +6,12 @@ import { Package, Warning } from '@phosphor-icons/react';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { StockBar } from '@/components/hq/charts';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, InventoryItem, Page } from '@/lib/types';
+import type { DepotAdmin, InventoryItem } from '@/lib/types';
 
 interface DepotStock {
   depot: DepotAdmin;
@@ -24,8 +25,12 @@ export default function HqInventoryPage() {
   const { t } = useT();
 
   const data = useAsync<DepotStock[]>(async () => {
-    const list = await api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
-    const depots = list.items.filter((d) => d.active);
+    // CA-2-26. "Kritis: 3" is the count of depots short of stock — and it was counted over
+    // the first 100 depots only, on the one screen whose whole job is to say which depot in
+    // the NETWORK needs restocking. A depot past the hundredth could not appear here however
+    // empty its shelves were, and the reassuring green "semua sehat" pill was computed from
+    // the same slice.
+    const depots = (await fetchAllDepots()).filter((d) => d.active);
     return Promise.all(
       depots.map(async (depot) => {
         const lines = await api.get<InventoryItem[]>(endpoints.inventory.lines(depot.id), true);

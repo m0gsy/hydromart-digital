@@ -11,6 +11,7 @@ import {
   ErrorState,
   Input,
   LinkButton,
+  ListFooter,
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
@@ -26,7 +27,10 @@ import {
   type LeaveStatus,
 } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
+
+/** The server's own default page for this endpoint; named here so the footer's count means something. */
+const PAGE_SIZE = 20;
 
 const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
   PENDING_MANAGER: 'brand',
@@ -48,9 +52,20 @@ export default function LeaveQueuePage() {
   const [status, setStatus] = useState<LeaveStatus | ''>('PENDING_MANAGER');
   const [note, setNote] = useState<Record<string, string>>({});
 
-  const queue = useAsync<HrPage<LeaveRequest>>(
-    () =>
-      api.get<HrPage<LeaveRequest>>(endpoints.hr.leaveQueue({ status: status || undefined }), true),
+  /*
+   * CA-1-16. This asked for the queue with no page at all, so it got the server's default
+   * first 20 and there was no second page to ask for. An approvals queue is not a preview:
+   * application 21 is not further down the screen, it is absent from it, and the person
+   * waiting on that decision has no way to tell that nobody ever saw their form.
+   */
+  const queue = usePagedList<LeaveRequest>(
+    (page) =>
+      api
+        .get<HrPage<LeaveRequest>>(
+          endpoints.hr.leaveQueue({ status: status || undefined, page, pageSize: PAGE_SIZE }),
+          true,
+        )
+        .then((p) => ({ items: p.rows, total: p.total })),
     [status],
   );
 
@@ -98,14 +113,14 @@ export default function LeaveQueuePage() {
         </select>
       </div>
 
-      {queue.loading && <Skeleton className="h-32" />}
+      {queue.loading && queue.rows.length === 0 && <Skeleton className="h-32" />}
       {queue.error && <ErrorState message={queue.error} onRetry={queue.reload} />}
-      {queue.data && queue.data.rows.length === 0 && (
+      {!queue.loading && !queue.error && queue.rows.length === 0 && (
         <Card className="p-8 text-center text-sm text-muted">{t('hrFix.leave.empty')}</Card>
       )}
-      {queue.data && queue.data.rows.length > 0 && (
+      {queue.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
-          {queue.data.rows.map((r) => {
+          {queue.rows.map((r) => {
             const waitingHr = r.status === 'PENDING_HR';
             const actionable =
               (r.status === 'PENDING_MANAGER' || waitingHr) && (isHr || !waitingHr);
@@ -151,6 +166,13 @@ export default function LeaveQueuePage() {
           })}
         </Card>
       )}
+      <ListFooter
+        shown={queue.rows.length}
+        total={queue.total}
+        hasMore={queue.hasMore}
+        onMore={queue.loadMore}
+        loading={queue.loading}
+      />
     </div>
   );
 }

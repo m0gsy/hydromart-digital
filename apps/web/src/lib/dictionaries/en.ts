@@ -204,6 +204,8 @@ export const en: Dictionary = {
     netTimeout: 'The server took too long to answer. Try again.',
     netTooMany: 'Too many requests right now. Wait a moment and try again.',
     netFailed: 'Request failed ({status}).',
+    loadMore: 'Load more',
+    shownOfTotal: 'Showing {shown} of {total}',
   },
   home,
   shop,

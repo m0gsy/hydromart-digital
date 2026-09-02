@@ -222,6 +222,10 @@ export const id = {
     netTimeout: 'Server terlalu lama menjawab. Coba lagi.',
     netTooMany: 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.',
     netFailed: 'Permintaan gagal ({status}).',
+    // Daftar yang berhenti di halaman pertama tampak persis sama dengan daftar yang memang
+    // pendek. Dua angka ini yang membedakannya, dan tombolnya yang menyelesaikannya.
+    loadMore: 'Muat lebih banyak',
+    shownOfTotal: 'Menampilkan {shown} dari {total}',
   },
   home,
   shop,

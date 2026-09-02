@@ -7,13 +7,20 @@ import { Suspense, useState } from 'react';
 import { useConfirm } from '@/components/confirm';
 import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Input, ListFooter, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type AttendanceStatus, type HrPage } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
+
+/*
+ * CA-1-18. Both lists on this screen printed the server's true `total` in their own heading
+ * — "Absen menunggu persetujuan (317)" — above 100 rows, with nothing to say the other 217
+ * were not below. 100 is the DTO's `@Max`, so the only way past it is a second page.
+ */
+const PAGE_SIZE = 100;
 
 const TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
   PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral', PENDING: 'warning',
@@ -29,10 +36,17 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
   const { t } = useT();
   const { toast } = useToast();
   const { askReason } = useConfirm();
-  const { data, error, loading, reload } = useAsync<HrPage<Attendance>>(
-    () => api.get<HrPage<Attendance>>(endpoints.hr.attendance({ status: 'PENDING', pageSize: 100 }), true),
+  const list = usePagedList<Attendance>(
+    (page) =>
+      api
+        .get<HrPage<Attendance>>(
+          endpoints.hr.attendance({ status: 'PENDING', page, pageSize: PAGE_SIZE }),
+          true,
+        )
+        .then((p) => ({ items: p.rows, total: p.total })),
     [],
   );
+  const { error, loading, reload } = list;
 
   async function decide(a: Attendance, decision: 'APPROVE' | 'REJECT') {
     const approve = decision === 'APPROVE';
@@ -57,17 +71,17 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
     } catch (e) { toast(e instanceof ApiError ? e.message : t('hrFix.attendance.failed'), 'error'); }
   }
 
-  if (loading) return <Skeleton className="h-24" />;
+  if (loading && list.rows.length === 0) return <Skeleton className="h-24" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
-  if (!data || data.rows.length === 0) return null;
+  if (list.rows.length === 0) return null;
 
   return (
     <Card className="divide-y divide-[color:var(--border)] border-amber-300">
       <div className="p-3 text-sm font-bold">
-        {t('hrFix.attendance.pendingTitle', { count: data.total })}
+        {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
       </div>
-      {data.rows.map((a) => (
+      {list.rows.map((a) => (
         <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <span className="font-medium">{fmtDate(a.workDate)}</span>
           <span className="text-muted">{fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}</span>
@@ -78,6 +92,13 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
           </div>
         </div>
       ))}
+      <ListFooter
+        shown={list.rows.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={loading}
+      />
     </Card>
   );
 }
@@ -98,10 +119,23 @@ function AttendanceInner() {
   const [mStatus, setMStatus] = useState<AttendanceStatus>('LEAVE');
   const [mReason, setMReason] = useState('');
 
-  const { data, error, loading, reload } = useAsync<HrPage<Attendance>>(
-    () => api.get<HrPage<Attendance>>(endpoints.hr.attendance({ employeeId, from: from || undefined, to: to || undefined, pageSize: 100 }), true),
+  const list = usePagedList<Attendance>(
+    (page) =>
+      api
+        .get<HrPage<Attendance>>(
+          endpoints.hr.attendance({
+            employeeId,
+            from: from || undefined,
+            to: to || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          }),
+          true,
+        )
+        .then((p) => ({ items: p.rows, total: p.total })),
     [employeeId, from, to],
   );
+  const { error, loading, reload } = list;
 
   async function addManual() {
     if (!mEmp || !mDate) { toast(t('hrFix.attendance.fillIdDate'), 'error'); return; }
@@ -133,7 +167,7 @@ function AttendanceInner() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SectionHeader title={t('hrFix.attendance.title')} subtitle={data ? `${data.total} catatan` : undefined} />
+      <SectionHeader title={t('hrFix.attendance.title')} subtitle={list.rows.length > 0 ? `${list.total} catatan` : undefined} />
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{t('hrFix.attendance.from')}<Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="text-sm">{t('hrFix.attendance.to')}<Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
@@ -157,12 +191,12 @@ function AttendanceInner() {
         </Card>
       )}
 
-      {loading && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
+      {loading && list.rows.length === 0 && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">{t('hrFix.attendance.empty')}</Card>}
-      {data && data.rows.length > 0 && (
+      {!loading && !error && list.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">{t('hrFix.attendance.empty')}</Card>}
+      {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
-          {data.rows.map((a) => (
+          {list.rows.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-3 p-3 text-sm">
               <span className="font-medium">{fmtDate(a.workDate)}</span>
               <span className="text-muted">{fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}</span>
@@ -183,6 +217,13 @@ function AttendanceInner() {
           ))}
         </Card>
       )}
+      <ListFooter
+        shown={list.rows.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={loading}
+      />
     </div>
   );
 }

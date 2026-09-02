@@ -6,7 +6,7 @@ import { ClipboardText, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { OrderDetail } from '@/components/dashboard/order-detail';
-import { Badge, Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, ListFooter, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { statusLabel, tone } from '@/lib/order-status';
@@ -14,7 +14,9 @@ import { isStaff } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { Customer, Delivery, Order, Page } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
@@ -283,26 +285,46 @@ function QueueBody() {
   // banner said "Semua depot", so HQ saw one arbitrary depot's queue and called it empty.
   const { selectedId: depotFilterId, selected: scopedDepot } = useDepot();
 
-  const { data, error, loading, reload } = useAsync<Page<Order>>(
-    () =>
-      api.get(endpoints.orders.manage({ depotId: depotFilterId ?? undefined, limit: 100 }), true),
+  /*
+   * CA-2-40. The queue read 100 orders and grouped them into four tabs client-side, so on a
+   * busy depot the "Antrean" tab was the first hundred orders' worth of work and the rest
+   * did not exist — including, on a network-wide view, every order older than the hundredth.
+   */
+  const queue = usePagedList<Order>(
+    (page) =>
+      api.get<Page<Order>>(
+        endpoints.orders.manage({ depotId: depotFilterId ?? undefined, page, limit: 100 }),
+        true,
+      ),
     [depotFilterId],
   );
+  const { error, loading, reload } = queue;
 
-  // Active-driver roster joined with live deliveries → real per-courier load (design 1b).
+  /*
+   * Active-driver roster joined with live deliveries → real per-courier load (design 1b).
+   *
+   * CA-2-40, the half that produces a WRONG NUMBER rather than a short list. This counted
+   * active deliveries per courier from ONE page of 100, and the operator uses that count to
+   * decide who gets the next order: a courier whose deliveries all sat past row 100 read as
+   * idle, and the queue handed them more work. So the load is counted over every page, not
+   * the first — `fetchAllPages` refuses rather than truncating if the list is ever too large
+   * to read, which is the honest failure for a number somebody assigns work by.
+   */
   const roster = useAsync<{ drivers: Customer[]; loads: Map<string, number> }>(async () => {
     const [drivers, deliveries] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
-      api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
+      fetchAllPages<Delivery>(({ page, limit }) =>
+        api.get<Page<Delivery>>(endpoints.deliveries.list({ page, limit }), true),
+      ),
     ]);
     const loads = new Map<string, number>();
-    for (const d of deliveries.items) {
+    for (const d of deliveries) {
       if (ACTIVE_DELIVERY.includes(d.status)) loads.set(d.driverId, (loads.get(d.driverId) ?? 0) + 1);
     }
     return { drivers, loads };
   }, []);
 
-  const items = useMemo(() => data?.items ?? [], [data]);
+  const items = queue.rows;
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);
   const inProcess = useMemo(() => items.filter(IN_PROCESS), [items]);
   const inDelivery = useMemo(() => items.filter(IN_DELIVERY), [items]);
@@ -362,7 +384,10 @@ function QueueBody() {
         <h1 className="text-2xl font-bold">{t('dashB.orders.title')}</h1>
         {/* The whole open backlog, not just the assignable slice: CREATED/CONFIRMED are the
             depot's work too, and counting only PREPARING made the queue look shorter than it is. */}
-        {backlog > 0 && (
+        {/* CA-2-40: and only once every page is in. A backlog counted from part of the
+            queue is not a smaller number, it is a wrong one — and this badge is what a
+            depot manager reads to decide whether they are on top of the day. */}
+        {backlog > 0 && !queue.hasMore && (
           <Badge tone="warning">{t('dashB.orders.backlog', { n: backlog })}</Badge>
         )}
       </div>
@@ -400,7 +425,7 @@ function QueueBody() {
             ))}
           </div>
 
-          {loading ? (
+          {loading && items.length === 0 ? (
             <Skeleton className="h-64 w-full" />
           ) : error ? (
             <ErrorState message={error} onRetry={reload} />
@@ -425,6 +450,16 @@ function QueueBody() {
               </div>
             </div>
           )}
+          {/* The tab counts above are of what has been loaded, and this is the line that
+              says how much that is. Without it four confident numbers add up to 100 on a
+              depot with 400 open orders. */}
+          <ListFooter
+            shown={items.length}
+            total={queue.total}
+            hasMore={queue.hasMore}
+            onMore={queue.loadMore}
+            loading={loading}
+          />
         </div>
 
         {/* Right: assign panel */}

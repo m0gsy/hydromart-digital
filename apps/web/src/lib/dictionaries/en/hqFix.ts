@@ -7,6 +7,15 @@ export const hqFix = {
     loyaltyUnavailable: 'Loyalty data could not be read right now — not "no account".',
     retry: 'Try again',
   },
+  // CA-2-28 / CA-2-25 — see the Indonesian side.
+  audit: {
+    tooLarge:
+      'The audit trail is too large to export in full. Narrow the range or the filter first — a partial file is worse than none.',
+  },
+  reportsExport: {
+    depotsIncomplete:
+      'The per-depot revenue report is incomplete: some depots fell outside its source report, so the figures would be wrong. The export is held back until the source is whole.',
+  },
   recon: {
     schemeUnreadable: "Commission (scheme unreadable)",
     schemeMissing: "Commission (no scheme yet)",

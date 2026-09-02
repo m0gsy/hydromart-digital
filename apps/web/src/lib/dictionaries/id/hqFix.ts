@@ -13,6 +13,22 @@ export const hqFix = {
     loyaltyUnavailable: 'Data loyalty tidak bisa dibaca sekarang — ini bukan berarti belum punya akun.',
     retry: 'Coba lagi',
   },
+  /*
+   * CA-2-28 — ekspor yang menolak, bukan ekspor yang terpotong.
+   *
+   * Berkas audit dibaca jauh dari layar yang bisa memperingatkan bahwa isinya sepotong.
+   * Kalau jejaknya terlalu besar untuk dibaca utuh, satu-satunya jawaban jujur adalah
+   * menolak menuliskannya — bukan menulis seratus baris terbaru dan membiarkannya lulus
+   * sebagai "tidak ada apa-apa di tanggal itu".
+   */
+  audit: {
+    tooLarge:
+      'Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas.',
+  },
+  reportsExport: {
+    depotsIncomplete:
+      'Laporan pendapatan per depot belum lengkap: sebagian depot tidak masuk laporan sumbernya, jadi angkanya akan salah. Ekspor ditahan sampai sumbernya utuh.',
+  },
   recon: {
     schemeUnreadable: "Komisi (skema tidak terbaca)",
     schemeMissing: "Komisi (belum ada skema)",

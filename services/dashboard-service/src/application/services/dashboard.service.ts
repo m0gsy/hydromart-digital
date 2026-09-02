@@ -272,9 +272,18 @@ export class DashboardService {
       this.sources.ratingByDepot(range, token),
     ]);
 
-    const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
+    const revenueByDepot = new Map<
+      string,
+      { orderCount: number; revenue: number; commissionBase: number }
+    >();
     for (const item of topDepots?.items ?? []) {
-      revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
+      // CA-2-09: the commission base rides along beside the revenue, because the statement
+      // bills on one and shows the other, and deriving either from the other is the bug.
+      revenueByDepot.set(item.depotId, {
+        orderCount: item.orderCount,
+        revenue: item.revenue,
+        commissionBase: item.commissionBase,
+      });
     }
     /*
      * E-3. `topDepots` is a TOP-N report, so a depot missing from it is either a depot that
@@ -316,6 +325,9 @@ export class DashboardService {
         active: d.active,
         ownershipType: d.ownershipType,
         revenue: unrepresented ? null : (rev?.revenue ?? 0),
+        // Same null rule as revenue: absent from a full report means nothing sold; absent
+        // from a truncated one means we do not know, and a made-up 0 would be billed.
+        commissionBase: unrepresented ? null : (rev?.commissionBase ?? 0),
         orderCount: unrepresented ? null : (rev?.orderCount ?? 0),
         slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
         avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,

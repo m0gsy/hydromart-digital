@@ -8,6 +8,7 @@ import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/c
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionScheme, Customer, DepotAdmin, Page, PendingPayout } from '@/lib/types';
 
@@ -19,9 +20,15 @@ export default function HqFranchisePage() {
   const { t } = useT();
   const router = useRouter();
 
-  const depots = useAsync<Page<DepotAdmin>>(() =>
-    api.getCached(endpoints.depots.manage({ limit: 100, ownershipType: 'WARALABA' }), true),
-  );
+  /*
+   * CA-2-26. Three numbers on this screen are computed from this read — the franchise count
+   * in the header, the ownerless-depot count beside it, and the total pending payout below —
+   * and all three were the length of a 100-row slice presented as the size of the network.
+   * The orphan count is the one that matters most: it exists to be chased to zero, and a
+   * hundred-and-first ownerless depot books its revenue to nobody while the badge says the
+   * problem is smaller than it is.
+   */
+  const depots = useAsync<DepotAdmin[]>(() => fetchAllDepots({ ownershipType: 'WARALABA' }));
   const owners = useAsync<Customer[]>(() =>
     api
       .get<Page<Customer>>(endpoints.auth.staff({ role: 'FRANCHISE_OWNER', limit: 100 }), true)
@@ -38,7 +45,7 @@ export default function HqFranchisePage() {
   if (depots.loading) return <Skeleton className="h-96 w-full" />;
   if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
 
-  const items = depots.data?.items ?? [];
+  const items = depots.data ?? [];
   const ownerName = new Map((owners.data ?? []).map((o) => [o.id, o.fullName || o.phone]));
   const pctByDepot = new Map((schemes.data ?? []).map((s) => [s.depotId, s.pct]));
   const pendingByOwner = new Map((queue.data ?? []).map((p) => [p.franchiseOwnerId, p.availableBalance]));
