@@ -7,6 +7,19 @@
 // conflict in the same file. Splitting it by area changes no path and no call site:
 // `endpoints` is still one object, assembled in ./index.ts.
 
+/**
+ * `?a=1&b=2`, or an empty string. Exists so `churn` can be a single-expression builder —
+ * see the note on it.
+ */
+function insightQuery(q: Record<string, string | number | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) {
+    if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+  }
+  const qs = p.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const insight = {
   /*
    * Both read models are rebuilt from order-service's completed orders. Both routes are
@@ -204,14 +217,8 @@ export const insight = {
       return `/forecast/api/v1/forecast/sales${qs ? `?${qs}` : ''}`;
     },
     // At-risk customers ranked by churn score (depot-scoped when depotId set).
-    churn: (q: { depotId?: string; limit?: number; days?: number } = {}) => {
-      const p = new URLSearchParams();
-      if (q.depotId) p.set('depotId', q.depotId);
-      if (q.limit) p.set('limit', String(q.limit));
-      if (q.days) p.set('days', String(q.days));
-      const qs = p.toString();
-      return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
-    },
+    // eslint-disable-next-line max-len -- one line on purpose: the endpoints-table scanners read `name: (…) => '/path'` on a SINGLE line and a block-bodied builder is invisible to them, so /hq/churn had no server capability to check its rail gate against.
+    churn: (q: { depotId?: string; limit?: number; days?: number } = {}) => `/forecast/api/v1/forecast/churn${insightQuery(q)}`,
   },
 
   crm: {

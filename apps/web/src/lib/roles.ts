@@ -59,14 +59,21 @@ export function isStaff(role: string | null | undefined): boolean {
 }
 
 /**
- * HQ console gate (SUPER_ADMIN + HEAD_OFFICE + DIREKTUR only). Deliberately NOT a
- * capability in @hydromart/access — HQ reach is not a depot power, and MANAGER holds
- * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate over
- * the head-of-network roles. DIREKTUR sits above the depot chain and reads the network,
- * so it lands here rather than on a depot dashboard.
+ * HQ console gate. HQ reach is not a depot power — MANAGER holds `dashboard` and is still
+ * denied HQ (design 20c) — so it is its own capability rather than a derived one.
+ *
+ * It used to be three role names written here. `hqConsole` already existed in
+ * @hydromart/access, already held EXACTLY these three roles, and is already what
+ * admin-service enforces on the routes behind this console — so the hardcoded list was a
+ * second copy of a rule that lives somewhere else, and the two could drift silently in
+ * either direction. Reading the capability instead changes nothing today (same three
+ * roles, verified in `roles.test.ts`) and makes the /hq door an entry in the RBAC matrix
+ * like everything else: whether FINANCE or MARKETING belong in here — both hold
+ * capabilities whose only screens are under /hq, CA-2-16 — becomes a decision somebody
+ * can make and record, instead of an edit to this file.
  */
 export function isHq(role: string | null | undefined): boolean {
-  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN' || role === 'DIREKTUR';
+  return can('hqConsole', role);
 }
 
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);

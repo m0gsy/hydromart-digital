@@ -67,18 +67,19 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 
 | Yang dihitung | Angka |
 | --- | --- |
-| Baris register, seluruhnya | **281** |
+| Baris register, seluruhnya | **284** |
 | — kartu individual (§50: 219 + 2 dicoret) | 221 |
 | — baris dari tabel ringkas | 59 |
-| — temuan sapuan, di luar laporan sumber (Bagian VI) | 1 |
-| Kritis / Tinggi / Sedang / Rendah | 9 / 68 / 100 / 43 |
+| — temuan sapuan + klausul SAPUAN yang dipecah (Bagian VI) | 4 |
+| Kritis / Tinggi / Sedang / Rendah | 9 / 68 / 103 / 43 |
 | Baris SAPUAN | 11 |
 
-**Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 31 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (satu ditemukan saat menyapu, Bagian VI)
+**Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 34 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (empat baris Bagian VI ditemukan saat menyapu, bukan saat membaca audit)
 
-**Per status** (2 September 2026, sesudah langkah 06, dihitung dari baris tabel di bawah):
-`TERBUKA` 247 · `SUDAH DIPERBAIKI` 29 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — CA-1-17,
-satu-satunya baris KEPUTUSAN, dijawab pemilik pada 1 September dan ditutup di #421.
+**Per status** (2 September 2026, sesudah langkah 07, dihitung dari baris tabel di bawah):
+`TERBUKA` 248 · `SUDAH DIPERBAIKI` 30 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 1 — CA-2-16
+menunggu satu jawaban pemilik (lihat barisnya); CA-1-17, baris KEPUTUSAN sebelumnya, sudah
+dijawab dan ditutup di #421.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
 > satu baris CA-5 memayungi **14 sweep**. Merencanakan 460 tiket melebihkan pekerjaan sekitar dua
@@ -199,7 +200,7 @@ satu-satunya baris KEPUTUSAN, dijawab pemilik pada 1 September dan ditutup di #4
 | `CA-2-13` | §20 | Tinggi | Tarif kurir bertanggal depan langsung berlaku saat disimpan | `services/payout-service/src/infrastructure/prisma/courier-ledger.prisma.repository.ts:164` | `jalur-uang` | SUDAH DIPERBAIKI | `currentRule(depotId, asOf)` kini menyaring `effectiveDate <= asOf`; komentarnya menyebut ukuran produksi 2026-08-31 | #413 |
 | `CA-2-14` | §20 | Tinggi | Skema komisi bertanggal depan juga langsung berlaku | `services/payout-service/src/infrastructure/prisma/commission-scheme.prisma.repository.ts:31, :39` | `jalur-uang` | TERBUKA | `// silently stops being paid.` | — |
 | `CA-2-15` | §21 | Tinggi | Konsol depot memilih depot default dari daftar seluruh jaringan, bukan depot milik penggunanya | `apps/web/src/lib/depot-context.tsx:68, :91` | `depot-scope-by-id` | TERBUKA | `.get<Page<Depot>>(endpoints.depots.browse({ limit: 100 }), true)` | — |
-| `CA-2-16` | §21 | Tinggi | FINANCE dan MARKETING memegang kapabilitas yang layarnya hanya ada di /hq — dan isHq() menolak keduanya | `apps/web/src/lib/roles.ts:68` | `gerbang-kapabilitas` | TERBUKA | `export function isHq(role: string \| null \| undefined): boolean {` | — |
+| `CA-2-16` | §21 | Tinggi | FINANCE dan MARKETING memegang kapabilitas yang layarnya hanya ada di /hq — dan isHq() menolak keduanya | `apps/web/src/lib/roles.ts:68` | `gerbang-kapabilitas` | KEPUTUSAN | separuh diperbaiki di #428: `isHq()` kini membaca kapabilitas `hqConsole` (isi peran identik, perilaku tidak berubah) sehingga pintu /hq menjadi baris matriks RBAC. Separuh sisanya adalah keputusan pemilik: FINANCE memegang refundQueue/hqPayout/taxSettings/commissionRead dan MARKETING memegang campaignWrite/rewardCatalog/audienceReach — semua layarnya HANYA ada di /hq. Beri keduanya `hqConsole`, atau cabut kapabilitas itu dari mereka? | #428 (sebagian) |
 | `CA-2-17` | §21 | Tinggi | FINANCE mendarat di konsol HR dan terkurung di sana | `apps/web/src/lib/roles.ts:266` | `gerbang-kapabilitas` | TERBUKA | `}` | — |
 | `CA-2-18` | §21 | Tinggi | Konsol operator memakai daftar menu ketiga yang di-hardcode dan tidak difilter kapabilitas | `apps/web/src/components/operator/operator-shell.tsx:30–61` | `gerbang-kapabilitas` | TERBUKA | `const primaryTabs: Tab[] = [` | — |
 | `CA-2-19` | §21 | Tinggi | Halaman peringkat depot gagal total untuk HEAD_OFFICE dan DIREKTUR | `apps/web/src/app/hq/scorecard/page.tsx:33, :37` | `gerbang-kapabilitas` | TERBUKA | `const settings = useAsync<SettingsSchema>(() => fetchSettingsSchema('/payout/api/v1', null), []);` | — |
@@ -243,7 +244,7 @@ satu-satunya baris KEPUTUSAN, dijawab pemilik pada 1 September dan ditutup di #4
 | `CA-2-57` | §27 | Ringkas | Ledger deposit galon tidak pernah menyentuh stok galon fisik | `services/depot-service/prisma/schema.prisma:128` | `jalur-uang` | TERBUKA | — | — |
 | `CA-2-58` | §27 | Ringkas | Keluhan pelanggan terbelah dua sistem yang tidak pernah saling melihat | `services/admin-service/prisma/schema.prisma:283` | `lain` | TERBUKA | — | — |
 | `CA-2-59` | §27 | Ringkas | Kantor pusat tidak punya laba-rugi jaringan — hanya omzet | `apps/web/src/lib/endpoints/insight.ts:142` | `jalur-uang` | TERBUKA | — | — |
-| `CA-2-60` | §28 | SAPUAN | SAPUAN · Izin dan gerbang (9 item) — 45 dari 61 pintu rail /hq tanpa gerbang kapabilitas; 58 dari 64 halaman /hq tidak menggerbang dirinya; rail depot memakai “apakah dia staf” sebagai izin untuk lima layar; empat layar impor massal tanpa gerbang; tiga item rail membawa kapabilitas yang bukan yang ditegakkan server; jumlah penerima broadcast butuh kapabilitas yang tak dipegang peran depot mana pun | `apps/web/src/components/hq/hq-rail.tsx:125 · components/ops/ops-rail.tsx:123` | `gerbang-kapabilitas` | TERBUKA | — | — |
+| `CA-2-60` | §28 | SAPUAN | SAPUAN · Izin dan gerbang (9 item) — 45 dari 61 pintu rail /hq tanpa gerbang kapabilitas; 58 dari 64 halaman /hq tidak menggerbang dirinya; rail depot memakai “apakah dia staf” sebagai izin untuk lima layar; empat layar impor massal tanpa gerbang; tiga item rail membawa kapabilitas yang bukan yang ditegakkan server; jumlah penerima broadcast butuh kapabilitas yang tak dipegang peran depot mana pun | `apps/web/src/components/hq/hq-rail.tsx:125 · components/ops/ops-rail.tsx:123` | `gerbang-kapabilitas` | SUDAH DIPERBAIKI | bagian gerbangnya ditutup: `capForHqPath()` membuat 61 halaman /hq menjaga dirinya dari tabel rail yang sama, 29 item diberi kapabilitas yang benar-benar diperiksa server, 3 gerbang yang menyebut kapabilitas salah diperbaiki (roster/onboarding/broadcast), sisa item tanpa cap turun 45 → 4 dan diratchet `check-console-gates.mjs`. Sisa klausul (rail depot pakai "apakah dia staf", 4 layar impor massal, hitung penerima broadcast) pindah ke Fase 9 sebagai baris CA-6 | #428 |
 | `CA-2-61` | §28 | SAPUAN | SAPUAN · Navigasi (6 item) — konsol HQ di ponsel hanya 4 tab tetap, 56 dari 60 rute tak terjangkau dan satu tab mati; tidak ada tombol keluar di konsol depot untuk 9 dari 11 peran; tiga jawaban yang bertentangan atas “peran ini mendarat di mana”; dua pencarian global yang tidak mencari objek utama konsolnya sendiri | `apps/web/src/components/hq/hq-bottom-nav.tsx:25` | `gerbang-kapabilitas` | TERBUKA | — | — |
 | `CA-2-62` | §28 | SAPUAN | SAPUAN · Aksi merusak (12 item) — ConfirmDialog dipakai 4 dari 132 halaman konsol; tombol aksi yang saling meniadakan tidak terkunci saat request berjalan; window.prompt/confirm sebagai input alur kerja termasuk untuk alasan yang tercatat sebagai bukti; simpan matriks RBAC bisa berlaku separuh | `apps/web/src/app/hq/access/rbac-matrix.tsx:279 · hq/pdp/page.tsx:59` | `confirm-dialog` | SUDAH DIPERBAIKI | SAPUAN ditutup: 5 `window.confirm` + 4 `window.prompt` hilang, 9 aksi merusak diberi konfirmasi, matriks RBAC jadi satu transaksi, tombol Tolak/Setujui /hq/pdp saling mengunci | #427 |
 | `CA-2-63` | §28 | SAPUAN | SAPUAN · Uang dan periode (18 item) — rilis payout mencatat tujuan “Rilis HQ” bukan rekening pemilik; faktur memakai total yang bukan yang dibayar dan mencap LUNAS pada pesanan apa pun; periode uang dihitung dari jam perangkat/UTC di tiga layar; metode pembulatan pajak direset diam-diam tiap simpan; laporan L/R hanya bulan berjalan; potongan selisih setoran memakai tanggal yang salah | `services/payout-service/src/application/services/payout.service.ts:238 · apps/web/src/app/hq/invoice-template:28` | `jalur-uang` | TERBUKA | — | — |
@@ -402,6 +403,9 @@ melainkan dua.
 | ID | Bagian | Tingkat | Judul | file:baris | Kelas akar | Status | Bukti re-cek | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CA-6-01` | langkah 05 | Tinggi | Ceklis onboarding HQ tidak akan pernah mencentang langkah pembayaran | `apps/web/src/app/hq/onboarding/page.tsx:37` | `proyeksi-publik` | SUDAH DIPERBAIKI | langkah `payments` diuji `paymentBankAccountNumber \|\| paymentQrisImageUrl`, dua kolom yang tidak ada di `PublicDepotView`; kini membaca `manageDetail` | #426 |
+| `CA-6-02` | langkah 07 | Sedang | Rail depot memakai "apakah dia staf" sebagai izin untuk lima layar | `apps/web/src/components/dashboard/ops-rail.tsx` | `gerbang-kapabilitas` | TERBUKA | sisa klausul CA-2-60; mekanismenya (`capForHqPath` + `check-console-gates.mjs`) sudah ada di #428 dan tinggal diterapkan ke rail depot | — |
+| `CA-6-03` | langkah 07 | Sedang | Empat layar impor massal tanpa gerbang kapabilitas | `apps/web/src/app/hq/*/import` | `gerbang-kapabilitas` | TERBUKA | sisa klausul CA-2-60 | — |
+| `CA-6-04` | langkah 07 | Sedang | Hitung penerima broadcast butuh `audienceReach`, yang tidak dipegang peran depot mana pun | `apps/web/src/app/hq/broadcast/page.tsx` | `gerbang-kapabilitas` | TERBUKA | sisa klausul CA-2-60; #428 memindahkan gerbang halamannya ke `campaignWrite`, tapi kartu hitung penerimanya masih memanggil endpoint `audienceReach` | — |
 
 
 ---
@@ -419,7 +423,7 @@ Dari §50, tidak diubah. Sapuan lebih dulu, tiket satuan belakangan.
 | 04 | Registry penghapusan PDP + perbaiki teks /hapus-akun | `pdp-registry` | CA-3-01 + CA-3-02 ditutup (PR #419); 8 dari 9 tabel AUDIT_L3 §4.2 punya eksekutor, `depot.order_disputes` dilaporkan UNENFORCED beserta alasannya |
 | 05 | Hentikan halaman HQ membaca proyeksi publik | `proyeksi-publik` | CA-2-04 + CA-6-01 ditutup (PR #426). Kelas ini habis: `manageDetail` sekarang satu-satunya pembaca staf, dan tiga pemanggil `depots.detail` yang tersisa semuanya PATCH/DELETE, bukan GET |
 | 06 | Sapu ConfirmDialog ke aksi yang tidak bisa dibatalkan | `confirm-dialog` | 11 baris ditutup (PR #427): CA-1-11/12/13/15/70, CA-2-44, CA-2-62 (SAPUAN), CA-3-29, CA-4-14, CA-4-40, CA-4-44. Kelas ini habis. `useConfirm()` menggantikan pemasangan manual, dan `no-native-dialogs.test.ts` melarang `window.confirm/prompt/alert` kembali masuk |
-| 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | semua baris berkelas itu |
+| 07 | Sapu gerbang kapabilitas di rail dan halaman /hq | `gerbang-kapabilitas` | CA-2-60 ditutup dan CA-2-16 separuh (PR #428): 61 halaman /hq menjaga dirinya dari tabel rail, item tanpa gerbang 45 → 4 dan diratchet. Tiga klausul sisa jadi CA-6-02..04; baris kelas ini yang bukan soal gerbang rail (CA-1-40, CA-2-20, CA-2-24, CA-4-19, CA-2-67, CA-2-11) memang aturan server yang hilang, bukan pintu tanpa kunci — dikerjakan di Fase 9 |
 | 08 | Skrip laporan untuk baris yang sudah rusak di produksi (**dry-run**) | `jalur-uang` | `scripts/report-damaged-rows.sh` (PR #423). Keputusan pemilik: BACA SAJA, tanpa mode tulis sama sekali; `check-report-damaged-rows.test.sh` yang menjaminnya. Belum dijalankan siapa pun. |
 | 09 | 14 sweep terjadwal diberi penonton | `sweep-tanpa-penonton` | CA-5-01 (CA-3-02 sudah ditutup di langkah 04) |
 | 10+ | Sisa Sedang/Rendah + isi sel ringkas, dikelompokkan per kelas akar | `lain` | sisanya |

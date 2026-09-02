@@ -123,7 +123,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'network',
     items: [
       { href: '/hq/depots', labelKey: 'depots', icon: Storefront, ready: true },
-      { href: '/hq/hierarchy', labelKey: 'hierarchy', icon: TreeStructure, ready: true },
+      { href: '/hq/hierarchy', labelKey: 'hierarchy', icon: TreeStructure, ready: true, cap: 'hierarchyAdmin' },
       // The depot console, which HQ can open but had no door to: the shop nav that
       // carries its link is stripped on console routes, so from here /dashboard was
       // reachable only by typing the URL — and with it the pelanggan/stok/harga imports.
@@ -133,7 +133,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
   {
     headKey: 'staff',
     items: [
-      { href: '/hq/staff', labelKey: 'staff', icon: UserGear, ready: true },
+      { href: '/hq/staff', labelKey: 'staff', icon: UserGear, ready: true, cap: 'staffAdmin' },
       { href: '/hr', labelKey: 'hr', icon: UsersThree, ready: true },
     ],
   },
@@ -141,17 +141,17 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'franchise',
     items: [
       { href: '/hq/applications', labelKey: 'applications', icon: FileText, ready: true },
-      { href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: true },
+      { href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: true, cap: 'hqPayoutRead' },
     ],
   },
   {
     headKey: 'finance',
     items: [
-      { href: '/hq/payments', labelKey: 'payments', icon: Wallet, ready: true },
+      { href: '/hq/payments', labelKey: 'payments', icon: Wallet, ready: true, cap: 'hqPayoutRead' },
       { href: '/hq/pricing', labelKey: 'pricing', icon: Tag, ready: true },
-      { href: '/hq/vouchers', labelKey: 'vouchers', icon: Ticket, ready: true },
-      { href: '/hq/refunds', labelKey: 'refunds', icon: Receipt, ready: true },
-      { href: '/hq/reconciliation', labelKey: 'reconciliation', icon: Scales, ready: true },
+      { href: '/hq/vouchers', labelKey: 'vouchers', icon: Ticket, ready: true, cap: 'voucherRead' },
+      { href: '/hq/refunds', labelKey: 'refunds', icon: Receipt, ready: true, cap: 'refundQueueRead' },
+      { href: '/hq/reconciliation', labelKey: 'reconciliation', icon: Scales, ready: true, cap: 'commissionRead' },
       { href: '/hq/reports/export', labelKey: 'reportsExport', icon: Export, ready: true },
       { href: '/hq/tax', labelKey: 'tax', icon: Invoice, ready: true , cap: 'taxSettings' },
     ],
@@ -160,9 +160,9 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'daily',
     items: [
       { href: '/hq/inventory', labelKey: 'inventory', icon: Package, ready: true },
-      { href: '/hq/returns', labelKey: 'returns', icon: Recycle, ready: true },
-      { href: '/hq/roster', labelKey: 'roster', icon: Truck, ready: true , cap: 'tracking' },
-      { href: '/hq/orders', labelKey: 'orders', icon: ClipboardText, ready: true },
+      { href: '/hq/returns', labelKey: 'returns', icon: Recycle, ready: true, cap: 'returnsRead' },
+      { href: '/hq/roster', labelKey: 'roster', icon: Truck, ready: true , cap: 'driverRoster' },
+      { href: '/hq/orders', labelKey: 'orders', icon: ClipboardText, ready: true, cap: 'orderQueue' },
       { href: '/hq/notifications', labelKey: 'notifications', icon: Bell, ready: true },
     ],
   },
@@ -173,42 +173,42 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/scorecard', labelKey: 'scorecard', icon: Trophy, ready: true },
       { href: '/hq/compare', labelKey: 'compare', icon: ChartBar, ready: true },
       { href: '/hq/forecast', labelKey: 'forecast', icon: ChartLineUp, ready: true },
-      { href: '/hq/churn', labelKey: 'churn', icon: UsersThree, ready: true },
-      { href: '/hq/campaigns', labelKey: 'campaigns', icon: Megaphone, ready: true , cap: 'audienceReach' },
-      { href: '/hq/promotions', labelKey: 'promotions', icon: ImageIcon, ready: true },
-      { href: '/hq/customers', labelKey: 'customers', icon: UserCircle, ready: true },
+      { href: '/hq/churn', labelKey: 'churn', icon: UsersThree, ready: true, cap: 'churn' },
+      { href: '/hq/campaigns', labelKey: 'campaigns', icon: Megaphone, ready: true , cap: 'campaignRead' },
+      { href: '/hq/promotions', labelKey: 'promotions', icon: ImageIcon, ready: true, cap: 'promotionRead' },
+      { href: '/hq/customers', labelKey: 'customers', icon: UserCircle, ready: true, cap: 'customerPhoneLookup' },
       // ponytail: depot managers reach /resellers by direct URL for now — no manager-rail
       // entry yet (out of scope for this pass).
-      { href: '/resellers', labelKey: 'resellers', icon: Handshake, ready: true },
+      { href: '/resellers', labelKey: 'resellers', icon: Handshake, ready: true, cap: 'resellerView' },
     ],
   },
   {
     headKey: 'catalog',
     items: [
       { href: '/hq/catalog', labelKey: 'catalog', icon: Package, ready: true , cap: 'catalogWrite' },
-      { href: '/hq/loyalty', labelKey: 'loyalty', icon: Crown, ready: true },
-      { href: '/hq/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, ready: true },
+      { href: '/hq/loyalty', labelKey: 'loyalty', icon: Crown, ready: true, cap: 'rewardCatalog' },
+      { href: '/hq/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, ready: true, cap: 'hqConsole' },
     ],
   },
   {
     headKey: 'forms',
     items: [
-      { href: '/hq/forms/pricing-rule', labelKey: 'formPricingRule', icon: SlidersHorizontal, ready: true },
-      { href: '/hq/forms/voucher', labelKey: 'formVoucher', icon: Ticket, ready: true },
-      { href: '/hq/forms/commission', labelKey: 'formCommission', icon: Percent, ready: true },
-      { href: '/hq/forms/segment', labelKey: 'formSegment', icon: UsersThree, ready: true },
-      { href: '/hq/staff/import', labelKey: 'staffImport', icon: UploadSimple, ready: true },
-      { href: '/hq/broadcast', labelKey: 'broadcast', icon: Broadcast, ready: true , cap: 'audienceReach' },
+      { href: '/hq/forms/pricing-rule', labelKey: 'formPricingRule', icon: SlidersHorizontal, ready: true, cap: 'depotAdmin' },
+      { href: '/hq/forms/voucher', labelKey: 'formVoucher', icon: Ticket, ready: true, cap: 'voucherWrite' },
+      { href: '/hq/forms/commission', labelKey: 'formCommission', icon: Percent, ready: true, cap: 'commissionRead' },
+      { href: '/hq/forms/segment', labelKey: 'formSegment', icon: UsersThree, ready: true, cap: 'campaignWrite' },
+      { href: '/hq/staff/import', labelKey: 'staffImport', icon: UploadSimple, ready: true, cap: 'staffAdmin' },
+      { href: '/hq/broadcast', labelKey: 'broadcast', icon: Broadcast, ready: true , cap: 'campaignWrite' },
     ],
   },
   {
     headKey: 'flow',
     items: [
-      { href: '/hq/incidents', labelKey: 'incidents', icon: WarningOctagon, ready: true },
-      { href: '/hq/tickets', labelKey: 'tickets', icon: ChatCircleDots, ready: true },
+      { href: '/hq/incidents', labelKey: 'incidents', icon: WarningOctagon, ready: true, cap: 'hqConsole' },
+      { href: '/hq/tickets', labelKey: 'tickets', icon: ChatCircleDots, ready: true, cap: 'hqConsole' },
       { href: '/hq/fraud', labelKey: 'fraud', icon: ShieldWarning, ready: true },
-      { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', icon: CalendarCheck, ready: true },
-      { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true , cap: 'platformAdmin' },
+      { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', icon: CalendarCheck, ready: true, cap: 'hqConsole' },
+      { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true , cap: 'depotDirectory' },
     ],
   },
   {
@@ -216,12 +216,12 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq/audit', labelKey: 'audit', icon: ClockCounterClockwise, ready: true },
       { href: '/hq/flags', labelKey: 'flags', icon: Flag, ready: true, cap: 'platformAdmin' },
-      { href: '/hq/health', labelKey: 'health', icon: Heartbeat, ready: true },
-      { href: '/hq/exports', labelKey: 'exports', icon: FileArrowDown, ready: true },
+      { href: '/hq/health', labelKey: 'health', icon: Heartbeat, ready: true, cap: 'hqConsole' },
+      { href: '/hq/exports', labelKey: 'exports', icon: FileArrowDown, ready: true, cap: 'hqConsole' },
       { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true, cap: 'platformAdmin' },
       { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true, cap: 'platformAdmin' },
       { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true , cap: 'depotAdmin' },
-      { href: '/hq/forecast-models', labelKey: 'forecastModels', icon: ChartLineUp, ready: true },
+      { href: '/hq/forecast-models', labelKey: 'forecastModels', icon: ChartLineUp, ready: true, cap: 'forecast' },
       { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true, cap: 'platformAdmin' },
       { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true , cap: 'pdpRequests' },
       { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true, cap: 'platformAdmin' },
@@ -258,6 +258,33 @@ export function hqGroupsForRole(role: Role): HqRailGroup[] {
 
 export function hqItemsForRole(role: Role): HqRailItem[] {
   return hqGroupsForRole(role).flatMap((g) => g.items);
+}
+
+/**
+ * The capability a /hq path needs, or null when the console gate is the whole of it.
+ *
+ * CA-2-60: 58 of the 64 /hq pages gated nothing of their own. The rail hid what a role
+ * could not use, and typing the URL walked straight past that — onto a screen that then
+ * fetched, got 403s, and rendered as an error or, worse, as empty. Hiding a link is not
+ * an access rule; it is a courtesy on top of one.
+ *
+ * Rather than 61 copies of the same three lines, the layout asks this. The answer comes
+ * from the SAME table the rail filters on, so the two can never disagree: a capability
+ * added to an item gates its page in the same commit.
+ *
+ * Longest prefix wins, so `/hq/depots/detail` inherits `/hq/depots` and a child that
+ * needs MORE than its parent can say so by carrying its own row.
+ */
+export function capForHqPath(pathname: string | null | undefined): Capability | null {
+  if (!pathname) return null;
+  let best: { href: string; cap?: Capability } | null = null;
+  for (const group of HQ_GROUPS) {
+    for (const item of group.items) {
+      if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) continue;
+      if (!best || item.href.length > best.href.length) best = item;
+    }
+  }
+  return best?.cap ?? null;
 }
 
 export function HqRail() {
