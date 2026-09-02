@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -288,6 +288,28 @@ export class ListDeliveriesQueryDto {
   @IsOptional()
   @IsEnum(DeliveryStatus)
   status?: DeliveryStatus;
+
+  /*
+   * More than one status at a time, because "still in flight" is three of them and there
+   * was no way to ask for it. A caller that wanted ASSIGNED + PICKED_UP + ON_DELIVERY had
+   * to choose one and lose the rest, or ask for everything and let DELIVERED history push
+   * the live rows off the page.
+   *
+   * Same comma-separated shape as `depotIds` on the SLA report. Wins over `status` when
+   * both arrive, so the narrower question is the one answered.
+   */
+  @ApiPropertyOptional({
+    description: 'Comma-separated statuses; matches any of them. Overrides `status` when both are sent.',
+    example: 'ASSIGNED,PICKED_UP,ON_DELIVERY',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+      : value,
+  )
+  @IsEnum(DeliveryStatus, { each: true })
+  statuses?: DeliveryStatus[];
 
   @ApiPropertyOptional({
     format: 'uuid',

@@ -40,6 +40,12 @@ const SEVERITY_BADGE: Record<DepotIncidentSeverity, 'danger' | 'warning' | 'neut
   LOW: 'neutral',
 };
 
+const TYPES = Object.keys(TYPE_ICON) as DepotIncidentType[];
+const SEVERITIES: DepotIncidentSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
+
+const inputClass =
+  'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
+
 // Left accent by state: resolved is muted; otherwise the severity colour.
 function accentClass(incident: DepotIncident): string {
   if (incident.status === 'RESOLVED') return 'border-l-[color:var(--border)]';
@@ -169,10 +175,150 @@ function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChan
 
 type StatusFilter = 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 
+/*
+ * The half of this screen that was missing.
+ *
+ * The inbox reads depot-service's incident queue, resolves from it and counts it - and
+ * nothing on any depot console could put a row into it. `POST /incidents/api/v1/incidents`
+ * has been live the whole time, `endpoints.incidents.create()` has been declared the whole
+ * time, and it had no caller: an operator whose power went out, or whose gallon shipment
+ * arrived cracked, had a screen that could only tell them there was nothing to see.
+ *
+ * Same endpoint and same DTO the server already validates - title 3..120, an enum type and
+ * severity, the rest optional - so nothing new is invented on either side.
+ */
+function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { t } = useT();
+  const [type, setType] = useState<DepotIncidentType>('GALLON_DAMAGE');
+  const [severity, setSeverity] = useState<DepotIncidentSeverity>('MEDIUM');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [courierName, setCourierName] = useState('');
+  const [orderRef, setOrderRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    // Mirrors CreateIncidentDto's @MinLength(3) rather than letting the server answer 400:
+    // the operator typing this is standing in a depot with the incident still happening.
+    if (title.trim().length < 3) {
+      setError(t('dashB.incidents.titleTooShort'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        endpoints.incidents.create(),
+        {
+          depotId,
+          type,
+          severity,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          courierName: courierName.trim() || undefined,
+          orderRef: orderRef.trim() || undefined,
+        },
+        true,
+      );
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('dashB.incidents.reportError'));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <p className="font-semibold">{t('dashB.incidents.reportTitle')}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t('dashB.incidents.typeLabel')} htmlFor="i-type">
+          <select
+            id="i-type"
+            value={type}
+            onChange={(e) => setType(e.target.value as DepotIncidentType)}
+            className={inputClass}
+          >
+            {TYPES.map((v) => (
+              <option key={v} value={v}>
+                {t(`dashB.incidents.type.${v}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t('dashB.incidents.severityLabel')} htmlFor="i-sev">
+          <select
+            id="i-sev"
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value as DepotIncidentSeverity)}
+            className={inputClass}
+          >
+            {SEVERITIES.map((v) => (
+              <option key={v} value={v}>
+                {t(`dashB.incidents.severity.${v}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t('dashB.incidents.courierLabel')} htmlFor="i-courier">
+          <Input
+            id="i-courier"
+            value={courierName}
+            onChange={(e) => setCourierName(e.target.value)}
+            placeholder={t('dashB.incidents.courierPlaceholder')}
+          />
+        </Field>
+        <Field label={t('dashB.incidents.orderRefLabel')} htmlFor="i-order">
+          <Input
+            id="i-order"
+            value={orderRef}
+            onChange={(e) => setOrderRef(e.target.value)}
+            placeholder={t('dashB.incidents.orderRefPlaceholder')}
+          />
+        </Field>
+      </div>
+      <Field label={t('dashB.incidents.titleLabel')} htmlFor="i-title">
+        <Input
+          id="i-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={120}
+          placeholder={t('dashB.incidents.titlePlaceholder')}
+        />
+      </Field>
+      <Field label={t('dashB.incidents.descriptionLabel')} htmlFor="i-desc">
+        <textarea
+          id="i-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          className={inputClass}
+          placeholder={t('dashB.incidents.descriptionPlaceholder')}
+        />
+      </Field>
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onDone} disabled={busy}>
+          {t('dashB.incidents.cancel')}
+        </Button>
+        <Button onClick={submit} loading={busy}>
+          {t('dashB.incidents.submitReport')}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function IncidentsBody() {
   const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [filter, setFilter] = useState<StatusFilter>('ALL');
+  const [reporting, setReporting] = useState(false);
 
   // Fetch the depot's incidents once (no status filter) and slice client-side so the
   // chip counts stay accurate regardless of the active filter.
@@ -198,17 +344,34 @@ function IncidentsBody() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
-        <Warning size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('dashB.incidents.title')}</h1>
-          {scopedDepot && (
-            <p className="text-[12.5px] text-[color:var(--text-muted)]">
-              {scopedDepot.name} · {t('dashB.incidents.open', { n: unresolved })}
-            </p>
-          )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Warning size={24} weight="fill" className="text-brand-500" />
+          <div>
+            <h1 className="text-2xl font-bold">{t('dashB.incidents.title')}</h1>
+            {scopedDepot && (
+              <p className="text-[12.5px] text-[color:var(--text-muted)]">
+                {scopedDepot.name} · {t('dashB.incidents.open', { n: unresolved })}
+              </p>
+            )}
+          </div>
         </div>
+        {scopedId && (
+          <Button variant={reporting ? 'ghost' : 'secondary'} onClick={() => setReporting((v) => !v)}>
+            {reporting ? t('dashB.incidents.cancel') : t('dashB.incidents.reportTitle')}
+          </Button>
+        )}
       </div>
+
+      {reporting && scopedId && (
+        <ReportForm
+          depotId={scopedId}
+          onDone={() => {
+            setReporting(false);
+            list.reload();
+          }}
+        />
+      )}
 
       <div className="flex flex-wrap gap-2">
         {CHIPS.map((c) => (

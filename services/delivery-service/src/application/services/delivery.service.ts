@@ -87,6 +87,8 @@ export type ProofInput = Omit<ProofRecord, 'capturedAt'> & {
 
 export interface ListDeliveriesInput {
   status?: DeliveryStatus;
+  /** Any-of status filter; overrides `status` when both are present. */
+  statuses?: readonly DeliveryStatus[];
   page?: number;
   limit?: number;
   /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
@@ -970,6 +972,7 @@ export class DeliveryService {
       driverId: input.driverId,
       depotIds: input.depotIds,
       status: input.status,
+      statuses: input.statuses,
     });
     return buildPage(items, total, page, limit, nextCursor);
   }

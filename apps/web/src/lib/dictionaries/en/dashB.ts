@@ -1,6 +1,20 @@
 // English — mirrors the shape of id/dashB.ts (source of truth for keys).
 export const dashB = {
   incidents: {
+    reportTitle: "Report an incident",
+    titleLabel: "Title",
+    titlePlaceholder: "One sentence",
+    titleTooShort: "Title is too short — say what happened.",
+    typeLabel: "Type",
+    severityLabel: "Severity",
+    courierLabel: "Courier (optional)",
+    courierPlaceholder: "Pick the courier involved",
+    orderRefLabel: "Order number (optional)",
+    orderRefPlaceholder: "HM-260902-001",
+    descriptionLabel: "Details",
+    descriptionPlaceholder: "What happened, where, and who was involved",
+    submitReport: "Send report",
+    reportError: "Could not send the report.",
     title: 'Incidents',
     open: '{n} open',
     type: {

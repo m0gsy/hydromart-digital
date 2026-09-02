@@ -3,6 +3,20 @@
 // Consumed via useT() — mirrors en/dashB.ts (same key shape).
 export const dashB = {
   incidents: {
+    reportTitle: "Laporkan insiden",
+    titleLabel: "Judul",
+    titlePlaceholder: "Ringkas dalam satu kalimat",
+    titleTooShort: "Judul terlalu pendek — tulis apa yang terjadi.",
+    typeLabel: "Jenis",
+    severityLabel: "Tingkat",
+    courierLabel: "Kurir (opsional)",
+    courierPlaceholder: "Pilih kurir yang terlibat",
+    orderRefLabel: "Nomor pesanan (opsional)",
+    orderRefPlaceholder: "HM-260902-001",
+    descriptionLabel: "Keterangan",
+    descriptionPlaceholder: "Apa yang terjadi, di mana, dan siapa yang terlibat",
+    submitReport: "Kirim laporan",
+    reportError: "Laporan gagal dikirim.",
     title: 'Insiden',
     open: '{n} terbuka',
     type: {
