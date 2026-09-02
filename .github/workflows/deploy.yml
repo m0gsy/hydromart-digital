@@ -1,6 +1,6 @@
 name: Deploy
 
-# The run's title says which commit it SHIPPED.
+# The run's title says WHAT it shipped, then WHICH COMMIT.
 #
 # A `workflow_run` run is stamped by GitHub with the branch TIP at trigger time, not with
 # the SHA it deploys — and this workflow deploys `workflow_run.head_sha` (M26). Those two
@@ -8,8 +8,23 @@ name: Deploy
 # shows a Deploy sitting on a commit it never touched. It cost a real half hour of reading
 # a green deploy next to that commit's RED CI and concluding the gate was broken. The gate
 # was fine; the label was not.
+#
+# The subject comes first and the SHA last, deliberately. Actions expressions have no
+# substring function, so the SHA cannot be shortened here — and a title that opens with
+# forty hex characters is one nobody reads. Put the sentence where the eye lands and let
+# the truncation eat the tail; the SHA is still there to match against, and `deploy.sh`
+# prints it again as `DEPLOY OK → <sha>` at the end of the log.
+#
+# `display_title` is the triggering CI run's title, which for a push is USUALLY the commit
+# subject — and sometimes just the workflow name. Measured on main, 2 September 2026: three
+# of the four most recent runs carried the subject, one read plainly `CI`, all four
+# `event=push`, `run_attempt=1`. The two honest alternatives are worse: `head_commit.message`
+# is the WHOLE message (88 to 90 lines on this repo's commits), and there is no way to take
+# its first line in an expression. So the fallback is accepted rather than hidden — a run
+# titled `Deploy CI · <sha>` says exactly what the old title said, and the other three say
+# more.
 run-name: >-
-  Deploy ${{ github.event_name == 'workflow_dispatch' && format('{0} (manual {1})', github.sha, inputs.mode) || github.event.workflow_run.head_sha }}
+  Deploy ${{ github.event_name == 'workflow_dispatch' && format('manual {0} · {1}', inputs.mode, github.sha) || format('{0} · {1}', github.event.workflow_run.display_title, github.event.workflow_run.head_sha) }}
 
 # Deploys to the single production VPS by SSHing in and running scripts/deploy.sh,
 # which rebuilds only changed services (serial, memory-safe), health-checks the
