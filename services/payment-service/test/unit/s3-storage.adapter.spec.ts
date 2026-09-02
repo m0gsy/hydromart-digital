@@ -2,9 +2,10 @@ const send = jest.fn().mockResolvedValue({});
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
 }));
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { S3StorageAdapter } from '../../src/infrastructure/storage/s3-storage.adapter';
 import { PaymentConfigService } from '../../src/config/payment-config.service';
@@ -45,5 +46,22 @@ describe('S3StorageAdapter', () => {
       Body: body,
       ContentType: 'image/png',
     });
+  });
+
+  /*
+   * CA-3-03. Deleting an account used to blank the column and stop there, leaving the
+   * receipt in the bucket for anyone who still had its link. S3 DELETE is idempotent — a
+   * missing key answers 204 — so erasure can be retried without a special case.
+   */
+  it('deletes the object by key', async () => {
+    const adapter = new S3StorageAdapter(makeConfig());
+
+    await adapter.remove('payment-proof/abc.png');
+
+    expect(DeleteObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'hydromart',
+      Key: 'payment-proof/abc.png',
+    });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
