@@ -102,9 +102,7 @@ export default function DepartmentsPage() {
         {departments.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {departments.data.length === 0 && (
-              <li className="py-2 text-sm text-muted">
-                {t('hrFix.departments.emptyBody2')}
-              </li>
+              <li className="py-2 text-sm text-muted">{t('hrFix.departments.emptyBody2')}</li>
             )}
             {departments.data.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -115,7 +113,9 @@ export default function DepartmentsPage() {
                 {isAdmin && (
                   <span className="flex shrink-0 gap-1">
                     <Button variant="ghost" onClick={() => toggle(d)}>
-                      {d.active ? t('hrFix.departments.deactivate') : t('hrFix.departments.activate')}
+                      {d.active
+                        ? t('hrFix.departments.deactivate')
+                        : t('hrFix.departments.activate')}
                     </Button>
                     <Button variant="ghost" onClick={() => remove(d)}>
                       {t('hrFix.departments.delete2')}

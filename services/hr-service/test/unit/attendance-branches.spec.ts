@@ -7,6 +7,7 @@ import { AttendanceService, FacePunch } from '../../src/application/services/att
 import {
   AttendanceRepository,
   AttendanceListFilter,
+  AttendanceListRow,
 } from '../../src/application/ports/attendance.repository';
 import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedding.repository';
@@ -66,7 +67,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async list(filter: AttendanceListFilter) {
     this.lastFilter = filter;
-    return { rows: [{ id: 'a1' } as Attendance], total: 1 };
+    // CA-1-01: the list row carries the employee's name now — the approval queue was
+    // asking somebody to decide on a working day without saying whose it was.
+    return { rows: [{ id: 'a1', employeeName: 'Budi' } as AttendanceListRow], total: 1 };
   }
 }
 

@@ -4,7 +4,17 @@ import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 import { useState } from 'react';
 
-import { Badge, Card, ErrorState, Input, LinkButton, ListFooter, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  ErrorState,
+  Input,
+  LinkButton,
+  ListFooter,
+  LoadError,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -19,6 +29,7 @@ import {
 import { canManageHr } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { useQueryState } from '@/lib/use-query-param';
 import { usePagedList } from '@/lib/use-paged-list';
 
 /*
@@ -84,9 +95,16 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
 export default function EmployeesPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<EmployeeStatus | ''>('');
-  const [departmentId, setDepartmentId] = useState('');
+  /*
+   * CA-1-35. These were `useState`, so opening one employee and pressing Back threw the
+   * filters away — on a list somebody works THROUGH, that is the whole narrowing re-done
+   * after every record they open. Held in the URL they survive the trip, and the link is
+   * shareable, which a colleague asking "which ones do you mean?" can use.
+   */
+  const [search, setSearch] = useQueryState('q');
+  const [statusParam, setStatus] = useQueryState('status');
+  const status = statusParam as EmployeeStatus | '';
+  const [departmentId, setDepartmentId] = useQueryState('departmentId');
 
   const list = usePagedList<Employee>(
     (page) =>
@@ -139,7 +157,7 @@ export default function EmployeesPage() {
         <select
           aria-label={t('hrFix.employees.allStatuses')}
           value={status}
-          onChange={(e) => setStatus(e.target.value as EmployeeStatus | '')}
+          onChange={(e) => setStatus(e.target.value)}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
         >
           <option value="">{t('hrFix.employees.allStatuses')}</option>
@@ -180,13 +198,19 @@ export default function EmployeesPage() {
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 p-4">
-              <Link href={`/hr/employees/detail?id=${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
+              <Link
+                href={`/hr/employees/detail?id=${e.id}`}
+                className="min-w-0 flex-1 hover:opacity-80"
+              >
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">
-                  {e.employeeCode} · {e.position} · {t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])} ·{' '}
+                  {e.employeeCode} · {e.position} · {t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])}{' '}
+                  ·{' '}
                   {/* Without the list, departmentLabel() answers "Belum diatur" for every
                       row at once — a whole roster claiming no department. */}
-                  {departments.error ? t('hrFix.employees.departmentUnreadable') : departmentLabel(deptRows, e.departmentId, t)}
+                  {departments.error
+                    ? t('hrFix.employees.departmentUnreadable')
+                    : departmentLabel(deptRows, e.departmentId, t)}
                 </p>
               </Link>
               {/* The safety net: a row with no login is somebody who cannot clock in, and

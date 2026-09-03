@@ -24,6 +24,15 @@ export interface AnnouncementWrite {
 export interface AnnouncementListFilter {
   /** Only the ones already out. The console's history tab wants drafts too. */
   publishedOnly?: boolean;
+  /**
+   * CA-1-29: the depots this reader is responsible for.
+   *
+   * Undefined for a reader who sits above depots (HQ, HR, a director) — they see the whole
+   * network, which is the point of their job. Given a list, the rows are narrowed to
+   * announcements that either reach the WHOLE company or name one of these depots: a
+   * supervisor at one depot has no business reading what HQ wrote for another.
+   */
+  depotIds?: readonly string[];
   skip: number;
   take: number;
 }

@@ -163,6 +163,8 @@ export const hrFix = {
     empty: 'No assets match.',
     noMoves: 'No movements since the asset was registered.',
     pickEmployee: 'Select an employee',
+    holderUnknown: 'Holder not found',
+    holderLeft: '{name} (has left)',
     register: 'Register asset',
     pickDepot: 'Select a depot',
     assetName: 'Asset name',
@@ -486,6 +488,7 @@ export const hrFix = {
     rejected: 'Attendance rejected',
     failed: 'Failed',
     onTime: 'on time',
+    unnamed: 'Anonymised employee',
     fillIdDate: 'Enter an employeeId and a date',
     manual: 'Manual entry',
     manualSaved: 'Manual attendance saved',
@@ -1524,6 +1527,8 @@ export const hrFix = {
   audit: {
     title: 'Audit log',
     filterHint: 'Filter by entity (employees, payroll, …)',
+    actor: 'By',
+    actorSystem: 'system',
     empty: 'No entries yet.',
   },
   employeeEdit: {
@@ -1762,6 +1767,7 @@ export const hrFix = {
     reports: 'Reports',
     settings: 'Payroll configuration',
     audit: 'Audit log',
+    me: 'My record',
   },
   weekdayLong: {
     mon: 'Monday',

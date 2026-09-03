@@ -5,6 +5,7 @@ import { Attendance, AttendanceStatus, Prisma } from '../../../prisma/generated/
 
 
 import {
+  AttendanceListRow,
   AttendanceListFilter,
   AttendanceRepository,
   AttendanceSummary,
@@ -134,7 +135,7 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     return this.prisma.attendance.update({ where: { id }, data: { status } });
   }
 
-  async list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }> {
+  async list(filter: AttendanceListFilter): Promise<{ rows: AttendanceListRow[]; total: number }> {
     const where: Prisma.AttendanceWhereInput = {
       ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
@@ -151,12 +152,21 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.attendance.findMany({
         where,
+        // CA-1-01: whose day this is. One join on a relation this row already has —
+        // the same shape PG-01 gave payroll and PG-06 gave leave.
+        include: { employee: { select: { fullName: true } } },
         orderBy: { workDate: 'desc' },
         skip: filter.skip,
         take: filter.take,
       }),
       this.prisma.attendance.count({ where }),
     ]);
-    return { rows, total };
+    return {
+      rows: rows.map(({ employee, ...attendance }) => ({
+        ...attendance,
+        employeeName: employee?.fullName ?? null,
+      })),
+      total,
+    };
   }
 }

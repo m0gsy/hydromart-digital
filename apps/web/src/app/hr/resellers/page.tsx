@@ -51,13 +51,19 @@ export default function HrResellersPage() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('hrFix.hrResellers.noDepot')} icon={<Storefront size={40} weight="fill" />} />
+        <CenterState
+          title={t('hrFix.hrResellers.noDepot')}
+          icon={<Storefront size={40} weight="fill" />}
+        />
       ) : rows.loading ? (
         <Skeleton className="h-64 w-full rounded-2xl" />
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : (rows.data ?? []).length === 0 ? (
-        <CenterState title={t('hrFix.hrResellers.empty')} icon={<Storefront size={40} weight="fill" />} />
+        <CenterState
+          title={t('hrFix.hrResellers.empty')}
+          icon={<Storefront size={40} weight="fill" />}
+        />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
@@ -66,7 +72,9 @@ export default function HrResellersPage() {
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.photo')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.customer')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.discount')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.monthlyTarget')}</th>
+                <th className="px-4 py-2.5 font-semibold">
+                  {t('hrFix.hrResellers.monthlyTarget')}
+                </th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.joined')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrResellers.status')}</th>
               </tr>
@@ -93,7 +101,9 @@ export default function HrResellersPage() {
                   </td>
                   <td className="px-4 py-2.5 tabular-nums">
                     {r.flatGallonPriceIdr > 0
-                      ? t('hrFix.resellers.perGallon', { amount: r.flatGallonPriceIdr.toLocaleString('id-ID') })
+                      ? t('hrFix.resellers.perGallon', {
+                          amount: r.flatGallonPriceIdr.toLocaleString('id-ID'),
+                        })
                       : `${r.discountPct}%`}
                   </td>
                   <td className="px-4 py-2.5 tabular-nums">{r.monthlyTargetQty}</td>

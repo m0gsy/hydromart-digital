@@ -114,6 +114,15 @@ export interface Attendance {
   lateMinutes: number;
   workingMinutes: number | null;
   status: AttendanceStatus;
+  /**
+   * CA-1-01: whose working day this is.
+   *
+   * The approval queue drew a date, two times and a lateness figure and no name anywhere,
+   * so an HR officer decided on somebody's attendance without being told whose. Null only
+   * for an employee whose record was anonymised under the retention policy — the same
+   * shape `Payroll.employeeName` (PG-01) already carries.
+   */
+  employeeName?: string | null;
 }
 
 export interface PayrollItem {
@@ -188,6 +197,35 @@ export interface AuditLog {
   entityId: string | null;
   ip: string | null;
   at: string;
+  /**
+   * CA-1-03: what the row actually changed.
+   *
+   * hr-service has written `before`/`after` on every audit entry since the trail shipped,
+   * and the screen declared neither — so the one page that exists to answer "who changed
+   * this, and to what?" showed an action verb, an entity name and a timestamp. Both halves
+   * were already on the wire.
+   *
+   * Null on a CREATE (`before`) or a DELETE (`after`).
+   */
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+}
+
+/**
+ * The fields an audit entry changed, as `key: before → after`.
+ *
+ * Compared over the union of both sides so a field that only appears on one of them — a
+ * column added, a value cleared — is still reported. Values are stringified because an
+ * audit row is read, not computed with.
+ */
+export function auditChanges(log: AuditLog): { key: string; from: string; to: string }[] {
+  const before = (log.before ?? {}) as Record<string, unknown>;
+  const after = (log.after ?? {}) as Record<string, unknown>;
+  const show = (v: unknown): string =>
+    v === undefined || v === null ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((k) => show(before[k]) !== show(after[k]))
+    .map((k) => ({ key: k, from: show(before[k]), to: show(after[k]) }));
 }
 
 export type LeaveType = 'ANNUAL' | 'SICK' | 'PERMISSION' | 'EMERGENCY';
@@ -710,7 +748,12 @@ export function fmtDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleDateString('id-ID', { timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric' });
+    : d.toLocaleDateString('id-ID', {
+        timeZone: BUSINESS_TZ,
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
 }
 
 /** ISO datetime → "13.05". Empty-safe. */
@@ -860,7 +903,8 @@ export function toEmployeePayload(
   }
   // Staff above a single depot (Asisten SPV and up) have no home depot — same rule the
   // server enforces, so the form does not demand a value the API would ignore.
-  const aboveDepot = f.role === 'ASSISTANT_SUPERVISOR' || f.role === 'SUPERVISOR' || f.role === 'MANAGER';
+  const aboveDepot =
+    f.role === 'ASSISTANT_SUPERVISOR' || f.role === 'SUPERVISOR' || f.role === 'MANAGER';
   const req = {
     fullName: f.fullName.trim(),
     phone: f.phone.trim(),

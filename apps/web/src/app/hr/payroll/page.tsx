@@ -7,11 +7,28 @@ import { Suspense, useState } from 'react';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Input, ListFooter, Money, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  ListFooter,
+  Money,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { PAYROLL_STATUS_LABEL, currentPeriod, fmtDate, type HrPage, type Payroll, type PayrollStatus } from '@/lib/hr';
+import {
+  PAYROLL_STATUS_LABEL,
+  currentPeriod,
+  fmtDate,
+  type HrPage,
+  type Payroll,
+  type PayrollStatus,
+} from '@/lib/hr';
 import { canRunPayroll } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
 
@@ -22,7 +39,11 @@ import { usePagedList } from '@/lib/use-paged-list';
  */
 const PAGE_SIZE = 100;
 
-const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
+const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
+  DRAFT: 'neutral',
+  APPROVED: 'brand',
+  PAID: 'success',
+};
 
 function PayrollInner() {
   const { t } = useT();
@@ -69,10 +90,16 @@ function PayrollInner() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SectionHeader title={t('hrFix.payroll.title')} subtitle={t('hrFix.common.periodLabel', { period })} />
+      <SectionHeader
+        title={t('hrFix.payroll.title')}
+        subtitle={t('hrFix.common.periodLabel', { period })}
+      />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">{t('hrFix.payroll.period')}<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
+        <label className="text-sm">
+          {t('hrFix.payroll.period')}
+          <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+        </label>
         {/* G-1. Optional filter, so the empty option means "semua karyawan". */}
         <EmployeeSelect
           value={employeeId}
@@ -81,16 +108,32 @@ function PayrollInner() {
           placeholder={t('hrFix.payroll.allEmployees')}
           className="w-64"
         />
-        {canRunPayroll(customer?.role) && <Button onClick={generate} loading={busy}>{t('hrFix.payroll.generate')}</Button>}
+        {canRunPayroll(customer?.role) && (
+          <Button onClick={generate} loading={busy}>
+            {t('hrFix.payroll.generate')}
+          </Button>
+        )}
       </Card>
 
-      {loading && list.rows.length === 0 && <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>}
+      {loading && list.rows.length === 0 && (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-14" />
+          ))}
+        </div>
+      )}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {!loading && !error && list.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">{t('hrFix.payroll.empty')}</Card>}
+      {!loading && !error && list.rows.length === 0 && (
+        <Card className="p-8 text-center text-sm text-muted">{t('hrFix.payroll.empty')}</Card>
+      )}
       {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((p) => (
-            <Link key={p.id} href={`/hr/payroll/detail?id=${p.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
+            <Link
+              key={p.id}
+              href={`/hr/payroll/detail?id=${p.id}`}
+              className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50"
+            >
               <div>
                 {/* PG-01: whose wage this is, first — the row above it said only the period
                     and the status, so a month of drafts was a wall of identical rows. */}
@@ -125,5 +168,9 @@ function PayrollInner() {
 }
 
 export default function PayrollPage() {
-  return <Suspense fallback={<Skeleton className="mx-auto h-96 max-w-4xl" />}><PayrollInner /></Suspense>;
+  return (
+    <Suspense fallback={<Skeleton className="mx-auto h-96 max-w-4xl" />}>
+      <PayrollInner />
+    </Suspense>
+  );
 }

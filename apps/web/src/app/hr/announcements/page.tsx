@@ -88,8 +88,12 @@ export default function AnnouncementsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <b>{a.title}</b>
-                      <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
-                      {!a.publishedAt && <Badge tone="neutral">{t('hrFix.announcements.scheduled')}</Badge>}
+                      <Badge tone={LEVEL_TONE[a.level]}>
+                        {t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}
+                      </Badge>
+                      {!a.publishedAt && (
+                        <Badge tone="neutral">{t('hrFix.announcements.scheduled')}</Badge>
+                      )}
                     </div>
                     <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
                     <p className="text-xs text-muted">
@@ -104,7 +108,9 @@ export default function AnnouncementsPage() {
                   </div>
                   {a.publishedAt && (
                     <Button variant="ghost" onClick={() => setOpen(open === a.id ? null : a.id)}>
-                      {open === a.id ? t('hrFix.announcements.close') : t('hrFix.announcements.stats')}
+                      {open === a.id
+                        ? t('hrFix.announcements.close')
+                        : t('hrFix.announcements.stats')}
                     </Button>
                   )}
                 </div>
@@ -265,9 +271,7 @@ function Composer({ onSent, onError }: { onSent: () => void; onError: (m: string
 
         <div className="space-y-2">
           <p className="text-sm font-medium">{t('hrFix.announcements.audience')}</p>
-          <p className="text-xs text-muted">
-            {t('hrFix.announcements.mergedTargets')}
-          </p>
+          <p className="text-xs text-muted">{t('hrFix.announcements.mergedTargets')}</p>
           {targets.map((tg, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <select

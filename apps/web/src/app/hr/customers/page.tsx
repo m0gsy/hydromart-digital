@@ -31,7 +31,9 @@ export default function HrCustomersPage() {
 
   const rows = useAsync<DepotCustomer[]>(
     () =>
-      scopedId ? api.get(endpoints.depotCrm.list(scopedId, q || undefined), true) : Promise.resolve([]),
+      scopedId
+        ? api.get(endpoints.depotCrm.list(scopedId, q || undefined), true)
+        : Promise.resolve([]),
     [scopedId, q],
   );
 
@@ -59,29 +61,35 @@ export default function HrCustomersPage() {
         <div className="flex flex-wrap items-center gap-3">
           <HrDepotPicker />
           <div className="relative">
-          <MagnifyingGlass
-            size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)]"
-          />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('hrFix.hrCustomers.searchHint')}
-            aria-label={t('hrFix.hrCustomers.searchAria')}
-            className="pl-9"
-          />
+            <MagnifyingGlass
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)]"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('hrFix.hrCustomers.searchHint')}
+              aria-label={t('hrFix.hrCustomers.searchAria')}
+              className="pl-9"
+            />
           </div>
         </div>
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('hrFix.hrCustomers.noDepot')} icon={<Users size={40} weight="fill" />} />
+        <CenterState
+          title={t('hrFix.hrCustomers.noDepot')}
+          icon={<Users size={40} weight="fill" />}
+        />
       ) : rows.loading ? (
         <Skeleton className="h-64 w-full rounded-2xl" />
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : (rows.data ?? []).length === 0 ? (
-        <CenterState title={t('hrFix.hrCustomers.noCustomers')} icon={<Users size={40} weight="fill" />} />
+        <CenterState
+          title={t('hrFix.hrCustomers.noCustomers')}
+          icon={<Users size={40} weight="fill" />}
+        />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">

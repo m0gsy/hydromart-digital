@@ -49,9 +49,16 @@ export default function HrSettingsPage() {
       toast(t('hrFix.settings.noChange'), 'error');
       return;
     }
-    if (scope === 'DEPOT' && !depotId) { toast(t('hrFix.settings.needDepotId'), 'error'); return; }
+    if (scope === 'DEPOT' && !depotId) {
+      toast(t('hrFix.settings.needDepotId'), 'error');
+      return;
+    }
     try {
-      await api.put(endpoints.hr.putSetting, { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key, value }, true);
+      await api.put(
+        endpoints.hr.putSetting,
+        { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key, value },
+        true,
+      );
       toast(t('hrFix.settings.saved'));
       reload();
     } catch (e) {
@@ -72,7 +79,11 @@ export default function HrSettingsPage() {
     });
     if (!ok) return;
     try {
-      await api.del(endpoints.hr.resetSetting, { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key }, true);
+      await api.del(
+        endpoints.hr.resetSetting,
+        { scope, depotId: scope === 'DEPOT' ? depotId : undefined, key },
+        true,
+      );
       toast(t('hrFix.settingsExtra.overrideRemoved'));
       reload();
     } catch (e) {
@@ -85,8 +96,13 @@ export default function HrSettingsPage() {
       <SectionHeader title={t('hrFix.settings.title')} subtitle={t('hrFix.settings.subtitle')} />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">Cakupan
-          <select value={scope} onChange={(e) => setScope(e.target.value as 'GLOBAL' | 'DEPOT')} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
+        <label className="text-sm">
+          Cakupan
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as 'GLOBAL' | 'DEPOT')}
+            className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+          >
             <option value="GLOBAL">GLOBAL</option>
             <option value="DEPOT">DEPOT</option>
           </select>
@@ -97,7 +113,9 @@ export default function HrSettingsPage() {
         )}
       </Card>
 
-      {scope === 'GLOBAL' && !superAdmin && <p className="text-sm text-amber-600">{t('hrFix.settings.globalOnly')}</p>}
+      {scope === 'GLOBAL' && !superAdmin && (
+        <p className="text-sm text-amber-600">{t('hrFix.settings.globalOnly')}</p>
+      )}
 
       {loading && <Skeleton className="h-64" />}
       {error && <ErrorState message={error} onRetry={reload} />}
@@ -124,8 +142,12 @@ export default function HrSettingsPage() {
                   onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
                   className="w-32"
                 />
-                <Button variant="secondary" onClick={() => save(d.key)}>{t('hrFix.settings.save')}</Button>
-                <Button variant="ghost" onClick={() => reset(d.key)}>{t('hrFix.settings.reset')}</Button>
+                <Button variant="secondary" onClick={() => save(d.key)}>
+                  {t('hrFix.settings.save')}
+                </Button>
+                <Button variant="ghost" onClick={() => reset(d.key)}>
+                  {t('hrFix.settings.reset')}
+                </Button>
               </div>
             </div>
           ))}

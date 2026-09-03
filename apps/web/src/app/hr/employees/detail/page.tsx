@@ -10,7 +10,17 @@ import { EmployeeAssets } from '@/components/hr/employee-assets';
 import { EmployeeDocuments } from '@/components/hr/employee-documents';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, LinkButton, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  LinkButton,
+  LoadError,
+  Money,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -118,14 +128,20 @@ export default function EmployeeDetailPage() {
         />
         <Row label={t('hrFix.employeeDetail.joinDate')} value={fmtDate(e.joinDate)} />
         <Row label={t('hrFix.employeeDetail.tenure')} value={tenureLabel(e.joinDate, t)} />
-        <Row label={t('hrFix.employeeDetail.salaryType')} value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
+        <Row
+          label={t('hrFix.employeeDetail.salaryType')}
+          value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'}
+        />
         <Row
           label={t('hrFix.employeeDetail.salaryAmount')}
           value={
             <Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />
           }
         />
-        <Row label={t('hrFix.employeeDetail.bank')} value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'} />
+        <Row
+          label={t('hrFix.employeeDetail.bank')}
+          value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'}
+        />
         <Row
           label={t('hrFix.employeeDetail.emergency')}
           value={e.emergencyName ? `${e.emergencyName} · ${e.emergencyPhone ?? ''}` : '—'}
@@ -134,11 +150,23 @@ export default function EmployeeDetailPage() {
         <Row label={t('hrFix.employeeDetail.bpjsKes')} value={e.bpjsKes ?? '—'} />
         <Row label={t('hrFix.employeeDetail.bpjsTk')} value={e.bpjsTk ?? '—'} />
         <Row label={t('hrFix.employeeDetail.nik')} value={e.nik ?? '—'} />
-        <Row label={t('hrFix.employeeDetail.birthDate')} value={e.birthDate ? fmtDate(e.birthDate) : '—'} />
-        <Row label={t('hrFix.employeeDetail.gender')} value={e.gender ? t(GENDER_LABEL[e.gender]) : '—'} />
+        <Row
+          label={t('hrFix.employeeDetail.birthDate')}
+          value={e.birthDate ? fmtDate(e.birthDate) : '—'}
+        />
+        <Row
+          label={t('hrFix.employeeDetail.gender')}
+          value={e.gender ? t(GENDER_LABEL[e.gender]) : '—'}
+        />
         <Row label={t('hrFix.employeeDetail.address')} value={e.address ?? '—'} />
-        <Row label={t('hrFix.employeeDetail.ptkp')} value={e.ptkpStatus ? t(PTKP_STATUS_LABEL[e.ptkpStatus]) : '—'} />
-        <Row label={t('hrFix.employeeDetail.contractEnd')} value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
+        <Row
+          label={t('hrFix.employeeDetail.ptkp')}
+          value={e.ptkpStatus ? t(PTKP_STATUS_LABEL[e.ptkpStatus]) : '—'}
+        />
+        <Row
+          label={t('hrFix.employeeDetail.contractEnd')}
+          value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'}
+        />
       </Card>
 
       <EmployeeAllowances employeeId={id} />
@@ -171,9 +199,7 @@ export default function EmployeeDetailPage() {
       {isAdmin && (
         <Card className="space-y-3 p-5">
           <h3 className="font-bold">{t('hrFix.employeeDetail.enrollFace')}</h3>
-          <p className="text-xs text-muted">
-            {t('hrFix.employeeDetail.enrolHint')}
-          </p>
+          <p className="text-xs text-muted">{t('hrFix.employeeDetail.enrolHint')}</p>
           <FaceCapture
             onCapture={(f) => setFrames((prev) => [...prev, f].slice(0, 3))}
             disabled={frames.length >= 3}

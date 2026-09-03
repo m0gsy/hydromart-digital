@@ -16,7 +16,11 @@ import { canRunPayroll } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 
-const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
+const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
+  DRAFT: 'neutral',
+  APPROVED: 'brand',
+  PAID: 'success',
+};
 
 export default function PayrollDetailPage() {
   const { t } = useT();
@@ -26,7 +30,10 @@ export default function PayrollDetailPage() {
   const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
 
-  const { data, error, loading, reload } = useAsync<Payroll>(() => api.get<Payroll>(endpoints.hr.payrollById(id), true), [id]);
+  const { data, error, loading, reload } = useAsync<Payroll>(
+    () => api.get<Payroll>(endpoints.hr.payrollById(id), true),
+    [id],
+  );
 
   /*
    * CA-1-11 — both buttons below move real money and neither asked. "Setujui" freezes a
@@ -58,7 +65,12 @@ export default function PayrollDetailPage() {
   }
 
   if (loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
-  if (error) return <div className="mx-auto max-w-2xl"><ErrorState message={error} onRetry={reload} /></div>;
+  if (error)
+    return (
+      <div className="mx-auto max-w-2xl">
+        <ErrorState message={error} onRetry={reload} />
+      </div>
+    );
   const p = data!;
   const canRun = canRunPayroll(customer?.role);
 
@@ -71,7 +83,9 @@ export default function PayrollDetailPage() {
         subtitle={`${t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })} · ${t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}`}
         action={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={downloadSlip}>{t('hrFix.payrollDetail.downloadPdf')}</Button>
+            <Button variant="secondary" onClick={downloadSlip}>
+              {t('hrFix.payrollDetail.downloadPdf')}
+            </Button>
             <Badge tone={TONE[p.status]}>{t(PAYROLL_STATUS_LABEL[p.status])}</Badge>
           </div>
         }
@@ -83,8 +97,11 @@ export default function PayrollDetailPage() {
             {(p.items ?? []).map((it) => (
               <tr key={it.id}>
                 <td className="py-2">{it.label}</td>
-                <td className={`py-2 text-right tabular-nums ${it.kind === 'DEDUCTION' ? 'text-red-600' : ''}`}>
-                  {it.kind === 'DEDUCTION' ? '−' : ''}<Money amount={Math.abs(Number(it.amount))} />
+                <td
+                  className={`py-2 text-right tabular-nums ${it.kind === 'DEDUCTION' ? 'text-red-600' : ''}`}
+                >
+                  {it.kind === 'DEDUCTION' ? '−' : ''}
+                  <Money amount={Math.abs(Number(it.amount))} />
                 </td>
               </tr>
             ))}
@@ -92,16 +109,27 @@ export default function PayrollDetailPage() {
           <tfoot>
             <tr className="border-t-2 border-app font-bold">
               <td className="pt-3">{t('hrFix.payrollDetail.netPay')}</td>
-              <td className="pt-3 text-right"><Money amount={Number(p.net)} /></td>
+              <td className="pt-3 text-right">
+                <Money amount={Number(p.net)} />
+              </td>
             </tr>
           </tfoot>
         </table>
       </Card>
 
       <div className="grid grid-cols-3 gap-3 text-sm">
-        <Card className="p-3"><p className="text-muted">Gross</p><Money amount={Number(p.gross)} className="font-bold" /></Card>
-        <Card className="p-3"><p className="text-muted">Bonus</p><Money amount={Number(p.totalBonus)} className="font-bold" /></Card>
-        <Card className="p-3"><p className="text-muted">{t('hrFix.payrollDetail.deduction')}</p><Money amount={Number(p.totalDeduction)} className="font-bold" /></Card>
+        <Card className="p-3">
+          <p className="text-muted">Gross</p>
+          <Money amount={Number(p.gross)} className="font-bold" />
+        </Card>
+        <Card className="p-3">
+          <p className="text-muted">Bonus</p>
+          <Money amount={Number(p.totalBonus)} className="font-bold" />
+        </Card>
+        <Card className="p-3">
+          <p className="text-muted">{t('hrFix.payrollDetail.deduction')}</p>
+          <Money amount={Number(p.totalDeduction)} className="font-bold" />
+        </Card>
       </div>
 
       {canRun && (

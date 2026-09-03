@@ -28,13 +28,22 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Groups({ rows, label }: { rows: { key: string; count: number }[]; label: (k: string) => string }) {
+function Groups({
+  rows,
+  label,
+}: {
+  rows: { key: string; count: number }[];
+  label: (k: string) => string;
+}) {
   const { t } = useT();
   if (rows.length === 0) return <p className="text-sm text-muted">{t('hrFix.home.empty')}</p>;
   return (
     <div className="flex flex-wrap gap-2">
       {rows.map((r) => (
-        <span key={r.key} className="rounded-lg bg-[color:var(--surface-muted)] px-3 py-1.5 text-sm">
+        <span
+          key={r.key}
+          className="rounded-lg bg-[color:var(--surface-muted)] px-3 py-1.5 text-sm"
+        >
           {label(r.key)}: <b className="tabular-nums">{r.count}</b>
         </span>
       ))}
@@ -52,11 +61,16 @@ export default function HrDashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <SectionHeader title={t('hrFix.home.title')} subtitle={t('hrFix.common.periodLabel', { period })} />
+      <SectionHeader
+        title={t('hrFix.home.title')}
+        subtitle={t('hrFix.common.periodLabel', { period })}
+      />
 
       {loading && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
         </div>
       )}
       {error && <ErrorState message={error} onRetry={reload} />}
@@ -64,36 +78,80 @@ export default function HrDashboardPage() {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label={t('hrFix.home.totalEmployees')} value={data.headcount.total} />
-            <Stat label={t('hrFix.home.payrollNet')} value={<Money amount={data.payroll.totals.net} />} />
+            <Stat
+              label={t('hrFix.home.payrollNet')}
+              value={<Money amount={data.payroll.totals.net} />}
+            />
             <Stat label={t('hrFix.home.runPayroll')} value={data.payroll.totals.count} />
-            <Stat label={t('hrFix.home.presentToday')} value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0} />
+            <Stat
+              label={t('hrFix.home.presentToday')}
+              value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0}
+            />
           </div>
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">{t('hrFix.home.headcountMix')}</h3>
-            <Groups rows={data.headcount.byEmploymentStatus} label={(k) => t(EMPLOYMENT_STATUS_LABEL[k as EmploymentStatus]) ?? k} />
+            <Groups
+              rows={data.headcount.byEmploymentStatus}
+              label={(k) => t(EMPLOYMENT_STATUS_LABEL[k as EmploymentStatus]) ?? k}
+            />
           </Card>
 
           <Card className="space-y-3 p-5">
-            <h3 className="font-bold">{t('hrFix.home.attendanceToday', { date: data.workDate })}</h3>
-            <Groups rows={data.attendanceToday} label={(k) => t(ATTENDANCE_STATUS_LABEL[k as AttendanceStatus]) ?? k} />
+            <h3 className="font-bold">
+              {t('hrFix.home.attendanceToday', { date: data.workDate })}
+            </h3>
+            <Groups
+              rows={data.attendanceToday}
+              label={(k) => t(ATTENDANCE_STATUS_LABEL[k as AttendanceStatus]) ?? k}
+            />
           </Card>
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">Payroll {data.periodMonth}</h3>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div><p className="text-muted">{t('hrFix.home.gross')}</p><Money amount={data.payroll.totals.gross} className="font-bold" /></div>
-              <div><p className="text-muted">{t('hrFix.home.bonus')}</p><Money amount={data.payroll.totals.totalBonus} className="font-bold" /></div>
-              <div><p className="text-muted">{t('hrFix.home.deduction')}</p><Money amount={data.payroll.totals.totalDeduction} className="font-bold" /></div>
-              <div><p className="text-muted">{t('hrFix.home.net')}</p><Money amount={data.payroll.totals.net} className="font-bold" /></div>
+              <div>
+                <p className="text-muted">{t('hrFix.home.gross')}</p>
+                <Money amount={data.payroll.totals.gross} className="font-bold" />
+              </div>
+              <div>
+                <p className="text-muted">{t('hrFix.home.bonus')}</p>
+                <Money amount={data.payroll.totals.totalBonus} className="font-bold" />
+              </div>
+              <div>
+                <p className="text-muted">{t('hrFix.home.deduction')}</p>
+                <Money amount={data.payroll.totals.totalDeduction} className="font-bold" />
+              </div>
+              <div>
+                <p className="text-muted">{t('hrFix.home.net')}</p>
+                <Money amount={data.payroll.totals.net} className="font-bold" />
+              </div>
             </div>
-            <Groups rows={data.payroll.byStatus} label={(k) => t(PAYROLL_STATUS_LABEL[k as PayrollStatus]) ?? k} />
+            <Groups
+              rows={data.payroll.byStatus}
+              label={(k) => t(PAYROLL_STATUS_LABEL[k as PayrollStatus]) ?? k}
+            />
           </Card>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/hr/employees" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.manageEmployees')}</Link>
-            <Link href="/hr/payroll" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.runPayrollLink')}</Link>
-            <Link href="/hr/reports" className="text-sm font-semibold text-brand-700 hover:underline">{t('hrFix.home.downloadReport')}</Link>
+            <Link
+              href="/hr/employees"
+              className="text-sm font-semibold text-brand-700 hover:underline"
+            >
+              {t('hrFix.home.manageEmployees')}
+            </Link>
+            <Link
+              href="/hr/payroll"
+              className="text-sm font-semibold text-brand-700 hover:underline"
+            >
+              {t('hrFix.home.runPayrollLink')}
+            </Link>
+            <Link
+              href="/hr/reports"
+              className="text-sm font-semibold text-brand-700 hover:underline"
+            >
+              {t('hrFix.home.downloadReport')}
+            </Link>
           </div>
         </>
       )}

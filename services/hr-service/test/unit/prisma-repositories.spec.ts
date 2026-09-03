@@ -1443,6 +1443,9 @@ describe('AttendancePrismaRepository', () => {
     await repo.list({ status: 'PENDING', skip: 0, take: 1 });
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: { status: 'PENDING' },
+      // CA-1-01: the name travels with the row now — approving an attendance without
+      // it is a decision about a person nobody named.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { workDate: 'desc' },
       skip: 0,
       take: 1,
@@ -1459,10 +1462,13 @@ describe('AttendancePrismaRepository', () => {
     const repo = new AttendancePrismaRepository(asService(p));
     await expect(
       repo.list({ depotIds: ['d1'], employeeId: 'e1', from, to, skip: 10, take: 5 }),
-    ).resolves.toEqual({ rows, total: 1 });
+    ).resolves.toEqual({ rows: rows.map((r) => ({ ...r, employeeName: null })), total: 1 });
     const where = { depotId: { in: ['d1'] }, employeeId: 'e1', workDate: { gte: from, lte: to } };
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where,
+      // CA-1-01: the name travels with the row now — approving an attendance without
+      // it is a decision about a person nobody named.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { workDate: 'desc' },
       skip: 10,
       take: 5,
@@ -1478,6 +1484,8 @@ describe('AttendancePrismaRepository', () => {
     await repo.list({ skip: 0, take: 20 });
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: {},
+      // CA-1-01: the name travels with the row now.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { workDate: 'desc' },
       skip: 0,
       take: 20,
@@ -1494,6 +1502,9 @@ describe('AttendancePrismaRepository', () => {
     await repo.list({ from, skip: 0, take: 20 });
     expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({
       where: { workDate: { gte: from } },
+      // CA-1-01: the name travels with the row now — approving an attendance without
+      // it is a decision about a person nobody named.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { workDate: 'desc' },
       skip: 0,
       take: 20,
@@ -1501,6 +1512,9 @@ describe('AttendancePrismaRepository', () => {
     await repo.list({ to, skip: 0, take: 20 });
     expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({
       where: { workDate: { lte: to } },
+      // CA-1-01: the name travels with the row now — approving an attendance without
+      // it is a decision about a person nobody named.
+      include: { employee: { select: { fullName: true } } },
       orderBy: { workDate: 'desc' },
       skip: 0,
       take: 20,

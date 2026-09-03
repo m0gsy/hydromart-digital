@@ -3,13 +3,31 @@
 import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 
-import { Badge, Card, CenterState, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  CenterState,
+  ErrorState,
+  Money,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { PAYROLL_STATUS_LABEL, fmtDate, type HrPage, type Payroll, type PayrollStatus } from '@/lib/hr';
+import {
+  PAYROLL_STATUS_LABEL,
+  fmtDate,
+  type HrPage,
+  type Payroll,
+  type PayrollStatus,
+} from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
 
-const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = { DRAFT: 'neutral', APPROVED: 'brand', PAID: 'success' };
+const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
+  DRAFT: 'neutral',
+  APPROVED: 'brand',
+  PAID: 'success',
+};
 
 export default function MyPayrollPage() {
   const { t } = useT();
@@ -21,13 +39,27 @@ export default function MyPayrollPage() {
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
       <SectionHeader title={t('hrFix.myPayroll.title')} />
-      {loading && <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>}
+      {loading && (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16" />
+          ))}
+        </div>
+      )}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <CenterState title={t('hrFix.myPayroll.empty')}>{t('hrFix.myPayroll.emptyBody')}</CenterState>}
+      {data && data.rows.length === 0 && (
+        <CenterState title={t('hrFix.myPayroll.empty')}>
+          {t('hrFix.myPayroll.emptyBody')}
+        </CenterState>
+      )}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((p) => (
-            <Link key={p.id} href={`/hr/me/payroll/detail?id=${p.id}`} className="flex items-center justify-between gap-2 p-4 hover:bg-brand-50">
+            <Link
+              key={p.id}
+              href={`/hr/me/payroll/detail?id=${p.id}`}
+              className="flex items-center justify-between gap-2 p-4 hover:bg-brand-50"
+            >
               <div>
                 <p className="font-semibold tabular-nums">{p.periodMonth}</p>
                 <p className="text-xs text-muted">

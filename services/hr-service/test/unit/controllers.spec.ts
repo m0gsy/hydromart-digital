@@ -347,10 +347,12 @@ describe('HolidayController / ShiftController', () => {
   it('announcements delegate, self and HR sides apart', () => {
     const svc = svcMock(['list', 'getById', 'create', 'publishDue', 'listForSelf', 'markRead']);
     const hrSide = new AnnouncementController(svc as never);
-    hrSide.list({ page: 2, pageSize: 5 } as never);
-    expect(svc.list).toHaveBeenCalledWith(2, 5);
-    hrSide.list({} as never);
-    expect(svc.list).toHaveBeenLastCalledWith(undefined, undefined);
+    // CA-1-29: the caller decides what the list may contain, so it is passed through.
+    const user = { sub: 'u1', role: 'HR', phone: null, depotId: null } as never;
+    hrSide.list({ page: 2, pageSize: 5 } as never, user);
+    expect(svc.list).toHaveBeenCalledWith(user, 2, 5);
+    hrSide.list({} as never, user);
+    expect(svc.list).toHaveBeenLastCalledWith(user, undefined, undefined);
     hrSide.getById('an1');
     expect(svc.getById).toHaveBeenCalledWith('an1');
     const dto = { title: 't', body: 'b', targets: [{ dimension: 'COMPANY' }] } as never;

@@ -4,7 +4,17 @@ import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { useT } from '@/lib/locale-context';
-import { Badge, Button, Card, ErrorState, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  LoadError,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -40,10 +50,7 @@ export default function ShiftPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <SectionHeader
-        title={t('hrFix.shift.title')}
-        subtitle={t('hrFix.shift.subtitle')}
-      />
+      <SectionHeader title={t('hrFix.shift.title')} subtitle={t('hrFix.shift.subtitle')} />
 
       {/* Both panels below take their shift list from here, and every shift dropdown in
           them is empty without it — which reads as a depot that defined no shifts, the
@@ -244,8 +251,10 @@ function Assignments({
   );
 
   const label = (a: ShiftAssignment) => {
-    if (a.shiftId) return shifts.find((s) => s.id === a.shiftId)?.name ?? t('hrFix.shift.shiftDeleted');
-    if (a.rotationId) return rotations.find((r) => r.id === a.rotationId)?.name ?? t('hrFix.shift.rotationDeleted');
+    if (a.shiftId)
+      return shifts.find((s) => s.id === a.shiftId)?.name ?? t('hrFix.shift.shiftDeleted');
+    if (a.rotationId)
+      return rotations.find((r) => r.id === a.rotationId)?.name ?? t('hrFix.shift.rotationDeleted');
     // Neither is set. The B2 migration cleared the shift id on rows that named a shift
     // somebody had deleted, and wrote which one into the note — so this is not "rotasi
     // terhapus", which is what the old two-branch version called it.

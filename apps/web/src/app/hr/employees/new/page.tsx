@@ -17,7 +17,10 @@ export default function NewEmployeePage() {
   const { t } = useT();
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title={t('hrFix.employeeNew.title')} subtitle={t('hrFix.employeeNew.subtitle')} />
+      <SectionHeader
+        title={t('hrFix.employeeNew.title')}
+        subtitle={t('hrFix.employeeNew.subtitle')}
+      />
       <Suspense fallback={<EmployeeForm initial={EMPTY_EMPLOYEE_FORM} />}>
         <PrefilledEmployeeForm />
       </Suspense>
