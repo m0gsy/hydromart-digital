@@ -131,13 +131,25 @@ function Detail({ id }: { id: string }) {
   const ids = [detail.data?.submittedBy, detail.data?.decidedBy].filter((v): v is string =>
     Boolean(v),
   );
-  const namesQ = useAsync<Customer[]>(
-    () =>
-      ids.length > 0
-        ? api.getCached<Customer[]>(endpoints.auth.customersByIds(ids), true).catch(() => [])
-        : Promise.resolve([]),
-    [ids.join(',')],
-  );
+  /*
+   * Written as a statement rather than a ternary expression on purpose.
+   *
+   * `scripts/check-endpoint-contracts.mjs` reads `api.<verb>(endpoints.a.b)` to check that
+   * the client and the controller agree on the HTTP verb, and it reads it with a regex.
+   * Inside a ternary this call was long enough that prettier broke the line after `api`,
+   * the regex stopped matching, and the site was counted as one whose verb nothing
+   * verifies. Hoisting the URL into a variable would silence the counter and lose the
+   * check with it; keeping the call on one line is what actually restores it.
+   */
+  const loadNames = async (): Promise<Customer[]> => {
+    if (ids.length === 0) return [];
+    try {
+      return await api.getCached<Customer[]>(endpoints.auth.customersByIds(ids), true);
+    } catch {
+      return [];
+    }
+  };
+  const namesQ = useAsync<Customer[]>(loadNames, [ids.join(',')]);
   const who = (id: string) => {
     const found = (namesQ.data ?? []).find((c) => c.id === id);
     return found ? found.fullName || found.phone : shortId(id);

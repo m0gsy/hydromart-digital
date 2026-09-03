@@ -175,7 +175,30 @@ function clientMethods() {
      */
     let depth = 0;
     const stack = [];
-    for (const line of text.split('\n')) {
+    /*
+     * The name of an arrow endpoint whose PATH is on the next line, e.g.
+     *
+     *   customersByIds: (ids: string[]) =>
+     *     `/auth/api/v1/auth/customers/by-ids?ids=${...}`,
+     *
+     * The leaf pattern below wants the name and the path on ONE line, and prettier splits
+     * exactly these: the ones whose signature plus template exceed 100 columns. Fifty-three
+     * endpoints were invisible to this checker because of it, so every call to one of them
+     * was counted as "a verb nobody verifies" rather than actually checked — and the
+     * ceiling that counts them grew every time somebody used one. Carrying the name forward
+     * one line is the whole fix.
+     */
+    let pending = null;
+    for (const rawLine of text.split('\n')) {
+      const carried = pending;
+      pending = null;
+      const arrowOnly = rawLine.match(/([a-zA-Z0-9_]+):\s*\([^)]*\)\s*=>\s*$/);
+      if (arrowOnly) {
+        pending = arrowOnly[1];
+        continue;
+      }
+      // A carried name is spliced onto the continuation so one pattern reads both shapes.
+      const line = carried ? `${carried}: ${rawLine.trim()}` : rawLine;
       const open = line.match(/([a-zA-Z0-9_]+):\s*\{\s*$/);
       const leaf = line.match(
         /([a-zA-Z0-9_]+):\s*(?:\([^)]*\)\s*=>\s*)?['`](\/[a-z-]+\/api\/v1\/[^'`\s]*)/i,
