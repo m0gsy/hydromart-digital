@@ -21,10 +21,24 @@ interface ReturnRow {
 export default function HqReturnsPage() {
   const { t } = useT();
 
-  const data = useAsync<ReturnRow[]>(async () => {
-    const list = await api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
+  const data = useAsync<{ rows: ReturnRow[]; unreadable: string[] }>(async () => {
+    const list = await api.getCached<Page<DepotAdmin>>(
+      endpoints.depots.manage({ limit: 100 }),
+      true,
+    );
     const depots = list.items.filter((d) => d.active);
-    return Promise.all(
+    /*
+     * CA-2-69: one depot that cannot be read must not blank the other thirty-nine.
+     *
+     * `Promise.all` rejects on the first failure, so a single slow or unreachable depot
+     * turned this whole page into an error state — a network view that disappears exactly
+     * when part of the network is in trouble.
+     *
+     * The depots that DID answer are shown, and the ones that did not are named. Quietly
+     * rendering fewer rows would be worse than the error it replaces: the totals under the
+     * table would be short by an unknown amount and read as a healthier network.
+     */
+    const settled = await Promise.allSettled(
       depots.map(async (depot) => {
         const [ret, iss] = await Promise.all([
           api.get<GallonReturnSummary>(endpoints.returns.summary(depot.id), true),
@@ -37,15 +51,34 @@ export default function HqReturnsPage() {
         };
       }),
     );
+    const rows = settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+    const unreadable = depots
+      .filter((_d, i) => settled[i]!.status === 'rejected')
+      .map((d) => d.name);
+    return { rows, unreadable };
   });
 
-  const rows = data.data ?? [];
+  const rows = data.data?.rows ?? [];
+  const unreadable = data.data?.unreadable ?? [];
   const totalCirculating = rows.reduce((n, r) => n + r.circulating, 0);
   const totalDeposit = rows.reduce((n, r) => n + r.deposit, 0);
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Recycle} title={t('hq.returns.title')} subtitle={t('hq.returns.subtitle')} />
+      <HqPageHeader
+        icon={Recycle}
+        title={t('hq.returns.title')}
+        subtitle={t('hq.returns.subtitle')}
+      />
+
+      {unreadable.length > 0 && (
+        <p
+          className="rounded-xl border border-app bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800"
+          role="status"
+        >
+          {t('hq.returns.partial', { depots: unreadable.join(', ') })}
+        </p>
+      )}
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />
@@ -75,9 +108,10 @@ export default function HqReturnsPage() {
               <thead>
                 <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-medium">{t('hq.returns.depot')}</th>
-                  <th className="px-4 py-3 text-right font-medium">{t('hq.returns.circulating')}</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t('hq.returns.circulating')}
+                  </th>
                   <th className="px-4 py-3 text-right font-medium">{t('hq.returns.deposit')}</th>
-                  <th className="px-4 py-3 text-right font-medium">{t('hq.returns.outstanding')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--border)]">
@@ -91,7 +125,6 @@ export default function HqReturnsPage() {
                     <td className="px-4 py-3 text-right tabular-nums">
                       <Money amount={r.deposit} />
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold">{r.circulating}</td>
                   </tr>
                 ))}
               </tbody>

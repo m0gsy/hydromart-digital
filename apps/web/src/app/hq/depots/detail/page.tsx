@@ -12,7 +12,15 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, DepotAdmin, InventoryItem, NetworkDashboard, Order, OwnerPayoutBalance, Page } from '@/lib/types';
+import type {
+  Customer,
+  DepotAdmin,
+  InventoryItem,
+  NetworkDashboard,
+  Order,
+  OwnerPayoutBalance,
+  Page,
+} from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 function range30(): { from: string; to: string } {
@@ -52,14 +60,26 @@ export default function HqDepotDetailPage() {
    * "central"; and a suspended depot 404'd on the one screen carrying its Reactivate
    * button. `manage/:depotId` is the same row in full, behind `depotDirectory`.
    */
-  const depot = useAsync<DepotAdmin>(
-    () => api.get(endpoints.depots.manageDetail(id), true),
-    [id],
-  );
+  const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.manageDetail(id), true), [id]);
   const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range30()), true));
   const inv = useAsync<InventoryItem[]>(() => api.get(endpoints.inventory.lines(id), true), [id]);
-  const staff = useAsync<{ items: Customer[] }>(
-    () => api.get<{ items: Customer[] }>(endpoints.auth.staff({ limit: 50, depotId: id }), true).catch(() => ({ items: [] as Customer[] })),
+  /*
+   * CA-2-69: a failed read is not an empty depot.
+   *
+   * This caught the staff call to `{ items: [] }`, so a depot with a full roster read as
+   * "belum ada staf" whenever auth-service was slow or down — on the screen head office
+   * opens to decide whether a depot is running. The catch was there so one unreachable
+   * service could not blank the whole page, which is right; what was wrong is that the
+   * failure then looked exactly like an answer.
+   *
+   * `null` is the third state the render needs: not loaded, loaded-and-empty, and
+   * could-not-be-read.
+   */
+  const staff = useAsync<{ items: Customer[] } | null>(
+    () =>
+      api
+        .get<{ items: Customer[] }>(endpoints.auth.staff({ limit: 50, depotId: id }), true)
+        .catch(() => null),
     [id],
   );
   const orders = useAsync<Page<Order>>(() =>
@@ -69,7 +89,12 @@ export default function HqDepotDetailPage() {
   // viewers get 403 → card shows an honest "unavailable" note rather than erroring the page).
   const ownerId = depot.data?.ownerId ?? null;
   const payout = useAsync<OwnerPayoutBalance | null>(
-    () => (ownerId ? api.get<OwnerPayoutBalance>(endpoints.payout.hqOwnerBalance(ownerId), true).catch(() => null) : Promise.resolve(null)),
+    () =>
+      ownerId
+        ? api
+            .get<OwnerPayoutBalance>(endpoints.payout.hqOwnerBalance(ownerId), true)
+            .catch(() => null)
+        : Promise.resolve(null),
     [ownerId],
   );
 
@@ -202,7 +227,11 @@ export default function HqDepotDetailPage() {
             <div>
               <dt className="text-xs text-muted">{t('hq.depotDetail.config.minOrder')}</dt>
               <dd className="font-semibold">
-                {d.minOrderAmount == null ? t('hq.common.dash') : <Money amount={d.minOrderAmount} />}
+                {d.minOrderAmount == null ? (
+                  t('hq.common.dash')
+                ) : (
+                  <Money amount={d.minOrderAmount} />
+                )}
               </dd>
             </div>
             <div>
@@ -253,13 +282,15 @@ export default function HqDepotDetailPage() {
           </h2>
           {staff.loading ? (
             <Skeleton className="h-24 w-full" />
-          ) : staff.error ? (
+          ) : staff.error || staff.data === null ? (
+            // CA-2-69: the catch above turns an unreachable auth-service into `null`, so a
+            // depot with a full roster can no longer read as "belum ada staf".
             <LoadError onRetry={staff.reload} />
-          ) : (staff.data?.items ?? []).length === 0 ? (
+          ) : staff.data.items.length === 0 ? (
             <p className="text-sm text-muted">{t('hq.depotDetail.staff.empty')}</p>
           ) : (
             <ul className="divide-y divide-[color:var(--border)]">
-              {(staff.data?.items ?? []).map((s) => (
+              {staff.data.items.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                   <span className="min-w-0 truncate font-medium">{s.fullName || s.phone}</span>
                   <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
@@ -310,12 +341,20 @@ export default function HqDepotDetailPage() {
         ) : payout.data ? (
           <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
             <div>
-              <p className="text-xs uppercase tracking-wide text-white/60">{t('hq.depotDetail.payout.balance')}</p>
-              <p className="text-2xl font-bold tabular-nums">Rp {payout.data.availableBalance.toLocaleString('id-ID')}</p>
+              <p className="text-xs uppercase tracking-wide text-white/60">
+                {t('hq.depotDetail.payout.balance')}
+              </p>
+              <p className="text-2xl font-bold tabular-nums">
+                Rp {payout.data.availableBalance.toLocaleString('id-ID')}
+              </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-white/60">{t('hq.depotDetail.payout.nextDate')}</p>
-              <p className="text-sm font-semibold">{new Date(payout.data.nextPayoutDate).toLocaleDateString('id-ID')}</p>
+              <p className="text-xs uppercase tracking-wide text-white/60">
+                {t('hq.depotDetail.payout.nextDate')}
+              </p>
+              <p className="text-sm font-semibold">
+                {new Date(payout.data.nextPayoutDate).toLocaleDateString('id-ID')}
+              </p>
             </div>
           </div>
         ) : (

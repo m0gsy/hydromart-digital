@@ -790,6 +790,7 @@ export const hq = {
     loadError: 'Some depots failed to load.',
   },
   returns: {
+    partial: 'Could not read: {depots}. The figures below are incomplete.',
     title: 'Empty gallon returns',
     subtitle: 'Gallons in circulation & deposit held per depot',
     depot: 'Depot',
@@ -897,6 +898,10 @@ export const hq = {
     minutes: '{n} min',
   },
   forecast: {
+    refresh: 'Reload',
+    rebuildHint:
+      'The figures below are read from the forecast model. To rebuild the model itself from completed orders:',
+    rebuildLink: 'open System health',
     title: 'Demand forecast',
     subtitle: 'Predicted vs current demand per product',
     rebuild: 'Rebuild',
@@ -1379,6 +1384,9 @@ export const hq = {
       'Measure with scripts/forecast-eval.mjs first. A win on one depot is not a reason to switch everyone.',
   },
   webhooks: {
+    secretTitle: 'Signing secret — copy it now',
+    secretBody:
+      'Shown once only. The partner verifies the X-Hydromart-Signature header on every delivery with it; without it, anyone who learns the URL can forge deliveries.',
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
     howItWorks:

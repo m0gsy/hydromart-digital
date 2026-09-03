@@ -794,6 +794,7 @@ export const hq = {
     loadError: 'Gagal memuat sebagian depot.',
   },
   returns: {
+    partial: 'Tidak bisa membaca: {depots}. Angka di bawah belum lengkap.',
     title: 'Retur galon kosong',
     subtitle: 'Galon beredar & deposit tertahan tiap depot',
     depot: 'Depot',
@@ -901,6 +902,10 @@ export const hq = {
     minutes: '{n} mnt',
   },
   forecast: {
+    refresh: 'Muat ulang',
+    rebuildHint:
+      'Angka di bawah dibaca dari model prakiraan. Kalau modelnya sendiri perlu dibangun ulang dari pesanan yang sudah selesai:',
+    rebuildLink: 'buka Kesehatan sistem',
     title: 'Prakiraan permintaan',
     subtitle: 'Prediksi vs permintaan saat ini per produk',
     rebuild: 'Rebuild',
@@ -1389,6 +1394,9 @@ export const hq = {
       'Ukur dulu dengan scripts/forecast-eval.mjs. Menang di satu depot bukan alasan mengganti semuanya.',
   },
   webhooks: {
+    secretTitle: 'Kunci tanda tangan — salin sekarang',
+    secretBody:
+      'Hanya ditampilkan sekali. Mitra memakainya untuk memverifikasi header X-Hydromart-Signature di setiap kiriman; tanpa itu, siapa pun yang tahu URL-nya bisa memalsukan kiriman.',
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
     howItWorks:

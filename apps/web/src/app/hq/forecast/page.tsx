@@ -1,6 +1,7 @@
 'use client';
 
 import { ChartLineUp } from '@phosphor-icons/react';
+import Link from 'next/link';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
@@ -42,12 +43,33 @@ export default function HqForecastPage() {
         subtitle={t('hq.forecast.subtitle')}
         action={
           <>
+            {/*
+             * CA-2-69: this button said "Bangun ulang" and called `data.reload`.
+             *
+             * Reloading re-reads the SAME model. Rebuilding it — replaying order-service's
+             * completed orders into the read model — is `POST /forecast/rebuild`, which
+             * exists, is SUPER_ADMIN-only, and already has a home on /hq/health. So the
+             * button was not broken; its LABEL was. Somebody looking at a forecast that had
+             * drifted pressed it, saw the same numbers, and had no reason to think the
+             * model was stale rather than the data.
+             *
+             * Relabelled to what it does, with a pointer to what they were looking for.
+             * Wiring the real rebuild in here instead would put a SUPER_ADMIN-only call
+             * behind a button every HQ role can see, and answer most of them with a 403.
+             */}
             <Button variant="secondary" onClick={data.reload} loading={data.loading}>
-              {t('hq.forecast.rebuild')}
+              {t('hq.forecast.refresh')}
             </Button>
           </>
         }
       />
+
+      <p className="text-[12.5px] text-muted">
+        {t('hq.forecast.rebuildHint')}{' '}
+        <Link href="/hq/health" className="font-bold text-brand-700 underline underline-offset-2">
+          {t('hq.forecast.rebuildLink')}
+        </Link>
+      </p>
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />
@@ -73,14 +95,18 @@ export default function HqForecastPage() {
                 </div>
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt className="text-xs text-muted">{t('hq.forecast.predicted', { n: HORIZON })}</dt>
+                    <dt className="text-xs text-muted">
+                      {t('hq.forecast.predicted', { n: HORIZON })}
+                    </dt>
                     <dd className="text-lg font-bold tabular-nums text-brand-700">
                       {Math.round(forecast.predictedTotal).toLocaleString('id-ID')}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted">{t('hq.forecast.current')}</dt>
-                    <dd className="text-lg font-bold tabular-nums">{current.toLocaleString('id-ID')}</dd>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {current.toLocaleString('id-ID')}
+                    </dd>
                   </div>
                 </dl>
                 <div className="flex items-center gap-2 border-t border-app pt-2">
@@ -88,9 +114,14 @@ export default function HqForecastPage() {
                     {t('hq.forecast.confidence')}
                   </span>
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
-                    <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.round(confidence * 100)}%` }} />
+                    <div
+                      className="h-full rounded-full bg-green-500"
+                      style={{ width: `${Math.round(confidence * 100)}%` }}
+                    />
                   </div>
-                  <span className="text-xs font-bold tabular-nums">{Math.round(confidence * 100)}%</span>
+                  <span className="text-xs font-bold tabular-nums">
+                    {Math.round(confidence * 100)}%
+                  </span>
                 </div>
               </Card>
             );

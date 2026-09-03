@@ -46,3 +46,56 @@ describe('WebhookService', () => {
     await expect(service.remove('nope')).rejects.toBeInstanceOf(WebhookNotFoundError);
   });
 });
+
+/*
+ * CA-2-37: an endpoint registered without a secret is an endpoint nobody can trust.
+ *
+ * The dispatcher signs only when there IS one, deliberately — and its note said an endpoint
+ * registered without a secret "asked for that". The premise was false: the HQ console sends
+ * `{ url, events }` and had no field for a secret at all, so it could not ask for anything.
+ * Every webhook ever registered from the console went out unsigned, forever, and the
+ * receiver had no way to tell our POST from anyone else's. A URL is not a credential.
+ */
+describe('WebhookService signing secret (CA-2-37)', () => {
+  it('gives every endpoint a secret, even when the caller sends none', async () => {
+    const service = new WebhookService(new InMemoryWebhookRepository());
+
+    const w = await service.create({
+      url: 'https://partner.example.com/hooks',
+      events: ['order.created'],
+    });
+
+    expect(w.secret).toBeTruthy();
+    // 32 bytes of randomBytes as hex — long enough that the HMAC is the weakest part.
+    expect(w.secret).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('gives two endpoints different secrets', async () => {
+    const service = new WebhookService(new InMemoryWebhookRepository());
+    const a = await service.create({ url: 'https://a.example.com/h', events: ['x'] });
+    const b = await service.create({ url: 'https://b.example.com/h', events: ['x'] });
+    expect(a.secret).not.toBe(b.secret);
+  });
+
+  /*
+   * A partner migrating an endpoint that already verifies against a known key must be able
+   * to keep it — generating over the top would break the verification we are trying to add.
+   */
+  it('honours a secret the caller supplies, and ignores a blank one', async () => {
+    const service = new WebhookService(new InMemoryWebhookRepository());
+
+    const supplied = await service.create({
+      url: 'https://partner.example.com/hooks',
+      events: ['order.created'],
+      secret: 'kunci-lama-mitra',
+    });
+    expect(supplied.secret).toBe('kunci-lama-mitra');
+
+    const blank = await service.create({
+      url: 'https://other.example.com/hooks',
+      events: ['order.created'],
+      secret: '   ',
+    });
+    expect(blank.secret).toMatch(/^[0-9a-f]{64}$/);
+  });
+});

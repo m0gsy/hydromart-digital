@@ -124,3 +124,25 @@ export class WebhookDto {
     };
   }
 }
+
+/**
+ * CA-2-37: the create response, and the ONE time the signing secret is readable.
+ *
+ * `WebhookDto` deliberately does not carry the secret — a list endpoint that hands out
+ * every endpoint's signing key turns one leaked read into forged deliveries against every
+ * partner. But a secret nobody can read is a secret nobody can configure, which is how
+ * every console-registered webhook ended up unsigned: the console had no field to send one
+ * and no way to learn the one it was given.
+ *
+ * Same shape as `CreatedApiKeyDto` in this service, for the same reason.
+ */
+export class CreatedWebhookDto extends WebhookDto {
+  @ApiProperty({
+    description: 'Signing secret. Shown ONCE, at creation — it is not readable afterwards.',
+  })
+  secret!: string;
+
+  static fromSecret(record: WebhookRecord): CreatedWebhookDto {
+    return { ...WebhookDto.from(record), secret: record.secret ?? '' };
+  }
+}
