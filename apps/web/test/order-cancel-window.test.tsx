@@ -9,8 +9,12 @@ const { get, getCached, post } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/api', () => ({ api: { get, getCached, post }, ApiError: class extends Error {} }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' }, ready: true }) }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1' }, ready: true }),
+}));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -38,7 +42,9 @@ const order = (status: string) => ({
   discountAmount: 0,
   totalAmount: 25000,
   paymentMethod: 'CASH',
-  items: [{ productId: 'p-1', productName: 'Galon 19L', quantity: 1, unitPrice: 20000, lineTotal: 20000 }],
+  items: [
+    { productId: 'p-1', productName: 'Galon 19L', quantity: 1, unitPrice: 20000, lineTotal: 20000 },
+  ],
   history: [],
   reviewed: false,
   createdAt: '2026-08-20T03:00:00.000Z',
@@ -81,11 +87,16 @@ afterEach(() => vi.clearAllMocks());
  * it leaves open: the depot, which can still stop the run.
  */
 describe('H10 — the window in which an order can still be cancelled', () => {
-  it.each(['CREATED', 'CONFIRMED', 'PREPARING'])('%s still offers the cancel button', async (status) => {
-    mockOrder(status);
-    renderPage();
-    expect(await screen.findByRole('button', { name: /batalkan pesanan|cancel order/i })).toBeInTheDocument();
-  });
+  it.each(['CREATED', 'CONFIRMED', 'PREPARING'])(
+    '%s still offers the cancel button',
+    async (status) => {
+      mockOrder(status);
+      renderPage();
+      expect(
+        await screen.findByRole('button', { name: /batalkan pesanan|cancel order/i }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('says why the button is gone once a courier is on the way', async () => {
     mockOrder('DRIVER_ASSIGNED');
@@ -93,7 +104,9 @@ describe('H10 — the window in which an order can still be cancelled', () => {
 
     await screen.findAllByText(/HM-0001/);
     expect(screen.queryByRole('button', { name: /batalkan pesanan|cancel order/i })).toBeNull();
-    expect(await screen.findByText(/kurir sudah ditugaskan|courier has been assigned/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/kurir sudah ditugaskan|courier has been assigned/i),
+    ).toBeInTheDocument();
   });
 
   it('offers the depot as the way out, with its real number', async () => {
@@ -134,9 +147,14 @@ describe('K2.4 · a second attempt does not reopen the cancel window', () => {
       if (p.includes('/orders/o-1'))
         return Promise.resolve({
           ...order(status),
-          history: history.map((s, i) => ({ status: s, note: null, createdAt: `2026-08-2${i}T03:00:00.000Z` })),
+          history: history.map((s, i) => ({
+            status: s,
+            note: null,
+            createdAt: `2026-08-2${i}T03:00:00.000Z`,
+          })),
         });
-      if (p.includes('/contact')) return Promise.resolve({ name: 'Depot Kemang', contactPhone: '081298765432' });
+      if (p.includes('/contact'))
+        return Promise.resolve({ name: 'Depot Kemang', contactPhone: '081298765432' });
       if (p.includes('/payment-info')) return Promise.resolve(null);
       if (p.includes('/payments')) return Promise.resolve({ items: [], total: 0 });
       return Promise.resolve(null);
@@ -150,7 +168,14 @@ describe('K2.4 · a second attempt does not reopen the cancel window', () => {
   });
 
   it('withholds it once the order has been out with a courier, even back on PREPARING', async () => {
-    withHistory('PREPARING', ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'ON_DELIVERY', 'PREPARING']);
+    withHistory('PREPARING', [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'ON_DELIVERY',
+      'PREPARING',
+    ]);
     renderPage();
     // The depot line — the one H10 added for exactly this situation — takes its place.
     await screen.findAllByText(/depot/i);

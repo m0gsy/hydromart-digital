@@ -23,7 +23,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/walk-in',
 }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' }, ready: true }),
+  useAuth: () => ({
+    customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' },
+    ready: true,
+  }),
 }));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -70,7 +73,13 @@ beforeEach(() => {
   batchBody = null;
   post.mockReset().mockImplementation(async (path: string, body: unknown) => {
     if (path.includes('/walk-in/quote')) {
-      return { subtotalIdr: 20000, discountIdr: 0, totalIdr: 20000, agen: false, catalogFallback: null };
+      return {
+        subtotalIdr: 20000,
+        discountIdr: 0,
+        totalIdr: 20000,
+        agen: false,
+        catalogFallback: null,
+      };
     }
     if (path.includes('/products/batch')) {
       batchBody = body;
@@ -85,11 +94,26 @@ beforeEach(() => {
     // open while it is in flight. These cases are about what happens AFTER the cashier
     // presses Bayar, so the shift has to answer.
     if (p.includes('shift')) {
-      return { id: 's-1', depotId: 'depot-1', cashierId: 's1', cashierName: 'Rina', status: 'OPEN', openingFloat: 0, openedAt: '2026-08-25T08:00:00.000Z', closedAt: null, countedCash: null, expectedCash: null, variance: null, note: null };
+      return {
+        id: 's-1',
+        depotId: 'depot-1',
+        cashierId: 's1',
+        cashierName: 'Rina',
+        status: 'OPEN',
+        openingFloat: 0,
+        openedAt: '2026-08-25T08:00:00.000Z',
+        closedAt: null,
+        countedCash: null,
+        expectedCash: null,
+        variance: null,
+        note: null,
+      };
     }
     // The depot stocks exactly one product: the oldest one in the network catalogue.
     if (p.includes('/inventory')) {
-      return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
+      return [
+        { id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 },
+      ];
     }
     if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
     if (p.includes('/products/batch')) {

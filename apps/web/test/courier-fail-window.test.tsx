@@ -80,7 +80,9 @@ describe('B9 — the failure window the courier screen kept shut', () => {
 
   it('keeps no-show at ON_DELIVERY only — nobody can be out before you set off', async () => {
     mount('ON_DELIVERY');
-    expect(await screen.findByRole('button', { name: /tidak di tempat|no.?show/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /tidak di tempat|no.?show/i }),
+    ).toBeInTheDocument();
   });
 
   it.each(['ASSIGNED', 'PICKED_UP'])('offers no no-show at %s', async (status) => {
@@ -127,7 +129,9 @@ describe('the courier screen, step by step', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     mount('ON_DELIVERY');
 
-    await userEvent.click(await screen.findByRole('button', { name: /galon kosong|empties|retur/i }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: /galon kosong|empties|retur/i }),
+    );
     expect(String(push.mock.calls.at(-1)?.[0])).toContain('/returns');
   });
 
@@ -150,7 +154,10 @@ describe('B5b — the window on the screen of the person carrying the box', () =
     get.mockReset().mockImplementation((path: string) => {
       const p = String(path);
       if (p.includes('/deliveries/del-1')) {
-        return Promise.resolve({ ...delivery('ON_DELIVERY'), deliveryWindow: '2026-08-22 09:00-12:00' });
+        return Promise.resolve({
+          ...delivery('ON_DELIVERY'),
+          deliveryWindow: '2026-08-22 09:00-12:00',
+        });
       }
       if (p.includes('/payments')) return Promise.resolve({ items: [], total: 0 });
       return Promise.resolve(null);

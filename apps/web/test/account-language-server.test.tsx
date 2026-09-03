@@ -9,9 +9,19 @@ const { get, getCached, post, patch } = vi.hoisted(() => ({
   patch: vi.fn(),
 }));
 
-const prefs = { customerId: 'c-1', push: true, email: true, whatsapp: true, categories: {}, locale: 'id' };
+const prefs = {
+  customerId: 'c-1',
+  push: true,
+  email: true,
+  whatsapp: true,
+  categories: {},
+  locale: 'id',
+};
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached, post, patch }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached, post, patch },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
     customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu', phone: '081234567890' },
@@ -19,7 +29,9 @@ vi.mock('@/lib/auth-context', () => ({
     signOut: vi.fn(),
   }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('@/lib/push', () => ({
   getPushState: () => Promise.resolve('unsubscribed'),
@@ -58,7 +70,8 @@ beforeEach(() => {
   prefs.locale = 'id';
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
-    if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+    if (p.includes('/loyalty/me'))
+      return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     if (p.includes('/profile/notifications')) return Promise.resolve({ ...prefs });
     return Promise.resolve([]);

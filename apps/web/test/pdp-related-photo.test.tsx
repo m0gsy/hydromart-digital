@@ -13,7 +13,11 @@ vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
 }));
 // Mutable so a case can put the screen in a different state without a second mock factory.
-const state = { customer: { id: 'c-1' } as { id: string } | null, location: null as { lat: number; lng: number } | null, rate: 0 };
+const state = {
+  customer: { id: 'c-1' } as { id: string } | null,
+  location: null as { lat: number; lng: number } | null,
+  rate: 0,
+};
 
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: state.customer }) }));
 vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn() }) }));
@@ -56,7 +60,9 @@ describe('product detail — frequently bought together photos', () => {
     getCached.mockReset().mockImplementation((path: string) => {
       const p = String(path);
       if (p.includes('/products/batch')) {
-        return Promise.resolve([{ id: 'p-rel', name: 'Tutup Galon', imageUrl: 'https://cdn.test/tutup.jpg' }]);
+        return Promise.resolve([
+          { id: 'p-rel', name: 'Tutup Galon', imageUrl: 'https://cdn.test/tutup.jpg' },
+        ]);
       }
       if (p.includes('categories')) return Promise.resolve([]);
       return Promise.resolve(null);
@@ -94,12 +100,9 @@ describe('product detail — frequently bought together photos', () => {
     renderPage();
 
     await screen.findByText('Tutup Galon');
-    await waitFor(() =>
-      expect(screen.queryByRole('img', { name: 'Tutup Galon' })).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Tutup Galon' })).toBeNull());
   });
 });
-
 
 /**
  * The states this screen draws, and the ones it used to draw for nobody: before H1 landed
@@ -129,7 +132,9 @@ describe('product detail — the states it draws', () => {
       if (p.includes('/products/p-hero')) return Promise.resolve(FULL);
       if (p.includes('/loyalty/me')) return Promise.resolve({ discountRate: 0.05, tier: 'GOLD' });
       if (p.includes('/depots')) {
-        return Promise.resolve([{ id: 'd-1', name: 'Depot Kemang', distanceKm: 1.2, deliveryFee: 5000 }]);
+        return Promise.resolve([
+          { id: 'd-1', name: 'Depot Kemang', distanceKm: 1.2, deliveryFee: 5000 },
+        ]);
       }
       return Promise.resolve(null);
     });

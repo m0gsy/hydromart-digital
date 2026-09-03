@@ -119,6 +119,9 @@ describe('catalog paging', () => {
 function pagesAskedFor(categoryId: string): number[] {
   return get.mock.calls
     .map(([path]) => path as string)
-    .filter((path) => path.includes('/products/api/v1/products') && path.includes(`categoryId=${categoryId}`))
+    .filter(
+      (path) =>
+        path.includes('/products/api/v1/products') && path.includes(`categoryId=${categoryId}`),
+    )
     .map((path) => Number(new URL(path, 'http://x').searchParams.get('page') ?? 1));
 }

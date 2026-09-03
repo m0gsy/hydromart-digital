@@ -18,7 +18,11 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 's-1', role: 'STAFF_DEPOT' }, ready: true }),
 }));
 vi.mock('@/lib/depot-context', () => ({
-  useDepot: () => ({ selectedId: 'd-1', selected: { id: 'd-1', name: 'Depot Kemang', code: 'KMG' }, depots: [] }),
+  useDepot: () => ({
+    selectedId: 'd-1',
+    selected: { id: 'd-1', name: 'Depot Kemang', code: 'KMG' },
+    depots: [],
+  }),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),

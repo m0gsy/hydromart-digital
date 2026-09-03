@@ -16,7 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * access rules in the console with nothing standing behind them.
  */
 
-const { role, pathname } = vi.hoisted(() => ({ role: { current: 'HEAD_OFFICE' }, pathname: { current: '/hq' } }));
+const { role, pathname } = vi.hoisted(() => ({
+  role: { current: 'HEAD_OFFICE' },
+  pathname: { current: '/hq' },
+}));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname.current,

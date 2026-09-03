@@ -107,7 +107,11 @@ function pagedServer<T>(total: number, make: (i: number) => T, key: 'items' | 'r
 }
 
 describe('usePagedList — the shared hook the screens are built on', () => {
-  function Harness({ pages }: { pages: (page: number) => Promise<{ items: string[]; total: number }> }) {
+  function Harness({
+    pages,
+  }: {
+    pages: (page: number) => Promise<{ items: string[]; total: number }>;
+  }) {
     const [filter, setFilter] = useState('a');
     const list = usePagedList(pages, [filter]);
     return (
@@ -122,7 +126,10 @@ describe('usePagedList — the shared hook the screens are built on', () => {
 
   const server = (total: number, tag = 'x') =>
     vi.fn(async (page: number) => ({
-      items: Array.from({ length: Math.min(3, Math.max(0, total - (page - 1) * 3)) }, (_, i) => `${tag}${(page - 1) * 3 + i}`),
+      items: Array.from(
+        { length: Math.min(3, Math.max(0, total - (page - 1) * 3)) },
+        (_, i) => `${tag}${(page - 1) * 3 + i}`,
+      ),
       total,
     }));
 

@@ -9,14 +9,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * staff. The one row they DO need — the console — sits at the bottom of that list.
  */
 
-const { get, getCached, post } = vi.hoisted(() => ({ get: vi.fn(), getCached: vi.fn(), post: vi.fn() }));
-const auth = { customer: null as { id: string; role: string; fullName: string; phone: string } | null, ready: true };
+const { get, getCached, post } = vi.hoisted(() => ({
+  get: vi.fn(),
+  getCached: vi.fn(),
+  post: vi.fn(),
+}));
+const auth = {
+  customer: null as { id: string; role: string; fullName: string; phone: string } | null,
+  ready: true,
+};
 
 vi.mock('@/lib/api', () => ({ api: { get, getCached, post }, ApiError: class extends Error {} }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: auth.customer, ready: auth.ready, signOut: vi.fn() }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -31,7 +40,8 @@ beforeEach(() => {
   auth.ready = true;
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
-    if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+    if (p.includes('/loyalty/me'))
+      return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     if (p.includes('/profile/notifications')) return Promise.resolve({});
     return Promise.resolve([]);
@@ -49,7 +59,9 @@ describe('/account menu by who is looking', () => {
     auth.customer = { id: 'c-1', role: 'CUSTOMER', fullName: 'Rina', phone: '0811' };
     render(<AccountPage />, { wrapper: LocaleProvider });
     await waitFor(() => expect(hrefs()).toContain('/rewards'));
-    expect(hrefs()).toEqual(expect.arrayContaining(['/orders', '/vouchers', '/favorites', '/subscriptions', '/referral']));
+    expect(hrefs()).toEqual(
+      expect.arrayContaining(['/orders', '/vouchers', '/favorites', '/subscriptions', '/referral']),
+    );
   });
 
   it('a courier gets the console and none of the shopping rows', async () => {
@@ -58,7 +70,15 @@ describe('/account menu by who is looking', () => {
     await waitFor(() => expect(hrefs()).toContain('/notifications'));
     const links = hrefs();
     expect(links).toContain('/dashboard/orders');
-    for (const shopOnly of ['/rewards', '/vouchers', '/favorites', '/subscriptions', '/referral', '/waralaba', '/orders']) {
+    for (const shopOnly of [
+      '/rewards',
+      '/vouchers',
+      '/favorites',
+      '/subscriptions',
+      '/referral',
+      '/waralaba',
+      '/orders',
+    ]) {
       expect(links).not.toContain(shopOnly);
     }
     // Help stays: a staff member needs the depot's number as much as a customer does.

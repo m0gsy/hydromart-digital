@@ -12,11 +12,20 @@ const state = { depotId: 'd-2' as string | undefined };
 
 vi.mock('@/lib/api', () => ({ api: { get, getCached, post }, ApiError: class extends Error {} }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu', phone: '0811' }, ready: true, signOut: vi.fn() }),
+  useAuth: () => ({
+    customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu', phone: '0811' },
+    ready: true,
+    signOut: vi.fn(),
+  }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({
-  useLocation: () => ({ location: { label: 'Ciputat', lat: -6.3, lng: 106.7, depotId: state.depotId }, ready: true }),
+  useLocation: () => ({
+    location: { label: 'Ciputat', lat: -6.3, lng: 106.7, depotId: state.depotId },
+    ready: true,
+  }),
 }));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -40,11 +49,21 @@ function mockApi() {
     if (p.includes('/depots')) return Promise.resolve({ items: [], total: 0 });
     if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
     if (p.includes('/loyalty/me')) {
-      return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER', discountRate: 0.02 });
+      return Promise.resolve({
+        pointsBalance: 900,
+        lifetimePoints: 900,
+        tier: 'SILVER',
+        discountRate: 0.02,
+      });
     }
     if (p.includes('/loyalty/tiers')) return Promise.resolve([]);
     if (p.includes('/referrals/me')) {
-      return Promise.resolve({ code: { code: 'ABC123' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+      return Promise.resolve({
+        code: { code: 'ABC123' },
+        referredCount: 0,
+        qualifiedCount: 0,
+        pointsEarned: 0,
+      });
     }
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     return Promise.resolve([]);

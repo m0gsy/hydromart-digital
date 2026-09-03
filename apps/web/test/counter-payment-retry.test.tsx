@@ -24,7 +24,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/walk-in',
 }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' }, ready: true }),
+  useAuth: () => ({
+    customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' },
+    ready: true,
+  }),
 }));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -59,7 +62,13 @@ const AIR = {
   categoryId: null,
 };
 
-const ORDER = { id: 'o-1', orderNumber: 'WI-001', total: 20000, customerId: null, status: 'COMPLETED' };
+const ORDER = {
+  id: 'o-1',
+  orderNumber: 'WI-001',
+  total: 20000,
+  customerId: null,
+  status: 'COMPLETED',
+};
 
 /** Every settle call the screen made, in order, so a retry can be proved not to double-sell. */
 let calls: string[] = [];
@@ -76,7 +85,13 @@ beforeEach(() => {
   post.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
     if (p.includes('/walk-in/quote')) {
-      return { subtotalIdr: 20000, discountIdr: 0, totalIdr: 20000, agen: false, catalogFallback: null };
+      return {
+        subtotalIdr: 20000,
+        discountIdr: 0,
+        totalIdr: 20000,
+        agen: false,
+        catalogFallback: null,
+      };
     }
     if (p.includes('/products/batch')) return [AIR];
     if (p.endsWith('/orders/walk-in')) {
@@ -86,7 +101,11 @@ beforeEach(() => {
     if (p.endsWith('/payments/staff')) {
       calls.push('initiate');
       if (initiateFails === 'conflict') {
-        throw new ApiError(409, 'This order already has an active payment.', 'PAYMENT_ALREADY_EXISTS');
+        throw new ApiError(
+          409,
+          'This order already has an active payment.',
+          'PAYMENT_ALREADY_EXISTS',
+        );
       }
       if (initiateFails === 'network') throw new Error('offline');
       return { id: 'pay-1' };
@@ -105,10 +124,25 @@ beforeEach(() => {
     // open while it is in flight. These cases are about what happens AFTER the cashier
     // presses Bayar, so the shift has to answer.
     if (p.includes('shift')) {
-      return { id: 's-1', depotId: 'depot-1', cashierId: 's1', cashierName: 'Rina', status: 'OPEN', openingFloat: 0, openedAt: '2026-08-25T08:00:00.000Z', closedAt: null, countedCash: null, expectedCash: null, variance: null, note: null };
+      return {
+        id: 's-1',
+        depotId: 'depot-1',
+        cashierId: 's1',
+        cashierName: 'Rina',
+        status: 'OPEN',
+        openingFloat: 0,
+        openedAt: '2026-08-25T08:00:00.000Z',
+        closedAt: null,
+        countedCash: null,
+        expectedCash: null,
+        variance: null,
+        note: null,
+      };
     }
     if (p.includes('/inventory')) {
-      return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
+      return [
+        { id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 },
+      ];
     }
     if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
     if (p.includes('/payments/for-order/')) {

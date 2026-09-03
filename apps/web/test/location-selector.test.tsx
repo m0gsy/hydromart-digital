@@ -23,7 +23,10 @@ vi.mock('@/lib/api', async () => {
   return { ...actual, api: { ...actual.api, get, getCached: get } };
 });
 vi.mock('@/lib/locale-context', () => ({
-  useT: () => ({ t: (k: string, vars?: Record<string, unknown>) => (vars ? `${k}:${Object.values(vars).join(',')}` : k) }),
+  useT: () => ({
+    t: (k: string, vars?: Record<string, unknown>) =>
+      vars ? `${k}:${Object.values(vars).join(',')}` : k,
+  }),
 }));
 
 import { LocationSelector } from '@/components/location-selector';
@@ -37,7 +40,8 @@ function deviceAt(latitude: number, longitude: number) {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: {
-      getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude, longitude } } as GeolocationPosition),
+      getCurrentPosition: (ok: PositionCallback) =>
+        ok({ coords: { latitude, longitude } } as GeolocationPosition),
     },
   });
 }
@@ -93,7 +97,9 @@ describe('LocationSelector', () => {
     show();
     open();
     fireEvent.click(screen.getByText('home.location.useMyLocation'));
-    await waitFor(() => expect(getLocation()).toMatchObject({ label: 'home.location.near:Jakarta', depotId: 'd1' }));
+    await waitFor(() =>
+      expect(getLocation()).toMatchObject({ label: 'home.location.near:Jakarta', depotId: 'd1' }),
+    );
   });
 
   /*

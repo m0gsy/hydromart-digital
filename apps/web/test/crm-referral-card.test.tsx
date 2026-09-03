@@ -55,7 +55,9 @@ describe('CustomerReferralCard', () => {
   it('says so when the customer has invited nobody', async () => {
     get.mockResolvedValue({ ...REFERRAL, referredCount: 0, qualifiedCount: 0 });
     show();
-    expect(await screen.findByText('Pelanggan ini belum pernah mengundang siapa pun.')).toBeTruthy();
+    expect(
+      await screen.findByText('Pelanggan ini belum pernah mengundang siapa pun.'),
+    ).toBeTruthy();
   });
 
   /*

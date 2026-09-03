@@ -21,7 +21,9 @@ const { FakeApiError } = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/lib/api', () => ({ api: { get, getCached, post }, ApiError: FakeApiError }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' }, ready: true }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1' }, ready: true }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -94,7 +96,8 @@ describe('/rewards — where a redemption is collected', () => {
       const p = String(path);
       if (p.includes('/rewards/redemptions/me')) return Promise.resolve(ROWS);
       if (p.includes('/depots')) return Promise.resolve(DEPOTS);
-      if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER' });
+      if (p.includes('/loyalty/me'))
+        return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER' });
       if (p.includes('/loyalty/tiers')) return Promise.resolve([]);
       if (p.includes('/referrals/me')) {
         return Promise.resolve({
@@ -107,9 +110,11 @@ describe('/rewards — where a redemption is collected', () => {
       if (p.includes('/me/transactions')) return Promise.resolve({ items: [], total: 0 });
       return Promise.resolve([]);
     });
-    getCached.mockReset().mockImplementation((path: string) =>
-      String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
-    );
+    getCached
+      .mockReset()
+      .mockImplementation((path: string) =>
+        String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
+      );
     post.mockReset();
   });
   afterEach(() => vi.clearAllMocks());
@@ -134,7 +139,6 @@ describe('/rewards — where a redemption is collected', () => {
     expect(await screen.findByText(/depot mana pun/i)).toBeInTheDocument();
   });
 });
-
 
 /**
  * The rest of what this screen draws. Before H14 put a test on it, `/rewards` — the screen
@@ -162,24 +166,38 @@ describe('/rewards — the states it draws', () => {
     get.mockReset().mockImplementation((path: string) => {
       const p = String(path);
       for (const [frag, value] of Object.entries(over)) {
-        if (p.includes(frag)) return value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
+        if (p.includes(frag))
+          return value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
       }
       if (p.includes('/rewards/redemptions/me')) return Promise.resolve(ROWS);
-      if (p.includes('/rewards/catalog')) return Promise.resolve([{ id: 'ri-1', name: 'Galon gratis', pointsCost: 500 }]);
+      if (p.includes('/rewards/catalog'))
+        return Promise.resolve([{ id: 'ri-1', name: 'Galon gratis', pointsCost: 500 }]);
       if (p.includes('/depots')) return Promise.resolve(DEPOTS);
       if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
       if (p.includes('/loyalty/me')) {
-        return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER', discountRate: 0.02 });
+        return Promise.resolve({
+          pointsBalance: 900,
+          lifetimePoints: 900,
+          tier: 'SILVER',
+          discountRate: 0.02,
+        });
       }
       if (p.includes('/loyalty/tiers')) return Promise.resolve(TIERS);
       if (p.includes('/referrals/me')) {
-        return Promise.resolve({ code: { code: 'ABC123' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+        return Promise.resolve({
+          code: { code: 'ABC123' },
+          referredCount: 0,
+          qualifiedCount: 0,
+          pointsEarned: 0,
+        });
       }
       return Promise.resolve([]);
     });
-    getCached.mockReset().mockImplementation((path: string) =>
-      String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
-    );
+    getCached
+      .mockReset()
+      .mockImplementation((path: string) =>
+        String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
+      );
   }
 
   beforeEach(() => mockAll());
@@ -193,7 +211,12 @@ describe('/rewards — the states it draws', () => {
 
   it('crowns the top tier only once the ladder has actually been read', async () => {
     mockAll({
-      '/loyalty/me': { pointsBalance: 9000, lifetimePoints: 9000, tier: 'GOLD', discountRate: 0.05 },
+      '/loyalty/me': {
+        pointsBalance: 9000,
+        lifetimePoints: 9000,
+        tier: 'GOLD',
+        discountRate: 0.05,
+      },
     });
     renderPage();
     await screen.findAllByText('Galon gratis');
@@ -243,7 +266,6 @@ describe('/rewards — the states it draws', () => {
   });
 });
 
-
 /**
  * The two writes this screen performs. Both spend or return points, and neither had a
  * test: a redemption that silently failed to cancel left the points gone with the reward
@@ -263,17 +285,32 @@ describe('/rewards — spending and getting points back', () => {
     get.mockReset().mockImplementation((path: string) => {
       const p = String(path);
       if (p.includes('/rewards/redemptions/me')) return Promise.resolve(ROWS);
-      if (p.includes('/rewards/catalog')) return Promise.resolve([{ id: 'ri-1', name: 'Galon gratis', pointsCost: 500 }]);
+      if (p.includes('/rewards/catalog'))
+        return Promise.resolve([{ id: 'ri-1', name: 'Galon gratis', pointsCost: 500 }]);
       if (p.includes('/depots')) return Promise.resolve(DEPOTS);
       if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
-      if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER', discountRate: 0.02 });
+      if (p.includes('/loyalty/me'))
+        return Promise.resolve({
+          pointsBalance: 900,
+          lifetimePoints: 900,
+          tier: 'SILVER',
+          discountRate: 0.02,
+        });
       if (p.includes('/loyalty/tiers')) return Promise.resolve([]);
-      if (p.includes('/referrals/me')) return Promise.resolve({ code: { code: 'ABC123' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+      if (p.includes('/referrals/me'))
+        return Promise.resolve({
+          code: { code: 'ABC123' },
+          referredCount: 0,
+          qualifiedCount: 0,
+          pointsEarned: 0,
+        });
       return Promise.resolve([]);
     });
-    getCached.mockReset().mockImplementation((path: string) =>
-      String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
-    );
+    getCached
+      .mockReset()
+      .mockImplementation((path: string) =>
+        String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
+      );
     post.mockReset().mockResolvedValue({ pointsBalance: 1400 });
   });
 
@@ -294,7 +331,6 @@ describe('/rewards — spending and getting points back', () => {
     expect(await screen.findByText(/sudah diserahkan petugas/i)).toBeInTheDocument();
   });
 });
-
 
 /**
  * The referral card and the point ledger — the two panels on this screen a customer can
@@ -319,14 +355,28 @@ describe('/rewards — referral code and the ledger', () => {
       if (p.includes('/rewards/catalog')) return Promise.resolve([]);
       if (p.includes('/depots')) return Promise.resolve(DEPOTS);
       if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
-      if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE', discountRate: 0 });
+      if (p.includes('/loyalty/me'))
+        return Promise.resolve({
+          pointsBalance: 0,
+          lifetimePoints: 0,
+          tier: 'BRONZE',
+          discountRate: 0,
+        });
       if (p.includes('/loyalty/tiers')) return Promise.resolve([]);
-      if (p.includes('/referrals/me')) return Promise.resolve({ code: { code: 'ABC123' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+      if (p.includes('/referrals/me'))
+        return Promise.resolve({
+          code: { code: 'ABC123' },
+          referredCount: 0,
+          qualifiedCount: 0,
+          pointsEarned: 0,
+        });
       return Promise.resolve([]);
     });
-    getCached.mockReset().mockImplementation((path: string) =>
-      String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
-    );
+    getCached
+      .mockReset()
+      .mockImplementation((path: string) =>
+        String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
+      );
     post.mockReset().mockResolvedValue({});
   });
 
@@ -358,10 +408,16 @@ describe('/rewards — referral code and the ledger', () => {
   it('offers a retry when the membership card itself will not load', async () => {
     get.mockImplementation((path: string) => {
       const p = String(path);
-      if (p.includes('/loyalty/me') && !p.includes('transactions')) return Promise.reject(new FakeApiError('kartu 503'));
+      if (p.includes('/loyalty/me') && !p.includes('transactions'))
+        return Promise.reject(new FakeApiError('kartu 503'));
       if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
       if (p.includes('/referrals/me')) {
-        return Promise.resolve({ code: { code: 'ABC123' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+        return Promise.resolve({
+          code: { code: 'ABC123' },
+          referredCount: 0,
+          qualifiedCount: 0,
+          pointsEarned: 0,
+        });
       }
       return Promise.resolve([]);
     });

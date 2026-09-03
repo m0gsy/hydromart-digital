@@ -76,7 +76,11 @@ describe('the basket shows what the shop showed', () => {
     get.mockResolvedValue({
       items: [
         line(),
-        line({ productId: 'p-2', productName: 'Air Galon 19L', imageUrl: 'https://cdn.example.id/refill.jpg' }),
+        line({
+          productId: 'p-2',
+          productName: 'Air Galon 19L',
+          imageUrl: 'https://cdn.example.id/refill.jpg',
+        }),
       ],
       subtotal: 53000,
       depotId: null,

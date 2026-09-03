@@ -23,7 +23,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/walk-in',
 }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' }, ready: true }),
+  useAuth: () => ({
+    customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' },
+    ready: true,
+  }),
 }));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -81,7 +84,13 @@ beforeEach(() => {
   // or no test in this file can ever reach submit.
   post.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('/walk-in/quote')) {
-      return { subtotalIdr: 20000, discountIdr: 0, totalIdr: 20000, agen: false, catalogFallback: null };
+      return {
+        subtotalIdr: 20000,
+        discountIdr: 0,
+        totalIdr: 20000,
+        agen: false,
+        catalogFallback: null,
+      };
     }
     if (path.includes('/orders/walk-in') && walkInError) throw walkInError;
     // `items` matters: the receipt renderer maps over it, and an order without one throws
@@ -94,13 +103,23 @@ beforeEach(() => {
       discount: 0,
       deliveryFee: 0,
       customerId: 'c1',
-      items: [{ id: 'oi1', productId: 'p1', productName: 'Galon 19L', quantity: 1, unitPrice: 20000, lineTotal: 20000 }],
+      items: [
+        {
+          id: 'oi1',
+          productId: 'p1',
+          productName: 'Galon 19L',
+          quantity: 1,
+          unitPrice: 20000,
+          lineTotal: 20000,
+        },
+      ],
     };
   });
   patch.mockReset().mockResolvedValue({});
   get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('/inventory')) return stockLines(stockAvailable);
-    if (path.includes('/orders/manage')) return { items: recentSales, total: recentSales.length, page: 1, limit: 8 };
+    if (path.includes('/orders/manage'))
+      return { items: recentSales, total: recentSales.length, page: 1, limit: 8 };
     // K3.5: the till now asks for the ids its own stock list names, so this answers the
     // batch route with an array rather than a page of the global catalogue.
     if (path.includes('/products/batch')) return [PRODUCT];
@@ -140,14 +159,14 @@ describe('C14 · the ceiling follows what is really there', () => {
     await waitFor(() => expect(screen.getByText('Galon 19L')).toBeTruthy());
 
     await userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
-    const before = get.mock.calls.filter((c) => String(c[0]).includes("/inventory")).length;
+    const before = get.mock.calls.filter((c) => String(c[0]).includes('/inventory')).length;
 
     // The cash guard uses the SERVER total (C12); without cash in the box submit stops here.
     await userEvent.type(screen.getByLabelText(/Uang tunai diterima/i), '50000');
     await userEvent.click(await screen.findByRole('button', { name: /Simpan & cetak/i }));
 
     await waitFor(() => {
-      const after = get.mock.calls.filter((c) => String(c[0]).includes("/inventory")).length;
+      const after = get.mock.calls.filter((c) => String(c[0]).includes('/inventory')).length;
       expect(after).toBeGreaterThan(before);
     });
   });
@@ -180,11 +199,11 @@ describe('C14 · a stock refusal is readable, and retryable', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
     await userEvent.type(screen.getByLabelText(/Uang tunai diterima/i), '50000');
     const pay = await screen.findByRole('button', { name: /Simpan & cetak/i });
-    const before = get.mock.calls.filter((c) => String(c[0]).includes("/inventory")).length;
+    const before = get.mock.calls.filter((c) => String(c[0]).includes('/inventory')).length;
     await userEvent.click(pay);
 
     await waitFor(() => expect(screen.getByText(idDict.opsFix.walkIn.stockShort)).toBeTruthy());
-    const after = get.mock.calls.filter((c) => String(c[0]).includes("/inventory")).length;
+    const after = get.mock.calls.filter((c) => String(c[0]).includes('/inventory')).length;
     expect(after).toBeGreaterThan(before);
   });
 });
@@ -240,7 +259,14 @@ describe('C6 · a counter sale is voidable after a refresh, and voids leave a tr
    */
   it('offers Batalkan on a sale this session never made', async () => {
     recentSales = [
-      { id: 'ord-9', orderNumber: 'HM-9', total: 20000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T02:00:00Z' },
+      {
+        id: 'ord-9',
+        orderNumber: 'HM-9',
+        total: 20000,
+        status: 'COMPLETED',
+        isWalkIn: true,
+        createdAt: '2026-08-20T02:00:00Z',
+      },
     ];
     const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
     render(<WalkInPage />, { wrapper });
@@ -253,7 +279,9 @@ describe('C6 · a counter sale is voidable after a refresh, and voids leave a tr
     await userEvent.click(screen.getByRole('button', { name: /^Ya/i }));
 
     await waitFor(() =>
-      expect(post.mock.calls.some((c) => String(c[0]).includes('/orders/walk-in/ord-9/void'))).toBe(true),
+      expect(post.mock.calls.some((c) => String(c[0]).includes('/orders/walk-in/ord-9/void'))).toBe(
+        true,
+      ),
     );
   });
 
@@ -287,8 +315,22 @@ describe('C6 · a counter sale is voidable after a refresh, and voids leave a tr
    */
   it('names each row void button after its own sale, so no two buttons announce the same thing', async () => {
     recentSales = [
-      { id: 'ord-1', orderNumber: 'HM-1', total: 20000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T02:00:00Z' },
-      { id: 'ord-2', orderNumber: 'HM-2', total: 30000, status: 'COMPLETED', isWalkIn: true, createdAt: '2026-08-20T03:00:00Z' },
+      {
+        id: 'ord-1',
+        orderNumber: 'HM-1',
+        total: 20000,
+        status: 'COMPLETED',
+        isWalkIn: true,
+        createdAt: '2026-08-20T02:00:00Z',
+      },
+      {
+        id: 'ord-2',
+        orderNumber: 'HM-2',
+        total: 30000,
+        status: 'COMPLETED',
+        isWalkIn: true,
+        createdAt: '2026-08-20T03:00:00Z',
+      },
     ];
     const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
     render(<WalkInPage />, { wrapper });

@@ -26,9 +26,8 @@ vi.mock('@/lib/api', async () => {
 });
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer, ready }) }));
 vi.mock('@/lib/locale-context', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/locale-context')>(
-    '@/lib/locale-context',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/locale-context')>('@/lib/locale-context');
   return { ...actual, useT: () => ({ t: (k: string) => k, locale: 'id', setLocale }) };
 });
 

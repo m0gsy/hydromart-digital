@@ -22,7 +22,9 @@ describe('B7 — a voided order is not a live one', () => {
   it('says the sale was reversed instead of drawing a live tracker', () => {
     draw('VOIDED');
     expect(screen.queryByText(/dipesan|placed/i)).toBeNull();
-    expect(screen.getByText(/penjualan konter dibatalkan|counter sale reversed/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/penjualan konter dibatalkan|counter sale reversed/i),
+    ).toBeInTheDocument();
   });
 
   it('still draws the tracker for an order that really is live', () => {
@@ -84,8 +86,18 @@ describe('the timeline beside it', () => {
     render(
       <OrderTimeline
         history={[
-          { status: 'CREATED', note: null, changedBy: 'c-1', createdAt: '2026-08-20T01:00:00.000Z' },
-          { status: 'CONFIRMED', note: 'lunas', changedBy: 'staff', createdAt: '2026-08-20T02:00:00.000Z' },
+          {
+            status: 'CREATED',
+            note: null,
+            changedBy: 'c-1',
+            createdAt: '2026-08-20T01:00:00.000Z',
+          },
+          {
+            status: 'CONFIRMED',
+            note: 'lunas',
+            changedBy: 'staff',
+            createdAt: '2026-08-20T02:00:00.000Z',
+          },
         ]}
       />,
       { wrapper: LocaleProvider },

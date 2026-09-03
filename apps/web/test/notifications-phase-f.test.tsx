@@ -81,7 +81,9 @@ describe('F4 · every ops event belongs to a filter chip', () => {
   });
 
   it('every group a chip offers is a group some event is actually in', () => {
-    const chips = new Set(OPS_FILTERS.map((f) => f.key).filter((k) => k !== 'all' && k !== 'unread'));
+    const chips = new Set(
+      OPS_FILTERS.map((f) => f.key).filter((k) => k !== 'all' && k !== 'unread'),
+    );
     const used = new Set(Object.values(OPS_EVENT_GROUP));
     expect([...chips].filter((c) => !used.has(c as never))).toEqual([]);
     expect([...used].filter((u) => !chips.has(u))).toEqual([]);
@@ -89,8 +91,20 @@ describe('F4 · every ops event belongs to a filter chip', () => {
 
   it('an HR notification is reachable by a chip', () => {
     const feed = [
-      { id: 'n1', event: 'LEAVE_APPROVED', message: 'x', createdAt: '2026-08-20T00:00:00Z', readAt: null },
-      { id: 'n2', event: 'STOCK_LOW', message: 'y', createdAt: '2026-08-20T00:00:00Z', readAt: null },
+      {
+        id: 'n1',
+        event: 'LEAVE_APPROVED',
+        message: 'x',
+        createdAt: '2026-08-20T00:00:00Z',
+        readAt: null,
+      },
+      {
+        id: 'n2',
+        event: 'STOCK_LOW',
+        message: 'y',
+        createdAt: '2026-08-20T00:00:00Z',
+        readAt: null,
+      },
     ] as never[];
     const group = OPS_EVENT_GROUP.LEAVE_APPROVED;
     expect(group).toBeTruthy();

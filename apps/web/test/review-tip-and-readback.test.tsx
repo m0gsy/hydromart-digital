@@ -10,7 +10,9 @@ const { get, post, replace } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/api', () => ({ api: { get, post }, ApiError: class extends Error {} }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' }, ready: true }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1' }, ready: true }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

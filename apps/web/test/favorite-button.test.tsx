@@ -40,7 +40,9 @@ describe('FavoriteButton', () => {
     window.history.pushState({}, '', '/products?category=galon');
     render(<FavoriteButton productId="p1" />, { wrapper: LocaleProvider });
     await userEvent.click(screen.getByRole('button'));
-    expect(push).toHaveBeenCalledWith(`/login?next=${encodeURIComponent('/products?category=galon')}`);
+    expect(push).toHaveBeenCalledWith(
+      `/login?next=${encodeURIComponent('/products?category=galon')}`,
+    );
     expect(post).not.toHaveBeenCalled();
   });
 

@@ -31,7 +31,8 @@ vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: toastMock }) })
 import { LocaleProvider } from '@/lib/locale-context';
 import { ChangePhone } from '@/app/account/edit/change-phone';
 
-const open = () => fireEvent.click(screen.getByRole('button', { name: /ganti nomor|change number/i }));
+const open = () =>
+  fireEvent.click(screen.getByRole('button', { name: /ganti nomor|change number/i }));
 const click = (re: RegExp) => fireEvent.click(screen.getByRole('button', { name: re }));
 
 function renderIt() {
@@ -124,7 +125,10 @@ describe('K1.4 · changing the login identity', () => {
     click(/konfirmasi ganti nomor|confirm the change/i);
 
     await waitFor(() => expect(authMock.signOut).toHaveBeenCalled());
-    expect(toastMock).toHaveBeenCalledWith(expect.stringMatching(/berhasil diganti|has been changed/i), 'success');
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.stringMatching(/berhasil diganti|has been changed/i),
+      'success',
+    );
   });
 
   it('stays on the code step and says why when the code is refused', async () => {
@@ -136,7 +140,9 @@ describe('K1.4 · changing the login identity', () => {
     });
     click(/konfirmasi ganti nomor|confirm the change/i);
 
-    expect(await screen.findByText(/gagal mengganti nomor|could not change the number/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/gagal mengganti nomor|could not change the number/i),
+    ).toBeTruthy();
     expect(authMock.signOut).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/kode verifikasi|verification code/i)).toBeTruthy();
   });
@@ -147,7 +153,9 @@ describe('K1.4 · changing the login identity', () => {
 
     click(/kirim kode|send code/i);
 
-    expect(await screen.findByText(/isi nomor hp barunya|enter the new phone number/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/isi nomor hp barunya|enter the new phone number/i),
+    ).toBeTruthy();
     expect(apiMock.post).not.toHaveBeenCalled();
   });
 

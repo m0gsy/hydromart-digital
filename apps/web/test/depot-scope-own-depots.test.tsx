@@ -59,7 +59,13 @@ beforeEach(() => {
     if (path.includes('/depots/scope')) return Promise.resolve([MINE, ALSO_MINE]);
     if (path.includes('/auth/drivers')) {
       return Promise.resolve([
-        { id: 'k1', fullName: 'Kurir Satu', phone: '0811', status: 'ACTIVE', assignedDepotId: MINE.id },
+        {
+          id: 'k1',
+          fullName: 'Kurir Satu',
+          phone: '0811',
+          status: 'ACTIVE',
+          assignedDepotId: MINE.id,
+        },
       ]);
     }
     return Promise.resolve([]);
@@ -114,7 +120,9 @@ describe('depot scope comes from the account, not from the network directory', (
     );
 
     await waitFor(() => expect(screen.getByText('Kurir Satu')).toBeTruthy());
-    const roster = get.mock.calls.map(([path]) => String(path)).filter((p) => p.includes('/auth/drivers'));
+    const roster = get.mock.calls
+      .map(([path]) => String(path))
+      .filter((p) => p.includes('/auth/drivers'));
     expect(roster).toHaveLength(1);
     expect(roster[0]).toContain(`depotId=${MINE.id}`);
 

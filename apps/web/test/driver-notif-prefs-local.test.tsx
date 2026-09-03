@@ -14,7 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, patch } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn() }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get, patch, post: vi.fn() }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, patch, post: vi.fn() },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 's-1', role: 'STAFF_DEPOT' }, ready: true }),
 }));
@@ -62,9 +65,9 @@ const view = () =>
   render(
     <ConfirmProvider>
       <LocaleProvider>
-      <ThemeProvider>
-        <DriverSettingsPage />
-      </ThemeProvider>
+        <ThemeProvider>
+          <DriverSettingsPage />
+        </ThemeProvider>
       </LocaleProvider>
     </ConfirmProvider>,
   );
@@ -76,7 +79,9 @@ describe('K5.1 · courier notification switches', () => {
     await userEvent.click(toggles[1]!);
     await waitFor(() => expect(localStorage.getItem('hydromart_driver_notif_prefs')).toBeTruthy());
     expect(patch.mock.calls.filter(([p]) => String(p).includes('notifications'))).toHaveLength(0);
-    expect(get.mock.calls.filter(([p]) => String(p).includes('profile/notifications'))).toHaveLength(0);
+    expect(
+      get.mock.calls.filter(([p]) => String(p).includes('profile/notifications')),
+    ).toHaveLength(0);
   });
 
   it('says the switches are for this device', async () => {

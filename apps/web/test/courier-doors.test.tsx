@@ -23,7 +23,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace: vi.fn() }),
   usePathname: () => '/driver/profile',
 }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer, ready: true, signOut: vi.fn() }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer, ready: true, signOut: vi.fn() }),
+}));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
   return { ...actual, api: { ...actual.api, get, getCached: get } };
@@ -75,7 +77,12 @@ describe('O3 · a courier can open a past delivery', () => {
 
 describe('O8 · the placement row answers the question it asks', () => {
   it('shows the depot name, resolved from the public depot list', async () => {
-    get.mockResolvedValue({ items: [{ id: 'depot-1', name: 'Depot Bandung Kota' }], total: 1, page: 1, limit: 100 });
+    get.mockResolvedValue({
+      items: [{ id: 'depot-1', name: 'Depot Bandung Kota' }],
+      total: 1,
+      page: 1,
+      limit: 100,
+    });
 
     render(<ProfilePage />, { wrapper: LocaleProvider });
 
@@ -88,7 +95,12 @@ describe('O8 · the placement row answers the question it asks', () => {
   });
 
   it('no longer opens Announcements — it is a fact, not a screen', async () => {
-    get.mockResolvedValue({ items: [{ id: 'depot-1', name: 'Depot Bandung Kota' }], total: 1, page: 1, limit: 100 });
+    get.mockResolvedValue({
+      items: [{ id: 'depot-1', name: 'Depot Bandung Kota' }],
+      total: 1,
+      page: 1,
+      limit: 100,
+    });
     render(<ProfilePage />, { wrapper: LocaleProvider });
 
     await waitFor(() => expect(screen.getByText('Depot Bandung Kota')).toBeTruthy());
@@ -132,7 +144,9 @@ describe('O10 · the deposit door is on the wallet, not only in Profile', () => 
     });
     render(<EarningsPage />, { wrapper: LocaleProvider });
 
-    const link = await screen.findByRole('link', { name: new RegExp(idDict.hrFix.earnings.settleCash, 'i') });
+    const link = await screen.findByRole('link', {
+      name: new RegExp(idDict.hrFix.earnings.settleCash, 'i'),
+    });
     expect(link.getAttribute('href')).toBe('/driver/settlement');
   });
 });

@@ -24,7 +24,9 @@ vi.mock('@/lib/api', () => ({
   api: { get, getCached, post, patch, del },
   ApiError: FakeApiError,
 }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' }, ready: true }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1' }, ready: true }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -98,7 +100,9 @@ afterEach(() => vi.clearAllMocks());
  */
 describe('H9 — a refused row action says so', () => {
   it('/addresses: a refused "set primary" surfaces the server reason', async () => {
-    post.mockRejectedValue(new FakeApiError('Alamat di luar jangkauan depot.', 422, 'OUT_OF_RANGE'));
+    post.mockRejectedValue(
+      new FakeApiError('Alamat di luar jangkauan depot.', 422, 'OUT_OF_RANGE'),
+    );
     render(wrap(<AddressesPage />));
 
     const btn = await screen.findByRole('button', { name: /jadikan utama|set as primary/i });
@@ -146,7 +150,9 @@ describe('/addresses — the states it draws', () => {
     get.mockImplementation(() => Promise.resolve([]));
     render(wrap(<AddressesPage />));
 
-    expect(await screen.findByRole('button', { name: /tambah alamat|add address/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /tambah alamat|add address/i }),
+    ).toBeInTheDocument();
   });
 
   it('offers a retry when the book will not load', async () => {
@@ -158,7 +164,9 @@ describe('/addresses — the states it draws', () => {
 
   it('marks which address is the primary one', async () => {
     get.mockImplementation((path: string) =>
-      String(path).includes('/addresses') ? Promise.resolve([{ ...ADDRESS, isPrimary: true }]) : Promise.resolve([]),
+      String(path).includes('/addresses')
+        ? Promise.resolve([{ ...ADDRESS, isPrimary: true }])
+        : Promise.resolve([]),
     );
     render(wrap(<AddressesPage />));
 
@@ -170,7 +178,9 @@ describe('/addresses — the states it draws', () => {
   it('opens the sheet titled for a NEW address, not for an edit', async () => {
     render(wrap(<AddressesPage />));
 
-    await userEvent.click(await screen.findByRole('button', { name: /tambah alamat|add address/i }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: /tambah alamat|add address/i }),
+    );
     // The sheet reuses one component for both jobs and picks its title from `editing`.
     expect(await screen.findByText(/alamat baru|new address/i)).toBeInTheDocument();
   });

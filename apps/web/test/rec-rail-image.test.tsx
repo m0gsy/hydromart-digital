@@ -51,7 +51,9 @@ describe('home product rail', () => {
   it('shows the product photo the catalogue has for it', async () => {
     getCached.mockImplementation((path: string) =>
       String(path).includes('/products/batch')
-        ? Promise.resolve([{ id: 'p-1', name: 'Galon 19L', imageUrl: 'https://cdn.test/galon.jpg' }])
+        ? Promise.resolve([
+            { id: 'p-1', name: 'Galon 19L', imageUrl: 'https://cdn.test/galon.jpg' },
+          ])
         : Promise.resolve(REC),
     );
 

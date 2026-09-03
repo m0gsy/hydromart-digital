@@ -118,6 +118,8 @@ describe('global-error reports the crash nothing else can see', () => {
     render(<GlobalError error={new Error('boom')} reset={() => {}} />);
     await vi.waitFor(() => expect(captureException).toHaveBeenCalled());
     expect(init).toHaveBeenCalled();
-    expect(captureException.mock.calls[0]![1]).toMatchObject({ tags: { boundary: 'global-error' } });
+    expect(captureException.mock.calls[0]![1]).toMatchObject({
+      tags: { boundary: 'global-error' },
+    });
   });
 });

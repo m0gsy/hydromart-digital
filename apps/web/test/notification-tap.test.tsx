@@ -13,8 +13,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post: vi.fn() }, ApiError: class extends Error {} }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1', role: 'CUSTOMER' }, ready: true }) }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, post: vi.fn() },
+  ApiError: class extends Error {},
+}));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1', role: 'CUSTOMER' }, ready: true }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

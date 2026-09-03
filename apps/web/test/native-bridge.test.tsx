@@ -29,7 +29,15 @@ let appInfo: { id?: string; build?: string } | null = { id: 'id.hydromart.app', 
 let launchUrl: { url?: string } | null = null;
 
 function installBridge() {
-  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications', 'StatusBar', 'SplashScreen']) {
+  for (const name of [
+    'App',
+    'Browser',
+    'Filesystem',
+    'Share',
+    'PushNotifications',
+    'StatusBar',
+    'SplashScreen',
+  ]) {
     plugins[name] = {
       hide: vi.fn(async () => undefined),
       setStyle: vi.fn(async () => undefined),

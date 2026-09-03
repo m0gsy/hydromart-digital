@@ -40,7 +40,13 @@ const HOME = {
   longitude: 107.6,
   isPrimary: true,
 };
-const OFFICE = { ...HOME, id: 'a-office', label: 'Kantor', addressLine: 'Jl. Asia Afrika 55', isPrimary: false };
+const OFFICE = {
+  ...HOME,
+  id: 'a-office',
+  label: 'Kantor',
+  addressLine: 'Jl. Asia Afrika 55',
+  isPrimary: false,
+};
 
 const PLAN = {
   id: 's-1',
@@ -63,13 +69,18 @@ const PLAN = {
 function route(over: { discountFails?: boolean; subs?: unknown[] } = {}) {
   apiMock.get.mockImplementation((url: string) => {
     if (url.includes('/subscriptions/discount')) {
-      return over.discountFails ? Promise.reject(new Error('down')) : Promise.resolve({ rate: 0.1 });
+      return over.discountFails
+        ? Promise.reject(new Error('down'))
+        : Promise.resolve({ rate: 0.1 });
     }
     if (url.includes('/addresses')) return Promise.resolve([HOME, OFFICE]);
     if (url.includes('/subscriptions')) return Promise.resolve(over.subs ?? []);
     if (url.includes('/depots/nearby')) return Promise.resolve([{ id: 'd-1' }]);
     if (url.includes('/products')) {
-      return Promise.resolve({ items: [{ id: 'p-1', name: 'Galon 19L', unit: 'galon', basePrice: 20000 }], total: 1 });
+      return Promise.resolve({
+        items: [{ id: 'p-1', name: 'Galon 19L', unit: 'galon', basePrice: 20000 }],
+        total: 1,
+      });
     }
     return Promise.resolve([]);
   });
@@ -156,9 +167,7 @@ describe('K1.10 · a discount that could not be read', () => {
     route({ discountFails: true });
     renderPage();
 
-    expect(
-      await screen.findByText(/belum bisa dibaca|could not be read/i),
-    ).toBeTruthy();
+    expect(await screen.findByText(/belum bisa dibaca|could not be read/i)).toBeTruthy();
     expect(screen.queryByText(/hemat \d+%|save \d+%/i)).toBeNull();
   });
 });

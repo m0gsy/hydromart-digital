@@ -47,7 +47,9 @@ const renderPage = () =>
 
 beforeEach(() => {
   get.mockReset().mockResolvedValue({ customerId: 'c-1', favoriteDepotId: null, birthdate: null });
-  patch.mockReset().mockResolvedValue({ customerId: 'c-1', favoriteDepotId: null, birthdate: '1990-05-17' });
+  patch
+    .mockReset()
+    .mockResolvedValue({ customerId: 'c-1', favoriteDepotId: null, birthdate: '1990-05-17' });
   post.mockReset().mockResolvedValue({});
   uploadFile.mockReset();
 });
@@ -76,7 +78,9 @@ describe('H16 — the birthday nobody could ever tell us', () => {
     get.mockResolvedValue({ customerId: 'c-1', favoriteDepotId: null, birthdate: '1990-05-17' });
     renderPage();
     await waitFor(async () =>
-      expect(await screen.findByLabelText(/tanggal lahir|date of birth/i)).toHaveValue('1990-05-17'),
+      expect(await screen.findByLabelText(/tanggal lahir|date of birth/i)).toHaveValue(
+        '1990-05-17',
+      ),
     );
   });
 

@@ -66,21 +66,33 @@ const EMPTY = {
 
 describe('C11 · the till only sends an address the sale will accept', () => {
   it('sends nothing at all when delivery is off', () => {
-    expect(buildAddress({ ...EMPTY, addrLine: 'Jl. Dago 1', addrCity: 'Bandung', addrProvince: 'Jabar' }).ready)
-      .toBe(false);
+    expect(
+      buildAddress({ ...EMPTY, addrLine: 'Jl. Dago 1', addrCity: 'Bandung', addrProvince: 'Jabar' })
+        .ready,
+    ).toBe(false);
   });
 
   it('refuses a half-typed address rather than quoting a delivery the sale would reject', () => {
     // The sale DTO requires addressLine, city AND province. Quoting on two of three means
     // telling someone a price and then failing at Bayar — with them standing there.
-    const half = buildAddress({ ...EMPTY, deliver: true, addrLine: 'Jl. Dago 1', addrCity: 'Bandung', phone: '0811' });
+    const half = buildAddress({
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'Jl. Dago 1',
+      addrCity: 'Bandung',
+      phone: '0811',
+    });
     expect(half.address).toBeNull();
     expect(half.ready).toBe(false);
   });
 
   it('refuses when there is no number for the courier to call', () => {
     const noPhone = buildAddress({
-      ...EMPTY, deliver: true, addrLine: 'Jl. Dago 1', addrCity: 'Bandung', addrProvince: 'Jabar',
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'Jl. Dago 1',
+      addrCity: 'Bandung',
+      addrProvince: 'Jabar',
     });
     expect(noPhone.address).not.toBeNull();
     expect(noPhone.ready).toBe(false); // built, but not sendable
@@ -88,9 +100,13 @@ describe('C11 · the till only sends an address the sale will accept', () => {
 
   it('falls back to the buyer fields so the common case is three boxes, not five', () => {
     const { address, ready } = buildAddress({
-      ...EMPTY, deliver: true,
-      addrLine: 'Jl. Dago 1', addrCity: 'Bandung', addrProvince: 'Jawa Barat',
-      name: 'Budi', phone: '081234567890',
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'Jl. Dago 1',
+      addrCity: 'Bandung',
+      addrProvince: 'Jawa Barat',
+      name: 'Budi',
+      phone: '081234567890',
     });
     expect(ready).toBe(true);
     expect(address).toMatchObject({ recipientName: 'Budi', phone: '081234567890' });
@@ -98,12 +114,22 @@ describe('C11 · the till only sends an address the sale will accept', () => {
 
   it('keeps the landmark optional, and omits it rather than sending an empty string', () => {
     const without = buildAddress({
-      ...EMPTY, deliver: true, addrLine: 'a', addrCity: 'b', addrProvince: 'c', phone: '0811',
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'a',
+      addrCity: 'b',
+      addrProvince: 'c',
+      phone: '0811',
     });
     expect(without.address?.notes).toBeUndefined();
 
     const withNote = buildAddress({
-      ...EMPTY, deliver: true, addrLine: 'a', addrCity: 'b', addrProvince: 'c', phone: '0811',
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'a',
+      addrCity: 'b',
+      addrProvince: 'c',
+      phone: '0811',
       addrNotes: 'depan masjid',
     });
     expect(withNote.address?.notes).toBe('depan masjid');
@@ -111,9 +137,13 @@ describe('C11 · the till only sends an address the sale will accept', () => {
 
   it('truncates to the lengths the DTO accepts, instead of being refused by validation', () => {
     const { address } = buildAddress({
-      ...EMPTY, deliver: true,
-      addrLine: 'x'.repeat(400), addrCity: 'y'.repeat(200), addrProvince: 'z'.repeat(200),
-      addrName: 'n'.repeat(200), addrPhone: '0'.repeat(40),
+      ...EMPTY,
+      deliver: true,
+      addrLine: 'x'.repeat(400),
+      addrCity: 'y'.repeat(200),
+      addrProvince: 'z'.repeat(200),
+      addrName: 'n'.repeat(200),
+      addrPhone: '0'.repeat(40),
     });
     expect(address?.addressLine).toHaveLength(255);
     expect(address?.city).toHaveLength(100);

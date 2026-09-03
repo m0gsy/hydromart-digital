@@ -21,7 +21,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/walk-in',
 }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' }, ready: true }),
+  useAuth: () => ({
+    customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'depot-1' },
+    ready: true,
+  }),
 }));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -73,7 +76,13 @@ beforeEach(() => {
   shiftGate.release = null;
   post.mockReset().mockImplementation(async (path: string) => {
     if (String(path).includes('/walk-in/quote')) {
-      return { subtotalIdr: 20000, discountIdr: 0, totalIdr: 20000, agen: false, catalogFallback: null };
+      return {
+        subtotalIdr: 20000,
+        discountIdr: 0,
+        totalIdr: 20000,
+        agen: false,
+        catalogFallback: null,
+      };
     }
     return {};
   });
@@ -85,7 +94,9 @@ beforeEach(() => {
     // disabled for a reason that has nothing to do with the shift, and this file would be
     // asserting the wrong thing.
     if (p.includes('/inventory')) {
-      return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
+      return [
+        { id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 },
+      ];
     }
     if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
     if (p.includes('/products/batch')) return [PRODUCT];
@@ -95,7 +106,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-const payButton = () => screen.getByRole('button', { name: /simpan|bayar|cetak|memeriksa shift|checking the shift/i });
+const payButton = () =>
+  screen.getByRole('button', { name: /simpan|bayar|cetak|memeriksa shift|checking the shift/i });
 
 /*
  * The other half of K3.3, and the half the e2e caught: once the read ANSWERS with an open
@@ -117,7 +129,9 @@ describe('K3.3 · the pay button once the shift has answered', () => {
       const p = String(path);
       if (p.includes('shift')) return OPEN_SHIFT;
       if (p.includes('/inventory')) {
-        return [{ id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 }];
+        return [
+          { id: 'i1', productId: 'p-air', quantity: 12, reserved: 0, available: 12, minimum: 0 },
+        ];
       }
       if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
       if (p.includes('/products/batch')) return [PRODUCT];
@@ -140,11 +154,13 @@ describe('K3.3 · the pay button and a shift nobody has answered for yet', () =>
     render(<WalkInPage />, { wrapper });
     const plus = await screen.findAllByRole('button', { name: /increase quantity/i });
     await userEvent.click(plus[0]!);
-    await waitFor(() => expect(post).toHaveBeenCalledWith(
-      expect.stringContaining('/walk-in/quote'),
-      expect.anything(),
-      true,
-    ));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        expect.stringContaining('/walk-in/quote'),
+        expect.anything(),
+        true,
+      ),
+    );
   }
 
   it('is disabled while the shift read is still in flight, WITH a full basket', async () => {
@@ -167,6 +183,10 @@ describe('K3.3 · the pay button and a shift nobody has answered for yet', () =>
     render(<WalkInPage />, { wrapper });
 
     await waitFor(() => expect(payButton()).toBeTruthy());
-    expect(post).not.toHaveBeenCalledWith(expect.stringContaining('/walk-in'), expect.anything(), true);
+    expect(post).not.toHaveBeenCalledWith(
+      expect.stringContaining('/walk-in'),
+      expect.anything(),
+      true,
+    );
   });
 });

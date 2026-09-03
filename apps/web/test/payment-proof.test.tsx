@@ -31,7 +31,10 @@ vi.mock('@/lib/api', async () => {
   return { ...actual, api: { ...actual.api, get, getCached: get, post }, uploadFile };
 });
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'd1' }, ready: true }),
+  useAuth: () => ({
+    customer: { id: 's1', role: 'KEPALA_DEPOT', assignedDepotId: 'd1' },
+    ready: true,
+  }),
 }));
 
 import { ConfirmProvider } from '@/components/confirm';
@@ -118,7 +121,9 @@ describe('K2.1b · the operator can see whether there is a receipt at all', () =
     }));
     const { PaymentSettle } = await import('@/components/dashboard/order-detail');
     render(<PaymentSettle order={ORDER as never} />, { wrapper });
-    await waitFor(() => expect(screen.getByRole('button', { name: /konfirmasi lunas/i })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /konfirmasi lunas/i })).toBeTruthy(),
+    );
     expect(screen.queryByText(/bukti bayar/i)).toBeNull();
   });
 });

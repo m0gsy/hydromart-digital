@@ -12,7 +12,8 @@ function Harness({ onComplete }: { onComplete?: (v: string) => void }) {
   return <OtpInput value={v} onChange={setV} onComplete={onComplete} />;
 }
 
-const boxes = () => Array.from({ length: 6 }, (_, i) => screen.getByLabelText(`Digit ${i + 1}`) as HTMLInputElement);
+const boxes = () =>
+  Array.from({ length: 6 }, (_, i) => screen.getByLabelText(`Digit ${i + 1}`) as HTMLInputElement);
 
 describe('OtpInput', () => {
   it('typing a full code fills every box and fires onComplete once', async () => {
@@ -21,7 +22,11 @@ describe('OtpInput', () => {
     await userEvent.click(screen.getByLabelText('Digit 1'));
     await userEvent.keyboard('123456');
 
-    expect(boxes().map((b) => b.value).join('')).toBe('123456');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('123456');
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith('123456');
   });
@@ -30,7 +35,11 @@ describe('OtpInput', () => {
     render(<Harness />);
     await userEvent.click(screen.getByLabelText('Digit 1'));
     await userEvent.keyboard('1a2b3');
-    expect(boxes().map((b) => b.value).join('')).toBe('123');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('123');
   });
 
   it('backspace clears the current digit then walks left', async () => {
@@ -39,9 +48,17 @@ describe('OtpInput', () => {
     await userEvent.keyboard('12');
     // Focus is on box 3 (empty) after typing two digits.
     await userEvent.keyboard('{Backspace}'); // empty box → deletes previous digit, moves left
-    expect(boxes().map((b) => b.value).join('')).toBe('1');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('1');
     await userEvent.keyboard('{Backspace}'); // now on box with '1'
-    expect(boxes().map((b) => b.value).join('')).toBe('');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('');
   });
 
   // Found on a device: a tap on box 3 with 1-2 empty focused it, and the digit typed there
@@ -52,7 +69,11 @@ describe('OtpInput', () => {
     await userEvent.click(screen.getByLabelText('Digit 3'));
     expect(document.activeElement).toBe(screen.getByLabelText('Digit 1'));
     await userEvent.keyboard('7');
-    expect(boxes().map((b) => b.value).join('')).toBe('7');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('7');
     expect(boxes()[0]?.value).toBe('7');
 
     // With one digit in, box 2 is reachable and box 4 is still not.
@@ -78,7 +99,11 @@ describe('OtpInput', () => {
     const first = screen.getByLabelText('Digit 1');
     first.focus();
     await userEvent.paste('654321');
-    expect(boxes().map((b) => b.value).join('')).toBe('654321');
+    expect(
+      boxes()
+        .map((b) => b.value)
+        .join(''),
+    ).toBe('654321');
     expect(onComplete).toHaveBeenCalledWith('654321');
   });
 });

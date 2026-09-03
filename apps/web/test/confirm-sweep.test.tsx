@@ -118,7 +118,15 @@ describe('useConfirm', () => {
 describe('destructive actions ask first', () => {
   it('CA-3-29 — emptying the cart', async () => {
     const CART = {
-      items: [{ productId: 'p-1', productName: 'Galon 19L', quantity: 2, unitPrice: 20000, lineTotal: 40000 }],
+      items: [
+        {
+          productId: 'p-1',
+          productName: 'Galon 19L',
+          quantity: 2,
+          unitPrice: 20000,
+          lineTotal: 40000,
+        },
+      ],
       subtotal: 40000,
       depotId: null,
       pricingBasis: 'CATALOG',

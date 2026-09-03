@@ -18,7 +18,9 @@ vi.mock('@/lib/api', () => ({ api: { get, getCached, post }, ApiError: class ext
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: auth.customer, ready: auth.ready, signOut: vi.fn() }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -34,7 +36,8 @@ beforeEach(() => {
   auth.ready = false;
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
-    if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+    if (p.includes('/loyalty/me'))
+      return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     if (p.includes('/profile/notifications')) return Promise.resolve({});
     return Promise.resolve([]);

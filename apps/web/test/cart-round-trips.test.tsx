@@ -23,7 +23,14 @@ const { get, post, put, del, session } = vi.hoisted(() => ({
 
 const CART = {
   items: [
-    { productId: 'p1', productName: 'Galon 19L', unit: 'galon', quantity: 2, unitPrice: 20_000, lineTotal: 40_000 },
+    {
+      productId: 'p1',
+      productName: 'Galon 19L',
+      unit: 'galon',
+      quantity: 2,
+      unitPrice: 20_000,
+      lineTotal: 40_000,
+    },
   ],
   subtotal: 40_000,
 };
@@ -56,8 +63,7 @@ function scriptGets() {
   });
 }
 
-const cartReads = () =>
-  get.mock.calls.filter(([path]) => path === '/orders/api/v1/cart').length;
+const cartReads = () => get.mock.calls.filter(([path]) => path === '/orders/api/v1/cart').length;
 
 beforeEach(() => {
   get.mockReset();
@@ -85,7 +91,7 @@ describe('cart round-trips', () => {
     await renderCart();
     const before = cartReads();
 
-    await userEvent.click(screen.getByLabelText("Increase quantity"));
+    await userEvent.click(screen.getByLabelText('Increase quantity'));
 
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     // The PUT's own response IS the new cart — nothing may re-read it.

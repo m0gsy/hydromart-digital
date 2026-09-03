@@ -14,11 +14,16 @@ vi.mock('@/lib/api', () => ({
   api: { get, getCached, post, del },
   ApiError: class ApiError extends Error {},
 }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'c-1' }, ready: true }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'c-1' }, ready: true }),
+}));
 vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn() }) }));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+// CA-3-08: the grid now asks the shopper's depot for its prices. No location here, so the
+// hook short-circuits and the tiles stay on catalogue prices — which is what this file tests.
+vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/favorites',
@@ -63,7 +68,6 @@ describe('/favorites — removing a favourite', () => {
     expect(String(del.mock.calls[0]?.[0])).toContain('/favorites/p-1');
   });
 });
-
 
 /**
  * The other two states this screen has. The "empty" one is the whole point of the screen

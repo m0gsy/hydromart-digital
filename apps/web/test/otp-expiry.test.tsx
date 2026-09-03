@@ -55,7 +55,11 @@ const view = (ui: React.ReactElement) => render(<LocaleProvider>{ui}</LocaleProv
 
 describe('OTP lifetime reaches the screen', () => {
   it('login carries the server expiry to /verify', async () => {
-    post.mockResolvedValue({ phoneMasked: '0811****90', expiresInSeconds: 300, resendCooldownSeconds: 60 });
+    post.mockResolvedValue({
+      phoneMasked: '0811****90',
+      expiresInSeconds: 300,
+      resendCooldownSeconds: 60,
+    });
     view(<LoginPage />);
     const input = screen.getByLabelText(/nomor|phone/i);
     await act(async () => {
@@ -88,7 +92,9 @@ describe('OTP lifetime reaches the screen', () => {
     await act(async () => {
       vi.advanceTimersByTime(3000);
     });
-    expect((screen.getByRole('button', { name: /kirim ulang/i }) as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      (screen.getByRole('button', { name: /kirim ulang/i }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
   it('a link opened without ?exp= behaves exactly as before — no countdown invented', () => {

@@ -127,7 +127,9 @@ describe('EmployeeSelect (CA-1-17)', () => {
     // An ErrorState with a retry, not a combobox that quietly finds nobody. The message
     // itself is `ErrorState`'s generic one; what matters is that this is a FAILURE surface
     // and not an empty result.
-    await waitFor(() => expect(screen.getByRole('button', { name: /coba lagi|try again/i })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /coba lagi|try again/i })).toBeTruthy(),
+    );
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 });

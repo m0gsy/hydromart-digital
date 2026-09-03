@@ -173,7 +173,11 @@ describe('E5 · running out of attempts closes the code box', () => {
   it('disables the code entry and the submit once the challenge is spent', async () => {
     search = 'phone=081234567890&purpose=LOGIN';
     post.mockRejectedValue(
-      new ApiError(429, 'Too many incorrect attempts. Please request a new code.', 'AUTH_OTP_MAX_ATTEMPTS'),
+      new ApiError(
+        429,
+        'Too many incorrect attempts. Please request a new code.',
+        'AUTH_OTP_MAX_ATTEMPTS',
+      ),
     );
     render(<VerifyPage />, { wrapper: LocaleProvider });
     await submitCode();
@@ -197,7 +201,11 @@ describe('E8 · one door, whichever one you knocked on', () => {
   it('sends an unregistered number on to registration, number in hand', async () => {
     search = '';
     post.mockRejectedValue(
-      new ApiError(404, 'No account is registered with this phone number.', 'AUTH_CUSTOMER_NOT_FOUND'),
+      new ApiError(
+        404,
+        'No account is registered with this phone number.',
+        'AUTH_CUSTOMER_NOT_FOUND',
+      ),
     );
     render(<LoginPage />, { wrapper: LocaleProvider });
 
@@ -211,7 +219,9 @@ describe('E8 · one door, whichever one you knocked on', () => {
 
   it('sends an already-registered number back to sign-in, number in hand', async () => {
     search = '';
-    post.mockRejectedValue(new ApiError(409, 'This phone number is already registered.', 'AUTH_PHONE_TAKEN'));
+    post.mockRejectedValue(
+      new ApiError(409, 'This phone number is already registered.', 'AUTH_PHONE_TAKEN'),
+    );
     render(<RegisterPage />, { wrapper: LocaleProvider });
 
     await userEvent.type(screen.getByLabelText(/Nomor telepon/i), '081234567890');

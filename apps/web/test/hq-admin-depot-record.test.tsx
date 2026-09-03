@@ -56,9 +56,20 @@ const ADMIN_ROW = {
 
 // What `PublicDepotView.from` actually puts on the wire (depot.dto.ts:219).
 const PUBLIC_KEYS = [
-  'id', 'code', 'name', 'address', 'city', 'province', 'lat', 'lng',
-  'serviceRadiusKm', 'deliveryFee', 'minOrderAmount', 'operatingHours',
-  'holidays', 'active',
+  'id',
+  'code',
+  'name',
+  'address',
+  'city',
+  'province',
+  'lat',
+  'lng',
+  'serviceRadiusKm',
+  'deliveryFee',
+  'minOrderAmount',
+  'operatingHours',
+  'holidays',
+  'active',
 ] as const;
 
 function publicProjection(row: typeof ADMIN_ROW): Record<string, unknown> {
@@ -76,7 +87,18 @@ function serveDepot(row = ADMIN_ROW) {
         : Promise.reject(new Error('Depot not found.'));
     }
     if (path.includes('/depots/manage')) return Promise.resolve({ items: [row], total: 1 });
-    if (path.includes('/inventory')) return Promise.resolve([{ id: 'i-1', label: 'Galon 19L', available: 4, quantity: 10, minimumStock: 2, unit: 'galon', lowStock: false }]);
+    if (path.includes('/inventory'))
+      return Promise.resolve([
+        {
+          id: 'i-1',
+          label: 'Galon 19L',
+          available: 4,
+          quantity: 10,
+          minimumStock: 2,
+          unit: 'galon',
+          lowStock: false,
+        },
+      ]);
     if (path.includes('/staff')) return Promise.resolve({ items: [{ id: 'u-1' }], total: 1 });
     if (path.includes('/rollup')) return Promise.resolve({ depots: [] });
     if (path.includes('/orders')) return Promise.resolve({ items: [], total: 0 });
@@ -105,7 +127,9 @@ describe('hq/depots/detail reads the admin record', () => {
     expect(document.querySelector<HTMLInputElement>('#d-acct')?.value).toBe('1234567890');
     expect(document.querySelector<HTMLInputElement>('#d-bank')?.value).toBe('BCA');
     expect(document.querySelector<HTMLInputElement>('#d-holder')?.value).toBe('PT Hydromart');
-    expect(document.querySelector<HTMLInputElement>('#d-qris')?.value).toBe('https://cdn.example.id/qris.png');
+    expect(document.querySelector<HTMLInputElement>('#d-qris')?.value).toBe(
+      'https://cdn.example.id/qris.png',
+    );
     expect(document.querySelector<HTMLInputElement>('#d-phone')?.value).toBe('081234567890');
   });
 

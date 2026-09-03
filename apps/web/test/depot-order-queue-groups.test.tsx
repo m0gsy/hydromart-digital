@@ -23,7 +23,11 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 's-1', role: 'STAFF_DEPOT' }, ready: true }),
 }));
 vi.mock('@/lib/depot-context', () => ({
-  useDepot: () => ({ selectedId: 'd-1', selected: { id: 'd-1', name: 'Depot Kemang', code: 'KMG' }, depots: [] }),
+  useDepot: () => ({
+    selectedId: 'd-1',
+    selected: { id: 'd-1', name: 'Depot Kemang', code: 'KMG' },
+    depots: [],
+  }),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -142,7 +146,9 @@ describe('the depot queue, beyond the groups', () => {
 
   it('offers a retry when the queue itself will not load', async () => {
     get.mockImplementation((path: string) =>
-      String(path).includes('/orders') ? Promise.reject(new Error('503')) : Promise.resolve({ items: [], total: 0 }),
+      String(path).includes('/orders')
+        ? Promise.reject(new Error('503'))
+        : Promise.resolve({ items: [], total: 0 }),
     );
     renderPage();
     expect(await screen.findByRole('button', { name: /coba lagi|try again/i })).toBeInTheDocument();
@@ -156,7 +162,9 @@ describe('the depot queue, beyond the groups', () => {
       return Promise.resolve({ items: [], total: 0 });
     });
     renderPage();
-    expect(await screen.findByText(/antrean kosong|belum ada|no orders|empty/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/antrean kosong|belum ada|no orders|empty/i),
+    ).toBeInTheDocument();
   });
 
   it('opens an order and shows what is in it', async () => {
@@ -212,7 +220,9 @@ describe('the depot queue — assigning a courier', () => {
 
   it("shows the server's own refusal — a courier who already has a job", async () => {
     withDrivers();
-    post.mockRejectedValue(new FakeApiError('Kurir sedang mengantar pesanan lain.', 409, 'DRIVER_BUSY'));
+    post.mockRejectedValue(
+      new FakeApiError('Kurir sedang mengantar pesanan lain.', 409, 'DRIVER_BUSY'),
+    );
     renderPage();
     await userEvent.click(await screen.findByText(/HM-a/));
     await userEvent.click(await screen.findByText('Budi'));
