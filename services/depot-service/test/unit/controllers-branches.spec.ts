@@ -781,7 +781,9 @@ describe('PricingController', () => {
     update: jest.fn(),
     remove: jest.fn(),
   };
-  const c = new PricingController(svc as never);
+  // CA-2-12: the controller reads the business timezone to turn a date-only string into
+  // the right instant, so the fake has to carry one.
+  const c = new PricingController(svc as never, { businessTimeZone: 'Asia/Jakarta' } as never);
   beforeEach(() => {
     jest.clearAllMocks();
     svc.get.mockResolvedValue({ depotId: DEPOT });
@@ -818,12 +820,46 @@ describe('PricingController', () => {
       DEPOT,
       expect.objectContaining({
         productId: 'p',
+        // A full ISO instant is left exactly as given: a caller that named a moment meant
+        // that moment.
         validFrom: new Date(ISO),
         validUntil: new Date(ISO),
         priority: 5,
         active: false,
       }),
     );
+  });
+
+  /*
+   * CA-2-12: a promo's last day is a DAY, in Jakarta — not an instant in UTC.
+   *
+   * `new Date('2026-12-31')` is midnight UTC, which is 07:00 in Jakarta, so a rule valid
+   * "until 31 December" stopped applying at seven that morning and one starting on the 1st
+   * did not begin until seven. Every depot ran its promos seventeen hours short at one end
+   * and seven hours late at the other.
+   */
+  it('reads a date-only window in the business zone, inclusive of the last day', async () => {
+    await c.create(DEPOT, {
+      adjustType: 'ABS',
+      value: 1,
+      validFrom: '2026-12-01',
+      validUntil: '2026-12-31',
+    } as never);
+
+    const arg = svc.create.mock.calls.at(-1)![1] as { validFrom: Date; validUntil: Date };
+    // 1 Dec 00:00 WIB is 30 Nov 17:00 UTC — the promo is live from the first minute of
+    // the first day, not from 07:00.
+    expect(arg.validFrom.toISOString()).toBe('2026-11-30T17:00:00.000Z');
+    // 31 Dec 23:59:59.999 WIB. `isRuleActive` refuses `now > validUntil`, so the whole of
+    // the 31st is inside the window.
+    expect(arg.validUntil.toISOString()).toBe('2026-12-31T16:59:59.999Z');
+  });
+
+  it('reads a date-only patch the same way on update', async () => {
+    await c.update(ID, { validUntil: '2026-12-31' } as never, user);
+
+    const patch = svc.update.mock.calls.at(-1)!.at(-1) as { validUntil: Date };
+    expect(patch.validUntil.toISOString()).toBe('2026-12-31T16:59:59.999Z');
   });
 
   it('lists, removes and updates with an empty and a full patch', async () => {
@@ -917,7 +953,7 @@ describe('DepotController', () => {
     const scoped = (...depotIds: string[]) =>
       ({ sub: 'kd-1', role: 'KEPALA_DEPOT', depotId: depotIds[0] ?? null, depotIds }) as never;
 
-    it("answers a depot-scoped account with its OWN depots, never the network", async () => {
+    it('answers a depot-scoped account with its OWN depots, never the network', async () => {
       svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }]);
       const out = await c.scope(scoped(DEPOT));
       expect(svc.listByIds).toHaveBeenCalledWith([DEPOT]);
@@ -927,8 +963,16 @@ describe('DepotController', () => {
     });
 
     it('answers a manager with every depot in their resolved set', async () => {
-      svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }, { id: OTHER, name: 'E' }]);
-      await c.scope({ sub: 'm', role: 'MANAGER', depotId: DEPOT, depotIds: [DEPOT, OTHER] } as never);
+      svc.listByIds.mockResolvedValue([
+        { id: DEPOT, name: 'D' },
+        { id: OTHER, name: 'E' },
+      ]);
+      await c.scope({
+        sub: 'm',
+        role: 'MANAGER',
+        depotId: DEPOT,
+        depotIds: [DEPOT, OTHER],
+      } as never);
       expect(svc.listByIds).toHaveBeenCalledWith([DEPOT, OTHER]);
     });
 
