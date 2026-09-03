@@ -117,10 +117,7 @@ describe('ExportLogsController', () => {
     const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
     await controller.download('11111111-1111-4111-8111-111111111111', res as never);
     expect(res.header).toHaveBeenCalledWith('content-type', 'application/octet-stream');
-    expect(res.header).toHaveBeenCalledWith(
-      'content-disposition',
-      'attachment; filename="a.csv"',
-    );
+    expect(res.header).toHaveBeenCalledWith('content-disposition', 'attachment; filename="a.csv"');
     expect(res.send).toHaveBeenCalledWith(Buffer.from('hi'));
   });
 
@@ -380,7 +377,13 @@ describe('RetentionController', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('runPurge only dry-runs when the query says exactly "true"', async () => {
-    purge.run.mockResolvedValue({ ranAt: 'now', dryRun: false, entries: [], totalDeleted: 0, unenforced: [] });
+    purge.run.mockResolvedValue({
+      ranAt: 'now',
+      dryRun: false,
+      entries: [],
+      totalDeleted: 0,
+      unenforced: [],
+    });
     await controller.runPurge('true');
     expect(purge.run).toHaveBeenCalledWith({ dryRun: true });
     await controller.runPurge('yes');
@@ -433,7 +436,12 @@ describe('RetentionController', () => {
     });
     const out = await controller.recordBackupRun({ kind: 'BACKUP', status: 'OK', detail: '1.2G' });
     expect(retention.recordBackupRun).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'BACKUP', status: 'OK', detail: '1.2G', at: expect.any(Date) }),
+      expect.objectContaining({
+        kind: 'BACKUP',
+        status: 'OK',
+        detail: '1.2G',
+        at: expect.any(Date),
+      }),
     );
     expect(out.drillStatus).toBe('NONE');
     expect(out.lastDrillAt).toBeNull();

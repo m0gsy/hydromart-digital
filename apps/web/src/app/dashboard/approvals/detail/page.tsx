@@ -6,7 +6,17 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -14,7 +24,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canReviewApprovals } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Approval, ApprovalStatus } from '@/lib/types';
+import type { Approval, ApprovalStatus, Customer } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const STATUS_TONE: Record<ApprovalStatus, 'brand' | 'success' | 'danger' | 'warning'> = {
@@ -26,10 +36,15 @@ const STATUS_TONE: Record<ApprovalStatus, 'brand' | 'success' | 'danger' | 'warn
 
 const num = (v: unknown) => Number(v ?? 0);
 
+/** Eight characters is enough to tell two rows apart when a name cannot be had. */
+const shortId = (id: string) => id.slice(0, 8);
+
 function TriStat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
   return (
     <div className="px-2 py-4 text-center">
-      <div className={`text-xl font-extrabold tabular-nums ${tone === 'danger' ? 'text-[color:var(--danger)]' : ''}`}>
+      <div
+        className={`text-xl font-extrabold tabular-nums ${tone === 'danger' ? 'text-[color:var(--danger)]' : ''}`}
+      >
         {value}
       </div>
       <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
@@ -47,8 +62,14 @@ function Snapshot({ a }: { a: Approval }) {
     const variance = num(p.variance);
     return (
       <Card className="grid grid-cols-3 divide-x divide-[color:var(--border)] p-0">
-        <TriStat label={t('dashA.approvalDetail.system')} value={num(p.system).toLocaleString('id-ID')} />
-        <TriStat label={t('dashA.approvalDetail.physical')} value={num(p.physical).toLocaleString('id-ID')} />
+        <TriStat
+          label={t('dashA.approvalDetail.system')}
+          value={num(p.system).toLocaleString('id-ID')}
+        />
+        <TriStat
+          label={t('dashA.approvalDetail.physical')}
+          value={num(p.physical).toLocaleString('id-ID')}
+        />
         <TriStat
           label={t('dashA.approvalDetail.variance')}
           value={`${variance > 0 ? '+' : ''}${variance.toLocaleString('id-ID')}`}
@@ -81,9 +102,19 @@ function Snapshot({ a }: { a: Approval }) {
   );
 }
 
-function RowLine({ label, divider, children }: { label: string; divider?: boolean; children: React.ReactNode }) {
+function RowLine({
+  label,
+  divider,
+  children,
+}: {
+  label: string;
+  divider?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`flex items-center justify-between py-3 ${divider ? 'border-t border-[color:var(--border)]' : ''}`}>
+    <div
+      className={`flex items-center justify-between py-3 ${divider ? 'border-t border-[color:var(--border)]' : ''}`}
+    >
       <span className="text-sm font-semibold">{label}</span>
       {children}
     </div>
@@ -95,6 +126,34 @@ function Detail({ id }: { id: string }) {
   const router = useRouter();
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
   const [note, setNote] = useState('');
+  // The two accounts this screen has to name. Batched, cached, and never fatal: a decision
+  // screen must render whether or not the staff directory answers.
+  const ids = [detail.data?.submittedBy, detail.data?.decidedBy].filter((v): v is string =>
+    Boolean(v),
+  );
+  /*
+   * Written as a statement rather than a ternary expression on purpose.
+   *
+   * `scripts/check-endpoint-contracts.mjs` reads `api.<verb>(endpoints.a.b)` to check that
+   * the client and the controller agree on the HTTP verb, and it reads it with a regex.
+   * Inside a ternary this call was long enough that prettier broke the line after `api`,
+   * the regex stopped matching, and the site was counted as one whose verb nothing
+   * verifies. Hoisting the URL into a variable would silence the counter and lose the
+   * check with it; keeping the call on one line is what actually restores it.
+   */
+  const loadNames = async (): Promise<Customer[]> => {
+    if (ids.length === 0) return [];
+    try {
+      return await api.getCached<Customer[]>(endpoints.auth.customersByIds(ids), true);
+    } catch {
+      return [];
+    }
+  };
+  const namesQ = useAsync<Customer[]>(loadNames, [ids.join(',')]);
+  const who = (id: string) => {
+    const found = (namesQ.data ?? []).find((c) => c.id === id);
+    return found ? found.fullName || found.phone : shortId(id);
+  };
   const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | 'HOLD' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,7 +165,11 @@ function Detail({ id }: { id: string }) {
     setBusy(decision);
     setError(null);
     try {
-      await api.patch(endpoints.approvals.decide(id), { decision, note: note.trim() || undefined }, true);
+      await api.patch(
+        endpoints.approvals.decide(id),
+        { decision, note: note.trim() || undefined },
+        true,
+      );
       router.push('/dashboard/approvals');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('dashA.approvalDetail.actionFailed'));
@@ -151,12 +214,46 @@ function Detail({ id }: { id: string }) {
 
       <Snapshot a={a} />
 
+      {/*
+       * CA-2-66: who asked, and who decided.
+       *
+       * `submittedBy` and `decidedBy` have been on the record since the first migration and
+       * were on no screen. An approval queue exists to put a NAME against a decision about
+       * money — a stock write-off, a deposit shortfall, a price override — and this screen
+       * showed the amount, the threshold and the note while answering neither question. The
+       * only place the pair could be recovered was the database.
+       *
+       * Names, not ids: `useAccountNames` is the resolver the other consoles already use,
+       * and it falls back to a short id rather than to nothing when the directory is
+       * unreadable — an unresolved id is still an answer, an empty row is not.
+       */}
       <Card className="px-4 py-1">
-        <RowLine label={t('dashA.approvalDetail.amountLabel')}>
-          <Money amount={Math.abs(a.amountIdr)} className="font-extrabold tabular-nums text-[color:var(--danger)]" />
+        <RowLine label={t('dashA.approvalDetail.submittedByLabel')}>
+          <span className="font-semibold">{who(a.submittedBy)}</span>
+        </RowLine>
+        {a.decidedBy && (
+          <RowLine label={t('dashA.approvalDetail.decidedByLabel')} divider>
+            <span className="text-right">
+              <span className="font-semibold">{who(a.decidedBy)}</span>
+              {a.decidedAt && (
+                <span className="ml-2 text-xs text-[color:var(--text-muted)]">
+                  {formatDateTime(a.decidedAt)}
+                </span>
+              )}
+            </span>
+          </RowLine>
+        )}
+        <RowLine label={t('dashA.approvalDetail.amountLabel')} divider>
+          <Money
+            amount={Math.abs(a.amountIdr)}
+            className="font-extrabold tabular-nums text-[color:var(--danger)]"
+          />
         </RowLine>
         <RowLine label={t('dashA.approvalDetail.autoPassLabel')} divider>
-          <Money amount={a.autoPassThreshold} className="font-semibold tabular-nums text-[color:var(--text-muted)]" />
+          <Money
+            amount={a.autoPassThreshold}
+            className="font-semibold tabular-nums text-[color:var(--text-muted)]"
+          />
         </RowLine>
       </Card>
 
@@ -172,24 +269,49 @@ function Detail({ id }: { id: string }) {
       {pending ? (
         <Card className="flex flex-col gap-3 p-4">
           <Field label={t('dashA.approvalDetail.noteLabel')} htmlFor="decide-note">
-            <Input id="decide-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('dashA.approvalDetail.notePlaceholder')} />
+            <Input
+              id="decide-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={t('dashA.approvalDetail.notePlaceholder')}
+            />
           </Field>
-          {error && <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">{error}</p>}
+          {error && (
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              {error}
+            </p>
+          )}
           <div className="flex gap-2">
-            <Button variant="danger" onClick={() => decide('REJECT')} loading={busy === 'REJECT'} className="flex-1">
+            <Button
+              variant="danger"
+              onClick={() => decide('REJECT')}
+              loading={busy === 'REJECT'}
+              className="flex-1"
+            >
               {t('dashA.approvalDetail.reject')}
             </Button>
-            <Button variant="ghost" onClick={() => decide('HOLD')} loading={busy === 'HOLD'} className="flex-1">
+            <Button
+              variant="ghost"
+              onClick={() => decide('HOLD')}
+              loading={busy === 'HOLD'}
+              className="flex-1"
+            >
               {t('dashA.approvalDetail.hold')}
             </Button>
-            <Button onClick={() => decide('APPROVE')} loading={busy === 'APPROVE'} className="flex-1">
+            <Button
+              onClick={() => decide('APPROVE')}
+              loading={busy === 'APPROVE'}
+              className="flex-1"
+            >
               {t('dashA.approvalDetail.approve')}
             </Button>
           </div>
         </Card>
       ) : (
         <p className="text-sm text-[color:var(--text-muted)]">
-          {a.status === 'APPROVED' ? t('dashA.approvalDetail.decidedApproved') : t('dashA.approvalDetail.decidedRejected')}
+          {a.status === 'APPROVED'
+            ? t('dashA.approvalDetail.decidedApproved')
+            : t('dashA.approvalDetail.decidedRejected')}
         </p>
       )}
     </div>
@@ -201,7 +323,10 @@ function Gate({ id }: { id: string }) {
   const { customer } = useAuth();
   if (!canReviewApprovals(customer?.role)) {
     return (
-      <CenterState title={t('dashA.approvalDetail.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('dashA.approvalDetail.gateTitle')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('dashA.approvalDetail.gateBody')}
       </CenterState>
     );

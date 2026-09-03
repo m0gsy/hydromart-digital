@@ -1,8 +1,4 @@
-import {
-  SWEEP_SCHEDULE,
-  overdueAfterMinutes,
-  verdictFor,
-} from '../../src/domain/sweep-schedule';
+import { SWEEP_SCHEDULE, overdueAfterMinutes, verdictFor } from '../../src/domain/sweep-schedule';
 import { SweepService } from '../../src/application/services/sweep.service';
 import { SweepController } from '../../src/modules/sweep.controller';
 import { SweepStatusDto } from '../../src/modules/dto/sweep.dto';

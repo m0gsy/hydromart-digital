@@ -1991,6 +1991,15 @@ export interface ScheduledReport {
   dataset: ReportDataset;
   nextRunAt: string | null;
   lastRunAt: string | null;
+  /**
+   * CA-2-66: whether that last run produced the file. `lastRunAt` is stamped either way —
+   * on purpose, so a failing schedule does not become a hot loop — which is exactly why a
+   * broken weekly report and a working one used to look identical on the list. Null =
+   * never run.
+   */
+  lastRunOk: boolean | null;
+  /** Why it failed, when it did. */
+  lastError: string | null;
   enabled: boolean;
   createdAt: string;
 }

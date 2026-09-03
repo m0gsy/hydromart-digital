@@ -1,10 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarCheck, Trash } from '@phosphor-icons/react';
+import { CalendarCheck, Trash, WarningCircle } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Field, IconButton, Input, Skeleton, Toggle } from '@/components/ui';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  IconButton,
+  Input,
+  Skeleton,
+  Toggle,
+} from '@/components/ui';
 import { Sheet, ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -28,13 +37,16 @@ const DATASETS: ReportDataset[] = ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT', 'RE
 export default function HqScheduledReportsPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const query = useAsync<ScheduledReport[]>(() => api.get(endpoints.admin.scheduledReports.list, true));
+  const query = useAsync<ScheduledReport[]>(() =>
+    api.get(endpoints.admin.scheduledReports.list, true),
+  );
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledReport | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error) return <ErrorState message={t('hq.scheduledReports.loadError')} onRetry={query.reload} />;
+  if (query.error)
+    return <ErrorState message={t('hq.scheduledReports.loadError')} onRetry={query.reload} />;
 
   const reports = query.data ?? [];
 
@@ -79,17 +91,42 @@ export default function HqScheduledReportsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {reports.map((r) => (
-            <Card key={r.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <Card
+              key={r.id}
+              className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div className="min-w-0">
                 <p className="font-semibold">{r.name}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  {t(`hq.scheduledReports.cadences.${r.cadence}`)} · {t(`hq.scheduledReports.datasets.${r.dataset}`)} · {r.format}
+                  {t(`hq.scheduledReports.cadences.${r.cadence}`)} ·{' '}
+                  {t(`hq.scheduledReports.datasets.${r.dataset}`)} · {r.format}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('hq.scheduledReports.nextRun')}:{' '}
-                  {r.nextRunAt ? new Date(r.nextRunAt).toLocaleString('id-ID') : t('hq.scheduledReports.nextRunNone')}
-                  {r.lastRunAt && ` · ${t('hq.scheduledReports.lastRun')}: ${new Date(r.lastRunAt).toLocaleString('id-ID')}`}
+                  {r.nextRunAt
+                    ? new Date(r.nextRunAt).toLocaleString('id-ID')
+                    : t('hq.scheduledReports.nextRunNone')}
+                  {r.lastRunAt &&
+                    ` · ${t('hq.scheduledReports.lastRun')}: ${new Date(r.lastRunAt).toLocaleString('id-ID')}`}
                 </p>
+                {/*
+                  CA-2-66: a report that failed used to look exactly like one that worked.
+                  The timestamp above is stamped either way, so head office set up a weekly
+                  revenue report, saw it refresh every Monday, and had no way to learn the
+                  file had not been produced for a month.
+                */}
+                {r.lastRunOk === false && (
+                  <p
+                    className="mt-1 flex items-start gap-1.5 text-xs font-semibold text-[color:var(--danger)]"
+                    role="status"
+                  >
+                    <WarningCircle size={14} weight="fill" className="mt-0.5 shrink-0" />
+                    <span>
+                      {t('hq.scheduledReports.lastRunFailed')}
+                      {r.lastError ? ` · ${r.lastError}` : ''}
+                    </span>
+                  </p>
+                )}
                 {/* Honest about the delivery gap: the file is produced and downloadable,
                     but nothing emails it, because this repo has no mail transport. */}
                 <p className="mt-1 text-xs text-muted">{t('hq.scheduledReports.deliveryNote')}</p>
@@ -99,7 +136,10 @@ export default function HqScheduledReportsPage() {
                   {r.enabled ? t('hq.scheduledReports.on') : t('hq.scheduledReports.off')}
                 </span>
                 <Toggle on={r.enabled} onChange={(v) => toggle(r, v)} label={r.name} />
-                <IconButton aria-label={t('hq.scheduledReports.delete')} onClick={() => setDeleteTarget(r)}>
+                <IconButton
+                  aria-label={t('hq.scheduledReports.delete')}
+                  onClick={() => setDeleteTarget(r)}
+                >
                   <Trash size={18} />
                 </IconButton>
               </div>
@@ -150,7 +190,10 @@ function CreateReportSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const recipientList = recipients.split(',').map((s) => s.trim()).filter(Boolean);
+  const recipientList = recipients
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const valid = name.trim().length > 0 && recipientList.length > 0;
 
   async function submit() {
@@ -180,10 +223,24 @@ function CreateReportSheet({
     <Sheet open={open} onClose={onClose} title={t('hq.scheduledReports.createTitle')}>
       <div className="flex flex-col gap-4">
         <Field label={t('hq.scheduledReports.name')} htmlFor="sr-name">
-          <Input id="sr-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('hq.scheduledReports.namePlaceholder')} />
+          <Input
+            id="sr-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('hq.scheduledReports.namePlaceholder')}
+          />
         </Field>
-        <Field label={t('hq.scheduledReports.recipients')} htmlFor="sr-recipients" hint={t('hq.scheduledReports.recipientsHint')}>
-          <Input id="sr-recipients" value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="finance@hydromart.id, ho@hydromart.id" />
+        <Field
+          label={t('hq.scheduledReports.recipients')}
+          htmlFor="sr-recipients"
+          hint={t('hq.scheduledReports.recipientsHint')}
+        >
+          <Input
+            id="sr-recipients"
+            value={recipients}
+            onChange={(e) => setRecipients(e.target.value)}
+            placeholder="finance@hydromart.id, ho@hydromart.id"
+          />
         </Field>
         <Field label={t('hq.scheduledReports.cadence')}>
           <div className="flex overflow-hidden rounded-full border border-app text-xs font-bold">
@@ -200,7 +257,11 @@ function CreateReportSheet({
             ))}
           </div>
         </Field>
-        <Field label={t('hq.scheduledReports.dataset')} htmlFor="sr-dataset" hint={t('hq.scheduledReports.datasetHint')}>
+        <Field
+          label={t('hq.scheduledReports.dataset')}
+          htmlFor="sr-dataset"
+          hint={t('hq.scheduledReports.datasetHint')}
+        >
           <select
             id="sr-dataset"
             value={dataset}
@@ -229,10 +290,18 @@ function CreateReportSheet({
             ))}
           </div>
         </Field>
-        {error && <p className="text-sm text-[color:var(--danger)]" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-[color:var(--danger)]" role="alert">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>{t('hq.common.cancel')}</Button>
-          <Button onClick={submit} disabled={!valid} loading={busy}>{t('hq.scheduledReports.add')}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            {t('hq.common.cancel')}
+          </Button>
+          <Button onClick={submit} disabled={!valid} loading={busy}>
+            {t('hq.scheduledReports.add')}
+          </Button>
         </div>
       </div>
     </Sheet>

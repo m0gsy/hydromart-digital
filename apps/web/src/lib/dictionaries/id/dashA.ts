@@ -40,6 +40,8 @@ export const dashA = {
     gateBody: 'Antrean approval tersedia untuk manajer depot dan super admin.',
   },
   approvalDetail: {
+    submittedByLabel: 'Diajukan oleh',
+    decidedByLabel: 'Diputuskan oleh',
     type: {
       OPNAME_VARIANCE: 'Selisih opname',
       DEPOSIT_REFUND: 'Refund deposit',

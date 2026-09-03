@@ -4,7 +4,11 @@ import { RemotePurgeExecutor } from '../../src/infrastructure/http/remote-purge.
 
 const NOW = new Date('2026-07-29T00:00:00.000Z');
 
-function plan(entries: Array<Partial<{ dataset: string; dataClass: DataClass; purgeExempt: boolean; cutoff: Date | null }>>) {
+function plan(
+  entries: Array<
+    Partial<{ dataset: string; dataClass: DataClass; purgeExempt: boolean; cutoff: Date | null }>
+  >,
+) {
   return {
     purgeCutoffs: jest.fn(async () =>
       entries.map((e) => ({
@@ -21,7 +25,14 @@ describe('PurgeService', () => {
   it('never touches a FINANCIAL dataset, even with an executor registered', async () => {
     const executor = { dataset: 'orders_transactions', mode: 'DELETE' as const, purge: jest.fn() };
     const service = new PurgeService(
-      plan([{ dataset: 'orders_transactions', dataClass: DataClass.FINANCIAL, purgeExempt: true, cutoff: null }]) as never,
+      plan([
+        {
+          dataset: 'orders_transactions',
+          dataClass: DataClass.FINANCIAL,
+          purgeExempt: true,
+          cutoff: null,
+        },
+      ]) as never,
       [executor],
     );
 
@@ -42,7 +53,11 @@ describe('PurgeService', () => {
   });
 
   it('deletes through the executor and reports the count', async () => {
-    const executor = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn(async () => 12) };
+    const executor = {
+      dataset: 'audit_logs',
+      mode: 'DELETE' as const,
+      purge: jest.fn(async () => 12),
+    };
     const service = new PurgeService(plan([{ dataset: 'audit_logs' }]) as never, [executor]);
 
     const result = await service.run({ now: NOW });
@@ -104,8 +119,18 @@ describe('PurgeService', () => {
   });
 
   it('one failing dataset does not abort the others', async () => {
-    const boom = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn(async () => { throw new Error('owner down'); }) };
-    const ok = { dataset: 'notifications_messages', mode: 'DELETE' as const, purge: jest.fn(async () => 3) };
+    const boom = {
+      dataset: 'audit_logs',
+      mode: 'DELETE' as const,
+      purge: jest.fn(async () => {
+        throw new Error('owner down');
+      }),
+    };
+    const ok = {
+      dataset: 'notifications_messages',
+      mode: 'DELETE' as const,
+      purge: jest.fn(async () => 3),
+    };
     const service = new PurgeService(
       plan([{ dataset: 'audit_logs' }, { dataset: 'notifications_messages' }]) as never,
       [boom, ok],
@@ -167,7 +192,9 @@ describe('RemotePurgeExecutor', () => {
 
   it('raises on a non-2xx instead of reporting a silent zero', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
-    await expect(new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).rejects.toThrow('503');
+    await expect(new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).rejects.toThrow(
+      '503',
+    );
   });
 
   it('raises when the owner is unreachable', async () => {
@@ -192,7 +219,11 @@ describe('PurgeService REPORT executors', () => {
   };
 
   it('counts without deleting, and never inflates totalDeleted', async () => {
-    const executor = { dataset: 'hr_employee_records', mode: 'REPORT' as const, purge: jest.fn(async () => 9) };
+    const executor = {
+      dataset: 'hr_employee_records',
+      mode: 'REPORT' as const,
+      purge: jest.fn(async () => 9),
+    };
     const service = new PurgeService(reportPlan as never, [executor]);
 
     const result = await service.run({ now: NOW2 });
@@ -203,7 +234,11 @@ describe('PurgeService REPORT executors', () => {
   });
 
   it('a report of zero is not something waiting on a human', async () => {
-    const executor = { dataset: 'hr_employee_records', mode: 'REPORT' as const, purge: jest.fn(async () => 0) };
+    const executor = {
+      dataset: 'hr_employee_records',
+      mode: 'REPORT' as const,
+      purge: jest.fn(async () => 0),
+    };
     const service = new PurgeService(reportPlan as never, [executor]);
 
     const result = await service.run({ now: NOW2 });

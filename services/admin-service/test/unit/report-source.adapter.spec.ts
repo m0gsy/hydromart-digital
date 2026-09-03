@@ -88,7 +88,9 @@ describe('ReportSourceHttpAdapter', () => {
     ['payment-service has no URL', { paymentServiceUrl: '' }, ReportDataset.REVENUE_BY_METHOD],
     ['the internal key is unset', { internalServiceKey: '' }, ReportDataset.REVENUE_BY_DEPOT],
   ])('throws when %s', async (_case, over, dataset) => {
-    await expect(new ReportSourceHttpAdapter(config(over)).rowsFor(dataset, FROM, TO)).rejects.toThrow();
+    await expect(
+      new ReportSourceHttpAdapter(config(over)).rowsFor(dataset, FROM, TO),
+    ).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

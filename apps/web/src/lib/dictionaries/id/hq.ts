@@ -1650,6 +1650,7 @@ export const hq = {
     empty: 'Tidak ada item berisiko.',
   },
   scheduledReports: {
+    lastRunFailed: 'Jalan terakhir GAGAL — berkasnya tidak terbentuk',
     title: 'Laporan terjadwal',
     subtitle: 'Ekspor berulang: irama, penerima, jadwal berikut',
     add: '＋ Jadwal baru',

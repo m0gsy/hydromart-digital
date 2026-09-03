@@ -4,10 +4,7 @@ import { ReportDataset } from '../../src/domain/report-dataset';
 import { nextRunAfter, reportWindow } from '../../src/domain/report-window';
 import { renderReport, reportFileName } from '../../src/domain/report-file';
 import { ScheduledReportRunnerService } from '../../src/application/services/scheduled-report-runner.service';
-import {
-  InMemoryExportLogRepository,
-  InMemoryScheduledReportRepository,
-} from '../support/fakes';
+import { InMemoryExportLogRepository, InMemoryScheduledReportRepository } from '../support/fakes';
 
 /*
  * The executor that did not exist. `hq/scheduled-reports` had full CRUD, `nextRunAt` was
@@ -92,7 +89,11 @@ describe('renderReport', () => {
   // A depot called `Depot "Baru", Cibubur` must stay one column.
   it('quotes a label containing a comma or a quote', async () => {
     const text = (
-      await renderReport([{ label: 'Depot "Baru", Cibubur', orders: 1, revenue: 1 }], ExportFormat.CSV, 'x')
+      await renderReport(
+        [{ label: 'Depot "Baru", Cibubur', orders: 1, revenue: 1 }],
+        ExportFormat.CSV,
+        'x',
+      )
     ).toString('utf8');
     expect(text).toContain('"Depot ""Baru"", Cibubur",1,1');
   });
@@ -116,13 +117,15 @@ describe('renderReport', () => {
   });
 
   it('names the file after the window, not the run time', () => {
-    expect(reportFileName('Laporan Harian!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.CSV))
-      .toBe('laporan-harian-2026-08-11.csv');
+    expect(
+      reportFileName('Laporan Harian!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.CSV),
+    ).toBe('laporan-harian-2026-08-11.csv');
   });
 
   it('falls back to a usable name when the title has no letters at all', () => {
-    expect(reportFileName('!!!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.XLSX))
-      .toBe('laporan-2026-08-11.xlsx');
+    expect(reportFileName('!!!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.XLSX)).toBe(
+      'laporan-2026-08-11.xlsx',
+    );
   });
 });
 
@@ -152,6 +155,9 @@ describe('ScheduledReportRunnerService', () => {
     const [after] = await schedules.list();
     expect(after.lastRunAt).toEqual(WED);
     expect(after.nextRunAt).toEqual(new Date('2026-08-13T00:00:00.000Z'));
+    // CA-2-66: and the outcome, beside the timestamp.
+    expect(after.lastRunOk).toBe(true);
+    expect(after.lastError).toBeNull();
   });
 
   /*
@@ -168,7 +174,11 @@ describe('ScheduledReportRunnerService', () => {
     });
 
     expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1 - 1, failed: 1, ok: false });
-    expect(logs.rows[0]).toMatchObject({ status: ExportStatus.FAILED, rowCount: null, hasFile: false });
+    expect(logs.rows[0]).toMatchObject({
+      status: ExportStatus.FAILED,
+      rowCount: null,
+      hasFile: false,
+    });
   });
 
   // A schedule that fails every tick must not become a hot loop refiring every minute.
@@ -182,6 +192,55 @@ describe('ScheduledReportRunnerService', () => {
     await runner.runDue(WED);
     const [after] = await schedules.list();
     expect(after.nextRunAt).toEqual(new Date('2026-08-13T00:00:00.000Z'));
+  });
+
+  /*
+   * CA-2-66: and it must SAY so.
+   *
+   * Advancing `lastRunAt` on a failure is right — it is what stops the hot loop — and it
+   * is also what made a broken schedule indistinguishable from a working one. Head office
+   * set up a weekly revenue report, saw a fresh timestamp every Monday, and had no way to
+   * learn the file had not been produced for a month. The runner has always known which it
+   * was; there was nowhere on the schedule to write the answer down.
+   */
+  it('records that the run failed, and why, beside the timestamp', async () => {
+    const { schedules, runner } = makeRunner(
+      jest.fn().mockRejectedValue(new Error('order-service responded 503')),
+    );
+    await schedules.create({
+      name: 'Mingguan',
+      cadence: ReportCadence.DAILY,
+      recipients: ['finance@hydromart.id'],
+    });
+
+    await runner.runDue(WED);
+
+    const [after] = await schedules.list();
+    expect(after.lastRunAt).toEqual(WED);
+    expect(after.lastRunOk).toBe(false);
+    expect(after.lastError).toBe('order-service responded 503');
+  });
+
+  it('clears a previous failure once the report works again', async () => {
+    const rowsFor = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValue([{ a: 1 }]);
+    const { schedules, runner } = makeRunner(rowsFor);
+    await schedules.create({
+      name: 'Harian',
+      cadence: ReportCadence.DAILY,
+      recipients: ['ops@hydromart.id'],
+    });
+
+    await runner.runDue(WED);
+    expect((await schedules.list())[0].lastRunOk).toBe(false);
+
+    // A stale error beside a run that worked is its own lie.
+    await runner.runDue(new Date('2026-08-13T00:00:00.000Z'));
+    const [after] = await schedules.list();
+    expect(after.lastRunOk).toBe(true);
+    expect(after.lastError).toBeNull();
   });
 
   it('skips a disabled schedule and one that is not due yet', async () => {

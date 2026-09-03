@@ -75,7 +75,11 @@ describe('AdminNotificationPrefService', () => {
    * blind replace would delete the HQ prefs of anybody holding both lists.
    */
   it('a depot save leaves the same account HQ prefs untouched', async () => {
-    await service.save('acc-1', [{ id: 'criticalSla', push: false, email: false, wa: false }], 'ALL');
+    await service.save(
+      'acc-1',
+      [{ id: 'criticalSla', push: false, email: false, wa: false }],
+      'ALL',
+    );
     await service.save('acc-1', [{ id: 'newOrder', push: false, email: true, wa: false }], 'DEPOT');
 
     const hq = await service.get('acc-1', 'ALL');
@@ -93,7 +97,11 @@ describe('AdminNotificationPrefService', () => {
   });
 
   it('a DEPOT save cannot write an HQ event', async () => {
-    await service.save('acc-1', [{ id: 'criticalSla', push: false, email: false, wa: false }], 'DEPOT');
+    await service.save(
+      'acc-1',
+      [{ id: 'criticalSla', push: false, email: false, wa: false }],
+      'DEPOT',
+    );
     const all = await service.get('acc-1');
     expect(all.channels.find((c) => c.id === 'criticalSla')).toMatchObject({ push: true });
   });

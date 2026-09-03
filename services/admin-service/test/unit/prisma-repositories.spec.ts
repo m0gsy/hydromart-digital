@@ -769,7 +769,12 @@ describe('SlaPolicyPrismaRepository', () => {
 });
 
 describe('SupportTicketPrismaRepository', () => {
-  const supportTicket = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), create: jest.fn() };
+  const supportTicket = {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+  };
   const ticketMessage = { create: jest.fn() };
   const prisma = { supportTicket, ticketMessage } as unknown as PrismaService;
   const repo = new SupportTicketPrismaRepository(prisma);

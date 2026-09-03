@@ -99,7 +99,10 @@ describe('FraudSignalsHttpAdapter', () => {
   it.each([
     ['a non-2xx', () => fetchMock.mockResolvedValue({ ok: false, status: 503 })],
     ['an unreachable service', () => fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))],
-    ['a 200 with no rows in it', () => fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) })],
+    [
+      'a 200 with no rows in it',
+      () => fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) }),
+    ],
   ])('answers null on %s, never an empty queue', async (_label, arrange) => {
     arrange();
     await expect(call()).resolves.toBeNull();
