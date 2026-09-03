@@ -10,9 +10,12 @@
 export const fulfilment = {
 // Delivery live tracking (delivery-service). Staff read; driver app posts position.
 deliveries: {
-  list: (q: { status?: string; page?: number; limit?: number } = {}) => {
+  list: (q: { status?: string; statuses?: readonly string[]; page?: number; limit?: number } = {}) => {
     const p = new URLSearchParams();
     if (q.status) p.set('status', q.status);
+    // Comma-separated, matching the service's `statuses` param: "still in flight" is three
+    // statuses, and asking for one of them hid the other two from the board that acts on them.
+    if (q.statuses?.length) p.set('statuses', q.statuses.join(','));
     if (q.page) p.set('page', String(q.page));
     if (q.limit) p.set('limit', String(q.limit));
     const qs = p.toString();

@@ -227,7 +227,13 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
       ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
-      ...(query.status ? { status: query.status } : {}),
+      // `statuses` first: it is the narrower question, and a caller sending both means
+      // the set, not the single value it had to send before the set existed.
+      ...(query.statuses?.length
+        ? { status: { in: [...query.statuses] } }
+        : query.status
+          ? { status: query.status }
+          : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.delivery.findMany({

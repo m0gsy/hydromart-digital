@@ -226,6 +226,64 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
+
+  /*
+   * CA-2-29. The tracking board loaded ON_DELIVERY only, so the pull-back button was
+   * unreachable for exactly the deliveries most likely to need pulling back: the ones still
+   * sitting at ASSIGNED or PICKED_UP, which have not left yet.
+   *
+   * `statuses` is the set form of `status`. It wins when both are sent, because a caller
+   * that sends a set means the set — the single value is what it had to send before the set
+   * existed.
+   */
+  it('search filters on a SET of statuses when one is given', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    delivery.count.mockResolvedValue(0);
+
+    await repo.search({
+      statuses: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY],
+      page: 1,
+      limit: 10,
+    } as never);
+
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: {
+            in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY],
+          },
+        },
+      }),
+    );
+  });
+
+  it('lets the set win over a single status when both arrive', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    delivery.count.mockResolvedValue(0);
+
+    await repo.search({
+      status: DeliveryStatus.DELIVERED,
+      statuses: [DeliveryStatus.ASSIGNED],
+      page: 1,
+      limit: 10,
+    } as never);
+
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: { in: [DeliveryStatus.ASSIGNED] } } }),
+    );
+  });
+
+  it('ignores an EMPTY set rather than matching nothing at all', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    delivery.count.mockResolvedValue(0);
+
+    await repo.search({ statuses: [], page: 1, limit: 10 } as never);
+
+    // `status: { in: [] }` would return an empty board and look like "no deliveries",
+    // which is the failure this whole card is about. An empty set means "no filter".
+    expect(delivery.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+
   it('search seeks past a cursor and hands the next one back', async () => {
     delivery.findMany.mockResolvedValue([deliveryRow(), { ...deliveryRow(), id: 'del-2' }]);
     delivery.count.mockResolvedValue(99);

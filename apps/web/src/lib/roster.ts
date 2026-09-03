@@ -1,7 +1,15 @@
 import type { Customer, Delivery } from './types';
 
-/** Active-delivery statuses that count toward a courier's current load. */
-const ACTIVE: Delivery['status'][] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
+/**
+ * Active-delivery statuses that count toward a courier's current load — and, since this
+ * is also what a "still in flight" query asks for, the list the roster and the tracking
+ * board both send to delivery-service so the rows they filter are the rows they fetched.
+ */
+export const ACTIVE_DELIVERY_STATUSES: readonly Delivery['status'][] = [
+  'ASSIGNED',
+  'PICKED_UP',
+  'ON_DELIVERY',
+];
 
 /** A courier's state on the roster. `offshift` is why an assignment would be refused. */
 export type RiderState = 'delivering' | 'available' | 'resting' | 'offshift';
@@ -58,7 +66,7 @@ export function deriveRoster(
   const openShift = new Map(shifts.filter((s) => s.status !== 'ENDED').map((s) => [s.driverId, s]));
 
   return drivers.map((driver) => {
-    const own = deliveries.filter((d) => d.driverId === driver.id && ACTIVE.includes(d.status));
+    const own = deliveries.filter((d) => d.driverId === driver.id && ACTIVE_DELIVERY_STATUSES.includes(d.status));
     const onDelivery = own.some((d) => d.status === 'ON_DELIVERY' || d.status === 'PICKED_UP');
     // Where they are working right now, if that is not their home depot.
     const activeDepotId = own.find((d) => d.depotId)?.depotId ?? openShift.get(driver.id)?.depotId ?? null;

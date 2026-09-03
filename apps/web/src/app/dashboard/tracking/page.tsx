@@ -12,6 +12,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT, type TVars } from '@/lib/locale-context';
 import { canViewTracking } from '@/lib/roles';
+import { ACTIVE_DELIVERY_STATUSES } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
@@ -202,8 +203,17 @@ function DeliveryCard({
 
 function TrackingBody() {
   const { t } = useT();
+  /*
+   * Every delivery still in flight, not just the ones already on the road.
+   *
+   * The card offers Tarik ke antrean / Batalkan for ASSIGNED, PICKED_UP and ON_DELIVERY —
+   * but this list only ever asked for ON_DELIVERY, so the two earlier states never
+   * appeared. A courier who accepted a delivery and then went dark before starting it was
+   * exactly the case those buttons exist for, and it was the one case the board never
+   * showed. The stepper already draws all four states.
+   */
   const list = useAsync<Page<Delivery>>(
-    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
+    () => api.get(endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, limit: 50 }), true),
     [],
   );
   // 1c: resolve courier display names from the active-driver roster (delivery records carry

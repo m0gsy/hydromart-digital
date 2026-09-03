@@ -7,7 +7,12 @@ import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import { deriveRoster, type CourierShift, type RosterRow } from '@/lib/roster';
+import {
+  ACTIVE_DELIVERY_STATUSES,
+  deriveRoster,
+  type CourierShift,
+  type RosterRow,
+} from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Delivery, DepotAdmin, Page } from '@/lib/types';
 
@@ -26,7 +31,20 @@ export default function HqRosterPage() {
     since.setHours(0, 0, 0, 0);
     const [drivers, deliveries, depotList, shifts] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
-      api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
+      /*
+       * In-flight only. Unfiltered, this asked for the 100 most recently ASSIGNED
+       * deliveries of any status — and delivery-service orders by `assignedAt desc`, so on
+       * a busy day those 100 are mostly rows already DELIVERED. A courier still holding a
+       * delivery assigned yesterday fell off the page, and the roster then read them as
+       * carrying nothing: load 0, and "available" offered to dispatch.
+       *
+       * ponytail: still one page. 100 deliveries in flight across the whole network is
+       * already more than the couriers on it; paginate if that ever stops being true.
+       */
+      api.get<Page<Delivery>>(
+        endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, limit: 100 }),
+        true,
+      ),
       api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
       // Not getCached: who is on shift right now is the one read here that goes stale in
       // seconds, and a 60s cache would show a courier who has already clocked off.

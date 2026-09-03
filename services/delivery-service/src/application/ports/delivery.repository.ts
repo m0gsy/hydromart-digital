@@ -123,6 +123,8 @@ export interface DeliveryQuery {
   /** Depot to scope to. When set, only that depot's deliveries match (null-depot rows excluded). */
   depotIds?: readonly string[];
   status?: DeliveryStatus;
+  /** Any-of status filter. Takes precedence over `status` when both are set. */
+  statuses?: readonly DeliveryStatus[];
   page: number;
   limit: number;
   /**

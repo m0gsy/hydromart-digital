@@ -105,3 +105,28 @@ describe('SlaReportQueryDto.depotIds transform', () => {
     expect(dto.depotIds).toEqual(['not-a-uuid']);
   });
 });
+
+/*
+ * CA-2-29. The tracking board asks for a SET of statuses now, and it arrives as a query
+ * string — so the comma-splitting transform is the only thing between the URL and the
+ * repository filter.
+ */
+describe('ListDeliveriesQueryDto.statuses transform', () => {
+  it('splits a comma string into trimmed non-empty statuses', async () => {
+    const dto = plainToInstance(ListDeliveriesQueryDto, {
+      statuses: 'ASSIGNED, PICKED_UP , ',
+    });
+    expect(dto.statuses).toEqual([DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP]);
+    expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it('passes a non-string statuses value through untouched', () => {
+    const dto = plainToInstance(ListDeliveriesQueryDto, { statuses: [DeliveryStatus.FAILED] });
+    expect(dto.statuses).toEqual([DeliveryStatus.FAILED]);
+  });
+
+  it('rejects a status that is not one of the six', async () => {
+    const dto = plainToInstance(ListDeliveriesQueryDto, { statuses: 'ASSIGNED,NOT_A_STATUS' });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+});

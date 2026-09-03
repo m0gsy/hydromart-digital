@@ -59,13 +59,24 @@ export function canTransition(from: DeliveryStatus, to: DeliveryStatus): boolean
   return TRANSITIONS[from].includes(to);
 }
 
+/**
+ * The statuses that occupy a driver, as a list.
+ *
+ * Named because two readers need the SET and not the predicate: a staff list asking the
+ * database for "everything still in flight", and a roster counting what a courier is
+ * carrying. Both used to answer it themselves — the tracking board by hardcoding
+ * `ON_DELIVERY`, so a delivery a courier had accepted but not picked up was invisible on
+ * the one screen that can take it back off them.
+ */
+export const ACTIVE_STATUSES: readonly DeliveryStatus[] = [
+  DeliveryStatus.ASSIGNED,
+  DeliveryStatus.PICKED_UP,
+  DeliveryStatus.ON_DELIVERY,
+];
+
 /** A delivery is active (occupies a driver) until it is delivered or failed. */
 export function isActive(status: DeliveryStatus): boolean {
-  return (
-    status === DeliveryStatus.ASSIGNED ||
-    status === DeliveryStatus.PICKED_UP ||
-    status === DeliveryStatus.ON_DELIVERY
-  );
+  return ACTIVE_STATUSES.includes(status);
 }
 
 export function orderStatusFor(status: DeliveryStatus): OrderFulfilmentStatus | null {
