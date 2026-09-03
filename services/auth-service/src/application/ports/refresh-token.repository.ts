@@ -18,6 +18,15 @@ export interface CreateRefreshTokenData {
   expiresAt: Date;
   userAgent: string | null;
   ipAddress: string | null;
+  /**
+   * CA-2-06: when this token was minted, stamped by the APPLICATION.
+   *
+   * The column defaults to `now()` in the database, which was fine while nothing read it.
+   * The idle-session limit does read it — and comparing a database timestamp against the
+   * application's clock makes a security decision rest on the skew between two machines.
+   * The service that measures the interval is the one that stamps both ends of it.
+   */
+  createdAt: Date;
 }
 
 /** Persistence port for refresh-token sessions. */

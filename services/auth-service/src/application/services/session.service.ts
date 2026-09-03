@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { SecurityPolicyPort } from '../ports/security-policy.port';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { InvalidRefreshTokenError } from '../../domain/errors/auth.errors';
@@ -36,6 +37,7 @@ export class SessionService {
     @Inject(AUTH_TOKENS.AccessTokenSignerPort) private readonly signer: AccessTokenSignerPort,
     @Inject(AUTH_TOKENS.CryptoPort) private readonly crypto: CryptoPort,
     @Inject(AUTH_TOKENS.ClockPort) private readonly clock: ClockPort,
+    @Inject(AUTH_TOKENS.SecurityPolicy) private readonly securityPolicy: SecurityPolicyPort,
     private readonly config: AuthConfigService,
   ) {}
 
@@ -63,6 +65,39 @@ export class SessionService {
 
     if (record.expiresAt.getTime() <= now.getTime()) {
       throw new InvalidRefreshTokenError('The session has expired.');
+    }
+
+    /*
+     * CA-2-06: the idle-session limit head office set, finally applied.
+     *
+     * `idleTimeoutMinutes` had a screen, a DTO, a repository and a default of fifteen
+     * minutes — and not one line outside admin-service ever read it. A console that lets
+     * somebody set a session timeout and then does not time sessions out reports a control
+     * that does not exist.
+     *
+     * `record.createdAt` IS the last-use time: every refresh rotates the token, so the one
+     * being presented was minted at the previous use. No new column, no migration.
+     *
+     * It over-states idleness by at most one access-token lifetime — a tab that has been
+     * making calls on a still-valid access token has not refreshed — so the limit is a
+     * floor, not a stopwatch. Worth saying, and not worth a heartbeat write per request.
+     *
+     * `null` = no limit, which is both "head office set none" and "the policy could not be
+     * read". Deliberately indistinguishable: neither is a reason to sign anybody out.
+     */
+    const idleMinutes = await this.securityPolicy.idleTimeoutMinutes();
+    // `> 0`, not `!== null`: a zero or negative limit means "no limit", never "sign
+    // everybody out now". The adapter normalises that too, and the check belongs here as
+    // well — this is the line that decides whether somebody keeps working, and it should
+    // not depend on which implementation of the port is wired in.
+    if (idleMinutes !== null && idleMinutes > 0) {
+      const idleMs = now.getTime() - record.createdAt.getTime();
+      if (idleMs > idleMinutes * 60_000) {
+        // The family goes with it: a session abandoned past the limit should not be
+        // resumable from another device holding an older token in the same chain.
+        await this.refreshTokens.revokeFamily(record.familyId, now);
+        throw new InvalidRefreshTokenError('The session was idle for too long.');
+      }
     }
 
     const customer = await this.customers.findById(record.customerId);
@@ -139,6 +174,9 @@ export class SessionService {
       expiresAt,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      // CA-2-06: the same clock the idle check reads, so the interval is measured between
+      // two stamps from one machine rather than across app-vs-database skew.
+      createdAt: now,
     });
 
     if (replacesId) {

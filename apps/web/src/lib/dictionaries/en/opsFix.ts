@@ -698,6 +698,15 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Mirrors id/opsFix.cashbook key for key.
   cashbook: {
+    correct: 'Correct',
+    correctTitle: 'Correct a cashbook entry',
+    correctBody:
+      'The original entry stays. A correction posts the opposite entry, so the book stays auditable and the pair explains itself.',
+    reason: 'Reason',
+    reasonPlaceholder: 'Typo: one zero too many',
+    correctConfirm: 'Post the correction',
+    needReason: 'Write why it is being corrected (at least 4 characters).',
+    correctError: 'Could not post the correction.',
     closeBookAt: 'Closing the daily book lives in',
     exportExcel: 'Export to Excel',
     dailyReport: 'Daily report',
