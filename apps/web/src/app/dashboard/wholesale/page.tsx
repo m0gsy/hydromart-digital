@@ -21,8 +21,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT, type TVars } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { WholesaleTier } from '@/lib/types';
+import type { Product, WholesaleTier } from '@/lib/types';
 
 /** "1–9 galon" / "50+ galon" from a tier's quantity band. */
 function rangeLabel(tier: WholesaleTier, t: (key: string, vars?: TVars) => string): string {
@@ -48,13 +49,39 @@ function TierForm({
   const [minQty, setMinQty] = useState(tier ? String(tier.minQty) : '');
   const [maxQty, setMaxQty] = useState(tier?.maxQty != null ? String(tier.maxQty) : '');
   const [priceIdr, setPriceIdr] = useState(tier ? String(tier.priceIdr) : '');
+  /*
+   * CA-2-30: which product this band is for.
+   *
+   * `WholesaleTier.productId` has been nullable — "every product" — since the first
+   * migration, and this form never sent it. So every band a depot created applied to the
+   * WHOLE catalogue: a "50+ galon Rp 15.000" tier priced a bottle of mineral water at
+   * Rp 15.000 too, and the only way to notice was somebody ordering fifty of the wrong
+   * thing.
+   *
+   * Empty stays "every product", because that IS a real choice for a depot that sells one
+   * kind of thing. What changed is that it is now a choice somebody made.
+   */
+  const [productId, setProductId] = useState(tier?.productId ?? '');
+  const catalog = useAsync<Product[]>(
+    () =>
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit })),
+      ),
+    [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     const min = Number(minQty);
     const price = Number(priceIdr);
-    if (!label.trim() || !Number.isFinite(min) || min < 1 || !Number.isFinite(price) || price <= 0) {
+    if (
+      !label.trim() ||
+      !Number.isFinite(min) ||
+      min < 1 ||
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
       setError(t('dashC.wholesale.invalidBasic'));
       return;
     }
@@ -69,13 +96,26 @@ function TierForm({
       if (tier) {
         await api.patch(
           endpoints.wholesale.detail(tier.id),
-          { label: label.trim(), minQty: min, maxQty: max, priceIdr: price },
+          {
+            label: label.trim(),
+            minQty: min,
+            maxQty: max,
+            priceIdr: price,
+            productId: productId || null,
+          },
           true,
         );
       } else {
         await api.post(
           endpoints.wholesale.create,
-          { depotId, label: label.trim(), minQty: min, maxQty: max, priceIdr: price },
+          {
+            depotId,
+            label: label.trim(),
+            minQty: min,
+            maxQty: max,
+            priceIdr: price,
+            productId: productId || undefined,
+          },
           true,
         );
       }
@@ -89,9 +129,39 @@ function TierForm({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">{tier ? t('dashC.wholesale.editTitle') : t('dashC.wholesale.newTitle')}</h2>
-      <Field label={t('dashC.wholesale.label')} htmlFor="w-label" hint={t('dashC.wholesale.labelHint')}>
-        <Input id="w-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('dashC.wholesale.labelPlaceholder')} />
+      <h2 className="font-semibold">
+        {tier ? t('dashC.wholesale.editTitle') : t('dashC.wholesale.newTitle')}
+      </h2>
+      <Field
+        label={t('dashC.wholesale.product')}
+        htmlFor="w-product"
+        hint={t('dashC.wholesale.productHint')}
+      >
+        <select
+          id="w-product"
+          value={productId}
+          onChange={(e) => setProductId(e.target.value)}
+          className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+        >
+          <option value="">{t('dashC.wholesale.allProducts')}</option>
+          {(catalog.data ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label={t('dashC.wholesale.label')}
+        htmlFor="w-label"
+        hint={t('dashC.wholesale.labelHint')}
+      >
+        <Input
+          id="w-label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={t('dashC.wholesale.labelPlaceholder')}
+        />
       </Field>
       <div className="flex flex-wrap gap-3">
         <Field label={t('dashC.wholesale.minQty')} htmlFor="w-min">
@@ -105,7 +175,11 @@ function TierForm({
             placeholder="10"
           />
         </Field>
-        <Field label={t('dashC.wholesale.maxQty')} htmlFor="w-max" hint={t('dashC.wholesale.maxQtyHint')}>
+        <Field
+          label={t('dashC.wholesale.maxQty')}
+          htmlFor="w-max"
+          hint={t('dashC.wholesale.maxQtyHint')}
+        >
           <Input
             id="w-max"
             type="number"
@@ -144,7 +218,15 @@ function TierForm({
   );
 }
 
-function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean; onChanged: () => void }) {
+function TierRow({
+  tier,
+  best,
+  onChanged,
+}: {
+  tier: WholesaleTier;
+  best: boolean;
+  onChanged: () => void;
+}) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -199,13 +281,17 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
           {best && (
             <>
               {' · '}
-              <span className="font-semibold text-brand-700">{t('dashC.wholesale.bestSeller')}</span>
+              <span className="font-semibold text-brand-700">
+                {t('dashC.wholesale.bestSeller')}
+              </span>
             </>
           )}
           {!tier.active && (
             <>
               {' · '}
-              <span className="font-semibold text-[color:var(--text-muted)]">{t('dashC.wholesale.inactive')}</span>
+              <span className="font-semibold text-[color:var(--text-muted)]">
+                {t('dashC.wholesale.inactive')}
+              </span>
             </>
           )}
         </p>
@@ -252,11 +338,14 @@ function WholesaleBody() {
           <div>
             <h1 className="text-2xl font-bold">{t('dashC.wholesale.heading')}</h1>
             <p className="text-sm text-muted">
-              {scopedDepot ? `${scopedDepot.name} · ` : ''}{t('dashC.wholesale.subtitle')}
+              {scopedDepot ? `${scopedDepot.name} · ` : ''}
+              {t('dashC.wholesale.subtitle')}
             </p>
           </div>
         </div>
-        {!creating && <Button onClick={() => setCreating(true)}>{t('dashC.wholesale.newTitle')}</Button>}
+        {!creating && (
+          <Button onClick={() => setCreating(true)}>{t('dashC.wholesale.newTitle')}</Button>
+        )}
       </div>
 
       {creating && (
@@ -271,7 +360,10 @@ function WholesaleBody() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('dashC.wholesale.noDepotTitle')} icon={<Stack size={40} weight="fill" />}>
+        <CenterState
+          title={t('dashC.wholesale.noDepotTitle')}
+          icon={<Stack size={40} weight="fill" />}
+        >
           {t('dashC.wholesale.noDepotBody')}
         </CenterState>
       ) : list.loading ? (
@@ -279,7 +371,10 @@ function WholesaleBody() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : tiers.length === 0 ? (
-        <CenterState title={t('dashC.wholesale.emptyTitle')} icon={<Stack size={40} weight="fill" />}>
+        <CenterState
+          title={t('dashC.wholesale.emptyTitle')}
+          icon={<Stack size={40} weight="fill" />}
+        >
           {t('dashC.wholesale.emptyBody')}
         </CenterState>
       ) : (

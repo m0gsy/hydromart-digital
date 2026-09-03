@@ -12,7 +12,11 @@ import type { CartLine, ResolvedPrice } from '@/lib/types';
 // Test-only reach into the server's money contract — see "rounding parity" below.
 import { money } from '../../../packages/platform/src/domain/money';
 
-function line(unit: string, quantity: number, isGallon = unit.trim().toLowerCase().startsWith('galon')): CartLine {
+function line(
+  unit: string,
+  quantity: number,
+  isGallon = unit.trim().toLowerCase().startsWith('galon'),
+): CartLine {
   return {
     productId: 'p1',
     productName: 'Air',
@@ -50,12 +54,19 @@ describe('galonQuantity (mirrors the ongkir charge)', () => {
 });
 
 /** Only the three fields computeEffective reads; the rest of ResolvedPrice is noise here. */
-const resolved = (over: Partial<ResolvedPrice>): ResolvedPrice =>
-  ({ productId: 'p1', sellPrice: 18000, ...over });
+const resolved = (over: Partial<ResolvedPrice>): ResolvedPrice => ({
+  productId: 'p1',
+  sellPrice: 18000,
+  ...over,
+});
 
 describe('computeEffective (mirrors checkout math)', () => {
   it('falls back to the catalog base when there is no override or rule', () => {
-    expect(computeEffective(20000)).toMatchObject({ base: 20000, override: null, effective: 20000 });
+    expect(computeEffective(20000)).toMatchObject({
+      base: 20000,
+      override: null,
+      effective: 20000,
+    });
   });
 
   it('applies a PERCENT surge off the override, rounded to whole rupiah', () => {
@@ -69,13 +80,20 @@ describe('computeEffective (mirrors checkout math)', () => {
   });
 
   it('floors a deep discount at zero (never negative)', () => {
-    const r = computeEffective(20000, resolved({ sellPrice: 5000, adjustType: 'FIXED', value: -9000 }));
+    const r = computeEffective(
+      20000,
+      resolved({ sellPrice: 5000, adjustType: 'FIXED', value: -9000 }),
+    );
     expect(r.effective).toBe(0);
   });
 });
 
 describe('toRulePayload validation', () => {
-  const form = (over: Partial<RuleForm>): RuleForm => ({ ...EMPTY_RULE_FORM, value: '10', ...over });
+  const form = (over: Partial<RuleForm>): RuleForm => ({
+    ...EMPTY_RULE_FORM,
+    value: '10',
+    ...over,
+  });
 
   it('accepts a minimal valid percent rule and sorts daysOfWeek', () => {
     const res = toRulePayload(form({ daysOfWeek: [5, 1, 3] }));
@@ -88,7 +106,10 @@ describe('toRulePayload validation', () => {
   });
 
   it('rejects a non-numeric value', () => {
-    expect(toRulePayload(form({ value: 'abc' }))).toEqual({ ok: false, error: 'Value must be a number.' });
+    expect(toRulePayload(form({ value: 'abc' }))).toEqual({
+      ok: false,
+      error: 'Value must be a number.',
+    });
   });
 
   it('rejects a malformed time', () => {
@@ -140,7 +161,10 @@ describe('rounding parity with the server', () => {
   it('computeEffective agrees with money() on a fractional PERCENT rule', () => {
     // 4.999 with a 3% cut = 4,849.03 — the case that used to store cents. The override IS
     // the starting price here, so it carries the fraction rather than the catalog base.
-    const r = computeEffective(20000, resolved({ sellPrice: 4999, adjustType: 'PERCENT', value: -3 }));
+    const r = computeEffective(
+      20000,
+      resolved({ sellPrice: 4999, adjustType: 'PERCENT', value: -3 }),
+    );
     expect(r.effective).toBe(money(4999 * 0.97));
   });
 
@@ -185,5 +209,44 @@ describe('rounding parity with the server', () => {
     if (Math.floor(subtotal * rate) !== Math.round(subtotal * rate)) {
       expect(memberDiscount(subtotal, rate)).not.toBe(Math.floor(subtotal * rate));
     }
+  });
+});
+
+/*
+ * CA-2-35: "Harga tetap" did not produce a fixed price.
+ *
+ * PERCENT multiplies the current price and FIXED adds to it — both RELATIVE — so the HQ
+ * form stored an absolute target as `target - product.basePrice`, a delta frozen against
+ * the catalogue price at the moment the rule was written. The one choice whose whole
+ * promise is "this number and no other" was the one that moved.
+ */
+describe('computeEffective ABSOLUTE (CA-2-35)', () => {
+  it('is the price, and does not move when the catalogue does', () => {
+    const rule = { adjustType: 'ABSOLUTE' as const, value: 18000 };
+
+    expect(computeEffective(20000, resolved({ sellPrice: undefined, ...rule })).effective).toBe(
+      18000,
+    );
+    // The catalogue rises by five thousand. A rule that promises Rp 18.000 still charges
+    // Rp 18.000 — the old FIXED delta of −2.000 would have charged Rp 23.000 here.
+    expect(computeEffective(25000, resolved({ sellPrice: undefined, ...rule })).effective).toBe(
+      18000,
+    );
+  });
+
+  it('leaves FIXED a delta, because that is what it is', () => {
+    const rule = { adjustType: 'FIXED' as const, value: -2000 };
+
+    expect(computeEffective(20000, resolved({ sellPrice: undefined, ...rule })).effective).toBe(
+      18000,
+    );
+    expect(computeEffective(25000, resolved({ sellPrice: undefined, ...rule })).effective).toBe(
+      23000,
+    );
+  });
+
+  it('accepts ABSOLUTE from the rule form', () => {
+    const form: RuleForm = { ...EMPTY_RULE_FORM, adjustType: 'ABSOLUTE', value: '18000' };
+    expect(toRulePayload(form).ok).toBe(true);
   });
 });

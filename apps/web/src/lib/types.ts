@@ -1757,7 +1757,15 @@ export interface ChurnCustomer {
 
 /* ---------- Dynamic pricing (staff-facing) ---------- */
 
-export type PricingAdjustType = 'PERCENT' | 'FIXED';
+/**
+ * CA-2-35: `ABSOLUTE` means the value IS the price.
+ *
+ * The other two are relative — PERCENT multiplies the current price, FIXED adds to it —
+ * so the HQ form's "harga tetap" used to be stored as `target - basePrice` and drifted
+ * whenever the catalogue moved. The one choice whose whole promise is "this number and no
+ * other" was the one that did not keep it.
+ */
+export type PricingAdjustType = 'PERCENT' | 'FIXED' | 'ABSOLUTE';
 
 export interface PricingRule {
   id: string;

@@ -1,6 +1,18 @@
 export enum PricingAdjustType {
+  /** Multiplies the current price: `start * (1 + value/100)`. */
   PERCENT = 'PERCENT',
+  /** Adds to the current price: `start + value`. A delta, despite the name. */
   FIXED = 'FIXED',
+  /**
+   * CA-2-35: the value IS the price.
+   *
+   * Both types above are relative, so the HQ form's "harga tetap" was stored as
+   * `target - basePrice` — a delta frozen against the catalogue price at authoring time. A
+   * rule written to sell at Rp 18.000 against a base of Rp 20.000 stored −2.000; when the
+   * base later rose to Rp 25.000 the depot sold at Rp 23.000, and every screen showed the
+   * rule as healthy.
+   */
+  ABSOLUTE = 'ABSOLUTE',
 }
 
 export interface PricingRuleRecord {

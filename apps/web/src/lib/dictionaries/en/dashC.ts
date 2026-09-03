@@ -337,6 +337,9 @@ export const dashC = {
     gateBody: 'Live tracking is available to depot staff.',
   },
   wholesale: {
+    product: 'Product',
+    productHint: 'Leave empty if this band applies to every product',
+    allProducts: 'All products',
     rangeOpen: '{min}+ gallons',
     rangeBand: '{min}–{max} gallons',
     invalidBasic: 'Enter a label, minimum quantity (≥1), and price.',

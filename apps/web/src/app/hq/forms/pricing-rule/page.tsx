@@ -5,7 +5,16 @@ import { useState } from 'react';
 import { SlidersHorizontal } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  Money,
+  RadioCard,
+  Skeleton,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -35,7 +44,9 @@ export default function HqPricingRuleFormPage() {
   const router = useRouter();
 
   const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
-  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() =>
+    api.getCached(endpoints.depots.manage({ limit: 100 }), true),
+  );
 
   const [productId, setProductId] = useState('');
   const [depotId, setDepotId] = useState('');
@@ -59,11 +70,20 @@ export default function HqPricingRuleFormPage() {
       return setError(t('hq.forms.pricingRule.needValue'));
     }
 
-    // Map the 3-way UI onto the backend's PERCENT|FIXED. Fixed = absolute target price,
-    // expressed as a FIXED delta from the catalog base.
-    const adjustType = kind === 'percent' ? 'PERCENT' : 'FIXED';
-    const ruleValue =
-      kind === 'fixed' ? String(Number(value) - (product?.basePrice ?? 0)) : value;
+    /*
+     * CA-2-35: "Harga tetap" is stored AS a fixed price now.
+     *
+     * It used to be mapped onto the backend's FIXED type as `target - product.basePrice` —
+     * a delta computed from the catalogue price at the moment the rule was written. So the
+     * one choice whose whole promise is "this number and no other" was the one that moved:
+     * a rule written to sell at Rp 18.000 against a base of Rp 20.000 stored −2.000, and
+     * when the base rose to Rp 25.000 the depot quietly sold at Rp 23.000.
+     *
+     * `ABSOLUTE` says the value IS the price, so the catalogue can move without dragging
+     * the rule with it. `nominal` keeps FIXED, which is what a delta genuinely is.
+     */
+    const adjustType = kind === 'percent' ? 'PERCENT' : kind === 'fixed' ? 'ABSOLUTE' : 'FIXED';
+    const ruleValue = value;
 
     const parsed = toRulePayload({
       ...EMPTY_RULE_FORM,
@@ -99,12 +119,21 @@ export default function HqPricingRuleFormPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <HqPageHeader icon={SlidersHorizontal} title={t('hq.forms.pricingRule.title')} subtitle={t('hq.forms.pricingRule.subtitle')} />
+      <HqPageHeader
+        icon={SlidersHorizontal}
+        title={t('hq.forms.pricingRule.title')}
+        subtitle={t('hq.forms.pricingRule.subtitle')}
+      />
 
       <Card className="flex flex-col gap-4 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('hq.forms.pricingRule.product')} htmlFor="pr-product">
-            <select id="pr-product" className={SELECT_CLASS} value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <select
+              id="pr-product"
+              className={SELECT_CLASS}
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+            >
               <option value="">{t('hq.forms.pricingRule.pickProduct')}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -114,7 +143,12 @@ export default function HqPricingRuleFormPage() {
             </select>
           </Field>
           <Field label={t('hq.forms.pricingRule.depot')} htmlFor="pr-depot">
-            <select id="pr-depot" className={SELECT_CLASS} value={depotId} onChange={(e) => setDepotId(e.target.value)}>
+            <select
+              id="pr-depot"
+              className={SELECT_CLASS}
+              value={depotId}
+              onChange={(e) => setDepotId(e.target.value)}
+            >
               <option value="">{t('hq.forms.pricingRule.pickDepot')}</option>
               {depotItems.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -138,16 +172,38 @@ export default function HqPricingRuleFormPage() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('hq.forms.pricingRule.value')} htmlFor="pr-value">
-            <Input id="pr-value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === 'percent' ? '-10' : kind === 'nominal' ? '-2000' : '18000'} />
+            <Input
+              id="pr-value"
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={kind === 'percent' ? '-10' : kind === 'nominal' ? '-2000' : '18000'}
+            />
           </Field>
           <Field label={t('hq.forms.pricingRule.priority')} htmlFor="pr-priority">
-            <Input id="pr-priority" inputMode="numeric" value={priority} onChange={(e) => setPriority(e.target.value)} placeholder="0" />
+            <Input
+              id="pr-priority"
+              inputMode="numeric"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              placeholder="0"
+            />
           </Field>
           <Field label={t('hq.forms.pricingRule.from')} htmlFor="pr-from">
-            <Input id="pr-from" type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+            <Input
+              id="pr-from"
+              type="date"
+              value={validFrom}
+              onChange={(e) => setValidFrom(e.target.value)}
+            />
           </Field>
           <Field label={t('hq.forms.pricingRule.until')} htmlFor="pr-until">
-            <Input id="pr-until" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+            <Input
+              id="pr-until"
+              type="date"
+              value={validUntil}
+              onChange={(e) => setValidUntil(e.target.value)}
+            />
           </Field>
         </div>
 

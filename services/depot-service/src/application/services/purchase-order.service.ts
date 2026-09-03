@@ -159,7 +159,23 @@ export class PurchaseOrderService {
       );
     }
 
-    for (const { line, arriving } of lines) {
+    /*
+     * CA-2-31: a line whose stock could not be booked is NOT received.
+     *
+     * The catch below is deliberate and stays — one unconfigured stock line must not fail
+     * a whole delivery. What was wrong is what happened afterwards: the line's
+     * `receivedQuantity` advanced anyway, so the PO reached RECEIVED, the screen said
+     * "Diterima", and no stock had moved. `receiveStock` targets the raw singleton line
+     * (`productId: null`), so a PO for CATALOGUE goods threw every time and every one of
+     * them was marked received.
+     *
+     * Now the failure is remembered per line: the goods that did arrive are booked, the
+     * line that could not be is left outstanding, and the PO stays SENT with the shortfall
+     * visible. An operator can see which line needs a stock line configured instead of
+     * discovering it at the next opname.
+     */
+    const failed = new Set<number>();
+    for (const { line, arriving, index } of lines) {
       if (arriving === 0) continue;
       try {
         await this.inventory.receiveStock(
@@ -170,6 +186,7 @@ export class PurchaseOrderService {
           `PO ${po.poNumber} · ${line.label}`,
         );
       } catch (error) {
+        failed.add(index);
         // Best-effort: a missing/unconfigured stock line must not fail the whole receipt.
         // Q-4: but it must not be SILENT either. This is the stock ledger — a swallowed
         // line means the PO reads RECEIVED while the goods were never booked in, and the
@@ -181,7 +198,9 @@ export class PurchaseOrderService {
       }
     }
 
-    const next = lines.map((l) => l.next);
+    // A line that could not be booked keeps the quantity it had: nothing arrived into the
+    // ledger, so nothing is recorded as arrived.
+    const next = lines.map((l) => (failed.has(l.index) ? l.line : l.next));
     const complete = isFullyReceived(next);
     return this.orders.update(id, {
       lines: next,

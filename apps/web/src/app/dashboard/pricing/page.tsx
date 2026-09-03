@@ -56,8 +56,15 @@ function formFromRule(r: PricingRule): RuleForm {
   };
 }
 
+/*
+ * CA-2-35: an ABSOLUTE rule names the price; FIXED names a step. Printing both as a bare
+ * rupiah figure made them indistinguishable on the list — "Rp 18.000" read as a discount
+ * of eighteen thousand or a price of eighteen thousand depending on which row it was.
+ */
 function adjustmentLabel(r: PricingRule): string {
-  return r.adjustType === 'PERCENT' ? `${r.value}%` : formatIDR(r.value);
+  if (r.adjustType === 'PERCENT') return `${r.value}%`;
+  if (r.adjustType === 'ABSOLUTE') return `= ${formatIDR(r.value)}`;
+  return `${r.value >= 0 ? '+' : ''}${formatIDR(r.value)}`;
 }
 
 function windowSummary(r: PricingRule, t: T, locale: string): string {

@@ -1,0 +1,24 @@
+-- RERUNNABLE: `ADD VALUE IF NOT EXISTS` is a no-op on a retry, so a deploy that died
+-- mid-migrate can be re-run rather than hand-resolved.
+--
+-- CA-2-35: "Harga tetap" did not produce a fixed price.
+--
+-- The rule table has had two adjust types, and both are RELATIVE: PERCENT multiplies the
+-- current price, FIXED adds to it. The HQ pricing-rule form offers a third choice — an
+-- absolute target price — and expressed it as `target - product.basePrice`, a FIXED delta
+-- computed from the catalogue price AT THE MOMENT THE RULE WAS WRITTEN.
+--
+-- So the "fixed price" moved whenever the catalogue moved. A rule written to sell at
+-- Rp 18.000 against a base of Rp 20.000 stored −2.000; when the base later rose to
+-- Rp 25.000 the depot sold at Rp 23.000, and every screen showed the rule as healthy. The
+-- one adjust type whose whole promise is "this number and no other" was the one that
+-- drifted.
+--
+-- ABSOLUTE means the value IS the price. Nothing writes it until the code that reads it
+-- ships in this same release; every existing row keeps the type it has, so the old
+-- behaviour is untouched for anything already authored.
+--
+-- One-way on purpose: `rollback.sql` does NOT drop the value. Postgres cannot remove an
+-- enum member that rows may reference, and a rollback that silently rewrote those rows to
+-- PERCENT or FIXED would change prices. See the note there.
+ALTER TYPE "PricingAdjustType" ADD VALUE IF NOT EXISTS 'ABSOLUTE';

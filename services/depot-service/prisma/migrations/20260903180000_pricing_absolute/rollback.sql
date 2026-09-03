@@ -1,0 +1,12 @@
+-- Undo of 20260903180000_pricing_absolute — deliberately a NO-OP.
+--
+-- Postgres cannot drop an enum value that rows might reference, and there is no safe
+-- rewrite: an ABSOLUTE rule turned back into PERCENT or FIXED would mean a different price,
+-- which is the opposite of what a rollback is for. Leaving the value in place costs
+-- nothing — the previous release simply never writes it, and never reads it.
+--
+-- If a rollback is needed AND absolute rules already exist, deactivate them first:
+--   UPDATE "pricing_rules" SET "active" = false WHERE "adjustType" = 'ABSOLUTE';
+-- That returns every affected product to its catalogue price, which is a price somebody
+-- chose, rather than to an arithmetic accident.
+SELECT 1;
