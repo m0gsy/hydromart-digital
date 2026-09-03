@@ -1390,6 +1390,9 @@ export const hq = {
       'Ukur dulu dengan scripts/forecast-eval.mjs. Menang di satu depot bukan alasan mengganti semuanya.',
   },
   webhooks: {
+    secretTitle: 'Kunci tanda tangan — salin sekarang',
+    secretBody:
+      'Hanya ditampilkan sekali. Mitra memakainya untuk memverifikasi header X-Hydromart-Signature di setiap kiriman; tanpa itu, siapa pun yang tahu URL-nya bisa memalsukan kiriman.',
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
     howItWorks:

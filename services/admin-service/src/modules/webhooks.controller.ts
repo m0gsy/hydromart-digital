@@ -15,7 +15,12 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { WebhookService } from '../application/services/webhook.service';
-import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dto';
+import {
+  CreateWebhookDto,
+  CreatedWebhookDto,
+  UpdateWebhookDto,
+  WebhookDto,
+} from './dto/webhook.dto';
 
 // Design 19c — webhook subscriptions. SUPER_ADMIN only.
 //
@@ -43,12 +48,17 @@ export class WebhooksController {
     return (await this.webhooks.list()).map((w) => WebhookDto.from(w));
   }
 
-  @ApiOkResponse({ type: WebhookDto })
+  @ApiOkResponse({ type: CreatedWebhookDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a webhook endpoint' })
-  async create(@Body() dto: CreateWebhookDto): Promise<WebhookDto> {
-    return WebhookDto.from(await this.webhooks.create(dto));
+  @ApiOperation({
+    summary: 'Register a webhook endpoint — returns the signing secret once',
+    description:
+      'A secret is generated when none is supplied, and returned here and nowhere else. ' +
+      'Every delivery to this endpoint carries X-Hydromart-Signature computed with it.',
+  })
+  async create(@Body() dto: CreateWebhookDto): Promise<CreatedWebhookDto> {
+    return CreatedWebhookDto.fromSecret(await this.webhooks.create(dto));
   }
 
   @ApiOkResponse({ type: WebhookDto })

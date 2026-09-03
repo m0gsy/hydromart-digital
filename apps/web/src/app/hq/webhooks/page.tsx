@@ -4,7 +4,18 @@ import { useState } from 'react';
 import { Plugs, Trash } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Button, Card, Chip, ErrorState, Field, IconButton, Input, Skeleton, Toggle } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  ErrorState,
+  Field,
+  IconButton,
+  Input,
+  Skeleton,
+  Toggle,
+} from '@/components/ui';
 import { Sheet, ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -25,7 +36,8 @@ export default function HqWebhooksPage() {
   const [busy, setBusy] = useState(false);
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error) return <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />;
+  if (query.error)
+    return <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />;
 
   const hooks = query.data ?? [];
 
@@ -88,14 +100,19 @@ export default function HqWebhooksPage() {
                     </Badge>
                   )}
                   <Toggle on={w.active} onChange={(v) => toggle(w, v)} label={w.url} />
-                  <IconButton aria-label={t('hq.webhooks.delete')} onClick={() => setDeleteTarget(w)}>
+                  <IconButton
+                    aria-label={t('hq.webhooks.delete')}
+                    onClick={() => setDeleteTarget(w)}
+                  >
                     <Trash size={18} />
                   </IconButton>
                 </div>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {w.events.map((e) => (
-                  <Chip key={e} tone="outline">{e}</Chip>
+                  <Chip key={e} tone="outline">
+                    {e}
+                  </Chip>
                 ))}
               </div>
             </Card>
@@ -142,17 +159,40 @@ function CreateWebhookSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const eventList = events.split(',').map((s) => s.trim()).filter(Boolean);
+  const eventList = events
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const valid = /^https?:\/\//.test(url.trim()) && eventList.length > 0;
+
+  // Shown once after a successful create; the sheet stays open until it is dismissed.
+  const [secret, setSecret] = useState<string | null>(null);
 
   async function submit() {
     if (!valid) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.admin.webhooks.create, { url: url.trim(), events: eventList }, true);
+      /*
+       * CA-2-37: the signing secret comes back HERE and nowhere else.
+       *
+       * Every webhook registered from this sheet used to go out unsigned, forever — the
+       * server signs only when the endpoint has a secret, and this call never sent or
+       * received one. The receiver had no way to tell our POST from anyone else's, and a
+       * URL is not a credential: anyone who learns it can forge deliveries.
+       *
+       * The server generates one now. It is readable exactly once, so it is shown rather
+       * than the sheet closing on it — closing would leave the partner with an endpoint
+       * they cannot verify and no way to ask for the key again.
+       */
+      const created = await api.post<{ secret: string }>(
+        endpoints.admin.webhooks.create,
+        { url: url.trim(), events: eventList },
+        true,
+      );
       setUrl('');
       setEvents('');
+      setSecret(created.secret);
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.webhooks.saveError'));
@@ -164,16 +204,47 @@ function CreateWebhookSheet({
   return (
     <Sheet open={open} onClose={onClose} title={t('hq.webhooks.createTitle')}>
       <div className="flex flex-col gap-4">
+        {secret && (
+          <div className="rounded-xl border border-app bg-amber-50 p-3.5">
+            <p className="text-sm font-bold text-amber-900">{t('hq.webhooks.secretTitle')}</p>
+            <p className="mt-1 text-xs text-amber-800">{t('hq.webhooks.secretBody')}</p>
+            <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 font-mono text-xs">
+              {secret}
+            </code>
+          </div>
+        )}
         <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
-          <Input id="wh-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://partner.example.com/hooks" />
+          <Input
+            id="wh-url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://partner.example.com/hooks"
+          />
         </Field>
-        <Field label={t('hq.webhooks.events')} htmlFor="wh-events" hint={t('hq.webhooks.eventsHint')}>
-          <Input id="wh-events" value={events} onChange={(e) => setEvents(e.target.value)} placeholder="order.created, payment.settled" />
+        <Field
+          label={t('hq.webhooks.events')}
+          htmlFor="wh-events"
+          hint={t('hq.webhooks.eventsHint')}
+        >
+          <Input
+            id="wh-events"
+            value={events}
+            onChange={(e) => setEvents(e.target.value)}
+            placeholder="order.created, payment.settled"
+          />
         </Field>
-        {error && <p className="text-sm text-[color:var(--danger)]" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-[color:var(--danger)]" role="alert">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>{t('hq.common.cancel')}</Button>
-          <Button onClick={submit} disabled={!valid} loading={busy}>{t('hq.webhooks.add')}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            {t('hq.common.cancel')}
+          </Button>
+          <Button onClick={submit} disabled={!valid} loading={busy}>
+            {t('hq.webhooks.add')}
+          </Button>
         </div>
       </div>
     </Sheet>

@@ -1380,6 +1380,9 @@ export const hq = {
       'Measure with scripts/forecast-eval.mjs first. A win on one depot is not a reason to switch everyone.',
   },
   webhooks: {
+    secretTitle: 'Signing secret — copy it now',
+    secretBody:
+      'Shown once only. The partner verifies the X-Hydromart-Signature header on every delivery with it; without it, anyone who learns the URL can forge deliveries.',
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
     howItWorks:
