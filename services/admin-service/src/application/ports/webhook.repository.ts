@@ -86,7 +86,12 @@ export interface WebhookDeliveryRepository {
     responseStatus: number | null,
   ): Promise<void>;
   /** Out of attempts. Stays in the table as the record of what was never delivered. */
-  markDead(id: string, attempts: number, error: string, responseStatus: number | null): Promise<void>;
+  markDead(
+    id: string,
+    attempts: number,
+    error: string,
+    responseStatus: number | null,
+  ): Promise<void>;
   /** Delivered vs attempted for one endpoint, plus its most recent outcome. */
   endpointStats(
     endpointId: string,
@@ -95,7 +100,11 @@ export interface WebhookDeliveryRepository {
    * Newest-first delivery history. `apiKeyId` scopes it to the endpoints that key owns —
    * pass it for the partner API, omit it for HQ (AUTHZ-3).
    */
-  listForPartner(limit: number, event?: string, apiKeyId?: string): Promise<WebhookDeliveryRecord[]>;
+  listForPartner(
+    limit: number,
+    event?: string,
+    apiKeyId?: string,
+  ): Promise<WebhookDeliveryRecord[]>;
   /**
    * Re-queue one delivery for another attempt. Null when the id is unknown — or, when
    * `apiKeyId` is given, when the delivery belongs to a different partner.

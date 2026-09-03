@@ -10,10 +10,7 @@ import { AuthenticatedUser } from '../http/authenticated-user';
  * STAFF_DEPOT is locked even though its predecessor DRIVER was not: depot staff belong to
  * one depot. An account in this set with no depot fails closed.
  */
-export const DEPOT_LOCKED_ROLES: ReadonlySet<Role> = new Set([
-  Role.STAFF_DEPOT,
-  Role.KEPALA_DEPOT,
-]);
+export const DEPOT_LOCKED_ROLES: ReadonlySet<Role> = new Set([Role.STAFF_DEPOT, Role.KEPALA_DEPOT]);
 
 /**
  * Roles whose depots are a RESOLVED SET rather than a single token claim: the supervision
@@ -160,8 +157,6 @@ export function depotScopeIds(
 }
 
 /** Prisma `where` fragment for a depot filter. `undefined` = no filter (sees all). */
-export function depotWhere(
-  depotIds: readonly string[] | undefined,
-): { in: string[] } | undefined {
+export function depotWhere(depotIds: readonly string[] | undefined): { in: string[] } | undefined {
   return depotIds ? { in: [...depotIds] } : undefined;
 }

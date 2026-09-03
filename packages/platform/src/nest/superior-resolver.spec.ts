@@ -12,7 +12,9 @@ describe('httpSuperiorResolver', () => {
 
   it('reads the superior from the supervision table', async () => {
     global.fetch = jest.fn(async (url, init) => {
-      expect(String(url)).toBe('http://depot:3007/api/v1/staff-hierarchy/internal/describe/staff-1');
+      expect(String(url)).toBe(
+        'http://depot:3007/api/v1/staff-hierarchy/internal/describe/staff-1',
+      );
       expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
       return new Response(JSON.stringify({ superiorId: 'boss-1', directDepotIds: [] }));
     }) as typeof fetch;
@@ -22,7 +24,9 @@ describe('httpSuperiorResolver', () => {
 
   // Nobody recorded is a legitimate answer, not an error: most staff have no superior yet.
   it('returns null when no superior is recorded', async () => {
-    global.fetch = jest.fn(async () => new Response(JSON.stringify({ superiorId: null }))) as typeof fetch;
+    global.fetch = jest.fn(
+      async () => new Response(JSON.stringify({ superiorId: null })),
+    ) as typeof fetch;
 
     await expect(httpSuperiorResolver(cfg)('staff-1')).resolves.toBeNull();
   });

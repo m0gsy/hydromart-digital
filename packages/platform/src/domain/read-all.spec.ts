@@ -18,10 +18,7 @@ describe('readAllPages', () => {
   });
 
   it('walks with the last row of the previous page as the cursor', async () => {
-    const fetchPage = jest
-      .fn()
-      .mockResolvedValueOnce(rows(0, 2))
-      .mockResolvedValueOnce(rows(2, 1));
+    const fetchPage = jest.fn().mockResolvedValueOnce(rows(0, 2)).mockResolvedValueOnce(rows(2, 1));
     const out = await readAllPages(fetchPage, { max: 100, onOverflow: boom, pageSize: 2 });
 
     expect(out.map((r) => r.id)).toEqual(['r-0', 'r-1', 'r-2']);

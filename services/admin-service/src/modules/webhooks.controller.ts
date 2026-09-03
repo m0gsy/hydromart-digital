@@ -8,10 +8,11 @@ import {
   Param,
   Patch,
   Post,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { WebhookService } from '../application/services/webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dto';
@@ -25,6 +26,8 @@ import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dt
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @Can('platformAdmin')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'webhooks', version: '1' })
 export class WebhooksController {
   constructor(private readonly webhooks: WebhookService) {}

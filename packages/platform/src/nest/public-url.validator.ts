@@ -1,8 +1,4 @@
-import {
-  registerDecorator,
-  ValidationArguments,
-  ValidationOptions,
-} from 'class-validator';
+import { registerDecorator, ValidationArguments, ValidationOptions } from 'class-validator';
 
 /** Loopback, link-local and RFC-1918 ranges an outbound webhook must never reach. */
 function isPrivateHost(hostname: string): boolean {

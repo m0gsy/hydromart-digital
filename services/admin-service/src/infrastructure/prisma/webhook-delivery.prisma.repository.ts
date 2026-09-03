@@ -15,7 +15,9 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
   constructor(private readonly prisma: PrismaService) {}
 
   subscribersOf(event: string): Promise<WebhookRecord[]> {
-    return this.prisma.webhookEndpoint.findMany({ where: { active: true, events: { has: event } } });
+    return this.prisma.webhookEndpoint.findMany({
+      where: { active: true, events: { has: event } },
+    });
   }
 
   async queue(

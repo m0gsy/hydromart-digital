@@ -24,7 +24,9 @@ export class SettingsController {
   // roles its rail offers it to. Writes below keep `depotAdmin`.
   @Can('settingsRead')
   @ApiOperation({ summary: 'Setting defs + effective values for an optional depot' })
-  schema(@Query('depotId') depotId?: string): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
+  schema(
+    @Query('depotId') depotId?: string,
+  ): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
     return this.settings.schema(depotId ?? null);
   }
 
@@ -55,7 +57,7 @@ export class SettingsController {
       assertCapability(user, 'settingsGlobal');
     }
     this.assertMayWriteKey(dto.key, user);
-    await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key);
+    await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key, user.sub);
   }
 
   /**

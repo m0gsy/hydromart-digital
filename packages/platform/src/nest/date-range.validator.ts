@@ -1,8 +1,4 @@
-import {
-  registerDecorator,
-  ValidationArguments,
-  ValidationOptions,
-} from 'class-validator';
+import { registerDecorator, ValidationArguments, ValidationOptions } from 'class-validator';
 
 /**
  * Rejects a reversed date range on a query DTO: put it on the upper bound and name
@@ -17,10 +13,7 @@ import {
  * Equal timestamps pass: `to` is an exclusive upper bound in these DTOs, so from == to
  * is a legitimately empty (not invalid) window.
  */
-export function IsNotBefore(
-  lowerBoundProperty: string,
-  validationOptions?: ValidationOptions,
-) {
+export function IsNotBefore(lowerBoundProperty: string, validationOptions?: ValidationOptions) {
   // eslint-disable-next-line @typescript-eslint/ban-types
   return function (object: Object, propertyName: string): void {
     registerDecorator({

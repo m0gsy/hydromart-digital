@@ -47,6 +47,11 @@ export class AdminConfigService {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
 
+  /** auth-service base URL, trailing slashes stripped. Blank disables audit recording. */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').trim().replace(/\/+$/, '');
+  }
+
   /**
    * Peer services to probe for the aggregate health roll-up (13b): name -> base URL
    * (trailing slashes stripped). Only services whose *_SERVICE_URL is configured are

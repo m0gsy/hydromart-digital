@@ -1,4 +1,9 @@
-import { ExecutionContext, ForbiddenException, HttpException, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  HttpException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
@@ -127,9 +132,7 @@ describe('JwtAuthGuard edges', () => {
 describe('RolesGuard edges', () => {
   it('admits SUPER_ADMIN even for a capability nobody holds', () => {
     const guard = new RolesGuard(reflectorReturning({ [CAPABILITY_KEY]: 'accessMatrixWrite' }));
-    expect(
-      guard.canActivate(ctxFor({ user: { sub: 's', role: Role.SUPER_ADMIN } })),
-    ).toBe(true);
+    expect(guard.canActivate(ctxFor({ user: { sub: 's', role: Role.SUPER_ADMIN } }))).toBe(true);
   });
 
   // An empty @Roles() list is "no restriction declared", the same as no decorator —
@@ -184,9 +187,7 @@ describe('AllExceptionsFilter message fallback', () => {
       }),
     } as unknown as import('@nestjs/common').ArgumentsHost;
     new AllExceptionsFilter().catch(new HttpException({ error: 'Conflict' }, 409), host);
-    expect((json.mock.calls[0][0] as { message: string }).message).toBe(
-      'Http Exception',
-    );
+    expect((json.mock.calls[0][0] as { message: string }).message).toBe('Http Exception');
   });
 });
 

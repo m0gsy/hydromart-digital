@@ -98,7 +98,11 @@ describe('IsPublicHttpsUrl', () => {
   });
 
   it('rejects schemeless, plain http, and bare hosts', () => {
-    for (const url of ['partner.example.com/hooks', 'http://partner.example.com', 'https://partner']) {
+    for (const url of [
+      'partner.example.com/hooks',
+      'http://partner.example.com',
+      'https://partner',
+    ]) {
       expect(errorsFor(Hook, { url })).toContain('isPublicHttpsUrl');
     }
   });

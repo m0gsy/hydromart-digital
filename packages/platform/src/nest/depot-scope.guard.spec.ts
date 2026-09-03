@@ -199,10 +199,16 @@ describe('DepotScopeGuard', () => {
         throw new Error('depot-service down');
       });
       await expect(
-        run({ role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A }, { query: { depotId: DEPOT_A } }),
+        run(
+          { role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A },
+          { query: { depotId: DEPOT_A } },
+        ),
       ).resolves.toBe(true);
       await expect(
-        run({ role: Role.MANAGER, sub: 'mgr-2', depotId: DEPOT_A }, { query: { depotId: DEPOT_B } }),
+        run(
+          { role: Role.MANAGER, sub: 'mgr-2', depotId: DEPOT_A },
+          { query: { depotId: DEPOT_B } },
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -210,10 +216,16 @@ describe('DepotScopeGuard', () => {
     // consult, so the caller gets their own depot rather than a 503 on every request.
     it('treats a missing resolver as "no hierarchy known", not an outage', async () => {
       await expect(
-        run({ role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A }, { query: { depotId: DEPOT_A } }),
+        run(
+          { role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A },
+          { query: { depotId: DEPOT_A } },
+        ),
       ).resolves.toBe(true);
       await expect(
-        run({ role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A }, { query: { depotId: DEPOT_C } }),
+        run(
+          { role: Role.MANAGER, sub: 'mgr-1', depotId: DEPOT_A },
+          { query: { depotId: DEPOT_C } },
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -232,8 +244,16 @@ describe('DepotScopeGuard', () => {
   });
 
   it('lets bypass roles read any depot', async () => {
-    for (const role of [Role.HEAD_OFFICE, Role.SUPER_ADMIN, Role.FINANCE, Role.MARKETING, Role.DIREKTUR]) {
-      await expect(run({ role, depotId: null }, { query: { depotId: DEPOT_B } })).resolves.toBe(true);
+    for (const role of [
+      Role.HEAD_OFFICE,
+      Role.SUPER_ADMIN,
+      Role.FINANCE,
+      Role.MARKETING,
+      Role.DIREKTUR,
+    ]) {
+      await expect(run({ role, depotId: null }, { query: { depotId: DEPOT_B } })).resolves.toBe(
+        true,
+      );
     }
   });
 

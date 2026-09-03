@@ -8,10 +8,11 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { FraudFlagService } from '../application/services/fraud-flag.service';
 import { FraudScanResult, FraudScanService } from '../application/services/fraud-scan.service';
@@ -27,6 +28,8 @@ import {
 // a scoring job inserts flags; the score/level/signals it supplies are stored verbatim.
 @ApiTags('Fraud & risk')
 @ApiBearerAuth()
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'fraud-flags', version: '1' })
 export class FraudFlagsController {
   constructor(

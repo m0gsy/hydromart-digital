@@ -130,7 +130,9 @@ describe('httpDepotScopeResolver', () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ depotIds: ['d1', 'd2'] }) });
     expect(await httpDepotScopeResolver(CFG)('spv-1', Role.SUPERVISOR)).toEqual(['d1', 'd2']);
     const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
-    expect(url).toBe('http://depot:3007/api/v1/staff-hierarchy/internal/scope/spv-1?role=SUPERVISOR');
+    expect(url).toBe(
+      'http://depot:3007/api/v1/staff-hierarchy/internal/scope/spv-1?role=SUPERVISOR',
+    );
     expect(init.headers['x-internal-key']).toBe('k');
   });
 

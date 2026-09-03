@@ -1,7 +1,17 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { ApiKeyEnvironment } from '../domain/api-key-environment';
 import { ApiKeyService } from '../application/services/api-key.service';
@@ -16,6 +26,8 @@ import { ApiKeyDto, CreateApiKeyDto, CreatedApiKeyDto } from './dto/api-key.dto'
 @ApiTags('API keys')
 @ApiBearerAuth()
 @Can('platformAdmin')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'api-keys', version: '1' })
 export class ApiKeysController {
   constructor(private readonly keys: ApiKeyService) {}

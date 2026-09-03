@@ -5,12 +5,7 @@ import { PURGE_EXECUTORS, PurgeExecutor } from '../ports/purge-executor.port';
 import { RetentionService } from './retention.service';
 
 export type PurgeOutcome =
-  | 'PURGED'
-  | 'REPORT_ONLY'
-  | 'EXEMPT'
-  | 'NOT_DUE'
-  | 'UNENFORCED'
-  | 'FAILED';
+  'PURGED' | 'REPORT_ONLY' | 'EXEMPT' | 'NOT_DUE' | 'UNENFORCED' | 'FAILED';
 
 export interface PurgeResultEntry {
   dataset: string;
@@ -134,7 +129,8 @@ export class PurgeService {
         // the nullish half could never be taken and only pretended to guard something.
         .filter((e) => e.outcome === 'REPORT_ONLY' && Boolean(e.eligible))
         .map((e) => e.dataset),
-      ok: !entries.some((e) => e.outcome === 'FAILED') ||
+      ok:
+        !entries.some((e) => e.outcome === 'FAILED') ||
         entries.some((e) => e.outcome === 'PURGED' || e.outcome === 'REPORT_ONLY'),
     };
     this.logger.log(

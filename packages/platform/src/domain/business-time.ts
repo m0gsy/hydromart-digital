@@ -37,9 +37,10 @@ export function zoneOffsetMs(at: Date, timeZone: string = BUSINESS_TIME_ZONE): n
   // was explicitly requested, so a missing one is impossible — and a `?? '0'` default
   // would turn an impossible ICU failure into a plausible-looking wrong date rather than
   // an obviously broken one. A missing field yields NaN here, which fails loudly.
-  const part = Object.fromEntries(
-    parts.map((p) => [p.type, Number(p.value)]),
-  ) as Record<string, number>;
+  const part = Object.fromEntries(parts.map((p) => [p.type, Number(p.value)])) as Record<
+    string,
+    number
+  >;
   // `hour` comes back as 24 for midnight under hour12:false in some ICU versions.
   const asIfUtc = Date.UTC(
     part.year,

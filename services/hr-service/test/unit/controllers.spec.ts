@@ -746,7 +746,7 @@ describe('SettingsController', () => {
   it('reset removes a DEPOT override', async () => {
     const { settings, c } = make();
     await c.reset({ scope: 'DEPOT', depotId: 'd1', key: 'k' } as never, user);
-    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'k');
+    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'k', 'u1');
   });
 
   it('reset rejects a GLOBAL change from a non-super-admin', async () => {
@@ -760,6 +760,6 @@ describe('SettingsController', () => {
   it('reset allows a GLOBAL change for a super-admin (depotId defaults null)', async () => {
     const { settings, c } = make();
     await c.reset({ scope: 'GLOBAL', key: 'k' } as never, superAdmin);
-    expect(settings.reset).toHaveBeenCalledWith('GLOBAL', null, 'k');
+    expect(settings.reset).toHaveBeenCalledWith('GLOBAL', null, 'k', 'sa');
   });
 });

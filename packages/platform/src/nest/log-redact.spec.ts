@@ -64,7 +64,9 @@ describe('LOG_REDACT_PATHS', () => {
     const offenders = modules
       .filter(({ service }) => !INLINE_BY_DESIGN.includes(service))
       .filter(({ source }) => source.includes('redact:'))
-      .filter(({ source }) => !source.includes('LOG_REDACT_PATHS') && !source.includes('redactPaths('))
+      .filter(
+        ({ source }) => !source.includes('LOG_REDACT_PATHS') && !source.includes('redactPaths('),
+      )
       .map(({ service }) => service);
 
     expect(offenders).toEqual([]);

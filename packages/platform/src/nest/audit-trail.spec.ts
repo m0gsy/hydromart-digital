@@ -69,7 +69,11 @@ describe('recordAuditEvent (H-29)', () => {
 
   it('stays silent and sends nothing when the trail is not configured', async () => {
     const fetchMock = jest.spyOn(global, 'fetch');
-    await recordAuditEvent({ authServiceUrl: '', internalServiceKey: 'k' }, { action: 'a' }, logger);
+    await recordAuditEvent(
+      { authServiceUrl: '', internalServiceKey: 'k' },
+      { action: 'a' },
+      logger,
+    );
     await recordAuditEvent(
       { authServiceUrl: 'http://auth:3001', internalServiceKey: '' },
       { action: 'a' },

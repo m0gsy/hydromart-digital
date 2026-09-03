@@ -1,4 +1,18 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -7,7 +21,7 @@ import { PhoneChangeService } from '../../application/services/phone-change.serv
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, ImportSummary } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, ImportSummary } from '@hydromart/platform';
 
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
@@ -29,7 +43,12 @@ import {
   PublicCustomerDto,
   SessionInfoDto,
 } from './dto/responses.dto';
-import { CountCustomers3ResponseDto, DeleteStaffResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
+import {
+  CountCustomers3ResponseDto,
+  DeleteStaffResponseDto,
+  ImportResponseDto,
+  ListStaff3ResponseDto,
+} from '../dto/responses.generated.dto';
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -190,7 +209,9 @@ export class AccountController {
     @Query() query: ListDriversQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PublicCustomerDto[]> {
-    const drivers = await this.account.listDrivers(await this.scopedDepotFilter(user, query.depotId));
+    const drivers = await this.account.listDrivers(
+      await this.scopedDepotFilter(user, query.depotId),
+    );
     return drivers.map(PublicCustomerDto.from);
   }
 
@@ -214,6 +235,15 @@ export class AccountController {
   }
 
   @Can('staffAdmin')
+  /*
+   * CA-2-67: staff routes only, not the class.
+   *
+   * This controller also carries `auth/me`, the phone-change pair and logout, and those
+   * already write their own entries (`auth.phone.changed`, `auth.logout`) with the masking
+   * a phone number needs. Intercepting the class would have logged each of them twice and
+   * put customers' profile edits into a trail meant for privileged decisions.
+   */
+  @UseInterceptors(AuditMutationsInterceptor)
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -234,8 +264,9 @@ export class AccountController {
    * phone was the only way to do this, and it carried a role and a reactivation with it.
    */
   @Can('staffAdmin')
+  @UseInterceptors(AuditMutationsInterceptor)
   @Patch('auth/staff/:id/depot')
-  @ApiOperation({ summary: "Move a staff account to another depot" })
+  @ApiOperation({ summary: 'Move a staff account to another depot' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async setStaffDepot(
     @Param('id') id: string,
@@ -251,6 +282,7 @@ export class AccountController {
    * direction (hr-service reporting a resignation) the only one that ever fired.
    */
   @Can('staffAdmin')
+  @UseInterceptors(AuditMutationsInterceptor)
   @Patch('auth/staff/:id/status')
   @ApiOperation({ summary: 'Enable or disable a staff login (and their employee record)' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -270,6 +302,7 @@ export class AccountController {
    */
   @ApiOkResponse({ type: DeleteStaffResponseDto })
   @Can('staffDelete')
+  @UseInterceptors(AuditMutationsInterceptor)
   @Delete('auth/staff/:id')
   @ApiOperation({ summary: 'Delete (anonymise) a staff account — irreversible' })
   async deleteStaff(
@@ -281,6 +314,7 @@ export class AccountController {
 
   @ApiOkResponse({ type: ImportResponseDto })
   @Can('staffAdmin')
+  @UseInterceptors(AuditMutationsInterceptor)
   @Post('auth/staff/import')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

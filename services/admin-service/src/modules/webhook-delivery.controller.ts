@@ -17,11 +17,7 @@ import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { WebhookDispatchService } from '../application/services/webhook-dispatch.service';
 import { ApiKeyGuard, ApiKeyRequest, ApiScopes } from './api-key.guard';
-import {
-  ListDeliveriesDto,
-  PublishEventDto,
-  WebhookDeliveryDto,
-} from './dto/webhook-delivery.dto';
+import { ListDeliveriesDto, PublishEventDto, WebhookDeliveryDto } from './dto/webhook-delivery.dto';
 
 /**
  * Event ingest + the dispatch sweep. Not JWT routes: services report events with the

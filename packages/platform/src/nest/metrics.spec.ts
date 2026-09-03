@@ -45,7 +45,10 @@ describe('enableMetrics', () => {
         method: 'GET',
         route: { path: '/api/v1/depots/:id' },
       } as unknown as Request,
-      { on: (_e: string, cb: () => void) => finish.push(cb), statusCode: 200 } as unknown as Response,
+      {
+        on: (_e: string, cb: () => void) => finish.push(cb),
+        statusCode: 200,
+      } as unknown as Response,
       next as unknown as NextFunction,
     );
     expect(next).toHaveBeenCalled();
@@ -66,7 +69,10 @@ describe('enableMetrics', () => {
     const finish: (() => void)[] = [];
     middleware[0](
       { path: '/nope', method: 'GET' } as unknown as Request,
-      { on: (_e: string, cb: () => void) => finish.push(cb), statusCode: 404 } as unknown as Response,
+      {
+        on: (_e: string, cb: () => void) => finish.push(cb),
+        statusCode: 404,
+      } as unknown as Response,
       jest.fn() as unknown as NextFunction,
     );
     finish[0]();
@@ -113,7 +119,10 @@ describe('enableMetrics', () => {
     ['a browser sending neither header', {}],
     ['a version with no package', { 'x-app-version': '1204' }],
     ['a package with no version', { 'x-app-id': 'id.hydromart.app' }],
-    ['a version that is not a number', { 'x-app-id': 'id.hydromart.app', 'x-app-version': 'latest' }],
+    [
+      'a version that is not a number',
+      { 'x-app-id': 'id.hydromart.app', 'x-app-version': 'latest' },
+    ],
     ['a package id with room for anything', { 'x-app-id': 'a b"c', 'x-app-version': '1' }],
   ])('records nothing for %s', async (_case, headers) => {
     const { app, routes, middleware } = fakeApp();

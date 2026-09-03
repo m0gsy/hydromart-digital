@@ -8,7 +8,9 @@ const OTHER = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
 describe('assertDepotOwnership', () => {
   it('lets a franchise owner act on a depot they own', () => {
-    expect(() => assertDepotOwnership({ role: Role.FRANCHISE_OWNER, sub: OWNER }, OWNER)).not.toThrow();
+    expect(() =>
+      assertDepotOwnership({ role: Role.FRANCHISE_OWNER, sub: OWNER }, OWNER),
+    ).not.toThrow();
   });
 
   it("forbids a franchise owner acting on someone else's depot", () => {

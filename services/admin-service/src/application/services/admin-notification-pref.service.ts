@@ -70,7 +70,10 @@ export class AdminNotificationPrefService {
   ) {}
 
   /** Prefs for one account as its scope's event list, defaults filling any unset event. */
-  async get(accountId: string, scope: NotificationScope = 'ALL'): Promise<AdminNotificationPrefRecord> {
+  async get(
+    accountId: string,
+    scope: NotificationScope = 'ALL',
+  ): Promise<AdminNotificationPrefRecord> {
     const existing = await this.repo.get(accountId);
     const saved = existing?.channels ?? [];
     return {
@@ -100,7 +103,10 @@ export class AdminNotificationPrefService {
   }
 
   /** Project any saved rows onto one scope's event list (defaults for gaps). */
-  private merge(saved: NotificationChannelPref[], scope: NotificationScope): NotificationChannelPref[] {
+  private merge(
+    saved: NotificationChannelPref[],
+    scope: NotificationScope,
+  ): NotificationChannelPref[] {
     return defaultsFor(scope).map((def) => {
       const row = saved.find((r) => r.id === def.id);
       return row ? { id: def.id, push: !!row.push, email: !!row.email, wa: !!row.wa } : { ...def };

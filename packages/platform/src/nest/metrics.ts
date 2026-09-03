@@ -42,7 +42,10 @@ const NUMERIC_SEGMENT = /\/\d+(?=\/|$)/g;
 // Every id in this platform is a uuid (`@default(uuid())`) or a bare number; anything else
 // is left alone and answered for by the ceiling.
 function templateOf(path: string): string {
-  return path.replace(UUID_SEGMENT, '/:id').replace(NUMERIC_SEGMENT, '/:id').slice(0, ROUTE_LABEL_MAX_LENGTH);
+  return path
+    .replace(UUID_SEGMENT, '/:id')
+    .replace(NUMERIC_SEGMENT, '/:id')
+    .slice(0, ROUTE_LABEL_MAX_LENGTH);
 }
 
 /**
@@ -136,7 +139,12 @@ export function enableMetrics(app: INestApplication, serviceName: string): void 
     const appVersion = req.headers?.['x-app-version'];
     // Both, or neither: a version with no package cannot be attributed, and a package with
     // no version is the thing this counter exists to answer.
-    if (typeof appId === 'string' && typeof appVersion === 'string' && CLIENT_APPS.has(appId) && /^\d{1,12}$/.test(appVersion)) {
+    if (
+      typeof appId === 'string' &&
+      typeof appVersion === 'string' &&
+      CLIENT_APPS.has(appId) &&
+      /^\d{1,12}$/.test(appVersion)
+    ) {
       // The version ceiling: a real fleet carries a handful of builds at once, so anything
       // past 64 distinct ones is somebody generating them. They still get counted, under
       // one shared label, which keeps the total honest without minting a series per value.

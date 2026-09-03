@@ -130,9 +130,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
 
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     // OR on the phone: a ticket staff opened at the counter carries the number and no id.
-    const match = phone
-      ? [{ customerId }, { customerPhone: phone }]
-      : [{ customerId }];
+    const match = phone ? [{ customerId }, { customerPhone: phone }] : [{ customerId }];
     const mine = await this.prisma.supportTicket.findMany({
       where: { OR: match },
       select: { id: true },

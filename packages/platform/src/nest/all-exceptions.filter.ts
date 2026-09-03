@@ -54,7 +54,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const timestamp = new Date().toISOString();
 
     if (exception instanceof DomainError) {
-      return { statusCode: exception.status, code: exception.code, message: exception.message, timestamp, path };
+      return {
+        statusCode: exception.status,
+        code: exception.code,
+        message: exception.message,
+        timestamp,
+        path,
+      };
     }
     if (exception instanceof HttpException) {
       const status = exception.getStatus();

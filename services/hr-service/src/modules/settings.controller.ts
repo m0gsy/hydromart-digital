@@ -19,7 +19,9 @@ export class SettingsController {
   @ApiOkResponse({ type: Schema3ResponseDto })
   @Get('schema')
   @ApiOperation({ summary: 'Setting defs + effective values for an optional depot' })
-  schema(@Query('depotId') depotId?: string): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
+  schema(
+    @Query('depotId') depotId?: string,
+  ): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
     return this.settings.schema(depotId ?? null);
   }
 
@@ -48,6 +50,6 @@ export class SettingsController {
     if (dto.scope === 'GLOBAL') {
       assertCapability(user, 'settingsGlobal');
     }
-    await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key);
+    await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key, user.sub);
   }
 }

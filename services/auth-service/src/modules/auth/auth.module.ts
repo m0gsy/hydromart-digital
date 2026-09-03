@@ -4,7 +4,9 @@ import { JwtModule } from '@nestjs/jwt';
 
 // The shared guard, not a local copy: it is the one that resolves @Can against the live
 // capability matrix, and a second implementation is exactly the drift this phase removes.
-import { DepotScopeGuard, RolesGuard } from '@hydromart/platform';
+import { AUDIT_MUTATION_SINK, AuditMutationsInterceptor, DepotScopeGuard, RolesGuard } from '@hydromart/platform';
+
+import { AuthAuditMutationSink } from '../../infrastructure/audit-mutation.sink';
 
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AUTH_TOKENS } from '../../application/tokens';
@@ -153,7 +155,11 @@ const globalGuards: Provider[] = [
     ConsentController,
     AccessController,
   ],
-  providers: [...adapterProviders, ...applicationServices, ...globalGuards],
+  providers: [
+    // CA-2-67: role grants and RBAC-matrix edits reached no trail at all. See
+    // AuthAuditMutationSink for why this one writes to the table instead of over HTTP.
+    { provide: AUDIT_MUTATION_SINK, useClass: AuthAuditMutationSink },
+    AuditMutationsInterceptor,...adapterProviders, ...applicationServices, ...globalGuards],
   exports: [PrismaService, AuthConfigService],
 })
 export class AuthModule {}

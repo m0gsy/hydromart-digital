@@ -1,6 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 
 import { coerce, SettingRow, SettingsCache, SettingType, SettingsSource } from './settings';
+import { recordAuditEvent } from '../nest/audit-trail';
 
 /** One tunable a service exposes on its settings screen. */
 export interface SettingDef {
@@ -82,6 +83,8 @@ function assertStorable(def: SettingDef, raw: string): void {
  * change instead of seven.
  */
 export abstract class SettingsSliceService {
+  private static readonly logger = new Logger(SettingsSliceService.name);
+
   protected constructor(
     protected readonly repo: SettingsSliceRepository,
     public readonly cache: SettingsCache,
@@ -126,6 +129,14 @@ export abstract class SettingsSliceService {
         throw new BadRequestException(`${input.key} above max ${def.max}`);
       }
     }
+    // The value being replaced, read before the write, because "changed to 5" without
+    // "from 0" does not answer the question anybody asks this trail.
+    const previous = this.cache.effective(
+      input.key,
+      def.type,
+      def.envDefault,
+      input.scope === 'GLOBAL' ? null : input.depotId,
+    );
     await this.repo.upsert({
       scope: input.scope,
       depotId: input.scope === 'GLOBAL' ? null : input.depotId,
@@ -135,13 +146,60 @@ export abstract class SettingsSliceService {
     });
     // A write, not a read: the caller must see its own edit, TTL or no TTL.
     await this.cache.refresh();
+    await this.audit('settings.changed', input.updatedBy, input.key, {
+      scope: input.scope,
+      depotId: input.scope === 'GLOBAL' ? null : input.depotId,
+      from: previous,
+      to: coerced,
+      unit: def.unit,
+    });
   }
 
-  async reset(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
+  async reset(
+    scope: 'GLOBAL' | 'DEPOT',
+    depotId: string | null,
+    key: string,
+    resetBy = '',
+  ): Promise<void> {
     if (scope === 'DEPOT' && !depotId) {
       throw new BadRequestException('depotId required for a DEPOT override');
     }
     await this.repo.remove(scope, scope === 'GLOBAL' ? null : depotId, key);
     await this.cache.refresh();
+    await this.audit('settings.reset', resetBy, key, {
+      scope,
+      depotId: scope === 'GLOBAL' ? null : depotId,
+    });
+  }
+
+  /**
+   * CA-2-67: every tunable in this store is a business number — commission rates, the
+   * absence fine, the delivery radius, the tax rounding method — and changing one changed
+   * nothing that could be looked up afterwards. Eight services subclass this, so the trail
+   * had eight holes and one place to close them.
+   *
+   * Fail-open like the rest of the trail (see recordAuditEvent): a setting that has already
+   * been written and re-cached cannot be rolled back because its record did not post.
+   *
+   * ponytail: the ingest config is read from the environment rather than threaded through
+   * eight subclass constructors and eight ConfigServices. `AUTH_SERVICE_URL` and
+   * `INTERNAL_SERVICE_KEY` are the same two names in all eighteen services and are already
+   * validated at boot by each one's env.validation — this reads the value those checks
+   * guarantee, and a blank one simply disables recording.
+   */
+  private async audit(
+    action: string,
+    actorId: string,
+    key: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    await recordAuditEvent(
+      {
+        authServiceUrl: process.env.AUTH_SERVICE_URL ?? '',
+        internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? '',
+      },
+      { action, actorId: actorId || null, target: key, metadata },
+      SettingsSliceService.logger,
+    );
   }
 }

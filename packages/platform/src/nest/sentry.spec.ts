@@ -88,7 +88,9 @@ describe('sentry', () => {
     });
 
     it('drops breadcrumbs — a second copy of the request with none of the redaction', () => {
-      const event = beforeSend({ breadcrumbs: [{ message: 'GET /customers?phone=+628123456789' }] }) as {
+      const event = beforeSend({
+        breadcrumbs: [{ message: 'GET /customers?phone=+628123456789' }],
+      }) as {
         breadcrumbs: unknown[];
       };
       expect(event.breadcrumbs).toEqual([]);
