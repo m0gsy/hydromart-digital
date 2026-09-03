@@ -95,7 +95,9 @@ export class DepotCostsQueryDto {
  */
 export class ReverseCashbookDto {
   @ApiProperty({
-    example: 'Salah ketik: Rp 5.000.000 seharusnya Rp 500.000',
+    // No rupiah figures in the example: `check-money-literals` reads the client surface
+    // for business numbers, and it cannot tell an illustration from a hardcoded price.
+    example: 'Salah ketik: nominalnya kelebihan satu nol',
     description: 'Why the entry is being corrected. Shown beside both entries in the book.',
   })
   @IsString()
