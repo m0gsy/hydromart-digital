@@ -10,6 +10,8 @@ export const ADMIN_TOKENS = {
   ReportSource: Symbol('ReportSource'),
   SupportTicketRepository: Symbol('SupportTicketRepository'),
   FraudFlagRepository: Symbol('FraudFlagRepository'),
+  /** CA-2-05: suspends the account behind a fraud flag. Fails CLOSED — see the port. */
+  AccountSuspension: Symbol('AccountSuspension'),
   FraudSignals: Symbol('FraudSignals'),
   IncidentRepository: Symbol('IncidentRepository'),
   SlaPolicyRepository: Symbol('SlaPolicyRepository'),

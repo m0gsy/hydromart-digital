@@ -521,6 +521,10 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
     return { ...record };
   }
 
+  async findById(id: string): Promise<FraudFlagRecord | null> {
+    return this.rows.find((f) => f.id === id) ?? null;
+  }
+
   async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
@@ -787,4 +791,20 @@ export function buildTestConfig(overrides: Record<string, string> = {}): AdminCo
     },
   };
   return new AdminConfigService(fake as unknown as ConfigService);
+}
+
+/**
+ * CA-2-05: the account the fraud queue blocks.
+ *
+ * `fail` makes it throw, which is the case that matters: a flag must NOT move to BLOCKED
+ * when the suspension could not be carried out.
+ */
+export class FakeAccountSuspension {
+  calls: { customerId: string; active: boolean }[] = [];
+  fail = false;
+
+  async setActive(customerId: string, active: boolean): Promise<void> {
+    if (this.fail) throw new Error('auth-service unreachable');
+    this.calls.push({ customerId, active });
+  }
 }

@@ -4,7 +4,12 @@ import { JwtModule } from '@nestjs/jwt';
 
 // The shared guard, not a local copy: it is the one that resolves @Can against the live
 // capability matrix, and a second implementation is exactly the drift this phase removes.
-import { AUDIT_MUTATION_SINK, AuditMutationsInterceptor, DepotScopeGuard, RolesGuard } from '@hydromart/platform';
+import {
+  AUDIT_MUTATION_SINK,
+  AuditMutationsInterceptor,
+  DepotScopeGuard,
+  RolesGuard,
+} from '@hydromart/platform';
 
 import { AuthAuditMutationSink } from '../../infrastructure/audit-mutation.sink';
 
@@ -70,7 +75,10 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.OtpTokenRepository, useClass: OtpTokenPrismaRepository },
   { provide: AUTH_TOKENS.RefreshTokenRepository, useClass: RefreshTokenPrismaRepository },
   { provide: AUTH_TOKENS.AuditLogRepository, useClass: AuditLogPrismaRepository },
-  { provide: AUTH_TOKENS.DataSubjectRequestRepository, useClass: DataSubjectRequestPrismaRepository },
+  {
+    provide: AUTH_TOKENS.DataSubjectRequestRepository,
+    useClass: DataSubjectRequestPrismaRepository,
+  },
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
   { provide: HR_DIRECTORY_PORT, useClass: HrDirectoryHttpAdapter },
   // The erasure registry: one entry per service that holds the person who asked to be
@@ -78,7 +86,10 @@ const adapterProviders: Provider[] = [
   erasureExecutorProvider,
   erasureExemptionProvider,
   { provide: AUTH_TOKENS.ConsentRepository, useClass: ConsentPrismaRepository },
-  { provide: AUTH_TOKENS.CapabilityOverrideRepository, useClass: CapabilityOverridePrismaRepository },
+  {
+    provide: AUTH_TOKENS.CapabilityOverrideRepository,
+    useClass: CapabilityOverridePrismaRepository,
+  },
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
@@ -159,7 +170,11 @@ const globalGuards: Provider[] = [
     // CA-2-67: role grants and RBAC-matrix edits reached no trail at all. See
     // AuthAuditMutationSink for why this one writes to the table instead of over HTTP.
     { provide: AUDIT_MUTATION_SINK, useClass: AuthAuditMutationSink },
-    AuditMutationsInterceptor,...adapterProviders, ...applicationServices, ...globalGuards],
+    AuditMutationsInterceptor,
+    ...adapterProviders,
+    ...applicationServices,
+    ...globalGuards,
+  ],
   exports: [PrismaService, AuthConfigService],
 })
 export class AuthModule {}

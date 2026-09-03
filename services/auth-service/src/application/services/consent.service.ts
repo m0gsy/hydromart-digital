@@ -9,11 +9,7 @@ import {
   currentConsents,
   isWithdrawable,
 } from '../../domain/data-subject/consent';
-import {
-  ConsentLagPage,
-  ConsentLagReader,
-  ConsentRepository,
-} from '../ports/consent.repository';
+import { ConsentLagPage, ConsentLagReader, ConsentRepository } from '../ports/consent.repository';
 import { AUTH_TOKENS } from '../tokens';
 
 /**

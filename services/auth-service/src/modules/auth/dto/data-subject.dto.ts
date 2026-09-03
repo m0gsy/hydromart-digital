@@ -44,7 +44,9 @@ export class DataSubjectRequestDto {
    */
   @ApiProperty({ type: String, nullable: true }) customerName!: string | null;
 
-  static from(record: DataSubjectRequestRecord & { customerName?: string | null }): DataSubjectRequestDto {
+  static from(
+    record: DataSubjectRequestRecord & { customerName?: string | null },
+  ): DataSubjectRequestDto {
     return {
       customerName: record.customerName ?? null,
       id: record.id,

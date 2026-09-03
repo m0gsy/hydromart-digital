@@ -66,9 +66,7 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
        * — and the caller has to be able to tell those apart before it decides whether to
        * throw away a challenge whose code is possibly already on the customer's phone.
        */
-      throw new OtpGatewayUnreachableError(
-        error instanceof Error ? error.message : String(error),
-      );
+      throw new OtpGatewayUnreachableError(error instanceof Error ? error.message : String(error));
     } finally {
       clearTimeout(timer);
     }
@@ -80,7 +78,10 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
     }
 
     // Deliberately not logged with the body — the response echoes the destination number.
-    const body = (await response.json().catch(() => null)) as { status?: string; text?: string } | null;
+    const body = (await response.json().catch(() => null)) as {
+      status?: string;
+      text?: string;
+    } | null;
     if (!body || String(body.status) !== '1') {
       this.logger.error(`Zenziva rejected the OTP send: status=${body?.status} text=${body?.text}`);
       throw new OtpGatewayRejectedError(`Zenziva status ${body?.status ?? 'unknown'}`);

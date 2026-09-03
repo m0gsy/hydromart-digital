@@ -18,6 +18,7 @@ describe('InternalAccountController', () => {
     lookupByIds: jest.fn(),
     updateStaffProfileInternal: jest.fn(),
     setStaffActiveInternal: jest.fn(),
+    setCustomerActiveInternal: jest.fn(),
   };
   const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
   const controller = new InternalAccountController(account as never, audit as never);
@@ -40,6 +41,26 @@ describe('InternalAccountController', () => {
     const res = await controller.setStaffActive({ customerId: 'c1', active: false } as never);
     expect(account.setStaffActiveInternal).toHaveBeenCalledWith('c1', false);
     expect(res).toMatchObject({ id: 'c1', role: Role.MANAGER });
+  });
+
+  /*
+   * CA-2-05: the route that makes "Blokir" in the fraud queue mean something. Separate
+   * from `staff/status` on purpose — that one refuses a CUSTOMER, this one refuses staff.
+   */
+  it('setCustomerActive forwards the id and flag for an end customer', async () => {
+    const customer = {
+      id: 'cust-1',
+      phone: '+628123450000',
+      fullName: 'Siti',
+      role: Role.CUSTOMER,
+      status: 'SUSPENDED',
+    };
+    account.setCustomerActiveInternal.mockResolvedValue(customer as never);
+
+    const res = await controller.setCustomerActive({ customerId: 'cust-1', active: false } as never);
+
+    expect(account.setCustomerActiveInternal).toHaveBeenCalledWith('cust-1', false);
+    expect(res).toMatchObject({ id: 'cust-1', role: Role.CUSTOMER });
   });
 
   it('forwards the retention cutoff as a Date and returns the count', async () => {

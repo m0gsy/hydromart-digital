@@ -122,19 +122,18 @@ export const ERASURE_EXEMPTION_LIST: ErasureExemption[] = [
 export const erasureExecutorProvider: Provider = {
   provide: ERASURE_EXECUTORS,
   inject: [AuthConfigService],
-  useFactory: (config: AuthConfigService): ErasureExecutor[] =>
-    [
-      ...REMOTE_DATASETS.map(
-        (d) =>
-          new RemoteErasureExecutor(
-            d.dataset,
-            config.serviceUrl(d.envKey),
-            d.path,
-            config.internalServiceKey,
-          ),
-      ),
-      ...UNENFORCED_DATASETS.map((d) => new UnenforcedErasure(d.dataset, d.reason)),
-    ],
+  useFactory: (config: AuthConfigService): ErasureExecutor[] => [
+    ...REMOTE_DATASETS.map(
+      (d) =>
+        new RemoteErasureExecutor(
+          d.dataset,
+          config.serviceUrl(d.envKey),
+          d.path,
+          config.internalServiceKey,
+        ),
+    ),
+    ...UNENFORCED_DATASETS.map((d) => new UnenforcedErasure(d.dataset, d.reason)),
+  ],
 };
 
 export const erasureExemptionProvider: Provider = {

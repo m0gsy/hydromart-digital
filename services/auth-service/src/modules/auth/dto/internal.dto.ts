@@ -67,7 +67,10 @@ export class AssignStaffRoleDto {
   @IsIn(HR_MANAGED_ROLES as readonly string[])
   role!: HrManagedRole & Role;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to assign with the role; null clears it.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Depot to assign with the role; null clears it.',
+  })
   @IsOptional()
   @IsUUID()
   depotId?: string | null;

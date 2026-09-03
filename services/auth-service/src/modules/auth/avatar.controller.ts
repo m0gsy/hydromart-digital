@@ -70,7 +70,11 @@ export class AvatarController {
     // the real cause so ops can see WHICH bucket/endpoint failed.
     let url: string;
     try {
-      ({ url } = await this.storage.put({ body: file.buffer, contentType: SNIFFED_MIME[ext], ext }));
+      ({ url } = await this.storage.put({
+        body: file.buffer,
+        contentType: SNIFFED_MIME[ext],
+        ext,
+      }));
     } catch (error) {
       this.logger.error(`Avatar upload failed for ${user.sub}: ${(error as Error).message}`);
       throw new ServiceUnavailableException(

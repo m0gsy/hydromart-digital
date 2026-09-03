@@ -97,7 +97,12 @@ export class ConsentPendingDto {
   enforcement!: 'UNENFORCED';
 
   static from(documentVersion: string, purposes: ConsentPurpose[]): ConsentPendingDto {
-    return { documentVersion, purposes, mustAccept: purposes.length > 0, enforcement: 'UNENFORCED' };
+    return {
+      documentVersion,
+      purposes,
+      mustAccept: purposes.length > 0,
+      enforcement: 'UNENFORCED',
+    };
   }
 }
 

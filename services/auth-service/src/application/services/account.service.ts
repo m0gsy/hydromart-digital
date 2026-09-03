@@ -25,7 +25,11 @@ import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
-import { HR_DIRECTORY_PORT, HrDirectoryPort, ProvisionEmployeeInput } from '../ports/hr-directory.port';
+import {
+  HR_DIRECTORY_PORT,
+  HrDirectoryPort,
+  ProvisionEmployeeInput,
+} from '../ports/hr-directory.port';
 import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
 import { AuditAction, AuditService } from './audit.service';
@@ -113,13 +117,17 @@ export class AccountService {
       const scope = user.depotIds ?? [];
       if (requested) {
         if (!scope.includes(requested)) {
-          throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+          throw new ForbiddenException(
+            'Akun ini hanya boleh melihat data depot yang ditugaskan padanya.',
+          );
         }
         return requested;
       }
       if (scope.length === 1) return scope[0];
       if (scope.length === 0) {
-        throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+        throw new ForbiddenException(
+          'Akun ini hanya boleh melihat data depot yang ditugaskan padanya.',
+        );
       }
       // Several depots and no choice made. Refusing names the fix; returning `undefined`
       // would quietly widen the read to every depot in the network.
@@ -130,7 +138,9 @@ export class AccountService {
     if (!isDepotLocked(user.role as unknown as PlatformRole)) return requested;
     const self = await this.getProfile(user.sub);
     if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
-      throw new ForbiddenException('Akun ini hanya boleh melihat data depot yang ditugaskan padanya.');
+      throw new ForbiddenException(
+        'Akun ini hanya boleh melihat data depot yang ditugaskan padanya.',
+      );
     }
     return self.assignedDepotId;
   }
@@ -228,7 +238,12 @@ export class AccountService {
     const PAGE = 100;
     const drivers: PublicCustomer[] = [];
     for (let page = 1; ; page += 1) {
-      const { items, total } = await this.customers.listStaff(page, PAGE, Role.STAFF_DEPOT, depotId);
+      const { items, total } = await this.customers.listStaff(
+        page,
+        PAGE,
+        Role.STAFF_DEPOT,
+        depotId,
+      );
       drivers.push(...items.map(toPublicCustomer));
       if (items.length === 0 || drivers.length >= total) break;
       if (drivers.length >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
@@ -506,7 +521,11 @@ export class AccountService {
    * it may now do — inviting by phone there would silently mint a second account if the
    * employee's phone had been corrected in the meantime.
    */
-  async setStaffRole(customerId: string, role: Role, depotId?: string | null): Promise<PublicCustomer> {
+  async setStaffRole(
+    customerId: string,
+    role: Role,
+    depotId?: string | null,
+  ): Promise<PublicCustomer> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
@@ -627,6 +646,33 @@ export class AccountService {
       throw new CustomerNotFoundError();
     }
     if (customer.role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    customer.setActive(active);
+    return toPublicCustomer(await this.customers.save(customer));
+  }
+
+  /**
+   * CA-2-05: suspend (or reinstate) an END CUSTOMER, for the fraud queue.
+   *
+   * The mirror of `setStaffActiveInternal`, and deliberately a separate method rather than
+   * a relaxed version of it: that one refuses `Role.CUSTOMER`, this one refuses everything
+   * else. Two routes that cannot be confused for each other is worth more than one route
+   * with a flag, because the callers are different services with different reasons — HR
+   * moving an employee, and head office blocking a fraudster.
+   *
+   * `setActive` is what already backs the staff path: it writes SUSPENDED, and
+   * `ensureCanAuthenticate` refuses a SUSPENDED account at sign-in. So the block is real at
+   * the only door that matters, rather than a status on a queue.
+   */
+  async setCustomerActiveInternal(customerId: string, active: boolean): Promise<PublicCustomer> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    if (customer.role !== Role.CUSTOMER) {
+      // Suspending staff goes through the HR path, which also tells hr-service. Doing it
+      // here would leave the employee record saying they still work here.
       throw new InvalidStaffRoleError();
     }
     customer.setActive(active);

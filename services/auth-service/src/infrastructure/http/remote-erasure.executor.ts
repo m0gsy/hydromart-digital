@@ -1,9 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-import {
-  ErasureExecutor,
-  ErasureSubject,
-} from '../../application/ports/erasure-executor.port';
+import { ErasureExecutor, ErasureSubject } from '../../application/ports/erasure-executor.port';
 
 /**
  * A person's data that lives in another service. auth-service owns the request; the

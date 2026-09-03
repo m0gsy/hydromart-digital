@@ -322,6 +322,54 @@ describe('AccountService', () => {
       );
     });
 
+    /*
+     * CA-2-05: the customer half, for the fraud queue.
+     *
+     * Deliberately a separate method from the staff one rather than a relaxed version of
+     * it: `setStaffActiveInternal` refuses a CUSTOMER, this refuses everything else. Two
+     * routes that cannot be confused is worth more than one route with a flag, because the
+     * callers are different services with different reasons — HR moving an employee, and
+     * head office blocking a fraudster.
+     */
+    it('suspends an end customer, and never tells hr-service', async () => {
+      const customer = makeCustomer({ phone: '+628995550010', role: Role.CUSTOMER });
+      customers.seed(customer);
+
+      const off = await service.setCustomerActiveInternal(customer.id, false);
+
+      // SUSPENDED is what `ensureCanAuthenticate` refuses at sign-in — the block is real
+      // at the only door that matters, rather than a status on a queue.
+      expect(off.status).toBe(CustomerStatus.SUSPENDED);
+      expect(hr.activeCalls).toEqual([]);
+    });
+
+    it('reinstates an end customer when a flag is cleared', async () => {
+      const customer = makeCustomer({
+        phone: '+628995550011',
+        role: Role.CUSTOMER,
+        status: CustomerStatus.SUSPENDED,
+      });
+      customers.seed(customer);
+
+      const on = await service.setCustomerActiveInternal(customer.id, true);
+
+      expect(on.status).toBe(CustomerStatus.ACTIVE);
+    });
+
+    /*
+     * Suspending staff has to go through the HR path, which also tells hr-service. Doing it
+     * here would leave the employee record saying they still work here.
+     */
+    it('refuses staff and an unknown account', async () => {
+      const staff = await service.inviteStaff('+628995550012', Role.KEPALA_DEPOT, 'Budi', 'depot-1');
+      await expect(service.setCustomerActiveInternal(staff.id, false)).rejects.toBeInstanceOf(
+        InvalidStaffRoleError,
+      );
+      await expect(
+        service.setCustomerActiveInternal('11111111-1111-4111-8111-111111111111', false),
+      ).rejects.toBeInstanceOf(CustomerNotFoundError);
+    });
+
     // Deleting anonymises the identity; "activate" must not bring back a record nobody can
     // read. Locks the 0a fix to SUSPENDED only.
     it('never revives a deleted account', async () => {

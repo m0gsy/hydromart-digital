@@ -98,6 +98,10 @@ const EXEMPT = new Map([
   ['auth-service:internal.controller.ts:setStaffActive', 'hr-service records the human actor'],
   ['auth-service:internal.controller.ts:updateStaffProfile', 'hr-service records the human actor'],
   ['auth-service:internal.controller.ts:assignStaffRole', 'hr-service records the human actor'],
+  [
+    'auth-service:internal.controller.ts:setCustomerActive',
+    'CA-2-05 fraud block — admin-service records the human actor on admin.fraud-flags.block',
+  ],
   ['auth-service:internal.controller.ts:preRegisterCustomer', 'order-service walk-in capture'],
   ['auth-service:internal.controller.ts:lookupByIds', 'a POST that reads — a batch lookup, not a write'],
   ['auth-service:internal.controller.ts:purgeAuditLogs', 'timer-driven retention purge'],

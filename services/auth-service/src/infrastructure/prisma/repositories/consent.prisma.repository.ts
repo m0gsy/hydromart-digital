@@ -124,9 +124,7 @@ export class ConsentPrismaRepository implements ConsentRepository, ConsentLagRea
       cardinality(present) < ${owed}
       OR cardinality(refused) > 0
       OR cardinality(outdated) > 0`;
-    const after = query.cursor
-      ? Prisma.sql`AND per."id" > ${query.cursor}::uuid`
-      : Prisma.empty;
+    const after = query.cursor ? Prisma.sql`AND per."id" > ${query.cursor}::uuid` : Prisma.empty;
 
     const [totals, rows] = await Promise.all([
       // ::int on every count: Prisma hands back bigint otherwise, and a bigint cannot be
