@@ -172,7 +172,22 @@ async function main() {
     bad('19 generate for a mid-month joiner', `status ${jp.status} ${JSON.stringify(jp.body).slice(0, 200)}`);
   } else {
     const base = sumKind(jp.body, 'BASE');
-    const deductions = sumKind(jp.body, 'DEDUCTION');
+    /*
+     * The ABSENCE line specifically — not the sum of every deduction on the slip.
+     *
+     * `sumKind(..., 'DEDUCTION')` also picks up BPJS, a tiered lateness fine and any loan
+     * instalment, so a slip that handles the joining date perfectly still failed this check
+     * the moment any unrelated deduction existed. That is exactly what happened: it reported
+     * `deductions=70000` on a run where the absence fine was not even switched on, and the
+     * number is not a multiple of the 50.000 rate.
+     *
+     * The claim here is about ONE thing — days before somebody started must not be fined —
+     * so it reads the one line that would say so.
+     */
+    const absenceLine = (jp.body?.items ?? []).find((i) =>
+      String(i.label).startsWith('Potongan absen'),
+    );
+    const deductions = absenceLine ? Number(absenceLine.amount) : 0;
     if (base > 0 && base < 3_000_000) ok(`19 base pay prorated: Rp ${base.toLocaleString('id-ID')} of 3.000.000`);
     else bad('19 base pay NOT prorated', `base=${base}`);
     // Guarded, because this assertion can pass for the wrong reason: if the depot's
@@ -203,7 +218,14 @@ async function main() {
     } else if (deductions === 0) {
       ok('19 no absence fine for the days before they joined');
     } else {
-      bad('19 joiner fined for days before joining', `deductions=${deductions}`);
+      bad(
+        '19 joiner fined for days before joining',
+        `absence line = ${absenceLine?.label} (${deductions}); all deductions: ` +
+          (jp.body?.items ?? [])
+            .filter((i) => i.kind === 'DEDUCTION')
+            .map((i) => `${i.label}=${i.amount}`)
+            .join(', '),
+      );
     }
     // Put the depot back the way it was found. A verification script that leaves a fine
     // switched on is a verification script that changes somebody's payroll.
