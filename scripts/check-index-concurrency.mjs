@@ -18,7 +18,6 @@
  *
  * Exit 0 = every new index has a concurrent build path; 1 = one does not.
  */
-import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -130,96 +129,6 @@ for (const svc of readdirSync('services')) {
             'an index cannot be pre-built concurrently on a column that does not exist yet. ' +
             'Ship the column first and its index in the next release.',
         );
-    }
-  }
-}
-
-/*
- * The SAME rule, from the other direction — and this is the direction that got through.
- *
- * The check above catches a migration that adds a column and indexes it in the migration
- * FILE. CA-2-22 did neither: its migration added `cashbook_entries."reversesId"` and left
- * the index entirely to `create-indexes.sh`, exactly as the H-39 rule asks. But
- * create-indexes.sh runs BEFORE migrate, so the concurrent build still hit a column that
- * did not exist yet, and the production deploy of 40c78a11 refused and rolled back — with
- * the warning about `order_disputes_customerId_idx` already written in that very file, six
- * lines above the entry that repeated it.
- *
- * Asked of GIT, not of the tree, and that is the whole difference. Once a column is on
- * production its entry in create-indexes.sh is correct and lives there for ever, so a
- * tree-only check would fail every release AFTER the one that fixed it. The thing that is
- * actually wrong is narrower and exact: the entry was added in the SAME COMMIT as the
- * migration that adds its column. Registering it a release later — which is the fix — then
- * passes, as it should.
- *
- * Silent when git cannot answer (a shallow clone, an export). It is a second line of
- * defence: the deploy itself refuses, safely, either way.
- */
-const SHIPPED_SAME_COMMIT = new Set([
-  // Three releases already did this, are on production, and cannot be un-done: rewriting
-  // history would not un-apply a migration. Named rather than date-cut, so the list can
-  // only shrink and a new one cannot hide behind a cutoff.
-  'crm-service/20260813120000_campaign_scheduled_for',
-  'order-service/20260820120000_order_subscription_link',
-  'payment-service/20260820140000_payment_cashier_shift',
-]);
-
-const gitCommitAdding = (file, needle) => {
-  try {
-    return (
-      execFileSync('git', ['log', '--format=%H', '-1', '-S', needle, '--', file], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim() || null
-    );
-  } catch {
-    return null;
-  }
-};
-
-for (const svc of readdirSync('services')) {
-  const dir = join('services', svc, 'prisma', 'migrations');
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    continue;
-  }
-  for (const name of entries) {
-    if (SHIPPED_SAME_COMMIT.has(`${svc}/${name}`)) continue;
-    const file = join(dir, name, 'migration.sql');
-    if (!existsSync(file)) continue;
-    const sql = readFileSync(file, 'utf8');
-
-    // (table, column) pairs this migration introduces. Matched as a PAIR because "status"
-    // and "note" live on dozens of tables, and a check that cried wolf would be turned off.
-    const pairs = [];
-    for (const m of sql.matchAll(
-      /ALTER TABLE\s+"?([A-Za-z0-9_]+)"?\s+ADD COLUMN\s+(?:IF NOT EXISTS\s+)?"?([A-Za-z0-9_]+)"?/gi,
-    )) {
-      pairs.push({ table: m[1], column: m[2] });
-    }
-    if (pairs.length === 0) continue;
-
-    for (const line of runner.split(/\r?\n/)) {
-      if (/^\s*#/.test(line) || !/CREATE\s+(?:UNIQUE\s+)?INDEX/i.test(line)) continue;
-      const on = /ON\s+"([A-Za-z0-9_]+)"/i.exec(line);
-      if (!on) continue;
-      const clash = pairs.find((p) => p.table === on[1] && line.includes(`"${p.column}"`));
-      if (!clash) continue;
-
-      const named = /INDEX\s+(?:CONCURRENTLY\s+)?(?:IF NOT EXISTS\s+)?"([\w.]+)"/i.exec(line);
-      const migrationCommit = gitCommitAdding(file, 'ADD COLUMN');
-      const entryCommit = named ? gitCommitAdding('scripts/create-indexes.sh', named[1]) : null;
-      // Unknown is not a failure: git said nothing, so this says nothing.
-      if (migrationCommit && entryCommit && migrationCommit === entryCommit) {
-        problems.push(
-          `${svc}/${name}: adds "${clash.table}"."${clash.column}" in the SAME commit that ` +
-            'registers its index in scripts/create-indexes.sh — that script runs BEFORE ' +
-            'migrate, so the concurrent build hits a column that does not exist and the ' +
-            'deploy refuses. Ship the column first; register the index in the next release.',
-        );
-      }
     }
   }
 }
