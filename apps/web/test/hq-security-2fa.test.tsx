@@ -51,12 +51,16 @@ import HqSecurityPage from '@/app/hq/security/page';
 beforeEach(() => {
   toast.mockReset();
   post.mockReset().mockResolvedValue({});
-  put.mockReset().mockImplementation((_p: string, body: unknown) =>
-    Promise.resolve({ ...POLICY, ...(body as object) }),
-  );
-  get.mockReset().mockImplementation((path: string) =>
-    String(path).includes('/sessions') ? Promise.resolve([]) : Promise.resolve(POLICY),
-  );
+  put
+    .mockReset()
+    .mockImplementation((_p: string, body: unknown) =>
+      Promise.resolve({ ...POLICY, ...(body as object) }),
+    );
+  get
+    .mockReset()
+    .mockImplementation((path: string) =>
+      String(path).includes('/sessions') ? Promise.resolve([]) : Promise.resolve(POLICY),
+    );
 });
 
 afterEach(() => vi.clearAllMocks());

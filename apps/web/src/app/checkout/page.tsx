@@ -102,7 +102,9 @@ const NO_OPTIONS: DeliveryOptions = {
 };
 
 /** Which part of the day a `HH.MM-HH.MM` window starts in, for the line under it. */
-function slotPeriod(slot: string): 'periodMorning' | 'periodNoon' | 'periodAfternoon' | 'periodEvening' {
+function slotPeriod(
+  slot: string,
+): 'periodMorning' | 'periodNoon' | 'periodAfternoon' | 'periodEvening' {
   const hour = Number(slot.slice(0, 2));
   if (hour < 11) return 'periodMorning';
   if (hour < 15) return 'periodNoon';
@@ -116,7 +118,12 @@ function buildDates(t: (k: string) => string): { key: string; num: number }[] {
   return Array.from({ length: 4 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    const key = i === 0 ? t('customerFix.slot.today') : i === 1 ? t('customerFix.slot.tomorrow') : (days[d.getDay()] ?? '');
+    const key =
+      i === 0
+        ? t('customerFix.slot.today')
+        : i === 1
+          ? t('customerFix.slot.tomorrow')
+          : (days[d.getDay()] ?? '');
     return { key, num: d.getDate() };
   });
 }
@@ -266,7 +273,8 @@ function CheckoutInner() {
   const needsDepotPick = coords.latitude == null || coords.longitude == null;
   const [pickedDepotId, setPickedDepotId] = useState<string | null>(null);
   const { data: depotChoices, loading: depotChoicesLoading } = useAsync<Page<Depot> | null>(
-    () => (needsDepotPick ? api.get(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null)),
+    () =>
+      needsDepotPick ? api.get(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null),
     [needsDepotPick],
   );
 
@@ -295,7 +303,12 @@ function CheckoutInner() {
   // The depot that will fulfil this order, however it was determined. Everything the
   // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
   // here rather than per line.
-  const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
+  const depot = resolveDeliveryDepot(
+    needsDepotPick,
+    pickedDepotId,
+    depotChoices?.items,
+    nearbyDepots,
+  );
 
   /*
    * L2.3: the method list is the platform's answer narrowed by THIS depot's. Derived here
@@ -311,7 +324,8 @@ function CheckoutInner() {
    *
    * `nearbyLoading` guards it: an empty list mid-fetch is not an out-of-area verdict.
    */
-  const outOfServiceArea = !needsDepotPick && !nearbyLoading && nearbyDepots != null && depot === null;
+  const outOfServiceArea =
+    !needsDepotPick && !nearbyLoading && nearbyDepots != null && depot === null;
 
   /*
    * A1/A2. The cart, priced by the depot that will actually fulfil the order — the depot's
@@ -321,17 +335,23 @@ function CheckoutInner() {
    * billed at a depot with a live +10% rule, and Rp105.000 against Rp30.000 for an agen
    * buying five. Re-read when the depot changes, because the price does.
    */
-  const { data: cart, error, loading, reload } = useAsync<Cart>(
-    () => api.get(endpoints.cart.view(depot?.id ?? null), true),
-    [depot?.id],
-  );
+  const {
+    data: cart,
+    error,
+    loading,
+    reload,
+  } = useAsync<Cart>(() => api.get(endpoints.cart.view(depot?.id ?? null), true), [depot?.id]);
   // A4: the agen rule, answered once by the server (see the note where it used to live).
   const isReseller = cart?.reseller?.applies === true;
 
   // Delivery windows and express pricing belong to the depot, not to this screen. Read for
   // the depot that will actually fulfil the order, so the surcharge shown is the one
   // order-service will charge — it used to be a constant here and nothing at all there.
-  const { data: options, error: optionsError, reload: reloadOptions } = useAsync<DeliveryOptions>(
+  const {
+    data: options,
+    error: optionsError,
+    reload: reloadOptions,
+  } = useAsync<DeliveryOptions>(
     () => api.get(endpoints.orders.deliveryOptions(depot?.id ?? null), true),
     [depot?.id],
   );
@@ -485,14 +505,43 @@ function CheckoutInner() {
         true,
       );
       setQuote(result);
+      quotedAgainst.current = priceKey;
     } catch (err) {
-      setVoucherError(
-        err instanceof ApiError ? err.message : t('order.checkout.voucherInvalid'),
-      );
+      setVoucherError(err instanceof ApiError ? err.message : t('order.checkout.voucherInvalid'));
     } finally {
       setQuoting(false);
     }
   }
+
+  /*
+   * CA-3-12. A voucher quote is priced against a SUBTOTAL and a SHIPPING FEE, and both
+   * belong to the depot. Change the depot — a different pricing rule, a different ongkir —
+   * and the cart is re-read while the quote keeps the numbers it was asked about. The
+   * screen then subtracted a discount the order would not grant: the total under the
+   * button was not the bill.
+   *
+   * Re-asked whenever either input moves, rather than kept. A voucher that no longer
+   * qualifies at this depot fails the re-ask and says so, which is the honest outcome —
+   * better than a discount that evaporates at the payment screen.
+   */
+  /*
+   * Empty while the cart still belongs to the PREVIOUS depot. Switching depot moves the
+   * ongkir immediately and the subtotal only when the re-read lands, so without this the
+   * quote is asked twice — once against a basket priced by one depot and delivered by
+   * another, a combination that is never billed.
+   */
+  const priceKey =
+    cart && cart.depotId === (depot?.id ?? null)
+      ? `${depot?.id ?? ''}|${cart.subtotal}|${shippingFeeEstimate}`
+      : '';
+  const quotedAgainst = useRef<string>('');
+  useEffect(() => {
+    if (!quote || !priceKey || quotedAgainst.current === priceKey) return;
+    void applyVoucher(voucherCode);
+    // `quote` is deliberately not a dependency: re-quoting sets it, and watching it here
+    // would re-enter this effect on its own result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceKey]);
 
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -527,7 +576,7 @@ function CheckoutInner() {
             notes: form.notes || undefined,
           },
           // Only meaningful without coordinates; with a pin, order-service routes itself.
-          depotId: needsDepotPick ? pickedDepotId ?? undefined : undefined,
+          depotId: needsDepotPick ? (pickedDepotId ?? undefined) : undefined,
           // order-service re-validates the voucher (fail-closed) and applies the
           // membership discount itself; sending the raw code is enough.
           // Gate on isReseller: never send voucher code for resellers (flat pricing, no stacking).
@@ -569,7 +618,9 @@ function CheckoutInner() {
             true,
           );
         } catch (err) {
-          setSaveError(err instanceof ApiError ? err.message : t('order.checkout.saveAddressFailed'));
+          setSaveError(
+            err instanceof ApiError ? err.message : t('order.checkout.saveAddressFailed'),
+          );
         }
       }
 
@@ -582,7 +633,11 @@ function CheckoutInner() {
       const chosen = savedAddresses?.find((a) => a.id === selection);
       if (chosen && form.notes.trim() !== (chosen.notes ?? '').trim()) {
         try {
-          await api.patch(endpoints.addresses.detail(chosen.id), { notes: form.notes.trim() || null }, true);
+          await api.patch(
+            endpoints.addresses.detail(chosen.id),
+            { notes: form.notes.trim() || null },
+            true,
+          );
         } catch {
           /* the order carries the corrected note either way; the book catches up next time */
         }
@@ -606,7 +661,9 @@ function CheckoutInner() {
           true,
         );
       } catch (err) {
-        setSubmitError(err instanceof ApiError ? err.message : t('order.checkout.paymentStartFailed'));
+        setSubmitError(
+          err instanceof ApiError ? err.message : t('order.checkout.paymentStartFailed'),
+        );
         setSubmitting(false);
         return;
       }
@@ -653,7 +710,7 @@ function CheckoutInner() {
    * five-galon basket. `null` when the cart came back at catalog prices: there is no
    * honest number to show then, and that wording is what the screen falls back to.
    */
-  const resellerDiscount = isReseller ? cart.reseller?.discount ?? null : 0;
+  const resellerDiscount = isReseller ? (cart.reseller?.discount ?? null) : 0;
 
   // Advisory only: display-only ongkir estimate, never part of the API payload.
   // order-service computes the authoritative delivery fee + order total from the
@@ -670,9 +727,16 @@ function CheckoutInner() {
   // FREE_SHIPPING waiver into the goods discount would cap it at the subtotal and show the
   // wrong number on a small order with a big fee. Express is excluded on purpose: the voucher
   // waives delivery, not a speed upgrade.
-  const isFreeShipping = quote?.discountType === 'FREE_SHIPPING';
-  const voucherValueDiscount = isFreeShipping ? 0 : quote?.discount ?? 0;
-  const shippingDiscount = isFreeShipping ? Math.min(deliveryFee, quote?.discount ?? 0) : 0;
+  /*
+   * CA-3-13. An agen gets the flat SOP price INSTEAD of a voucher — `placeOrder` does not
+   * even send the code. But reseller status is resolved per DEPOT, so a voucher applied
+   * before the switch survived it, and the preview went on subtracting a discount the
+   * order dropped. The quote stops counting the moment the agen price applies.
+   */
+  const activeQuote = isReseller ? null : quote;
+  const isFreeShipping = activeQuote?.discountType === 'FREE_SHIPPING';
+  const voucherValueDiscount = isFreeShipping ? 0 : (activeQuote?.discount ?? 0);
+  const shippingDiscount = isFreeShipping ? Math.min(deliveryFee, activeQuote?.discount ?? 0) : 0;
   /** What the voucher is worth on this bill, whichever component it lands on. */
   const voucherEffect = voucherValueDiscount + shippingDiscount;
   // Capped at the goods, exactly as order.service.ts caps it: a discount on what was bought may
@@ -687,9 +751,13 @@ function CheckoutInner() {
   // 13n — when a voucher fails, surface how far the cart is from eligibility. minSpend
   // comes from the wallet voucher matching the typed code (the value already in scope).
   const failedVoucher =
-    voucherError && !quote ? myVouchers?.find((v) => v.code === voucherCode.trim().toUpperCase()) ?? null : null;
+    voucherError && !quote
+      ? (myVouchers?.find((v) => v.code === voucherCode.trim().toUpperCase()) ?? null)
+      : null;
   const voucherShortfall =
-    failedVoucher && failedVoucher.minSpend > cart.subtotal ? failedVoucher.minSpend - cart.subtotal : 0;
+    failedVoucher && failedVoucher.minSpend > cart.subtotal
+      ? failedVoucher.minSpend - cart.subtotal
+      : 0;
   const voucherProgressPct = failedVoucher
     ? Math.min(100, Math.round((cart.subtotal / failedVoucher.minSpend) * 100))
     : 0;
@@ -702,127 +770,142 @@ function CheckoutInner() {
    * people who had just guessed. Nothing here is a new request.
    */
   const usableVouchers = (myVouchers ?? []).filter(
-    (v) => v.status === 'AVAILABLE' && v.code !== voucherCode.trim().toUpperCase() && v.minSpend <= cart.subtotal,
+    (v) =>
+      v.status === 'AVAILABLE' &&
+      v.code !== voucherCode.trim().toUpperCase() &&
+      v.minSpend <= cart.subtotal,
   );
 
   const addressSection = (
     <>
-    {/* Deliver to */}
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      {/* Deliver to */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
           <button
-          type="button"
-          onClick={chooseNew}
-          className="text-[13px] font-bold text-brand-700 hover:text-brand-800"
-        >
-          {t('order.checkout.newAddress')}
-        </button>
-      </div>
-
-      {savedAddresses && savedAddresses.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          {savedAddresses.map((a) => {
-            const on = selection === a.id;
-            return (
-              <RadioCard key={a.id} selected={on} onSelect={() => chooseSaved(a)}>
-                <span
-                  className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
-                    on ? 'bg-brand-600 text-on-brand' : 'border-2 border-app'
-                  }`}
-                >
-                  {on && <Check size={11} weight="bold" />}
-                </span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2 text-sm font-extrabold">
-                    {a.label}
-                    {a.isPrimary && <Chip tone="tint">{t('order.checkout.primary')}</Chip>}
-                  </span>
-                  <span className="mt-0.5 block text-[13px] text-muted">
-                    {a.recipientName} · {a.phone}
-                  </span>
-                  <span className="block text-[13px] text-muted">
-                    {a.addressLine}, {a.city}
-                  </span>
-                </span>
-              </RadioCard>
-            );
-          })}
+            type="button"
+            onClick={chooseNew}
+            className="text-[13px] font-bold text-brand-700 hover:text-brand-800"
+          >
+            {t('order.checkout.newAddress')}
+          </button>
         </div>
-      )}
 
-      {/* Manual entry — the "new address" flow (hidden when a saved address is picked) */}
-      {!isSavedSelection && (
-        <div className="flex flex-col gap-3">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('order.checkout.recipientName')} htmlFor="recipientName">
-              <Input id="recipientName" value={form.recipientName} onChange={set('recipientName')} />
-            </Field>
-            <Field label={t('order.checkout.phone')} htmlFor="phone">
-              <Input id="phone" value={form.phone} onChange={set('phone')} inputMode="tel" />
-            </Field>
+        {savedAddresses && savedAddresses.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            {savedAddresses.map((a) => {
+              const on = selection === a.id;
+              return (
+                <RadioCard key={a.id} selected={on} onSelect={() => chooseSaved(a)}>
+                  <span
+                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                      on ? 'bg-brand-600 text-on-brand' : 'border-2 border-app'
+                    }`}
+                  >
+                    {on && <Check size={11} weight="bold" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-extrabold">
+                      {a.label}
+                      {a.isPrimary && <Chip tone="tint">{t('order.checkout.primary')}</Chip>}
+                    </span>
+                    <span className="mt-0.5 block text-[13px] text-muted">
+                      {a.recipientName} · {a.phone}
+                    </span>
+                    <span className="block text-[13px] text-muted">
+                      {a.addressLine}, {a.city}
+                    </span>
+                  </span>
+                </RadioCard>
+              );
+            })}
           </div>
-          <Field label={t('order.checkout.address')} htmlFor="addressLine">
-            <Input id="addressLine" value={form.addressLine} onChange={set('addressLine')} placeholder={t('order.checkout.addressPlaceholder')} />
-          </Field>
-          {/* City only. Province and postcode were two required fields on the screen a
+        )}
+
+        {/* Manual entry — the "new address" flow (hidden when a saved address is picked) */}
+        {!isSavedSelection && (
+          <div className="flex flex-col gap-3">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('order.checkout.recipientName')} htmlFor="recipientName">
+                <Input
+                  id="recipientName"
+                  value={form.recipientName}
+                  onChange={set('recipientName')}
+                />
+              </Field>
+              <Field label={t('order.checkout.phone')} htmlFor="phone">
+                <Input id="phone" value={form.phone} onChange={set('phone')} inputMode="tel" />
+              </Field>
+            </div>
+            <Field label={t('order.checkout.address')} htmlFor="addressLine">
+              <Input
+                id="addressLine"
+                value={form.addressLine}
+                onChange={set('addressLine')}
+                placeholder={t('order.checkout.addressPlaceholder')}
+              />
+            </Field>
+            {/* City only. Province and postcode were two required fields on the screen a
               customer cannot skip, and nothing downstream read either one — not the depot
               match (distance), not the price, not the courier. City stays because
               crm-service segments campaigns on it. */}
-          <Field label={t('order.checkout.city')} htmlFor="city">
-            <Input id="city" value={form.city} onChange={set('city')} />
-          </Field>
-          {/* O2. The pin, on the screen that needs it. The address book has required one all
+            <Field label={t('order.checkout.city')} htmlFor="city">
+              <Input id="city" value={form.city} onChange={set('city')} />
+            </Field>
+            {/* O2. The pin, on the screen that needs it. The address book has required one all
               along; this form simply never offered a way to take it, so every "Simpan
               alamat" here was a 400 nobody saw. Same one-tap control as /addresses — no map
               picker, and raw lat/lng is jargon to someone ordering water. */}
-          <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <MapPin size={16} weight="fill" className="text-brand-600" />
-              {t('profile.addresses.pin.title')}
-              <span className="text-xs font-normal text-muted">
-                {saveToBook ? t('profile.addresses.pin.required') : t('profile.addresses.pin.optional')}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                loading={pinBusy}
-                onClick={capturePin}
-                className="rounded-full px-3.5 py-1.5 text-[13px]"
-              >
-                {t('profile.addresses.pin.useLocation')}
-              </Button>
-              {coords.latitude != null && (
-                <span className="text-[13px] font-semibold text-[color:var(--success)]">
-                  {t('profile.addresses.pin.pinned')}
+            <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <MapPin size={16} weight="fill" className="text-brand-600" />
+                {t('profile.addresses.pin.title')}
+                <span className="text-xs font-normal text-muted">
+                  {saveToBook
+                    ? t('profile.addresses.pin.required')
+                    : t('profile.addresses.pin.optional')}
                 </span>
-              )}
-            </div>
-            {/* A coordinate pair cannot be judged by a human. These two lines can: how tight
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={pinBusy}
+                  onClick={capturePin}
+                  className="rounded-full px-3.5 py-1.5 text-[13px]"
+                >
+                  {t('profile.addresses.pin.useLocation')}
+                </Button>
+                {coords.latitude != null && (
+                  <span className="text-[13px] font-semibold text-[color:var(--success)]">
+                    {t('profile.addresses.pin.pinned')}
+                  </span>
+                )}
+              </div>
+              {/* A coordinate pair cannot be judged by a human. These two lines can: how tight
                 the reading was, and which depot it lands next to. Both are already in hand —
                 `accuracy` from the same fix, the depot from the nearby lookup this screen
                 already runs. No map, no reverse-geocode, no new data leaving the device. */}
-            {coords.latitude != null && (
-              <p className="text-xs leading-relaxed text-muted">
-                {pinAccuracy != null && t('order.checkout.pinAccuracy', { m: Math.round(pinAccuracy) })}
-                {nearbyDepots?.[0] && (
-                  <>
-                    {pinAccuracy != null ? ' · ' : ''}
-                    {t('order.checkout.pinNearDepot', {
-                      depot: nearbyDepots[0].name,
-                      km: nearbyDepots[0].distanceKm.toFixed(1),
-                    })}
-                  </>
-                )}
-              </p>
-            )}
-            {pinError && (
-              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
-                {pinError}
-              </p>
-            )}
-            {/*
+              {coords.latitude != null && (
+                <p className="text-xs leading-relaxed text-muted">
+                  {pinAccuracy != null &&
+                    t('order.checkout.pinAccuracy', { m: Math.round(pinAccuracy) })}
+                  {nearbyDepots?.[0] && (
+                    <>
+                      {pinAccuracy != null ? ' · ' : ''}
+                      {t('order.checkout.pinNearDepot', {
+                        depot: nearbyDepots[0].name,
+                        km: nearbyDepots[0].distanceKm.toFixed(1),
+                      })}
+                    </>
+                  )}
+                </p>
+              )}
+              {pinError && (
+                <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                  {pinError}
+                </p>
+              )}
+              {/*
               The way out when the phone cannot answer.
               `/addresses` has had this since it shipped; checkout had the same button, the
               same failure and no second door — so a WebView that could not produce a fix
@@ -830,85 +913,97 @@ function CheckoutInner() {
               and with "simpan alamat" ticked that is a required field nothing can fill.
               Shown only after a failure: nobody types coordinates by choice.
             */}
-            {pinError && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowManualPin((v) => !v)}
-                  className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
-                >
-                  {showManualPin
-                    ? t('profile.addresses.pin.hideManual')
-                    : t('profile.addresses.pin.showManual')}
-                </button>
-                {showManualPin && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Latitude" htmlFor="ck-lat" hint={t('profile.addresses.form.latHint')}>
-                      <Input
-                        id="ck-lat"
-                        inputMode="decimal"
-                        placeholder="-6.9147"
-                        value={coords.latitude ?? ''}
-                        onChange={(e) =>
-                          setCoords((c) => ({ ...c, latitude: numOrNull(e.target.value) }))
-                        }
-                      />
-                    </Field>
-                    <Field label="Longitude" htmlFor="ck-lng" hint={t('profile.addresses.form.lngHint')}>
-                      <Input
-                        id="ck-lng"
-                        inputMode="decimal"
-                        placeholder="107.6098"
-                        value={coords.longitude ?? ''}
-                        onChange={(e) =>
-                          setCoords((c) => ({ ...c, longitude: numOrNull(e.target.value) }))
-                        }
-                      />
-                    </Field>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              {pinError && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowManualPin((v) => !v)}
+                    className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
+                  >
+                    {showManualPin
+                      ? t('profile.addresses.pin.hideManual')
+                      : t('profile.addresses.pin.showManual')}
+                  </button>
+                  {showManualPin && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field
+                        label="Latitude"
+                        htmlFor="ck-lat"
+                        hint={t('profile.addresses.form.latHint')}
+                      >
+                        <Input
+                          id="ck-lat"
+                          inputMode="decimal"
+                          placeholder="-6.9147"
+                          value={coords.latitude ?? ''}
+                          onChange={(e) =>
+                            setCoords((c) => ({ ...c, latitude: numOrNull(e.target.value) }))
+                          }
+                        />
+                      </Field>
+                      <Field
+                        label="Longitude"
+                        htmlFor="ck-lng"
+                        hint={t('profile.addresses.form.lngHint')}
+                      >
+                        <Input
+                          id="ck-lng"
+                          inputMode="decimal"
+                          placeholder="107.6098"
+                          value={coords.longitude ?? ''}
+                          onChange={(e) =>
+                            setCoords((c) => ({ ...c, longitude: numOrNull(e.target.value) }))
+                          }
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
-          <div className="flex flex-col gap-2 border-t border-app pt-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={saveToBook}
-                onChange={(e) => setSaveToBook(e.target.checked)}
-                className="accent-brand-600"
-              />
-              {t('order.checkout.saveAddress')}
-            </label>
-            {/* The confirmation step: what is about to be written, in words, before it is
-                written. A checkbox alone asked someone to agree to something invisible. */}
-            {saveToBook && coords.latitude == null && (
-              <p className="text-xs font-medium text-[color:var(--danger)]">
-                {t('order.checkout.savePinRequired')}
-              </p>
-            )}
-            {saveError && (
-              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
-                {saveError}
-              </p>
-            )}
-            {saveToBook && (
-              <Field label={t('order.checkout.addressLabel')} htmlFor="saveLabel" hint={t('order.checkout.addressLabelHint')}>
-                <Input
-                  id="saveLabel"
-                  value={saveLabel}
-                  onChange={(e) => setSaveLabel(e.target.value)}
-                  placeholder={t('order.checkout.addressLabelPlaceholder')}
-                  maxLength={50}
+            <div className="flex flex-col gap-2 border-t border-app pt-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={saveToBook}
+                  onChange={(e) => setSaveToBook(e.target.checked)}
+                  className="accent-brand-600"
                 />
-              </Field>
-            )}
+                {t('order.checkout.saveAddress')}
+              </label>
+              {/* The confirmation step: what is about to be written, in words, before it is
+                written. A checkbox alone asked someone to agree to something invisible. */}
+              {saveToBook && coords.latitude == null && (
+                <p className="text-xs font-medium text-[color:var(--danger)]">
+                  {t('order.checkout.savePinRequired')}
+                </p>
+              )}
+              {saveError && (
+                <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                  {saveError}
+                </p>
+              )}
+              {saveToBook && (
+                <Field
+                  label={t('order.checkout.addressLabel')}
+                  htmlFor="saveLabel"
+                  hint={t('order.checkout.addressLabelHint')}
+                >
+                  <Input
+                    id="saveLabel"
+                    value={saveLabel}
+                    onChange={(e) => setSaveLabel(e.target.value)}
+                    placeholder={t('order.checkout.addressLabelPlaceholder')}
+                    maxLength={50}
+                  />
+                </Field>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/*
+        {/*
         G2. The patokan, as an ordinary always-visible field.
 
         It used to be a tap-to-edit row: the value rendered as truncated grey text next to an
@@ -917,315 +1012,341 @@ function CheckoutInner() {
         also the line K1.7 now writes back — a field that has to be discovered by tapping is
         the wrong home for either job.
       */}
-      <Field label={t('order.checkout.courierNotes')} htmlFor="courierNotes" hint={t('order.checkout.courierNotesHint')}>
-        <Input
-          id="courierNotes"
-          value={form.notes}
-          onChange={set('notes')}
-          placeholder={t('order.checkout.courierNotesPlaceholder')}
-          maxLength={200}
-        />
-      </Field>
-    </div>
+        <Field
+          label={t('order.checkout.courierNotes')}
+          htmlFor="courierNotes"
+          hint={t('order.checkout.courierNotesHint')}
+        >
+          <Input
+            id="courierNotes"
+            value={form.notes}
+            onChange={set('notes')}
+            placeholder={t('order.checkout.courierNotesPlaceholder')}
+            maxLength={200}
+          />
+        </Field>
+      </div>
     </>
   );
 
   const depotSection = (
     <>
-    {/* Depot picker — only when the address has no map pin to route from */}
-    {needsDepotPick && (
-      <div className="flex flex-col gap-3">
-        <div>
-              <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotHint')}</p>
-        </div>
-        {depotChoicesLoading ? (
-          <Skeleton className="h-20 w-full" />
-        ) : depotChoices && depotChoices.items.length > 0 ? (
-          <div data-testid="depot-picker" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {depotChoices.items.map((d) => (
-              <RadioCard
-                key={d.id}
-                selected={pickedDepotId === d.id}
-                onSelect={() => setPickedDepotId(d.id)}
-              >
-                <span className="block font-bold">{d.name}</span>
-                <span className="block text-[12.5px] text-muted">
-                  {d.city} · {d.code}
-                </span>
-              </RadioCard>
-            ))}
+      {/* Depot picker — only when the address has no map pin to route from */}
+      {needsDepotPick && (
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotHint')}</p>
           </div>
-        ) : (
-          <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotEmpty')}</p>
-        )}
-      </div>
-    )}
+          {depotChoicesLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : depotChoices && depotChoices.items.length > 0 ? (
+            <div data-testid="depot-picker" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {depotChoices.items.map((d) => (
+                <RadioCard
+                  key={d.id}
+                  selected={pickedDepotId === d.id}
+                  onSelect={() => setPickedDepotId(d.id)}
+                >
+                  <span className="block font-bold">{d.name}</span>
+                  <span className="block text-[12.5px] text-muted">
+                    {d.city} · {d.code}
+                  </span>
+                </RadioCard>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotEmpty')}</p>
+          )}
+        </div>
+      )}
     </>
   );
 
   const paymentSection = (
     <>
-    {/* Payment method */}
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {payMethods.map((m) => {
-          const Icon = PAY_ICONS[m.value];
-          const on = method === m.value;
-          return (
-            <RadioCard key={m.value} selected={on} onSelect={() => setMethod(m.value)} className="items-center">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">
-                <Icon size={18} weight="fill" className="text-brand-600" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13.5px] font-extrabold">{t(m.label)}</span>
-                <span className="block text-xs text-muted">{t(m.hint)}</span>
-              </span>
-            </RadioCard>
-          );
-        })}
+      {/* Payment method */}
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {payMethods.map((m) => {
+            const Icon = PAY_ICONS[m.value];
+            const on = method === m.value;
+            return (
+              <RadioCard
+                key={m.value}
+                selected={on}
+                onSelect={() => setMethod(m.value)}
+                className="items-center"
+              >
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">
+                  <Icon size={18} weight="fill" className="text-brand-600" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[13.5px] font-extrabold">{t(m.label)}</span>
+                  <span className="block text-xs text-muted">{t(m.hint)}</span>
+                </span>
+              </RadioCard>
+            );
+          })}
+        </div>
       </div>
-    </div>
     </>
   );
 
   const windowSection = (
     <>
-
-    {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
-    <div className="flex flex-col gap-3">
-
-      {/* Why "antar sekarang" is missing. The server already withdrew it (deliveryOptions
+      {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
+      <div className="flex flex-col gap-3">
+        {/* Why "antar sekarang" is missing. The server already withdrew it (deliveryOptions
           applies the same test), so without a line here the option just silently vanishes. */}
-      {depotState !== 'buka' && (
-        <p className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-[13px] text-muted">
-          {depotState === 'istirahat'
-            ? t('hrFix.checkoutFix.depotOnBreak')
-            : t('hrFix.checkoutFix.depotClosed')}
-        </p>
-      )}
+        {depotState !== 'buka' && (
+          <p className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-[13px] text-muted">
+            {depotState === 'istirahat'
+              ? t('hrFix.checkoutFix.depotOnBreak')
+              : t('hrFix.checkoutFix.depotClosed')}
+          </p>
+        )}
 
-      {/* Express-now — only where the depot actually offers it */}
-      {delivery.expressEnabled && (
-      <button
-        type="button"
-        onClick={() => {
-          setExpress((v) => !v);
-          setSlotTime(null);
-        }}
-        aria-pressed={express}
-        className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-shadow ${
-          express ? 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand shadow-lift' : 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand opacity-90 hover:opacity-100'
-        }`}
-      >
-        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
-          <Lightning size={24} weight="fill" />
-        </span>
-        <span className="flex-1">
-          <span className="block text-[14.5px] font-extrabold">{t('customerFix.slot.expressNow')}</span>
-          <span className="block text-xs text-white/85">
-            {t('customerFix.slot.expressEta', {
-              min: delivery.expressEtaMinMinutes,
-              max: delivery.expressEtaMaxMinutes,
-            })}
-          </span>
-        </span>
-        <span className="flex items-center gap-2 text-[13px] font-extrabold">
-          {t('customerFix.slot.expressFee', { amount: formatIDR(delivery.expressFee) })}
-          {express && <Check size={16} weight="bold" />}
-        </span>
-      </button>
-      )}
-
-      {delivery.expressEnabled && (
-        <div className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-muted">
-          {t('customerFix.slot.orSchedule')}
-        </div>
-      )}
-
-      {/* Date row */}
-      <div className="flex gap-2 overflow-x-auto">
-        {dates.map((d, i) => {
-          const on = !express && slotDateIdx === i;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => {
-                setSlotDateIdx(i);
-                setExpress(false);
-              }}
-              aria-pressed={on}
-              className={`min-w-[66px] flex-none rounded-xl px-1 py-2 text-center transition-colors ${
-                on ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-app bg-[color:var(--surface)]'
-              }`}
-            >
-              <span className={`block text-[11px] font-semibold ${on ? 'text-[color:var(--surface)]/70' : 'text-muted'}`}>
-                {d.key}
+        {/* Express-now — only where the depot actually offers it */}
+        {delivery.expressEnabled && (
+          <button
+            type="button"
+            onClick={() => {
+              setExpress((v) => !v);
+              setSlotTime(null);
+            }}
+            aria-pressed={express}
+            className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-shadow ${
+              express
+                ? 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand shadow-lift'
+                : 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand opacity-90 hover:opacity-100'
+            }`}
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
+              <Lightning size={24} weight="fill" />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[14.5px] font-extrabold">
+                {t('customerFix.slot.expressNow')}
               </span>
-              <span className="mt-0.5 block text-[15px] font-extrabold tabular-nums">{d.num}</span>
-            </button>
-          );
-        })}
-      </div>
+              <span className="block text-xs text-white/85">
+                {t('customerFix.slot.expressEta', {
+                  min: delivery.expressEtaMinMinutes,
+                  max: delivery.expressEtaMaxMinutes,
+                })}
+              </span>
+            </span>
+            <span className="flex items-center gap-2 text-[13px] font-extrabold">
+              {t('customerFix.slot.expressFee', { amount: formatIDR(delivery.expressFee) })}
+              {express && <Check size={16} weight="bold" />}
+            </span>
+          </button>
+        )}
 
-      {/* Slots + capacity */}
-      <div className="flex flex-col gap-2.5">
-        {/* The windows this depot offers, in its own order. There is no capacity here: the
+        {delivery.expressEnabled && (
+          <div className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-muted">
+            {t('customerFix.slot.orSchedule')}
+          </div>
+        )}
+
+        {/* Date row */}
+        <div className="flex gap-2 overflow-x-auto">
+          {dates.map((d, i) => {
+            const on = !express && slotDateIdx === i;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setSlotDateIdx(i);
+                  setExpress(false);
+                }}
+                aria-pressed={on}
+                className={`min-w-[66px] flex-none rounded-xl px-1 py-2 text-center transition-colors ${
+                  on
+                    ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                    : 'border border-app bg-[color:var(--surface)]'
+                }`}
+              >
+                <span
+                  className={`block text-[11px] font-semibold ${on ? 'text-[color:var(--surface)]/70' : 'text-muted'}`}
+                >
+                  {d.key}
+                </span>
+                <span className="mt-0.5 block text-[15px] font-extrabold tabular-nums">
+                  {d.num}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Slots + capacity */}
+        <div className="flex flex-col gap-2.5">
+          {/* The windows this depot offers, in its own order. There is no capacity here: the
             list used to carry a hardcoded "Penuh" and a hardcoded "Sisa sedikit" that no
             depot had ever set, and a slot that lies about being full is worse than a slot
             that says nothing. */}
-        {/* Not fail-soft like the reads above it: with no options the slot list is empty
+          {/* Not fail-soft like the reads above it: with no options the slot list is empty
             and express is withdrawn, so the buyer sees a depot that delivers at no time at
             all. Express staying off is correct (a fee we could not read must not be
             charged) — the missing windows are what needs saying. */}
-        {optionsError && <LoadError onRetry={reloadOptions} />}
-        {delivery.slots.map((slot) => {
-          const on = !express && slotTime === slot;
-          return (
-            <button
-              key={slot}
-              type="button"
-              onClick={() => {
-                setSlotTime(slot);
-                setExpress(false);
-              }}
-              aria-pressed={on}
-              className={`flex items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors ${
-                on
-                  ? 'border-[1.5px] border-brand-600 bg-brand-50'
-                  : 'border-app bg-[color:var(--surface)] hover:border-brand-300'
-              }`}
-            >
-              <span>
-                <span className="block text-sm font-bold">{slot}</span>
-                <span className={`block text-[11.5px] ${on ? 'font-semibold text-brand-800' : 'text-muted'}`}>
-                  {t(`customerFix.slot.${slotPeriod(slot)}`)}
-                  {on && ` · ${t('customerFix.slot.selected')}`}
+          {optionsError && <LoadError onRetry={reloadOptions} />}
+          {delivery.slots.map((slot) => {
+            const on = !express && slotTime === slot;
+            return (
+              <button
+                key={slot}
+                type="button"
+                onClick={() => {
+                  setSlotTime(slot);
+                  setExpress(false);
+                }}
+                aria-pressed={on}
+                className={`flex items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors ${
+                  on
+                    ? 'border-[1.5px] border-brand-600 bg-brand-50'
+                    : 'border-app bg-[color:var(--surface)] hover:border-brand-300'
+                }`}
+              >
+                <span>
+                  <span className="block text-sm font-bold">{slot}</span>
+                  <span
+                    className={`block text-[11.5px] ${on ? 'font-semibold text-brand-800' : 'text-muted'}`}
+                  >
+                    {t(`customerFix.slot.${slotPeriod(slot)}`)}
+                    {on && ` · ${t('customerFix.slot.selected')}`}
+                  </span>
                 </span>
-              </span>
-              {on ? (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-on-brand">
-                  <Check size={12} weight="bold" />
-                </span>
-              ) : (
-                <span className="h-5 w-5 rounded-full border-[1.5px] border-app" />
-              )}
-            </button>
-          );
-        })}
+                {on ? (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+                    <Check size={12} weight="bold" />
+                  </span>
+                ) : (
+                  <span className="h-5 w-5 rounded-full border-[1.5px] border-app" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {express && <p className="text-xs text-muted">{t('customerFix.slot.feeNote')}</p>}
       </div>
-      {express && <p className="text-xs text-muted">{t('customerFix.slot.feeNote')}</p>}
-    </div>
     </>
   );
 
   const voucherSection = (
     <>
-
-    {/* Voucher — hidden for active resellers (flat reseller price, no stacking) */}
-    {isReseller ? (
-      <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
-        <Badge tone="success">
-          {cart.reseller!.flatGallonPriceIdr > 0
-            ? t('customerFix.checkout.agentPrice', { amount: cart.reseller!.flatGallonPriceIdr.toLocaleString('id-ID') })
-            : t('customerFix.checkout.resellerDiscount', { pct: cart.reseller!.discountPct })}
-        </Badge>
-        <p className="text-sm text-muted">
-          {t('order.checkout.resellerNoVoucher')}
-        </p>
-      </Card>
-    ) : (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2.5">
-        <Input
-          aria-label={t('order.checkout.voucherCode')}
-          value={voucherCode}
-          onChange={(e) => {
-            setVoucherCode(e.target.value.toUpperCase());
-            setQuote(null);
-            setVoucherError(null);
-          }}
-          placeholder={t('order.checkout.voucherPlaceholder')}
-          autoCapitalize="characters"
-          className="h-12 flex-1 rounded-full border-brand-600 px-[18px] font-mono font-bold tracking-[0.08em]"
-        />
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => applyVoucher()}
-          loading={quoting}
-          disabled={!voucherCode.trim()}
-          className="h-12 rounded-full border-[1.5px] border-[color:var(--text)] px-[22px] font-extrabold hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
-        >
-          {t('order.checkout.apply')}
-        </Button>
-      </div>
-      {quote && (
-        <p
-          className="flex items-center gap-1.5 text-sm font-bold text-[color:var(--success)]"
-          role="status"
-        >
-          <CheckCircle size={16} weight="fill" />
-          {t('order.checkout.voucherApplied', { code: quote.code })}{' '}
-          <Money amount={quote.discount} />
-        </p>
-      )}
-      {voucherError && (
-        <p className="flex items-center gap-1.5 text-sm font-medium text-[color:var(--danger)]" role="alert">
-          <WarningCircle size={16} weight="fill" className="flex-shrink-0" />
-          {voucherError}
-        </p>
-      )}
-      {voucherShortfall > 0 && (
-        <div className="flex flex-col gap-2 rounded-[14px] bg-[color:var(--surface-muted)] p-3.5">
-          <p className="text-[13px] font-bold">
-            {t('customerFix.voucher.shortfall', { amount: formatIDR(voucherShortfall) })}
-          </p>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]">
-            <div className="h-full rounded-full bg-brand-600" style={{ width: `${voucherProgressPct}%` }} />
-          </div>
-          <Link
-            href="/products"
-            className="flex items-center gap-1.5 self-start text-[13px] font-extrabold text-brand-800"
-          >
-            <Plus size={14} weight="bold" />
-            {t('customerFix.voucher.addProduct')}
-          </Link>
-        </div>
-      )}
-      {usableVouchers.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-bold text-muted">{t('customerFix.voucher.usableNow')}</p>
-          {usableVouchers.map((v) => (
-            <div
-              key={v.code}
-              className="flex items-center gap-2.5 rounded-[14px] border border-app p-3"
+      {/* Voucher — hidden for active resellers (flat reseller price, no stacking) */}
+      {isReseller ? (
+        <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
+          <Badge tone="success">
+            {cart.reseller!.flatGallonPriceIdr > 0
+              ? t('customerFix.checkout.agentPrice', {
+                  amount: cart.reseller!.flatGallonPriceIdr.toLocaleString('id-ID'),
+                })
+              : t('customerFix.checkout.resellerDiscount', { pct: cart.reseller!.discountPct })}
+          </Badge>
+          <p className="text-sm text-muted">{t('order.checkout.resellerNoVoucher')}</p>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <Input
+              aria-label={t('order.checkout.voucherCode')}
+              value={voucherCode}
+              onChange={(e) => {
+                setVoucherCode(e.target.value.toUpperCase());
+                setQuote(null);
+                setVoucherError(null);
+              }}
+              placeholder={t('order.checkout.voucherPlaceholder')}
+              autoCapitalize="characters"
+              className="h-12 flex-1 rounded-full border-brand-600 px-[18px] font-mono font-bold tracking-[0.08em]"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => applyVoucher()}
+              loading={quoting}
+              disabled={!voucherCode.trim()}
+              className="h-12 rounded-full border-[1.5px] border-[color:var(--text)] px-[22px] font-extrabold hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
             >
-              <Tag size={16} weight="fill" className="flex-shrink-0 text-brand-600" />
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[13px] font-bold tracking-[0.06em]">{v.code}</div>
-                <div className="text-xs text-muted">
-                  {t('customerFix.voucher.min', { min: formatIDR(v.minSpend) })}
-                </div>
+              {t('order.checkout.apply')}
+            </Button>
+          </div>
+          {quote && (
+            <p
+              className="flex items-center gap-1.5 text-sm font-bold text-[color:var(--success)]"
+              role="status"
+            >
+              <CheckCircle size={16} weight="fill" />
+              {t('order.checkout.voucherApplied', { code: quote.code })}{' '}
+              <Money amount={quote.discount} />
+            </p>
+          )}
+          {voucherError && (
+            <p
+              className="flex items-center gap-1.5 text-sm font-medium text-[color:var(--danger)]"
+              role="alert"
+            >
+              <WarningCircle size={16} weight="fill" className="flex-shrink-0" />
+              {voucherError}
+            </p>
+          )}
+          {voucherShortfall > 0 && (
+            <div className="flex flex-col gap-2 rounded-[14px] bg-[color:var(--surface-muted)] p-3.5">
+              <p className="text-[13px] font-bold">
+                {t('customerFix.voucher.shortfall', { amount: formatIDR(voucherShortfall) })}
+              </p>
+              <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]">
+                <div
+                  className="h-full rounded-full bg-brand-600"
+                  style={{ width: `${voucherProgressPct}%` }}
+                />
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setVoucherCode(v.code);
-                  setVoucherError(null);
-                  void applyVoucher(v.code);
-                }}
-                className="h-9 flex-shrink-0 rounded-full px-4 text-[13px] font-extrabold"
+              <Link
+                href="/products"
+                className="flex items-center gap-1.5 self-start text-[13px] font-extrabold text-brand-800"
               >
-                {t('customerFix.voucher.use')}
-              </Button>
+                <Plus size={14} weight="bold" />
+                {t('customerFix.voucher.addProduct')}
+              </Link>
             </div>
-          ))}
+          )}
+          {usableVouchers.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-bold text-muted">{t('customerFix.voucher.usableNow')}</p>
+              {usableVouchers.map((v) => (
+                <div
+                  key={v.code}
+                  className="flex items-center gap-2.5 rounded-[14px] border border-app p-3"
+                >
+                  <Tag size={16} weight="fill" className="flex-shrink-0 text-brand-600" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[13px] font-bold tracking-[0.06em]">
+                      {v.code}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {t('customerFix.voucher.min', { min: formatIDR(v.minSpend) })}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setVoucherCode(v.code);
+                      setVoucherError(null);
+                      void applyVoucher(v.code);
+                    }}
+                    className="h-9 flex-shrink-0 rounded-full px-4 text-[13px] font-extrabold"
+                  >
+                    {t('customerFix.voucher.use')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
-    </div>
-    )}
     </>
   );
 
@@ -1273,7 +1394,9 @@ function CheckoutInner() {
         )}
         {membershipDiscount > 0 && (
           <div className="flex justify-between text-[color:var(--success)]">
-            <span>{t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}</span>
+            <span>
+              {t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}
+            </span>
             <span className="font-bold">
               −<Money amount={membershipDiscount} />
             </span>
@@ -1283,7 +1406,9 @@ function CheckoutInner() {
           <div className="flex justify-between text-[color:var(--success)]">
             <span>{t('hrFix.checkoutFix.agentPrice')}</span>
             {resellerDiscount === null ? (
-              <span className="text-xs font-semibold">{t('hrFix.checkoutFix.computedAtOrder')}</span>
+              <span className="text-xs font-semibold">
+                {t('hrFix.checkoutFix.computedAtOrder')}
+              </span>
             ) : (
               <span className="font-bold">
                 −<Money amount={resellerDiscount} />
@@ -1301,7 +1426,9 @@ function CheckoutInner() {
         )}
         {depot ? (
           <div className="flex justify-between">
-            <span className="text-muted">{t('order.checkout.deliveryEst', { name: depot.name })}</span>
+            <span className="text-muted">
+              {t('order.checkout.deliveryEst', { name: depot.name })}
+            </span>
             <Money amount={deliveryFee} className="font-bold" />
           </div>
         ) : (
@@ -1371,7 +1498,7 @@ function CheckoutInner() {
           <ListRow
             icon={<Tag size={18} weight="fill" className="text-brand-600" />}
             title={t('order.checkout.voucher')}
-            subtitle={quote?.code}
+            subtitle={activeQuote?.code}
             onClick={() => setSheet('voucher')}
           />
         </div>

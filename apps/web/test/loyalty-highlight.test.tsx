@@ -28,7 +28,9 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 
 const auth = vi.hoisted(() => ({ customer: null as unknown }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: auth.customer, ready: true }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: auth.customer, ready: true }),
+}));
 
 import { LocaleProvider } from '@/lib/locale-context';
 import { LoyaltyHighlight } from '@/components/loyalty-highlight';

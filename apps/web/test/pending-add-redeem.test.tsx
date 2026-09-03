@@ -18,7 +18,10 @@ const { get, post, session } = vi.hoisted(() => ({
   session: { customer: { id: 'c1' } as { id: string } | null, ready: true },
 }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post, put: vi.fn(), del: vi.fn() }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, post, put: vi.fn(), del: vi.fn() },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => session }));
 
 import { CartProvider, useCart } from '@/lib/cart-context';
@@ -26,7 +29,16 @@ import { setPendingAdd } from '@/lib/pending-add';
 
 const EMPTY = { items: [], subtotal: 0 };
 const WITH_ITEM = {
-  items: [{ productId: 'p1', productName: 'Galon 19L', unit: 'galon', quantity: 3, unitPrice: 20_000, lineTotal: 60_000 }],
+  items: [
+    {
+      productId: 'p1',
+      productName: 'Galon 19L',
+      unit: 'galon',
+      quantity: 3,
+      unitPrice: 20_000,
+      lineTotal: 60_000,
+    },
+  ],
   subtotal: 60_000,
 };
 
@@ -35,7 +47,12 @@ function Badge() {
   return <span>{ready ? `count:${count}` : 'loading'}</span>;
 }
 
-const show = () => render(<CartProvider><Badge /></CartProvider>);
+const show = () =>
+  render(
+    <CartProvider>
+      <Badge />
+    </CartProvider>,
+  );
 
 beforeEach(() => {
   sessionStorage.clear();

@@ -11,12 +11,21 @@ const { get, patch, getPushState, subscribeToPush, unsubscribeFromPush } = vi.ho
   unsubscribeFromPush: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get, patch }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, patch },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/lib/push', () => ({ getPushState, subscribeToPush, unsubscribeFromPush }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu', phone: '0811' }, ready: true, signOut: vi.fn() }),
+  useAuth: () => ({
+    customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu', phone: '0811' },
+    ready: true,
+    signOut: vi.fn(),
+  }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null, ready: true }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -62,8 +71,10 @@ async function openPrefs() {
 beforeEach(() => {
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
-    if (p.includes('/profile/notifications')) return Promise.resolve({ push: false, categories: {} });
-    if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+    if (p.includes('/profile/notifications'))
+      return Promise.resolve({ push: false, categories: {} });
+    if (p.includes('/loyalty/me'))
+      return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     return Promise.resolve([]);
   });

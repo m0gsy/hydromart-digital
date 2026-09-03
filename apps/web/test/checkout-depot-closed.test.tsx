@@ -26,7 +26,9 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'c-1', role: 'CUSTOMER', fullName: 'Wahyu' }, ready: true }),
 }));
-vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: { depotId: 'd-1' } }) }));
+vi.mock('@/lib/location-context', () => ({
+  useLocation: () => ({ location: { depotId: 'd-1' } }),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/checkout',

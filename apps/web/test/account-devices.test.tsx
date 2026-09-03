@@ -55,7 +55,9 @@ vi.mock('@/lib/auth-context', () => ({
   }),
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -75,7 +77,8 @@ beforeEach(() => {
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
     if (p.includes('/api/v1/sessions')) return Promise.resolve(SESSIONS);
-    if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+    if (p.includes('/loyalty/me'))
+      return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
     if (p.includes('gallon-deposit')) return Promise.resolve([]);
     if (p.includes('/profile/notifications')) return Promise.resolve({});
     return Promise.resolve([]);
@@ -110,7 +113,9 @@ describe('/account · devices & sessions (PAR-16)', () => {
     expect(String(post.mock.calls[0]![0])).toContain('revoke');
     // The list is re-read, so a revoked device does not linger on screen.
     await waitFor(() =>
-      expect(get.mock.calls.filter((c) => String(c[0]).includes('/api/v1/sessions')).length).toBeGreaterThan(1),
+      expect(
+        get.mock.calls.filter((c) => String(c[0]).includes('/api/v1/sessions')).length,
+      ).toBeGreaterThan(1),
     );
   });
 

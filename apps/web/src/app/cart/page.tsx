@@ -157,7 +157,11 @@ function CartInner() {
   async function addOn(productId: string) {
     bump(1);
     try {
-      const next = await api.post<Cart>(endpoints.cart.items(depotId), { productId, quantity: 1 }, true);
+      const next = await api.post<Cart>(
+        endpoints.cart.items(depotId),
+        { productId, quantity: 1 },
+        true,
+      );
       setLines(next.items);
       apply(next);
       toast(t('order.toast.added'));
@@ -217,6 +221,16 @@ function CartInner() {
         <span>{t('order.cart.estTotal')}</span>
         <Money amount={total} />
       </div>
+      {/* CA-3-10: the response has always said which basis these prices came from, and this
+          screen has never repeated it. When a depot IS chosen and the answer still came back
+          CATALOG, the numbers above are not what checkout will bill — the shopper is told
+          here rather than at the payment screen. With no depot chosen yet the catalogue
+          price is simply what they get, and saying so on every first visit is noise. */}
+      {data?.pricingBasis === 'CATALOG' && depotId !== null && (
+        <p className="text-[12.5px] leading-relaxed text-muted">
+          {t('customerFix.checkout.catalogPricing')}
+        </p>
+      )}
       <p className="text-[12.5px] leading-relaxed text-muted">{t('order.cart.shippingNote')}</p>
       {/* G7. The hint named a thing the customer owns and then left them to find it: the
           voucher wallet is a real screen, and this was the one place that mentioned
@@ -285,11 +299,17 @@ function CartInner() {
                 <p className="mt-0.5 text-[13px] text-muted">
                   <Money amount={line.unitPrice} /> · {line.unit}
                 </p>
-                {/* ponytail: cart lines carry no depot, so the label is fixed. Add an
-                    i18n key + real depot label when the cart exposes stock-by-depot. */}
-                <span className="mt-1.5 inline-flex rounded-full bg-brand-50 px-[9px] py-0.5 text-[11px] font-bold text-brand-800">
-                  {t('order.cart.inStock')}
-                </span>
+                {/*
+                 * CA-3-17: a "Stok tersedia" badge stood here on every line, always, with
+                 * no stock data behind it — the cart response carries none and the only
+                 * stock API is staff-scoped per depot. A badge that is true by construction
+                 * is not information; it is a promise the app cannot keep the first time a
+                 * depot runs out, and the customer reads it as a check that was made.
+                 *
+                 * Removed rather than faked. Bringing it back honestly needs a customer-
+                 * facing stock read for the depot pricing the cart — a real feature, not a
+                 * label.
+                 */}
               </div>
               <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-start">
                 <QuantityStepper
@@ -374,7 +394,10 @@ function CartInner() {
         <div className="surface hidden flex-col gap-3.5 rounded-[22px] p-6 shadow-card lg:sticky lg:top-20 lg:flex">
           <h2 className="text-[17px] font-extrabold">{t('order.cart.summary')}</h2>
           {summary}
-          <LinkButton href="/checkout" className="h-13 w-full rounded-full text-[15px] font-extrabold">
+          <LinkButton
+            href="/checkout"
+            className="h-13 w-full rounded-full text-[15px] font-extrabold"
+          >
             {t('order.cart.checkout')}
             <ArrowRight size={17} />
           </LinkButton>

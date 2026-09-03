@@ -9,6 +9,7 @@ import { Card, CenterState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { useDepotPrices } from '@/lib/depot-price';
 import { useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
 import type { Page, Product, Promotion } from '@/lib/types';
@@ -20,7 +21,11 @@ const PROMO_PRODUCT_LIMIT = 4;
 // Date-only badge label ("31 Jul 2026"). id-ID matches the rupiah/formatDateTime
 // convention in lib/format.ts (this page is Indonesia-only customer-facing).
 function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 interface Remaining {
@@ -62,7 +67,9 @@ function HeroCountdown({ endsAt }: { endsAt: string }) {
   const countdown = useCountdown(endsAt);
 
   if (countdown?.ended) {
-    return <span className="text-sm font-extrabold text-white/90">{t('customerFix.promo.ended')}</span>;
+    return (
+      <span className="text-sm font-extrabold text-white/90">{t('customerFix.promo.ended')}</span>
+    );
   }
   return (
     <>
@@ -86,8 +93,12 @@ function HeroCountdown({ endsAt }: { endsAt: string }) {
 function CountdownBox({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex min-w-[62px] flex-col items-center rounded-xl bg-white/15 px-2 py-2">
-      <span className="text-[22px] font-extrabold leading-none tabular-nums">{String(value).padStart(2, '0')}</span>
-      <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-white/70">{label}</span>
+      <span className="text-[22px] font-extrabold leading-none tabular-nums">
+        {String(value).padStart(2, '0')}
+      </span>
+      <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-white/70">
+        {label}
+      </span>
     </div>
   );
 }
@@ -111,14 +122,18 @@ function VoucherCard({ promo }: { promo: Promotion }) {
     <div className="surface relative rounded-2xl border-[1.5px] border-dashed border-app p-[18px]">
       <div className="text-[15px] font-extrabold tracking-[-0.01em]">{promo.title}</div>
       {promo.subtitle && (
-        <div className="mt-1 min-h-[34px] text-[12.5px] leading-snug text-muted">{promo.subtitle}</div>
+        <div className="mt-1 min-h-[34px] text-[12.5px] leading-snug text-muted">
+          {promo.subtitle}
+        </div>
       )}
       <button
         type="button"
         onClick={copy}
         className="mt-3 flex w-full items-center justify-between gap-2.5 rounded-[10px] bg-brand-50 px-3 py-2.5 text-left"
       >
-        <span className="font-mono text-sm font-extrabold tracking-[0.04em] text-brand-800">{code}</span>
+        <span className="font-mono text-sm font-extrabold tracking-[0.04em] text-brand-800">
+          {code}
+        </span>
         <span className="flex items-center gap-1.5 text-xs font-extrabold text-brand-600">
           {copied ? <CheckCircle size={14} weight="fill" /> : <Copy size={14} weight="bold" />}
           {copied ? t('customerFix.promo.copied') : t('customerFix.promo.copy')}
@@ -134,18 +149,28 @@ export default function PromoPage() {
 
   // Public active-promo feed (active + within date window, sorted). Fail-soft: on
   // error we fall through to the fallback hero + empty voucher note, never a dead end.
-  const { data: promos, loading } = useAsync<Promotion[]>(() => api.get<Promotion[]>(endpoints.promotions.list), []);
+  const { data: promos, loading } = useAsync<Promotion[]>(
+    () => api.get<Promotion[]>(endpoints.promotions.list),
+    [],
+  );
 
   // ponytail: no promo-tagged product endpoint exists, so the strip just shows the
   // active catalog head. Swap to a promo-scoped query when the backend grows one.
   const { data: productPage } = useAsync<Page<Product>>(
-    () => api.get<Page<Product>>(endpoints.products.browse({ page: 1, limit: PROMO_PRODUCT_LIMIT })),
+    () =>
+      api.get<Page<Product>>(endpoints.products.browse({ page: 1, limit: PROMO_PRODUCT_LIMIT })),
     [],
   );
 
   const hero = promos?.[0] ?? null;
   const vouchers = (promos ?? []).filter((p) => p.voucherCode);
   const products = productPage?.items ?? [];
+  /*
+   * CA-3-11. These tiles printed catalogue prices next to a "Promo" badge while the cart
+   * billed the depot's — the same PG-03 split the catalogue grid already closed. A promo
+   * screen is the worst place to be Rp2.000 out: the shopper came here for the price.
+   */
+  const shelf = useDepotPrices(products.map((p) => p.id));
 
   const title = hero?.title ?? t('customerFix.promo.heroFallbackTitle');
   const subtitle = hero?.subtitle ?? t('customerFix.promo.heroFallbackSubtitle');
@@ -204,7 +229,9 @@ export default function PromoPage() {
 
       {/* VOUCHER CODES */}
       <section>
-        <h2 className="mb-3.5 text-lg font-extrabold tracking-[-0.02em]">{t('customerFix.promo.claimVouchers')}</h2>
+        <h2 className="mb-3.5 text-lg font-extrabold tracking-[-0.02em]">
+          {t('customerFix.promo.claimVouchers')}
+        </h2>
         {vouchers.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {vouchers.map((p) => (
@@ -212,7 +239,10 @@ export default function PromoPage() {
             ))}
           </div>
         ) : (
-          <CenterState icon={<Tag size={44} weight="thin" />} title={t('customerFix.promo.empty')} />
+          <CenterState
+            icon={<Tag size={44} weight="thin" />}
+            title={t('customerFix.promo.empty')}
+          />
         )}
       </section>
 
@@ -220,14 +250,28 @@ export default function PromoPage() {
       {products.length > 0 && (
         <section>
           <div className="mb-3.5 flex items-center justify-between">
-            <h2 className="text-lg font-extrabold tracking-[-0.02em]">{t('customerFix.promo.promoProducts')}</h2>
-            <Link href="/products" className="text-[13px] font-bold text-brand-600 hover:text-brand-700">
+            <h2 className="text-lg font-extrabold tracking-[-0.02em]">
+              {t('customerFix.promo.promoProducts')}
+            </h2>
+            <Link
+              href="/products"
+              className="text-[13px] font-bold text-brand-600 hover:text-brand-700"
+            >
               {t('customerFix.promo.viewAll')}
             </Link>
           </div>
+          {shelf.basis === 'CATALOG' && shelf.depotKnown && (
+            <p className="mb-3 text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>
+          )}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {products.map((p) => (
-              <ProductCard key={p.id} product={p} memberRate={memberRate} badge={t('customerFix.promo.badge')} />
+              <ProductCard
+                key={p.id}
+                product={p}
+                memberRate={memberRate}
+                badge={t('customerFix.promo.badge')}
+                depotPrice={shelf.prices.get(p.id)}
+              />
             ))}
           </div>
         </section>

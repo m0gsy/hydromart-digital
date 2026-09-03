@@ -54,7 +54,12 @@ afterEach(() => vi.clearAllMocks());
 
 describe('K4.1 · the agen can see their own terms', () => {
   it('shows the flat gallon price and names the home depot', async () => {
-    get.mockResolvedValue({ active: true, discountPct: 0, flatGallonPriceIdr: 17000, homeDepotId: 'd1' });
+    get.mockResolvedValue({
+      active: true,
+      discountPct: 0,
+      flatGallonPriceIdr: 17000,
+      homeDepotId: 'd1',
+    });
     show();
 
     await waitFor(() => expect(screen.getByText(/terdaftar sebagai agen/i)).toBeTruthy());
@@ -65,7 +70,12 @@ describe('K4.1 · the agen can see their own terms', () => {
   });
 
   it('shows a percentage instead when that is what the depot set', async () => {
-    get.mockResolvedValue({ active: true, discountPct: 12, flatGallonPriceIdr: 0, homeDepotId: 'd1' });
+    get.mockResolvedValue({
+      active: true,
+      discountPct: 12,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'd1',
+    });
     show();
 
     await waitFor(() => expect(screen.getByText('12%')).toBeTruthy());
@@ -74,7 +84,12 @@ describe('K4.1 · the agen can see their own terms', () => {
   });
 
   it('says so plainly when the agen has been deactivated', async () => {
-    get.mockResolvedValue({ active: false, discountPct: 12, flatGallonPriceIdr: 0, homeDepotId: 'd1' });
+    get.mockResolvedValue({
+      active: false,
+      discountPct: 12,
+      flatGallonPriceIdr: 0,
+      homeDepotId: 'd1',
+    });
     show();
 
     // The heading, not any text: the body repeats the word, and getByText would
@@ -106,7 +121,11 @@ describe('K4.1 · A4 must not come back', () => {
   });
 
   it('is read by the status screen and by nothing that prices an order', async () => {
-    const files = import.meta.glob('../src/app/**/*.tsx', { query: '?raw', import: 'default', eager: true });
+    const files = import.meta.glob('../src/app/**/*.tsx', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    });
     const callers = Object.entries(files as Record<string, string>)
       .filter(([, src]) => src.includes('resellers.me'))
       .map(([f]) => f);

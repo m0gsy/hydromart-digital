@@ -32,13 +32,24 @@ const TICKET = {
   orderRef: 'HM-260816-001',
   createdAt: '2026-08-25T10:00:00.000Z',
   messages: [
-    { id: 'm-1', authorType: 'CUSTOMER', body: 'Bocor waktu diterima.', createdAt: '2026-08-25T10:00:00.000Z' },
-    { id: 'm-2', authorType: 'STAFF', body: 'Kami kirim pengganti hari ini.', createdAt: '2026-08-25T11:00:00.000Z' },
+    {
+      id: 'm-1',
+      authorType: 'CUSTOMER',
+      body: 'Bocor waktu diterima.',
+      createdAt: '2026-08-25T10:00:00.000Z',
+    },
+    {
+      id: 'm-2',
+      authorType: 'STAFF',
+      body: 'Kami kirim pengganti hari ini.',
+      createdAt: '2026-08-25T11:00:00.000Z',
+    },
   ],
 };
 
 const renderIt = () => render(<Complaints />, { wrapper: LocaleProvider });
-const open = () => fireEvent.click(screen.getByRole('button', { name: /ajukan komplain|raise a complaint/i }));
+const open = () =>
+  fireEvent.click(screen.getByRole('button', { name: /ajukan komplain|raise a complaint/i }));
 
 beforeEach(() => {
   apiMock.get.mockReset().mockResolvedValue([]);
@@ -72,8 +83,12 @@ describe('K1.5 · a customer can complain', () => {
   it('carries the order reference only when one was typed', async () => {
     renderIt();
     open();
-    fireEvent.change(screen.getByLabelText(/ringkasan masalah|what went wrong/i), { target: { value: 'S' } });
-    fireEvent.change(screen.getByLabelText(/ceritakan|tell us what happened/i), { target: { value: 'B' } });
+    fireEvent.change(screen.getByLabelText(/ringkasan masalah|what went wrong/i), {
+      target: { value: 'S' },
+    });
+    fireEvent.change(screen.getByLabelText(/ceritakan|tell us what happened/i), {
+      target: { value: 'B' },
+    });
     fireEvent.change(screen.getByLabelText(/nomor pesanan|order number/i), {
       target: { value: 'HM-260816-001' },
     });
@@ -97,11 +112,17 @@ describe('K1.5 · a customer can complain', () => {
     apiMock.post.mockRejectedValue(new Error('down'));
     renderIt();
     open();
-    fireEvent.change(screen.getByLabelText(/ringkasan masalah|what went wrong/i), { target: { value: 'S' } });
-    fireEvent.change(screen.getByLabelText(/ceritakan|tell us what happened/i), { target: { value: 'B' } });
+    fireEvent.change(screen.getByLabelText(/ringkasan masalah|what went wrong/i), {
+      target: { value: 'S' },
+    });
+    fireEvent.change(screen.getByLabelText(/ceritakan|tell us what happened/i), {
+      target: { value: 'B' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /kirim komplain|send the complaint/i }));
 
-    expect(await screen.findByText(/gagal mengirim komplain|could not send the complaint/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/gagal mengirim komplain|could not send the complaint/i),
+    ).toBeTruthy();
   });
 });
 
@@ -142,7 +163,9 @@ describe('K1.5 · and can see it again', () => {
 
     renderIt();
 
-    expect(screen.getByText(/masuk dulu untuk mengajukan|sign in first so we can reply/i)).toBeTruthy();
+    expect(
+      screen.getByText(/masuk dulu untuk mengajukan|sign in first so we can reply/i),
+    ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /ajukan komplain|raise a complaint/i })).toBeNull();
     expect(apiMock.get).not.toHaveBeenCalled();
   });

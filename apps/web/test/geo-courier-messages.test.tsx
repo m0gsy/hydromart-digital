@@ -20,7 +20,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/driver/shift/status',
 }));
-vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer, ready: true, signOut: vi.fn() }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer, ready: true, signOut: vi.fn() }),
+}));
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
   return { ...actual, api: { ...actual.api, get, getCached: get, post, patch: vi.fn() } };

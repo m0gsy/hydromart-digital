@@ -8,7 +8,8 @@ vi.mock('@sentry/nextjs', () => ({ init }));
 import { SentryInit } from '@/components/sentry-init';
 
 /** The beforeSend the component handed to Sentry.init. */
-const beforeSend = () => init.mock.calls[0]![0].beforeSend as (e: Record<string, unknown>) => unknown;
+const beforeSend = () =>
+  init.mock.calls[0]![0].beforeSend as (e: Record<string, unknown>) => unknown;
 
 describe('SentryInit', () => {
   afterEach(() => {

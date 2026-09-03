@@ -25,12 +25,17 @@ const { get, getCached, post, put, toast } = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached, post, put }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached, post, put },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: auth.customer, ready: true, signOut: vi.fn() }),
 }));
-vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }) }));
+vi.mock('@/lib/cart-context', () => ({
+  useCart: () => ({ bump: vi.fn(), apply: vi.fn(), count: 0 }),
+}));
 vi.mock('@/lib/location-context', () => ({ useLocation: () => ({ location: null }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
@@ -85,9 +90,11 @@ describe('/driver/earnings/history · the courier’s own cash-book', () => {
 
   beforeEach(() => {
     auth.customer = { id: 'k1', role: 'STAFF_DEPOT', fullName: 'Kurir', phone: '81100000003' };
-    get.mockReset().mockImplementation((path: string) =>
-      String(path).includes('/courier/ledger') ? Promise.resolve(LEDGER) : Promise.resolve({}),
-    );
+    get
+      .mockReset()
+      .mockImplementation((path: string) =>
+        String(path).includes('/courier/ledger') ? Promise.resolve(LEDGER) : Promise.resolve({}),
+      );
   });
 
   it('reads the paged ledger, not the summary', async () => {
@@ -159,7 +166,8 @@ describe('/account · consent history (UU PDP)', () => {
       const p = String(path);
       if (p.includes('/consents/history')) return Promise.resolve(HISTORY);
       if (p.includes('/consents')) return Promise.resolve([]);
-      if (p.includes('/loyalty/me')) return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
+      if (p.includes('/loyalty/me'))
+        return Promise.resolve({ pointsBalance: 0, lifetimePoints: 0, tier: 'BRONZE' });
       return Promise.resolve([]);
     });
   });

@@ -26,8 +26,24 @@ const { get, getCached, post, patch, toast } = vi.hoisted(() => ({
 }));
 
 const ITEMS = [
-  { id: 'r1', name: 'Isi Ulang Galon 19L', unit: 'gratis 1 galon', pointsCost: 800, imageUrl: null, stock: 5, active: true },
-  { id: 'r2', name: 'Tumbler Hydromart', unit: '1 buah', pointsCost: 2000, imageUrl: null, stock: 0, active: false },
+  {
+    id: 'r1',
+    name: 'Isi Ulang Galon 19L',
+    unit: 'gratis 1 galon',
+    pointsCost: 800,
+    imageUrl: null,
+    stock: 5,
+    active: true,
+  },
+  {
+    id: 'r2',
+    name: 'Tumbler Hydromart',
+    unit: '1 buah',
+    pointsCost: 2000,
+    imageUrl: null,
+    stock: 0,
+    active: false,
+  },
 ];
 
 vi.mock('@/lib/api', () => ({

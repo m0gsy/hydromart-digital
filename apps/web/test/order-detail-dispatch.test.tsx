@@ -71,10 +71,10 @@ afterEach(() => vi.clearAllMocks());
 const renderDetail = () =>
   render(
     <LocaleProvider>
-        <ConfirmProvider>
-          <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
-        </ConfirmProvider>
-      </LocaleProvider>,
+      <ConfirmProvider>
+        <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
+      </ConfirmProvider>
+    </LocaleProvider>,
   );
 
 describe('OrderDetail courier assignment when the shift view fails', () => {

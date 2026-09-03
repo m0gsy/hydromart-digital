@@ -125,9 +125,7 @@ describe('/account · "the text you agreed to has been replaced"', () => {
     expect(await screen.findByText('Syarat & kebijakan sudah diperbarui')).toBeTruthy();
     // The version in force, not "a new version" — a notice that cannot be checked against
     // the document it points at is a notice nobody can act on.
-    expect(
-      screen.getByText((s) => s.includes('2026-08-29') && s.includes('versi')),
-    ).toBeTruthy();
+    expect(screen.getByText((s) => s.includes('2026-08-29') && s.includes('versi'))).toBeTruthy();
     // The sheet renders through a Portal, so it is on `document`, not in the container.
     expect(document.querySelector('a[href="/syarat-ketentuan"]')).toBeTruthy();
     expect(document.querySelector('a[href="/kebijakan-privasi"]')).toBeTruthy();
@@ -157,9 +155,9 @@ describe('/account · "the text you agreed to has been replaced"', () => {
     const sheet = document.querySelector('[role="dialog"]') as HTMLElement;
     await user.click(within(sheet).getByLabelText('Promo dan penawaran'));
     await waitFor(() =>
-      expect(put.mock.calls.some((c) => (c[1] as { purpose: string }).purpose === 'MARKETING')).toBe(
-        true,
-      ),
+      expect(
+        put.mock.calls.some((c) => (c[1] as { purpose: string }).purpose === 'MARKETING'),
+      ).toBe(true),
     );
 
     // Closing it is still allowed — the notice is not a door.
@@ -178,7 +176,9 @@ describe('/account · "the text you agreed to has been replaced"', () => {
     await user.click(await screen.findByText('Persetujuan data'));
 
     expect(
-      await screen.findByText((s) => s.includes('tetap aktif') && s.includes('tidak ada yang diblokir')),
+      await screen.findByText(
+        (s) => s.includes('tetap aktif') && s.includes('tidak ada yang diblokir'),
+      ),
     ).toBeTruthy();
   });
 
@@ -222,8 +222,18 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
     documentVersion: '2026-08-29',
     totals: { population: 1200, current: 3, neverAsked: 40, refused: 12, outdated: 1190 },
     items: [
-      { customerId: 'aaaaaaaa-1111-4111-8111-111111111111', neverAsked: ['PRIVACY'], refused: [], outdated: ['TERMS'] },
-      { customerId: 'bbbbbbbb-2222-4222-8222-222222222222', neverAsked: [], refused: ['TERMS'], outdated: [] },
+      {
+        customerId: 'aaaaaaaa-1111-4111-8111-111111111111',
+        neverAsked: ['PRIVACY'],
+        refused: [],
+        outdated: ['TERMS'],
+      },
+      {
+        customerId: 'bbbbbbbb-2222-4222-8222-222222222222',
+        neverAsked: [],
+        refused: ['TERMS'],
+        outdated: [],
+      },
     ],
     nextCursor: 'bbbbbbbb-2222-4222-8222-222222222222',
   };
@@ -231,7 +241,12 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
     documentVersion: '2026-08-29',
     totals: PAGE_1.totals,
     items: [
-      { customerId: 'cccccccc-3333-4333-8333-333333333333', neverAsked: [], refused: [], outdated: ['PRIVACY'] },
+      {
+        customerId: 'cccccccc-3333-4333-8333-333333333333',
+        neverAsked: [],
+        refused: [],
+        outdated: ['PRIVACY'],
+      },
     ],
     nextCursor: null,
   };
@@ -252,7 +267,9 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
   it('reads the report, bounded — never the whole base in one call', async () => {
     render(<HqPdpPage />, { wrapper: Providers });
     await screen.findByText('Ketertinggalan persetujuan');
-    const call = get.mock.calls.map((c) => String(c[0])).find((p) => p.includes('/consents/report'));
+    const call = get.mock.calls
+      .map((c) => String(c[0]))
+      .find((p) => p.includes('/consents/report'));
     expect(call).toBeTruthy();
     expect(call).toContain('limit=');
   });
@@ -285,8 +302,9 @@ describe('/hq/pdp · fleet-wide consent lag', () => {
 
   it('keeps "never asked" and "refused" apart, on the rows and in words', async () => {
     render(<HqPdpPage />, { wrapper: Providers });
-    expect(await screen.findByText('Belum pernah ditanya: Kebijakan privasi & pemrosesan data'))
-      .toBeTruthy();
+    expect(
+      await screen.findByText('Belum pernah ditanya: Kebijakan privasi & pemrosesan data'),
+    ).toBeTruthy();
     expect(screen.getByText('Menolak: Syarat & ketentuan layanan')).toBeTruthy();
     expect(
       screen.getByText((s) => s.includes('bukan "Menolak"') && s.includes('tidak boleh digabung')),

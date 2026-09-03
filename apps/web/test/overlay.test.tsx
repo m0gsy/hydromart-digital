@@ -135,7 +135,13 @@ describe('nested overlays', () => {
     const closeConfirm = vi.fn();
     const { rerender } = render(
       <Sheet open onClose={closeSheet} title="Pembayaran">
-        <ConfirmDialog open={false} title="Hapus" message="?" onConfirm={() => {}} onClose={closeConfirm} />
+        <ConfirmDialog
+          open={false}
+          title="Hapus"
+          message="?"
+          onConfirm={() => {}}
+          onClose={closeConfirm}
+        />
       </Sheet>,
     );
     rerender(
@@ -153,7 +159,13 @@ describe('nested overlays', () => {
     const closeSheet = vi.fn();
     const sheet = (confirmOpen: boolean) => (
       <Sheet open onClose={closeSheet} title="Pembayaran">
-        <ConfirmDialog open={confirmOpen} title="Hapus" message="?" onConfirm={() => {}} onClose={() => {}} />
+        <ConfirmDialog
+          open={confirmOpen}
+          title="Hapus"
+          message="?"
+          onConfirm={() => {}}
+          onClose={() => {}}
+        />
       </Sheet>
     );
     const { rerender } = render(sheet(false));

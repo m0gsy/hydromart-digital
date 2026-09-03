@@ -63,7 +63,13 @@ describe('OPS-03 · the commission screen never claims to have paid anyone', () 
             source: 'ledger',
             totalIdr: 450_000,
             couriers: [
-              { courierId: 'c1', delivered: 30, paidDeliveries: 30, grossIdr: 450_000, shortfallIdr: 0 },
+              {
+                courierId: 'c1',
+                delivered: 30,
+                paidDeliveries: 30,
+                grossIdr: 450_000,
+                shortfallIdr: 0,
+              },
             ],
           })
         : Promise.resolve([]),

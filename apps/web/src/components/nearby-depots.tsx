@@ -10,6 +10,7 @@ import { useT } from '@/lib/locale-context';
 import { Chip, LoadError, Money, Skeleton } from '@/components/ui';
 import { DEPOT_OPEN_LABEL, depotOpenState } from '@/lib/opening-hours';
 import { LocationSelector } from '@/components/location-selector';
+import { offeredMethods } from '@/lib/payments';
 import type { NearbyDepot } from '@/lib/types';
 
 // "Depots near me" (right of the membership+depot row) — depends on the user's
@@ -24,10 +25,27 @@ export function NearbyDepots() {
   const { data, loading, error, reload } = useAsync<NearbyDepot[]>(
     () =>
       location
-        ? api.getCached<NearbyDepot[]>(endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 2 }))
+        ? api.getCached<NearbyDepot[]>(
+            endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 2 }),
+          )
         : Promise.resolve([] as NearbyDepot[]),
     [location?.lat, location?.lng],
   );
+
+  /*
+   * CA-3-19. This strip read "COD / QRIS / e-wallet" as a constant. E-wallet is not a
+   * method this platform accepts at all — `offeredMethods` filters it out by default — and
+   * QRIS is the fulfilling DEPOT's own printed code, which most depots have never uploaded
+   * (asked in production on 2026-08-26: three active depots, not one QRIS image). So the
+   * home page advertised two ways to pay, one of which does not exist and one of which the
+   * nearest depot could not honour, and checkout then offered neither.
+   *
+   * Named from the depots actually listed here, through the same function checkout narrows
+   * its buttons with. Cash is never filtered, so this can never end up empty.
+   */
+  const methodLabel = [
+    ...new Set((data ?? []).flatMap((d) => offeredMethods(null, d).map((m) => t(m.label)))),
+  ].join(' / ');
 
   if (!ready) return null;
 
@@ -80,7 +98,9 @@ export function NearbyDepots() {
                   </div>
                 </div>
                 <DepotOpenChip depot={d} />
-                <Chip tone={d.withinService ? 'success' : 'outline'}>{d.distanceKm.toFixed(1)} km</Chip>
+                <Chip tone={d.withinService ? 'success' : 'outline'}>
+                  {d.distanceKm.toFixed(1)} km
+                </Chip>
               </div>
             ))}
             <div className="mt-1.5 flex flex-wrap gap-x-[18px] gap-y-2 border-t border-[color:var(--border-soft)] pt-3.5">
@@ -88,10 +108,11 @@ export function NearbyDepots() {
                 <Clock size={16} weight="fill" className="text-brand-600" /> {t('home.depots.eta')}
               </span>
               <span className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#3d565e] dark:text-[color:var(--text-muted)]">
-                <ShieldCheck size={16} weight="fill" className="text-brand-600" /> {t('home.depots.sealed')}
+                <ShieldCheck size={16} weight="fill" className="text-brand-600" />{' '}
+                {t('home.depots.sealed')}
               </span>
               <span className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#3d565e] dark:text-[color:var(--text-muted)]">
-                <Wallet size={16} weight="fill" className="text-brand-600" /> COD / QRIS / e-wallet
+                <Wallet size={16} weight="fill" className="text-brand-600" /> {methodLabel}
               </span>
             </div>
           </>

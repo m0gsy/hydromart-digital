@@ -11,7 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const role = vi.hoisted(() => ({ current: 'MANAGER' }));
 
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 'u-1', role: role.current, fullName: 'A' }, ready: true, signOut: vi.fn() }),
+  useAuth: () => ({
+    customer: { id: 'u-1', role: role.current, fullName: 'A' },
+    ready: true,
+    signOut: vi.fn(),
+  }),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -31,14 +35,19 @@ vi.mock('@/lib/depot-context', () => ({
   }),
 }));
 vi.mock('@/lib/api', () => ({
-  api: { get: vi.fn().mockResolvedValue({ items: [], total: 0 }), getCached: vi.fn().mockResolvedValue([]), post: vi.fn() },
+  api: {
+    get: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    getCached: vi.fn().mockResolvedValue([]),
+    post: vi.fn(),
+  },
   ApiError: class extends Error {},
 }));
 
 import { LocaleProvider } from '@/lib/locale-context';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 
-const hrefs = () => Array.from(document.querySelectorAll('a[href]')).map((a) => a.getAttribute('href'));
+const hrefs = () =>
+  Array.from(document.querySelectorAll('a[href]')).map((a) => a.getAttribute('href'));
 
 beforeEach(() => {
   role.current = 'MANAGER';

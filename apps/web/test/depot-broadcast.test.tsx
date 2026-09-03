@@ -92,8 +92,12 @@ describe('depot broadcast composer', () => {
     await user.click(screen.getByRole('button', { name: /churn|Berisiko/i }));
 
     await screen.findAllByText(/42/);
-    const sized = get.mock.calls.map(([p]) => p as string).filter((p) => p.includes('segment-estimate'));
-    expect(sized.some((p) => p.includes('lapsedDays=60') && p.includes('depotId=depot-a'))).toBe(true);
+    const sized = get.mock.calls
+      .map(([p]) => p as string)
+      .filter((p) => p.includes('segment-estimate'));
+    expect(sized.some((p) => p.includes('lapsedDays=60') && p.includes('depotId=depot-a'))).toBe(
+      true,
+    );
     expect(screen.queryByText('18')).toBeNull();
   });
 });

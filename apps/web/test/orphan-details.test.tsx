@@ -41,8 +41,18 @@ describe('TicketDetail', () => {
     assigneeId: null,
     createdAt: '2026-08-20T02:00:00.000Z',
     messages: [
-      { id: 'm1', authorType: 'CUSTOMER', body: 'Galonnya bocor', createdAt: '2026-08-20T02:00:00.000Z' },
-      { id: 'm2', authorType: 'STAFF', body: 'Kami ganti hari ini', createdAt: '2026-08-20T03:00:00.000Z' },
+      {
+        id: 'm1',
+        authorType: 'CUSTOMER',
+        body: 'Galonnya bocor',
+        createdAt: '2026-08-20T02:00:00.000Z',
+      },
+      {
+        id: 'm2',
+        authorType: 'STAFF',
+        body: 'Kami ganti hari ini',
+        createdAt: '2026-08-20T03:00:00.000Z',
+      },
     ],
   };
 
@@ -187,10 +197,7 @@ describe('copyWeekCells (PUT /shifts/bulk)', () => {
   });
 
   it('copies the shifts of everyone still on the grid', () => {
-    const out = copyWeekCells(
-      [cell('k1', 0, 'PAGI'), cell('k2', 1, 'SORE')] as never,
-      staff,
-    );
+    const out = copyWeekCells([cell('k1', 0, 'PAGI'), cell('k2', 1, 'SORE')] as never, staff);
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ staffId: 'k1', day: 0, shift: 'PAGI' });
   });

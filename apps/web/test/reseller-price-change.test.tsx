@@ -135,13 +135,17 @@ describe('K4.2 · a price change stops being silent', () => {
     renderRow();
     await openEditor();
 
-    expect(await screen.findByText(/gagal memuat riwayat|could not load the change history/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/gagal memuat riwayat|could not load the change history/i),
+    ).toBeTruthy();
   });
 
   it('says plainly that nothing has been recorded yet', async () => {
     renderRow();
     await openEditor();
 
-    expect(await screen.findByText(/belum ada perubahan harga|no price change has been recorded/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/belum ada perubahan harga|no price change has been recorded/i),
+    ).toBeTruthy();
   });
 });

@@ -86,7 +86,9 @@ describe('AppBar', () => {
     search = new URLSearchParams('search=galon');
     renderBar();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
-    expect((screen.getByLabelText('shop.catalog.searchLabel') as HTMLInputElement).value).toBe('galon');
+    expect((screen.getByLabelText('shop.catalog.searchLabel') as HTMLInputElement).value).toBe(
+      'galon',
+    );
   });
 
   it('keeps the category filter when the app-bar search is submitted', () => {

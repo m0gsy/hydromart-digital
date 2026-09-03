@@ -63,7 +63,9 @@ beforeEach(() => {
   get.mockReset();
   post.mockReset();
   get.mockResolvedValue({ items: [order], total: 1, page: 1, limit: 20 });
-  post.mockResolvedValue([{ id: 'p-1', orderId: 'o-1', method: 'CASH', status: 'PENDING', amount: 57000 }]);
+  post.mockResolvedValue([
+    { id: 'p-1', orderId: 'o-1', method: 'CASH', status: 'PENDING', amount: 57000 },
+  ]);
 });
 afterEach(() => vi.clearAllMocks());
 

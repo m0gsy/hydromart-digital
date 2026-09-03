@@ -40,7 +40,9 @@ describe('ProductImageInput', () => {
 
     await userEvent.upload(screen.getByLabelText(/pilih berkas foto/i), fileOf(1024));
 
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith('https://cdn.example/products/a.jpg'));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith('https://cdn.example/products/a.jpg'),
+    );
   });
 
   it('refuses a file over 5 MB without calling the server', async () => {
@@ -71,9 +73,16 @@ describe('ProductImageInput', () => {
 
   it('offers replace instead of upload once a photo is set, and can clear it', async () => {
     const onRemove = vi.fn();
-    render(<ProductImageInput value="https://cdn.example/a.jpg" onChange={vi.fn()} onRemove={onRemove} />, {
-      wrapper: LocaleProvider,
-    });
+    render(
+      <ProductImageInput
+        value="https://cdn.example/a.jpg"
+        onChange={vi.fn()}
+        onRemove={onRemove}
+      />,
+      {
+        wrapper: LocaleProvider,
+      },
+    );
 
     expect(screen.getByRole('button', { name: /ganti foto/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /hapus foto/i }));

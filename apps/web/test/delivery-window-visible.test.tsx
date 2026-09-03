@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, post, patch } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post, patch }, ApiError: class extends Error {} }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, post, patch },
+  ApiError: class extends Error {},
+}));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 's-1', role: 'STAFF_DEPOT' }, ready: true }),
 }));
