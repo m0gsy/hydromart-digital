@@ -299,11 +299,17 @@ function CartInner() {
                 <p className="mt-0.5 text-[13px] text-muted">
                   <Money amount={line.unitPrice} /> · {line.unit}
                 </p>
-                {/* ponytail: cart lines carry no depot, so the label is fixed. Add an
-                    i18n key + real depot label when the cart exposes stock-by-depot. */}
-                <span className="mt-1.5 inline-flex rounded-full bg-brand-50 px-[9px] py-0.5 text-[11px] font-bold text-brand-800">
-                  {t('order.cart.inStock')}
-                </span>
+                {/*
+                 * CA-3-17: a "Stok tersedia" badge stood here on every line, always, with
+                 * no stock data behind it — the cart response carries none and the only
+                 * stock API is staff-scoped per depot. A badge that is true by construction
+                 * is not information; it is a promise the app cannot keep the first time a
+                 * depot runs out, and the customer reads it as a check that was made.
+                 *
+                 * Removed rather than faked. Bringing it back honestly needs a customer-
+                 * facing stock read for the depot pricing the cart — a real feature, not a
+                 * label.
+                 */}
               </div>
               <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-start">
                 <QuantityStepper

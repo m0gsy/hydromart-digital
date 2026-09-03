@@ -17,7 +17,15 @@ import {
 import { RemoteImage } from '@/components/remote-image';
 import { FavoriteButton } from '@/components/favorite-button';
 import { QuantityStepper } from '@/components/quantity-stepper';
-import { Button, Chip, ErrorState, MemberPrice, Money, Skeleton, StickyActionBar } from '@/components/ui';
+import {
+  Button,
+  Chip,
+  ErrorState,
+  MemberPrice,
+  Money,
+  Skeleton,
+  StickyActionBar,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useCart } from '@/lib/cart-context';
 import { endpoints } from '@/lib/endpoints';
@@ -28,9 +36,17 @@ import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useT } from '@/lib/locale-context';
 import { useDepotPrices } from '@/lib/depot-price';
 import { memberPrice, useMemberRate } from '@/lib/member';
+import { depotOpenState } from '@/lib/opening-hours';
 import { useRecommendationProducts } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
-import type { Cart, Category, LoyaltyAccount, NearbyDepot, Product, Recommendation } from '@/lib/types';
+import type {
+  Cart,
+  Category,
+  LoyaltyAccount,
+  NearbyDepot,
+  Product,
+  Recommendation,
+} from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 export default function ProductDetailPage() {
@@ -42,10 +58,12 @@ export default function ProductDetailPage() {
   const { location } = useLocation();
   const { t } = useT();
 
-  const { data: product, error, loading, reload } = useAsync<Product>(
-    () => api.get(endpoints.products.get(id)),
-    [id],
-  );
+  const {
+    data: product,
+    error,
+    loading,
+    reload,
+  } = useAsync<Product>(() => api.get(endpoints.products.get(id)), [id]);
 
   // Category name for the breadcrumb + tint pill — same source the catalog uses.
   const { data: categories } = useAsync<Category[]>(
@@ -82,6 +100,19 @@ export default function ProductDetailPage() {
   // Recommendation, so the mini-cards show name + unit only (never fabricated).
   // PG-03: the shelf price for this product at the shopper's depot.
   const shelf = useDepotPrices(product ? [product.id] : []);
+
+  /*
+   * CA-3-16 / CA-3-18. `depots.nearby` answers with the NEAREST depot, which is not the
+   * same as one that serves this address or one that is open. The card printed "Dikirim
+   * dari X", a green "Buka" chip and "tiba hari ini" over both — for a depot 40 km outside
+   * its own radius at eleven at night. Checkout then refuses the order, or takes it and
+   * lets `expireAbandoned` cancel it about an hour later with nobody told.
+   *
+   * `withinService` and `depotOpenState` are the two answers the server already computes;
+   * this screen simply stopped ignoring them.
+   */
+  const serves = depot?.withinService === true;
+  const openState = depot ? depotOpenState(depot.operatingHours, depot.holidays) : 'tutup';
   const shelfPrice = (product && shelf.prices.get(product.id)) ?? product?.basePrice ?? 0;
 
   const { data: related } = useAsync<Recommendation[]>(
@@ -119,7 +150,13 @@ export default function ProductDetailPage() {
     setAddError(null);
     try {
       // Audit F-7: the POST already returns the priced cart; no follow-up GET.
-      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: id, quantity: qty }, true));
+      apply(
+        await api.post<Cart>(
+          endpoints.cart.items(cartDepotId()),
+          { productId: id, quantity: qty },
+          true,
+        ),
+      );
       setAdded(true);
     } catch (e) {
       setAddError(e instanceof ApiError ? e.message : t('shop.pdp.addError'));
@@ -197,7 +234,9 @@ export default function ProductDetailPage() {
                     aria-label={t('shop.pdp.viewImage', { n: i + 1 })}
                     aria-current={i === activeImg}
                     className={`flex aspect-square items-center justify-center overflow-hidden rounded-[14px] border-2 bg-[color:var(--surface-soft)] transition-colors ${
-                      i === activeImg ? 'border-brand-600' : 'border-transparent hover:border-brand-300'
+                      i === activeImg
+                        ? 'border-brand-600'
+                        : 'border-transparent hover:border-brand-300'
                     }`}
                   >
                     <RemoteImage src={url} alt="" className="h-full w-full object-cover" />
@@ -240,8 +279,11 @@ export default function ProductDetailPage() {
               <div className="flex items-center gap-2 rounded-xl bg-[color:var(--warning-bg)] px-3.5 py-2.5 text-[13px] text-[color:var(--warning)]">
                 <Trophy size={16} weight="fill" />
                 <span>
-                  <span className="font-extrabold">{account.tier}</span>{' · '}
-                  {t('shop.pdp.memberDiscount', { percent: Math.round(account.discountRate * 100) })}
+                  <span className="font-extrabold">{account.tier}</span>
+                  {' · '}
+                  {t('shop.pdp.memberDiscount', {
+                    percent: Math.round(account.discountRate * 100),
+                  })}
                 </span>
               </div>
             )}
@@ -255,17 +297,39 @@ export default function ProductDetailPage() {
                       <Storefront size={18} weight="fill" className="text-brand-600" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold">{t('shop.pdp.deliveredFrom', { depot: depot.name })}</p>
+                      <p className="text-sm font-bold">
+                        {t('shop.pdp.deliveredFrom', { depot: depot.name })}
+                      </p>
                       <p className="text-[12.5px] text-muted">
-                        {t('shop.pdp.deliveryMeta', { km: depot.distanceKm.toFixed(1).replace('.', ',') })}{' '}
+                        {t('shop.pdp.deliveryMeta', {
+                          km: depot.distanceKm.toFixed(1).replace('.', ','),
+                        })}{' '}
                         <Money amount={depot.deliveryFee} />
                       </p>
                     </div>
-                    <Chip tone="success">{t('shop.pdp.open')}</Chip>
+                    <Chip tone={openState === 'buka' ? 'success' : 'amber'}>
+                      {t(
+                        openState === 'buka'
+                          ? 'shop.pdp.open'
+                          : openState === 'istirahat'
+                            ? 'shop.pdp.onBreak'
+                            : 'shop.pdp.closed',
+                      )}
+                    </Chip>
                   </div>
+                  {/* The cut-off promises TODAY. It may only be said by a depot that is
+                      open and actually delivers here; otherwise it is the sentence the
+                      customer will quote back when the order does not arrive. */}
                   <div className="flex items-center gap-2 border-t border-app pt-3 text-[13px] font-bold text-[color:var(--text)]">
                     <Clock size={16} weight="fill" className="text-brand-600" />
-                    {t('shop.pdp.cutoff')}
+                    {openState === 'buka' && serves
+                      ? t('shop.pdp.cutoff')
+                      : !serves
+                        ? t('shop.pdp.outOfArea', {
+                            depot: depot.name,
+                            km: depot.distanceKm.toFixed(1).replace('.', ','),
+                          })
+                        : t('shop.pdp.closedNote')}
                   </div>
                 </>
               ) : (
@@ -273,9 +337,7 @@ export default function ProductDetailPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50">
                     <Storefront size={18} weight="fill" className="text-brand-600" />
                   </span>
-                  <p className="text-sm font-semibold text-muted">
-                    {t('shop.pdp.setLocation')}
-                  </p>
+                  <p className="text-sm font-semibold text-muted">{t('shop.pdp.setLocation')}</p>
                 </div>
               )}
             </div>
@@ -331,10 +393,16 @@ export default function ProductDetailPage() {
       {/* Frequently bought together — omitted entirely when there's no related data */}
       {product && related && related.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-4 text-[21px] font-extrabold tracking-tight">{t('shop.pdp.related')}</h2>
+          <h2 className="mb-4 text-[21px] font-extrabold tracking-tight">
+            {t('shop.pdp.related')}
+          </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {shownRelated.map((item) => (
-              <FbtCard key={item.productId} item={item} product={relatedProducts.get(item.productId)} />
+              <FbtCard
+                key={item.productId}
+                item={item}
+                product={relatedProducts.get(item.productId)}
+              />
             ))}
           </div>
         </section>
@@ -373,7 +441,13 @@ function FbtCard({ item, product }: { item: Recommendation; product?: Product })
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: item.productId, quantity: 1 }, true));
+      apply(
+        await api.post<Cart>(
+          endpoints.cart.items(cartDepotId()),
+          { productId: item.productId, quantity: 1 },
+          true,
+        ),
+      );
       setAdded(true);
     } catch {
       bump(-1); // roll the badge back on failure

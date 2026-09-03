@@ -3,7 +3,6 @@
 export const order = {
   cart: {
     clearConfirm: "Kosongkan {n} barang dari keranjang? Tidak ada undo — keranjangnya harus disusun ulang dari awal.",
-    inStock: "Stok tersedia",
     title: 'Keranjang',
     itemCount: '— {n} item',
     emptyTitle: 'Keranjang masih kosong',
