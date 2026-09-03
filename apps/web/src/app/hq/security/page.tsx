@@ -40,7 +40,8 @@ export default function HqSecurityPage() {
   const [revoking, setRevoking] = useState<string | null>(null);
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error) return <ErrorState message={t('hq.security.loadError')} onRetry={query.reload} />;
+  if (query.error)
+    return <ErrorState message={t('hq.security.loadError')} onRetry={query.reload} />;
 
   const policy = draft ?? query.data!;
   const allowlist = allowlistText ?? policy.ipAllowlist.join('\n');
@@ -58,13 +59,20 @@ export default function HqSecurityPage() {
    */
   async function save() {
     setBusy(true);
-    const ipAllowlist = allowlist.split('\n').map((s) => s.trim()).filter(Boolean);
+    const ipAllowlist = allowlist
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
     try {
       const saved = await api.put<SecurityPolicy>(
         endpoints.admin.security,
         // `require2fa` is passed through untouched: the control is gone, the required
         // DTO field is not, and a UI default here would silently rewrite stored state.
-        { idleTimeoutMinutes: policy.idleTimeoutMinutes, require2fa: policy.require2fa, ipAllowlist },
+        {
+          idleTimeoutMinutes: policy.idleTimeoutMinutes,
+          require2fa: policy.require2fa,
+          ipAllowlist,
+        },
         true,
       );
       setDraft(saved);
@@ -91,16 +99,23 @@ export default function HqSecurityPage() {
   }
 
   const sessions = sessionsQ.data ?? [];
-  const minutesAgo = (iso: string) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  const minutesAgo = (iso: string) =>
+    Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Lock} title={t('hq.security.title')} subtitle={t('hq.security.subtitle')} />
+      <HqPageHeader
+        icon={Lock}
+        title={t('hq.security.title')}
+        subtitle={t('hq.security.subtitle')}
+      />
 
       <Card className="flex flex-col gap-4 p-5">
         <p className="text-sm font-extrabold">{t('hq.security.sessionPolicy')}</p>
         <div className="flex items-center justify-between gap-4 border-b border-[color:var(--border-soft)] pb-3">
-          <label htmlFor="idle" className="text-sm text-muted">{t('hq.security.sessionTimeout')}</label>
+          <label htmlFor="idle" className="text-sm text-muted">
+            {t('hq.security.sessionTimeout')}
+          </label>
           <div className="flex items-center gap-2">
             <input
               id="idle"
@@ -114,6 +129,17 @@ export default function HqSecurityPage() {
             <span className="text-sm text-muted">{t('hq.security.minutesIdle')}</span>
           </div>
         </div>
+        {/*
+         * CA-2-06: this one is enforced now, and the other two are not.
+         *
+         * All three settings had a screen, a DTO and a repository, and not one line
+         * outside admin-service ever read any of them. The idle limit is applied on the
+         * refresh path from this release. The allowlist and 2FA are not, and saying so is
+         * this repo's rule — "UNENFORCED not silent": a control that does nothing while
+         * looking like it does something is worse than no control, because somebody plans
+         * around it.
+         */}
+        <p className="-mt-1 text-xs text-[color:var(--success)]">{t('hq.security.idleEnforced')}</p>
         <div>
           <label htmlFor="ips" className="text-sm font-semibold">
             {t('hq.security.ipAllowlist')}
@@ -126,9 +152,17 @@ export default function HqSecurityPage() {
             className="surface-elevated mt-1.5 w-full rounded-lg border border-app px-3.5 py-2.5 font-mono text-xs focus:outline focus:outline-2 focus:outline-brand-600"
           />
           <p className="mt-1 text-xs text-muted">{t('hq.security.ipHint')}</p>
+          <p
+            className="mt-1.5 rounded-lg border border-app bg-amber-50 px-3 py-2 text-xs text-amber-800"
+            role="status"
+          >
+            {t('hq.security.ipUnenforced')}
+          </p>
         </div>
         <div className="flex justify-end">
-          <Button onClick={save} loading={busy}>{t('hq.security.save')}</Button>
+          <Button onClick={save} loading={busy}>
+            {t('hq.security.save')}
+          </Button>
         </div>
       </Card>
 
@@ -143,11 +177,18 @@ export default function HqSecurityPage() {
           <p className="py-3 text-center text-sm text-muted">{t('hq.security.sessionsEmpty')}</p>
         ) : (
           sessions.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-3 border-b border-[color:var(--border-soft)] py-2.5 last:border-0">
+            <div
+              key={s.id}
+              className="flex items-center justify-between gap-3 border-b border-[color:var(--border-soft)] py-2.5 last:border-0"
+            >
               <div className="min-w-0">
-                <span className="text-sm font-semibold">{s.userAgent || t('hq.security.unknownDevice')}</span>
+                <span className="text-sm font-semibold">
+                  {s.userAgent || t('hq.security.unknownDevice')}
+                </span>
                 <p className="text-xs text-muted">
-                  {(s.ipAddress || t('hq.common.dash')) + ' · ' + agoLabel(minutesAgo(s.createdAt), t)}
+                  {(s.ipAddress || t('hq.common.dash')) +
+                    ' · ' +
+                    agoLabel(minutesAgo(s.createdAt), t)}
                 </p>
               </div>
               <button
