@@ -12,14 +12,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, role } = vi.hoisted(() => ({
+const { get, getCached, post, role } = vi.hoisted(() => ({
   get: vi.fn(),
+  getCached: vi.fn(),
   post: vi.fn(),
   role: { current: 'HR' },
 }));
 
 vi.mock('@/lib/api', () => ({
-  api: { get, getCached: get, post, patch: vi.fn(), del: vi.fn() },
+  api: { get, getCached, post, patch: vi.fn(), del: vi.fn() },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -53,7 +54,17 @@ const Wrap = ({ children }: { children: React.ReactNode }) => (
 
 beforeEach(() => {
   role.current = 'HR';
-  get.mockReset().mockResolvedValue(page([]));
+  /*
+   * Shape matters more than content here. Half these endpoints answer with a PAGE and half
+   * with a plain ARRAY, and handing one the other's shape crashes the render — the
+   * employees screen does `departments.data.map(...)`, so an object there throws before any
+   * assertion is reached. It passed locally only because the fetch had not landed yet by
+   * the time the test finished, which is a race, not a pass.
+   */
+  const answer = (url: string) =>
+    /departments|shifts|depots/.test(String(url)) ? Promise.resolve([]) : Promise.resolve(page([]));
+  get.mockReset().mockImplementation(answer);
+  getCached.mockReset().mockImplementation(answer);
   post.mockReset().mockResolvedValue({});
 });
 afterEach(() => vi.clearAllMocks());
