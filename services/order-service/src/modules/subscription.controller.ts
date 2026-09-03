@@ -12,7 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
@@ -23,8 +31,17 @@ import {
   DepotScopeQueryDto,
   PdpAnonymiseDto,
 } from './dto/order.dto';
-import { SubscriptionNetworkSummaryView, SubscriptionSweepResult } from '../application/services/subscription.service';
-import { Discount2ResponseDto, PdpErasedResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
+import {
+  SubscriptionNetworkSummaryView,
+  SubscriptionSweepResult,
+} from '../application/services/subscription.service';
+import {
+  Discount2ResponseDto,
+  PdpErasedResponseDto,
+  ProcessDue2ResponseDto,
+  SubscriptionNetworkSummaryResponseDto,
+  SubscriptionResponseDto,
+} from './dto/responses.generated.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()

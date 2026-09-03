@@ -13,6 +13,7 @@ import {
   VoucherInactiveError,
   VoucherNotStartedError,
   VoucherUsageExceededError,
+  VoucherWrongDepotError,
 } from './errors';
 
 export enum DiscountType {
@@ -33,6 +34,8 @@ export interface VoucherRules {
   perCustomerLimit: number;
   budgetCap: number | null;
   active: boolean;
+  /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
+  depotId?: string | null;
 }
 
 /**
@@ -109,8 +112,18 @@ export function validateVoucher(
   customerRedemptionCount: number,
   /** Total discount already burned on this voucher PLUS the discount now being applied. */
   burnedWithThis = 0,
+  /**
+   * CA-2-65: the depot this order belongs to, when the caller knows it.
+   *
+   * `undefined` means the caller could not say — an older client, or a path with no depot
+   * — and a depot-scoped voucher is then REFUSED rather than allowed through. The whole
+   * bug was a scoped voucher spending network-wide; defaulting the unknown case to "allow"
+   * would leave the same hole open under a new name.
+   */
+  orderDepotId?: string | null,
 ): void {
   if (!v.active) throw new VoucherInactiveError();
+  if (v.depotId != null && v.depotId !== orderDepotId) throw new VoucherWrongDepotError();
   if (v.validFrom !== null && now < v.validFrom) throw new VoucherNotStartedError();
   if (v.validUntil !== null && now > v.validUntil) throw new VoucherExpiredError();
   if (subtotal < v.minSpend) throw new MinSpendNotMetError(v.minSpend);

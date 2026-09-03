@@ -14,7 +14,10 @@ import { DepotCrmPrismaRepository } from '../../src/infrastructure/prisma/depot-
 import { DepotCustomerQueryDto } from '../../src/modules/dto/depot-crm.dto';
 import { DepotCustomerOrderStats, OrderCrmPort } from '../../src/application/ports/order-crm.port';
 import { AddressRecord, AddressRepository } from '../../src/application/ports/address.repository';
-import { CustomerProfileRecord, ProfileRepository } from '../../src/application/ports/profile.repository';
+import {
+  CustomerProfileRecord,
+  ProfileRepository,
+} from '../../src/application/ports/profile.repository';
 import { CustomerIdentity, IdentityPort } from '../../src/application/ports/identity.port';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 
@@ -24,7 +27,10 @@ class FakeDepotCrmRepository implements DepotCrmRepository {
   byDepot = new Map<string, string[]>();
   rows: DepotCustomerRow[] = [];
   asked: DepotCustomerQuery[] = [];
-  async listDepotCustomers(_depotId: string, query: DepotCustomerQuery = {}): Promise<DepotCustomerRow[]> {
+  async listDepotCustomers(
+    _depotId: string,
+    query: DepotCustomerQuery = {},
+  ): Promise<DepotCustomerRow[]> {
     this.asked.push(query);
     // Models the statement, not a fixed array: W9 moved the WHERE into SQL, so a fake that
     // ignores `q`/`qMatchedIds` would let any query at all pass these assertions.
@@ -59,7 +65,15 @@ describe('DepotCrmService.listCustomerIdsByDepot', () => {
     const repo = new FakeDepotCrmRepository();
     repo.byDepot.set('depot-a', ['c1', 'c2']);
     repo.byDepot.set('depot-b', ['c3']);
-    const service = new DepotCrmService(repo, {} as never, {} as never, {} as never, { gallonsByCustomer: async () => null } as never, new FakeIdentity(), {} as never);
+    const service = new DepotCrmService(
+      repo,
+      {} as never,
+      {} as never,
+      {} as never,
+      { gallonsByCustomer: async () => null } as never,
+      new FakeIdentity(),
+      {} as never,
+    );
 
     expect(await service.listCustomerIdsByDepot('depot-a')).toEqual(['c1', 'c2']);
     expect(await service.listCustomerIdsByDepot('depot-b')).toEqual(['c3']);
@@ -72,16 +86,59 @@ describe('DepotCrmService.getCrmDashboard', () => {
   const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
   function serviceWithStats(stats: DepotCustomerOrderStats[]): DepotCrmService {
-    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
-    return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, new FakeIdentity(), config);
+    const orderCrm: OrderCrmPort = {
+      depotCustomerStats: async () => stats,
+      customerOrders: async () => [],
+    };
+    return new DepotCrmService(
+      new FakeDepotCrmRepository(),
+      {} as never,
+      {} as never,
+      orderCrm,
+      { gallonsByCustomer: async () => null } as never,
+      new FakeIdentity(),
+      config,
+    );
   }
 
   it('counts segments, repeat rate, and overdue follow-ups (most-overdue first)', async () => {
     const service = serviceWithStats([
-      { customerId: 'baru', name: 'B', phone: '1', orderCount: 1, totalSpent: 50_000, firstOrderAt: daysAgo(5), lastOrderAt: daysAgo(5) },
-      { customerId: 'aktif', name: 'A', phone: '2', orderCount: 4, totalSpent: 200_000, firstOrderAt: daysAgo(200), lastOrderAt: daysAgo(10) },
-      { customerId: 'lapse', name: 'L', phone: '3', orderCount: 2, totalSpent: 90_000, firstOrderAt: daysAgo(300), lastOrderAt: daysAgo(70) },
-      { customerId: 'gone', name: 'G', phone: '4', orderCount: 1, totalSpent: 30_000, firstOrderAt: daysAgo(400), lastOrderAt: daysAgo(120) },
+      {
+        customerId: 'baru',
+        name: 'B',
+        phone: '1',
+        orderCount: 1,
+        totalSpent: 50_000,
+        firstOrderAt: daysAgo(5),
+        lastOrderAt: daysAgo(5),
+      },
+      {
+        customerId: 'aktif',
+        name: 'A',
+        phone: '2',
+        orderCount: 4,
+        totalSpent: 200_000,
+        firstOrderAt: daysAgo(200),
+        lastOrderAt: daysAgo(10),
+      },
+      {
+        customerId: 'lapse',
+        name: 'L',
+        phone: '3',
+        orderCount: 2,
+        totalSpent: 90_000,
+        firstOrderAt: daysAgo(300),
+        lastOrderAt: daysAgo(70),
+      },
+      {
+        customerId: 'gone',
+        name: 'G',
+        phone: '4',
+        orderCount: 1,
+        totalSpent: 30_000,
+        firstOrderAt: daysAgo(400),
+        lastOrderAt: daysAgo(120),
+      },
     ]);
 
     const d = await service.getCrmDashboard('depot-a');
@@ -93,7 +150,11 @@ describe('DepotCrmService.getCrmDashboard', () => {
 
   it('empty stats → zeroed dashboard', async () => {
     const d = await serviceWithStats([]).getCrmDashboard('depot-a');
-    expect(d).toEqual({ counts: { baru: 0, aktif: 0, inactive: 0, total: 0 }, repeatRatePct: 0, followUps: [] });
+    expect(d).toEqual({
+      counts: { baru: 0, aktif: 0, inactive: 0, total: 0 },
+      repeatRatePct: 0,
+      followUps: [],
+    });
   });
 });
 
@@ -106,8 +167,16 @@ describe('DepotCrmService directory search reaches the identity the screen shows
    * an account number off the list, typed it back, and got nothing. Ordinary whenever the
    * recipient is a household or an office.
    */
-  const row = { customerId: 'c1', fullName: 'Rumah Budi', phone: '+62811-ADDRESS', membershipTier: MembershipTier.BASIC };
-  const noOrders: OrderCrmPort = { depotCustomerStats: async () => [], customerOrders: async () => [] };
+  const row = {
+    customerId: 'c1',
+    fullName: 'Rumah Budi',
+    phone: '+62811-ADDRESS',
+    membershipTier: MembershipTier.BASIC,
+  };
+  const noOrders: OrderCrmPort = {
+    depotCustomerStats: async () => [],
+    customerOrders: async () => [],
+  };
 
   function build(identity: FakeIdentity, seed = true) {
     const repo = new FakeDepotCrmRepository();
@@ -115,7 +184,15 @@ describe('DepotCrmService directory search reaches the identity the screen shows
       repo.byDepot.set('depot-a', ['c1']);
       repo.rows = [row];
     }
-    return new DepotCrmService(repo, {} as never, {} as never, noOrders, { gallonsByCustomer: async () => null } as never, identity, {} as never);
+    return new DepotCrmService(
+      repo,
+      {} as never,
+      {} as never,
+      noOrders,
+      { gallonsByCustomer: async () => null } as never,
+      identity,
+      {} as never,
+    );
   }
 
   function withAccount(): FakeIdentity {
@@ -130,11 +207,15 @@ describe('DepotCrmService directory search reaches the identity the screen shows
   });
 
   it('finds them by account name too', async () => {
-    expect((await build(withAccount()).listDepotCustomers('depot-a', 'Santoso')).map((r) => r.id)).toEqual(['c1']);
+    expect(
+      (await build(withAccount()).listDepotCustomers('depot-a', 'Santoso')).map((r) => r.id),
+    ).toEqual(['c1']);
   });
 
   it('still matches what this database holds, so the SQL path is not bypassed', async () => {
-    expect((await build(withAccount()).listDepotCustomers('depot-a', 'ADDRESS')).map((r) => r.id)).toEqual(['c1']);
+    expect(
+      (await build(withAccount()).listDepotCustomers('depot-a', 'ADDRESS')).map((r) => r.id),
+    ).toEqual(['c1']);
   });
 
   it('a needle that matches neither identity returns nothing', async () => {
@@ -149,7 +230,9 @@ describe('DepotCrmService directory search reaches the identity the screen shows
   });
 
   it('a depot with no members short-circuits before asking auth-service', async () => {
-    expect(await build(withAccount(), false).listDepotCustomers('depot-empty', 'budi')).toHaveLength(0);
+    expect(
+      await build(withAccount(), false).listDepotCustomers('depot-empty', 'budi'),
+    ).toHaveLength(0);
   });
 
   it('a PENDING account with no name and no phone matches nothing and throws nothing', async () => {
@@ -189,7 +272,10 @@ describe('DepotCrmService.listDepotCustomers', () => {
     repo: FakeDepotCrmRepository = new FakeDepotCrmRepository(),
   ): DepotCrmService {
     repo.rows = rows;
-    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
+    const orderCrm: OrderCrmPort = {
+      depotCustomerStats: async () => stats,
+      customerOrders: async () => [],
+    };
     const depotProfile = { subscriberIds: async () => subscribers, geo: async () => null };
     return new DepotCrmService(
       repo,
@@ -208,13 +294,30 @@ describe('DepotCrmService.listDepotCustomers', () => {
     const fiveDaysAgo = daysAgo(5);
     const svc = service(
       [row('c1'), row('c2')],
-      [{ customerId: 'c1', name: 'n', phone: 'p', orderCount: 3, totalSpent: 90_000, firstOrderAt: fiveDaysAgo, lastOrderAt: fiveDaysAgo }],
+      [
+        {
+          customerId: 'c1',
+          name: 'n',
+          phone: 'p',
+          orderCount: 3,
+          totalSpent: 90_000,
+          firstOrderAt: fiveDaysAgo,
+          lastOrderAt: fiveDaysAgo,
+        },
+      ],
     );
 
     const [withStats, without] = await svc.listDepotCustomers('depot-a');
 
     // c1 gets its aggregate + a computed segment (first order 5d ago → BARU).
-    expect(withStats).toMatchObject({ id: 'c1', orderCount: 3, segment: 'BARU', gallonsOnLoan: null, depositHeldIdr: null, isSubscriber: null });
+    expect(withStats).toMatchObject({
+      id: 'c1',
+      orderCount: 3,
+      segment: 'BARU',
+      gallonsOnLoan: null,
+      depositHeldIdr: null,
+      isSubscriber: null,
+    });
     expect(withStats!.lastOrderAt).toBe(fiveDaysAgo.toISOString());
     // c2 has no matching stats row → order aggregates null, segment null.
     expect(without).toMatchObject({ id: 'c2', orderCount: null, lastOrderAt: null, segment: null });
@@ -225,9 +328,9 @@ describe('DepotCrmService.listDepotCustomers', () => {
    * means "depot-service went quiet", which is not the same sentence as "not a subscriber".
    */
   it('flags subscribers across the directory from one read', async () => {
-    const rows = await service([row('c1'), row('c2')], [], new FakeIdentity(), ['c2']).listDepotCustomers(
-      'depot-a',
-    );
+    const rows = await service([row('c1'), row('c2')], [], new FakeIdentity(), [
+      'c2',
+    ]).listDepotCustomers('depot-a');
     expect(rows.map((r) => [r.id, r.isSubscriber])).toEqual([
       ['c1', false],
       ['c2', true],
@@ -251,7 +354,12 @@ describe('DepotCrmService.listDepotCustomers', () => {
     // The old SQL read the name off the primary address, so this customer was "Tanpa nama".
     const identity = new FakeIdentity();
     identity.names.set('c2', { fullName: 'Siti', phone: '0822' });
-    const nameless: DepotCustomerRow = { customerId: 'c2', fullName: null, phone: null, membershipTier: MembershipTier.BASIC };
+    const nameless: DepotCustomerRow = {
+      customerId: 'c2',
+      fullName: null,
+      phone: null,
+      membershipTier: MembershipTier.BASIC,
+    };
     const [only] = await service([nameless], [], identity).listDepotCustomers('depot-a');
     expect(only).toMatchObject({ fullName: 'Siti', phone: '0822' });
   });
@@ -275,10 +383,29 @@ describe('DepotCrmService.listDepotCustomers', () => {
   it('sends the needle to the query instead of filtering the depot after reading it', async () => {
     const repo = new FakeDepotCrmRepository();
     const stats: DepotCustomerOrderStats[] = [
-      { customerId: 'c-sari', name: 'Sari', phone: '+62899', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
-      { customerId: 'c-agus', name: 'Agus', phone: '+62888', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
+      {
+        customerId: 'c-sari',
+        name: 'Sari',
+        phone: '+62899',
+        orderCount: 1,
+        totalSpent: 1000,
+        firstOrderAt: null,
+        lastOrderAt: null,
+      },
+      {
+        customerId: 'c-agus',
+        name: 'Agus',
+        phone: '+62888',
+        orderCount: 1,
+        totalSpent: 1000,
+        firstOrderAt: null,
+        lastOrderAt: null,
+      },
     ];
-    await service([row('c1')], stats, new FakeIdentity(), null, repo).listDepotCustomers('depot-a', ' sArI ');
+    await service([row('c1')], stats, new FakeIdentity(), null, repo).listDepotCustomers(
+      'depot-a',
+      ' sArI ',
+    );
 
     expect(repo.asked[0]).toMatchObject({ q: 'sArI', qMatchedIds: ['c-sari'] });
     // Membership is the union of all three sources, so every orderer still reaches the CTE.
@@ -288,16 +415,35 @@ describe('DepotCrmService.listDepotCustomers', () => {
   // The query returns the orderers now, but their name is not in this database at all: no
   // account, no address, only order-service's snapshot. Third fallback, and the last one.
   it('falls back to the order snapshot for someone who has only ever ordered here', async () => {
-    const nameless: DepotCustomerRow = { customerId: 'c-orderer', fullName: null, phone: null, membershipTier: MembershipTier.BASIC };
-    const [only] = await service([nameless], [
-      { customerId: 'c-orderer', name: 'Sari', phone: '+62822', orderCount: 1, totalSpent: 1000, firstOrderAt: null, lastOrderAt: null },
-    ]).listDepotCustomers('depot-a');
+    const nameless: DepotCustomerRow = {
+      customerId: 'c-orderer',
+      fullName: null,
+      phone: null,
+      membershipTier: MembershipTier.BASIC,
+    };
+    const [only] = await service(
+      [nameless],
+      [
+        {
+          customerId: 'c-orderer',
+          name: 'Sari',
+          phone: '+62822',
+          orderCount: 1,
+          totalSpent: 1000,
+          firstOrderAt: null,
+          lastOrderAt: null,
+        },
+      ],
+    ).listDepotCustomers('depot-a');
     expect(only).toMatchObject({ id: 'c-orderer', fullName: 'Sari', phone: '+62822' });
   });
 
   it('a blank needle is no needle — it must not reach the query as an empty ILIKE', async () => {
     const repo = new FakeDepotCrmRepository();
-    await service([row('c1')], [], new FakeIdentity(), null, repo).listDepotCustomers('depot-a', '   ');
+    await service([row('c1')], [], new FakeIdentity(), null, repo).listDepotCustomers(
+      'depot-a',
+      '   ',
+    );
     expect(repo.asked[0]!.q).toBeUndefined();
     expect(repo.asked[0]!.qMatchedIds).toEqual([]);
   });
@@ -396,7 +542,9 @@ describe('DepotCrmPrismaRepository paging and search reach the SQL', () => {
 describe('DepotCustomerQueryDto bounds the page it will accept', () => {
   const depotId = '11111111-1111-4111-8111-111111111111';
   const errors = (over: Record<string, unknown>) =>
-    validateSync(plainToInstance(DepotCustomerQueryDto, { depotId, ...over })).map((e) => e.property);
+    validateSync(plainToInstance(DepotCustomerQueryDto, { depotId, ...over })).map(
+      (e) => e.property,
+    );
 
   it('refuses a limit past the ceiling rather than letting it reach the database', () => {
     expect(errors({ limit: 100_000 })).toEqual(['limit']);
@@ -436,8 +584,20 @@ describe('DepotCrmService.getDepotDetail', () => {
   interface Wired {
     stats?: DepotCustomerOrderStats[];
     gallons?: { customerId: string; gallonsOnLoan: number; depositHeldIdr: number }[] | null;
-    ledger?: { id: string; type: 'ISSUE' | 'RETURN'; quantity: number; amountIdr: number; at: string }[];
-    orders?: { id: string; orderNumber: string; status: string; totalIdr: number; placedAt: string }[];
+    ledger?: {
+      id: string;
+      type: 'ISSUE' | 'RETURN';
+      quantity: number;
+      amountIdr: number;
+      at: string;
+    }[];
+    orders?: {
+      id: string;
+      orderNumber: string;
+      status: string;
+      totalIdr: number;
+      placedAt: string;
+    }[];
     /** S2. Undefined = the port is not wired at all, which is what it was before. */
     subscribers?: string[] | null;
     geo?: { lat: number; lng: number; serviceRadiusKm: number } | null;
@@ -450,8 +610,12 @@ describe('DepotCrmService.getDepotDetail', () => {
     identity: IdentityPort = new FakeIdentity(),
     wired: Wired = {},
   ): DepotCrmService {
-    const profiles: ProfileRepository = { findByCustomerId: async () => profile } as unknown as ProfileRepository;
-    const addressRepo: AddressRepository = { listByCustomer: async () => addresses } as unknown as AddressRepository;
+    const profiles: ProfileRepository = {
+      findByCustomerId: async () => profile,
+    } as unknown as ProfileRepository;
+    const addressRepo: AddressRepository = {
+      listByCustomer: async () => addresses,
+    } as unknown as AddressRepository;
     const orderCrm: OrderCrmPort = {
       depotCustomerStats: async () => wired.stats ?? [],
       customerOrders: async () => wired.orders ?? [],
@@ -546,15 +710,26 @@ describe('DepotCrmService.getDepotDetail', () => {
       churnRisk: null,
     });
     expect(d.addresses).toHaveLength(2);
-    expect(d.addresses[0]).toMatchObject({ id: 'a1', inRadius: null, distanceKm: null, isPrimary: false });
+    expect(d.addresses[0]).toMatchObject({
+      id: 'a1',
+      inRadius: null,
+      distanceKm: null,
+      isPrimary: false,
+    });
     expect(d.depositLedger).toEqual([]);
     expect(d.recentOrders).toEqual([]);
   });
 
   it('falls back to the first address when none is primary', async () => {
-    const svc = service(profile(MembershipTier.SILVER), [addr({ recipientName: 'First', phone: '0009' })]);
+    const svc = service(profile(MembershipTier.SILVER), [
+      addr({ recipientName: 'First', phone: '0009' }),
+    ]);
     const d = await svc.getDepotDetail('c1', 'depot-a');
-    expect(d.profile).toMatchObject({ fullName: 'First', phone: '0009', membershipTier: MembershipTier.SILVER });
+    expect(d.profile).toMatchObject({
+      fullName: 'First',
+      phone: '0009',
+      membershipTier: MembershipTier.SILVER,
+    });
   });
 
   it('no profile + no addresses → BASIC tier and null name/phone', async () => {
@@ -572,28 +747,63 @@ describe('DepotCrmService.getDepotDetail', () => {
         },
       ],
     }).getDepotDetail('c1', 'depot-a');
-    expect(d.profile).toMatchObject({ fullName: null, phone: null, membershipTier: MembershipTier.BASIC });
+    expect(d.profile).toMatchObject({
+      fullName: null,
+      phone: null,
+      membershipTier: MembershipTier.BASIC,
+    });
     expect(d.addresses).toEqual([]);
   });
 
   it('fills the cross-service numbers, the ledger and the recent orders', async () => {
     const svc = service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
       stats: [
-        { customerId: 'c1', name: 'n', phone: 'p', orderCount: 3, totalSpent: 90_000.4, firstOrderAt: null, lastOrderAt: null },
-        { customerId: 'other', name: null, phone: null, orderCount: 9, totalSpent: 1, firstOrderAt: null, lastOrderAt: null },
+        {
+          customerId: 'c1',
+          name: 'n',
+          phone: 'p',
+          orderCount: 3,
+          totalSpent: 90_000.4,
+          firstOrderAt: null,
+          lastOrderAt: null,
+        },
+        {
+          customerId: 'other',
+          name: null,
+          phone: null,
+          orderCount: 9,
+          totalSpent: 1,
+          firstOrderAt: null,
+          lastOrderAt: null,
+        },
       ],
       gallons: [
         { customerId: 'c1', gallonsOnLoan: 2, depositHeldIdr: 40_000 },
         { customerId: 'other', gallonsOnLoan: 7, depositHeldIdr: 1 },
       ],
-      ledger: [{ id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' }],
-      orders: [{ id: 'o1', orderNumber: 'HM-1', status: 'COMPLETED', totalIdr: 50_000, placedAt: '2026-08-02T00:00:00.000Z' }],
+      ledger: [
+        { id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' },
+      ],
+      orders: [
+        {
+          id: 'o1',
+          orderNumber: 'HM-1',
+          status: 'COMPLETED',
+          totalIdr: 50_000,
+          placedAt: '2026-08-02T00:00:00.000Z',
+        },
+      ],
     });
 
     const d = await svc.getDepotDetail('c1', 'depot-a');
 
     // Rounded, and the other customer's row is not the one that lands here.
-    expect(d.profile).toMatchObject({ orderCount: 3, totalSpentIdr: 90_000, gallonsOnLoan: 2, depositHeldIdr: 40_000 });
+    expect(d.profile).toMatchObject({
+      orderCount: 3,
+      totalSpentIdr: 90_000,
+      gallonsOnLoan: 2,
+      depositHeldIdr: 40_000,
+    });
     expect(d.depositLedger).toHaveLength(1);
     // `orderNumber` is not part of the screen's row shape — it must not leak through.
     expect(d.recentOrders).toEqual([
@@ -605,16 +815,39 @@ describe('DepotCrmService.getDepotDetail', () => {
   // whose services DID answer, is a real zero. An unreachable service is not.
   it('a customer missing from an answered aggregate is 0, not null', async () => {
     const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
-      stats: [{ customerId: 'someone-else', name: null, phone: null, orderCount: 1, totalSpent: 1, firstOrderAt: null, lastOrderAt: null }],
+      stats: [
+        {
+          customerId: 'someone-else',
+          name: null,
+          phone: null,
+          orderCount: 1,
+          totalSpent: 1,
+          firstOrderAt: null,
+          lastOrderAt: null,
+        },
+      ],
       gallons: [{ customerId: 'someone-else', gallonsOnLoan: 1, depositHeldIdr: 1 }],
     }).getDepotDetail('c1', 'depot-a');
 
-    expect(d.profile).toMatchObject({ orderCount: 0, totalSpentIdr: 0, gallonsOnLoan: 0, depositHeldIdr: 0 });
+    expect(d.profile).toMatchObject({
+      orderCount: 0,
+      totalSpentIdr: 0,
+      gallonsOnLoan: 0,
+      depositHeldIdr: 0,
+    });
   });
 
   it('unreachable order-service and depot-service stay null, never 0', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), { stats: [], gallons: null }).getDepotDetail('c1', 'depot-a');
-    expect(d.profile).toMatchObject({ orderCount: null, totalSpentIdr: null, gallonsOnLoan: null, depositHeldIdr: null });
+    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+      stats: [],
+      gallons: null,
+    }).getDepotDetail('c1', 'depot-a');
+    expect(d.profile).toMatchObject({
+      orderCount: null,
+      totalSpentIdr: null,
+      gallonsOnLoan: null,
+      depositHeldIdr: null,
+    });
   });
 
   /*
@@ -653,7 +886,10 @@ describe('DepotCrmService.getDepotDetail', () => {
       findByCustomerId: async () => profile(MembershipTier.BASIC),
     } as unknown as ProfileRepository;
     const addressRepo = { listByCustomer: async () => [addr({})] } as unknown as AddressRepository;
-    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => [], customerOrders: async () => [] };
+    const orderCrm: OrderCrmPort = {
+      depotCustomerStats: async () => [],
+      customerOrders: async () => [],
+    };
     const svc = new DepotCrmService(
       new FakeDepotCrmRepository(),
       addressRepo,
@@ -671,26 +907,35 @@ describe('DepotCrmService.getDepotDetail', () => {
   });
 
   it('carries the churn band forecast-service scored', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), { churn: 'HIGH' }).getDepotDetail(
-      'c1',
-      'depot-a',
-    );
+    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+      churn: 'HIGH',
+    }).getDepotDetail('c1', 'depot-a');
     expect(d.profile.churnRisk).toBe('HIGH');
   });
 
   it('measures each address against the depot radius, to one decimal', async () => {
     // ~1.1 km north of the depot, well inside a 5 km radius.
-    const d = await service(profile(MembershipTier.BASIC), [addr({ latitude: -6.89, longitude: 107.6 })], new FakeIdentity(), {
-      geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
-    }).getDepotDetail('c1', 'depot-a');
+    const d = await service(
+      profile(MembershipTier.BASIC),
+      [addr({ latitude: -6.89, longitude: 107.6 })],
+      new FakeIdentity(),
+      {
+        geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
+      },
+    ).getDepotDetail('c1', 'depot-a');
     expect(d.addresses[0].distanceKm).toBeCloseTo(1.1, 1);
     expect(d.addresses[0].inRadius).toBe(true);
   });
 
   it('calls an address beyond the radius out of range', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [addr({ latitude: -7.4, longitude: 107.6 })], new FakeIdentity(), {
-      geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
-    }).getDepotDetail('c1', 'depot-a');
+    const d = await service(
+      profile(MembershipTier.BASIC),
+      [addr({ latitude: -7.4, longitude: 107.6 })],
+      new FakeIdentity(),
+      {
+        geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
+      },
+    ).getDepotDetail('c1', 'depot-a');
     expect(d.addresses[0].distanceKm).toBeGreaterThan(5);
     expect(d.addresses[0].inRadius).toBe(false);
   });
@@ -698,7 +943,11 @@ describe('DepotCrmService.getDepotDetail', () => {
   // An address nobody pinned cannot be in or out of a radius. Answering "0 km, in range"
   // would send a courier to a place the system does not actually know.
   it.each([
-    ['the address has no coordinates', { latitude: null, longitude: null }, { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }],
+    [
+      'the address has no coordinates',
+      { latitude: null, longitude: null },
+      { lat: -6.9, lng: 107.6, serviceRadiusKm: 5 },
+    ],
     ['the depot location could not be read', {}, null],
   ])('leaves distance and inRadius null when %s', async (_label, addrOver, geo) => {
     const d = await service(profile(MembershipTier.BASIC), [addr(addrOver)], new FakeIdentity(), {

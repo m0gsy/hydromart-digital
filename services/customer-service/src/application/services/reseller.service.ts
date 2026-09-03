@@ -218,10 +218,7 @@ export class ResellerService {
   }
 
   /** K4.2: this agen's recorded changes, newest first — applied history and pending alike. */
-  async priceHistory(
-    user: AuthenticatedUser,
-    customerId: string,
-  ): Promise<ResellerPriceChange[]> {
+  async priceHistory(user: AuthenticatedUser, customerId: string): Promise<ResellerPriceChange[]> {
     const current = await this.resellers.findById(customerId);
     if (!current) throw new ResellerNotFoundError();
     assertDepotAccess(user, current.homeDepotId);

@@ -6,8 +6,14 @@ import {
   VoucherInactiveError,
   VoucherNotStartedError,
   VoucherUsageExceededError,
+  VoucherWrongDepotError,
 } from '../../src/domain/errors';
-import { DiscountType, VoucherRules, computeDiscount, validateVoucher } from '../../src/domain/voucher';
+import {
+  DiscountType,
+  VoucherRules,
+  computeDiscount,
+  validateVoucher,
+} from '../../src/domain/voucher';
 
 const rules = (overrides: Partial<VoucherRules> = {}): VoucherRules => ({
   discountType: DiscountType.PERCENTAGE,
@@ -56,11 +62,15 @@ describe('computeDiscount', () => {
   });
 
   it('applies a fixed discount in rupiah', () => {
-    expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 5000 }), 60000)).toBe(5000);
+    expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 5000 }), 60000)).toBe(
+      5000,
+    );
   });
 
   it('never exceeds the subtotal', () => {
-    expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 90000 }), 60000)).toBe(60000);
+    expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 90000 }), 60000)).toBe(
+      60000,
+    );
     expect(computeDiscount(rules({ value: 100, maxDiscount: null }), 60000)).toBe(60000);
   });
 
@@ -69,7 +79,13 @@ describe('computeDiscount', () => {
     expect(computeDiscount(v, 60000, 8000)).toBe(8000); // full shipping fee
     expect(computeDiscount(v, 60000, 0)).toBe(0); // free pickup → nothing to waive
     // Capped by maxDiscount when set (e.g. subsidise shipping up to 5000).
-    expect(computeDiscount(rules({ discountType: DiscountType.FREE_SHIPPING, maxDiscount: 5000 }), 60000, 8000)).toBe(5000);
+    expect(
+      computeDiscount(
+        rules({ discountType: DiscountType.FREE_SHIPPING, maxDiscount: 5000 }),
+        60000,
+        8000,
+      ),
+    ).toBe(5000);
   });
 });
 
@@ -81,25 +97,35 @@ describe('validateVoucher', () => {
   });
 
   it('rejects an inactive voucher', () => {
-    expect(() => validateVoucher(rules({ active: false }), 60000, now, 0, 0)).toThrow(VoucherInactiveError);
+    expect(() => validateVoucher(rules({ active: false }), 60000, now, 0, 0)).toThrow(
+      VoucherInactiveError,
+    );
   });
 
   it('rejects a voucher that has not started', () => {
     const validFrom = new Date('2026-07-01T00:00:00.000Z');
-    expect(() => validateVoucher(rules({ validFrom }), 60000, now, 0, 0)).toThrow(VoucherNotStartedError);
+    expect(() => validateVoucher(rules({ validFrom }), 60000, now, 0, 0)).toThrow(
+      VoucherNotStartedError,
+    );
   });
 
   it('rejects an expired voucher', () => {
     const validUntil = new Date('2026-05-01T00:00:00.000Z');
-    expect(() => validateVoucher(rules({ validUntil }), 60000, now, 0, 0)).toThrow(VoucherExpiredError);
+    expect(() => validateVoucher(rules({ validUntil }), 60000, now, 0, 0)).toThrow(
+      VoucherExpiredError,
+    );
   });
 
   it('rejects when the subtotal is below minSpend', () => {
-    expect(() => validateVoucher(rules({ minSpend: 100000 }), 60000, now, 0, 0)).toThrow(MinSpendNotMetError);
+    expect(() => validateVoucher(rules({ minSpend: 100000 }), 60000, now, 0, 0)).toThrow(
+      MinSpendNotMetError,
+    );
   });
 
   it('rejects when the global usage limit is reached', () => {
-    expect(() => validateVoucher(rules({ usageLimit: 5 }), 60000, now, 5, 0)).toThrow(VoucherUsageExceededError);
+    expect(() => validateVoucher(rules({ usageLimit: 5 }), 60000, now, 5, 0)).toThrow(
+      VoucherUsageExceededError,
+    );
   });
 
   it('rejects when the customer limit is reached', () => {
@@ -111,9 +137,59 @@ describe('validateVoucher', () => {
   it('rejects the redemption that would take the budget past its cap', () => {
     // Hard cap: the burn passed in already includes this order's own discount, so
     // landing exactly on the cap is allowed and the first rupiah over is rejected.
-    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000)).not.toThrow();
+    expect(() =>
+      validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000),
+    ).not.toThrow();
     expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100001)).toThrow(
       VoucherBudgetExhaustedError,
+    );
+  });
+});
+
+/*
+ * CA-2-65: a depot's voucher, spendable across the whole network.
+ *
+ * `VoucherRequest` carries `depotId` and `depotName` — a depot manager proposes a promo for
+ * their own area and head office approves it. `Voucher` had no depot column at all, so the
+ * approval created a code every customer in the network could spend, funded by the depot
+ * that asked for one promo on their own street.
+ */
+describe('validateVoucher depot scope (CA-2-65)', () => {
+  const now = new Date('2026-06-01T00:00:00.000Z');
+
+  it('lets a network-wide voucher through at any depot, and with no depot at all', () => {
+    expect(() =>
+      validateVoucher(rules({ depotId: null }), 60000, now, 0, 0, 0, 'd-1'),
+    ).not.toThrow();
+    expect(() =>
+      validateVoucher(rules({ depotId: null }), 60000, now, 0, 0, 0, null),
+    ).not.toThrow();
+    expect(() => validateVoucher(rules(), 60000, now, 0, 0)).not.toThrow();
+  });
+
+  it('lets a depot voucher through at its own depot', () => {
+    expect(() =>
+      validateVoucher(rules({ depotId: 'd-1' }), 60000, now, 0, 0, 0, 'd-1'),
+    ).not.toThrow();
+  });
+
+  it('refuses a depot voucher at another depot', () => {
+    expect(() => validateVoucher(rules({ depotId: 'd-1' }), 60000, now, 0, 0, 0, 'd-2')).toThrow(
+      VoucherWrongDepotError,
+    );
+  });
+
+  /*
+   * The unknown case is NOT the permissive one. A caller that cannot say which depot — an
+   * older client, a path with no depot — must not be the way a scoped voucher escapes; that
+   * would leave the same hole open under a new name.
+   */
+  it('refuses a depot voucher when the caller cannot say which depot', () => {
+    expect(() => validateVoucher(rules({ depotId: 'd-1' }), 60000, now, 0, 0)).toThrow(
+      VoucherWrongDepotError,
+    );
+    expect(() => validateVoucher(rules({ depotId: 'd-1' }), 60000, now, 0, 0, 0, null)).toThrow(
+      VoucherWrongDepotError,
     );
   });
 });

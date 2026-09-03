@@ -9,10 +9,7 @@ import {
   ProfileRepository,
   SegmentFilter,
 } from '../ports/profile.repository';
-import {
-  CustomerDepotDepositRow,
-  DepotLedgerPort,
-} from '../ports/depot-ledger.port';
+import { CustomerDepotDepositRow, DepotLedgerPort } from '../ports/depot-ledger.port';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 export interface BirthdayRewardResult {
@@ -82,7 +79,10 @@ export class ProfileService {
    * ponytail: Feb-29 birthdays only match in leap years; add a Feb-28 fallback if the
    * business wants those rewarded every year.
    */
-  async runBirthdayRewards(authorization: string, now: Date = new Date()): Promise<BirthdayRewardResult> {
+  async runBirthdayRewards(
+    authorization: string,
+    now: Date = new Date(),
+  ): Promise<BirthdayRewardResult> {
     // H-16: "today" was the UTC date, so the sweep — which the scheduler fires in the
     // early WIB morning — rewarded YESTERDAY's birthdays for seven hours every day, and
     // stamped them under the wrong year on 1 January.

@@ -97,7 +97,12 @@ function build(opts: { updateFails?: boolean } = {}) {
     preRegisterCustomer: async () => ({}),
   };
 
-  const service = new ResellerService(repo, profiles as never, identity as never, notifier as never);
+  const service = new ResellerService(
+    repo,
+    profiles as never,
+    identity as never,
+    notifier as never,
+  );
   return { service, changes, notices, repo, reseller: () => current };
 }
 

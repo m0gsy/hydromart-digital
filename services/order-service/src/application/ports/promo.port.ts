@@ -16,6 +16,17 @@ export interface PromoPort {
     subtotal: number,
     shippingFee: number,
     authorization: string,
+    /**
+     * CA-2-65: the depot fulfilling this order.
+     *
+     * A voucher a depot manager requested for their own area used to be spendable across
+     * the whole network. The check belongs HERE, on the quote, and not on `redeem`: redeem
+     * fails open by design so an order already priced with the discount would keep it.
+     *
+     * Optional on the wire only. promo-service REFUSES a depot-scoped voucher when the
+     * caller could not say which depot — the unknown case is not the permissive one.
+     */
+    depotId?: string | null,
   ): Promise<{ discount: number; discountType?: string }>;
 
   /**
@@ -29,6 +40,8 @@ export interface PromoPort {
     customerId: string,
     subtotal: number,
     shippingFee: number,
+    /** CA-2-65: the depot the counter sale is rung up at. See `quote`. */
+    depotId?: string | null,
   ): Promise<{ discount: number; discountType?: string }>;
 
   redeem(
@@ -38,6 +51,8 @@ export interface PromoPort {
     subtotal: number,
     shippingFee: number,
     authorization: string,
+    /** CA-2-65: recorded with the redemption; the gate is `quote`. */
+    depotId?: string | null,
   ): Promise<void>;
 
   /**

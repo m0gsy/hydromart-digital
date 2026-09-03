@@ -1,6 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { DuplicateVoucherCodeError, InvalidVoucherValueError, VoucherNotFoundError } from '../../domain/errors';
+import {
+  DuplicateVoucherCodeError,
+  InvalidVoucherValueError,
+  VoucherNotFoundError,
+} from '../../domain/errors';
 import {
   DiscountType,
   VoucherStatus,
@@ -82,6 +86,25 @@ export class VoucherService {
     if (input.discountType !== DiscountType.FREE_SHIPPING && input.value <= 0) {
       throw new InvalidVoucherValueError();
     }
+    /*
+     * CA-2-65: a PERCENTAGE voucher could be created at 500%.
+     *
+     * The column comment says "PERCENTAGE: a percent 1..100", both DTOs repeat it in their
+     * `@ApiProperty` description, and not one of them enforced it — `@Min(0)` was the whole
+     * check. A voucher at 500 does not fail anywhere either: the discount is computed as a
+     * fraction of the subtotal, so it simply pays the customer more than the order is worth,
+     * capped only by `maxDiscount` when somebody remembered to set one. And nothing on the
+     * HQ form sets one for a percentage voucher by default.
+     *
+     * Checked here rather than in the DTOs because the bound depends on ANOTHER field, and
+     * because both doors — the HQ form and an approved depot request — come through this
+     * method. A `@Max(100)` on `value` would have refused a Rp 50.000 fixed voucher.
+     */
+    if (input.discountType === DiscountType.PERCENTAGE && input.value > 100) {
+      throw new InvalidVoucherValueError(
+        `A percentage voucher cannot exceed 100% — got ${input.value}.`,
+      );
+    }
     if (await this.repo.findByCode(code)) throw new DuplicateVoucherCodeError(code);
     return this.repo.create({ ...input, code });
   }
@@ -132,7 +155,19 @@ export class VoucherService {
    * Preview the discount a voucher would grant for a customer's order. Runs the
    * full validation (throws on any failing rule) but has NO side effect.
    */
-  async quote(code: string, customerId: string, subtotal: number, shippingFee = 0): Promise<QuoteResult> {
+  /**
+   * CA-2-65: `depotId` is where the depot scope is actually enforced.
+   *
+   * Not `redeem` — that one fails OPEN by design, so an order already priced with the
+   * discount would keep it. `quote` fails CLOSED, so this is the door.
+   */
+  async quote(
+    code: string,
+    customerId: string,
+    subtotal: number,
+    shippingFee = 0,
+    depotId?: string | null,
+  ): Promise<QuoteResult> {
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
@@ -146,6 +181,7 @@ export class VoucherService {
       voucher.usedCount,
       customerRedemptionCount,
       burned + discount,
+      depotId,
     );
     return { code: voucher.code, discountType: voucher.discountType, discount, valid: true };
   }
@@ -181,6 +217,7 @@ export class VoucherService {
     orderId: string,
     subtotal: number,
     shippingFee = 0,
+    depotId?: string | null,
   ): Promise<RedeemResult> {
     const existing = await this.repo.findRedemptionByOrder(orderId);
     if (existing) {
@@ -200,7 +237,15 @@ export class VoucherService {
         const discount = computeDiscount(voucher, subtotal, shippingFee);
         // Throws on a cap violation, which rolls the transaction back — so a voucher that
         // ran out between quote and redeem burns nothing.
-        validateVoucher(voucher, subtotal, new Date(), usedCount, customerRedemptions, burned + discount);
+        validateVoucher(
+          voucher,
+          subtotal,
+          new Date(),
+          usedCount,
+          customerRedemptions,
+          burned + discount,
+          depotId,
+        );
         return discount;
       },
     );

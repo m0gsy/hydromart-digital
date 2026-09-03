@@ -43,7 +43,9 @@ export class ResellerNotificationHttpAdapter implements ResellerNotificationPort
       );
       const phone = identity?.phone;
       if (!phone) {
-        this.logger.warn(`Reseller ${notice.customerId} has no phone on file; price notice skipped`);
+        this.logger.warn(
+          `Reseller ${notice.customerId} has no phone on file; price notice skipped`,
+        );
         return false;
       }
       const res = await fetch(`${crmServiceUrl}/api/v1/notifications/internal`, {

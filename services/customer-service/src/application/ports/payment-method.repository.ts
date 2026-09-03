@@ -11,10 +11,7 @@ export interface PaymentMethodRecord {
   updatedAt: Date;
 }
 
-export type CreatePaymentMethodData = Omit<
-  PaymentMethodRecord,
-  'id' | 'createdAt' | 'updatedAt'
->;
+export type CreatePaymentMethodData = Omit<PaymentMethodRecord, 'id' | 'createdAt' | 'updatedAt'>;
 export type UpdatePaymentMethodData = Partial<
   Pick<PaymentMethodRecord, 'type' | 'label' | 'maskedIdentifier'>
 >;
@@ -29,7 +26,11 @@ export interface PaymentMethodRepository {
    * DefaultPaymentMethodConflictError (409) on the partial-unique-index race.
    */
   createExclusiveDefault(data: CreatePaymentMethodData): Promise<PaymentMethodRecord>;
-  update(customerId: string, id: string, patch: UpdatePaymentMethodData): Promise<PaymentMethodRecord>;
+  update(
+    customerId: string,
+    id: string,
+    patch: UpdatePaymentMethodData,
+  ): Promise<PaymentMethodRecord>;
   /** Clear the default flag on all of a customer's methods. */
   unsetDefault(customerId: string): Promise<void>;
   markDefault(customerId: string, id: string): Promise<void>;

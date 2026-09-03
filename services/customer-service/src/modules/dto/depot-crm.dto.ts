@@ -58,7 +58,11 @@ export class DepotCustomerDto {
   phone!: string | null;
   @ApiProperty({ enum: MembershipTier })
   membershipTier!: MembershipTier;
-  @ApiProperty({ nullable: true, example: null, description: 'null while cross-service aggregate is unwired.' })
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'null while cross-service aggregate is unwired.',
+  })
   orderCount!: number | null;
   @ApiProperty({ nullable: true, example: null })
   gallonsOnLoan!: number | null;
@@ -68,7 +72,11 @@ export class DepotCustomerDto {
   lastOrderAt!: string | null;
   @ApiProperty({ nullable: true, example: null })
   isSubscriber!: boolean | null;
-  @ApiProperty({ enum: ['BARU', 'AKTIF', 'INACTIVE'], nullable: true, description: 'CRM lifecycle segment; null when order data is unavailable.' })
+  @ApiProperty({
+    enum: ['BARU', 'AKTIF', 'INACTIVE'],
+    nullable: true,
+    description: 'CRM lifecycle segment; null when order data is unavailable.',
+  })
   segment!: 'BARU' | 'AKTIF' | 'INACTIVE' | null;
 }
 
@@ -181,7 +189,11 @@ export class DepotCustomerDetailProfileDto {
   phone!: string | null;
   @ApiProperty({ enum: MembershipTier })
   membershipTier!: MembershipTier;
-  @ApiProperty({ nullable: true, example: null, description: 'null while cross-service aggregate is unwired.' })
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'null while cross-service aggregate is unwired.',
+  })
   isSubscriber!: boolean | null;
   @ApiProperty({ nullable: true, example: null })
   orderCount!: number | null;

@@ -26,7 +26,9 @@ function totalsFrom(rows: OrderRecord[]): SoldTotals {
   return {
     soldLiters,
     unmeasuredLines,
-    gallonsDelivered: live.filter((r) => isDelivered(r.status)).reduce((s, r) => s + gallonQty(r), 0),
+    gallonsDelivered: live
+      .filter((r) => isDelivered(r.status))
+      .reduce((s, r) => s + gallonQty(r), 0),
     revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
   };
 }

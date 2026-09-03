@@ -401,6 +401,7 @@ describe('RewardPrismaRepository', () => {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   };
   const pointsTransaction = { create: jest.fn() };
   const loyaltyAccount = { update: jest.fn() };
@@ -570,17 +571,42 @@ describe('RewardPrismaRepository', () => {
     expect(await repo.findRedemptionByKey('cust-1', 'missing')).toBeNull();
   });
 
-  it('stamps a redemption as used (M14-03)', async () => {
-    rewardRedemption.update.mockResolvedValue({
+  /*
+   * CA-2-65: the status guard is in the WHERE clause now, like `cancel` below it.
+   *
+   * A redemption with no collection depot appears in EVERY depot's hand-over queue, so two
+   * counters really can hold the same row. With `where: { id }` alone, both wrote USED and
+   * both were told it worked — two rewards off two shelves against one ledger line.
+   */
+  it('stamps a redemption as used only while it is still ACTIVE (M14-03, CA-2-65)', async () => {
+    rewardRedemption.updateMany.mockResolvedValue({ count: 1 });
+    rewardRedemption.findUnique.mockResolvedValue({
       ...redemptionRow,
       status: 'USED',
       usedAt: new Date('2026-01-03'),
     });
     const out = await repo.markUsed('rd-1');
-    expect(out.status).toBe('USED');
-    const [[args]] = rewardRedemption.update.mock.calls;
-    expect(args.where).toEqual({ id: 'rd-1' });
+    expect(out?.status).toBe('USED');
+    const [[args]] = rewardRedemption.updateMany.mock.calls;
+    expect(args.where).toEqual({ id: 'rd-1', status: 'ACTIVE' });
     expect(args.data.status).toBe('USED');
+  });
+
+  it('reports the loser of a two-depot race rather than agreeing with it', async () => {
+    rewardRedemption.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.markUsed('rd-1')).toBeNull();
+    expect(rewardRedemption.findUnique).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The row won the update and then vanished before the read — a delete between the two
+   * statements. Vanishingly rare and not a crash: null already means "not yours", which is
+   * the right answer for a redemption that is no longer there.
+   */
+  it('returns null when the row disappears between the update and the read', async () => {
+    rewardRedemption.updateMany.mockResolvedValue({ count: 1 });
+    rewardRedemption.findUnique.mockResolvedValue(null);
+    expect(await repo.markUsed('rd-1')).toBeNull();
   });
 
   it('cancels atomically: status guard, credit entry, balance, stock restore (M14-03)', async () => {

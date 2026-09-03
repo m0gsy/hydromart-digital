@@ -93,8 +93,12 @@ describe('VoucherService branch gaps', () => {
   });
 
   it('burnSummary totals redemptions per voucher and across the network', async () => {
-    const a = await service.create(baseVoucher({ code: 'A', discountType: DiscountType.FIXED, value: 5000 }));
-    const b = await service.create(baseVoucher({ code: 'B', discountType: DiscountType.FIXED, value: 7000 }));
+    const a = await service.create(
+      baseVoucher({ code: 'A', discountType: DiscountType.FIXED, value: 5000 }),
+    );
+    const b = await service.create(
+      baseVoucher({ code: 'B', discountType: DiscountType.FIXED, value: 7000 }),
+    );
     await service.redeem('A', randomUUID(), randomUUID(), 60000);
     await service.redeem('B', randomUUID(), randomUUID(), 60000);
 

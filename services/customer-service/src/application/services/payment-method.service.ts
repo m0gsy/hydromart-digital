@@ -54,9 +54,7 @@ export class PaymentMethodService {
     };
     // Audit DB-2 (create path): a new default must unset the old one and insert
     // atomically. A non-default insert can't violate the partial unique index.
-    return makeDefault
-      ? this.methods.createExclusiveDefault(data)
-      : this.methods.create(data);
+    return makeDefault ? this.methods.createExclusiveDefault(data) : this.methods.create(data);
   }
 
   async update(

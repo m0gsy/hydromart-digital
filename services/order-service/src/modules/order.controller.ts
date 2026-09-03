@@ -22,7 +22,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+  assertDepotAccess,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -54,7 +64,23 @@ import {
   VoidSaleDto,
   WalkInSaleDto,
 } from './dto/order.dto';
-import { CartResponseDto, ExpireAbandoned2ResponseDto, InternalCompleted2ResponseDto, InternalConfirm2ResponseDto, InternalCustomerOrdersResponseDto, InternalDepotCustomers2ResponseDto, InternalDepotSales2ResponseDto, InternalRefund2ResponseDto, InternalTotal2ResponseDto, OrderResponseDto, OrderReviewResponseDto, OrderStatusHistoryResponseDto, PagedOrderResponseDto, RatingResponseDto, RemindStale2ResponseDto } from './dto/responses.generated.dto';
+import {
+  CartResponseDto,
+  ExpireAbandoned2ResponseDto,
+  InternalCompleted2ResponseDto,
+  InternalConfirm2ResponseDto,
+  InternalCustomerOrdersResponseDto,
+  InternalDepotCustomers2ResponseDto,
+  InternalDepotSales2ResponseDto,
+  InternalRefund2ResponseDto,
+  InternalTotal2ResponseDto,
+  OrderResponseDto,
+  OrderReviewResponseDto,
+  OrderStatusHistoryResponseDto,
+  PagedOrderResponseDto,
+  RatingResponseDto,
+  RemindStale2ResponseDto,
+} from './dto/responses.generated.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
 @ApiTags('Orders')
@@ -538,7 +564,13 @@ export class OrderController {
     @Query('customerId', ParseUUIDPipe) customerId: string,
     @Query('limit') limit?: string,
   ): Promise<{
-    orders: { id: string; orderNumber: string; status: string; totalIdr: number; placedAt: string }[];
+    orders: {
+      id: string;
+      orderNumber: string;
+      status: string;
+      totalIdr: number;
+      placedAt: string;
+    }[];
   }> {
     const parsed = Number(limit);
     const rows = await this.orders.customerOrdersAtDepot(

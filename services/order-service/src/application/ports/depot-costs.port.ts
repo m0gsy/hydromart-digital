@@ -42,7 +42,11 @@ export interface DepotGovernanceFigures {
 
 export interface DepotCostsPort {
   /** Goods + operating cost for one depot over [from, to). Null when depot-service is unreachable. */
-  costs(depotId: string, from: Date, to: Date): Promise<{ cogsIdr: number; opexIdr: number } | null>;
+  costs(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ cogsIdr: number; opexIdr: number } | null>;
   /** Net payroll for one depot and one 'YYYY-MM' period. Null when hr-service is unreachable. */
   payroll(depotId: string, periodMonth: string): Promise<number | null>;
   /** Approval/opname/settlement figures for [from, to). Null when depot-service is unreachable. */

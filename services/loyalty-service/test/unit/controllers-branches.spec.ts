@@ -449,10 +449,7 @@ describe('SettingsController (guards + delegation)', () => {
 
   it('reset() rejects a GLOBAL reset from a non-super-admin', async () => {
     await expect(
-      ctrl.reset(
-        { scope: 'GLOBAL', key: 'earnRateRupiah' } as never,
-        user({ role: 'MANAGER' }),
-      ),
+      ctrl.reset({ scope: 'GLOBAL', key: 'earnRateRupiah' } as never, user({ role: 'MANAGER' })),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

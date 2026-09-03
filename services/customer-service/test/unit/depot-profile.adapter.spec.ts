@@ -36,7 +36,10 @@ describe('DepotProfileHttpAdapter', () => {
   it('reads location from the PUBLIC depot projection, which already carries it', async () => {
     const fetchMock = jest
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }) });
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }),
+      });
     setFetch(fetchMock);
 
     await expect(new DepotProfileHttpAdapter(configured).geo(DEPOT)).resolves.toEqual({
@@ -55,7 +58,9 @@ describe('DepotProfileHttpAdapter', () => {
   });
 
   it('defaults a missing radius to 0 rather than assuming a service area', async () => {
-    setFetch(jest.fn().mockResolvedValue({ ok: true, json: async () => ({ lat: -6.9, lng: 107.6 }) }));
+    setFetch(
+      jest.fn().mockResolvedValue({ ok: true, json: async () => ({ lat: -6.9, lng: 107.6 }) }),
+    );
     await expect(new DepotProfileHttpAdapter(configured).geo(DEPOT)).resolves.toEqual({
       lat: -6.9,
       lng: 107.6,
@@ -83,7 +88,9 @@ describe('DepotProfileHttpAdapter', () => {
       'c2',
     ]);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://depot:3007/api/v1/subscriptions/internal/customer-ids?depotId=${DEPOT}`);
+    expect(url).toBe(
+      `http://depot:3007/api/v1/subscriptions/internal/customer-ids?depotId=${DEPOT}`,
+    );
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
   });
 
@@ -123,7 +130,9 @@ describe('ChurnRiskHttpAdapter', () => {
   });
 
   it('asks forecast-service for one customer with the internal key', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ riskBand: 'HIGH' }) });
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ riskBand: 'HIGH' }) });
     setFetch(fetchMock);
 
     await expect(new ChurnRiskHttpAdapter(configured).bandFor(CUSTOMER)).resolves.toBe('HIGH');
@@ -159,7 +168,9 @@ describe('ChurnRiskHttpAdapter', () => {
   ])('returns null without a round-trip when %s', async (_label, env) => {
     const fetchMock = jest.fn();
     setFetch(fetchMock);
-    await expect(new ChurnRiskHttpAdapter(buildTestConfig(env)).bandFor(CUSTOMER)).resolves.toBeNull();
+    await expect(
+      new ChurnRiskHttpAdapter(buildTestConfig(env)).bandFor(CUSTOMER),
+    ).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

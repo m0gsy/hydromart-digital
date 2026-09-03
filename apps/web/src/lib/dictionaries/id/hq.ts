@@ -713,6 +713,11 @@ export const hq = {
       needValue: 'Isi nilai penyesuaian.',
     },
     voucher: {
+      validFrom: 'Berlaku mulai',
+      validUntil: 'Berlaku sampai',
+      validHint: 'Kosongkan bila voucher tidak dibatasi tanggal',
+      percentTooHigh: 'Diskon persen tidak boleh lebih dari 100.',
+      endBeforeStart: 'Tanggal berakhir mendahului tanggal mulai.',
       title: 'Voucher baru',
       code: 'Kode',
       type: 'Tipe',

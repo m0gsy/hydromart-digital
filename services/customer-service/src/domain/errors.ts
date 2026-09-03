@@ -71,7 +71,6 @@ export class ResellerExistsError extends DomainError {
   }
 }
 
-
 /**
  * K4.2: a future `effectiveAt` was given but nothing about the agen's price changed.
  *

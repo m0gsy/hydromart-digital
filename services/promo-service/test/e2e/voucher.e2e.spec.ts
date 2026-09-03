@@ -64,7 +64,10 @@ describe('Voucher HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
+    marketingToken = jwt.sign(
+      { sub: randomUUID(), role: Role.MARKETING, phone: '+62' },
+      { secret },
+    );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
 
     // Seed one voucher for the whole suite (the repo is shared across tests).
@@ -97,7 +100,10 @@ describe('Voucher HTTP flows (e2e)', () => {
   });
 
   it('quotes a discount for an authenticated customer, 401 for anonymous', async () => {
-    await request(server()).post('/api/v1/vouchers/quote').send({ code: 'HEMAT10', subtotal: 60000 }).expect(401);
+    await request(server())
+      .post('/api/v1/vouchers/quote')
+      .send({ code: 'HEMAT10', subtotal: 60000 })
+      .expect(401);
 
     const res = await request(server())
       .post('/api/v1/vouchers/quote')
@@ -108,10 +114,23 @@ describe('Voucher HTTP flows (e2e)', () => {
   });
 
   it('requires the internal service key to redeem (401 without/wrong key)', async () => {
-    const body = { code: 'HEMAT10', customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 };
+    const body = {
+      code: 'HEMAT10',
+      customerId: randomUUID(),
+      orderId: randomUUID(),
+      subtotal: 60000,
+    };
     await request(server()).post('/api/v1/vouchers/redeem').send(body).expect(401);
-    await request(server()).post('/api/v1/vouchers/redeem').set(auth(customerToken)).send(body).expect(401);
-    await request(server()).post('/api/v1/vouchers/redeem').set(internal('wrong-key')).send(body).expect(401);
+    await request(server())
+      .post('/api/v1/vouchers/redeem')
+      .set(auth(customerToken))
+      .send(body)
+      .expect(401);
+    await request(server())
+      .post('/api/v1/vouchers/redeem')
+      .set(internal('wrong-key'))
+      .send(body)
+      .expect(401);
   });
 
   it('redeems a voucher via internal auth and returns the applied discount', async () => {
@@ -130,9 +149,7 @@ describe('Voucher HTTP flows (e2e)', () => {
       .send({ title: 'Promo analytics' })
       .expect(201);
 
-    await request(server())
-      .get(`/api/v1/promotions/${promotion.body.id}/analytics`)
-      .expect(401);
+    await request(server()).get(`/api/v1/promotions/${promotion.body.id}/analytics`).expect(401);
     await request(server())
       .get(`/api/v1/promotions/${promotion.body.id}/analytics`)
       .set(auth(customerToken))

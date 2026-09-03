@@ -10,7 +10,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  assertDepotAccess,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { DailySalesBroadcastResult, ReportService } from '../application/services/report.service';
@@ -29,15 +37,52 @@ import {
   SegmentEstimateQueryDto,
   TopReportQueryDto,
 } from './dto/report.dto';
-import { CustomerSummary, DepotCompareReport, DepotDailyReport, DepotMonthlyReport, DepotRatingsReport, DepotWeeklyReport, ReportRangeView, ResellerRollupReport, RetentionCohortReport, RevenueByProductReport, SalesReport } from '../application/services/report.service';
-import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } from '../application/ports/order.repository';
+import {
+  CustomerSummary,
+  DepotCompareReport,
+  DepotDailyReport,
+  DepotMonthlyReport,
+  DepotRatingsReport,
+  DepotWeeklyReport,
+  ReportRangeView,
+  ResellerRollupReport,
+  RetentionCohortReport,
+  RevenueByProductReport,
+  SalesReport,
+} from '../application/services/report.service';
+import {
+  CustomerSales,
+  DepotRating,
+  DepotRefund,
+  DepotSales,
+  DepotShipping,
+} from '../application/ports/order.repository';
 import {
   InternalDailySalesBroadcastResponseDto,
   InternalDepotDailyGallonsResponseDto,
   InternalExportRowsResponseDto,
   InternalSegmentCustomersResponseDto,
 } from './dto/responses.generated.dto';
-import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
+import {
+  AudienceReach3ResponseDto,
+  CustomerResponseDto,
+  DepotCompareReportResponseDto,
+  DepotDailyReportResponseDto,
+  DepotDailyRowResponseDto,
+  DepotMonthlyReportResponseDto,
+  DepotRatingsReportResponseDto,
+  DepotWeeklyReportResponseDto,
+  RatingByDepotResponseDto,
+  RefundsByDepotResponseDto,
+  ResellerRollupReportResponseDto,
+  RetentionCohortReportResponseDto,
+  RevenueByProductReportResponseDto,
+  SalesReportResponseDto,
+  SegmentEstimate3ResponseDto,
+  ShippingByDepotResponseDto,
+  TopCustomersResponseDto,
+  TopDepotsResponseDto,
+} from './dto/responses.generated.dto';
 
 // Depot daily/weekly (2d/7d) are the operator's own console screens, so KEPALA_DEPOT
 // joins the reporting roles for these two depot-scoped routes only.
@@ -126,21 +171,27 @@ export class ReportController {
   @ApiOkResponse({ type: ShippingByDepotResponseDto })
   @Get('shipping-by-depot')
   @ApiOperation({ summary: 'Shipping (ongkir) billed per depot (reconciliation 22a)' })
-  shippingByDepot(@Query() q: RangeReportQueryDto): Promise<ReportRangeView & { items: DepotShipping[] }> {
+  shippingByDepot(
+    @Query() q: RangeReportQueryDto,
+  ): Promise<ReportRangeView & { items: DepotShipping[] }> {
     return this.reports.shippingByDepot(toRange(q));
   }
 
   @ApiOkResponse({ type: RefundsByDepotResponseDto })
   @Get('refunds-by-depot')
   @ApiOperation({ summary: 'Refunds settled per depot (reconciliation 22a)' })
-  refundsByDepot(@Query() q: RangeReportQueryDto): Promise<ReportRangeView & { items: DepotRefund[] }> {
+  refundsByDepot(
+    @Query() q: RangeReportQueryDto,
+  ): Promise<ReportRangeView & { items: DepotRefund[] }> {
     return this.reports.refundsByDepot(toRange(q));
   }
 
   @ApiOkResponse({ type: RatingByDepotResponseDto })
   @Get('rating-by-depot')
   @ApiOperation({ summary: 'Average customer rating per depot (compare 14d)' })
-  ratingByDepot(@Query() q: RangeReportQueryDto): Promise<ReportRangeView & { items: DepotRating[] }> {
+  ratingByDepot(
+    @Query() q: RangeReportQueryDto,
+  ): Promise<ReportRangeView & { items: DepotRating[] }> {
     return this.reports.ratingByDepot(toRange(q));
   }
 
@@ -320,7 +371,9 @@ export class ReportController {
   @Can('audienceReach')
   @Get('audience-reach')
   @ApiOperation({ summary: 'Opt-in reachable customer count for a broadcast audience (10d)' })
-  audienceReach(@Query() q: AudienceReachQueryDto): Promise<{ depotId: string | null; count: number }> {
+  audienceReach(
+    @Query() q: AudienceReachQueryDto,
+  ): Promise<{ depotId: string | null; count: number }> {
     return this.reports.audienceReach(q.depotId);
   }
 

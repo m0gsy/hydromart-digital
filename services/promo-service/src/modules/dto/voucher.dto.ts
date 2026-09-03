@@ -37,7 +37,10 @@ export class CreateVoucherDto {
   @IsEnum(DiscountType)
   discountType!: DiscountType;
 
-  @ApiProperty({ example: 10, description: 'PERCENTAGE: percent 1..100. FIXED: rupiah off. Ignored (0) for FREE_SHIPPING.' })
+  @ApiProperty({
+    example: 10,
+    description: 'PERCENTAGE: percent 1..100. FIXED: rupiah off. Ignored (0) for FREE_SHIPPING.',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -81,7 +84,10 @@ export class CreateVoucherDto {
   @Min(1)
   perCustomerLimit?: number = 1;
 
-  @ApiPropertyOptional({ example: 5000000, description: 'Total discount budget (IDR); null = unlimited.' })
+  @ApiPropertyOptional({
+    example: 5000000,
+    description: 'Total discount budget (IDR); null = unlimited.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -113,12 +119,27 @@ export class QuoteVoucherDto {
   @IsPositive()
   subtotal!: number;
 
-  @ApiPropertyOptional({ example: 8000, description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).' })
+  @ApiPropertyOptional({
+    example: 8000,
+    description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   shippingFee?: number;
+  /*
+   * CA-2-65: the depot the order is being placed at.
+   *
+   * Optional on the wire so an older client is not broken — but the domain REFUSES a
+   * depot-scoped voucher when the caller could not say which depot, rather than waving it
+   * through. Defaulting the unknown case to "allow" would leave the same hole under a new
+   * name.
+   */
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot the order belongs to.' })
+  @IsOptional()
+  @IsString()
+  depotId?: string;
 }
 
 /**
@@ -158,12 +179,27 @@ export class RedeemVoucherDto {
   @IsPositive()
   subtotal!: number;
 
-  @ApiPropertyOptional({ example: 8000, description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).' })
+  @ApiPropertyOptional({
+    example: 8000,
+    description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   shippingFee?: number;
+  /*
+   * CA-2-65: the depot the order is being placed at.
+   *
+   * Optional on the wire so an older client is not broken — but the domain REFUSES a
+   * depot-scoped voucher when the caller could not say which depot, rather than waving it
+   * through. Defaulting the unknown case to "allow" would leave the same hole under a new
+   * name.
+   */
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot the order belongs to.' })
+  @IsOptional()
+  @IsString()
+  depotId?: string;
 }
 
 /* ---------- Responses ---------- */
@@ -226,9 +262,15 @@ export class ReleaseVoucherDto {
 
 /** C4: whether anything was actually given back, and how much. */
 export class ReleaseResponseDto {
-  @ApiProperty({ example: true, description: 'False when the order had no redemption — the common case.' })
+  @ApiProperty({
+    example: true,
+    description: 'False when the order had no redemption — the common case.',
+  })
   released!: boolean;
 
-  @ApiProperty({ example: 15000, description: 'The discount the buyer gets back on their next use, in IDR.' })
+  @ApiProperty({
+    example: 15000,
+    description: 'The discount the buyer gets back on their next use, in IDR.',
+  })
   discountReturned!: number;
 }

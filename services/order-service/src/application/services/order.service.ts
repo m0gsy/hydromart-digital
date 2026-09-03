@@ -483,7 +483,10 @@ export class OrderService {
       // The shipping fee alone, without the express surcharge: a FREE_SHIPPING voucher
       // waives delivery, and paying nothing for a speed upgrade is not what it promises.
       const quoteP = voucherCode
-        ? this.promo.quote(voucherCode, customerId, subtotal, shippingFee, authorization)
+        ? // CA-2-65: the fulfilling depot. A voucher a depot manager requested for their
+          // own area used to be spendable network-wide; the quote is where that gets
+          // refused, because `redeem` fails open and an already-priced order would stand.
+          this.promo.quote(voucherCode, customerId, subtotal, shippingFee, authorization, depot.id)
         : Promise.resolve(null);
       // A rejected voucher must still reject checkout, and a rejected quote must not leave
       // the membership call unhandled — allSettled, then rethrow the quote's failure.
@@ -553,6 +556,7 @@ export class OrderService {
               subtotal,
               shippingFee,
               authorization,
+              depot.id,
             )
         : undefined,
     );
@@ -1002,6 +1006,7 @@ export class OrderService {
               subtotal,
               shippingFee,
               authorization,
+              input.depotId,
             )
         : undefined,
     );
@@ -1241,7 +1246,13 @@ export class OrderService {
     if (voucherCode) {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
-      const quote = await this.promo.quoteFor(voucherCode, customerId, subtotal, shippingFee);
+      const quote = await this.promo.quoteFor(
+        voucherCode,
+        customerId,
+        subtotal,
+        shippingFee,
+        depotId,
+      );
       if (quote.discountType === 'FREE_SHIPPING') {
         // C11: a free-shipping voucher is only meaningless when there is no shipping. On a
         // counter DELIVERY it is worth exactly the fee, never more — capping it here rather

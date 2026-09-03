@@ -23,11 +23,16 @@ export class PromoHttpAdapter implements PromoPort {
     subtotal: number,
     shippingFee: number,
     authorization: string,
+    depotId?: string | null,
   ): Promise<{ discount: number; discountType?: string }> {
     return this.postQuote(
       `${this.config.promoServiceUrl}/api/v1/vouchers/quote`,
       { authorization },
-      { code, subtotal, shippingFee },
+      // CA-2-65: `depotId` has to be ON THE WIRE, not merely in the signature. The
+      // parameter is optional, so nothing in the type system would have noticed it being
+      // dropped here — and a depot-scoped voucher would have gone on spending everywhere
+      // while every layer above looked correct.
+      { code, subtotal, shippingFee, depotId },
       code,
     );
   }
@@ -37,6 +42,7 @@ export class PromoHttpAdapter implements PromoPort {
     customerId: string,
     subtotal: number,
     shippingFee: number,
+    depotId?: string | null,
   ): Promise<{ discount: number; discountType?: string }> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
@@ -48,7 +54,7 @@ export class PromoHttpAdapter implements PromoPort {
     return this.postQuote(
       `${this.config.promoServiceUrl}/api/v1/vouchers/quote/internal`,
       { 'x-internal-key': internalServiceKey },
-      { code, customerId, subtotal, shippingFee },
+      { code, customerId, subtotal, shippingFee, depotId },
       code,
     );
   }
@@ -108,6 +114,7 @@ export class PromoHttpAdapter implements PromoPort {
     subtotal: number,
     shippingFee: number,
     _authorization: string,
+    depotId?: string | null,
   ): Promise<void> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
@@ -121,7 +128,7 @@ export class PromoHttpAdapter implements PromoPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({ code, customerId, orderId, subtotal, shippingFee }),
+        body: JSON.stringify({ code, customerId, orderId, subtotal, shippingFee, depotId }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -163,7 +170,9 @@ export class PromoHttpAdapter implements PromoPort {
       });
       if (!res.ok) throw new Error(`promo-service responded ${res.status}`);
     } catch (error) {
-      this.logger.error(`Voucher release failed for voided order ${orderId}: ${(error as Error).message}`);
+      this.logger.error(
+        `Voucher release failed for voided order ${orderId}: ${(error as Error).message}`,
+      );
     }
   }
 }

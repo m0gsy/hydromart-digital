@@ -36,7 +36,10 @@ export class CashierShiftHttpAdapter implements CashierShiftPort {
         throw new Error(`depot-service responded ${res.status}`);
       }
       // `null` is a real answer here: the caller is simply not on the counter.
-      const body = (await res.json().catch(() => null)) as { id?: string; openedAt?: string } | null;
+      const body = (await res.json().catch(() => null)) as {
+        id?: string;
+        openedAt?: string;
+      } | null;
       if (!body?.id || !body.openedAt) return null;
       return { id: body.id, openedAt: new Date(body.openedAt) };
     } catch (error) {

@@ -1,7 +1,4 @@
-import {
-  PromotionNotFoundError,
-  VoucherRequestDecidedError,
-} from '../../src/domain/errors';
+import { PromotionNotFoundError, VoucherRequestDecidedError } from '../../src/domain/errors';
 import { DiscountType } from '../../src/domain/voucher';
 import { VoucherRequestStatus, VoucherRequestRecord } from '../../src/domain/voucher-request';
 import { PromotionService } from '../../src/application/services/promotion.service';
@@ -30,7 +27,6 @@ const noNames = async () => new Map<string, string>();
 /** Only `businessTimeZone` is read; WIB pinned so a UTC-bucket regression (H-16) fails here. */
 const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
   ({ businessTimeZone: timeZone }) as PromoConfigService;
-
 
 class FakeOrderValues {
   async findOrderValues(): Promise<{ orderId: string; totalIdr: number }[] | null> {
@@ -181,8 +177,6 @@ describe('VoucherRequestService branch gaps', () => {
     const { service } = build();
     const rec = await service.propose('depot-1', 'user-1', INPUT);
     await service.reject(rec.id, 'hq-1');
-    await expect(service.reject(rec.id, 'hq-1')).rejects.toBeInstanceOf(
-      VoucherRequestDecidedError,
-    );
+    await expect(service.reject(rec.id, 'hq-1')).rejects.toBeInstanceOf(VoucherRequestDecidedError);
   });
 });

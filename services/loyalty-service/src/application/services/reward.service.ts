@@ -4,6 +4,7 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 import {
   InsufficientPointsError,
   RewardAlreadyCancelledError,
+  RewardAlreadyHandedOverError,
   RewardAlreadyUsedError,
   RewardItemNotFoundError,
   RewardOutOfStockError,
@@ -157,10 +158,7 @@ export class RewardService {
    * question and appear in every depot's queue precisely so somebody can hand them over.
    * Denying them here would strand the customer instead of protecting them.
    */
-  async markUsed(
-    redemptionId: string,
-    user?: AuthenticatedUser,
-  ): Promise<RewardRedemptionRecord> {
+  async markUsed(redemptionId: string, user?: AuthenticatedUser): Promise<RewardRedemptionRecord> {
     const redemption = await this.rewards.findRedemption(redemptionId);
     if (!redemption) throw new RewardRedemptionNotFoundError();
     if (redemption.depotId) {
@@ -168,6 +166,21 @@ export class RewardService {
     }
     if (redemption.status === 'CANCELLED') throw new RewardAlreadyCancelledError();
     if (redemption.status === 'USED') return redemption; // idempotent
-    return this.rewards.markUsed(redemption.id);
+    /*
+     * CA-2-65: the read above is not the defence — the WHERE clause in the repository is.
+     *
+     * A redemption with no collection depot appears in EVERY depot's queue (see the note on
+     * the exemption above), so two depots genuinely can be holding the same row. Both used
+     * to read ACTIVE here, both wrote USED, and both were told it worked: two rewards off
+     * two shelves, one line in the ledger.
+     *
+     * Losing the race is not an error the customer caused, so it reports what happened
+     * rather than a failure: the reward IS handed over, just not by this depot.
+     */
+    const claimed = await this.rewards.markUsed(redemption.id);
+    if (claimed) return claimed;
+    const current = await this.rewards.findRedemption(redemptionId);
+    if (current?.status === 'USED') throw new RewardAlreadyHandedOverError();
+    throw new RewardRedemptionNotFoundError();
   }
 }

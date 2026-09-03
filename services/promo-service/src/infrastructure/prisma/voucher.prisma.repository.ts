@@ -29,6 +29,8 @@ interface VoucherRow {
   usageLimit: number | null;
   perCustomerLimit: number;
   budgetCap: number | null;
+  /** CA-2-65: null = network-wide, which is every row written before 0008. */
+  depotId: string | null;
   usedCount: number;
   active: boolean;
   createdAt: Date;

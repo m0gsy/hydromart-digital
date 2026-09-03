@@ -44,7 +44,9 @@ export class DepotCrmController {
   // and every one of them renders the response directly. The bound is in the query itself
   // (W9) — a full page is the signal that another one may exist, same as `nextCursor`.
   @Get('depot')
-  @ApiOperation({ summary: 'List customers associated with a depot (name/phone searchable, paged)' })
+  @ApiOperation({
+    summary: 'List customers associated with a depot (name/phone searchable, paged)',
+  })
   @ApiOkResponse({ type: [DepotCustomerDto] })
   listDepotCustomers(@Query() query: DepotCustomerQueryDto): Promise<DepotCustomerDto[]> {
     return this.crm.listDepotCustomers(query.depotId, query.q, query.page, query.limit);
@@ -52,14 +54,18 @@ export class DepotCrmController {
 
   // Static `crm/dashboard` declared before `:id/...` so it is not captured by the param route.
   @Get('crm/dashboard')
-  @ApiOperation({ summary: 'Depot CRM lifecycle: segment counts, repeat rate, follow-up queue (Fase 4)' })
+  @ApiOperation({
+    summary: 'Depot CRM lifecycle: segment counts, repeat rate, follow-up queue (Fase 4)',
+  })
   @ApiOkResponse({ type: CrmDashboardDto })
   crmDashboard(@Query() query: CrmDashboardQueryDto): Promise<CrmDashboardDto> {
     return this.crm.getCrmDashboard(query.depotId);
   }
 
   @Get(':id/depot-detail')
-  @ApiOperation({ summary: 'Customer detail for the depot CRM: profile, addresses, deposit ledger, recent orders' })
+  @ApiOperation({
+    summary: 'Customer detail for the depot CRM: profile, addresses, deposit ledger, recent orders',
+  })
   @ApiOkResponse({ type: DepotCustomerDetailDto })
   getDepotDetail(
     @Param('id', ParseUUIDPipe) id: string,

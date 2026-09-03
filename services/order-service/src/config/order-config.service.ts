@@ -92,7 +92,9 @@ export class OrderConfigService {
    * orders a depot has genuinely abandoned. Global, because the sweep has no depot scope.
    */
   get subscriptionSweepExempt(): boolean {
-    return this.tunable('subscriptionSweepExempt', this.num('ORDER_SUBSCRIPTION_SWEEP_EXEMPT')) === 1;
+    return (
+      this.tunable('subscriptionSweepExempt', this.num('ORDER_SUBSCRIPTION_SWEEP_EXEMPT')) === 1
+    );
   }
   get stalledHours(): number {
     return this.tunable('stalledHours', this.num('ORDER_STALLED_HOURS'));

@@ -103,7 +103,9 @@ describe('AddressPrismaRepository', () => {
 
   it('deletes scoped to the customer', async () => {
     await repo.delete('cust-1', 'addr-1');
-    expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: 'addr-1', customerId: 'cust-1' } });
+    expect(model.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'addr-1', customerId: 'cust-1' },
+    });
   });
 
   it('finds the most recent address, optionally excluding one', async () => {
@@ -306,7 +308,13 @@ describe('NotificationPrismaRepository', () => {
         categories: { orders: true },
         locale: 'en',
       },
-      update: { push: true, email: false, whatsapp: true, categories: { orders: true }, locale: 'en' },
+      update: {
+        push: true,
+        email: false,
+        whatsapp: true,
+        categories: { orders: true },
+        locale: 'en',
+      },
     });
   });
 });
@@ -413,7 +421,9 @@ describe('ProfilePrismaRepository', () => {
   it('excludes customers who switched marketing off, and only those', async () => {
     $queryRaw.mockResolvedValue([]);
     await repo.findSegment({});
-    const sql = ($queryRaw.mock.calls[0]![0] as unknown as { join: (s: string) => string }).join(' ');
+    const sql = ($queryRaw.mock.calls[0]![0] as unknown as { join: (s: string) => string }).join(
+      ' ',
+    );
     expect(sql).toContain('notification_preferences');
     expect(sql).toContain("'marketing'");
     // NOT EXISTS, so a customer with no preferences row at all stays in the audience.

@@ -10,12 +10,7 @@ import { ProfileRepository } from '../ports/profile.repository';
 import { ChurnRiskPort } from '../ports/churn-risk.port';
 import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
 import { MembershipTier } from '../../domain/membership-tier.enum';
-import {
-  classifySegment,
-  daysBetween,
-  needsFollowUp,
-  CrmSegment,
-} from '../../domain/crm-segment';
+import { classifySegment, daysBetween, needsFollowUp, CrmSegment } from '../../domain/crm-segment';
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { CUSTOMER_TOKENS } from '../tokens';
 
@@ -354,21 +349,31 @@ export class DepotCrmService {
    * per-customer variant upstream only if a depot's directory ever gets big enough to hurt.
    */
   async getDepotDetail(customerId: string, depotId: string): Promise<DepotCustomerDetail> {
-    const [profile, addressRecords, identities, stats, ledgerRows, ledger, orders, subscriberIds, geo, churnRisk] =
-      await Promise.all([
-        this.profiles.findByCustomerId(customerId),
-        this.addresses.listByCustomer(customerId),
-        this.identity.getCustomerNames([customerId]),
-        this.orderCrm.depotCustomerStats(depotId),
-        // J-2: null (not []) when depot-service could not answer at all.
-        this.depotLedger.gallonsByCustomer(depotId),
-        this.depotLedger.customerLedger(depotId, customerId),
-        this.orderCrm.customerOrders(depotId, customerId),
-        this.depotProfile ? this.depotProfile.subscriberIds(depotId) : Promise.resolve(null),
-        // S2. Where the depot is, so each saved address can be judged against its radius.
-        this.depotProfile ? this.depotProfile.geo(depotId) : Promise.resolve(null),
-        this.churn ? this.churn.bandFor(customerId) : Promise.resolve(null),
-      ]);
+    const [
+      profile,
+      addressRecords,
+      identities,
+      stats,
+      ledgerRows,
+      ledger,
+      orders,
+      subscriberIds,
+      geo,
+      churnRisk,
+    ] = await Promise.all([
+      this.profiles.findByCustomerId(customerId),
+      this.addresses.listByCustomer(customerId),
+      this.identity.getCustomerNames([customerId]),
+      this.orderCrm.depotCustomerStats(depotId),
+      // J-2: null (not []) when depot-service could not answer at all.
+      this.depotLedger.gallonsByCustomer(depotId),
+      this.depotLedger.customerLedger(depotId, customerId),
+      this.orderCrm.customerOrders(depotId, customerId),
+      this.depotProfile ? this.depotProfile.subscriberIds(depotId) : Promise.resolve(null),
+      // S2. Where the depot is, so each saved address can be judged against its radius.
+      this.depotProfile ? this.depotProfile.geo(depotId) : Promise.resolve(null),
+      this.churn ? this.churn.bandFor(customerId) : Promise.resolve(null),
+    ]);
     const primary = addressRecords.find((a) => a.isPrimary) ?? addressRecords[0] ?? null;
     const account = identities.get(customerId);
     const stat = stats.find((s) => s.customerId === customerId);
@@ -426,7 +431,9 @@ export class DepotCrmService {
     // checkout with (@hydromart/platform), so the shop and the card cannot disagree.
     const measurable = geo !== null && a.latitude !== null && a.longitude !== null;
     const distanceKm = measurable
-      ? Math.round(haversineKm(a.latitude as number, a.longitude as number, geo.lat, geo.lng) * 10) / 10
+      ? Math.round(
+          haversineKm(a.latitude as number, a.longitude as number, geo.lat, geo.lng) * 10,
+        ) / 10
       : null;
     return {
       id: a.id,

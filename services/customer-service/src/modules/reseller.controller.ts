@@ -18,13 +18,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiConsumes,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
   Can,
@@ -188,7 +182,9 @@ export class ResellerController {
    */
   @Patch(':customerId')
   @Can('resellerAdmin')
-  @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active), optionally from a date' })
+  @ApiOperation({
+    summary: 'Edit a reseller (target / depot / note / active), optionally from a date',
+  })
   async update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('customerId', ParseUUIDPipe) customerId: string,

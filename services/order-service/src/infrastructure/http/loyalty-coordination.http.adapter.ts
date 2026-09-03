@@ -75,7 +75,9 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
         throw new Error(`loyalty-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(`Loyalty reversal skipped for order ${orderId}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Loyalty reversal skipped for order ${orderId}: ${(error as Error).message}`,
+      );
     } finally {
       clearTimeout(timer);
     }

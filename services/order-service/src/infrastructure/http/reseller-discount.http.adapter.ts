@@ -34,7 +34,10 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
     // marking the order would accuse customer-service of being down when nobody asked it.
     if (!authorization) return { reseller: null, unavailable: false };
     try {
-      return { reseller: await this.read('/api/v1/resellers/me', { authorization }), unavailable: false };
+      return {
+        reseller: await this.read('/api/v1/resellers/me', { authorization }),
+        unavailable: false,
+      };
     } catch (error) {
       // A5: fail open, but never silently — and now the caller can actually act on it.
       // `read` returns null for a 404 ("not an agen"), so reaching this catch means the
@@ -57,7 +60,9 @@ export class ResellerDiscountHttpAdapter implements ResellerDiscountPort {
       // charging every agen retail, and nothing anywhere goes red. Loud, and fail-closed.
       throw new Error('INTERNAL_SERVICE_KEY is not set — counter agen pricing cannot be read');
     }
-    return this.read(`/api/v1/customers/internal/reseller/${customerId}`, { 'x-internal-key': key });
+    return this.read(`/api/v1/customers/internal/reseller/${customerId}`, {
+      'x-internal-key': key,
+    });
   }
 
   private async read(

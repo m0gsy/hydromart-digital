@@ -101,6 +101,15 @@ export class VoucherRequestService {
       validUntil: null,
       usageLimit: request.usageLimit,
       perCustomerLimit: request.perCustomerLimit,
+      /*
+       * CA-2-65: the depot the request came from.
+       *
+       * A depot manager proposes a voucher for their own area and HQ approves it. Without
+       * this the approval created a code every customer in the network could spend, funded
+       * by the depot that asked for one promo on their own street. The request has always
+       * known which depot; the voucher it produced forgot.
+       */
+      depotId: request.depotId,
     });
     return this.requests.update(id, {
       status: VoucherRequestStatus.APPROVED,

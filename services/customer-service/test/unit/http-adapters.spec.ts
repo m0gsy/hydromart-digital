@@ -39,14 +39,24 @@ beforeEach(() => {
 describe('LoyaltyRewardHttpAdapter', () => {
   it('throws when loyalty-service url is not configured (no fetch)', async () => {
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig({ loyaltyServiceUrl: '' })).reward('c1', 50, 'birthday', ''),
+      new LoyaltyRewardHttpAdapter(makeConfig({ loyaltyServiceUrl: '' })).reward(
+        'c1',
+        50,
+        'birthday',
+        '',
+      ),
     ).rejects.toThrow('LOYALTY_SERVICE_URL not configured');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('throws when internal key is not configured (no fetch)', async () => {
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'birthday', ''),
+      new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward(
+        'c1',
+        50,
+        'birthday',
+        '',
+      ),
     ).rejects.toThrow('INTERNAL_SERVICE_KEY not configured');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -81,7 +91,11 @@ describe('LoyaltyRewardHttpAdapter', () => {
 
 describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
   const cfg = (over: Partial<Record<string, unknown>> = {}) =>
-    ({ orderServiceUrl: 'http://order:3004/', internalServiceKey: KEY, ...over }) as unknown as CustomerConfigService;
+    ({
+      orderServiceUrl: 'http://order:3004/',
+      internalServiceKey: KEY,
+      ...over,
+    }) as unknown as CustomerConfigService;
 
   /*
    * `err instanceof Error ? err.message : err` — a rejection that is not an Error takes the
@@ -96,8 +110,12 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
   });
 
   it('returns [] without fetching when url or key is missing', async () => {
-    expect(await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).depotCustomerStats('d1')).toEqual([]);
-    expect(await new OrderCrmHttpAdapter(cfg({ internalServiceKey: '' })).depotCustomerStats('d1')).toEqual([]);
+    expect(
+      await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).depotCustomerStats('d1'),
+    ).toEqual([]);
+    expect(
+      await new OrderCrmHttpAdapter(cfg({ internalServiceKey: '' })).depotCustomerStats('d1'),
+    ).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -107,8 +125,24 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
         ok: true,
         json: {
           customers: [
-            { customerId: 'c1', name: 'A', phone: '1', orderCount: 3, totalSpent: 90, firstOrderAt: '2026-01-01T00:00:00.000Z', lastOrderAt: '2026-06-01T00:00:00.000Z' },
-            { customerId: 'c2', name: null, phone: null, orderCount: 1, totalSpent: 10, firstOrderAt: null, lastOrderAt: null },
+            {
+              customerId: 'c1',
+              name: 'A',
+              phone: '1',
+              orderCount: 3,
+              totalSpent: 90,
+              firstOrderAt: '2026-01-01T00:00:00.000Z',
+              lastOrderAt: '2026-06-01T00:00:00.000Z',
+            },
+            {
+              customerId: 'c2',
+              name: null,
+              phone: null,
+              orderCount: 1,
+              totalSpent: 10,
+              firstOrderAt: null,
+              lastOrderAt: null,
+            },
           ],
         },
       }),
@@ -135,10 +169,20 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
 
   describe('customerOrders', () => {
     it('passes both ids and returns the orders verbatim', async () => {
-      const orders = [{ id: 'o1', orderNumber: 'HM-1', status: 'COMPLETED', totalIdr: 50_000, placedAt: '2026-08-02T00:00:00.000Z' }];
+      const orders = [
+        {
+          id: 'o1',
+          orderNumber: 'HM-1',
+          status: 'COMPLETED',
+          totalIdr: 50_000,
+          placedAt: '2026-08-02T00:00:00.000Z',
+        },
+      ];
       fetchMock.mockResolvedValue(res({ ok: true, json: { orders } }));
 
-      await expect(new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).resolves.toEqual(orders);
+      await expect(new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).resolves.toEqual(
+        orders,
+      );
       expect(fetchMock).toHaveBeenCalledWith(
         'http://order:3004/api/v1/orders/internal/customer-orders?depotId=d1&customerId=c1',
         { headers: { 'x-internal-key': KEY }, signal: expect.any(AbortSignal) },
@@ -146,7 +190,9 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
     });
 
     it('returns [] when unconfigured, refused, unreachable, or handed a body with no orders', async () => {
-      expect(await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).customerOrders('d1', 'c1')).toEqual([]);
+      expect(
+        await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).customerOrders('d1', 'c1'),
+      ).toEqual([]);
       expect(fetchMock).not.toHaveBeenCalled();
       fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
       expect(await new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).toEqual([]);
@@ -160,7 +206,9 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
 
 describe('ProductCatalogHttpAdapter', () => {
   const adapter = (over = {}) =>
-    new ProductCatalogHttpAdapter(makeConfig({ productServiceUrl: 'http://product:3003', ...over }));
+    new ProductCatalogHttpAdapter(
+      makeConfig({ productServiceUrl: 'http://product:3003', ...over }),
+    );
 
   it('skips the check entirely when product-service is not configured', async () => {
     await expect(adapter({ productServiceUrl: '' }).exists('p1')).resolves.toBe(true);
@@ -225,7 +273,9 @@ describe('IdentityHttpAdapter.preRegisterCustomer', () => {
 
   it('throws on a non-2xx response, carrying the status', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 422 }));
-    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(/422/);
+    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
+      /422/,
+    );
   });
 
   it('throws when the call itself fails, Error or not', async () => {
@@ -255,7 +305,12 @@ describe('IdentityHttpAdapter.getCustomerNames', () => {
 
   it('posts the deduplicated ids and maps the rows back by id', async () => {
     fetchMock.mockResolvedValue(
-      res({ json: [{ id: 'c1', fullName: 'Budi', phone: '0811' }, { id: 'c2', fullName: null }] }),
+      res({
+        json: [
+          { id: 'c1', fullName: 'Budi', phone: '0811' },
+          { id: 'c2', fullName: null },
+        ],
+      }),
     );
 
     const out = await new IdentityHttpAdapter(config).getCustomerNames(['c1', 'c2', 'c1', '']);
@@ -278,7 +333,10 @@ describe('IdentityHttpAdapter.getCustomerNames', () => {
     const adapter = new IdentityHttpAdapter(config);
     expect((await adapter.getCustomerNames([])).size).toBe(0);
     expect((await adapter.getCustomerNames([''])).size).toBe(0);
-    expect((await new IdentityHttpAdapter(makeConfig({ authServiceUrl: '' })).getCustomerNames(['c1'])).size).toBe(0);
+    expect(
+      (await new IdentityHttpAdapter(makeConfig({ authServiceUrl: '' })).getCustomerNames(['c1']))
+        .size,
+    ).toBe(0);
     expect(
       (
         await new IdentityHttpAdapter(
@@ -323,9 +381,10 @@ describe('ResellerNotificationHttpAdapter (K4.2)', () => {
   it('sends a RESELLER_PRICE_CHANGED to the number on the account', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
 
-    const sent = await new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged(
-      notice,
-    );
+    const sent = await new ResellerNotificationHttpAdapter(
+      config(),
+      identity('62811'),
+    ).priceChanged(notice);
 
     expect(sent).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -370,8 +429,10 @@ describe('ResellerNotificationHttpAdapter (K4.2)', () => {
 
   it('skips without the internal key', async () => {
     await expect(
-      new ResellerNotificationHttpAdapter(config({ internalServiceKey: '' }), identity('62811'))
-        .priceChanged(notice),
+      new ResellerNotificationHttpAdapter(
+        config({ internalServiceKey: '' }),
+        identity('62811'),
+      ).priceChanged(notice),
     ).resolves.toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -384,7 +445,10 @@ describe('ResellerNotificationHttpAdapter (K4.2)', () => {
   });
 
   it('skips an agen auth-service has never heard of', async () => {
-    const missing = { getCustomerNames: async () => new Map(), preRegisterCustomer: jest.fn() } as never;
+    const missing = {
+      getCustomerNames: async () => new Map(),
+      preRegisterCustomer: jest.fn(),
+    } as never;
     await expect(
       new ResellerNotificationHttpAdapter(config(), missing).priceChanged(notice),
     ).resolves.toBe(false);

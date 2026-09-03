@@ -55,7 +55,10 @@ const providers: Provider[] = [
   CustomerImportService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
-  { provide: CUSTOMER_TOKENS.NotificationPreferenceRepository, useClass: NotificationPrismaRepository },
+  {
+    provide: CUSTOMER_TOKENS.NotificationPreferenceRepository,
+    useClass: NotificationPrismaRepository,
+  },
   { provide: CUSTOMER_TOKENS.PaymentMethodRepository, useClass: PaymentMethodPrismaRepository },
   { provide: CUSTOMER_TOKENS.LoyaltyRewardPort, useClass: LoyaltyRewardHttpAdapter },
   { provide: CUSTOMER_TOKENS.ProductCatalogPort, useClass: ProductCatalogHttpAdapter },

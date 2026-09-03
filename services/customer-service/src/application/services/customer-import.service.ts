@@ -1,6 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, runImport } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  runImport,
+} from '@hydromart/platform';
 
 import { ResellerExistsError } from '../../domain/errors';
 import { IdentityPort } from '../ports/identity.port';
@@ -127,15 +132,35 @@ export class CustomerImportService {
         if (!row.city) {
           throw new Error('kota wajib diisi bila alamat ditulis');
         }
-        await this.addresses.create(customerId, {
-          label: 'Rumah',
-          recipientName: row.fullName,
-          phone: row.phone,
-          addressLine: row.addressLine,
-          city: row.city,
-          province: row.province,
-          notes: row.landmark,
-        });
+        /*
+         * CA-2-65: re-importing the same file added the address again, every time.
+         *
+         * Imports are re-run — a corrected column, a failed row somebody fixed, a file
+         * sent twice — and the customer row itself is already guarded ("Nomor sudah punya
+         * akun aktif"). The address was not, so the second run left the customer with two
+         * identical "Rumah" entries and the checkout picker asking them to choose between
+         * them. By the fourth run there were four.
+         *
+         * Matched on the address line and city, normalised, because that is what "the same
+         * address" means to the person reading the list — not a row id the file never had.
+         */
+        const same = (a: string) => a.trim().toLowerCase().replace(/\s+/g, ' ');
+        const existing = await this.addresses.list(customerId);
+        const already = existing.some(
+          (a: { addressLine: string; city: string }) =>
+            same(a.addressLine) === same(row.addressLine!) && same(a.city) === same(row.city!),
+        );
+        if (!already) {
+          await this.addresses.create(customerId, {
+            label: 'Rumah',
+            recipientName: row.fullName,
+            phone: row.phone,
+            addressLine: row.addressLine,
+            city: row.city,
+            province: row.province,
+            notes: row.landmark,
+          });
+        }
       }
 
       return { status: 'created', id: customerId };
@@ -149,48 +174,45 @@ export class CustomerImportService {
   ): Promise<ImportSummary> {
     assertDepotAccess(user, homeDepotId);
 
-    return runImport(
-      rows,
-      async (row) => {
-        // A reseller hangs off a customer identity, so resolve (or pre-register) the
-        // phone first — same claim-it-yourself rule as a plain customer import.
-        const { customerId } = await this.identity.preRegisterCustomer(row.phone, row.fullName);
-        try {
-          const reseller = await this.resellers.register(user, {
-            customerId,
-            homeDepotId,
-            monthlyTargetQty: row.monthlyTargetQty,
-            discountPct: row.discountPct,
-            flatGallonPriceIdr: row.flatGallonPriceIdr,
-            joinDate: new Date(row.joinDate),
-            note: row.note,
-          });
-          return { status: 'created', id: reseller.customerId };
-        } catch (err) {
-          /**
-           * J11: an agen already on the registry is a CORRECTION, not a duplicate.
-           *
-           * This used to classify ResellerExistsError as "skipped" and throw the row away.
-           * Bulk import is how a depot onboards its agen, so the second file anybody sends
-           * is a correction — and this is a money path: `discountPct` and
-           * `flatGallonPriceIdr` are what the agen is charged at the till. A re-import that
-           * reports "skipped" and changes nothing is the worst possible answer, because it
-           * looks like it worked.
-           *
-           * `joinDate` is deliberately NOT re-written: when they joined is a fact about the
-           * past, and a sheet re-typed months later should not be able to move it.
-           */
-          if (!(err instanceof ResellerExistsError)) throw err;
-          const updated = await this.resellers.update(user, customerId, {
-            homeDepotId,
-            monthlyTargetQty: row.monthlyTargetQty,
-            discountPct: row.discountPct,
-            flatGallonPriceIdr: row.flatGallonPriceIdr,
-            note: row.note,
-          });
-          return { status: 'updated', id: updated.customerId };
-        }
-      },
-    );
+    return runImport(rows, async (row) => {
+      // A reseller hangs off a customer identity, so resolve (or pre-register) the
+      // phone first — same claim-it-yourself rule as a plain customer import.
+      const { customerId } = await this.identity.preRegisterCustomer(row.phone, row.fullName);
+      try {
+        const reseller = await this.resellers.register(user, {
+          customerId,
+          homeDepotId,
+          monthlyTargetQty: row.monthlyTargetQty,
+          discountPct: row.discountPct,
+          flatGallonPriceIdr: row.flatGallonPriceIdr,
+          joinDate: new Date(row.joinDate),
+          note: row.note,
+        });
+        return { status: 'created', id: reseller.customerId };
+      } catch (err) {
+        /**
+         * J11: an agen already on the registry is a CORRECTION, not a duplicate.
+         *
+         * This used to classify ResellerExistsError as "skipped" and throw the row away.
+         * Bulk import is how a depot onboards its agen, so the second file anybody sends
+         * is a correction — and this is a money path: `discountPct` and
+         * `flatGallonPriceIdr` are what the agen is charged at the till. A re-import that
+         * reports "skipped" and changes nothing is the worst possible answer, because it
+         * looks like it worked.
+         *
+         * `joinDate` is deliberately NOT re-written: when they joined is a fact about the
+         * past, and a sheet re-typed months later should not be able to move it.
+         */
+        if (!(err instanceof ResellerExistsError)) throw err;
+        const updated = await this.resellers.update(user, customerId, {
+          homeDepotId,
+          monthlyTargetQty: row.monthlyTargetQty,
+          discountPct: row.discountPct,
+          flatGallonPriceIdr: row.flatGallonPriceIdr,
+          note: row.note,
+        });
+        return { status: 'updated', id: updated.customerId };
+      }
+    });
   }
 }

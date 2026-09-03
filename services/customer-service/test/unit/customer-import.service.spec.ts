@@ -3,7 +3,11 @@ import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { CustomerImportService } from '../../src/application/services/customer-import.service';
-import { CustomerIdentity, IdentityPort, PreRegisterResult } from '../../src/application/ports/identity.port';
+import {
+  CustomerIdentity,
+  IdentityPort,
+  PreRegisterResult,
+} from '../../src/application/ports/identity.port';
 import { ResellerExistsError } from '../../src/domain/errors';
 
 const DEPOT_A = '11111111-1111-4111-8111-111111111111';
@@ -25,10 +29,12 @@ const operator = (depotId: string): AuthenticatedUser => ({
 class FakeIdentity implements IdentityPort {
   readonly calls: { phone: string; fullName?: string }[] = [];
   private seq = 0;
-  constructor(private readonly result: (phone: string) => PreRegisterResult | Error = () => ({
-    customerId: '',
-    status: 'created',
-  })) {}
+  constructor(
+    private readonly result: (phone: string) => PreRegisterResult | Error = () => ({
+      customerId: '',
+      status: 'created',
+    }),
+  ) {}
 
   async preRegisterCustomer(phone: string, fullName?: string): Promise<PreRegisterResult> {
     this.calls.push({ phone, fullName });
@@ -111,7 +117,7 @@ describe('CustomerImportService.importCustomers', () => {
   it('pre-registers each phone and points the profile at the importing depot', async () => {
     const identity = new FakeIdentity();
     const profiles = makeProfiles();
-    const addresses = { create: jest.fn() };
+    const addresses = { create: jest.fn(), list: jest.fn().mockResolvedValue([]) };
     const svc = new CustomerImportService(
       identity,
       profiles as never,
@@ -133,7 +139,7 @@ describe('CustomerImportService.importCustomers', () => {
   });
 
   it('writes the optional address with the landmark as the courier note', async () => {
-    const addresses = { create: jest.fn() };
+    const addresses = { create: jest.fn(), list: jest.fn().mockResolvedValue([]) };
     const svc = new CustomerImportService(
       new FakeIdentity(),
       makeProfiles(true) as never,
@@ -162,8 +168,59 @@ describe('CustomerImportService.importCustomers', () => {
     });
   });
 
+  /*
+   * CA-2-65: re-running an import added the address again, every time.
+   *
+   * Imports ARE re-run — a corrected column, a failed row somebody fixed, a file sent
+   * twice — and the customer row itself is already guarded ("Nomor sudah punya akun
+   * aktif"). The address was not, so the second run left the customer with two identical
+   * "Rumah" entries and the checkout picker asking them to choose between them. By the
+   * fourth run there were four.
+   */
+  it('does not add the address again when the customer already has it', async () => {
+    const addresses = {
+      create: jest.fn(),
+      list: jest.fn().mockResolvedValue([
+        // Same address, typed differently: extra spaces and a different case are how a
+        // second export of the same data actually differs from the first.
+        { addressLine: '  Jl.  Melati 3 ', city: 'BEKASI' },
+      ]),
+    };
+    const svc = new CustomerImportService(
+      new FakeIdentity(),
+      makeProfiles(true) as never,
+      addresses as never,
+      {} as never,
+    );
+
+    await svc.importCustomers(hq, DEPOT_A, [
+      { ...CUSTOMER, addressLine: 'Jl. Melati 3', city: 'Bekasi' },
+    ]);
+
+    expect(addresses.create).not.toHaveBeenCalled();
+  });
+
+  it('still adds a genuinely different address for the same customer', async () => {
+    const addresses = {
+      create: jest.fn(),
+      list: jest.fn().mockResolvedValue([{ addressLine: 'Jl. Melati 3', city: 'Bekasi' }]),
+    };
+    const svc = new CustomerImportService(
+      new FakeIdentity(),
+      makeProfiles(true) as never,
+      addresses as never,
+      {} as never,
+    );
+
+    await svc.importCustomers(hq, DEPOT_A, [
+      { ...CUSTOMER, addressLine: 'Jl. Anggrek 9', city: 'Bekasi' },
+    ]);
+
+    expect(addresses.create).toHaveBeenCalledTimes(1);
+  });
+
   it('fails a row that gives an address without a city', async () => {
-    const addresses = { create: jest.fn() };
+    const addresses = { create: jest.fn(), list: jest.fn().mockResolvedValue([]) };
     const svc = new CustomerImportService(
       new FakeIdentity(),
       makeProfiles() as never,
@@ -186,7 +243,7 @@ describe('CustomerImportService.importCustomers', () => {
    * produced — the rule enforced in one place and abandoned in the other.
    */
   it('imports an address with a city and no province', async () => {
-    const addresses = { create: jest.fn() };
+    const addresses = { create: jest.fn(), list: jest.fn().mockResolvedValue([]) };
     const svc = new CustomerImportService(
       new FakeIdentity(),
       makeProfiles() as never,
@@ -207,7 +264,7 @@ describe('CustomerImportService.importCustomers', () => {
 
   it("leaves an already-active account's home depot and address book alone", async () => {
     const profiles = makeProfiles(true);
-    const addresses = { create: jest.fn() };
+    const addresses = { create: jest.fn(), list: jest.fn().mockResolvedValue([]) };
     const svc = new CustomerImportService(
       new FakeIdentity(() => ({ customerId: 'cust-existing', status: 'active' })),
       profiles as never,
@@ -227,7 +284,9 @@ describe('CustomerImportService.importCustomers', () => {
   it('fails the row when auth-service is unreachable, writing no CRM data', async () => {
     const profiles = makeProfiles();
     const svc = new CustomerImportService(
-      new FakeIdentity(() => new ServiceUnavailableException('auth-service menolak nomor ini (503)')),
+      new FakeIdentity(
+        () => new ServiceUnavailableException('auth-service menolak nomor ini (503)'),
+      ),
       profiles as never,
       { create: jest.fn() } as never,
       {} as never,

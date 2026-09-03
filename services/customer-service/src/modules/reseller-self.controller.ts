@@ -17,9 +17,7 @@ export class ResellerSelfController {
   @ApiOkResponse({ type: Me2ResponseDto })
   @Get('me')
   @ApiOperation({ summary: 'My reseller pricing (active + discount percent or flat galon price)' })
-  async me(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<{
+  async me(@CurrentUser() user: AuthenticatedUser): Promise<{
     active: boolean;
     discountPct: number;
     flatGallonPriceIdr: number;

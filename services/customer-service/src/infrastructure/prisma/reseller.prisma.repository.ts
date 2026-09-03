@@ -79,6 +79,8 @@ export class ResellerPrismaRepository implements ResellerRepository {
 }
 
 /** `field` is TEXT in the database (three values sharing one column pair, K4.2). */
-function toChange(row: { field: string } & Omit<ResellerPriceChange, 'field'>): ResellerPriceChange {
+function toChange(
+  row: { field: string } & Omit<ResellerPriceChange, 'field'>,
+): ResellerPriceChange {
   return { ...row, field: row.field as PricedField };
 }

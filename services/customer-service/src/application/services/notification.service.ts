@@ -16,12 +16,23 @@ export class NotificationService {
 
   async get(customerId: string): Promise<NotificationPreferenceRecord> {
     const existing = await this.prefs.findByCustomerId(customerId);
-    return existing ?? { customerId, push: true, email: true, whatsapp: true, categories: {}, locale: 'id' };
+    return (
+      existing ?? {
+        customerId,
+        push: true,
+        email: true,
+        whatsapp: true,
+        categories: {},
+        locale: 'id',
+      }
+    );
   }
 
   async update(
     customerId: string,
-    patch: Partial<Pick<NotificationPreferenceRecord, 'push' | 'email' | 'whatsapp' | 'categories' | 'locale'>>,
+    patch: Partial<
+      Pick<NotificationPreferenceRecord, 'push' | 'email' | 'whatsapp' | 'categories' | 'locale'>
+    >,
   ): Promise<NotificationPreferenceRecord> {
     const current = await this.get(customerId);
     return this.prefs.upsert({
@@ -30,7 +41,9 @@ export class NotificationService {
       email: patch.email ?? current.email,
       whatsapp: patch.whatsapp ?? current.whatsapp,
       // Category patch merges over the stored map so one toggle doesn't wipe the rest.
-      categories: patch.categories ? { ...current.categories, ...patch.categories } : current.categories,
+      categories: patch.categories
+        ? { ...current.categories, ...patch.categories }
+        : current.categories,
       locale: patch.locale ?? current.locale,
     });
   }

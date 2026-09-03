@@ -67,10 +67,7 @@ describe('Loyalty HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.MANAGER, phone: '+62' },
-      { secret },
-    );
+    managerToken = jwt.sign({ sub: randomUUID(), role: Role.MANAGER, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });

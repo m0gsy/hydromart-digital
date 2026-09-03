@@ -386,7 +386,9 @@ export interface OrderRepository {
     to: Date,
     tz: string,
   ): Promise<{ day: string; gallons: number }[]>;
-  search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
+  search(
+    query: OrderQuery,
+  ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Orders in any of `statuses` that ENTERED their current status before `before` —
    * candidates for the stale sweep. Oldest first and capped at `limit`, so one tick cannot
@@ -511,11 +513,7 @@ export interface OrderRepository {
     depotIds?: readonly string[],
   ): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
-  topDepots(
-    range: ReportRange,
-    limit: number,
-    depotIds?: readonly string[],
-  ): Promise<DepotSales[]>;
+  topDepots(range: ReportRange, limit: number, depotIds?: readonly string[]): Promise<DepotSales[]>;
   shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
   /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
   refundsByDepot(range: ReportRange): Promise<DepotRefund[]>;

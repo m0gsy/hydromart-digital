@@ -12,13 +12,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
 
@@ -61,7 +55,7 @@ export class CartController {
   @ApiOkResponse({ type: ShelfPricesResponseDto })
   @Public()
   @Get('shelf-prices')
-  @ApiOperation({ summary: "Depot-resolved shelf prices for products (public, PG-03)" })
+  @ApiOperation({ summary: 'Depot-resolved shelf prices for products (public, PG-03)' })
   shelfPrices(
     @Query('productIds') productIds?: string,
     @Query('depotId') depotId?: string,

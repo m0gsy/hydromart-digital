@@ -63,7 +63,9 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         // column is a JSON blob. Anything that is not the expected shape reads as "not
         // configured", which `isOpenAt` treats as always open — never as silently closed.
         operatingHours:
-          d.operatingHours && typeof d.operatingHours === 'object' && !Array.isArray(d.operatingHours)
+          d.operatingHours &&
+          typeof d.operatingHours === 'object' &&
+          !Array.isArray(d.operatingHours)
             ? (d.operatingHours as OperatingHours)
             : {},
         holidays: Array.isArray(d.holidays) ? (d.holidays as Holiday[]) : [],
@@ -102,11 +104,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
     }
   }
 
-  async gallonReturns(
-    depotId: string,
-    from: Date,
-    to: Date,
-  ): Promise<DepotGallonReturns | null> {
+  async gallonReturns(depotId: string, from: Date, to: Date): Promise<DepotGallonReturns | null> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) return null;
     const query = `depotId=${encodeURIComponent(depotId)}&from=${from.toISOString()}&to=${to.toISOString()}`;

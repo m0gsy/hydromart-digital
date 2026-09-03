@@ -16,7 +16,10 @@ import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 import { MeterService } from '../application/services/meter.service';
 import { MeterHistoryRow, MeterReconciliation } from '../domain/meter-reading';
 import { MeterHistoryQueryDto, SaveMeterReadingDto } from './dto/meter-reading.dto';
-import { MeterHistoryRowResponseDto, MeterReconciliationResponseDto } from './dto/responses.generated.dto';
+import {
+  MeterHistoryRowResponseDto,
+  MeterReconciliationResponseDto,
+} from './dto/responses.generated.dto';
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;

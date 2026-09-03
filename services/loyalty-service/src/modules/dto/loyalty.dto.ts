@@ -116,7 +116,10 @@ export class DepotSummaryQueryDto {
 
 /** Optional depot scope: which depot's membership ladder to answer against. */
 export class TierScopeQueryDto {
-  @ApiPropertyOptional({ format: 'uuid', description: "Depot whose ladder applies; omit for the global one." })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Depot whose ladder applies; omit for the global one.',
+  })
   @IsOptional()
   @IsUUID()
   depotId?: string;

@@ -15,14 +15,18 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
-import {
-  QuoteResult,
-  RedeemResult,
-  VoucherService,
-} from '../application/services/voucher.service';
+import { QuoteResult, RedeemResult, VoucherService } from '../application/services/voucher.service';
 import { UpdateVoucherData, VoucherRecord } from '../application/ports/voucher.repository';
 import {
   BrowseQueryDto,
@@ -36,7 +40,14 @@ import {
   ReleaseVoucherDto,
   UpdateVoucherDto,
 } from './dto/voucher.dto';
-import { BurnSummary3ResponseDto, Grant3ResponseDto, PagedVoucherResponseDto, QuoteResponseDto, RedeemResponseDto, VoucherResponseDto } from './dto/responses.generated.dto';
+import {
+  BurnSummary3ResponseDto,
+  Grant3ResponseDto,
+  PagedVoucherResponseDto,
+  QuoteResponseDto,
+  RedeemResponseDto,
+  VoucherResponseDto,
+} from './dto/responses.generated.dto';
 
 // Vouchers are authored by marketing/depot staff and previewed/redeemed by customers.
 // RBAC role groups come from the shared @hydromart/access capability map (voucherRead/voucherWrite).
@@ -88,7 +99,7 @@ export class VoucherController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: QuoteVoucherDto,
   ): Promise<QuoteResult> {
-    return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0);
+    return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0, dto.depotId);
   }
 
   // Same preview, for an order the buyer is not the caller of: a counter sale is rung up on
@@ -102,7 +113,13 @@ export class VoucherController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Preview a named customer's voucher discount (internal service auth)" })
   quoteFor(@Body() dto: InternalQuoteVoucherDto): Promise<QuoteResult> {
-    return this.vouchers.quote(dto.code, dto.customerId, dto.subtotal, dto.shippingFee ?? 0);
+    return this.vouchers.quote(
+      dto.code,
+      dto.customerId,
+      dto.subtotal,
+      dto.shippingFee ?? 0,
+      dto.depotId,
+    );
   }
 
   // System-to-system call from order-service at checkout, authenticated by the shared
@@ -114,9 +131,18 @@ export class VoucherController {
   @ApiSecurity('internal-key')
   @Post('redeem')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)' })
+  @ApiOperation({
+    summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)',
+  })
   redeem(@Body() dto: RedeemVoucherDto): Promise<RedeemResult> {
-    return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal, dto.shippingFee ?? 0);
+    return this.vouchers.redeem(
+      dto.code,
+      dto.customerId,
+      dto.orderId,
+      dto.subtotal,
+      dto.shippingFee ?? 0,
+      dto.depotId,
+    );
   }
 
   /**
@@ -134,8 +160,12 @@ export class VoucherController {
   @ApiSecurity('internal-key')
   @Post('release')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Release a voided order's voucher redemption (internal service auth, idempotent)" })
-  release(@Body() dto: ReleaseVoucherDto): Promise<{ released: boolean; discountReturned: number }> {
+  @ApiOperation({
+    summary: "Release a voided order's voucher redemption (internal service auth, idempotent)",
+  })
+  release(
+    @Body() dto: ReleaseVoucherDto,
+  ): Promise<{ released: boolean; discountReturned: number }> {
     return this.vouchers.release(dto.orderId);
   }
 

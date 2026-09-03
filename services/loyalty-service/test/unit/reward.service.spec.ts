@@ -5,6 +5,7 @@ import { AuthenticatedUser, Role } from '@hydromart/platform';
 import {
   InsufficientPointsError,
   RewardAlreadyCancelledError,
+  RewardAlreadyHandedOverError,
   RewardAlreadyUsedError,
   RewardItemNotFoundError,
   RewardOutOfStockError,
@@ -63,11 +64,11 @@ describe('RewardService', () => {
     await service.redeem(CUSTOMER, 'gal', 'key-2', DEPOT);
     // Someone else's redemption must not leak into the list.
     const other = '22222222-2222-2222-2222-222222222222';
-    await new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory()).reward(
-      other,
-      1000,
-      'seed',
-    );
+    await new LoyaltyService(
+      loyaltyRepo,
+      buildTestConfig(),
+      new InMemoryCustomerDirectory(),
+    ).reward(other, 1000, 'seed');
     await service.redeem(other, 'gal', 'key-3', DEPOT);
 
     const mine = await service.listMine(CUSTOMER);
@@ -366,6 +367,48 @@ describe('RewardService', () => {
       await expect(service.markUsed(redemption.id, anyDepot)).resolves.toMatchObject({
         status: 'USED',
       });
+    });
+  });
+
+  /*
+   * CA-2-65: two depots, one reward, two hand-overs.
+   *
+   * A redemption with no collection depot appears in EVERY depot's queue on purpose — those
+   * predate the collection-depot question and somebody has to be able to hand them over. So
+   * two counters really can be holding the same row. `markUsed` read the status and then
+   * wrote with `where: { id }` alone, so both passed the read, both wrote USED, and both were
+   * answered "berhasil": two rewards off two shelves against one line in the ledger.
+   *
+   * The guard belongs in the WHERE clause — which is what the note on `cancel`, eight lines
+   * below it in the same repository, has said all along.
+   */
+  describe('RewardService concurrent hand-over (CA-2-65)', () => {
+    async function redeemOne() {
+      await seedBalance(1000);
+      rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon', stock: 3 });
+      return service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    }
+
+    it('lets exactly one depot win, and tells the other', async () => {
+      const { redemption } = await redeemOne();
+
+      const [first, second] = await Promise.allSettled([
+        service.markUsed(redemption.id),
+        service.markUsed(redemption.id),
+      ]);
+
+      const outcomes = [first, second];
+      expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+      const loser = outcomes.find((o) => o.status === 'rejected') as PromiseRejectedResult;
+      expect(loser.reason).toBeInstanceOf(RewardAlreadyHandedOverError);
+    });
+
+    it('is still idempotent for a caller retrying its own successful hand-over', async () => {
+      const { redemption } = await redeemOne();
+      await service.markUsed(redemption.id);
+
+      // A retry after a timeout must not be reported as somebody else's win.
+      await expect(service.markUsed(redemption.id)).resolves.toMatchObject({ status: 'USED' });
     });
   });
 });
