@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, getCached } = vi.hoisted(() => ({ get: vi.fn(), getCached: vi.fn() }));
 
+// CA-3-24: `ProductCard` reports a failed add through the toast, and `useToast` refuses to
+// work outside its provider — as it should.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached, post: vi.fn(), put: vi.fn(), del: vi.fn() },
   ApiError: class ApiError extends Error {},

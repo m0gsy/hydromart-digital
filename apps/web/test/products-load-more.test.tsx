@@ -16,6 +16,9 @@ const { get, params, push } = vi.hoisted(() => ({
   push: vi.fn(),
 }));
 
+// CA-3-24: `ProductCard` reports a failed add through the toast, and `useToast` refuses to
+// work outside its provider — as it should.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => params.current,
