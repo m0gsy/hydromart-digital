@@ -40,7 +40,8 @@ FAIL=0
 # One statement against one service DB.
 psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 2>&1; }
 
-# order_disputes_customerId_idx is deliberately NOT in the table below yet.
+# TWO indexes are deliberately NOT in the table below yet: order_disputes_customerId_idx
+# and cashbook_entries_reversesId_key.
 #
 # The deploy builds these indexes BEFORE it runs migrations, and the column they index has
 # to exist first. Registering it in the same release as the migration that adds
@@ -51,6 +52,16 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 #
 # It goes in with the erasure executor that reads the column, one release AFTER the column
 # — the same "column first, code later" order the migration's own header states.
+#
+# cashbook_entries_reversesId_key (CA-2-22) hit the identical wall, in the identical way,
+# with this warning already written above it: the index was registered here in the SAME
+# release as the migration that adds `cashbook_entries."reversesId"`, so the production
+# deploy of 40c78a11 refused and rolled back. Nothing shipped, which is the guard working.
+#
+# It goes back in the release AFTER the column is on production. Until then the reversal
+# guard is `findReversalOf` in cashbook.service.ts alone — a read-then-write, so two
+# operators pressing the button in the same instant could still post two reversals. That
+# window is why the index is coming back, and it is one release wide.
 #
 # db|index name|CREATE INDEX CONCURRENTLY statement. One line per index; keep the index
 # name identical to the one the migration creates, or the migration will build a second
@@ -70,7 +81,6 @@ customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENT
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")
 crm|notifications_event_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_event_createdAt_idx" ON "notifications"("event", "createdAt")
 crm|campaigns_scheduledFor_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_scheduledFor_idx" ON "campaigns"("scheduledFor") WHERE "scheduledFor" IS NOT NULL
-depot|cashbook_entries_reversesId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "cashbook_entries_reversesId_key" ON "cashbook_entries"("reversesId") WHERE "reversesId" IS NOT NULL
 admin|scheduled_reports_enabled_nextRunAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "scheduled_reports_enabled_nextRunAt_idx" ON "scheduled_reports"("enabled", "nextRunAt")
 forecast|service_settings_scope_depot_id_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_scope_depot_id_idx" ON "service_settings"("scope", "depot_id")
 forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_global_key_key" ON "service_settings"("key") WHERE "scope" = 'GLOBAL'
