@@ -58,7 +58,25 @@ class FakeRepo implements AnnouncementRepository {
     return this.rows.find((r) => r.id === id) ?? null;
   }
   async list(filter: AnnouncementListFilter) {
-    const rows = filter.publishedOnly ? this.rows.filter((r) => r.publishedAt) : this.rows;
+    /*
+     * CA-1-29: models the real query, not a superset. The DB narrows on BOTH axes before
+     * paging, so a fake that only honoured `publishedOnly` would pass against the very
+     * leak this closes — a supervisor reading another depot's notices.
+     *
+     * A COMPANY-targeted row reaches everyone and must survive the depot filter, which is
+     * the same rule `targetCovers` applies to the employee feed.
+     */
+    const rows = this.rows
+      .filter((r) => (filter.publishedOnly ? r.publishedAt : true))
+      .filter(
+        (r) =>
+          !filter.depotIds ||
+          r.targets.some(
+            (t) =>
+              t.dimension === 'COMPANY' ||
+              (t.dimension === 'DEPOT' && t.value != null && filter.depotIds!.includes(t.value)),
+          ),
+      );
     return { rows: rows.slice(filter.skip, filter.skip + filter.take), total: rows.length };
   }
   /**
@@ -307,13 +325,62 @@ describe('AnnouncementService (C1)', () => {
     await expect(svc.getById('ghost')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  /*
+   * CA-1-29. The console list handed everything to everyone with `hrView` — a set that
+   * reaches SUPERVISOR and ASSISTANT_SUPERVISOR, each pinned to a single depot. So a
+   * supervisor could read HQ's unsent drafts, and every other depot's notices.
+   */
+  it('keeps drafts away from a reader who cannot write one', async () => {
+    const { svc } = make();
+    await svc.create(hr, { title: 'sent', body: 'x', targets: [{ dimension: 'COMPANY' }] });
+    await svc.create(hr, {
+      title: 'draft',
+      body: 'x',
+      targets: [{ dimension: 'COMPANY' }],
+      scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+
+    // HR writes announcements, so HR sees the draft it is still working on.
+    expect((await svc.list(hr)).rows).toHaveLength(2);
+
+    const spv: AuthenticatedUser = {
+      sub: 'spv-1',
+      role: 'SUPERVISOR' as never,
+      phone: null,
+      depotId: 'd1',
+    };
+    const seen = (await svc.list(spv)).rows;
+    expect(seen.map((r) => r.title)).toEqual(['sent']);
+  });
+
+  it("keeps another depot's notices away from a depot-scoped reader", async () => {
+    const { svc } = make();
+    await svc.create(hr, { title: 'for-d1', body: 'x', targets: [{ dimension: 'DEPOT', value: 'd1' }] });
+    await svc.create(hr, { title: 'for-d2', body: 'x', targets: [{ dimension: 'DEPOT', value: 'd2' }] });
+    await svc.create(hr, { title: 'everyone', body: 'x', targets: [{ dimension: 'COMPANY' }] });
+
+    const spv: AuthenticatedUser = {
+      sub: 'spv-1',
+      role: 'SUPERVISOR' as never,
+      phone: null,
+      depotId: 'd1',
+    };
+    const titles = (await svc.list(spv)).rows.map((r) => r.title).sort();
+    // The company-wide notice survives; the other depot's does not.
+    expect(titles).toEqual(['everyone', 'for-d1']);
+
+    // HR sits above depots, so HR still sees the whole network — that is their job.
+    expect((await svc.list(hr)).rows).toHaveLength(3);
+  });
+
   it('pages the console list', async () => {
     const { svc } = make();
     for (let i = 0; i < 3; i++) {
       await svc.create(hr, { title: `n${i}`, body: 'x', targets: [{ dimension: 'COMPANY' }] });
     }
-    expect(await svc.list(2, 2)).toMatchObject({ total: 3 });
-    expect((await svc.list()).rows).toHaveLength(3);
+    // CA-1-29: who is asking now decides what comes back, so the caller travels with it.
+    expect(await svc.list(hr, 2, 2)).toMatchObject({ total: 3 });
+    expect((await svc.list(hr)).rows).toHaveLength(3);
   });
 
   it('warns instead of silently reaching fewer people than the roster holds', async () => {

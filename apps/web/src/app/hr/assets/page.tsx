@@ -4,7 +4,20 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Field, Input, LinkButton, ListFooter, LoadError, Money, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  LinkButton,
+  ListFooter,
+  LoadError,
+  Money,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -72,19 +85,32 @@ export default function AssetsPage() {
         .then((p) => ({ items: p.rows, total: p.total })),
     [status, type],
   );
-  // Only used to name a holder and to fill the recipient picker — the roster is small.
+  /*
+   * CA-1-02. This asked for ACTIVE staff only, and then used the answer to NAME the person
+   * holding each asset. So a laptop still assigned to somebody who left resolved to nobody,
+   * and the row read "dipegang karyawan" — the one state HR needs to see, rendered as the
+   * one state that looks fine. Kit that walked out the door was invisible by construction.
+   *
+   * The whole roster now, because naming is a lookup over history. The recipient picker
+   * still offers only people who are here — see where it filters.
+   */
   const employees = useAsync<{ rows: Employee[] }>(
-    () =>
-      api.get<{ rows: Employee[] }>(
-        endpoints.hr.employees({ status: 'ACTIVE', pageSize: 100 }),
-        true,
-      ),
+    () => api.get<{ rows: Employee[] }>(endpoints.hr.employees({ pageSize: 200 }), true),
     [],
   );
 
   const staff = employees.data?.rows ?? [];
-  const nameOf = (id: string | null) =>
-    staff.find((e) => e.id === id)?.fullName ?? (id ? 'karyawan' : '—');
+  const holder = (id: string | null) => staff.find((e) => e.id === id) ?? null;
+  /*
+   * CA-1-02: named, and marked when the holder has left. "dipegang karyawan" for somebody
+   * who resigned six months ago is worse than saying nothing — it reads as normal.
+   */
+  const nameOf = (id: string | null) => {
+    if (!id) return '—';
+    const e = holder(id);
+    if (!e) return t('hrFix.assets.holderUnknown');
+    return e.status === 'ACTIVE' ? e.fullName : t('hrFix.assets.holderLeft', { name: e.fullName });
+  };
   const depotName = (id: string) => depots.find((d) => d.id === id)?.code ?? 'depot';
 
   return (
@@ -160,7 +186,9 @@ export default function AssetsPage() {
                       {a.status === 'ASSIGNED' ? ` · dipegang ${nameOf(a.holderId)}` : ''}
                     </p>
                     {a.value && (
-                      <p className="text-xs text-muted">{t('hrFix.assets.valueLabel')}<Money amount={Number(a.value)} />
+                      <p className="text-xs text-muted">
+                        {t('hrFix.assets.valueLabel')}
+                        <Money amount={Number(a.value)} />
                       </p>
                     )}
                   </div>
@@ -293,7 +321,12 @@ function AssetPanel({
     }
   }
 
-  const nameOf = (id: string | null) => staff.find((e) => e.id === id)?.fullName ?? '—';
+  const nameOf = (id: string | null) => {
+    if (!id) return '—';
+    const e = staff.find((x) => x.id === id);
+    if (!e) return t('hrFix.assets.holderUnknown');
+    return e.status === 'ACTIVE' ? e.fullName : t('hrFix.assets.holderLeft', { name: e.fullName });
+  };
 
   return (
     <div className="space-y-3 rounded-lg border border-app p-3">
@@ -308,7 +341,9 @@ function AssetPanel({
           {detail.data.movements.map((m) => (
             <li key={m.id} className="text-muted">
               <b className="text-app">{t(ASSET_MOVEMENT_LABEL[m.kind])}</b> · {fmtDate(m.movedAt)}
-              {m.fromEmployeeId ? t('hrFix.assets.movedFrom', { name: nameOf(m.fromEmployeeId) }) : ''}
+              {m.fromEmployeeId
+                ? t('hrFix.assets.movedFrom', { name: nameOf(m.fromEmployeeId) })
+                : ''}
               {m.toEmployeeId ? ` · ke ${nameOf(m.toEmployeeId)}` : ''}
               {m.condition ? ` · kondisi: ${m.condition}` : ''}
             </li>
@@ -318,7 +353,10 @@ function AssetPanel({
 
       {isAdmin &&
         (editing ? (
-          <form onSubmit={saveDetails} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
+          <form
+            onSubmit={saveDetails}
+            className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2"
+          >
             <Field label={t('hrFix.assets.assetName')}>
               <Input
                 value={details.name}
@@ -347,16 +385,19 @@ function AssetPanel({
               <Button type="submit" loading={editSaving}>
                 {t('hrFix.assets.saveDetail')}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={editSaving}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setEditing(false)}
+                disabled={editSaving}
+              >
                 {t('hrFix.assets.cancel2')}
               </Button>
             </div>
           </form>
         ) : moves.length === 0 ? (
           <div className="space-y-2 border-ty border-app pt-3">
-            <p className="text-sm text-muted">
-              {t('hrFix.assets.writtenOff')}
-            </p>
+            <p className="text-sm text-muted">{t('hrFix.assets.writtenOff')}</p>
             <Button variant="secondary" onClick={startEdit}>
               {t('hrFix.assets.editDetail')}
             </Button>
@@ -385,7 +426,8 @@ function AssetPanel({
                 >
                   <option value="">{t('hrFix.assets.pickEmployee')}</option>
                   {staff
-                    .filter((s) => s.depotId === asset.depotId)
+                    // Only people who are still here can be handed an asset.
+                    .filter((s) => s.status === 'ACTIVE' && s.depotId === asset.depotId)
                     .map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.employeeCode} · {s.fullName}

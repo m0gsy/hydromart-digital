@@ -73,7 +73,14 @@ export default function MeCheckInPage() {
       setResult(sent.result);
       toast(mode === 'in' ? t('hrFix.checkIn.inOk') : t('hrFix.checkIn.outOk'));
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : t('hrFix.checkIn.failed'), 'error');
+      toast(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : t('hrFix.checkIn.failed'),
+        'error',
+      );
     } finally {
       setBusy(false);
     }
@@ -86,8 +93,20 @@ export default function MeCheckInPage() {
       <OfflineQueueBanner />
 
       <div className="flex gap-2">
-        <Button variant={mode === 'in' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('in')}>{t('hrFix.checkIn.checkIn')}</Button>
-        <Button variant={mode === 'out' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('out')}>{t('hrFix.checkIn.checkOut')}</Button>
+        <Button
+          variant={mode === 'in' ? 'primary' : 'secondary'}
+          className="flex-1"
+          onClick={() => setMode('in')}
+        >
+          {t('hrFix.checkIn.checkIn')}
+        </Button>
+        <Button
+          variant={mode === 'out' ? 'primary' : 'secondary'}
+          className="flex-1"
+          onClick={() => setMode('out')}
+        >
+          {t('hrFix.checkIn.checkOut')}
+        </Button>
       </div>
 
       <Card className="p-5">

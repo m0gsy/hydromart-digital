@@ -42,3 +42,34 @@ export function useQueryParam(name: string): string {
   const snapshot = useCallback(() => read(name), [name]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
+
+/**
+ * The same value, but writable — a filter that survives the back button.
+ *
+ * CA-1-35: filters held in `useState` are gone the moment the reader opens a row and comes
+ * back. On a list somebody is working THROUGH — three hundred employees, filtered to one
+ * department — that is the whole task re-done after every single record they open.
+ *
+ * `replaceState`, not `pushState`: a filter is not a place. Pushing one would mean Back
+ * walked backwards through every keystroke of a search box instead of leaving the list.
+ * Because the current entry carries the filters, navigating away and back returns to the
+ * list as it was.
+ *
+ * The synthetic `popstate` is what tells `useQueryParam` above to re-read: it subscribes to
+ * that event, and a programmatic `replaceState` does not fire one on its own.
+ */
+export function useQueryState(name: string): [string, (next: string) => void] {
+  const value = useQueryParam(name);
+  const set = useCallback(
+    (next: string) => {
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      if (next) url.searchParams.set(name, next);
+      else url.searchParams.delete(name);
+      window.history.replaceState(window.history.state, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    [name],
+  );
+  return [value, set];
+}

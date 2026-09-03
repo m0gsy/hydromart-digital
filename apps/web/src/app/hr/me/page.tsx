@@ -16,7 +16,9 @@ export default function MePage() {
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
       <SectionHeader
-        title={t('hrFix.myHome.greeting', { name: customer?.fullName ?? t('hrFix.myHome.employee') })}
+        title={t('hrFix.myHome.greeting', {
+          name: customer?.fullName ?? t('hrFix.myHome.employee'),
+        })}
         subtitle={t('hrFix.me.subtitle')}
       />
       <Link href="/hr/me/check-in">

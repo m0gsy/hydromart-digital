@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { Announcement, AnnouncementRead } from '../../../prisma/generated/client';
+import { Announcement, AnnouncementRead, Prisma } from '../../../prisma/generated/client';
 import {
   AnnouncementListFilter,
   AnnouncementRepository,
@@ -32,7 +32,29 @@ export class AnnouncementPrismaRepository implements AnnouncementRepository {
   async list(
     filter: AnnouncementListFilter,
   ): Promise<{ rows: AnnouncementWithTargets[]; total: number }> {
-    const where = filter.publishedOnly ? { publishedAt: { not: null } } : {};
+    /*
+     * CA-1-29. Two narrowings, both of which used to be missing entirely.
+     *
+     * `publishedOnly` keeps drafts away from a reader who cannot write one — an unsent
+     * notice is HQ thinking out loud, and it was visible to every `hrView` role including
+     * a supervisor at a single depot.
+     *
+     * `depotIds` keeps another depot's notices away from them. A COMPANY-targeted row has
+     * no depot value at all and reaches everyone, so it must survive the filter — matching
+     * `targetCovers` in domain/announcement.ts, which is the same rule the employee feed
+     * applies.
+     */
+    const where: Prisma.AnnouncementWhereInput = {
+      ...(filter.publishedOnly ? { publishedAt: { not: null } } : {}),
+      ...(filter.depotIds
+        ? {
+            OR: [
+              { targets: { some: { dimension: 'COMPANY' } } },
+              { targets: { some: { dimension: 'DEPOT', value: { in: [...filter.depotIds] } } } },
+            ],
+          }
+        : {}),
+    };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.announcement.findMany({
         where,

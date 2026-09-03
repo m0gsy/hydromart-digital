@@ -29,8 +29,10 @@ export class AnnouncementController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List announcements, drafts included, newest first' })
-  list(@Query() q: ListAnnouncementDto) {
-    return this.announcements.list(q.page, q.pageSize);
+  list(@Query() q: ListAnnouncementDto, @CurrentUser() user: AuthenticatedUser) {
+    // CA-1-29: who is asking decides what comes back — drafts only for a writer, and only
+    // this reader's own depots unless they sit above depots entirely.
+    return this.announcements.list(user, q.page, q.pageSize);
   }
 
   @ApiOkResponse({ type: GetByIdResponseDto })

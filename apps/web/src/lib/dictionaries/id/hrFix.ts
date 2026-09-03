@@ -176,6 +176,8 @@ export const hrFix = {
     empty: 'Belum ada aset yang cocok.',
     noMoves: 'Belum ada pergerakan sejak aset didaftarkan.',
     pickEmployee: 'Pilih karyawan',
+    holderUnknown: 'Pemegang tidak dikenal',
+    holderLeft: '{name} (sudah keluar)',
     register: 'Daftarkan Aset',
     pickDepot: 'Pilih depot',
     assetName: 'Nama aset',
@@ -499,6 +501,7 @@ export const hrFix = {
     rejected: 'Absen ditolak',
     failed: 'Gagal',
     onTime: 'tepat waktu',
+    unnamed: 'Karyawan dianonimkan',
     fillIdDate: 'Isi employeeId & tanggal',
     manual: 'Entri manual',
     manualSaved: 'Absensi manual disimpan',
@@ -1547,6 +1550,8 @@ export const hrFix = {
   audit: {
     title: 'Log Audit',
     filterHint: 'Filter entity (employees, payroll, …)',
+    actor: 'Oleh',
+    actorSystem: 'sistem',
     empty: 'Belum ada log.',
   },
   employeeEdit: {
@@ -1785,6 +1790,7 @@ export const hrFix = {
     reports: 'Laporan',
     settings: 'Konfigurasi Gaji',
     audit: 'Log Audit',
+    me: 'Data saya',
   },
   weekdayLong: {
     mon: 'Senin',

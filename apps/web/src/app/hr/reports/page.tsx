@@ -156,9 +156,7 @@ export default function ReportsPage() {
       <Card className="space-y-3 p-4">
         <div>
           <p className="font-semibold">{t('hrFix.reports.performance')}</p>
-          <p className="text-xs text-muted">
-            {t('hrFix.reports.scoreHint')}
-          </p>
+          <p className="text-xs text-muted">{t('hrFix.reports.scoreHint')}</p>
         </div>
         <Formats
           busy={busy}

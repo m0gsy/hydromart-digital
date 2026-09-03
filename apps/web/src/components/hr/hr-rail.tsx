@@ -16,6 +16,7 @@ import {
   Sparkle,
   Star,
   Storefront,
+  UserCircle,
   Users,
   type Icon,
 } from '@phosphor-icons/react';
@@ -55,6 +56,14 @@ const ITEMS: NavItem[] = [
   { href: '/hr/reports', label: 'hrFix.nav.reports', icon: ChartBar },
   { href: '/hr/settings', label: 'hrFix.nav.settings', icon: GearSix, adminOnly: true },
   { href: '/hr/audit', label: 'hrFix.nav.audit', icon: ClipboardText, adminOnly: true },
+  /*
+   * CA-1-36. HR staff are employees too — they punch in, take leave and are paid — and the
+   * console they work in all day had no link to their own record. `/hr/me` was reachable
+   * from the courier profile, the ops rail and the operator shell; the one rail belonging
+   * to the people who run HR did not mention it. Last on purpose: it is the reader's own
+   * business, not part of the queues above it.
+   */
+  { href: '/hr/me', label: 'hrFix.nav.me', icon: UserCircle },
 ];
 
 export function HrRail() {

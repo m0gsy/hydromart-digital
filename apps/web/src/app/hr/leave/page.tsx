@@ -26,7 +26,7 @@ import {
   type LeaveRequest,
   type LeaveStatus,
 } from '@/lib/hr';
-import { canManageHr } from '@/lib/roles';
+import { can, canManageHr } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
 
 /** The server's own default page for this endpoint; named here so the footer's count means something. */
@@ -49,6 +49,17 @@ export default function LeaveQueuePage() {
   const { customer } = useAuth();
   const { toast } = useToast();
   const isHr = canManageHr(customer?.role);
+  /*
+   * CA-1-28. Stage one was gated on the STAGE, not on the reader: `!waitingHr` is true for
+   * every PENDING_MANAGER row, so the Approve and Reject buttons were drawn for anybody who
+   * could open this queue — including roles without `leaveApprove`. The server refuses them,
+   * so the only thing the buttons could produce was a 403 after the decision had been made
+   * in the reader's head.
+   *
+   * The same capability hr-service checks on the route, so the buttons are offered to
+   * exactly the roles it will serve and to nobody else.
+   */
+  const mayApprove = can('leaveApprove', customer?.role);
   const [status, setStatus] = useState<LeaveStatus | ''>('PENDING_MANAGER');
   const [note, setNote] = useState<Record<string, string>>({});
 
@@ -123,7 +134,7 @@ export default function LeaveQueuePage() {
           {queue.rows.map((r) => {
             const waitingHr = r.status === 'PENDING_HR';
             const actionable =
-              (r.status === 'PENDING_MANAGER' || waitingHr) && (isHr || !waitingHr);
+              mayApprove && (r.status === 'PENDING_MANAGER' || waitingHr) && (isHr || !waitingHr);
             return (
               <div key={r.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -160,7 +171,9 @@ export default function LeaveQueuePage() {
                     </Button>
                   </div>
                 )}
-                {waitingHr && !isHr && <p className="text-xs text-muted">{t('hrFix.leave.awaitingHr')}</p>}
+                {waitingHr && !isHr && (
+                  <p className="text-xs text-muted">{t('hrFix.leave.awaitingHr')}</p>
+                )}
               </div>
             );
           })}

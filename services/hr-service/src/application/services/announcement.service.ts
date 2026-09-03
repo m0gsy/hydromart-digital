@@ -6,7 +6,8 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { can } from '@hydromart/access';
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import {
   Announcement,
@@ -108,8 +109,23 @@ export class AnnouncementService {
     return (await this.repo.findById(announcement.id)) ?? announcement;
   }
 
-  async list(page = 1, pageSize = 20) {
-    return this.repo.list({ skip: (page - 1) * pageSize, take: pageSize });
+  /*
+   * CA-1-29. This listed everything to everyone with `hrView` — which reaches SUPERVISOR
+   * and ASSISTANT_SUPERVISOR, each pinned to one depot. So a supervisor could read HQ's
+   * unsent drafts, and every other depot's notices.
+   *
+   * Two rules, both taken from what the code already knew: only a writer sees a draft, and
+   * a depot-scoped reader sees what reaches the whole company plus what names their own
+   * depot. `depotScopeIds` returns undefined for anyone who sits above depots, which is
+   * how HQ keeps the whole-network view.
+   */
+  async list(user: AuthenticatedUser, page = 1, pageSize = 20) {
+    return this.repo.list({
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      publishedOnly: !can('hrAdmin', user.role),
+      depotIds: depotScopeIds(user),
+    });
   }
 
   async getById(id: string): Promise<AnnouncementWithTargets & AnnouncementStats> {

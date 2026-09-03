@@ -1,10 +1,25 @@
 'use client';
 
-import { Badge, Card, CenterState, ErrorState, ListFooter, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  CenterState,
+  ErrorState,
+  ListFooter,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type AttendanceStatus, type HrPage } from '@/lib/hr';
+import {
+  ATTENDANCE_STATUS_LABEL,
+  fmtDate,
+  fmtTime,
+  type Attendance,
+  type AttendanceStatus,
+  type HrPage,
+} from '@/lib/hr';
 import { usePagedList } from '@/lib/use-paged-list';
 
 /**
@@ -16,7 +31,12 @@ import { usePagedList } from '@/lib/use-paged-list';
 const PAGE_SIZE = 60;
 
 const TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
-  PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral', PENDING: 'warning',
+  PRESENT: 'success',
+  LATE: 'warning',
+  ABSENT: 'danger',
+  LEAVE: 'neutral',
+  HOLIDAY: 'neutral',
+  PENDING: 'warning',
 };
 
 export default function MyAttendancePage() {
@@ -32,15 +52,27 @@ export default function MyAttendancePage() {
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
       <SectionHeader title="Absensi Saya" />
-      {list.loading && list.rows.length === 0 && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
+      {list.loading && list.rows.length === 0 && (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12" />
+          ))}
+        </div>
+      )}
       {list.error && <ErrorState message={list.error} onRetry={list.reload} />}
-      {!list.loading && !list.error && list.rows.length === 0 && <CenterState title={t('hrFix.myAttendance.empty')}>{t('hrFix.myAttendance.emptyBody')}</CenterState>}
+      {!list.loading && !list.error && list.rows.length === 0 && (
+        <CenterState title={t('hrFix.myAttendance.empty')}>
+          {t('hrFix.myAttendance.emptyBody')}
+        </CenterState>
+      )}
       {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-2 p-3 text-sm">
               <span className="font-medium">{fmtDate(a.workDate)}</span>
-              <span className="text-muted">{fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}</span>
+              <span className="text-muted">
+                {fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}
+              </span>
               <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
             </div>
           ))}

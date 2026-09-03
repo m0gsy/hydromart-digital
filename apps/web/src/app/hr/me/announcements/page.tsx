@@ -44,7 +44,10 @@ export default function MyAnnouncementsPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title={t('hrFix.myAnnouncements.title')} subtitle={t('hrFix.myAnnouncements.subtitle')} />
+      <SectionHeader
+        title={t('hrFix.myAnnouncements.title')}
+        subtitle={t('hrFix.myAnnouncements.subtitle')}
+      />
       {feed.loading && <Skeleton className="h-32" />}
       {feed.error && <ErrorState message={feed.error} onRetry={feed.reload} />}
       {error && (

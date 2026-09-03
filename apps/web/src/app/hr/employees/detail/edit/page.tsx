@@ -12,7 +12,10 @@ import { useQueryParam } from '@/lib/use-query-param';
 export default function EditEmployeePage() {
   const { t } = useT();
   const id = useQueryParam('id');
-  const { data, error, loading, reload } = useAsync<Employee>(() => api.get<Employee>(endpoints.hr.employee(id), true), [id]);
+  const { data, error, loading, reload } = useAsync<Employee>(
+    () => api.get<Employee>(endpoints.hr.employee(id), true),
+    [id],
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

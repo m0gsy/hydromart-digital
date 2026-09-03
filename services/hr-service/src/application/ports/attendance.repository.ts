@@ -25,6 +25,18 @@ export interface CheckOutPatch {
   workingMinutes: number;
 }
 
+/**
+ * CA-1-01: whose attendance this is.
+ *
+ * The approval queue drew a date, two times and a lateness figure, and no name anywhere —
+ * an HR officer was approving or rejecting somebody's working day without being told
+ * whose. `Payroll` (PG-01) and `LeaveRequest` (PG-06) had the same hole and closed it the
+ * same way: one join on a relation the row already has.
+ *
+ * Null for an employee whose record was anonymised under the retention policy.
+ */
+export type AttendanceListRow = Attendance & { employeeName: string | null };
+
 export interface AttendanceListFilter {
   depotIds?: readonly string[];
   employeeId?: string;
@@ -110,5 +122,5 @@ export interface AttendanceRepository {
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance>;
   /** Settle a PENDING offline punch (HR approve/reject). */
   patchStatus(id: string, status: AttendanceStatus): Promise<Attendance>;
-  list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }>;
+  list(filter: AttendanceListFilter): Promise<{ rows: AttendanceListRow[]; total: number }>;
 }

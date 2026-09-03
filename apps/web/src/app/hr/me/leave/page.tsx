@@ -112,7 +112,11 @@ export default function MyLeavePage() {
         title={t('hrFix.myLeave.title')}
         subtitle={
           balance.data
-            ? t('hrFix.myLeave.quotaLine', { quota: balance.data.quotaDays, used: balance.data.usedDays, left: balance.data.quotaDays - balance.data.usedDays })
+            ? t('hrFix.myLeave.quotaLine', {
+                quota: balance.data.quotaDays,
+                used: balance.data.usedDays,
+                left: balance.data.quotaDays - balance.data.usedDays,
+              })
             : balance.error
               ? t('hrFix.myLeave.quotaUnreadable')
               : t('hrFix.myLeave.subtitle')
@@ -156,9 +160,7 @@ export default function MyLeavePage() {
           <Button type="submit" loading={saving} className="w-full">
             {t('hrFix.myLeave.apply2')}
           </Button>
-          <p className="text-xs text-muted">
-            {t('hrFix.myLeave.holidayHint')}
-          </p>
+          <p className="text-xs text-muted">{t('hrFix.myLeave.holidayHint')}</p>
         </form>
       </Card>
 

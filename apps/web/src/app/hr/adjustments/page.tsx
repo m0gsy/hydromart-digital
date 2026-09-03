@@ -68,8 +68,16 @@ export default function AdjustmentsPage() {
     setBusy(true);
     try {
       const path = kind === 'bonus' ? endpoints.hr.createBonus : endpoints.hr.createDeduction;
-      await api.post(path, { employeeId, type, amount: amt, periodMonth: period, note: note || undefined }, true);
-      toast(kind === 'bonus' ? t('hrFix.adjustments.bonusAdded') : t('hrFix.adjustments.deductionAdded'));
+      await api.post(
+        path,
+        { employeeId, type, amount: amt, periodMonth: period, note: note || undefined },
+        true,
+      );
+      toast(
+        kind === 'bonus'
+          ? t('hrFix.adjustments.bonusAdded')
+          : t('hrFix.adjustments.deductionAdded'),
+      );
       setAmount('');
       setNote('');
       load();
@@ -101,9 +109,7 @@ export default function AdjustmentsPage() {
     setBusy(true);
     try {
       const path =
-        which === 'bonus'
-          ? endpoints.hr.deleteBonus(row.id)
-          : endpoints.hr.deleteDeduction(row.id);
+        which === 'bonus' ? endpoints.hr.deleteBonus(row.id) : endpoints.hr.deleteDeduction(row.id);
       await api.del(path, true);
       await load();
     } catch (e) {
@@ -130,8 +136,13 @@ export default function AdjustmentsPage() {
       <Card className="flex flex-wrap items-end gap-3 p-4">
         {/* G-1: was `placeholder={t('hrFix.adjustments.employeeIdHint')}` — a human being asked to paste a UUID. */}
         <EmployeeSelect value={employeeId} onChange={setEmployeeId} className="w-64" />
-        <label className="text-sm">{t('hrFix.adjustments.period')}<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
-        <Button variant="secondary" onClick={load}>{t('hrFix.adjustments.load')}</Button>
+        <label className="text-sm">
+          {t('hrFix.adjustments.period')}
+          <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+        </label>
+        <Button variant="secondary" onClick={load}>
+          {t('hrFix.adjustments.load')}
+        </Button>
       </Card>
 
       {loaded && (
@@ -139,33 +150,61 @@ export default function AdjustmentsPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-green-700">{t('hrFix.adjustments.bonus')}</h3>
-              {bonuses.length === 0 ? <p className="text-sm text-muted">—</p> : bonuses.map((b) => (
-                <div key={b.id} className="flex justify-between py-1 text-sm"><span>{b.type}{b.note ? ` · ${b.note}` : ''} <span className="text-muted">· {fmtDate(b.createdAt)}</span></span><span className="flex items-center"><Money amount={Number(b.amount)} />{isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => void removeAdjustment(b, 'bonus')}
-                      disabled={busy}
-                      className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
-                    >
-                      {t('hrFix.adjustments.remove')}
-                    </button>
-                  )}</span></div>
-              ))}
+              {bonuses.length === 0 ? (
+                <p className="text-sm text-muted">—</p>
+              ) : (
+                bonuses.map((b) => (
+                  <div key={b.id} className="flex justify-between py-1 text-sm">
+                    <span>
+                      {b.type}
+                      {b.note ? ` · ${b.note}` : ''}{' '}
+                      <span className="text-muted">· {fmtDate(b.createdAt)}</span>
+                    </span>
+                    <span className="flex items-center">
+                      <Money amount={Number(b.amount)} />
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => void removeAdjustment(b, 'bonus')}
+                          disabled={busy}
+                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                        >
+                          {t('hrFix.adjustments.remove')}
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))
+              )}
             </Card>
             <Card className="p-4">
               <h3 className="mb-2 font-bold text-red-700">{t('hrFix.adjustments.deduction')}</h3>
-              {deductions.length === 0 ? <p className="text-sm text-muted">—</p> : deductions.map((d) => (
-                <div key={d.id} className="flex justify-between py-1 text-sm"><span>{d.type}{d.note ? ` · ${d.note}` : ''} <span className="text-muted">· {fmtDate(d.createdAt)}</span></span><span className="flex items-center"><Money amount={Number(d.amount)} />{isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => void removeAdjustment(d, 'deduction')}
-                      disabled={busy}
-                      className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
-                    >
-                      {t('hrFix.adjustments.remove')}
-                    </button>
-                  )}</span></div>
-              ))}
+              {deductions.length === 0 ? (
+                <p className="text-sm text-muted">—</p>
+              ) : (
+                deductions.map((d) => (
+                  <div key={d.id} className="flex justify-between py-1 text-sm">
+                    <span>
+                      {d.type}
+                      {d.note ? ` · ${d.note}` : ''}{' '}
+                      <span className="text-muted">· {fmtDate(d.createdAt)}</span>
+                    </span>
+                    <span className="flex items-center">
+                      <Money amount={Number(d.amount)} />
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => void removeAdjustment(d, 'deduction')}
+                          disabled={busy}
+                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                        >
+                          {t('hrFix.adjustments.remove')}
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))
+              )}
             </Card>
           </div>
 
@@ -173,19 +212,50 @@ export default function AdjustmentsPage() {
             <Card className="space-y-3 p-4">
               <h3 className="font-bold">{t('hrFix.adjustments.add')}</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <label className="text-sm">{t('hrFix.adjustments.kindLabel')}<select value={kind} onChange={(e) => { setKind(e.target.value as Kind); setType(e.target.value === 'bonus' ? 'MANUAL' : 'MANUAL'); }} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
+                <label className="text-sm">
+                  {t('hrFix.adjustments.kindLabel')}
+                  <select
+                    value={kind}
+                    onChange={(e) => {
+                      setKind(e.target.value as Kind);
+                      setType(e.target.value === 'bonus' ? 'MANUAL' : 'MANUAL');
+                    }}
+                    className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+                  >
                     <option value="bonus">{t('hrFix.adjustments.bonus')}</option>
                     <option value="deduction">{t('hrFix.adjustments.deduction')}</option>
                   </select>
                 </label>
-                <label className="text-sm">Tipe
-                  <select value={type} onChange={(e) => setType(e.target.value)} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">
-                    {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                <label className="text-sm">
+                  Tipe
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+                  >
+                    {types.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
                   </select>
                 </label>
-                <label className="text-sm">{t('hrFix.adjustments.amount')}<Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-32" /></label>
-                <label className="text-sm">{t('hrFix.adjustments.note')}<Input value={note} onChange={(e) => setNote(e.target.value)} className="w-40" /></label>
-                <Button onClick={add} loading={busy}>{t('hrFix.adjustments.save')}</Button>
+                <label className="text-sm">
+                  {t('hrFix.adjustments.amount')}
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-32"
+                  />
+                </label>
+                <label className="text-sm">
+                  {t('hrFix.adjustments.note')}
+                  <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-40" />
+                </label>
+                <Button onClick={add} loading={busy}>
+                  {t('hrFix.adjustments.save')}
+                </Button>
               </div>
             </Card>
           )}
