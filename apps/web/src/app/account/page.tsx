@@ -84,7 +84,8 @@ import type {
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
 
 /** A group of rows reads as one card; the divider is what separates the rows inside it. */
-const GROUP = 'surface divide-y divide-[color:var(--border-soft)] rounded-2xl border border-app px-4';
+const GROUP =
+  'surface divide-y divide-[color:var(--border-soft)] rounded-2xl border border-app px-4';
 
 const ROW_ICON = 'text-brand-600';
 
@@ -101,6 +102,7 @@ const PAY_TYPES: SavedPaymentType[] = ['CASH', 'TRANSFER', 'QRIS', 'EWALLET', 'V
 
 function PaymentsBody() {
   const { t } = useT();
+  const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<SavedPaymentMethod[]>(() =>
     api.get(endpoints.paymentMethods.list, true),
   );
@@ -119,7 +121,11 @@ function PaymentsBody() {
     setBusy(true);
     setFormError(null);
     try {
-      await api.post(endpoints.paymentMethods.create, { type, label: label.trim(), maskedIdentifier: masked.trim() || undefined }, true);
+      await api.post(
+        endpoints.paymentMethods.create,
+        { type, label: label.trim(), maskedIdentifier: masked.trim() || undefined },
+        true,
+      );
       setAdding(false);
       setLabel('');
       setMasked('');
@@ -131,9 +137,20 @@ function PaymentsBody() {
     }
   }
 
+  /*
+   * CA-3-31. Neither of these had a catch. "Jadikan utama" awaited a POST with nothing
+   * around it, so a rejected promise became an unhandled rejection and the row simply did
+   * not move — the customer taps again, and again, and the card that gets charged is still
+   * the old one. Remove had a `finally` but no `catch`: the sheet closed and the method
+   * stayed, which reads as "deleted" until the next visit.
+   */
   async function setDefault(id: string) {
-    await api.post(endpoints.paymentMethods.default(id), {}, true);
-    reload();
+    try {
+      await api.post(endpoints.paymentMethods.default(id), {}, true);
+      reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.payments.defaultError'), 'error');
+    }
   }
 
   async function remove() {
@@ -143,6 +160,8 @@ function PaymentsBody() {
       await api.del(endpoints.paymentMethods.detail(removeTarget.id), true);
       setRemoveTarget(null);
       reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.payments.removeError'), 'error');
     } finally {
       setBusy(false);
     }
@@ -161,24 +180,37 @@ function PaymentsBody() {
           {data.map((m) => {
             const Icon = PAY_ICON[m.type];
             return (
-              <div key={m.id} className="flex items-center gap-3 rounded-[14px] border border-app px-[15px] py-[13px]">
+              <div
+                key={m.id}
+                className="flex items-center gap-3 rounded-[14px] border border-app px-[15px] py-[13px]"
+              >
                 <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50">
                   <Icon size={18} weight="fill" className={ROW_ICON} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-extrabold">{m.label}</div>
                   {m.maskedIdentifier && (
-                    <div className="mt-0.5 truncate text-[11.5px] text-muted">{m.maskedIdentifier}</div>
+                    <div className="mt-0.5 truncate text-[11.5px] text-muted">
+                      {m.maskedIdentifier}
+                    </div>
                   )}
                 </div>
                 {m.isDefault ? (
                   <Chip tone="tint">{t('account.payments.default')}</Chip>
                 ) : (
                   <>
-                    <button type="button" onClick={() => setDefault(m.id)} className="text-xs font-extrabold text-brand-700 hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => setDefault(m.id)}
+                      className="text-xs font-extrabold text-brand-700 hover:underline"
+                    >
                       {t('account.payments.makeDefault')}
                     </button>
-                    <button type="button" onClick={() => setRemoveTarget(m)} className="text-xs font-bold text-muted hover:text-[color:var(--danger)]">
+                    <button
+                      type="button"
+                      onClick={() => setRemoveTarget(m)}
+                      className="text-xs font-bold text-muted hover:text-[color:var(--danger)]"
+                    >
                       {t('account.payments.delete')}
                     </button>
                   </>
@@ -213,13 +245,29 @@ function PaymentsBody() {
               })}
             </div>
           </Field>
-          <Field label={t('account.payments.label')} hint={t('account.payments.labelHint')} htmlFor="pm-label">
-            <Input id="pm-label" value={label} onChange={(e) => setLabel(e.target.value)} required />
+          <Field
+            label={t('account.payments.label')}
+            hint={t('account.payments.labelHint')}
+            htmlFor="pm-label"
+          >
+            <Input
+              id="pm-label"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              required
+            />
           </Field>
-          <Field label={t('account.payments.masked')} hint={t('account.payments.maskedHint')} htmlFor="pm-masked" error={formError ?? undefined}>
+          <Field
+            label={t('account.payments.masked')}
+            hint={t('account.payments.maskedHint')}
+            htmlFor="pm-masked"
+            error={formError ?? undefined}
+          >
             <Input id="pm-masked" value={masked} onChange={(e) => setMasked(e.target.value)} />
           </Field>
-          <Button type="submit" loading={busy} disabled={!label.trim()}>{t('account.payments.save')}</Button>
+          <Button type="submit" loading={busy} disabled={!label.trim()}>
+            {t('account.payments.save')}
+          </Button>
         </form>
       ) : (
         <Button variant="secondary" onClick={() => setAdding(true)}>
@@ -290,11 +338,7 @@ function PrivacyDataBody() {
       <p className="mb-3 text-sm text-muted">{t('account.privacyData.body')}</p>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          loading={pending === 'EXPORT'}
-          onClick={() => submit('EXPORT')}
-        >
+        <Button variant="secondary" loading={pending === 'EXPORT'} onClick={() => submit('EXPORT')}>
           {t('account.privacyData.requestExport')}
         </Button>
         <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
@@ -318,9 +362,14 @@ function PrivacyDataBody() {
       ) : (
         <ul className="mt-3 divide-y divide-[color:var(--border-soft)]">
           {(data ?? []).map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+            >
               <span>
-                <span className="block font-semibold">{t(`account.privacyData.type.${row.type}`)}</span>
+                <span className="block font-semibold">
+                  {t(`account.privacyData.type.${row.type}`)}
+                </span>
                 <span className="block text-xs text-muted">{formatDateTime(row.requestedAt)}</span>
                 {/*
                   K1.6. The copy above now promises 3x24 hours, and a promise printed on one
@@ -391,9 +440,7 @@ function ConsentBody() {
    * It is deliberately part of this sheet and not a startup interstitial. See the notice
    * below for why that is a requirement and not a layout preference.
    */
-  const acceptance = useAsync<ConsentPending>(() =>
-    api.get(endpoints.pdp.consentPending, true),
-  );
+  const acceptance = useAsync<ConsentPending>(() => api.get(endpoints.pdp.consentPending, true));
   const [accepting, setAccepting] = useState(false);
 
   async function toggle(row: ConsentState, granted: boolean) {
@@ -620,7 +667,10 @@ function PrefsBody() {
       if (value && next !== 'subscribed') {
         // Granted-and-registered is the only "on" there is. Anything else must not read as
         // on, and must say which wall was hit — the OS dialog is not coming back by itself.
-        toast(t(next === 'denied' ? 'account.prefs.push.denied' : 'account.prefs.push.failed'), 'error');
+        toast(
+          t(next === 'denied' ? 'account.prefs.push.denied' : 'account.prefs.push.failed'),
+          'error',
+        );
         return;
       }
       // The preference row follows the device, so crm's own check agrees with what the
@@ -684,7 +734,11 @@ function PrefsBody() {
     const next = { ...prefs, categories: { ...prefs.categories, marketing: value } };
     setLocal(next); // optimistic
     try {
-      await api.patch(endpoints.preferences.notifications, { categories: { marketing: value } }, true);
+      await api.patch(
+        endpoints.preferences.notifications,
+        { categories: { marketing: value } },
+        true,
+      );
     } catch {
       setLocal(prefs); // revert
       toast(t('account.prefs.saveError'), 'error');
@@ -880,10 +934,20 @@ type SheetKey = 'payments' | 'prefs' | 'privacyData' | 'consents' | 'devices';
 const SHEETS = [
   { key: 'payments', titleKey: 'account.payments.title', icon: CreditCard, Body: PaymentsBody },
   { key: 'prefs', titleKey: 'account.prefs.title', icon: SlidersHorizontal, Body: PrefsBody },
-  { key: 'privacyData', titleKey: 'account.privacyData.title', icon: ShieldCheck, Body: PrivacyDataBody },
+  {
+    key: 'privacyData',
+    titleKey: 'account.privacyData.title',
+    icon: ShieldCheck,
+    Body: PrivacyDataBody,
+  },
   { key: 'consents', titleKey: 'account.consents.title', icon: ClipboardText, Body: ConsentBody },
   { key: 'devices', titleKey: 'account.devices.title', icon: DeviceMobile, Body: DevicesBody },
-] as const satisfies readonly { key: SheetKey; titleKey: string; icon: typeof Money; Body: () => React.ReactNode }[];
+] as const satisfies readonly {
+  key: SheetKey;
+  titleKey: string;
+  icon: typeof Money;
+  Body: () => React.ReactNode;
+}[];
 
 /* ---------- Profile card ---------- */
 function ProfileCard({ customer, subtitle }: { customer: Customer; subtitle: string }) {
@@ -950,7 +1014,9 @@ export default function AccountPage() {
          */
         action={
           <div className="flex flex-col items-center gap-2">
-            <LinkButton href={`/login?next=${encodeURIComponent('/account')}`}>{t('nav.signIn')}</LinkButton>
+            <LinkButton href={`/login?next=${encodeURIComponent('/account')}`}>
+              {t('nav.signIn')}
+            </LinkButton>
             {/*
               H5 (absorbed by K1.5). `/help` is linked from exactly two places: this screen,
               which a guest never gets past, and the footer, which is `hidden ... sm:block`.
@@ -979,7 +1045,12 @@ export default function AccountPage() {
    */
   if (!customer) {
     return (
-      <div className="flex flex-col gap-4" role="status" aria-busy="true" aria-label={t('account.title')}>
+      <div
+        className="flex flex-col gap-4"
+        role="status"
+        aria-busy="true"
+        aria-label={t('account.title')}
+      >
         <Skeleton className="h-[76px] w-full rounded-2xl" />
         <Skeleton className="h-24 w-full rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
@@ -990,7 +1061,9 @@ export default function AccountPage() {
   const opsHref = canViewDashboard(customer.role) ? '/dashboard' : '/dashboard/orders';
   const showOps = isStaff(customer.role);
   const tier = loyalty?.tier;
-  const memberSub = tier ? `${tier.charAt(0)}${tier.slice(1).toLowerCase()} member` : customer.phone;
+  const memberSub = tier
+    ? `${tier.charAt(0)}${tier.slice(1).toLowerCase()} member`
+    : customer.phone;
 
   // One list, two presentations: rows below `lg:`, the sidebar above it. Two arrays would
   // drift the first time a destination is added.
@@ -1042,7 +1115,9 @@ export default function AccountPage() {
     <div>
       {/* Below `sm:` the app bar carries this title, so rendering it here as well would show
           it twice. Above `sm:` the app bar is gone and the page owns its heading again. */}
-      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">{t('account.title')}</h1>
+      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">
+        {t('account.title')}
+      </h1>
 
       <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
         {/* desktop sidebar (spec 4f) */}
@@ -1122,7 +1197,9 @@ export default function AccountPage() {
             <SignOut size={17} weight="fill" />
             {t('account.logout')}
           </button>
-          <p className="text-center text-xs font-medium text-muted">{t('account.version', { v: APP_VERSION })}</p>
+          <p className="text-center text-xs font-medium text-muted">
+            {t('account.version', { v: APP_VERSION })}
+          </p>
         </div>
       </div>
 

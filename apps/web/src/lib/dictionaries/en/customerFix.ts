@@ -71,6 +71,8 @@ export const customerFix = {
     copy: 'Copy',
     copied: 'Copied',
     promoProducts: 'Promo products',
+    catalogHead: 'Best sellers',
+    loadError: 'Could not load promotions.',
     viewAll: 'View all',
     badge: 'Promo',
     empty: 'No active promos yet. Check back later.',

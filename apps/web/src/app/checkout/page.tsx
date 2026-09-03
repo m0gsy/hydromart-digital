@@ -575,6 +575,14 @@ function CheckoutInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceKey]);
 
+  /*
+   * CA-3-13. An agen gets the flat SOP price INSTEAD of a voucher — `placeOrder` does not
+   * even send the code. But reseller status is resolved per DEPOT, so a voucher applied
+   * before the switch survived it, and the preview went on subtracting a discount the
+   * order dropped. The quote stops counting the moment the agen price applies.
+   */
+  const activeQuote = isReseller ? null : quote;
+
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
     // The address fields live in a sheet now, which renders outside the form element, so
@@ -609,10 +617,20 @@ function CheckoutInner() {
           },
           // Only meaningful without coordinates; with a pin, order-service routes itself.
           depotId: needsDepotPick ? (pickedDepotId ?? undefined) : undefined,
-          // order-service re-validates the voucher (fail-closed) and applies the
-          // membership discount itself; sending the raw code is enough.
-          // Gate on isReseller: never send voucher code for resellers (flat pricing, no stacking).
-          voucherCode: isReseller ? undefined : voucherCode.trim() || undefined,
+          /*
+           * CA-3-33: the code that was actually PRICED, not whatever is left in the box.
+           *
+           * This sent the raw field. order-service re-validates fail-closed, so a code the
+           * customer typed and never applied — a typo, an expired one they gave up on, a
+           * code for another depot — did not just fail to discount: it refused the whole
+           * order. The screen showed no discount, so nothing on it explained why the
+           * button did not work.
+           *
+           * `activeQuote` is the quote this screen is showing (and is null for an agen,
+           * which is the CA-3-13 gate). If there is no quote there is no voucher, and the
+           * order goes through without one.
+           */
+          voucherCode: activeQuote?.code ?? undefined,
           deliveryWindow: deliveryWindow || undefined,
           // The intent, not the price: order-service reads the surcharge from the depot's
           // own settings. Nothing this screen believes about money is sent.
@@ -759,13 +777,6 @@ function CheckoutInner() {
   // FREE_SHIPPING waiver into the goods discount would cap it at the subtotal and show the
   // wrong number on a small order with a big fee. Express is excluded on purpose: the voucher
   // waives delivery, not a speed upgrade.
-  /*
-   * CA-3-13. An agen gets the flat SOP price INSTEAD of a voucher — `placeOrder` does not
-   * even send the code. But reseller status is resolved per DEPOT, so a voucher applied
-   * before the switch survived it, and the preview went on subtracting a discount the
-   * order dropped. The quote stops counting the moment the agen price applies.
-   */
-  const activeQuote = isReseller ? null : quote;
   const isFreeShipping = activeQuote?.discountType === 'FREE_SHIPPING';
   const voucherValueDiscount = isFreeShipping ? 0 : (activeQuote?.discount ?? 0);
   const shippingDiscount = isFreeShipping ? Math.min(deliveryFee, activeQuote?.discount ?? 0) : 0;

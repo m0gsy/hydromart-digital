@@ -9,6 +9,7 @@ import { PrivacyLink } from '@/components/privacy-sheet';
 import { TermsLink } from '@/components/terms-sheet';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { resolveDeepLink } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import type { OtpChallenge } from '@/lib/types';
@@ -17,7 +18,20 @@ function RegisterForm() {
   const { t } = useT();
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') ?? '/products';
+  /*
+   * CA-3-35. `next` arrives from the URL, so it is a stranger's string, and the "Lewati"
+   * link put it straight into an `href`. Anything that could get a link in front of a
+   * visitor — an SMS, a QR code on a gallon, a notification with one field wrong — chose
+   * where this app navigated, including another origin, still wearing the app's chrome
+   * inside the WebView.
+   *
+   * `resolveDeepLink` is the function that already refuses exactly this for promo CTAs,
+   * tapped notifications and the verify screen (E1): it keeps only a path, rejects
+   * `//evil`, and drops a route this binary does not carry. The default is unchanged, so
+   * a visitor who arrived without a `next` sees no difference.
+   */
+  const raw = params.get('next');
+  const next = (raw && resolveDeepLink(raw)) || '/products';
   // E8: /login hands the number over when it has no account, so the visitor does not
   // retype what they just typed.
   const [form, setForm] = useState({ phone: params.get('phone') ?? '', fullName: '', email: '' });
