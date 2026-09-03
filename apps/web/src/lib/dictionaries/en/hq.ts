@@ -1639,6 +1639,7 @@ export const hq = {
     empty: 'No risky items.',
   },
   scheduledReports: {
+    lastRunFailed: 'Last run FAILED — the file was not produced',
     title: 'Scheduled reports',
     subtitle: 'Recurring exports: cadence, recipients, next run',
     add: '＋ New schedule',

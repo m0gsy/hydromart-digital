@@ -210,6 +210,13 @@ model ScheduledReport {
   nextRunAt  DateTime?
   /// Stamped by the sweep. `nextRunAt` says when it is due; this says when it last was.
   lastRunAt  DateTime?
+  /// CA-2-66: whether that last run PRODUCED the file. `lastRunAt` is stamped either way —
+  /// on purpose, so a schedule that fails every tick does not become a hot loop — which
+  /// meant a failing report and a working one were indistinguishable on the screen.
+  /// Null = never run.
+  lastRunOk  Boolean?
+  /// Why the last run failed, when it did. Null when it worked, or never ran.
+  lastError  String?
   enabled    Boolean       @default(true)
   createdAt  DateTime      @default(now())
 

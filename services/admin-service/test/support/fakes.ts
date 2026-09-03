@@ -303,6 +303,9 @@ export class InMemoryScheduledReportRepository implements ScheduledReportReposit
       recipients: data.recipients,
       format: data.format ?? ExportFormat.XLSX,
       dataset: data.dataset ?? ReportDataset.REVENUE_BY_DEPOT,
+      // CA-2-66: null is "never run" — the same thing a null lastRunAt has always meant.
+      lastRunOk: null,
+      lastError: null,
       nextRunAt: data.nextRunAt ?? null,
       lastRunAt: null,
       enabled: data.enabled ?? true,
@@ -330,6 +333,8 @@ export class InMemoryScheduledReportRepository implements ScheduledReportReposit
     if (data.dataset !== undefined) r.dataset = data.dataset;
     if (data.nextRunAt !== undefined) r.nextRunAt = data.nextRunAt;
     if (data.lastRunAt !== undefined) r.lastRunAt = data.lastRunAt;
+    if (data.lastRunOk !== undefined) r.lastRunOk = data.lastRunOk;
+    if (data.lastError !== undefined) r.lastError = data.lastError;
     if (data.enabled !== undefined) r.enabled = data.enabled;
     return { ...r };
   }
@@ -349,6 +354,8 @@ export function makeScheduledReport(
     name: 'Sample report',
     cadence: ReportCadence.DAILY,
     recipients: ['ops@hydromart.id'],
+    lastRunOk: null,
+    lastError: null,
     format: ExportFormat.XLSX,
     dataset: ReportDataset.REVENUE_BY_DEPOT,
     nextRunAt: null,

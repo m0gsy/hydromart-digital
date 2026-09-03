@@ -123,6 +123,19 @@ export class ScheduledReportDto {
     description: 'When the sweep last ran it.',
   })
   lastRunAt!: string | null;
+  /*
+   * CA-2-66: `lastRunAt` is stamped whether the run worked or not — deliberately, so a
+   * failing schedule does not become a hot loop — which made a broken weekly report and a
+   * working one look identical on the list. These two say which it was.
+   */
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: 'Whether that last run produced the file. Null = never run.',
+  })
+  lastRunOk!: boolean | null;
+  @ApiProperty({ type: String, nullable: true, description: 'Why it failed, when it did.' })
+  lastError!: string | null;
   @ApiProperty()
   enabled!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -138,6 +151,8 @@ export class ScheduledReportDto {
       dataset: record.dataset,
       nextRunAt: record.nextRunAt ? record.nextRunAt.toISOString() : null,
       lastRunAt: record.lastRunAt ? record.lastRunAt.toISOString() : null,
+      lastRunOk: record.lastRunOk,
+      lastError: record.lastError,
       enabled: record.enabled,
       createdAt: record.createdAt.toISOString(),
     };

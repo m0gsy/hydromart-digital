@@ -43,15 +43,34 @@ export default function HqScorecardPage() {
 
   const ranked = items
     .map((d) => {
-      const sla = d.slaRate ?? 0; // no delivered orders in range → 0 SLA contribution
       /*
-       * E-3: a depot whose revenue never came back (outside the report's top-N) is scored
-       * on SLA alone, rescaled to the full 100, rather than counted as having earned Rp 0.
-       * Weighting an unknown as the worst possible number put depots at the bottom of a
-       * league table for a limit in the report, and the row said "Rp 0" to back it up.
+       * E-3 fixed this for REVENUE and left the same mistake standing on SLA.
+       *
+       * A depot whose revenue never came back (outside the report's top-N) is scored on SLA
+       * alone, rescaled to the full 100, rather than counted as having earned Rp 0 —
+       * weighting an unknown as the worst possible number put depots at the bottom of a
+       * league table for a limit in the report.
+       *
+       * CA-2-66: `d.slaRate ?? 0` did exactly that, in the other direction. `slaRate` is
+       * null when a depot delivered nothing in range — and also for EVERY depot when
+       * delivery-service could not be read at all, which is the case the card names. Both
+       * were scored as 0% on-time and captioned "SLA 0%", which is not an absence of data,
+       * it is an accusation.
+       *
+       * So: an unknown half never contributes, and the half that IS known is rescaled to
+       * the full 100. A depot with neither scores 0 because there is nothing to score, and
+       * the caption says so rather than inventing a percentage.
        */
-      const score =
-        d.revenue != null ? (d.revenue / maxRevenue) * revenueWeight + sla * slaWeight : sla;
+      const sla = d.slaRate;
+      const hasRevenue = d.revenue != null;
+      const hasSla = sla != null;
+      const weight = (hasRevenue ? revenueWeight : 0) + (hasSla ? slaWeight : 0);
+      const raw =
+        (hasRevenue ? (d.revenue! / maxRevenue) * revenueWeight : 0) +
+        (hasSla ? sla! * slaWeight : 0);
+      // `weight` is 0 only when both halves are unknown; dividing by it would be NaN, and a
+      // NaN sorts unpredictably through a league table.
+      const score = weight > 0 ? raw / weight : 0;
       return {
         depotId: d.depotId,
         name: d.name,
@@ -65,7 +84,11 @@ export default function HqScorecardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Trophy} title={t('hq.scorecard.title')} subtitle={t('hq.scorecard.subtitle')} />
+      <HqPageHeader
+        icon={Trophy}
+        title={t('hq.scorecard.title')}
+        subtitle={t('hq.scorecard.subtitle')}
+      />
 
       <p className="text-[12.5px] text-muted">{t('hq.scorecard.scoreNote')}</p>
 
@@ -79,7 +102,9 @@ export default function HqScorecardPage() {
                 position={i}
                 label={r.name}
                 score={r.score}
-                caption={`${t('hq.scorecard.orders')}: ${r.orderCount} · SLA ${Math.round(r.sla * 100)}%`}
+                caption={`${t('hq.scorecard.orders')}: ${r.orderCount ?? t('hq.common.dash')} · SLA ${
+                  r.sla != null ? `${Math.round(r.sla * 100)}%` : t('hq.common.dash')
+                }`}
               />
               <div className="pl-9 text-xs text-muted">
                 {t('hq.scorecard.revenue')}:{' '}

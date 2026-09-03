@@ -29,15 +29,7 @@ function defaultRange(): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-function Stat({
-  label,
-  value,
-  badge,
-}: {
-  label: string;
-  value: string;
-  badge?: React.ReactNode;
-}) {
+function Stat({ label, value, badge }: { label: string; value: string; badge?: React.ReactNode }) {
   return (
     <Card className="flex flex-col gap-1 p-4">
       <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
@@ -58,7 +50,9 @@ export default function HqPaymentsPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const range = useMemo(defaultRange, []);
-  const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
+  const dash = useAsync<ExecutiveDashboard>(() =>
+    api.get(endpoints.dashboard.executive(range), true),
+  );
   const unsettledQ = useAsync<UnsettledMethodBucket[]>(() =>
     api.get(endpoints.payments.unsettledByMethod(range), true),
   );
@@ -83,8 +77,29 @@ export default function HqPaymentsPage() {
     const byId = new Map((ownersQ.data?.items ?? []).map((o) => [o.id, o.fullName || o.phone]));
     return (id: string) => byId.get(id) ?? shortId(id);
   }, [ownersQ.data]);
+  /*
+   * CA-2-66: the courier settlement queue labelled its rows with eight characters of a
+   * UUID, on the same screen where the franchise queue right above it shows a name.
+   *
+   * The two queues ask the operator for the same decision — mark this payout PAID, or
+   * FAILED and credit the money back — and one of them named the person while the other
+   * did not. A shortId is not an identity: it cannot be matched against a bank transfer,
+   * cannot be read out over the phone, and cannot be recognised as the wrong one.
+   */
+  const couriersQ = useAsync<Customer[]>(
+    () => api.getCached<Customer[]>(endpoints.auth.drivers, true).catch(() => []),
+    [],
+  );
+  const courierName = useMemo(() => {
+    const byId = new Map((couriersQ.data ?? []).map((c) => [c.id, c.fullName || c.phone]));
+    // Still a shortId when the directory could not be read — a wrong name would be worse
+    // than an id, and an empty label worse than both.
+    return (id: string) => byId.get(id) ?? shortId(id);
+  }, [couriersQ.data]);
   // Real "needs attention" count: payments awaiting HQ refund approval (the queue total).
-  const refundsQ = useAsync<Page<Payment>>(() => api.get(endpoints.refunds.queue({ limit: 1 }), true));
+  const refundsQ = useAsync<Page<Payment>>(() =>
+    api.get(endpoints.refunds.queue({ limit: 1 }), true),
+  );
   const [releasing, setReleasing] = useState<string | null>(null);
   const [settling, setSettling] = useState<string | null>(null);
   // The queue `release` above has been filling with rows nothing could ever move on.
@@ -107,7 +122,10 @@ export default function HqPaymentsPage() {
     setReleasing(row.franchiseOwnerId);
     try {
       await api.post(endpoints.payout.release, { franchiseOwnerId: row.franchiseOwnerId }, true);
-      toast(t('hq.payments.release.released', { owner: ownerName(row.franchiseOwnerId) }), 'success');
+      toast(
+        t('hq.payments.release.released', { owner: ownerName(row.franchiseOwnerId) }),
+        'success',
+      );
       queueQ.reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
@@ -133,7 +151,10 @@ export default function HqPaymentsPage() {
     setSettling(id);
     try {
       await api.post(url, {}, true);
-      toast(paid ? t('hq.payments.settle.markedPaid') : t('hq.payments.settle.markedFailed'), paid ? 'success' : 'info');
+      toast(
+        paid ? t('hq.payments.settle.markedPaid') : t('hq.payments.settle.markedFailed'),
+        paid ? 'success' : 'info',
+      );
       reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
@@ -144,10 +165,17 @@ export default function HqPaymentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Wallet} title={t('hq.payments.title')} subtitle={t('hq.payments.subtitle')} />
+      <HqPageHeader
+        icon={Wallet}
+        title={t('hq.payments.title')}
+        subtitle={t('hq.payments.subtitle')}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label={t('hq.payments.kpi.collected')} value={`Rp ${collected.toLocaleString('id-ID')}`} />
+        <Stat
+          label={t('hq.payments.kpi.collected')}
+          value={`Rp ${collected.toLocaleString('id-ID')}`}
+        />
         <Stat
           label={t('hq.payments.kpi.unsettled')}
           value={unsettledQ.loading ? '…' : `Rp ${unsettled.toLocaleString('id-ID')}`}
@@ -173,13 +201,17 @@ export default function HqPaymentsPage() {
           ) : unsettledQ.error ? (
             <ErrorState message={unsettledQ.error} onRetry={unsettledQ.reload} />
           ) : unsettledRows.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">{t('hq.payments.unsettled.empty')}</p>
+            <p className="py-4 text-center text-sm text-muted">
+              {t('hq.payments.unsettled.empty')}
+            </p>
           ) : (
             <ul className="divide-y divide-[color:var(--border)]">
               {unsettledRows.map((r) => (
                 <li key={r.method} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span className="min-w-0">
-                    <span className="font-medium">{t(`hq.payments.unsettled.method.${r.method}`)}</span>
+                    <span className="font-medium">
+                      {t(`hq.payments.unsettled.method.${r.method}`)}
+                    </span>
                     <span className="mt-0.5 block text-xs text-muted">
                       {t('hq.payments.unsettled.count', { n: r.count })}
                     </span>
@@ -212,7 +244,10 @@ export default function HqPaymentsPage() {
                     <span className="mt-0.5 block truncate text-xs text-muted">
                       {t('hq.payments.release.due', { date: formatDue(r.nextPayoutDate) })}
                     </span>
-                    <Money amount={r.availableBalance} className="mt-1 block text-sm font-semibold text-brand-700" />
+                    <Money
+                      amount={r.availableBalance}
+                      className="mt-1 block text-sm font-semibold text-brand-700"
+                    />
                   </span>
                   <Button
                     variant="secondary"
@@ -229,14 +264,14 @@ export default function HqPaymentsPage() {
         </Card>
 
         {/*
-          * Penarikan menunggu jawaban bank.
-          *
-          * `release` above wrote a row that no code path could ever move on, while the ledger
-          * had already been debited — PROCESSING was the last state a payout reached, on both
-          * the franchise and the courier side. This is the queue that answers it: PAID is the
-          * transfer clearing, GAGAL re-credits the balance in the same transaction. Both are
-          * irreversible, so both ask first.
-          */}
+         * Penarikan menunggu jawaban bank.
+         *
+         * `release` above wrote a row that no code path could ever move on, while the ledger
+         * had already been debited — PROCESSING was the last state a payout reached, on both
+         * the franchise and the courier side. This is the queue that answers it: PAID is the
+         * transfer clearing, GAGAL re-credits the balance in the same transaction. Both are
+         * irreversible, so both ask first.
+         */}
         <Card className="flex min-w-0 flex-col gap-4 p-5 lg:col-span-2">
           <h2 className="font-semibold">{t('hq.payments.settle.title')}</h2>
           <p className="-mt-3 text-xs text-muted">{t('hq.payments.settle.hint')}</p>
@@ -257,7 +292,7 @@ export default function HqPaymentsPage() {
           <WithdrawalQueue
             heading={t('hq.payments.settle.courier')}
             query={courierProcessingQ}
-            label={(r) => shortId(r.courierId)}
+            label={(r) => courierName(r.courierId)}
             busyId={settling}
             onSettle={(row, paid) =>
               settle(
@@ -277,7 +312,9 @@ export default function HqPaymentsPage() {
 }
 
 /** One withdrawal queue — the franchise and the courier lists differ only in whose name it is. */
-function WithdrawalQueue<T extends { id: string; amount: number; reference: string; bankAccountRef: string }>({
+function WithdrawalQueue<
+  T extends { id: string; amount: number; reference: string; bankAccountRef: string },
+>({
   heading,
   query,
   label,
@@ -323,7 +360,11 @@ function WithdrawalQueue<T extends { id: string; amount: number; reference: stri
                 >
                   {t('hq.payments.settle.paid')}
                 </Button>
-                <Button variant="danger" disabled={busyId === r.id} onClick={() => onSettle(r, false)}>
+                <Button
+                  variant="danger"
+                  disabled={busyId === r.id}
+                  onClick={() => onSettle(r, false)}
+                >
                   {t('hq.payments.settle.failed')}
                 </Button>
               </span>

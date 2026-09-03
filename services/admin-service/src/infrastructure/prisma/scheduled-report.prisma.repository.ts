@@ -20,6 +20,8 @@ interface ScheduledReportRow {
   dataset: string;
   nextRunAt: Date | null;
   lastRunAt: Date | null;
+  lastRunOk: boolean | null;
+  lastError: string | null;
   enabled: boolean;
   createdAt: Date;
 }

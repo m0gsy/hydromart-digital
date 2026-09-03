@@ -39,6 +39,8 @@ export const dashA = {
     gateBody: 'The approval queue is available to depot managers and super admins.',
   },
   approvalDetail: {
+    submittedByLabel: 'Submitted by',
+    decidedByLabel: 'Decided by',
     type: {
       OPNAME_VARIANCE: 'Stock-count variance',
       DEPOSIT_REFUND: 'Deposit refund',

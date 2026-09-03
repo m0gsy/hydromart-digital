@@ -31,11 +31,14 @@ describe('K1.5 · a customer can complain, and can see it again', () => {
   });
 
   const raise = (user: typeof customer, over: Record<string, unknown> = {}) =>
-    controller.raise(user as never, {
-      subject: 'Galon bocor',
-      body: 'Galonnya sudah bocor waktu diterima.',
-      ...over,
-    } as never);
+    controller.raise(
+      user as never,
+      {
+        subject: 'Galon bocor',
+        body: 'Galonnya sudah bocor waktu diterima.',
+        ...over,
+      } as never,
+    );
 
   it('files the complaint as the customer own first message', async () => {
     const ticket = await raise(customer);

@@ -1,5 +1,8 @@
 import { FraudScanService } from '../../src/application/services/fraud-scan.service';
-import { FraudSignalsPort, RepeatedRefundSignal } from '../../src/application/ports/fraud-signals.port';
+import {
+  FraudSignalsPort,
+  RepeatedRefundSignal,
+} from '../../src/application/ports/fraud-signals.port';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
 import { InMemoryFraudFlagRepository } from '../support/fakes';
 import { AdminConfigService } from '../../src/config/admin-config.service';
@@ -12,7 +15,9 @@ import { AdminConfigService } from '../../src/config/admin-config.service';
  * The scan judges ONE thing: customers with repeated settled refunds. 15b never says what
  * makes an order suspicious, so it starts where nothing has to be guessed.
  */
-const config = (over: Partial<{ windowDays: number; minRefunds: number; highRefunds: number }> = {}) =>
+const config = (
+  over: Partial<{ windowDays: number; minRefunds: number; highRefunds: number }> = {},
+) =>
   ({
     fraudScan: { windowDays: 30, minRefunds: 3, highRefunds: 5, ...over },
   }) as unknown as AdminConfigService;
@@ -131,10 +136,6 @@ describe('FraudScanService', () => {
 
     await scan.run(NOW);
 
-    expect(repeatedRefunds).toHaveBeenCalledWith(
-      new Date('2026-08-09T00:00:00.000Z'),
-      NOW,
-      2,
-    );
+    expect(repeatedRefunds).toHaveBeenCalledWith(new Date('2026-08-09T00:00:00.000Z'), NOW, 2);
   });
 });

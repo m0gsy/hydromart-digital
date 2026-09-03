@@ -11,6 +11,10 @@ export interface ScheduledReportRecord {
   dataset: ReportDataset;
   nextRunAt: Date | null;
   lastRunAt: Date | null;
+  /** CA-2-66: whether that run produced the file. Null = never run. */
+  lastRunOk: boolean | null;
+  /** Why it failed, when it did. Null when it worked, or never ran. */
+  lastError: string | null;
   enabled: boolean;
   createdAt: Date;
 }
@@ -34,6 +38,8 @@ export interface UpdateScheduledReportData {
   dataset?: ReportDataset;
   nextRunAt?: Date | null;
   lastRunAt?: Date | null;
+  lastRunOk?: boolean | null;
+  lastError?: string | null;
   enabled?: boolean;
 }
 

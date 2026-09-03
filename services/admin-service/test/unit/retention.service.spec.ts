@@ -75,7 +75,12 @@ describe('RetentionService', () => {
       const backupAt = new Date('2026-08-03T03:00:00.000Z');
       const drillAt = new Date('2026-08-04T04:30:00.000Z');
       await service.recordBackupRun({ kind: 'BACKUP', status: 'OK', at: backupAt, detail: '1.2G' });
-      await service.recordBackupRun({ kind: 'DRILL', status: 'FAILED', at: drillAt, detail: 'no rows' });
+      await service.recordBackupRun({
+        kind: 'DRILL',
+        status: 'FAILED',
+        at: drillAt,
+        detail: 'no rows',
+      });
 
       expect(await service.getBackupStatus()).toEqual({
         status: 'OK',

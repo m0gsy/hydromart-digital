@@ -149,12 +149,23 @@ describe('WebhookDispatchService', () => {
     const timestamp = init.headers['X-Hydromart-Timestamp'];
     expect(init.headers['X-Hydromart-Event']).toBe('delivery.delivered');
     expect(
-      verifySignature('partner-secret', timestamp, init.body, init.headers['X-Hydromart-Signature']),
+      verifySignature(
+        'partner-secret',
+        timestamp,
+        init.body,
+        init.headers['X-Hydromart-Signature'],
+      ),
     ).toBe(true);
-    expect(JSON.parse(init.body)).toMatchObject({ event: 'delivery.delivered', data: { deliveryId: 'x' } });
+    expect(JSON.parse(init.body)).toMatchObject({
+      event: 'delivery.delivered',
+      data: { deliveryId: 'x' },
+    });
     expect(calls.delivered).toEqual([{ id: 'd-1', status: 200 }]);
     // The two columns that were permanently null before this existed.
-    expect(calls.updated[0]!.data).toEqual({ lastDeliveryStatus: 'DELIVERED', deliveryRatePct: 50 });
+    expect(calls.updated[0]!.data).toEqual({
+      lastDeliveryStatus: 'DELIVERED',
+      deliveryRatePct: 50,
+    });
   });
 
   it('sends unsigned rather than signing with a placeholder when no secret is set', async () => {

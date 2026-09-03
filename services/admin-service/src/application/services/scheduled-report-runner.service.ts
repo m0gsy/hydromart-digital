@@ -59,13 +59,22 @@ export class ScheduledReportRunnerService {
     const result: ReportSweepResult = { due: due.length, produced: 0, failed: 0, ok: true };
 
     for (const schedule of due) {
-      const ok = await this.runOne(schedule, now);
-      if (ok) result.produced += 1;
+      const outcome = await this.runOne(schedule, now);
+      if (outcome.ok) result.produced += 1;
       else result.failed += 1;
-      // Stamped whether it worked or not. A schedule that fails every tick must not become
-      // a hot loop that re-runs it every minute and fills the export log with failures.
+      /*
+       * `lastRunAt` is stamped whether it worked or not — deliberately, so a schedule that
+       * fails every tick does not become a hot loop re-running every minute.
+       *
+       * CA-2-66: which is exactly why the outcome has to be stamped BESIDE it. Without
+       * that, head office saw a fresh timestamp every Monday and had no way to learn the
+       * file had not been produced for a month. The runner has always known; there was
+       * nowhere on the schedule to write the answer down.
+       */
       await this.schedules.update(schedule.id, {
         lastRunAt: now,
+        lastRunOk: outcome.ok,
+        lastError: outcome.error,
         nextRunAt: nextRunAfter(schedule.cadence, now),
       });
     }
@@ -73,7 +82,10 @@ export class ScheduledReportRunnerService {
     return result;
   }
 
-  private async runOne(schedule: ScheduledReportRecord, now: Date): Promise<boolean> {
+  private async runOne(
+    schedule: ScheduledReportRecord,
+    now: Date,
+  ): Promise<{ ok: boolean; error: string | null }> {
     const { from, to } = reportWindow(schedule.cadence, now);
     try {
       const rows = await this.source.rowsFor(schedule.dataset, from, to);
@@ -87,7 +99,7 @@ export class ScheduledReportRunnerService {
         content,
         fileName: reportFileName(schedule.name, from, schedule.format),
       });
-      return true;
+      return { ok: true, error: null };
     } catch (error) {
       // The failure is RECORDED, not swallowed. An unreachable service would otherwise
       // produce an empty spreadsheet, and an empty revenue report reads as a quiet month
@@ -100,7 +112,9 @@ export class ScheduledReportRunnerService {
         rowCount: null,
         status: ExportStatus.FAILED,
       });
-      return false;
+      // Truncated: this is a screen label, not a stack trace, and an unbounded message
+      // from a third party has no business being stored whole.
+      return { ok: false, error: (error as Error).message.slice(0, 500) };
     }
   }
 }

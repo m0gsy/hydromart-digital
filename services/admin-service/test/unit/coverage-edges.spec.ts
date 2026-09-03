@@ -15,7 +15,10 @@ import {
   CreateScheduledReportDto,
   UpdateScheduledReportDto,
 } from '../../src/modules/dto/scheduled-report.dto';
-import type { ApiKeyRecord, ApiKeyRepository } from '../../src/application/ports/api-key.repository';
+import type {
+  ApiKeyRecord,
+  ApiKeyRepository,
+} from '../../src/application/ports/api-key.repository';
 import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { RetentionService } from '../../src/application/services/retention.service';
 import { RetentionPolicyNotFoundError } from '../../src/domain/errors';
@@ -79,10 +82,15 @@ describe('RetentionPrismaRepository lookups', () => {
     } as unknown as PrismaService;
 
     await expect(
-      new RetentionPrismaRepository(prisma).updatePolicy('gone', { windowLabel: '30 hari', windowDays: 30, dataClass: DataClass.OPERATIONAL }),
+      new RetentionPrismaRepository(prisma).updatePolicy('gone', {
+        windowLabel: '30 hari',
+        windowDays: 30,
+        dataClass: DataClass.OPERATIONAL,
+      }),
     ).resolves.toBeNull();
-    expect((prisma as unknown as { retentionPolicy: { update: jest.Mock } }).retentionPolicy.update)
-      .not.toHaveBeenCalled();
+    expect(
+      (prisma as unknown as { retentionPolicy: { update: jest.Mock } }).retentionPolicy.update,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -208,7 +216,11 @@ describe('RetentionService edges', () => {
     const svc = new RetentionService(repo as never);
 
     await expect(
-      svc.updatePolicy('p1', { windowLabel: '60 hari', windowDays: 60, dataClass: DataClass.OPERATIONAL }),
+      svc.updatePolicy('p1', {
+        windowLabel: '60 hari',
+        windowDays: 60,
+        dataClass: DataClass.OPERATIONAL,
+      }),
     ).rejects.toBeInstanceOf(RetentionPolicyNotFoundError);
   });
 
@@ -248,7 +260,9 @@ describe('RetentionController read paths', () => {
         },
       ]),
     } as unknown as RetentionService;
-    const purge = { run: jest.fn().mockResolvedValue({ dryRun: false }) } as unknown as PurgeService;
+    const purge = {
+      run: jest.fn().mockResolvedValue({ dryRun: false }),
+    } as unknown as PurgeService;
     const controller = new RetentionController(retention, purge);
 
     await expect(controller.purgePlan()).resolves.toEqual([
