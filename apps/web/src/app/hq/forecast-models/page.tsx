@@ -144,7 +144,10 @@ export default function ForecastModelsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {/* The definition's own label is the name of this control — no dictionary
+                    key can say it better, and it is already on screen above. */}
                 <select
+                  aria-label={d.label}
                   value={drafts[d.key] ?? String(data.effective[d.key] ?? '')}
                   onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
                   className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"

@@ -5,7 +5,7 @@ import { Image as ImageIcon } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -120,7 +120,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
           <Input type="date" value={form.endsAt} onChange={set('endsAt')} />
         </Field>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
           {promo ? t('hq.promotions.save') : t('hq.promotions.create')}

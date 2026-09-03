@@ -83,7 +83,7 @@ export default function HqOnboardingPage() {
         }
       />
 
-      <select value={depotId} onChange={(e) => setDepotId(e.target.value)} className={selectClass}>
+      <select aria-label={t('hq.onboarding.pickDepot')} value={depotId} onChange={(e) => setDepotId(e.target.value)} className={selectClass}>
         <option value="">{t('hq.onboarding.pickDepot')}</option>
         {(depots.data?.items ?? []).map((dp) => (
           <option key={dp.id} value={dp.id}>

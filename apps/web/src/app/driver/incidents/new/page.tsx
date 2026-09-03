@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Camera, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { compressImage } from '@/lib/image';
@@ -150,10 +150,13 @@ function NewIncident() {
         </Field>
 
         <Field label={t('driver.incidentNew.photoLabel')}>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-5 text-sm font-bold text-[color:var(--muted)]">
+          {/* `sr-only`, not `hidden`: display:none takes the input out of the tab order,
+              and the label around it is not focusable, so this picker could only ever be
+              opened with a tap. Same defect, same fix as components/csv-import.tsx. */}
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-5 text-sm font-bold text-[color:var(--muted)] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
             <Camera size={19} />
             {photo ? t('driver.incidentNew.changePhoto') : t('driver.incidentNew.takePhoto')}
-            <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="hidden" />
+            <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="sr-only" />
           </label>
           {photoPreview && (
             <img src={photoPreview} alt={t('driver.incidentNew.photoAlt')} className="mt-2 max-h-44 rounded-xl object-cover" />
@@ -161,7 +164,7 @@ function NewIncident() {
         </Field>
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       <Button
         loading={busy}

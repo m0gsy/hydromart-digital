@@ -279,6 +279,7 @@ function Harian({ depotId }: { depotId: string }) {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <input
             type="date"
+            aria-label={t('opsFix.reports.datePicker')}
             value={date}
             max={today()}
             onChange={(e) => setDate(e.target.value)}

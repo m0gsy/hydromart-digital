@@ -110,7 +110,9 @@ export function PaymentSettle({ order }: { order: Order }) {
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-app p-3 text-sm">
       <div className="flex items-center justify-between gap-3">
-        <span className="font-medium">Pembayaran · {payment.method}</span>
+        <span className="font-medium">
+          {t('hrFix.orderDetail.paymentMethod', { method: payment.method })}
+        </span>
         <Badge tone={payment.status === 'PAID' ? 'success' : pending ? 'warning' : 'neutral'}>{payment.status}</Badge>
       </div>
       {error && (
@@ -345,7 +347,9 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
             {order.province ? `, ${order.province}` : ''}
             {order.postalCode ? ` ${order.postalCode}` : ''}
           </p>
-          {order.notes && <p className="mt-1 text-muted">Catatan: {order.notes}</p>}
+          {order.notes && (
+            <p className="mt-1 text-muted">{t('hrFix.orderDetail.notes', { notes: order.notes })}</p>
+          )}
           {/*
             B5. The customer picks a delivery window at checkout, is shown a confirmation of
             it, and it reached nobody: not this sheet, not the courier payload. The depot
@@ -356,7 +360,11 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
               {t('hrFix.orderDetail.window')}: {order.deliveryWindow}
             </p>
           )}
-          {order.driverName && <p className="mt-1 font-medium">Kurir: {order.driverName}</p>}
+          {order.driverName && (
+            <p className="mt-1 font-medium">
+              {t('hrFix.orderDetail.courier', { name: order.driverName })}
+            </p>
+          )}
         </div>
 
         <div>
@@ -443,7 +451,7 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           </Button>
           {canAdvance && (
             <Button onClick={advance} loading={advancing}>
-              Lanjut ke {statusLabel(next)}
+              {t('hrFix.orderDetail.advanceTo', { status: statusLabel(next) })}
             </Button>
           )}
         </div>

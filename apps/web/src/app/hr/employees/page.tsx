@@ -122,6 +122,7 @@ export default function EmployeesPage() {
           className="max-w-xs"
         />
         <select
+          aria-label={t('hrFix.employees.allStatuses')}
           value={status}
           onChange={(e) => setStatus(e.target.value as EmployeeStatus | '')}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
@@ -135,6 +136,7 @@ export default function EmployeesPage() {
         </select>
         {departments.error && <LoadError onRetry={departments.reload} />}
         <select
+          aria-label={t('hrFix.employees.allDepartments')}
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"

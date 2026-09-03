@@ -37,11 +37,12 @@ export default function HrResellersPage() {
             Reseller / Agen
           </h1>
           <p className="mt-1 text-[13px] text-muted">
-            Hanya lihat. Registry yang sama dengan konsol depot.
+            {t('hrFix.hrResellers.readOnly')}
             {depot && (
               <>
                 {' '}
-                Depot: <strong className="text-[color:var(--text)]">{depot.name}</strong>
+                {t('hrFix.hrResellers.depotLabel')}{' '}
+                <strong className="text-[color:var(--text)]">{depot.name}</strong>
               </>
             )}
           </p>

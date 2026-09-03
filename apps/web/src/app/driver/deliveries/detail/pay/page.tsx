@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle, Coins } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { runOrQueue } from '@/lib/offline-queue';
 import { endpoints } from '@/lib/endpoints';
@@ -146,7 +146,7 @@ function Pay() {
             <Money amount={change} className="text-xl font-extrabold" />
           </Card>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError message={error} />
 
           <Button loading={busy} disabled={received < amount} className="w-full" onClick={confirm}>
             {t('driver.pay.confirm')}

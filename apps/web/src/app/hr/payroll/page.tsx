@@ -79,7 +79,11 @@ function PayrollInner() {
                   {p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
                 </p>
                 <p className="text-xs text-muted">
-                  {p.periodMonth} · {p.presentDays} hari hadir · dibuat {fmtDate(p.createdAt)}
+                  {t('hrFix.payroll.periodPresentCreated', {
+                    period: p.periodMonth,
+                    days: p.presentDays,
+                    at: fmtDate(p.createdAt),
+                  })}
                 </p>
               </div>
               <div className="flex items-center gap-3">

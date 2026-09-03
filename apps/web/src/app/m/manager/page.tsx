@@ -130,7 +130,9 @@ export default function ManagerHomePage() {
           href="/m/manager/approvals"
           className="flex items-center justify-between rounded-2xl bg-brand-600 p-4 text-on-brand"
         >
-          <span className="text-sm font-extrabold">{pending} menunggu approval</span>
+          <span className="text-sm font-extrabold">
+            {t('mgrFix.mMgr.pendingApproval', { count: pending })}
+          </span>
           <CaretRight size={18} weight="bold" />
         </Link>
       )}

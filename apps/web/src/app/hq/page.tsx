@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { ChartLineUp, Warning } from '@phosphor-icons/react';
@@ -247,7 +248,18 @@ export default function HqOverviewPage() {
                         className="cursor-pointer transition-colors hover:bg-[color:var(--surface-soft)]"
                         onClick={() => router.push(`/hq/depots/detail?id=${r.depotId}`)}
                       >
-                        <td className="py-2.5 font-medium">{r.name}</td>
+                        {/* The row `onClick` is for a mouse; a `<tr>` has no tab stop, so
+                            the depot name is the keyboard and screen-reader path into the
+                            same depot. `stopPropagation` stops the row navigating twice. */}
+                        <td className="py-2.5 font-medium">
+                          <Link
+                            href={`/hq/depots/detail?id=${r.depotId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                          >
+                            {r.name}
+                          </Link>
+                        </td>
                         <td className="py-2.5 text-right">
                           {r.revenue != null ? <Money amount={r.revenue} /> : t('hq.common.dash')}
                         </td>

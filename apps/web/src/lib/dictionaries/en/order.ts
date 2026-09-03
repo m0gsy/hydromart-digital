@@ -98,6 +98,7 @@ export const order: typeof base = {
     itemCountOther: '{n} items',
   },
   detail: {
+    payDirect: 'The payment goes straight to {depot}.',
     placedMeta: 'Placed {date} · {n} item · Total',
     items: 'Items',
     subtotal: 'Subtotal',

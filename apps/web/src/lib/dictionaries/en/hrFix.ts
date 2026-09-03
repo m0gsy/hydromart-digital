@@ -233,6 +233,9 @@ export const hrFix = {
     rotation: "Rotation",
   },
   employeeForm: {
+    phoneTakenTail: ' — not create a new account. If the number is a typo, fix it first.',
+    phoneTakenSave: 'Saving will turn that account into',
+    phoneTaken: 'The number {phone} already belongs to the account of',
     resignedHint: 'A RESIGNED status does not stop pay — fill in the exit date, that is what payroll reads.',
     cancel2: "Cancel",
     pickDepot: "Select a depot…",
@@ -280,6 +283,7 @@ export const hrFix = {
     addEmployee: "Add employee",
   },
   calendar: {
+    noShift: 'No shift yet (uses the {workStartTime} default).',
     inactive: "inactive",
     depot: "depot",
     title: "Working calendar",
@@ -361,6 +365,7 @@ export const hrFix = {
     percent: "Percent (%)",
   },
   home: {
+    attendanceToday: 'Attendance today ({date})',
     title: "HR dashboard",
     empty: "No data yet.",
     headcountMix: "Active headcount mix",
@@ -453,6 +458,7 @@ export const hrFix = {
     enrollFace: "Enrol or update your face",
   },
   attendance: {
+    pendingTitle: 'Attendance awaiting approval ({count})',
     pendingReason: 'Submitted long after the clock-in time, so the hour came from the device, or captured outside every depot they are responsible for. Not counted as present yet.',
     title: "Attendance",
     correctStatus: "Correct the status",
@@ -491,6 +497,8 @@ export const hrFix = {
     departmentUnreadable: "Departments could not be read",
   },
   leave: {
+    note: 'Note: {note}',
+    workingDays: '{days} working days',
     importBalances: "Import leave balances",
     reject2: "Reject",
     title: "Leave requests",
@@ -505,6 +513,8 @@ export const hrFix = {
     failed: "Could not process it",
   },
   performance: {
+    rowDays: '{present}/{working} days, {late}× late',
+    measured: 'Measured: attendance {attendance} · discipline {discipline} · sales {sales} · final {final}. Components that could not be measured are left out of the total.',
     dashHint: '“—” means the component could not be measured this period (no scheduled working days, no attendance, or no sales target set) — not a zero. Component weights are set in Payroll Configuration.',
     savedFor: "Review for {name} saved",
     period3: "Period",
@@ -622,6 +632,9 @@ export const hrFix = {
     uploadPhoto: "Upload an agent photo",
   },
   orderDetail: {
+    advanceTo: 'Advance to {status}',
+    notes: 'Note: {notes}',
+    paymentMethod: 'Payment · {method}',
     onlineRefundHint: 'The payment was settled when this order was cancelled: an unpaid one was voided, a paid one refunded. A high-value refund waits for HQ approval before the money moves.',
     printReceipt2: "Print receipt",
     // B5: the delivery window the customer picked at checkout, finally on a screen.
@@ -658,6 +671,7 @@ export const hrFix = {
     updateFailed: "Could not update the order.",
   },
   vouchers: {
+    giveTitle: 'Give {code} to a customer',
     cancel3: "Cancel",
     activeVouchers: "Active vouchers",
     cancel2: "Cancel",
@@ -806,6 +820,8 @@ export const hrFix = {
     closeFailed: "Could not close the shift.",
   },
   operatorSummary: {
+    notSettled: '{count} couriers have not settled',
+    lowStockCount: 'Low stock · {count}',
     viewQueue2: "View the queue",
     noUnassigned: "No orders are waiting to be assigned.",
     verifyDeposit: "Verify deposit",
@@ -874,6 +890,7 @@ export const hrFix = {
     finish: "Complete delivery",
   },
   poDetail: {
+    receivedAt: 'Received on {at}.',
     receiveHintPost: 'into the depot inventory for every line.',
     receiveHintPre: 'Receiving goods records',
     backToList: "Back to the list",
@@ -894,6 +911,11 @@ export const hrFix = {
     actionFailed: "That did not work. Try again.",
   },
   approvalDetail: {
+    approve: 'Approve',
+    reject: 'Reject',
+    deciding: 'Working…',
+    alreadyRejected: 'This item has already been rejected.',
+    alreadyApproved: 'This item has already been approved.',
     backToList2: "Back to the list",
     note2: "Note",
     notFound: "Approval not found",
@@ -936,6 +958,8 @@ export const hrFix = {
     sendNow: "Send now",
   },
   hrCustomers: {
+    depotLabel: 'Depot:',
+    readOnly: 'Read only. The data is read straight from the depot directory.',
     customers2: "Customers",
     name: "Name",
     phone: "Phone",
@@ -948,6 +972,7 @@ export const hrFix = {
     noCustomers: "No customers yet",
   },
   myLeave: {
+    workingDays: '{days} working days',
     cancel: "Cancel it",
     cancelConfirm: "Withdraw this leave request? It leaves your approver's queue, and re-filing starts the approval chain again.",
     quotaLine: "Quota {quota} days · used {used} · left {left}",
@@ -971,6 +996,7 @@ export const hrFix = {
     deductsQuota: " (uses quota)",
   },
   payroll: {
+    periodPresentCreated: '{period} · {days} days present · created {at}',
     // PG-01 — the employee record was anonymised by retention; there is no name left.
     unnamedEmployee: 'Unnamed employee (record anonymised)',
     title: "Payroll",
@@ -1120,6 +1146,8 @@ export const hrFix = {
     enrollFailed: "Enrolment failed",
   },
   commission: {
+    depotNoteAfter: ', which head office computes from net profit and pays to the franchise owner.',
+    depotNote: "This is the per-delivery commission for your depot's couriers — paid out of depot cash. It differs from",
     deliveredPaid: '{delivered} deliveries · paid {gross}',
     unpaidDeliveries: '{n} deliveries are not in the courier payment ledger',
     payoutUnavailable: 'The courier payment figures cannot be read right now, so this period’s commission is not shown. This screen does not work them out itself — a figure computed here once differed from what was actually paid.',
@@ -1136,6 +1164,7 @@ export const hrFix = {
       "This commission is already in each courier's payment ledger, credited as their deliveries completed. Couriers withdraw it themselves from Earnings in their app; there is nothing to press here.",
   },
   expenseClaims: {
+    note: 'Note: {note}',
     viewReceipt: "View receipt",
     approve: "Approve",
     reject: "Reject",
@@ -1153,6 +1182,9 @@ export const hrFix = {
     allDepots: "All depots — pick one in the switcher to filter.",
   },
   meter: {
+    overThreshold: 'The variance is past the {liters} litre threshold. Check for gallons that left unrecorded, a leak, or a mistyped meter reading.',
+    orderLines: '{count} order lines',
+    varianceHint: '± {gallons} equivalent gallons (reference {liters} L)',
     sameDayHint: 'This comparison suits depots that fill gallons as sales come in. If a depot fills stock first and sells it the next day, today’s meter will not match today’s sales.',
     noVolumeHint: 'has no litre volume today, so it is left out of the comparison. Fill in the product volume in the catalog to make this variance accurate.',
     noClosedDays: "No day has had its meter closed yet.",
@@ -1177,6 +1209,9 @@ export const hrFix = {
     save: "Save",
   },
   wastage: {
+    sourceHintBefore: 'Every wastage entry is recorded as one inventory movement of type',
+    itemKinds: '{count} item kinds',
+    fromAdjustment: 'from ADJUSTMENT movements',
     sourceHint: 'with a negative delta, so stock and loss value always agree with the inventory ledger. A rupiah value only appears for items that carry a selling price.',
     empty: 'No wastage (negative ADJUSTMENT) in this period.',
     details: "Details",
@@ -1193,6 +1228,8 @@ export const hrFix = {
     empty: "No history yet",
   },
   hrResellers: {
+    depotLabel: 'Depot:',
+    readOnly: 'Read only. The same registry as the depot console.',
     photo: "Photo",
     customer: "Customer",
     discount: "Discount",
@@ -1240,6 +1277,7 @@ export const hrFix = {
     ownerHint: "PT Hydromart Cikini",
   },
   monthlyReview: {
+    forMeeting: 'for the monthly head-office meeting',
     gateBody2: "The monthly ops review is for depot managers only.",
     title: "Ops review",
     gallonSales: "Gallon sales",
@@ -1291,6 +1329,7 @@ export const hrFix = {
     info: "Info",
   },
   deliveryDetail: {
+    failedReason: 'Failed: {reason}',
     podRetention: 'Proof of delivery (photo, signature, GPS) is kept for 12 months under the Indonesian data-protection law, then deleted automatically.',
     takeCashDue: 'Take {amount}',
     codBlocksFinish: 'Take the cash first — Selesai unlocks once the payment is recorded.',
@@ -1323,6 +1362,7 @@ export const hrFix = {
     markFailed: "Could not mark it as read.",
   },
   myPayroll: {
+    daysAndDate: '{days} days · {date}',
     title: "My payslips",
     empty: "No payslips yet",
     emptyBody: "Your payslips will appear here.",
@@ -1470,6 +1510,7 @@ export const hrFix = {
     managerOnly: "Depot managers only",
   },
   offlineBanner: {
+    pendingCount: '{count} items not sent yet',
     discardTitle: "Discard this?",
     discardConfirm: "Discard \"{kind}\" from the queue? This is the only copy — it is not retried and never reaches the server. If it is a COD confirmation, the cash was taken and will never be recorded.",
     discardConfirmLabel: "Discard",

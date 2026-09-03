@@ -140,9 +140,12 @@ function ProofUpload({
           {error}
         </p>
       )}
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-app px-4 py-3 text-sm font-bold text-brand-700 hover:border-brand-500">
+      {/* `sr-only`, not `hidden`: display:none takes the input out of the tab order, and
+          the label around it is not focusable, so uploading proof of transfer needed a
+          mouse. Same defect, same fix as components/csv-import.tsx. */}
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-app px-4 py-3 text-sm font-bold text-brand-700 hover:border-brand-500 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
         {busy ? t('order.detail.proofUploading') : src ? t('order.detail.proofReplace') : t('order.detail.proofPick')}
-        <input type="file" accept="image/*" onChange={pick} disabled={busy} className="hidden" />
+        <input type="file" accept="image/*" onChange={pick} disabled={busy} className="sr-only" />
       </label>
     </div>
   );
@@ -499,7 +502,8 @@ function OrderDetailInner({ id }: { id: string }) {
                     <p className="text-sm text-muted">{t('hrFix.orderDetailPay.noQris')}</p>
                   ))}
                 <p className="text-[12.5px] text-muted">
-                  Pembayaran masuk langsung ke {depot.name}. {t('order.detail.transferAck')}
+                  {t('order.detail.payDirect', { depot: depot.name })}{' '}
+                  {t('order.detail.transferAck')}
                 </p>
                 {/*
                   K2.1b: somewhere to put the receipt this screen has always asked for.

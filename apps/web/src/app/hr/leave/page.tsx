@@ -84,6 +84,7 @@ export default function LeaveQueuePage() {
 
       <div className="flex flex-wrap gap-3">
         <select
+          aria-label={t('hrFix.leave.allStatuses')}
           value={status}
           onChange={(e) => setStatus(e.target.value as LeaveStatus | '')}
           className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
@@ -121,10 +122,15 @@ export default function LeaveQueuePage() {
                 </div>
                 <p className="text-sm font-medium">{t(LEAVE_TYPE_LABEL[r.type])}</p>
                 <p className="text-sm text-muted">
-                  {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja
+                  {fmtDate(r.startDate)} – {fmtDate(r.endDate)} ·{' '}
+                  {t('hrFix.leave.workingDays', { days: r.workingDays })}
                 </p>
                 <p className="text-sm">{r.reason}</p>
-                {r.decisionNote && <p className="text-sm text-muted">Catatan: {r.decisionNote}</p>}
+                {r.decisionNote && (
+                  <p className="text-sm text-muted">
+                    {t('hrFix.leave.note', { note: r.decisionNote })}
+                  </p>
+                )}
                 {actionable && (
                   <div className="flex flex-wrap items-center gap-2">
                     <Input

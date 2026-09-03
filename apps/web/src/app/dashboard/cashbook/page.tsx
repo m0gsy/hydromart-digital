@@ -303,7 +303,7 @@ function CashbookBody() {
         state and the late-entry warning that make the action safe to take.
       */}
       <p className="text-center text-[12.5px] text-[color:var(--text-muted)]">
-        Tutup buku harian ada di{' '}
+        {t('opsFix.cashbook.closeBookAt')}{' '}
         <Link href="/dashboard/reports" className="font-semibold text-brand-600 hover:underline">
           {t('opsFix.cashbook.dailyReport')}
         </Link>

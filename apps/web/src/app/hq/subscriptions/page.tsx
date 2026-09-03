@@ -75,7 +75,9 @@ export default function HqSubscriptionsPage() {
                   : (depotSubs.data?.activeSubscriptions ?? 0).toLocaleString('id-ID')}
               </p>
               {depotSubs.error && (
-                <p className="text-[11px] text-muted">{t('hq.subscriptions.depotUnreadable')}</p>
+                <p role="status" className="text-[11px] text-muted">
+                  {t('hq.subscriptions.depotUnreadable')}
+                </p>
               )}
             </Card>
             <Card className="flex flex-col gap-1 p-4">

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, ClockCounterClockwise, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -118,7 +118,7 @@ function Settlement() {
             </div>
           </Card>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError message={error} />
 
           <Button loading={busy} disabled={cash === ''} className="w-full" onClick={submit}>
             {t('hrFix.settlement.handToCashier')}

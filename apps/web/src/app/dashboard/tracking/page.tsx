@@ -6,7 +6,7 @@ import { DeliveryDetail } from '@/components/dashboard/delivery-detail';
 import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, FormError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -193,7 +193,7 @@ function DeliveryCard({
               {t('opsFix.tracking.cancel')}
             </Button>
           </div>
-          {actionError && <p className="text-xs text-[color:var(--danger)]">{actionError}</p>}
+          <FormError message={actionError} className="text-xs" />
         </div>
       )}
     </Card>

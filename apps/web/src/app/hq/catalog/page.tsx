@@ -6,7 +6,7 @@ import { Package } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { ProductImageInput } from '@/components/product-image-input';
-import { Badge, Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -203,7 +203,7 @@ function ProductEditor({
           className={inputClass}
         />
       </Field>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
           {product ? t('hq.catalog.save') : t('hq.catalog.create')}
@@ -327,7 +327,7 @@ function CategoryManager({ onChange }: { onChange: () => void }) {
           )}
         </div>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       {categories.loading ? (
         <Skeleton className="h-24 w-full" />

@@ -105,7 +105,7 @@ export default function ManagerLoginPage() {
             loading={loading}
             className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
           >
-            Kirim kode OTP
+            {t('mgrFix.login.sendOtp')}
             {!loading && <ArrowRight size={17} weight="bold" />}
           </Button>
 

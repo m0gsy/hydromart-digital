@@ -364,6 +364,13 @@ jobs:
       - name: No hardcoded Indonesian copy
         run: node scripts/check-i18n.mjs
 
+      # Console-audit CA-1-53 / CA-2-38 / the a11y half of CA-2-68. Three file pickers that
+      # `display:none` had taken out of the tab order, two `<tr>` that only a mouse could
+      # open, 36 failure messages with no live region and 14 unnamed form controls. None of
+      # those is visible on a laptop with a mouse, which is exactly why they need a gate.
+      - name: Keyboard and screen-reader debt
+        run: node scripts/check-a11y.mjs
+
       # C4: the two ways this repo kept cutting time in the wrong zone — a UTC period key
       # from toISOString().slice, and a bare date_trunc in raw SQL. Both shipped more than
       # once; a reasoned `// tz-ok:` is the only way past.

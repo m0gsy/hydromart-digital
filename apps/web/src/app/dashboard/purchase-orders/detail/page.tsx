@@ -182,7 +182,9 @@ function Detail({ id }: { id: string }) {
         </Button>
       )}
       {po.status === 'RECEIVED' && po.receivedAt && (
-        <p className="text-center text-sm text-muted">Diterima pada {formatDateTime(po.receivedAt)}.</p>
+        <p className="text-center text-sm text-muted">
+          {t('hrFix.poDetail.receivedAt', { at: formatDateTime(po.receivedAt) })}
+        </p>
       )}
     </div>
   );

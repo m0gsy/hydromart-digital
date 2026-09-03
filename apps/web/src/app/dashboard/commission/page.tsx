@@ -151,9 +151,8 @@ function CommissionBody() {
       <Card className="flex items-start gap-3 bg-[color:var(--surface-soft)] p-4">
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
         <p className="text-[12.5px] text-[color:var(--text-muted)]">
-          Ini komisi per-antar untuk kurir depot Anda — dibayar dari kas depot. Berbeda dari{' '}
-          <strong className="text-[color:var(--text)]">{t('hrFix.commission.franchiseShare')}</strong>, yang dihitung
-          head office dari laba bersih dan dibayar ke pemilik franchise.
+          {t('hrFix.commission.depotNote')}{' '}
+          <strong className="text-[color:var(--text)]">{t('hrFix.commission.franchiseShare')}</strong>{t('hrFix.commission.depotNoteAfter')}
         </p>
       </Card>
     </div>

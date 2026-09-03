@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -137,7 +137,7 @@ function Earnings() {
             />
           </Field>
           {overBalance && <p className="text-sm text-red-600">{t('hrFix.earnings.overBalance')}</p>}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => { setWithdrawing(false); setError(null); }}>
               {t('hrFix.earnings.cancel2')}

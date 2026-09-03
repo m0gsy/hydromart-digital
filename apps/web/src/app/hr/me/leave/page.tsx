@@ -176,7 +176,8 @@ export default function MyLeavePage() {
                 <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
               </div>
               <p className="text-sm text-muted">
-                {fmtDate(r.startDate)} – {fmtDate(r.endDate)} · {r.workingDays} hari kerja
+                {fmtDate(r.startDate)} – {fmtDate(r.endDate)} ·{' '}
+                {t('hrFix.myLeave.workingDays', { days: r.workingDays })}
               </p>
               <p className="text-sm text-muted">{r.reason}</p>
               {r.status === 'REJECTED' && r.decisionNote && (

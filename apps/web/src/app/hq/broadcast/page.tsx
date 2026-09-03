@@ -119,7 +119,7 @@ export default function HqBroadcastPage() {
             ))}
           </div>
           {audience === 'depot' && (
-            <select value={depotId} onChange={(e) => setDepotId(e.target.value)} className={`${inputClass} mt-1`}>
+            <select aria-label={t('hq.broadcast.pickDepot')} value={depotId} onChange={(e) => setDepotId(e.target.value)} className={`${inputClass} mt-1`}>
               <option value="">{t('hq.broadcast.pickDepot')}</option>
               {(depots.data?.items ?? []).map((d) => (
                 <option key={d.id} value={d.id}>

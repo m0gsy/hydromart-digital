@@ -6,7 +6,7 @@ import { ArrowLeft, XCircle } from '@phosphor-icons/react';
 
 import { CashReturnedAsk } from '@/components/driver/cash-returned-ask';
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { runOrQueue } from '@/lib/offline-queue';
@@ -99,7 +99,7 @@ function Fail() {
         />
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       <Button loading={busy} disabled={!reason.trim() || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2 bg-red-600 hover:bg-red-700" onClick={submit}>
         <XCircle size={19} weight="fill" />

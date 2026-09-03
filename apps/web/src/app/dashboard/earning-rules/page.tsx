@@ -5,16 +5,7 @@ import { Coins, Lock, Plus } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
-import {
-  Badge,
-  Button,
-  Card,
-  CenterState,
-  ErrorState,
-  Field,
-  Input,
-  Skeleton,
-} from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -255,7 +246,7 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
           </div>
         ))}
       </div>
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      <FormError message={error} />
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
           {t('opsFix.earningRules.cancel')}

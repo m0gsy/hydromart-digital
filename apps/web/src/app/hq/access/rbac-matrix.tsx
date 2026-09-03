@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
 import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, FormError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -334,7 +334,7 @@ export function RbacMatrix() {
               {saving ? t('hq.access.saving') : t('hq.access.save')}
             </Button>
           </div>
-          {error && <p className="w-full text-xs text-danger">{error}</p>}
+          <FormError message={error} className="w-full text-xs text-danger" />
           <p className="w-full text-xs text-brand-700">{t('hq.access.propagation')}</p>
         </Card>
       )}

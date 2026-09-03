@@ -141,7 +141,14 @@ export default function HqSegmentFormPage() {
           <ul className="flex flex-col gap-2">
             {conditions.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-app p-3">
+                {/*
+                 * `hq.forms.segment.field` — "Field" — was written for this control and
+                 * then never rendered anywhere, which is the whole of the audit's "label
+                 * Field tidak terhubung ke inputnya": the label existed in the dictionary
+                 * and the `<select>` it names had no accessible name at all.
+                 */}
                 <select
+                  aria-label={t('hq.forms.segment.field')}
                   className={SELECT_CLASS}
                   value={c.field}
                   onChange={(e) => update(c.id, { field: e.target.value as ConditionField })}

@@ -80,7 +80,7 @@ export function OfflineQueueBanner() {
     <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
       <div className="flex items-center gap-2 font-semibold">
         <CloudSlash size={16} weight="fill" />
-        {jobs.length} data belum terkirim
+        {t('hrFix.offlineBanner.pendingCount', { count: jobs.length })}
       </div>
       <ul className="space-y-1">
         {jobs.map((job) => (

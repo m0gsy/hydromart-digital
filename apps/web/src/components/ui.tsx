@@ -518,6 +518,34 @@ export function LoadError({ onRetry, className }: { onRetry: () => void; classNa
   );
 }
 
+/**
+ * A form's own failure line — the sentence under the button somebody just pressed.
+ *
+ * Thirty-six screens wrote this by hand as `{error && <p className="text-sm text-red-600">
+ * {error}</p>}`, and not one of them carried a live region. A `<p>` that appears after a
+ * submit is announced to nobody: to a screen reader the press produced silence, which
+ * reads as a button that does nothing rather than a form that was rejected. `role="alert"`
+ * is the entire point of this component — the styling only exists so the next copy of it
+ * is not written by hand again, without one.
+ *
+ * `message` is nullable so a caller passes its state straight in: `<FormError
+ * message={error} />` renders nothing when there is nothing to say.
+ */
+export function FormError({
+  message,
+  className,
+}: {
+  message?: string | null;
+  className?: string;
+}) {
+  if (!message) return null;
+  return (
+    <p role="alert" className={cx('text-sm font-medium text-[color:var(--danger)]', className)}>
+      {message}
+    </p>
+  );
+}
+
 /* ---------- Segmented ---------- */
 /**
  * A pill-in-a-track switch for two or three mutually exclusive options. Extracted rather

@@ -9,7 +9,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
-import { Badge, Button, Card, CenterState, ErrorState, LinkButton, LoadError, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, FormError, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -145,7 +145,7 @@ function DriverConsole() {
         </Link>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       {list.loading ? (
         <Skeleton className="h-40 w-full" />

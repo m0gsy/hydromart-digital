@@ -363,13 +363,13 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
       {confirmOwner && (
         <Card className="border-amber-300 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900" role="alert">
-            Nomor {form.phone} sudah dipakai akun atas nama{' '}
+            {t('hrFix.employeeForm.phoneTaken', { phone: form.phone })}{' '}
             {confirmOwner.fullName || t('hrFix.employeeForm.noName')} ({roleLabel(confirmOwner.role)}).
           </p>
           <p className="mt-1 text-sm text-amber-900">
-            Menyimpan akan mengubah akun itu menjadi{' '}
-            {form.role ? t(HR_ROLE_LABEL[form.role]) : t('hrFix.employeeForm.chosenRole')} — bukan membuat akun
-            baru. Kalau nomornya salah ketik, betulkan dulu.
+            {t('hrFix.employeeForm.phoneTakenSave')}{' '}
+            {form.role ? t(HR_ROLE_LABEL[form.role]) : t('hrFix.employeeForm.chosenRole')}
+            {t('hrFix.employeeForm.phoneTakenTail')}
           </p>
         </Card>
       )}

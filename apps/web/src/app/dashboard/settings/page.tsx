@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { GearSix, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -161,7 +161,7 @@ function SettingRow({
           </Button>
         )}
       </div>
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      <FormError message={error} />
     </Card>
   );
 }
@@ -249,6 +249,7 @@ function SettingsBody() {
             <p className="text-sm text-muted">{t('settings.noDepots')}</p>
           ) : (
             <select
+              aria-label={t('settings.pickDepot')}
               value={depotId ?? ''}
               onChange={(e) => setDepotId(e.target.value || null)}
               className={selectClass()}

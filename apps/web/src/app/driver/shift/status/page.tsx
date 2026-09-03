@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Broadcast, Coffee, Moon } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, FormError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { currentPosition, GeoError } from '@/lib/geo';
 import { endpoints } from '@/lib/endpoints';
@@ -126,7 +126,7 @@ function ShiftStatusScreen() {
         {t('driver.shiftStatus.checkOut')}
       </button>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
       <p className="text-xs leading-relaxed text-[color:var(--muted)]">
         {t('driver.shiftStatus.info')}
       </p>

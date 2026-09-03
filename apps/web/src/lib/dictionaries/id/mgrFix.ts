@@ -120,6 +120,8 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    pendingApproval: '{count} menunggu approval',
+    depotManager: 'Manajer depot · {depot}',
     yourDepot: "Depot kamu",
     signOut: "Keluar",
     stockCritical: 'Stok kritis',
@@ -138,6 +140,7 @@ export const mgrFix = {
     },
   },
   login: {
+    sendOtp: 'Kirim kode OTP',
     subtitle: 'Konsol Manajer Depot',
     staffOnly: 'Hanya untuk staf Hydromart.',
   },

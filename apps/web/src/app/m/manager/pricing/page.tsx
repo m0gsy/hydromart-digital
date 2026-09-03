@@ -5,7 +5,7 @@ import { useT } from '@/lib/locale-context';
 import { Tag } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
-import { Card, CenterState, ErrorState, Skeleton, Toggle } from '@/components/ui';
+import { Card, CenterState, ErrorState, FormError, Skeleton, Toggle } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -90,7 +90,7 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
         <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-muted)]">
           {windowSummary(rule, t, locale)}
         </p>
-        {error && <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>}
+        <FormError message={error} className="mt-1 text-[11px]" />
       </div>
       <Toggle on={on} onChange={toggle} disabled={busy} label={`Aktifkan aturan ${rule.id}`} />
     </Card>

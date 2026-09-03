@@ -6,6 +6,9 @@ export const opsFix = {
     whatsappFormat: "The depot WhatsApp number must be 8–15 digits, optionally +-prefixed.",
   },
   import: {
+    accepts: 'Accepts .xlsx and .csv. At most {max} rows. Required columns:',
+    unreadableFile: 'The file could not be read. Check that it is not corrupt or password-protected.',
+    legacyFormat: 'The old formats (.xls / .ods) cannot be read. Open the file, then "Save As" → Excel Workbook (.xlsx).',
     downloadFailedRows: 'Download failed rows',
     downloadProblemRows: 'Download problem rows',
     pickFile: 'Choose file',
@@ -164,6 +167,8 @@ export const opsFix = {
     error: 'Could not save the reorder point.',
   },
   poDraft: {
+    fromSwitcher: '(from the switcher).',
+    poFor: 'PO for',
     sendToSupplier: "Send to supplier",
     receive: "Receive → RECEIPT",
     fromForecast: "Create from forecast",
@@ -271,6 +276,7 @@ export const opsFix = {
     counterCash: 'Counter cash {amount}',
     counterCashNone: 'Counter cash —',
     dailyTitle: 'Daily report · {date}',
+    datePicker: 'Report date',
     loadError: 'Could not load the report.',
     ordersDone: 'Orders completed',
     ordersDoneHint: 'Handled today',
@@ -366,6 +372,7 @@ export const opsFix = {
     saleSaved: "Sale {order} saved.",
     saleVoided: "Sale {order} voided.",
     reload: "Reload",
+    priceUnreadable: "Depot-specific prices could not be read — the total uses catalogue base prices.",
     subtotal: "Subtotal",
     discount: "Discount",
     agenPrice: "Agent price",
@@ -666,6 +673,7 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Mirrors id/opsFix.cashbook key for key.
   cashbook: {
+    closeBookAt: 'Closing the daily book lives in',
     exportExcel: "Export to Excel",
     dailyReport: "Daily report",
     title: 'Cash book',

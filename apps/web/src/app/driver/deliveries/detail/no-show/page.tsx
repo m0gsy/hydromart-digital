@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ChatCircleText, CheckCircle, MapPin, Phone, WarningCircle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, FormError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -139,7 +139,7 @@ function NoShow() {
         </Card>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormError message={error} />
 
       <div className="flex gap-2.5">
         <button

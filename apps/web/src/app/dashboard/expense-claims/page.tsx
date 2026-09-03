@@ -6,7 +6,7 @@ import { Lock, Receipt } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -75,7 +75,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
           <Field label={t('hrFix.expenseClaims.reviewNote')} htmlFor={`note-${c.id}`}>
             <Input id={`note-${c.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('hrFix.expenseClaims.reviewNoteHint')} />
           </Field>
-          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button onClick={() => act('approve')} loading={busy === 'approve'} className="flex-1">
               {t('hrFix.expenseClaims.approve')}
@@ -86,7 +86,11 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
           </div>
         </>
       ) : (
-        c.reviewNote && <p className="text-xs text-muted">Catatan: {c.reviewNote}</p>
+        c.reviewNote && (
+          <p className="text-xs text-muted">
+            {t('hrFix.expenseClaims.note', { note: c.reviewNote })}
+          </p>
+        )
       )}
     </Card>
   );

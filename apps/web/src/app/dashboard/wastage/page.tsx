@@ -46,7 +46,7 @@ function WastageBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('hrFix.wastage.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {depotName} · {MONTH} · dari pergerakan ADJUSTMENT
+            {depotName} · {MONTH} · {t('hrFix.wastage.fromAdjustment')}
           </p>
         </div>
       </div>
@@ -70,7 +70,7 @@ function WastageBody() {
             <Card className="flex flex-col gap-1 p-5">
               <span className="text-xs text-[color:var(--text-muted)]">{t('hrFix.wastage.units')}</span>
               <span className="text-3xl font-bold tabular-nums">{totalUnits.toLocaleString('id-ID')}</span>
-              <span className="text-xs text-[color:var(--text-muted)]">{items.length} jenis item</span>
+              <span className="text-xs text-[color:var(--text-muted)]">{t('hrFix.wastage.itemKinds', { count: items.length })}</span>
             </Card>
           </div>
 
@@ -105,7 +105,7 @@ function WastageBody() {
       <Card className="flex items-start gap-3 bg-brand-50 p-4">
         <Info size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
         <p className="text-[12.5px] text-brand-800/80">
-          Setiap wastage tercatat sebagai satu pergerakan inventori bertipe{' '}
+          {t('hrFix.wastage.sourceHintBefore')}{' '}
           <strong>ADJUSTMENT</strong>{t('hrFix.wastage.sourceHint')}</p>
       </Card>
     </div>

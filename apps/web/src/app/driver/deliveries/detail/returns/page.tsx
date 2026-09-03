@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowLeft, CheckCircle, Minus, Plus, Recycle } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, ErrorState, Field, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Field, FormError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { runOrQueue } from '@/lib/offline-queue';
 import { endpoints } from '@/lib/endpoints';
@@ -165,7 +165,7 @@ function Returns() {
             )}
           </Card>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError message={error} />
 
           <Button loading={busy} className="flex w-full items-center justify-center gap-2" onClick={submit}>
             <Recycle size={18} weight="fill" />
