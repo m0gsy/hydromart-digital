@@ -461,7 +461,7 @@ describe('SettingsController (guards + delegation)', () => {
       { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never,
       user({ role: 'MANAGER' }),
     );
-    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'earnRateRupiah');
+    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'earnRateRupiah', 'cust-1');
   });
 });
 

@@ -69,7 +69,7 @@ describe('forecast SettingsController', () => {
       { scope: 'DEPOT', depotId: 'depot-1', key: 'forecast.demandModel' },
       user('MANAGER'),
     );
-    expect(svc.reset).toHaveBeenCalledWith('DEPOT', 'depot-1', 'forecast.demandModel');
+    expect(svc.reset).toHaveBeenCalledWith('DEPOT', 'depot-1', 'forecast.demandModel', 'u-1');
   });
 
   it('applies the same capability check to a GLOBAL reset as to a GLOBAL write', async () => {
@@ -81,6 +81,6 @@ describe('forecast SettingsController', () => {
       { scope: 'GLOBAL', key: 'forecast.demandModel' },
       user('SUPER_ADMIN'),
     );
-    expect(svc.reset).toHaveBeenCalledWith('GLOBAL', null, 'forecast.demandModel');
+    expect(svc.reset).toHaveBeenCalledWith('GLOBAL', null, 'forecast.demandModel', 'u-1');
   });
 });
