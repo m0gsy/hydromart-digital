@@ -307,11 +307,15 @@ export class InMemoryRewardRepository implements RewardRepository {
     status: RedemptionStatus,
     depotId?: string,
   ): Promise<RewardRedemptionView[]> {
-    return this.redemptions
-      // Mirrors the Prisma filter: a depot's own rows plus the legacy depot-less ones.
-      .filter((r) => r.status === status && (!depotId || r.depotId === depotId || r.depotId === null))
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-      .map((r) => this.toView(r));
+    return (
+      this.redemptions
+        // Mirrors the Prisma filter: a depot's own rows plus the legacy depot-less ones.
+        .filter(
+          (r) => r.status === status && (!depotId || r.depotId === depotId || r.depotId === null),
+        )
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((r) => this.toView(r))
+    );
   }
 
   /** Mirrors the Prisma join: the item label travels with the row. */
@@ -320,8 +324,14 @@ export class InMemoryRewardRepository implements RewardRepository {
     return { ...r, rewardName: item?.name ?? 'Reward' };
   }
 
-  async markUsed(id: string): Promise<RewardRedemptionRecord> {
-    const r = this.redemptions.find((x) => x.id === id)!;
+  /**
+   * CA-2-65: mirrors the Prisma conditional update — null when the row was NOT still
+   * ACTIVE, because somebody else handed the reward over first. A fake that always
+   * succeeded would let the two-depot race pass here and fail only in production.
+   */
+  async markUsed(id: string): Promise<RewardRedemptionRecord | null> {
+    const r = this.redemptions.find((x) => x.id === id);
+    if (!r || r.status !== 'ACTIVE') return null;
     r.status = 'USED';
     r.usedAt = nextDate();
     return { ...r };

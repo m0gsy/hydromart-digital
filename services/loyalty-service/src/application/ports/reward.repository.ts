@@ -103,6 +103,10 @@ export interface RewardRepository {
     depotId?: string,
   ): Promise<RewardRedemptionView[]>;
   /** Staff marks the reward physically handed over — after this it cannot be cancelled. */
-  markUsed(id: string): Promise<RewardRedemptionRecord>;
+  /**
+   * CA-2-65: null when the row was NOT still ACTIVE — somebody else handed it over first.
+   * The guard is in the WHERE clause, so two concurrent hand-overs cannot both win.
+   */
+  markUsed(id: string): Promise<RewardRedemptionRecord | null>;
   cancel(mutation: CancelRedemptionMutation): Promise<RewardRedemptionRecord>;
 }

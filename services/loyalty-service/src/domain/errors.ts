@@ -60,6 +60,21 @@ export class RewardAlreadyCancelledError extends DomainError {
   }
 }
 
+/**
+ * CA-2-65: another depot handed this reward over first.
+ *
+ * A redemption with no collection depot shows in every depot's queue on purpose, so two
+ * counters can be holding the same row. The one that loses the race must be TOLD — being
+ * answered "berhasil" is what let two rewards leave two shelves against one ledger line.
+ */
+export class RewardAlreadyHandedOverError extends DomainError {
+  readonly code = 'LOYALTY_REDEMPTION_ALREADY_HANDED_OVER';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Hadiah ini baru saja diserahkan oleh depot lain.');
+  }
+}
+
 export class RewardOutOfStockError extends DomainError {
   readonly code = 'LOYALTY_REWARD_OUT_OF_STOCK';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

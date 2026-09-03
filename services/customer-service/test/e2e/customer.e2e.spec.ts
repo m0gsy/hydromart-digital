@@ -179,7 +179,9 @@ describe('Customer HTTP flows (e2e)', () => {
   });
 
   it('rejects a malformed birthdate (400)', async () => {
-    await auth(request(server()).patch('/api/v1/profile').send({ birthdate: '17-05-1990' })).expect(400);
+    await auth(request(server()).patch('/api/v1/profile').send({ birthdate: '17-05-1990' })).expect(
+      400,
+    );
   });
 
   it('resolves the CRM broadcast segment by tier + city, staff-only (FR-087)', async () => {

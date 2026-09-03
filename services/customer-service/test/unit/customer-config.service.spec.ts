@@ -70,7 +70,12 @@ describe('CustomerConfigService', () => {
   it('port/maxAddresses/rateLimit coerce required numeric config', () => {
     const c = makeConfig(
       {},
-      { CUSTOMER_SERVICE_PORT: '3002', MAX_ADDRESSES_PER_CUSTOMER: '20', RATE_LIMIT_TTL_SECONDS: '60', RATE_LIMIT_MAX: '100' },
+      {
+        CUSTOMER_SERVICE_PORT: '3002',
+        MAX_ADDRESSES_PER_CUSTOMER: '20',
+        RATE_LIMIT_TTL_SECONDS: '60',
+        RATE_LIMIT_MAX: '100',
+      },
     );
     expect(c.port).toBe(3002);
     expect(c.maxAddresses).toBe(20);
@@ -78,10 +83,9 @@ describe('CustomerConfigService', () => {
   });
 
   it('corsOrigins splits, trims, and drops empties', () => {
-    expect(makeConfig({ CORS_ALLOWED_ORIGINS: 'http://a.com, http://b.com ,' }).corsOrigins).toEqual([
-      'http://a.com',
-      'http://b.com',
-    ]);
+    expect(
+      makeConfig({ CORS_ALLOWED_ORIGINS: 'http://a.com, http://b.com ,' }).corsOrigins,
+    ).toEqual(['http://a.com', 'http://b.com']);
   });
 
   it('loyaltyServiceUrl/orderServiceUrl/authServiceUrl are trimmed', () => {
@@ -98,7 +102,9 @@ describe('CustomerConfigService', () => {
   // K4.2: blank means the agen price notice is dropped; the change still applies and is
   // still audited, so this getter must not be allowed to turn whitespace into a URL.
   it('crmServiceUrl is trimmed and blank by default', () => {
-    expect(makeConfig({ CRM_SERVICE_URL: '  http://crm:3012 ' }).crmServiceUrl).toBe('http://crm:3012');
+    expect(makeConfig({ CRM_SERVICE_URL: '  http://crm:3012 ' }).crmServiceUrl).toBe(
+      'http://crm:3012',
+    );
     expect(makeConfig({ CRM_SERVICE_URL: '   ' }).crmServiceUrl).toBe('');
     expect(makeConfig({}).crmServiceUrl).toBe('');
   });
@@ -112,7 +118,8 @@ describe('CustomerConfigService', () => {
   it('crmThresholds coerce numbers and apply policy defaults when unset', () => {
     expect(makeConfig({}).crmThresholds).toEqual({ newDays: 30, activeDays: 30, followUpDays: 60 });
     expect(
-      makeConfig({ CRM_NEW_DAYS: '7', CRM_ACTIVE_DAYS: '14', CRM_FOLLOWUP_DAYS: '45' }).crmThresholds,
+      makeConfig({ CRM_NEW_DAYS: '7', CRM_ACTIVE_DAYS: '14', CRM_FOLLOWUP_DAYS: '45' })
+        .crmThresholds,
     ).toEqual({ newDays: 7, activeDays: 14, followUpDays: 45 });
   });
 });

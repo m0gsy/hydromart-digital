@@ -5,25 +5,17 @@ import {
 import { VoucherService } from '../../src/application/services/voucher.service';
 import { DiscountType } from '../../src/domain/voucher';
 import { VoucherRequestRecord, VoucherRequestStatus } from '../../src/domain/voucher-request';
-import {
-  VoucherRequestDecidedError,
-  VoucherRequestNotFoundError,
-} from '../../src/domain/errors';
+import { VoucherRequestDecidedError, VoucherRequestNotFoundError } from '../../src/domain/errors';
 import {
   CreateVoucherRequestData,
   ListVoucherRequestsFilter,
   UpdateVoucherRequestData,
   VoucherRequestRepository,
 } from '../../src/application/ports/voucher-request.repository';
-import {
-  FakeCustomerLookup,
-  FakeNotification,
-  InMemoryVoucherRepository,
-} from '../support/fakes';
+import { FakeCustomerLookup, FakeNotification, InMemoryVoucherRepository } from '../support/fakes';
 
 /** The queue is what these tests are about; the names decorate it. */
 const noNames = async () => new Map<string, string>();
-
 
 class InMemoryVoucherRequestRepository implements VoucherRequestRepository {
   rows: VoucherRequestRecord[] = [];
@@ -110,6 +102,14 @@ describe('VoucherRequestService', () => {
     expect(created).not.toBeNull();
     expect(created!.id).toBe(decided.createdVoucherId);
     expect(created!.value).toBe(10);
+    /*
+     * CA-2-65: the voucher belongs to the depot that asked for it.
+     *
+     * Without this the approval created a code every customer in the network could spend,
+     * funded by the depot that requested one promo on their own street. The request has
+     * always carried `depotId`; the voucher it produced forgot it.
+     */
+    expect(created!.depotId).toBe('depot-1');
   });
 
   it('reject closes the request without creating a voucher', async () => {

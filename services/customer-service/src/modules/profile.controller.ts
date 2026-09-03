@@ -1,7 +1,24 @@
-import { Body, Controller, Get, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { CustomerProfileRecord, DirectoryRecipient } from '../application/ports/profile.repository';
 import { ProfileService } from '../application/services/profile.service';
@@ -79,14 +96,19 @@ export class ProfileController {
       p = await this.profiles.setFavoriteDepot(user.sub, dto.favoriteDepotId ?? null);
     }
     if ('birthdate' in dto) {
-      p = await this.profiles.setBirthdate(user.sub, dto.birthdate ? new Date(dto.birthdate) : null);
+      p = await this.profiles.setBirthdate(
+        user.sub,
+        dto.birthdate ? new Date(dto.birthdate) : null,
+      );
     }
     return toProfileResponse(p);
   }
 
   @Can('customerDirectory')
   @Get('profile/directory')
-  @ApiOperation({ summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)' })
+  @ApiOperation({
+    summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)',
+  })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async directory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
     return this.profiles.findSegment({ tier: query.tier, city: query.city });
@@ -127,7 +149,9 @@ export class ProfileController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('profile/internal/notifications')
-  @ApiOperation({ summary: 'One customer’s notification channel preferences (internal service auth)' })
+  @ApiOperation({
+    summary: 'One customer’s notification channel preferences (internal service auth)',
+  })
   @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   async internalNotificationPrefs(
     @Query('customerId', ParseUUIDPipe) customerId: string,
@@ -153,7 +177,10 @@ export class ProfileController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('profile/internal/birthday-rewards')
-  @ApiOperation({ summary: 'Grant birthday points to today’s birthday customers (scheduler, internal service auth, FR-091)' })
+  @ApiOperation({
+    summary:
+      'Grant birthday points to today’s birthday customers (scheduler, internal service auth, FR-091)',
+  })
   @ApiOkResponse({ type: BirthdaySweepResultDto })
   async runBirthdayRewardsInternal(): Promise<BirthdayRewardResultDto & { ok: boolean }> {
     // The adapter authenticates system-to-system with the internal key and ignores this
@@ -188,7 +215,9 @@ export class ProfileController {
   @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   @Get('profile/notifications')
   @ApiOperation({ summary: 'Get my notification preferences' })
-  async getNotifications(@CurrentUser() user: AuthenticatedUser): Promise<NotificationPreferenceRecord> {
+  async getNotifications(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<NotificationPreferenceRecord> {
     return this.notifications.get(user.sub);
   }
 

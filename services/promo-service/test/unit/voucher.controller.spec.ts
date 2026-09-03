@@ -78,7 +78,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000, undefined);
   });
 
   // Counter sale: the caller is the cashier, so the wallet being quoted must be named
@@ -89,7 +89,7 @@ describe('VoucherController', () => {
       customerId: 'buyer-9',
       subtotal: 100000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0, undefined);
   });
 
   it('quoteFor passes the shippingFee through when provided', async () => {
@@ -99,7 +99,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000, undefined);
   });
 
   it('quote defaults shippingFee to 0 when omitted', async () => {
@@ -107,7 +107,7 @@ describe('VoucherController', () => {
       code: 'HEMAT',
       subtotal: 100000,
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 0);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 0, undefined);
   });
 
   it('redeem passes the shippingFee through when provided', async () => {
@@ -118,7 +118,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 5000);
+    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 5000, undefined);
   });
 
   it('redeem defaults shippingFee to 0 when omitted', async () => {
@@ -128,7 +128,29 @@ describe('VoucherController', () => {
       orderId: 'o1',
       subtotal: 100000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 0);
+    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 0, undefined);
+  });
+
+  /*
+   * CA-2-65: the depot has to reach the service, not merely sit in the DTO. Optional
+   * parameters are exactly where a value gets dropped without the type system noticing.
+   */
+  it('passes the depot through on quote and redeem', async () => {
+    await controller.quote(user, {
+      code: 'HEMAT',
+      subtotal: 100000,
+      depotId: 'd-1',
+    } as unknown as QuoteVoucherDto);
+    expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'user-1', 100000, 0, 'd-1');
+
+    await controller.redeem({
+      code: 'HEMAT',
+      customerId: 'c1',
+      orderId: 'o1',
+      subtotal: 100000,
+      depotId: 'd-1',
+    } as never);
+    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 100000, 0, 'd-1');
   });
 
   it('create maps full dto and parses dates', async () => {
@@ -245,7 +267,11 @@ describe('Voucher DTO @Type coercion', () => {
     expect(create.perCustomerLimit).toBe(2);
     expect(create.budgetCap).toBe(9000);
 
-    const quote = plainToInstance(QuoteVoucherDto, { code: 'X', subtotal: '100000', shippingFee: '5000' });
+    const quote = plainToInstance(QuoteVoucherDto, {
+      code: 'X',
+      subtotal: '100000',
+      shippingFee: '5000',
+    });
     expect(quote.subtotal).toBe(100000);
     expect(quote.shippingFee).toBe(5000);
 
@@ -265,4 +291,5 @@ describe('Voucher DTO @Type coercion', () => {
     expect(browse.page).toBe(2);
     expect(browse.limit).toBe(10);
   });
+
 });

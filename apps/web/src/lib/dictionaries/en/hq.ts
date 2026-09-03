@@ -709,6 +709,11 @@ export const hq = {
       needValue: 'Enter an adjustment value.',
     },
     voucher: {
+      validFrom: 'Valid from',
+      validUntil: 'Valid until',
+      validHint: 'Leave empty for a voucher with no date limit',
+      percentTooHigh: 'A percentage discount cannot exceed 100.',
+      endBeforeStart: 'The end date is before the start date.',
       title: 'New voucher',
       code: 'Code',
       type: 'Type',

@@ -83,7 +83,10 @@ export class ProfilePrismaRepository implements ProfileRepository {
     return this.toRecord(row);
   }
 
-  async updateBirthdate(customerId: string, birthdate: Date | null): Promise<CustomerProfileRecord> {
+  async updateBirthdate(
+    customerId: string,
+    birthdate: Date | null,
+  ): Promise<CustomerProfileRecord> {
     const row = await this.prisma.customerProfile.update({
       where: { customerId },
       data: { birthdate },

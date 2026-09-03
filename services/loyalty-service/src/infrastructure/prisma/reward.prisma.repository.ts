@@ -164,12 +164,28 @@ export class RewardPrismaRepository implements RewardRepository {
     return rows.map((row) => this.toView(row));
   }
 
-  async markUsed(id: string): Promise<RewardRedemptionRecord> {
-    const row = await this.prisma.rewardRedemption.update({
-      where: { id },
+  /**
+   * CA-2-65: the status guard belongs in the WHERE clause, exactly as the note on `cancel`
+   * eight lines below says — "the real defence against a double refund from two concurrent
+   * requests". `markUsed` took `where: { id }` alone.
+   *
+   * The reason it matters here is physical, not financial. A redemption with no collection
+   * depot appears in EVERY depot's hand-over queue on purpose (see the note on
+   * `RewardService.markUsed`), so two depots really can be looking at the same row. Both
+   * read ACTIVE, both wrote USED, and both were told it worked — so both handed the
+   * customer a reward, and the ledger recorded one.
+   *
+   * `updateMany` returns a count instead of throwing, so the caller can tell the depot that
+   * lost the race that somebody else already handed it over, rather than silently agreeing.
+   */
+  async markUsed(id: string): Promise<RewardRedemptionRecord | null> {
+    const { count } = await this.prisma.rewardRedemption.updateMany({
+      where: { id, status: 'ACTIVE' },
       data: { status: 'USED', usedAt: new Date() },
     });
-    return this.toRecord(row);
+    if (count === 0) return null;
+    const row = await this.prisma.rewardRedemption.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
   }
 
   /**

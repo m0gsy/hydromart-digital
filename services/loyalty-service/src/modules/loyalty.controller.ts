@@ -12,7 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
@@ -31,7 +39,14 @@ import {
 } from './dto/loyalty.dto';
 import { TierBenefit } from '../domain/membership';
 import { DepotLoyaltySummary, ExpiryResult } from '../application/services/loyalty.service';
-import { DepotLoyaltyResponseDto, ExpiryResponseDto, ExpirySweepResponseDto, MemberCountResponseDto, PagedPointsTransactionResponseDto, TierBenefitResponseDto } from './dto/responses.generated.dto';
+import {
+  DepotLoyaltyResponseDto,
+  ExpiryResponseDto,
+  ExpirySweepResponseDto,
+  MemberCountResponseDto,
+  PagedPointsTransactionResponseDto,
+  TierBenefitResponseDto,
+} from './dto/responses.generated.dto';
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
 // customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.

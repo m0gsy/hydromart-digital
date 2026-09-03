@@ -29,7 +29,9 @@ describe('PromotionController', () => {
 
   it('analytics delegates and maps the response DTO', async () => {
     const result = await (
-      controller as unknown as { analytics(id: string): Promise<{ promotionId: string; totalUses: number }> }
+      controller as unknown as {
+        analytics(id: string): Promise<{ promotionId: string; totalUses: number }>;
+      }
     ).analytics('p1');
     expect(promotions.analytics).toHaveBeenCalledWith('p1');
     expect(result).toMatchObject({ promotionId: 'p1', totalUses: 0 });

@@ -75,7 +75,11 @@ export class IdentityHttpAdapter implements IdentityPort {
           signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
         });
         if (!res.ok) continue;
-        const rows = (await res.json()) as { id?: string; fullName?: string | null; phone?: string | null }[];
+        const rows = (await res.json()) as {
+          id?: string;
+          fullName?: string | null;
+          phone?: string | null;
+        }[];
         for (const r of rows) {
           if (r.id) out.set(r.id, { fullName: r.fullName ?? null, phone: r.phone ?? null });
         }

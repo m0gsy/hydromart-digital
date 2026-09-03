@@ -100,7 +100,10 @@ export class DirectoryQueryDto {
   @IsEnum(MembershipTier)
   tier?: MembershipTier;
 
-  @ApiPropertyOptional({ example: 'Bandung', description: 'Filter by primary-address city (case-insensitive).' })
+  @ApiPropertyOptional({
+    example: 'Bandung',
+    description: 'Filter by primary-address city (case-insensitive).',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(120)

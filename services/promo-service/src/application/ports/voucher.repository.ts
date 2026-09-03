@@ -13,6 +13,8 @@ export interface VoucherRecord {
   usageLimit: number | null;
   perCustomerLimit: number;
   budgetCap: number | null;
+  /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
+  depotId: string | null;
   usedCount: number;
   active: boolean;
   createdAt: Date;
@@ -44,6 +46,13 @@ export interface CreateVoucherData {
   budgetCap?: number | null;
   /** Create a voucher as a draft (inactive) — defaults to active when omitted. */
   active?: boolean;
+  /**
+   * CA-2-65: the depot this voucher belongs to; omitted or null = network-wide.
+   *
+   * Set when HQ approves a depot's own voucher request. Every voucher created from the HQ
+   * form is network-wide, which is what it has always been and what the column defaults to.
+   */
+  depotId?: string | null;
 }
 
 /** Partial patch for an existing voucher; omitted keys are left unchanged. */

@@ -250,7 +250,9 @@ export class SubscriptionService {
    */
   async erasePerson(customerId: string): Promise<{ erased: number }> {
     const erased = await this.subs.erasePerson(customerId);
-    this.logger.log(`PDP erasure: cancelled and scrubbed ${erased} subscription(s) for ${customerId}`);
+    this.logger.log(
+      `PDP erasure: cancelled and scrubbed ${erased} subscription(s) for ${customerId}`,
+    );
     return { erased };
   }
 
@@ -329,9 +331,7 @@ export class SubscriptionService {
     try {
       failures = await this.subs.recordFailure(sub.id, reason, now);
     } catch (recordErr) {
-      this.logger.warn(
-        `Subscription ${sub.id} failure not recorded: ${messageOf(recordErr)}`,
-      );
+      this.logger.warn(`Subscription ${sub.id} failure not recorded: ${messageOf(recordErr)}`);
       return;
     }
     if (failures < MAX_CONSECUTIVE_FAILURES) return;

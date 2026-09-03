@@ -3,12 +3,16 @@ import { SettingType } from '@hydromart/platform';
 import { MembershipTier, TIER_BENEFITS } from '../domain/membership';
 
 /** Setting keys carrying each paid tier's ladder rung. REGULAR is fixed (0 poin, 0%). */
-export const TIER_SETTING_KEYS: Record<MembershipTier, { threshold: string; discountPct: string }> = {
-  [MembershipTier.REGULAR]: { threshold: 'regularThreshold', discountPct: 'regularDiscountPct' },
-  [MembershipTier.SILVER]: { threshold: 'silverThreshold', discountPct: 'silverDiscountPct' },
-  [MembershipTier.GOLD]: { threshold: 'goldThreshold', discountPct: 'goldDiscountPct' },
-  [MembershipTier.PLATINUM]: { threshold: 'platinumThreshold', discountPct: 'platinumDiscountPct' },
-};
+export const TIER_SETTING_KEYS: Record<MembershipTier, { threshold: string; discountPct: string }> =
+  {
+    [MembershipTier.REGULAR]: { threshold: 'regularThreshold', discountPct: 'regularDiscountPct' },
+    [MembershipTier.SILVER]: { threshold: 'silverThreshold', discountPct: 'silverDiscountPct' },
+    [MembershipTier.GOLD]: { threshold: 'goldThreshold', discountPct: 'goldDiscountPct' },
+    [MembershipTier.PLATINUM]: {
+      threshold: 'platinumThreshold',
+      discountPct: 'platinumDiscountPct',
+    },
+  };
 
 export interface SettingDef {
   key: string;
@@ -82,28 +86,26 @@ export const SETTING_DEFS: SettingDef[] = [
   // Rates are whole percent, not the 0.02 fraction the domain uses — an operator types
   // "5", and the config getter divides. Capped at 50%: past that a "discount" is a
   // pricing decision, not a loyalty perk.
-  ...TIER_BENEFITS.filter((b) => b.tier !== MembershipTier.REGULAR).flatMap(
-    (b): SettingDef[] => [
-      {
-        key: TIER_SETTING_KEYS[b.tier].threshold,
-        label: `${b.tier} — poin minimum`,
-        type: 'int',
-        unit: 'poin',
-        min: 1,
-        max: 10_000_000,
-        envDefault: b.threshold,
-      },
-      {
-        key: TIER_SETTING_KEYS[b.tier].discountPct,
-        label: `${b.tier} — diskon`,
-        type: 'int',
-        unit: '%',
-        min: 0,
-        max: 50,
-        envDefault: Math.round(b.discountRate * 100),
-      },
-    ],
-  ),
+  ...TIER_BENEFITS.filter((b) => b.tier !== MembershipTier.REGULAR).flatMap((b): SettingDef[] => [
+    {
+      key: TIER_SETTING_KEYS[b.tier].threshold,
+      label: `${b.tier} — poin minimum`,
+      type: 'int',
+      unit: 'poin',
+      min: 1,
+      max: 10_000_000,
+      envDefault: b.threshold,
+    },
+    {
+      key: TIER_SETTING_KEYS[b.tier].discountPct,
+      label: `${b.tier} — diskon`,
+      type: 'int',
+      unit: '%',
+      min: 0,
+      max: 50,
+      envDefault: Math.round(b.discountRate * 100),
+    },
+  ]),
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

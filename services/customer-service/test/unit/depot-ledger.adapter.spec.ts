@@ -23,9 +23,7 @@ describe('DepotLedgerHttpAdapter', () => {
   });
 
   function quiet(adapter: DepotLedgerHttpAdapter) {
-    jest
-      .spyOn(adapter['logger'], 'warn')
-      .mockImplementation(() => undefined);
+    jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
     return adapter;
   }
 
@@ -34,9 +32,9 @@ describe('DepotLedgerHttpAdapter', () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => rows });
     (globalThis as { fetch: unknown }).fetch = fetchMock;
 
-    await expect(
-      new DepotLedgerHttpAdapter(configured).gallonsByCustomer(DEPOT),
-    ).resolves.toEqual(rows);
+    await expect(new DepotLedgerHttpAdapter(configured).gallonsByCustomer(DEPOT)).resolves.toEqual(
+      rows,
+    );
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -53,9 +51,9 @@ describe('DepotLedgerHttpAdapter', () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => rows });
     (globalThis as { fetch: unknown }).fetch = fetchMock;
 
-    await expect(
-      new DepotLedgerHttpAdapter(configured).depositsForCustomer('c1'),
-    ).resolves.toEqual(rows);
+    await expect(new DepotLedgerHttpAdapter(configured).depositsForCustomer('c1')).resolves.toEqual(
+      rows,
+    );
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -67,7 +65,9 @@ describe('DepotLedgerHttpAdapter', () => {
   // `null`, not `[]`, for the same reason as its sibling: `[]` would tell the customer they
   // are holding nothing and owed nothing, and that is somebody's money.
   it('is null when the deposit read fails, never an empty list', async () => {
-    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: false, status: 503 });
     await expect(
       quiet(new DepotLedgerHttpAdapter(configured)).depositsForCustomer('c1'),
     ).resolves.toBeNull();
@@ -77,7 +77,10 @@ describe('DepotLedgerHttpAdapter', () => {
     const fetchMock = jest.fn();
     (globalThis as { fetch: unknown }).fetch = fetchMock;
     const blank = buildTestConfig({ DEPOT_SERVICE_URL: '', INTERNAL_SERVICE_KEY: 'k' });
-    const noKey = buildTestConfig({ DEPOT_SERVICE_URL: 'http://depot:3007', INTERNAL_SERVICE_KEY: '' });
+    const noKey = buildTestConfig({
+      DEPOT_SERVICE_URL: 'http://depot:3007',
+      INTERNAL_SERVICE_KEY: '',
+    });
 
     await expect(new DepotLedgerHttpAdapter(blank).gallonsByCustomer(DEPOT)).resolves.toBeNull();
     await expect(new DepotLedgerHttpAdapter(noKey).gallonsByCustomer(DEPOT)).resolves.toBeNull();
@@ -85,7 +88,9 @@ describe('DepotLedgerHttpAdapter', () => {
   });
 
   it('is null on a refusal, and warns', async () => {
-    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: false, status: 503 });
     const adapter = quiet(new DepotLedgerHttpAdapter(configured));
     const warn = jest.spyOn(adapter['logger'], 'warn');
 
@@ -94,7 +99,9 @@ describe('DepotLedgerHttpAdapter', () => {
   });
 
   it('is null when depot-service is unreachable', async () => {
-    (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockRejectedValue(new Error('ECONNREFUSED'));
     const adapter = quiet(new DepotLedgerHttpAdapter(configured));
 
     await expect(adapter.gallonsByCustomer(DEPOT)).resolves.toBeNull();
@@ -129,7 +136,9 @@ describe('DepotLedgerHttpAdapter', () => {
     const CUSTOMER = '22222222-2222-4222-8222-222222222222';
 
     it('asks for the one customer, with the internal key', async () => {
-      const rows = [{ id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' }];
+      const rows = [
+        { id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' },
+      ];
       const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => rows });
       (globalThis as { fetch: unknown }).fetch = fetchMock;
 
@@ -146,16 +155,30 @@ describe('DepotLedgerHttpAdapter', () => {
 
     it('is [] — not null — on every failure path', async () => {
       const blank = buildTestConfig({ DEPOT_SERVICE_URL: '', INTERNAL_SERVICE_KEY: 'k' });
-      await expect(new DepotLedgerHttpAdapter(blank).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+      await expect(
+        new DepotLedgerHttpAdapter(blank).customerLedger(DEPOT, CUSTOMER),
+      ).resolves.toEqual([]);
 
-      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
-      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 503 });
+      await expect(
+        quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER),
+      ).resolves.toEqual([]);
 
-      (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
-      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(
+        quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER),
+      ).resolves.toEqual([]);
 
-      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
-      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({}) });
+      await expect(
+        quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER),
+      ).resolves.toEqual([]);
     });
   });
 });

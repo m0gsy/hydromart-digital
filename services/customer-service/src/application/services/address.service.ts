@@ -87,9 +87,7 @@ export class AddressService {
     // Audit DB-2 (create path): a new primary must unset the old one and insert
     // atomically, or two concurrent "add as primary" both win. A non-primary insert
     // can't violate the partial unique index, so it stays a plain create.
-    return makePrimary
-      ? this.addresses.createExclusivePrimary(data)
-      : this.addresses.create(data);
+    return makePrimary ? this.addresses.createExclusivePrimary(data) : this.addresses.create(data);
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {

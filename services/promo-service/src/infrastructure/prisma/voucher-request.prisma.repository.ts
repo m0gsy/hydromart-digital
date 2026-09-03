@@ -90,7 +90,9 @@ export class VoucherRequestPrismaRepository implements VoucherRequestRepository 
       data: {
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.decidedBy !== undefined ? { decidedBy: patch.decidedBy } : {}),
-        ...(patch.createdVoucherId !== undefined ? { createdVoucherId: patch.createdVoucherId } : {}),
+        ...(patch.createdVoucherId !== undefined
+          ? { createdVoucherId: patch.createdVoucherId }
+          : {}),
       },
     });
     return this.toRecord(row as unknown as RequestRow);

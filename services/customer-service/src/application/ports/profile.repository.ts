@@ -30,7 +30,10 @@ export interface ProfileRepository {
   exists(customerId: string): Promise<boolean>;
   /** Create a default (BASIC, 0 points) profile. */
   create(customerId: string): Promise<CustomerProfileRecord>;
-  updateFavoriteDepot(customerId: string, favoriteDepotId: string | null): Promise<CustomerProfileRecord>;
+  updateFavoriteDepot(
+    customerId: string,
+    favoriteDepotId: string | null,
+  ): Promise<CustomerProfileRecord>;
   /**
    * Ensure a profile exists and point it at this depot, in one statement (audit S-16).
    * The bulk importer used to ask "does it exist", create it, then update it — three

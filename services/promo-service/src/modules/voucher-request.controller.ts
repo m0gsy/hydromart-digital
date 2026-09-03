@@ -21,7 +21,10 @@ import {
 import { VoucherRequestRecord, VoucherRequestStatus } from '../domain/voucher-request';
 import { DiscountType } from '../domain/voucher';
 import { ListVoucherRequestsQueryDto, ProposeVoucherRequestDto } from './dto/voucher-request.dto';
-import { PagedVoucherRequestResponseDto, VoucherRequestResponseDto } from './dto/responses.generated.dto';
+import {
+  PagedVoucherRequestResponseDto,
+  VoucherRequestResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * Depot-side propose (design 14b): a depot manager requests a voucher for their

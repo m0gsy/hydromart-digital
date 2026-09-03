@@ -14,7 +14,6 @@ import { PromoConfigService } from '../../src/config/promo-config.service';
 const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
   ({ businessTimeZone: timeZone }) as PromoConfigService;
 
-
 // Minimal in-memory repo whose findActive reuses the pure domain predicate, so
 // the date-window filter is exercised through the service exactly as in prod.
 class InMemoryPromotionRepository implements PromotionRepository {
@@ -72,7 +71,12 @@ describe('PromotionService date-window filter', () => {
 
   beforeEach(() => {
     repo = new InMemoryPromotionRepository();
-    service = new PromotionService(repo, new InMemoryVoucherRepository(), new FakeOrderValues(), promoTestConfig());
+    service = new PromotionService(
+      repo,
+      new InMemoryVoucherRepository(),
+      new FakeOrderValues(),
+      promoTestConfig(),
+    );
   });
 
   it('excludes a promotion whose endsAt is in the past', async () => {
@@ -95,7 +99,9 @@ describe('PromotionService date-window filter', () => {
   });
 
   it('excludes a promotion that has not started yet', async () => {
-    await service.create(base({ title: 'Scheduled', startsAt: new Date('2099-01-01T00:00:00.000Z') }));
+    await service.create(
+      base({ title: 'Scheduled', startsAt: new Date('2099-01-01T00:00:00.000Z') }),
+    );
     const active = await service.listActive(new Date('2026-07-12T00:00:00.000Z'));
     expect(active.map((p) => p.title)).not.toContain('Scheduled');
   });
@@ -124,7 +130,9 @@ class FakeOrderValues {
   values: { orderId: string; totalIdr: number }[] | null = [];
   calls: string[][] = [];
 
-  async findOrderValues(orderIds: string[]): Promise<{ orderId: string; totalIdr: number }[] | null> {
+  async findOrderValues(
+    orderIds: string[],
+  ): Promise<{ orderId: string; totalIdr: number }[] | null> {
     this.calls.push(orderIds);
     return this.values;
   }
@@ -147,7 +155,12 @@ describe('PromotionService analytics', () => {
       orderValueSource: FakeOrderValues,
       config: PromoConfigService,
     ) => PromotionService & AnalyticsService;
-    service = new PromotionServiceWithAnalytics(promotions, vouchers, orderValues, promoTestConfig());
+    service = new PromotionServiceWithAnalytics(
+      promotions,
+      vouchers,
+      orderValues,
+      promoTestConfig(),
+    );
   });
 
   async function createPromotion(voucherCode: string | null) {
@@ -174,36 +187,39 @@ describe('PromotionService analytics', () => {
     ['has no voucher code', null, false],
     ['links a missing voucher', 'MISSING', false],
     ['links a voucher with no redemptions', 'HEMAT10', true],
-  ])('returns real zero analytics and skips order lookup when it %s', async (_label, code, seedVoucher) => {
-    if (seedVoucher) await createVoucher();
-    const promotion = await createPromotion(code);
+  ])(
+    'returns real zero analytics and skips order lookup when it %s',
+    async (_label, code, seedVoucher) => {
+      if (seedVoucher) await createVoucher();
+      const promotion = await createPromotion(code);
 
-    const result = await service.analytics(promotion.id, now);
+      const result = await service.analytics(promotion.id, now);
 
-    expect(result).toMatchObject({
-      promotionId: promotion.id,
-      title: 'Promo Air',
-      voucherCode: code,
-      totalUses: 0,
-      usesLast7Days: 0,
-      totalSavingsIdr: 0,
-      affectedOrderIds: [],
-      affectedOrderCount: 0,
-      grossAffectedOrderValueIdr: 0,
-      topCustomers: [],
-      orderValueSource: 'not_applicable',
-    });
-    expect(result.dailyUses).toEqual([
-      { day: '2026-07-16', uses: 0 },
-      { day: '2026-07-17', uses: 0 },
-      { day: '2026-07-18', uses: 0 },
-      { day: '2026-07-19', uses: 0 },
-      { day: '2026-07-20', uses: 0 },
-      { day: '2026-07-21', uses: 0 },
-      { day: '2026-07-22', uses: 0 },
-    ]);
-    expect(orderValues.calls).toEqual([]);
-  });
+      expect(result).toMatchObject({
+        promotionId: promotion.id,
+        title: 'Promo Air',
+        voucherCode: code,
+        totalUses: 0,
+        usesLast7Days: 0,
+        totalSavingsIdr: 0,
+        affectedOrderIds: [],
+        affectedOrderCount: 0,
+        grossAffectedOrderValueIdr: 0,
+        topCustomers: [],
+        orderValueSource: 'not_applicable',
+      });
+      expect(result.dailyUses).toEqual([
+        { day: '2026-07-16', uses: 0 },
+        { day: '2026-07-17', uses: 0 },
+        { day: '2026-07-18', uses: 0 },
+        { day: '2026-07-19', uses: 0 },
+        { day: '2026-07-20', uses: 0 },
+        { day: '2026-07-21', uses: 0 },
+        { day: '2026-07-22', uses: 0 },
+      ]);
+      expect(orderValues.calls).toEqual([]);
+    },
+  );
 
   // H-16: the daily strip buckets on the WIB calendar day now. Two of these fixtures sit
   // in the 17:00–23:59 UTC band, which is the NEXT WIB day — 2026-07-15T23:59:59Z is

@@ -155,7 +155,11 @@ describe('LoyaltyService', () => {
   // a service with it explicitly on. `sweeper` is that service; `service` (switch off) is
   // what the last case in this block uses to assert the default.
   const sweeperFor = (repository: InMemoryLoyaltyRepository): LoyaltyService =>
-    new LoyaltyService(repository, buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }), new InMemoryCustomerDirectory());
+    new LoyaltyService(
+      repository,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }),
+      new InMemoryCustomerDirectory(),
+    );
 
   it('sweeps expired lots into negative EXPIRE entries (BR-014)', async () => {
     // Earn with an already-past expiry so the lot is immediately due.

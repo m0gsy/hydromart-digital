@@ -113,7 +113,10 @@ describe('SettingsService and its controller', () => {
     const controller = new SettingsController(settings as never);
     const depotUser = { sub: 'u1', role: 'KEPALA_DEPOT', capabilities: [] } as never;
 
-    await controller.reset({ scope: 'DEPOT', depotId: 'dep-1', key: 'earnPointsPerRupiah' } as never, depotUser);
+    await controller.reset(
+      { scope: 'DEPOT', depotId: 'dep-1', key: 'earnPointsPerRupiah' } as never,
+      depotUser,
+    );
     expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'dep-1', 'earnPointsPerRupiah', 'u1');
 
     await expect(

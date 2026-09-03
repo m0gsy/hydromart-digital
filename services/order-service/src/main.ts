@@ -6,7 +6,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { configureDepotScope, enableMetrics, httpCapabilityLoader, httpDepotScopeResolver, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
+import {
+  configureDepotScope,
+  enableMetrics,
+  httpCapabilityLoader,
+  httpDepotScopeResolver,
+  protectDocs,
+  startCapabilityRefresh,
+} from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { OrderConfigService } from './config/order-config.service';

@@ -205,9 +205,9 @@ describe('ResellerController', () => {
     it('updates on success', async () => {
       const svc = makeService();
       svc.update.mockResolvedValue({ ...row, monthlyTargetQty: 200 });
-      await expect(controllerWith(svc).update(user, 'c1', { monthlyTargetQty: 200 })).resolves.toEqual(
-        { ...row, monthlyTargetQty: 200 },
-      );
+      await expect(
+        controllerWith(svc).update(user, 'c1', { monthlyTargetQty: 200 }),
+      ).resolves.toEqual({ ...row, monthlyTargetQty: 200 });
     });
     it('maps ResellerNotFoundError to 404', async () => {
       const svc = makeService();
@@ -309,7 +309,10 @@ describe('ResellerController price changes (K4.2)', () => {
     svc.update.mockRejectedValue(new NothingToScheduleError());
 
     await expect(
-      controllerWith(svc).update(user, 'c1', { note: 'x', effectiveAt: '2026-09-01T00:00:00.000Z' }),
+      controllerWith(svc).update(user, 'c1', {
+        note: 'x',
+        effectiveAt: '2026-09-01T00:00:00.000Z',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -317,7 +320,9 @@ describe('ResellerController price changes (K4.2)', () => {
     const svc = makeService();
     svc.update.mockRejectedValue(new Error('db down'));
 
-    await expect(controllerWith(svc).update(user, 'c1', { discountPct: 5 })).rejects.toThrow('db down');
+    await expect(controllerWith(svc).update(user, 'c1', { discountPct: 5 })).rejects.toThrow(
+      'db down',
+    );
   });
 
   it('hands back the change history', async () => {

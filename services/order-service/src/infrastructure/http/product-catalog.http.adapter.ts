@@ -76,7 +76,9 @@ export class ProductCatalogHttpAdapter implements ProductCatalogPort {
       const body = (await res.json()) as ProductResponse[];
       return new Map(body.map((row) => [row.id, this.toProduct(row)]));
     } catch (error) {
-      this.logger.error(`Failed to resolve ${productIds.length} product(s): ${(error as Error).message}`);
+      this.logger.error(
+        `Failed to resolve ${productIds.length} product(s): ${(error as Error).message}`,
+      );
       // The upstream status and the network reason are logged above, where an operator can
       // act on them. The customer gets the one fact that is theirs: try again shortly.
       throw new CatalogUnavailableError();

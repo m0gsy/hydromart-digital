@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   DuplicateVoucherCodeError,
+  InvalidVoucherValueError,
   MinSpendNotMetError,
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
@@ -133,7 +134,9 @@ describe('VoucherService', () => {
       await service.release(orderId);
 
       // Would have thrown VoucherCustomerLimitReachedError before the release.
-      await expect(service.redeem('HEMAT10', customerId, randomUUID(), 60000)).resolves.toBeDefined();
+      await expect(
+        service.redeem('HEMAT10', customerId, randomUUID(), 60000),
+      ).resolves.toBeDefined();
     });
 
     /**
@@ -159,13 +162,15 @@ describe('VoucherService', () => {
   });
 
   it('enforces the per-customer limit on redeem', async () => {
-    await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000, perCustomerLimit: 1 }));
+    await service.create(
+      baseVoucher({ discountType: DiscountType.FIXED, value: 5000, perCustomerLimit: 1 }),
+    );
     const customerId = randomUUID();
 
     await service.redeem('HEMAT10', customerId, randomUUID(), 60000);
-    await expect(
-      service.redeem('HEMAT10', customerId, randomUUID(), 60000),
-    ).rejects.toBeInstanceOf(VoucherCustomerLimitReachedError);
+    await expect(service.redeem('HEMAT10', customerId, randomUUID(), 60000)).rejects.toBeInstanceOf(
+      VoucherCustomerLimitReachedError,
+    );
   });
 
   describe('myVouchers (wallet)', () => {
@@ -195,7 +200,12 @@ describe('VoucherService', () => {
 
     it('marks a voucher the customer already used USED', async () => {
       await service.create(
-        baseVoucher({ code: 'USED1', discountType: DiscountType.FIXED, value: 5000, perCustomerLimit: 1 }),
+        baseVoucher({
+          code: 'USED1',
+          discountType: DiscountType.FIXED,
+          value: 5000,
+          perCustomerLimit: 1,
+        }),
       );
       await service.redeem('USED1', cust, randomUUID(), 60000);
       expect(await statusOf('USED1')).toBe('USED');
@@ -215,5 +225,48 @@ describe('VoucherService', () => {
       const wallet = await service.myVouchers(cust);
       expect(wallet.find((w) => w.voucher.code === 'HIDDEN')).toBeUndefined();
     });
+  });
+});
+
+/*
+ * CA-2-65: a PERCENTAGE voucher could be created at 500%.
+ *
+ * The column comment says "PERCENTAGE: a percent 1..100", both DTOs repeat it in their
+ * `@ApiProperty` description, and none of them enforced it — `@Min(0)` was the whole check.
+ * A voucher at 500 does not fail downstream either: the discount is a fraction of the
+ * subtotal, so it simply pays the customer more than the order is worth, capped only by a
+ * `maxDiscount` nobody sets by default.
+ */
+describe('VoucherService percentage bound (CA-2-65)', () => {
+  const build = () => ({
+    service: new VoucherService(
+      new InMemoryVoucherRepository(),
+      new FakeCustomerLookup(),
+      new FakeNotification(),
+    ),
+  });
+
+  it('refuses a percentage above 100, at either door', async () => {
+    const { service } = build();
+    await expect(
+      service.create(
+        baseVoucher({ code: 'BONGKAR', discountType: DiscountType.PERCENTAGE, value: 500 }),
+      ),
+    ).rejects.toBeInstanceOf(InvalidVoucherValueError);
+  });
+
+  it('still allows exactly 100, and a fixed voucher far above it', async () => {
+    const { service } = build();
+    await expect(
+      service.create(
+        baseVoucher({ code: 'GRATIS100', discountType: DiscountType.PERCENTAGE, value: 100 }),
+      ),
+    ).resolves.toBeTruthy();
+    // A `@Max(100)` on the field would have refused this — the bound depends on the type.
+    await expect(
+      service.create(
+        baseVoucher({ code: 'POTONG50K', discountType: DiscountType.FIXED, value: 50_000 }),
+      ),
+    ).resolves.toBeTruthy();
   });
 });

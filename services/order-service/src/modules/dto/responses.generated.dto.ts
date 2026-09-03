@@ -522,7 +522,20 @@ export class OrderItemResponseDto {
 
 /** Mirrors `OrderStatusHistoryRecord` exactly — generated for audit D-6, no field added or removed. */
 export class OrderStatusHistoryResponseDto {
-  @ApiProperty({ enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'VOIDED'] })
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
   status!: string;
   @ApiProperty({ type: String, nullable: true })
   changedBy!: string | null;
@@ -565,7 +578,20 @@ export class OrderResponseDto {
   customerId!: string;
   @ApiProperty({ type: String, nullable: true })
   depotId!: string | null;
-  @ApiProperty({ enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'VOIDED'] })
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
   status!: string;
   @ApiProperty({ type: Number })
   subtotal!: number;
@@ -585,9 +611,18 @@ export class OrderResponseDto {
   deliveryWindow!: string | null;
   @ApiProperty({ type: Boolean })
   isWalkIn!: boolean;
-  @ApiProperty({ type: String, format: 'date-time', nullable: true, description: 'C6: when the counter sale was reversed.' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'C6: when the counter sale was reversed.',
+  })
   voidedAt!: string | null;
-  @ApiProperty({ type: String, nullable: true, description: 'C6: why it was reversed — the void report reads this.' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'C6: why it was reversed — the void report reads this.',
+  })
   voidReason!: string | null;
   @ApiProperty({
     type: String,
@@ -714,7 +749,20 @@ export class OrderReviewResponseDto {
 export class InternalConfirmResponseDto {
   @ApiProperty({ type: String })
   orderId!: string;
-  @ApiProperty({ enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'VOIDED'] })
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
   status!: string;
 }
 
@@ -1093,7 +1141,20 @@ export class RemindStale2ResponseDto {
 export class InternalConfirm2ResponseDto {
   @ApiProperty({ type: String })
   orderId!: string;
-  @ApiProperty({ enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'VOIDED'] })
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
   status!: string;
 }
 
@@ -1137,7 +1198,8 @@ export class InternalSegmentCustomersResponseDto {
   customerIds!: string[];
   @ApiProperty({
     type: Boolean,
-    description: 'True when the segment outgrew the resolution cap — the list is NOT the whole audience.',
+    description:
+      'True when the segment outgrew the resolution cap — the list is NOT the whole audience.',
   })
   truncated!: boolean;
 }

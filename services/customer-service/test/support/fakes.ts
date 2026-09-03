@@ -171,7 +171,9 @@ export class InMemoryAddressRepository implements AddressRepository {
     if (rec) rec.isPrimary = true;
   }
   async setPrimaryExclusive(customerId: string, id: string): Promise<void> {
-    this.rows.filter((r) => r.customerId === customerId).forEach((r) => (r.isPrimary = r.id === id));
+    this.rows
+      .filter((r) => r.customerId === customerId)
+      .forEach((r) => (r.isPrimary = r.id === id));
   }
   async delete(customerId: string, id: string): Promise<void> {
     this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));

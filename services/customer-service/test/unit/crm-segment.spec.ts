@@ -16,29 +16,47 @@ describe('crm-segment', () => {
   });
 
   it('never-ordered → INACTIVE', () => {
-    expect(classifySegment({ orderCount: 0, firstOrderAt: null, lastOrderAt: null }, NOW, T)).toBe('INACTIVE');
+    expect(classifySegment({ orderCount: 0, firstOrderAt: null, lastOrderAt: null }, NOW, T)).toBe(
+      'INACTIVE',
+    );
   });
 
   it('first order within newDays → BARU (wins over Aktif)', () => {
     expect(
-      classifySegment({ orderCount: 2, firstOrderAt: daysAgo(10), lastOrderAt: daysAgo(2) }, NOW, T),
+      classifySegment(
+        { orderCount: 2, firstOrderAt: daysAgo(10), lastOrderAt: daysAgo(2) },
+        NOW,
+        T,
+      ),
     ).toBe('BARU');
   });
 
   it('recent order but old first order → AKTIF', () => {
     expect(
-      classifySegment({ orderCount: 5, firstOrderAt: daysAgo(200), lastOrderAt: daysAgo(10) }, NOW, T),
+      classifySegment(
+        { orderCount: 5, firstOrderAt: daysAgo(200), lastOrderAt: daysAgo(10) },
+        NOW,
+        T,
+      ),
     ).toBe('AKTIF');
   });
 
   it('last order older than activeDays → INACTIVE', () => {
     expect(
-      classifySegment({ orderCount: 5, firstOrderAt: daysAgo(200), lastOrderAt: daysAgo(45) }, NOW, T),
+      classifySegment(
+        { orderCount: 5, firstOrderAt: daysAgo(200), lastOrderAt: daysAgo(45) },
+        NOW,
+        T,
+      ),
     ).toBe('INACTIVE');
   });
 
   it('needsFollowUp only past followUpDays', () => {
-    expect(needsFollowUp({ orderCount: 1, firstOrderAt: daysAgo(70), lastOrderAt: daysAgo(70) }, NOW, T)).toBe(true);
-    expect(needsFollowUp({ orderCount: 1, firstOrderAt: daysAgo(40), lastOrderAt: daysAgo(40) }, NOW, T)).toBe(false);
+    expect(
+      needsFollowUp({ orderCount: 1, firstOrderAt: daysAgo(70), lastOrderAt: daysAgo(70) }, NOW, T),
+    ).toBe(true);
+    expect(
+      needsFollowUp({ orderCount: 1, firstOrderAt: daysAgo(40), lastOrderAt: daysAgo(40) }, NOW, T),
+    ).toBe(false);
   });
 });

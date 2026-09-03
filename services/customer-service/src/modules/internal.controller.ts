@@ -128,7 +128,12 @@ export class InternalController {
   @ApiOperation({ summary: 'Agen pricing + home depot for one buyer (internal service auth)' })
   async resellerPricing(
     @Param('customerId', ParseUUIDPipe) customerId: string,
-  ): Promise<{ active: boolean; discountPct: number; flatGallonPriceIdr: number; homeDepotId: string }> {
+  ): Promise<{
+    active: boolean;
+    discountPct: number;
+    flatGallonPriceIdr: number;
+    homeDepotId: string;
+  }> {
     const r = await this.resellers.pricingFor(customerId);
     return {
       active: r.active,

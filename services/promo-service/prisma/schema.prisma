@@ -42,6 +42,12 @@ model Voucher {
   usageLimit  Int?
   /// Per-customer redemption cap.
   perCustomerLimit Int     @default(1)
+  /// CA-2-65: the depot this voucher belongs to, or null for a network-wide one.
+  ///
+  /// A depot manager requests a voucher for their own area and HQ approves it; before this
+  /// column the approval produced a code every customer in the network could spend. Null is
+  /// what every HQ-created voucher is, and what every row predating this migration is.
+  depotId     String?
   /// Denormalised global redemption count (kept in step with redemptions).
   usedCount   Int          @default(0)
   active      Boolean      @default(true)

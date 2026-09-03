@@ -38,7 +38,10 @@ export class OrderCrmHttpAdapter implements OrderCrmPort {
         `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-customers?depotId=${encodeURIComponent(depotId)}`,
         // Audit F-3: this adapter had no deadline. It fails soft, so a hung order-service
         // did not error — it held the CRM directory request open until the proxy gave up.
-        { headers: { 'x-internal-key': key }, signal: AbortSignal.timeout(OrderCrmHttpAdapter.TIMEOUT_MS) },
+        {
+          headers: { 'x-internal-key': key },
+          signal: AbortSignal.timeout(OrderCrmHttpAdapter.TIMEOUT_MS),
+        },
       );
       if (!res.ok) {
         this.logger.warn(`depot-customers ${res.status} for depot ${depotId}`);

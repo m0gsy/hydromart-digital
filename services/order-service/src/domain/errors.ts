@@ -168,7 +168,9 @@ export class NotACounterSaleError extends DomainError {
   readonly code = 'ORDER_NOT_A_COUNTER_SALE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Hanya penjualan konter yang bisa dibatalkan di kasir. Pesanan antar lewat proses refund.');
+    super(
+      'Hanya penjualan konter yang bisa dibatalkan di kasir. Pesanan antar lewat proses refund.',
+    );
   }
 }
 
@@ -186,7 +188,9 @@ export class PaymentReversalFailedError extends DomainError {
   readonly code = 'ORDER_PAYMENT_REVERSAL_FAILED';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Pembayaran belum bisa dikembalikan, jadi penjualan tidak dibatalkan. Coba lagi sebentar.');
+    super(
+      'Pembayaran belum bisa dikembalikan, jadi penjualan tidak dibatalkan. Coba lagi sebentar.',
+    );
   }
 }
 
@@ -265,7 +269,9 @@ export class ShippingVoucherAtCounterError extends DomainError {
   readonly code = 'ORDER_SHIPPING_VOUCHER_AT_COUNTER';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('This voucher only waives delivery, and a counter sale has none. Keep it for a delivery order.');
+    super(
+      'This voucher only waives delivery, and a counter sale has none. Keep it for a delivery order.',
+    );
   }
 }
 

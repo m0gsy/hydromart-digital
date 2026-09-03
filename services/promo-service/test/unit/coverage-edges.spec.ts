@@ -9,7 +9,6 @@ import { PromoConfigService } from '../../src/config/promo-config.service';
 const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
   ({ businessTimeZone: timeZone }) as PromoConfigService;
 
-
 const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherData => ({
   code: 'HEMAT10',
   description: null,
@@ -26,7 +25,11 @@ const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherD
 
 describe('VoucherService.browse defaults', () => {
   const svc = () =>
-    new VoucherService(new InMemoryVoucherRepository(), new FakeCustomerLookup(), new FakeNotification());
+    new VoucherService(
+      new InMemoryVoucherRepository(),
+      new FakeCustomerLookup(),
+      new FakeNotification(),
+    );
 
   it('pages from 1 with a limit of 20 when called bare', async () => {
     expect(await svc().browse()).toMatchObject({ page: 1, limit: 20 });
@@ -97,7 +100,12 @@ describe('PromotionService.listActive', () => {
   it('defaults the clock to now', async () => {
     const findActive = jest.fn().mockResolvedValue([]);
     const before = Date.now();
-    await new PromotionService({ findActive } as never, {} as never, {} as never, promoTestConfig()).listActive();
+    await new PromotionService(
+      { findActive } as never,
+      {} as never,
+      {} as never,
+      promoTestConfig(),
+    ).listActive();
     const passed = findActive.mock.calls[0][0] as Date;
     expect(passed.getTime()).toBeGreaterThanOrEqual(before);
   });
@@ -105,7 +113,12 @@ describe('PromotionService.listActive', () => {
   it('passes an explicit clock straight through', async () => {
     const findActive = jest.fn().mockResolvedValue([]);
     const at = new Date('2026-03-01T00:00:00.000Z');
-    await new PromotionService({ findActive } as never, {} as never, {} as never, promoTestConfig()).listActive(at);
+    await new PromotionService(
+      { findActive } as never,
+      {} as never,
+      {} as never,
+      promoTestConfig(),
+    ).listActive(at);
     expect(findActive).toHaveBeenCalledWith(at);
   });
 });

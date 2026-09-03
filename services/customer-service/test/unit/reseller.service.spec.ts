@@ -5,16 +5,15 @@ import { AuthenticatedUser, Role } from '@hydromart/platform';
 import { ResellerService } from '../../src/application/services/reseller.service';
 import { ProfileRepository } from '../../src/application/ports/profile.repository';
 import { Reseller, ResellerRepository } from '../../src/application/ports/reseller.repository';
-import {
-  ResellerExistsError,
-  ResellerNotFoundError,
-} from '../../src/domain/errors';
+import { ResellerExistsError, ResellerNotFoundError } from '../../src/domain/errors';
 
 /** Names are a decoration on the roster; every reseller test here is about the roster. */
 function fakeIdentity() {
-  return { getCustomerNames: async () => new Map(), preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }) } as never;
+  return {
+    getCustomerNames: async () => new Map(),
+    preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }),
+  } as never;
 }
-
 
 function row(over: Partial<Reseller> = {}): Reseller {
   return {
@@ -130,7 +129,12 @@ describe('ResellerService', () => {
     repo.findById.mockResolvedValue(row());
     const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity(), makeNotifier());
     await expect(
-      svc.register(hq, { customerId: 'c1', homeDepotId: 'd1', monthlyTargetQty: 0, joinDate: new Date() }),
+      svc.register(hq, {
+        customerId: 'c1',
+        homeDepotId: 'd1',
+        monthlyTargetQty: 0,
+        joinDate: new Date(),
+      }),
     ).rejects.toBeInstanceOf(ResellerExistsError);
   });
 
@@ -181,7 +185,12 @@ describe('ResellerService', () => {
           .mockResolvedValue(new Map([['c1', { fullName: 'Budi', phone: '0811' }]])),
       } as never;
 
-      const out = await new ResellerService(repo, makeProfiles(true), identity, makeNotifier() as never).list(hq, {});
+      const out = await new ResellerService(
+        repo,
+        makeProfiles(true),
+        identity,
+        makeNotifier() as never,
+      ).list(hq, {});
 
       expect(out.map((r) => [r.customerId, r.customerName])).toEqual([
         ['c1', 'Budi'],
@@ -197,7 +206,12 @@ describe('ResellerService', () => {
       const repo = makeRepo();
       repo.list.mockResolvedValue([row()]);
 
-      const out = await new ResellerService(repo, makeProfiles(true), fakeIdentity(), makeNotifier()).list(hq, {});
+      const out = await new ResellerService(
+        repo,
+        makeProfiles(true),
+        fakeIdentity(),
+        makeNotifier(),
+      ).list(hq, {});
 
       expect(out).toHaveLength(1);
       expect(out[0].customerName).toBeNull();
@@ -249,9 +263,7 @@ describe('ResellerService', () => {
         joinDate: new Date('2026-01-01'),
       });
 
-      expect(repo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ homeDepotId: 'd1' }),
-      );
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ homeDepotId: 'd1' }));
     });
 
     it('rejects a manager registering a reseller homed at another depot', async () => {
@@ -315,9 +327,9 @@ describe('ResellerService', () => {
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
       const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity(), makeNotifier());
 
-      await expect(
-        svc.update(manager('d1'), 'c1', { active: false }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.update(manager('d1'), 'c1', { active: false })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
       expect(repo.update).not.toHaveBeenCalled();
     });
 
@@ -326,9 +338,9 @@ describe('ResellerService', () => {
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd1' }));
       const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity(), makeNotifier());
 
-      await expect(
-        svc.update(manager('d1'), 'c1', { homeDepotId: 'd2' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.update(manager('d1'), 'c1', { homeDepotId: 'd2' })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
       expect(repo.update).not.toHaveBeenCalled();
     });
 

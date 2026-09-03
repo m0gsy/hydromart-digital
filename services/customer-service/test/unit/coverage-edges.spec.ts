@@ -23,12 +23,15 @@ import type { DepotCustomerQuery } from '../../src/application/ports/depot-crm.r
  * (`qMatchedIds`); rows with no profile come back with null identity, exactly as the LEFT
  * JOIN does, and the service overlays the order snapshot afterwards.
  */
-function fakeCrm(profiles: { customerId: string; fullName?: string | null; phone?: string | null }[] = []) {
+function fakeCrm(
+  profiles: { customerId: string; fullName?: string | null; phone?: string | null }[] = [],
+) {
   return {
     async listDepotCustomers(_depotId: string, query: DepotCustomerQuery = {}) {
       const { q, orderedIds = [], qMatchedIds = [], limit = 500, offset = 0 } = query;
       const byId = new Map(profiles.map((p) => [p.customerId, p]));
-      for (const id of orderedIds) if (!byId.has(id)) byId.set(id, { customerId: id, fullName: null, phone: null });
+      for (const id of orderedIds)
+        if (!byId.has(id)) byId.set(id, { customerId: id, fullName: null, phone: null });
       const needle = q?.toLowerCase();
       const rows = [...byId.values()]
         .filter((r) => {
@@ -65,9 +68,11 @@ function fakeCrm(profiles: { customerId: string; fullName?: string | null; phone
 
 /** Names are a decoration on the roster; every reseller test here is about the roster. */
 function fakeIdentity() {
-  return { getCustomerNames: async () => new Map(), preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }) } as never;
+  return {
+    getCustomerNames: async () => new Map(),
+    preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }),
+  } as never;
 }
-
 
 describe('DepotCrmService follow-up list', () => {
   const summary = (over: Record<string, unknown> = {}) => ({
@@ -119,21 +124,36 @@ describe('DepotCrmService follow-up list', () => {
 describe('ResellerService.findMy', () => {
   it('hands back the caller own reseller row', async () => {
     const row = { id: 'c1', discountPct: 5 };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
+    const svc = new ResellerService(
+      { findById: async () => row } as never,
+      {} as never,
+      fakeIdentity(),
+      { priceChanged: async () => true } as never,
+    );
     expect(await svc.findMy('c1')).toBe(row);
   });
 
   // Not an error: most customers are simply not resellers, and the wallet screen
   // asks unconditionally.
   it('returns null for a customer who is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
+    const svc = new ResellerService(
+      { findById: async () => null } as never,
+      {} as never,
+      fakeIdentity(),
+      { priceChanged: async () => true } as never,
+    );
     expect(await svc.findMy('c9')).toBeNull();
   });
 });
 
 describe('ResellerService.get', () => {
   it('404s for an id that is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
+    const svc = new ResellerService(
+      { findById: async () => null } as never,
+      {} as never,
+      fakeIdentity(),
+      { priceChanged: async () => true } as never,
+    );
     await expect(svc.get({ sub: 'staff' } as never, 'c9')).rejects.toThrow();
   });
 
@@ -153,10 +173,15 @@ describe('ResellerService.get', () => {
 
   it('returns the row for a caller inside the right depot', async () => {
     const row = { id: 'c1', homeDepotId: 'depot-mine' };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity(), { priceChanged: async () => true } as never);
-    expect(await svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1')).toBe(
-      row,
+    const svc = new ResellerService(
+      { findById: async () => row } as never,
+      {} as never,
+      fakeIdentity(),
+      { priceChanged: async () => true } as never,
     );
+    expect(
+      await svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1'),
+    ).toBe(row);
   });
 });
 
@@ -173,9 +198,12 @@ describe('ProfileController birthdate patch', () => {
 
   it('parses a supplied birthdate into a Date', async () => {
     const setBirthdate = jest.fn().mockResolvedValue({});
-    await controller(setBirthdate).updateProfile({ sub: 'c1' } as never, {
-      birthdate: '1990-05-17',
-    } as never);
+    await controller(setBirthdate).updateProfile(
+      { sub: 'c1' } as never,
+      {
+        birthdate: '1990-05-17',
+      } as never,
+    );
     expect(setBirthdate).toHaveBeenCalledWith('c1', new Date('1990-05-17'));
   });
 
@@ -183,18 +211,21 @@ describe('ProfileController birthdate patch', () => {
   // field at all — the `in` check above is what keeps those apart.
   it('clears the birthdate when the field is sent as null', async () => {
     const setBirthdate = jest.fn().mockResolvedValue({});
-    await controller(setBirthdate).updateProfile({ sub: 'c1' } as never, {
-      birthdate: null,
-    } as never);
+    await controller(setBirthdate).updateProfile(
+      { sub: 'c1' } as never,
+      {
+        birthdate: null,
+      } as never,
+    );
     expect(setBirthdate).toHaveBeenCalledWith('c1', null);
   });
 });
 
 describe('CustomerConfigService.productServiceUrl', () => {
   it('trims a configured url', () => {
-    expect(buildTestConfig({ PRODUCT_SERVICE_URL: '  http://product:3002  ' }).productServiceUrl).toBe(
-      'http://product:3002',
-    );
+    expect(
+      buildTestConfig({ PRODUCT_SERVICE_URL: '  http://product:3002  ' }).productServiceUrl,
+    ).toBe('http://product:3002');
   });
 
   // Blank means "skip the catalog check" — a whitespace-only value must read as blank,
@@ -217,7 +248,9 @@ describe('OrderCrmHttpAdapter failure', () => {
   // Fail SOFT: the CRM page is a read. An unreachable order-service should blank the
   // order columns, never 500 the whole depot's customer list.
   it('returns an empty list and warns when order-service is unreachable', async () => {
-    (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockRejectedValue(new Error('ECONNREFUSED'));
     const adapter = new OrderCrmHttpAdapter(
       buildTestConfig({ ORDER_SERVICE_URL: 'http://order:3003', INTERNAL_SERVICE_KEY: 'k' }),
     );
@@ -288,9 +321,9 @@ describe('ImportCustomersDto', () => {
       monthlyTargetQty: 100,
       joinDate: '2026-01-01',
     };
-    expect(validateSync(plainToInstance(ImportResellersDto, { depotId: DEPOT, rows: [row] }))).toHaveLength(
-      0,
-    );
+    expect(
+      validateSync(plainToInstance(ImportResellersDto, { depotId: DEPOT, rows: [row] })),
+    ).toHaveLength(0);
     expect(
       validateSync(
         plainToInstance(ImportResellersDto, {
@@ -326,7 +359,6 @@ describe('DepotCrmService directory union and ledger (§I, J-2)', () => {
     phone: '+62811',
     membershipTier: 'BASIC',
   };
-
 
   const build = (ledger: unknown) =>
     new DepotCrmService(

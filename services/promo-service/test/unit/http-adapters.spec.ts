@@ -19,7 +19,12 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): PromoConfigSer
   } as unknown as PromoConfigService;
 }
 
-function res(init: { ok?: boolean; status?: number; body?: unknown; throwJson?: boolean }): Response {
+function res(init: {
+  ok?: boolean;
+  status?: number;
+  body?: unknown;
+  throwJson?: boolean;
+}): Response {
   const status = init.status ?? (init.ok === false ? 500 : 200);
   return {
     ok: init.ok ?? status < 400,
@@ -40,7 +45,12 @@ beforeEach(() => {
 
 describe('CustomerLookupHttpAdapter', () => {
   it('returns null without base url or authorization (no fetch)', async () => {
-    expect(await new CustomerLookupHttpAdapter(makeConfig({ customerServiceUrl: '' })).resolve('c1', 'Bearer x')).toBeNull();
+    expect(
+      await new CustomerLookupHttpAdapter(makeConfig({ customerServiceUrl: '' })).resolve(
+        'c1',
+        'Bearer x',
+      ),
+    ).toBeNull();
     expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1', '')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -80,14 +90,26 @@ describe('CustomerLookupHttpAdapter', () => {
 
 describe('NotificationHttpAdapter', () => {
   it('skips without internal key or base url (no fetch)', async () => {
-    await new NotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify('e', '0811', 'c1', {});
-    await new NotificationHttpAdapter(makeConfig({ crmServiceUrl: '' })).notify('e', '0811', 'c1', {});
+    await new NotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify(
+      'e',
+      '0811',
+      'c1',
+      {},
+    );
+    await new NotificationHttpAdapter(makeConfig({ crmServiceUrl: '' })).notify(
+      'e',
+      '0811',
+      'c1',
+      {},
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('posts to crm internal endpoint on happy path', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new NotificationHttpAdapter(makeConfig()).notify('VOUCHER_GRANTED', '0811', 'c1', { code: 'HEMAT' });
+    await new NotificationHttpAdapter(makeConfig()).notify('VOUCHER_GRANTED', '0811', 'c1', {
+      code: 'HEMAT',
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       'http://crm:3012/api/v1/notifications/internal',
       expect.objectContaining({
@@ -113,10 +135,7 @@ describe('NotificationHttpAdapter', () => {
 });
 
 describe('OrderValueHttpAdapter', () => {
-  const ids = [
-    '00000000-0000-4000-8000-000000000001',
-    '00000000-0000-4000-8000-000000000002',
-  ];
+  const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'];
 
   it('posts batches with the internal key and returns complete integer-IDR values', async () => {
     fetchMock.mockResolvedValue(
@@ -155,7 +174,9 @@ describe('OrderValueHttpAdapter', () => {
       return res({ body: orderIds.map((orderId) => ({ orderId, totalIdr: 1 })) });
     });
 
-    expect(await new OrderValueHttpAdapter(makeConfig()).findOrderValues(manyIds)).toHaveLength(501);
+    expect(await new OrderValueHttpAdapter(makeConfig()).findOrderValues(manyIds)).toHaveLength(
+      501,
+    );
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -163,7 +184,11 @@ describe('OrderValueHttpAdapter', () => {
     ['missing configuration', makeConfig({ orderServiceUrl: '' }), undefined],
     ['non-2xx', makeConfig(), res({ ok: false, status: 503 })],
     ['malformed body', makeConfig(), res({ body: { values: [] } })],
-    ['invalid money', makeConfig(), res({ body: ids.map((orderId) => ({ orderId, totalIdr: 1.5 })) })],
+    [
+      'invalid money',
+      makeConfig(),
+      res({ body: ids.map((orderId) => ({ orderId, totalIdr: 1.5 })) }),
+    ],
     ['incomplete body', makeConfig(), res({ body: [{ orderId: ids[0], totalIdr: 25_000 }] })],
   ])('fails open to null for %s', async (_label, config, response) => {
     if (response) fetchMock.mockResolvedValue(response);

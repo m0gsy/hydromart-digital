@@ -102,7 +102,11 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
    * fail OPEN, so an absent key correctly yields null there. This one is the caller's only
    * source of a buyer id it must have.
    */
-  async resolveByPhone(phone: string, fullName: string | null, depotId: string): Promise<string | null> {
+  async resolveByPhone(
+    phone: string,
+    fullName: string | null,
+    depotId: string,
+  ): Promise<string | null> {
     const key = this.config.internalServiceKey;
     if (!key) throw new CounterBuyerDirectoryUnconfiguredError();
     const url = `${this.config.customerServiceUrl}/api/v1/customers/internal/resolve-by-phone`;

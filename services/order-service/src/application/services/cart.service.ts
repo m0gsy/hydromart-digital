@@ -2,12 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { ProductUnavailableError } from '../../domain/errors';
-import {
-  DepotPrice,
-  priceLines,
-  resellerApplies,
-  resellerDiscountFor,
-} from '../../domain/pricing';
+import { DepotPrice, priceLines, resellerApplies, resellerDiscountFor } from '../../domain/pricing';
 import { CartItemRecord, CartRepository } from '../ports/cart.repository';
 import { DepotPricingPort } from '../ports/depot-pricing.port';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
@@ -222,7 +217,6 @@ export class CartService {
         : null,
     };
   }
-
 
   /**
    * The price a shopper should SEE for these products at this depot (PG-03).

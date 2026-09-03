@@ -177,7 +177,12 @@ describe('InternalController', () => {
   const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
   const imports = { resolveByPhone: jest.fn() };
   const resellers = { pricingFor: jest.fn(), applyScheduled: jest.fn() };
-  const c = new InternalController(svc as never, imports as never, resellers as never, pdp as never);
+  const c = new InternalController(
+    svc as never,
+    imports as never,
+    resellers as never,
+    pdp as never,
+  );
 
   /*
    * A6/A9. The counter read used to go through `/resellers/:id` on the CASHIER's bearer,
@@ -243,7 +248,9 @@ describe('InternalController', () => {
     expect(svc.getCrmDashboard).toHaveBeenCalledWith('d1');
   });
   it('crmSummaries answers every depot in one request, each row carrying its depotId', async () => {
-    svc.getCrmDashboard.mockImplementation(async (id: string) => ({ counts: { total: id.length } }));
+    svc.getCrmDashboard.mockImplementation(async (id: string) => ({
+      counts: { total: id.length },
+    }));
     expect(await c.crmSummaries('d1, d2 ,')).toEqual([
       { depotId: 'd1', counts: { total: 2 } },
       { depotId: 'd2', counts: { total: 2 } },
@@ -275,7 +282,11 @@ describe('HealthController', () => {
   it('reports database up when the probe query succeeds', async () => {
     prisma.$queryRaw.mockResolvedValue([{ ok: 1 }]);
     const out = await c.check();
-    expect(out).toMatchObject({ status: 'ok', service: 'customer-service', checks: { database: 'up' } });
+    expect(out).toMatchObject({
+      status: 'ok',
+      service: 'customer-service',
+      checks: { database: 'up' },
+    });
     expect(typeof out.timestamp).toBe('string');
   });
 
@@ -405,7 +416,13 @@ describe('ProfileController · internal notification preferences', () => {
   });
 
   it('asks about the customer it was given, not the caller', async () => {
-    notifications.get.mockResolvedValue({ customerId: 'c2', push: true, email: true, whatsapp: true, categories: {} });
+    notifications.get.mockResolvedValue({
+      customerId: 'c2',
+      push: true,
+      email: true,
+      whatsapp: true,
+      categories: {},
+    });
     await c.internalNotificationPrefs('c2');
     expect(notifications.get).toHaveBeenCalledWith('c2');
   });

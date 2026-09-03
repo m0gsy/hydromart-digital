@@ -292,7 +292,8 @@ export class OrderValueDto {
   @ApiProperty({
     format: 'uuid',
     nullable: true,
-    description: "The order's depot, or null while unassigned. payment-service scopes settlement on it.",
+    description:
+      "The order's depot, or null while unassigned. payment-service scopes settlement on it.",
   })
   depotId!: string | null;
 }
@@ -379,7 +380,7 @@ export class CreateSubscriptionForCustomerDto {
 export class DepotScopeQueryDto {
   @ApiPropertyOptional({
     format: 'uuid',
-    description: "Depot whose rate applies; omit for the global one.",
+    description: 'Depot whose rate applies; omit for the global one.',
   })
   @IsOptional()
   @IsUUID()
@@ -549,7 +550,10 @@ export class CounterQuoteDto {
   @Type(() => WalkInLineDto)
   lines!: WalkInLineDto[];
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'The buyer, once the cashier has identified them.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'The buyer, once the cashier has identified them.',
+  })
   @IsOptional()
   @IsUUID()
   customerId?: string;
@@ -592,13 +596,22 @@ export class CounterIdentifyDto {
 
 /** C12: the priced basket. `total` is what the till charges — the screen stops adding up. */
 export class CounterQuoteResponseDto {
-  @ApiProperty({ example: 60000, description: 'Shelf prices at this depot, before the discount layer.' })
+  @ApiProperty({
+    example: 60000,
+    description: 'Shelf prices at this depot, before the discount layer.',
+  })
   subtotalIdr!: number;
 
-  @ApiProperty({ example: 15000, description: 'Tier, agen price or voucher — the layer only the server knows.' })
+  @ApiProperty({
+    example: 15000,
+    description: 'Tier, agen price or voucher — the layer only the server knows.',
+  })
   discountIdr!: number;
 
-  @ApiProperty({ example: 45000, description: 'What the buyer pays. The cash guard and the change both use this.' })
+  @ApiProperty({
+    example: 45000,
+    description: 'What the buyer pays. The cash guard and the change both use this.',
+  })
   totalIdr!: number;
 
   /**
@@ -615,7 +628,11 @@ export class CounterQuoteResponseDto {
   @ApiProperty({ example: false, description: 'The agen band priced this basket.' })
   agen!: boolean;
 
-  @ApiProperty({ nullable: true, example: null, description: 'Set when depot prices were unreachable and the catalogue was used.' })
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'Set when depot prices were unreachable and the catalogue was used.',
+  })
   catalogFallback!: string | null;
 
   static from(quote: {

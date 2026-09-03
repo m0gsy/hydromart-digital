@@ -19,8 +19,27 @@ export class DuplicateVoucherCodeError extends DomainError {
 export class InvalidVoucherValueError extends DomainError {
   readonly code = 'VOUCHER_VALUE_INVALID';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(reason = 'A percentage or fixed voucher needs a positive value.') {
+    super(reason);
+  }
+}
+
+/**
+ * CA-2-65: a depot's voucher, spent somewhere else.
+ *
+ * A depot manager requests a promo for their own area; HQ approves it. Before the voucher
+ * carried a depot, the approval created a code every customer in the network could spend —
+ * funded by the depot that asked for one promo on their own street.
+ *
+ * Refused at QUOTE, not only at redemption: `redeem` fails OPEN by design so a paid order
+ * is never blocked, which means a check that only ran there would price the discount in and
+ * then let it stand.
+ */
+export class VoucherWrongDepotError extends DomainError {
+  readonly code = 'VOUCHER_WRONG_DEPOT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('A percentage or fixed voucher needs a positive value.');
+    super('Voucher ini hanya berlaku di depot tertentu.');
   }
 }
 

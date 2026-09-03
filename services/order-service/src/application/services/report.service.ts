@@ -18,7 +18,11 @@ import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
 import { DeliverySlaPort } from '../ports/delivery-sla.port';
-import { DepotGovernanceFigures, DepotCostBreakdown, DepotCostsPort } from '../ports/depot-costs.port';
+import {
+  DepotGovernanceFigures,
+  DepotCostBreakdown,
+  DepotCostsPort,
+} from '../ports/depot-costs.port';
 import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -756,9 +760,14 @@ export class ReportService {
           bounded && this.deliverySla
             ? this.deliverySla.onTimeRate(depotId, from, to)
             : Promise.resolve(null),
-          bounded && this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
           bounded && this.depotCosts
-            ? this.depotCosts.payroll(depotId, localDayKey(from, this.config.businessTimeZone).slice(0, 7))
+            ? this.depotCosts.costs(depotId, from, to)
+            : Promise.resolve(null),
+          bounded && this.depotCosts
+            ? this.depotCosts.payroll(
+                depotId,
+                localDayKey(from, this.config.businessTimeZone).slice(0, 7),
+              )
             : Promise.resolve(null),
           bounded && this.depotDirectory?.gallonReturns
             ? this.depotDirectory.gallonReturns(depotId, from, to)
@@ -843,8 +852,7 @@ export class ReportService {
       gallonsDelta: gallons - prevGallons,
       // Null, not 0 and not Infinity: with nothing to grow from there is no percentage to
       // report, and "+100%" off a zero base is a number somebody would act on.
-      growthPct:
-        prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
+      growthPct: prevGallons > 0 ? Math.round(((gallons - prevGallons) / prevGallons) * 100) : null,
       avgGallonsPerDay: Math.round(gallons / ReportService.elapsedDays(from, to)),
       governance,
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
@@ -944,9 +952,7 @@ export class ReportService {
         // depot simply has no phone on file — and on this stack today the live sweep
         // answers `{"attempted":0,"skipped":60}`, which under the old shape said nothing
         // about which of the two it was.
-        this.logger.warn(
-          `Daily sales update failed for ${depot.id}: ${(error as Error).message}`,
-        );
+        this.logger.warn(`Daily sales update failed for ${depot.id}: ${(error as Error).message}`);
         failed++;
       }
     }

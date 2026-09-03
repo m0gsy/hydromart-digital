@@ -47,11 +47,7 @@ export class DepotCostsHttpAdapter implements DepotCostsPort {
     return typeof body.payrollMtdNet === 'number' ? Math.round(body.payrollMtdNet) : 0;
   }
 
-  async governance(
-    depotId: string,
-    from: Date,
-    to: Date,
-  ): Promise<DepotGovernanceFigures | null> {
+  async governance(depotId: string, from: Date, to: Date): Promise<DepotGovernanceFigures | null> {
     const query = `depotId=${encodeURIComponent(depotId)}&from=${from.toISOString()}&to=${to.toISOString()}`;
     const body = await this.get<Partial<DepotGovernanceFigures>>(
       this.config.depotServiceUrl,

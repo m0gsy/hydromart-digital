@@ -55,7 +55,9 @@ export class PaymentReversalHttpAdapter implements PaymentReversalPort {
         throw new Error(`payment-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.error(`Payment reversal failed for order ${orderId}: ${(error as Error).message}`);
+      this.logger.error(
+        `Payment reversal failed for order ${orderId}: ${(error as Error).message}`,
+      );
       throw new PaymentReversalFailedError();
     } finally {
       clearTimeout(timer);
