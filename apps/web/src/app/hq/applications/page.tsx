@@ -4,12 +4,12 @@ import { useRouter } from 'next/navigation';
 import { FileText } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, ListFooter, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import { useAsync } from '@/lib/use-async';
-import type { FranchiseApplication, FranchiseAppStage, Page } from '@/lib/types';
+import { usePagedList } from '@/lib/use-paged-list';
+import type { FranchiseApplication, FranchiseAppStage } from '@/lib/types';
 
 // Design 5a — franchise-application approvals queue (real depot-service track). The list
 // endpoint already sorts oldest-first (highest SLA age); rows open the 5b detail.
@@ -21,6 +21,21 @@ const STAGE_TONE: Record<FranchiseAppStage, 'neutral' | 'brand' | 'warning' | 's
   REJECTED: 'danger',
 };
 
+/*
+ * CA-2-27. This queue is sorted OLDEST-FIRST — deliberately, because the oldest application
+ * is the one breaching SLA — and it asked for exactly one page of 100. Put those two facts
+ * together and a new applicant does not arrive at the bottom of the screen once the hundredth
+ * application exists: they are not on the screen at all, and never will be until somebody
+ * decides a hundred older ones. Nothing about the page said so; it looked like a queue with
+ * a hundred things in it, which is what it will always look like.
+ *
+ * The pending badge had the same shape: it counted non-terminal rows within the slice, so it
+ * could only ever say at most 100 however many were really waiting. It is now shown only once
+ * every page is loaded — a count of part of the queue is not a smaller count, it is a wrong
+ * one, and this screen exists to be believed.
+ */
+const PAGE_SIZE = 100;
+
 /** Whole days since submission = SLA age. */
 function ageDays(submittedAt: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(submittedAt).getTime()) / 86_400_000));
@@ -29,14 +44,14 @@ function ageDays(submittedAt: string): number {
 export default function HqApplicationsPage() {
   const { t } = useT();
   const router = useRouter();
-  const queue = useAsync<Page<FranchiseApplication>>(
-    () => api.get(endpoints.franchiseApps.list({ limit: 100 }), true),
+  const queue = usePagedList<FranchiseApplication>(
+    (page) => api.get(endpoints.franchiseApps.list({ page, limit: PAGE_SIZE }), true),
   );
 
-  if (queue.loading) return <Skeleton className="h-96 w-full" />;
+  if (queue.loading && queue.rows.length === 0) return <Skeleton className="h-96 w-full" />;
   if (queue.error) return <ErrorState message={t('hq.applications.loadError')} onRetry={queue.reload} />;
 
-  const items = queue.data?.items ?? [];
+  const items = queue.rows;
   const pending = items.filter((a) => a.stage !== 'APPROVED' && a.stage !== 'REJECTED').length;
 
   return (
@@ -45,7 +60,13 @@ export default function HqApplicationsPage() {
         icon={FileText}
         title={t('hq.applications.title')}
         subtitle={t('hq.applications.subtitle')}
-        action={<Badge tone="warning">{t('hq.applications.count', { n: pending })}</Badge>}
+        // Only when the whole queue is loaded: a "menunggu" count taken from the first page
+        // is not a smaller number, it is the wrong one.
+        action={
+          queue.hasMore ? undefined : (
+            <Badge tone="warning">{t('hq.applications.count', { n: pending })}</Badge>
+          )
+        }
       />
 
       {items.length === 0 ? (
@@ -84,6 +105,13 @@ export default function HqApplicationsPage() {
           })}
         </div>
       )}
+      <ListFooter
+        shown={items.length}
+        total={queue.total}
+        hasMore={queue.hasMore}
+        onMore={queue.loadMore}
+        loading={queue.loading}
+      />
     </div>
   );
 }

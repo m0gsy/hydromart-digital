@@ -4,8 +4,10 @@ import { Truck } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useT } from '@/lib/locale-context';
 import {
   ACTIVE_DELIVERY_STATUSES,
@@ -14,7 +16,7 @@ import {
   type RosterRow,
 } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, Delivery, DepotAdmin, Page } from '@/lib/types';
+import type { Customer, Delivery, Page } from '@/lib/types';
 
 interface RosterView extends RosterRow {
   depotLabel: string;
@@ -32,28 +34,38 @@ export default function HqRosterPage() {
     const [drivers, deliveries, depotList, shifts] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
       /*
-       * In-flight only. Unfiltered, this asked for the 100 most recently ASSIGNED
-       * deliveries of any status — and delivery-service orders by `assignedAt desc`, so on
-       * a busy day those 100 are mostly rows already DELIVERED. A courier still holding a
-       * delivery assigned yesterday fell off the page, and the roster then read them as
-       * carrying nothing: load 0, and "available" offered to dispatch.
+       * Both halves of this, because each was a different way of miscounting.
        *
-       * ponytail: still one page. 100 deliveries in flight across the whole network is
-       * already more than the couriers on it; paginate if that ever stops being true.
+       * Unfiltered, it asked for the 100 most recently ASSIGNED deliveries of any status —
+       * and delivery-service orders by `assignedAt desc`, so on a busy day those 100 are
+       * mostly rows already DELIVERED. A courier still holding a delivery assigned
+       * yesterday fell off the page, and the roster read them as carrying nothing.
+       *
+       * CA-2-26 / CA-2-41: and the count itself stopped at one page of 100. Every delivery
+       * past it was invisible, so a fully loaded courier could read as "tersedia" on the
+       * screen HQ uses to decide who takes the next job. A wrong load is worse than a short
+       * list — it does not look wrong, it looks like spare capacity.
+       *
+       * The status filter is what makes the number mean "in flight"; paging to the end is
+       * what makes it complete. Neither alone counts right.
        */
-      api.get<Page<Delivery>>(
-        endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, limit: 100 }),
-        true,
+      fetchAllPages<Delivery>(({ page, limit }) =>
+        api.get<Page<Delivery>>(
+          endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, page, limit }),
+          true,
+        ),
       ),
-      api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+      // And the depot names beside it: past the hundredth depot every courier there read
+      // as "depot tidak diketahui".
+      fetchAllDepots(),
       // Not getCached: who is on shift right now is the one read here that goes stale in
       // seconds, and a 60s cache would show a courier who has already clocked off.
       api.get<CourierShift[]>(endpoints.deliveries.shiftsOnDuty(since.toISOString()), true),
     ]);
-    const depotName = new Map(depotList.items.map((d) => [d.id, d.name]));
+    const depotName = new Map(depotList.map((d) => [d.id, d.name]));
     const named = (id: string | null): string | null => (id ? (depotName.get(id) ?? null) : null);
 
-    return deriveRoster(drivers, deliveries.items, shifts).map((row) => {
+    return deriveRoster(drivers, deliveries, shifts).map((row) => {
       const home = named(row.depotId);
       const away = named(row.activeDepotId);
       return {

@@ -12,6 +12,7 @@ import {
   ErrorState,
   Field,
   Input,
+  ListFooter,
   LoadError,
   Money,
   Skeleton,
@@ -22,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canViewReturns, canWriteReturns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import { useT } from '@/lib/locale-context';
 import type {
   GallonCondition,
@@ -334,8 +336,16 @@ function ReturnsBody() {
     () => (scopedId ? api.get(endpoints.gallonIssues.summary(scopedId), true) : Promise.resolve(null)),
     [scopedId],
   );
-  const list = useAsync<Page<GallonReturn> | null>(
-    () => (scopedId ? api.get(endpoints.returns.list(scopedId, { limit: 50 }), true) : Promise.resolve(null)),
+  /*
+   * CA-2-40. The gallon-return ledger showed its newest 50 rows. It is the only screen that
+   * lists what a depot has taken back, so return 51 was not older, it was unreachable —
+   * on a page whose summary card above it counts every one of them.
+   */
+  const list = usePagedList<GallonReturn>(
+    (page) =>
+      scopedId
+        ? api.get<Page<GallonReturn>>(endpoints.returns.list(scopedId, { page, limit: 50 }), true)
+        : Promise.resolve({ items: [], total: 0 }),
     [scopedId],
   );
 
@@ -395,20 +405,29 @@ function ReturnsBody() {
             />
           ) : null}
 
-          {list.loading ? (
+          {list.loading && list.rows.length === 0 ? (
             <Skeleton className="h-64 w-full" />
           ) : list.error ? (
             <ErrorState message={list.error} onRetry={list.reload} />
-          ) : !list.data || list.data.items.length === 0 ? (
+          ) : list.rows.length === 0 ? (
             <CenterState title={t('opsFix.returns.empty')} icon={<Recycle size={40} weight="fill" />}>
               {t('opsFix.returns.emptyBody')}
             </CenterState>
           ) : (
-            <div className="flex flex-col gap-2.5">
-              {list.data.items.map((r) => (
-                <ReturnRow key={r.id} r={r} />
-              ))}
-            </div>
+            <>
+              <div className="flex flex-col gap-2.5">
+                {list.rows.map((r) => (
+                  <ReturnRow key={r.id} r={r} />
+                ))}
+              </div>
+              <ListFooter
+                shown={list.rows.length}
+                total={list.total}
+                hasMore={list.hasMore}
+                onMore={list.loadMore}
+                loading={list.loading}
+              />
+            </>
           )}
         </>
       )}

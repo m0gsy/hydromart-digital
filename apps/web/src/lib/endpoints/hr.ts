@@ -229,10 +229,15 @@ hr: {
     `/leave/api/v1/leave/me/balance${year ? `?year=${year}` : ''}`,
   submitLeave: '/leave/api/v1/leave/me',
   cancelLeave: (id: string) => `/leave/api/v1/leave/me/${id}/cancel`,
-  leaveQueue: (q: { depotId?: string; status?: string } = {}) => {
+  // CA-1-16: `page`/`pageSize` are read by `listForApproval` and were missing here, so the
+  // approvals queue could only ever ask for the server's default first 20 — there was no
+  // page 2 to reach, because the URL had no way to name one.
+  leaveQueue: (q: { depotId?: string; status?: string; page?: number; pageSize?: number } = {}) => {
     const p = new URLSearchParams();
     if (q.depotId) p.set('depotId', q.depotId);
     if (q.status) p.set('status', q.status);
+    if (q.page) p.set('page', String(q.page));
+    if (q.pageSize) p.set('pageSize', String(q.pageSize));
     const qs = p.toString();
     return `/leave/api/v1/leave${qs ? `?${qs}` : ''}`;
   },

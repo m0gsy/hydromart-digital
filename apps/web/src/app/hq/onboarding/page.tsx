@@ -6,11 +6,12 @@ import { ArrowRight, Check, ListChecks } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, ErrorState, LoadError, Skeleton } from '@/components/ui';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { Customer, DepotAdmin, InventoryItem, Page } from '@/lib/types';
+import type { Customer, DepotAdmin, InventoryItem } from '@/lib/types';
 
 const selectClass =
   'surface-elevated w-full max-w-xs rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600';
@@ -32,7 +33,10 @@ export default function HqOnboardingPage() {
   const { t } = useT();
   const [depotId, setDepotId] = useState('');
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
+  // CA-2-26. The go-live checklist is chosen from this picker and nowhere else, so the
+  // hundred-and-first depot had no checklist at all — the one screen that says whether a
+  // depot is ready to open could not be pointed at it.
+  const depots = useAsync<DepotAdmin[]>(() => fetchAllDepots());
   const depot = useAsync<DepotAdmin | null>(
     // Same trap as hq/depots/detail: `depots.detail` is the public projection, which
     // carries no payment fields — so the "payments" step below, whose whole test is
@@ -85,7 +89,7 @@ export default function HqOnboardingPage() {
 
       <select aria-label={t('hq.onboarding.pickDepot')} value={depotId} onChange={(e) => setDepotId(e.target.value)} className={selectClass}>
         <option value="">{t('hq.onboarding.pickDepot')}</option>
-        {(depots.data?.items ?? []).map((dp) => (
+        {(depots.data ?? []).map((dp) => (
           <option key={dp.id} value={dp.id}>
             {dp.name}
           </option>

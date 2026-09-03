@@ -71,25 +71,40 @@ if (!caps.length) {
 }
 
 /*
- * The call sites this rule has been verified against. Every one of them hits
- * `endpoints.products.browse` — product-service, cap 100.
+ * The call sites this rule has been verified against, each with the service whose `limit`
+ * cap actually binds it.
  *
- * SIX, not the two that were reported. The bug was found on /dashboard/products/manage and
- * /hq/catalog; enumerating the callers is what turned up the other four, all broken the same
- * way and none of them mentioned. That is the argument for enumerating rather than trusting
- * the report.
+ * The first six were SIX, not the two that were reported. The bug was found on
+ * /dashboard/products/manage and /hq/catalog; enumerating the callers is what turned up the
+ * other four, all broken the same way and none of them mentioned. That is the argument for
+ * enumerating rather than trusting the report.
  *
- * A seventh appearing is not a failure of the code — it is a question this file cannot answer
- * on its own, so it asks instead of assuming.
+ * The four below them came with CA-2-26 / CA-2-28 / CA-2-40, where a truncated read was being
+ * COUNTED or EXPORTED rather than merely displayed — and they are why this file no longer
+ * assumes product-service is the binding cap. The `@Max` that matters is the one on the
+ * endpoint each caller actually hits. All four were read before being added: depot-service's
+ * ListDepotsQueryDto, delivery-service's delivery list and auth-service's AuditQueryDto all
+ * cap `limit` at 100 and `page` at 1000, and MAX_ITEMS stops the walk long before page 1000.
+ *
+ * An eleventh appearing is not a failure of the code — it is a question this file cannot
+ * answer on its own, so it asks instead of assuming.
  */
-const KNOWN_CALLERS = [
-  'apps/web/src/app/dashboard/products/manage/page.tsx',
-  'apps/web/src/app/hq/catalog/page.tsx',
-  'apps/web/src/app/dashboard/inventory/new-line-form.tsx',
-  'apps/web/src/app/dashboard/inventory/page.tsx',
-  'apps/web/src/app/dashboard/pricing/page.tsx',
-  'apps/web/src/app/dashboard/subscriptions/page.tsx',
-];
+const KNOWN_CALLERS = {
+  'apps/web/src/app/dashboard/products/manage/page.tsx': 'product-service',
+  'apps/web/src/app/hq/catalog/page.tsx': 'product-service',
+  'apps/web/src/app/dashboard/inventory/new-line-form.tsx': 'product-service',
+  'apps/web/src/app/dashboard/inventory/page.tsx': 'product-service',
+  'apps/web/src/app/dashboard/pricing/page.tsx': 'product-service',
+  'apps/web/src/app/dashboard/subscriptions/page.tsx': 'product-service',
+  // The whole depot directory — every network screen that COUNTS depots reads through it.
+  'apps/web/src/lib/all-depots.ts': 'depot-service',
+  // Courier load, counted over every active delivery rather than the first page of them.
+  'apps/web/src/app/hq/roster/page.tsx': 'delivery-service',
+  'apps/web/src/app/dashboard/orders/page.tsx': 'delivery-service',
+  // The audit EXPORT. The table beside it still pages on demand, which is the right trade
+  // for a list a human reads and the wrong one for a file that leaves the building.
+  'apps/web/src/app/hq/audit/page.tsx': 'auth-service',
+};
 
 const callers = [];
 const walkWeb = (dir) => {
@@ -110,7 +125,7 @@ walkWeb('apps/web/src');
 // pass line say 7 where there are 6.
 const callSites = callers.filter((c) => c !== PAGINATOR);
 
-const unknown = callSites.filter((c) => !KNOWN_CALLERS.includes(c));
+const unknown = callSites.filter((c) => !(c in KNOWN_CALLERS));
 if (unknown.length) {
   bad(
     'fetchAllPages has a caller this check has never seen. Read the @Max on the `limit` field ' +
@@ -121,17 +136,30 @@ if (unknown.length) {
   ok(`fetchAllPages has ${callSites.length} caller(s), all with a verified server cap`);
 }
 
-// product-service is what all the known callers hit, so its cap is the binding one.
-const product = caps.find((c) => c.file.replace(/\\/g, '/').includes('product-service/'));
-if (!product) {
-  bad('product-service has no @Max on its list `limit` — the binding cap cannot be read');
-} else if (pageSize > product.max) {
-  bad(
-    `PAGE_SIZE is ${pageSize} but ${product.file.replace(/\\/g, '/')} rejects any limit above ` +
-      `${product.max}. Every screen using fetchAllPages fails on its first request.`,
-  );
-} else {
-  ok(`PAGE_SIZE ${pageSize} is within the server cap of ${product.max}`);
+/*
+ * Every service a known caller hits, not just product-service.
+ *
+ * The first version of this check read product-service's cap alone, because that was the
+ * only service `fetchAllPages` had ever been pointed at. Four callers later that assumption
+ * would be silently wrong the moment one of the OTHER services tightened its own `@Max` -
+ * which is the same shape as the bug this file exists to catch, one level up.
+ */
+for (const service of [...new Set(Object.values(KNOWN_CALLERS))]) {
+  const hit = caps.filter((c) => c.file.replace(/\\/g, '/').includes(`${service}/`));
+  if (!hit.length) {
+    bad(`${service} has no @Max on any list \`limit\` — a caller's binding cap cannot be read`);
+    continue;
+  }
+  // The tightest cap in that service is the one a caller can actually run into.
+  const tightest = hit.reduce((a, b) => (b.max < a.max ? b : a));
+  if (pageSize > tightest.max) {
+    bad(
+      `PAGE_SIZE is ${pageSize} but ${tightest.file.replace(/\\/g, '/')} rejects any limit ` +
+        `above ${tightest.max}. Every screen paging ${service} fails on its first request.`,
+    );
+  } else {
+    ok(`PAGE_SIZE ${pageSize} is within ${service}'s cap of ${tightest.max}`);
+  }
 }
 
 // A page size above the smallest cap in the repo is not wrong today, but it is one endpoint
