@@ -11,11 +11,12 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
+  AuthenticatedUser,
   Can,
   CurrentUser,
-  AuthenticatedUser,
   InternalAuthGuard,
   Public,
+  assertDepotAccess,
 } from '@hydromart/platform';
 
 import { CashbookService, CashbookView } from '../application/services/cashbook.service';
@@ -103,11 +104,21 @@ export class CashbookController {
   @ApiOkResponse({ type: CashbookEntryResponseDto })
   @Post(':id/reverse')
   @ApiOperation({ summary: 'Correct an entry by posting its opposite (CA-2-22)' })
-  reverse(
+  async reverse(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReverseCashbookDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CashbookEntry> {
+    /*
+     * AUTHZ-B2: a by-id route reachable by a depot-scoped role must assert the ROW's depot.
+     *
+     * `depotFinance` reaches several depot-scoped roles and `:id` is invisible to
+     * DepotScopeGuard, so without this a finance user at depot A could correct depot B's
+     * cashbook — write access to another depot's money, through the one route added to fix
+     * a money bug. `scripts/check-depot-scope.mjs` caught it before it merged; the same
+     * shape as `dispute.controller.ts`.
+     */
+    assertDepotAccess(user, (await this.cashbook.get(id)).depotId);
     return this.cashbook.reverse(id, dto.reason, user.sub);
   }
 }

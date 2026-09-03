@@ -64,6 +64,13 @@ export class CashbookService {
     });
   }
 
+  /** CA-2-22: one entry, so the caller can check it belongs to their depot. */
+  async get(entryId: string): Promise<CashbookEntry> {
+    const entry = await this.cashbook.findById(entryId);
+    if (!entry) throw new CashbookEntryNotFoundError();
+    return entry;
+  }
+
   /**
    * CA-2-22: correct a mistake by posting its opposite.
    *

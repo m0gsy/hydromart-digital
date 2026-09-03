@@ -256,6 +256,18 @@ describe('CashbookService.reverse (CA-2-22)', () => {
     );
   });
 
+  /* `get` is what the controller asserts the depot against (AUTHZ-B2), so it has to fail
+     the same way rather than hand back an undefined row. */
+  it('reads one entry, and refuses an unknown id', async () => {
+    const { service, depotId: depot } = await build();
+    const original = await post(service, depot);
+
+    expect(await service.get(original.id)).toMatchObject({ id: original.id, depotId: depot });
+    await expect(service.get('99999999-9999-4999-8999-999999999999')).rejects.toBeInstanceOf(
+      CashbookEntryNotFoundError,
+    );
+  });
+
   it('refuses an entry that does not exist', async () => {
     const { service } = await build();
     await expect(

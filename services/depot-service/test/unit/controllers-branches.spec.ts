@@ -173,7 +173,7 @@ describe('CashierShiftController', () => {
 });
 
 describe('CashbookController', () => {
-  const svc = { list: jest.fn(), record: jest.fn(), reverse: jest.fn() };
+  const svc = { list: jest.fn(), record: jest.fn(), reverse: jest.fn(), get: jest.fn() };
   const costs = { costsInRange: jest.fn().mockResolvedValue({ cogsIdr: 0, opexIdr: 0 }) };
   const c = new CashbookController(svc as never, costs as never);
   beforeEach(() => jest.clearAllMocks());
@@ -197,8 +197,32 @@ describe('CashbookController', () => {
    * entry being cancelled, so a "correction" cannot quietly post a different number.
    */
   it('passes only the id, the reason and the actor to a correction', async () => {
+    svc.get.mockResolvedValue({ id: ID, depotId: DEPOT });
     await c.reverse(ID, { reason: 'salah ketik' } as never, user);
     expect(svc.reverse).toHaveBeenCalledWith(ID, 'salah ketik', 'user-1');
+  });
+
+  /*
+   * AUTHZ-B2, and a hole this route shipped with for exactly one CI run: `depotFinance`
+   * reaches several depot-scoped roles and `:id` is invisible to DepotScopeGuard, so a
+   * finance user at depot A could correct depot B's cashbook — write access to another
+   * depot's money, through the route added to FIX a money bug.
+   */
+  it("refuses to correct another depot's entry", async () => {
+    svc.get.mockResolvedValue({ id: ID, depotId: '99999999-9999-4999-8999-999999999999' });
+    await expect(
+      c.reverse(
+        ID,
+        { reason: 'x' } as never,
+        {
+          sub: 'user-2',
+          // MANAGER holds `depotFinance` and IS depot-scoped — the shape the guard exists for.
+          role: Role.MANAGER,
+          depotId: DEPOT,
+        } as never,
+      ),
+    ).rejects.toBeTruthy();
+    expect(svc.reverse).not.toHaveBeenCalled();
   });
 
   it('records with and without occurredAt', async () => {
