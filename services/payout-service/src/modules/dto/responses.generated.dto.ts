@@ -95,6 +95,8 @@ export class CourierEarningsResponseDto {
   availableBalance!: number;
   @ApiProperty({ type: Number })
   monthEarnings!: number;
+  @ApiProperty({ type: Number })
+  monthDeliveries!: number;
   @ApiProperty({ type: [CourierLedgerEntryResponseDto] })
   recentEntries!: CourierLedgerEntryResponseDto[];
   @ApiProperty({ type: [CourierWithdrawalResponseDto] })

@@ -304,7 +304,7 @@ describe('WithdrawalPrismaRepository', () => {
 });
 
 describe('CommissionSchemePrismaRepository', () => {
-  const model = { findMany: jest.fn(), create: jest.fn() };
+  const model = { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() };
   const $transaction = jest.fn();
   const $queryRaw = jest.fn();
   const prisma = { commissionScheme: model, $transaction, $queryRaw } as unknown as PrismaService;
@@ -331,6 +331,39 @@ describe('CommissionSchemePrismaRepository', () => {
     expect(model.findMany).not.toHaveBeenCalled();
     expect(results[0].pct).toBe(12.5);
     expect(results[0].depotId).toBe('dep-1');
+  });
+
+  /*
+   * CA-2-14. The sibling of the courier-rule boundary above, on the table beside it.
+   *
+   * Both scheme reads ordered by effective date descending with NO filter on the date, so a
+   * scheme dated ahead was the one billing a franchise today — `payout.service.ts:183` reads
+   * it on every completed order, and /hq/reconciliation shows it as the rate being charged.
+   * `asOf` is a parameter so this is a plain assertion about a boundary rather than a test
+   * that has to move the clock.
+   */
+  it('listCurrent refuses a scheme whose effective date has not arrived', async () => {
+    $queryRaw.mockResolvedValue([]);
+    const asOf = new Date('2026-09-02T00:00:00.000Z');
+    await repo.listCurrent(asOf);
+    const [fragments, ...values] = $queryRaw.mock.calls[0] as [string[], ...unknown[]];
+    expect(fragments.join('?')).toContain('"effectiveDate" <= ?');
+    expect(values).toEqual([asOf]);
+  });
+
+  it('currentForDepot refuses a scheme whose effective date has not arrived', async () => {
+    model.findFirst.mockResolvedValue(null);
+    const asOf = new Date('2026-09-02T00:00:00.000Z');
+    expect(await repo.currentForDepot('dep-1', asOf)).toBeNull();
+    expect(model.findFirst).toHaveBeenCalledWith({
+      where: { depotId: 'dep-1', effectiveDate: { lte: asOf } },
+      orderBy: { effectiveDate: 'desc' },
+    });
+  });
+
+  it('currentForDepot maps pct for the scheme already in force', async () => {
+    model.findFirst.mockResolvedValue(row);
+    expect((await repo.currentForDepot('dep-1'))?.pct).toBe(12.5);
   });
 
   it('creates many schemes inside a transaction and maps pct', async () => {

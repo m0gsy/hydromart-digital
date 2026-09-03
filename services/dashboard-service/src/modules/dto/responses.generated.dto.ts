@@ -56,6 +56,8 @@ export class TopDepotsItemsResponseDto {
   orderCount!: number;
   @ApiProperty({ type: Number })
   revenue!: number;
+  @ApiProperty({ type: Number })
+  commissionBase!: number;
 }
 
 /** Mirrors `TopDepots` exactly — generated for audit D-6, no field added or removed. */

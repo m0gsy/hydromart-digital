@@ -104,6 +104,20 @@ export default function HqReconciliationPage() {
   // Real: this depot's revenue in the window (null when outside the top-depots list).
   const topRow = dash.data?.topDepots?.items.find((r) => r.depotId === selected) ?? null;
   const sales = topRow?.revenue ?? null;
+  /*
+   * CA-2-09 — the base HQ actually bills, not a second one derived on screen.
+   *
+   * `sales` is `SUM(order.total)`, and `total` is `subtotal + ongkir − discount`. What
+   * payout-service charges the franchise percentage against is `order.subtotal`, pushed as
+   * `commissionBaseIdr` by `order.service.ts:1671` on every completed order, for a reason
+   * written there: ongkir is money the depot pays a courier, not margin HQ has a claim on,
+   * and a voucher HQ funded must not shrink HQ's own cut.
+   *
+   * So the two sides disagreed by (ongkir − discount) on every statement, and the CHARGED
+   * side is the correct one — it is the invoice. This screen was moved to follow it: the
+   * server was not touched, because the bill is not a display bug.
+   */
+  const commissionBase = topRow?.commissionBase ?? null;
 
   /**
    * The franchise cut comes from the depot's own commission scheme — the same row
@@ -114,7 +128,8 @@ export default function HqReconciliationPage() {
    * inventing a rate.
    */
   const scheme = schemes.data?.find((s) => s.depotId === selected) ?? null;
-  const commission = sales != null && scheme ? Math.round(sales * (scheme.pct / 100)) : null;
+  const commission =
+    commissionBase != null && scheme ? Math.round(commissionBase * (scheme.pct / 100)) : null;
   /**
    * The platform fee now comes from payout-service's own settings slice, GLOBAL with a
    * per-depot override — the same store the settings screen already edits.
@@ -158,11 +173,27 @@ export default function HqReconciliationPage() {
     refundsByDepot.data?.items.find((r) => r.depotId === selected)?.refunded,
   );
 
-  // ponytail: illustrative payout formula — owner keeps sales + ongkir, less platform
-  // fee, franchise commission, refunds and the deposit held. Server is authority later.
-  //
-  // Null the moment ANY term is: a settlement figure computed from a term nobody could
-  // fetch is not a small error, it is the wrong number with a confident face.
+  /*
+   * ponytail: illustrative payout formula — the owner keeps sales, less platform fee,
+   * franchise commission, refunds and the deposit held. Server is authority later.
+   *
+   * CA-2-08 — ongkir is NOT added here, and adding it was money.
+   *
+   * `sales` is `SUM(order.total)` and `order.total` is `money(subtotal + deliveryFee −
+   * discount)` (order.service.ts:522/791/2013), so the ongkir is already inside it. The
+   * line `+ shippingBilled` paid every depot its delivery fee a second time — a statement
+   * an owner reads as what they are owed, overstated by the whole ongkir of the window,
+   * every window, silently, because both terms are real numbers from real endpoints.
+   *
+   * The ongkir row stays ON the statement: an owner has to see what the delivery fees came
+   * to. It is labelled as a component of the sales line above it rather than an addend, so
+   * the column no longer looks like it should sum.
+   *
+   * Null the moment ANY term is: a settlement figure computed from a term nobody could
+   * fetch is not a small error, it is the wrong number with a confident face. `shippingBilled`
+   * stays in the guard — it is displayed, and a statement missing a line it shows is not one
+   * to settle on.
+   */
   const net =
     sales != null &&
     platformFee != null &&
@@ -170,7 +201,7 @@ export default function HqReconciliationPage() {
     shippingBilled != null &&
     refunds != null &&
     gallonDeposit != null
-      ? sales - platformFee - commission + shippingBilled - refunds - gallonDeposit
+      ? sales - platformFee - commission - refunds - gallonDeposit
       : null;
 
   const dash20 = t('hq.common.dash');
@@ -192,8 +223,11 @@ export default function HqReconciliationPage() {
         pctLabel(t('hq.reconciliation.lines.platformFee'), platformFeePct),
         platformFee == null ? '' : -platformFee,
       ],
-      [t('hq.reconciliation.lines.shipping'), shippingBilled ?? ''],
+      // Memo rows, both of them: the ongkir is inside the sales line and the commission base
+      // is what the percentage below is taken of. Neither is added into the net.
+      [t('hqFix.recon.shippingIncluded'), shippingBilled ?? ''],
       [t('hq.reconciliation.lines.refunds'), refunds == null ? '' : -refunds],
+      [t('hqFix.recon.commissionBase'), commissionBase ?? ''],
       [
         scheme
           ? pctLabel(t('hq.reconciliation.lines.commission'), scheme.pct)
@@ -266,11 +300,16 @@ export default function HqReconciliationPage() {
               label={pctLabel(t('hq.reconciliation.lines.platformFee'), platformFeePct)}
               value={money(platformFee == null ? null : -platformFee)}
             />
-            <Line label={t('hq.reconciliation.lines.shipping')} value={money(shippingBilled)} />
+            {/* Memo, not an addend: `order.total` already carries the ongkir, so the net
+                below must not add it a second time (CA-2-08). */}
+            <Line label={t('hqFix.recon.shippingIncluded')} value={money(shippingBilled)} />
             <Line
               label={t('hq.reconciliation.lines.refunds')}
               value={money(refunds == null ? null : -refunds)}
             />
+            {/* Memo: what the percentage below is taken OF. Without it the commission row is
+                a number that reconciles against nothing else on the statement (CA-2-09). */}
+            <Line label={t('hqFix.recon.commissionBase')} value={money(commissionBase)} />
             {/* The agreed rate, named. "—" when this depot has no scheme, never a guess. */}
             <Line
               label={

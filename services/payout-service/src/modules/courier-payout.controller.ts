@@ -50,7 +50,10 @@ export class CourierPayoutController {
   @Get('earnings/summary')
   @ApiOperation({ summary: "Balance, this month's earnings + recent activity (design 2c)" })
   summary(@CurrentUser() user: AuthenticatedUser): Promise<CourierEarningsSummary> {
-    return this.payout.summary(user.sub);
+    // The depot comes off the token, exactly as `earningRule` below takes it: the ladder
+    // shown and the deliveries counted against it must belong to the same depot, and a
+    // client-supplied one could not be held to that.
+    return this.payout.summary(user.sub, user.depotId ?? null);
   }
 
   @ApiOkResponse({ type: CourierEarningRuleResponseDto })

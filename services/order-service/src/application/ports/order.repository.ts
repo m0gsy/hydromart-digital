@@ -214,6 +214,18 @@ export interface DepotSales {
   depotId: string;
   orderCount: number;
   revenue: number;
+  /**
+   * The goods total before discount — `order.subtotal`, summed. NOT `revenue`, which is
+   * `subtotal + ongkir − discount`.
+   *
+   * This is the FRANCHISE COMMISSION BASE, and it is exported because it was the number the
+   * reconciliation statement did not have: `order.service.ts:1671` posts
+   * `commissionBaseIdr: order.subtotal` on every completed order and payout-service charges
+   * the percentage against exactly that, while `/hq/reconciliation` recomputed the same
+   * commission from `revenue`. Ongkir the depot pays a courier, and a voucher HQ funded,
+   * both moved a bill the owner had already been charged differently (CA-2-09).
+   */
+  commissionBase: number;
 }
 
 /** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */

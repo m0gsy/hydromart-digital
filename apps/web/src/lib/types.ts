@@ -894,7 +894,11 @@ export interface SubscriptionNetworkSummary {
 export interface TopDepots {
   from: string | null;
   to: string | null;
-  items: { depotId: string; orderCount: number; revenue: number }[];
+  /**
+   * `revenue` is `subtotal + ongkir − discount`. `commissionBase` is the goods total before
+   * discount — the base payout-service actually charges the franchise cut on (CA-2-09).
+   */
+  items: { depotId: string; orderCount: number; revenue: number; commissionBase: number }[];
 }
 
 export interface DeliverySla {
@@ -1436,6 +1440,8 @@ export interface CourierWithdrawal {
 export interface CourierEarningsSummary {
   availableBalance: number;
   monthEarnings: number;
+  /** Paid deliveries this MONTH at the courier's depot — the ladder's own tally (CA-4-18). */
+  monthDeliveries: number;
   recentEntries: CourierLedgerEntry[];
   recentWithdrawals: CourierWithdrawal[];
 }

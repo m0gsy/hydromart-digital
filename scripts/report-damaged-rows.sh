@@ -125,6 +125,19 @@ orang daripada yang ada." \
   "SELECT count(*) FROM reward_items WHERE stock < 0;" \
   "SELECT id || ' | ' || name || ' | stok=' || stock FROM reward_items WHERE stock < 0 ORDER BY stock LIMIT 10;"
 
+section \
+  "Depot yang ditagih dengan skema komisi bertanggal depan" \
+  payout \
+  "CA-2-14 memasang gerbang tanggalnya: sebelum itu kedua pembacaan skema hanya mengurutkan
+\"effectiveDate\" menurun lalu mengambil baris teratas, jadi skema bertanggal DEPAN yang
+menagih hari ini — di tiap pesanan selesai (payout.service.ts:183) dan di layar rekonsiliasi
+yang dibaca pemilik waralaba sebagai tarif yang dikenakan. Sesudah gerbangnya, depot di bawah
+kembali ke persentase sebelumnya; baris ledger yang sudah terlanjur ditagih dengan tarif yang
+belum berlaku tidak ikut berubah. Pertanyaannya satu per depot: selisihnya dikembalikan atau
+tarif barunya dimajukan tanggalnya?" \
+  "SELECT count(*) FROM (SELECT DISTINCT ON (\"depotId\") \"depotId\", \"effectiveDate\" FROM commission_schemes ORDER BY \"depotId\", \"effectiveDate\" DESC) s WHERE s.\"effectiveDate\" > now();" \
+  "SELECT s.\"depotId\" || ' | ' || s.pct || '% mulai ' || s.\"effectiveDate\"::date || ' | yang berlaku sekarang: ' || coalesce((SELECT p.pct || '% (' || p.\"effectiveDate\"::date || ')' FROM commission_schemes p WHERE p.\"depotId\" = s.\"depotId\" AND p.\"effectiveDate\" <= now() ORDER BY p.\"effectiveDate\" DESC LIMIT 1), 'belum ada') FROM (SELECT DISTINCT ON (\"depotId\") * FROM commission_schemes ORDER BY \"depotId\", \"effectiveDate\" DESC) s WHERE s.\"effectiveDate\" > now() ORDER BY s.\"effectiveDate\" LIMIT 10;"
+
 # Cross-database on purpose: the account lives in auth, the standing instruction lives in
 # order, and neither knows about the other. That gap IS the finding.
 DELETED="$(q auth "SELECT string_agg('''' || id || '''', ',') FROM customers WHERE status = 'DELETED';" | tr -d '[:space:]')"

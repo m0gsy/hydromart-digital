@@ -10,6 +10,9 @@ export const hqFix = {
   recon: {
     schemeUnreadable: "Commission (scheme unreadable)",
     schemeMissing: "Commission (no scheme yet)",
+    // CA-2-08 / CA-2-09 — see the Indonesian side. Neither row is an addend.
+    shippingIncluded: 'Shipping billed (already inside total sales)',
+    commissionBase: 'Commission base (goods before discount)',
   },
   toggleCol: 'Grant/clear every capability for this role',
   roleDetail: 'See every capability this role holds',

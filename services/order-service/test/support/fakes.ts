@@ -429,12 +429,14 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
 
   async topDepots(range: ReportRange, limit: number): Promise<DepotSales[]> {
-    const agg = new Map<string, { orderCount: number; revenue: number }>();
+    const agg = new Map<string, { orderCount: number; revenue: number; commissionBase: number }>();
     for (const r of this.reportRows(range)) {
       if (!r.depotId) continue;
-      const a = agg.get(r.depotId) ?? { orderCount: 0, revenue: 0 };
+      const a = agg.get(r.depotId) ?? { orderCount: 0, revenue: 0, commissionBase: 0 };
       a.orderCount += 1;
       a.revenue += r.total;
+      // Goods before discount — the base payout-service charges the franchise cut on.
+      a.commissionBase += r.subtotal;
       agg.set(r.depotId, a);
     }
     return [...agg.entries()]

@@ -693,7 +693,10 @@ export class OrderPrismaRepository implements OrderRepository {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
       where: { ...this.reportWhere(range), depotId: { not: null } },
-      _sum: { total: true },
+      // `subtotal` rides along in the same aggregate — it is the franchise commission base
+      // (goods before discount), and the reconciliation statement was recomputing HQ's cut
+      // from `total` while payout-service charges it on this (CA-2-09).
+      _sum: { total: true, subtotal: true },
       _count: { _all: true },
       orderBy: { _sum: { total: 'desc' } },
       take: limit,
@@ -702,6 +705,7 @@ export class OrderPrismaRepository implements OrderRepository {
       depotId: r.depotId as string,
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
+      commissionBase: r._sum.subtotal ? r._sum.subtotal.toNumber() : 0,
     }));
   }
 
