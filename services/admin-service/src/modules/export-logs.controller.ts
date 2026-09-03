@@ -11,11 +11,12 @@ import {
   Query,
   Res,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ExportStatus } from '../domain/export';
 import { ExportLogService } from '../application/services/export-log.service';
@@ -26,6 +27,8 @@ import { List3ResponseDto } from './dto/responses.generated.dto';
 // newest-first, filter by dataset/status). Ingest is service-to-service (internal key).
 @ApiTags('Export logs')
 @ApiBearerAuth()
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'export-logs', version: '1' })
 export class ExportLogsController {
   constructor(private readonly exports: ExportLogService) {}
@@ -63,10 +66,7 @@ export class ExportLogsController {
   @Can('hqBackOffice')
   @Get(':id/download')
   @ApiOperation({ summary: 'Download the file a scheduled report produced (15c)' })
-  async download(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ): Promise<void> {
+  async download(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): Promise<void> {
     const file = await this.exports.download(id);
     // 404 for "no file", not an empty 200: a zero-byte spreadsheet is the kind of answer
     // somebody forwards to finance before noticing it says nothing.

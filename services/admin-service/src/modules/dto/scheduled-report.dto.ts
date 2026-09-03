@@ -116,7 +116,12 @@ export class ScheduledReportDto {
   dataset!: ReportDataset;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   nextRunAt!: string | null;
-  @ApiProperty({ type: String, format: 'date-time', nullable: true, description: 'When the sweep last ran it.' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When the sweep last ran it.',
+  })
   lastRunAt!: string | null;
   @ApiProperty()
   enabled!: boolean;

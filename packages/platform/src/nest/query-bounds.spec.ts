@@ -115,7 +115,10 @@ describe('queryBoundsMiddleware', () => {
 
   it('loggedQueryBounds falls back to the default bound', async () => {
     const logger = { warn: jest.fn() };
-    const { seen } = await call(loggedQueryBounds(logger), { model: 'Employee', action: 'findMany' });
+    const { seen } = await call(loggedQueryBounds(logger), {
+      model: 'Employee',
+      action: 'findMany',
+    });
 
     expect(seen.args).toEqual({ take: DEFAULT_MAX_ROWS });
     expect(logger.warn).not.toHaveBeenCalled();

@@ -8,10 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
 import {
@@ -27,6 +28,8 @@ import {
 @ApiTags('Incidents')
 @ApiBearerAuth()
 @Can('hqBackOffice')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'incidents', version: '1' })
 export class IncidentsController {
   constructor(private readonly incidents: IncidentService) {}

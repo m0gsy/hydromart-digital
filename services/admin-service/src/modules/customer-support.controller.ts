@@ -1,7 +1,13 @@
-import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import {
+  AuditMutationsInterceptor,
+  AuthenticatedUser,
+  CurrentUser,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import { RaiseComplaintDto, SupportTicketDto } from './dto/support-ticket.dto';
@@ -27,6 +33,8 @@ import { RaiseComplaintDto, SupportTicketDto } from './dto/support-ticket.dto';
 @ApiTags('Support (customer)')
 @ApiBearerAuth()
 @Roles(Role.CUSTOMER)
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'support/tickets', version: '1' })
 export class CustomerSupportController {
   constructor(private readonly tickets: SupportTicketService) {}

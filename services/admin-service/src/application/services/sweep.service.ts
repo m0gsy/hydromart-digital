@@ -1,10 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  RecordSweepRun,
-  SweepRunRecord,
-  SweepRunRepository,
-} from '../ports/sweep-run.repository';
+import { RecordSweepRun, SweepRunRecord, SweepRunRepository } from '../ports/sweep-run.repository';
 import { ADMIN_TOKENS } from '../tokens';
 import {
   SWEEP_SCHEDULE,
@@ -33,9 +29,7 @@ export interface SweepStatus {
 
 @Injectable()
 export class SweepService {
-  constructor(
-    @Inject(ADMIN_TOKENS.SweepRunRepository) private readonly runs: SweepRunRepository,
-  ) {}
+  constructor(@Inject(ADMIN_TOKENS.SweepRunRepository) private readonly runs: SweepRunRepository) {}
 
   record(run: RecordSweepRun): Promise<SweepRunRecord> {
     return this.runs.record(run);

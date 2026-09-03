@@ -244,3 +244,88 @@ describe('SettingsSliceService', () => {
     ]);
   });
 });
+
+/*
+ * CA-2-67: every tunable here is a business number, and changing one left no record.
+ *
+ * The trail posts over HTTP to auth-service's ingest, so the proof is the request: what
+ * these assert is that a settings write produces one, that it names the value it replaced,
+ * and that a trail that is down cannot refuse a setting that has already been stored.
+ */
+describe('SettingsSliceService audit trail (CA-2-67)', () => {
+  const OLD_ENV = { url: process.env.AUTH_SERVICE_URL, key: process.env.INTERNAL_SERVICE_KEY };
+  let posts: { url: string; body: Record<string, unknown> }[];
+
+  beforeEach(() => {
+    posts = [];
+    process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+    process.env.INTERNAL_SERVICE_KEY = 'k';
+    global.fetch = jest.fn(async (url: string, init: { body: string }) => {
+      posts.push({ url: String(url), body: JSON.parse(init.body) });
+      return { ok: true, status: 200 } as never;
+    }) as never;
+  });
+
+  afterEach(() => {
+    process.env.AUTH_SERVICE_URL = OLD_ENV.url;
+    process.env.INTERNAL_SERVICE_KEY = OLD_ENV.key;
+    jest.restoreAllMocks();
+  });
+
+  it('records who changed which money setting, from what to what', async () => {
+    const { service: svc } = build();
+    await svc.put({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'goldDiscountPct',
+      value: '8',
+      updatedBy: 'u-9',
+    });
+    await Promise.resolve();
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].url).toBe('http://auth:3001/api/v1/auth/audit/internal');
+    expect(posts[0].body).toMatchObject({
+      action: 'settings.changed',
+      actorId: 'u-9',
+      target: 'goldDiscountPct',
+      success: true,
+      // `from` is the coded default until somebody overrides it — that IS the value the
+      // change replaced, and without it the entry cannot answer what actually moved.
+      metadata: { scope: 'GLOBAL', depotId: null, from: 5, to: 8, unit: '%' },
+    });
+  });
+
+  it('records a reset against its depot', async () => {
+    const { service: svc } = build();
+    await svc.reset('DEPOT', 'd-1', 'radiusKm', 'u-3');
+    await Promise.resolve();
+
+    expect(posts[0].body).toMatchObject({
+      action: 'settings.reset',
+      actorId: 'u-3',
+      target: 'radiusKm',
+      metadata: { scope: 'DEPOT', depotId: 'd-1' },
+    });
+  });
+
+  it('stores the setting even when the trail is unreachable', async () => {
+    global.fetch = jest.fn(async () => {
+      throw new Error('auth-service down');
+    }) as never;
+    const { service: svc, repo } = build();
+
+    await expect(
+      svc.put({ scope: 'GLOBAL', depotId: null, key: 'fee', value: '6000', updatedBy: 'u-1' }),
+    ).resolves.toBeUndefined();
+    expect(repo.upserts).toHaveLength(1);
+  });
+
+  it('records nothing when the ingest is not configured', async () => {
+    process.env.AUTH_SERVICE_URL = '';
+    const { service: svc } = build();
+    await svc.put({ scope: 'GLOBAL', depotId: null, key: 'fee', value: '6000', updatedBy: 'u-1' });
+    await Promise.resolve();
+    expect(posts).toHaveLength(0);
+  });
+});

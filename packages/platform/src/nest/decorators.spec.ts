@@ -3,7 +3,15 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { Role } from '../domain/role.enum';
-import { CAPABILITY_KEY, Can, CurrentUser, IS_PUBLIC_KEY, Public, ROLES_KEY, Roles } from './decorators';
+import {
+  CAPABILITY_KEY,
+  Can,
+  CurrentUser,
+  IS_PUBLIC_KEY,
+  Public,
+  ROLES_KEY,
+  Roles,
+} from './decorators';
 
 /** Pull the factory Nest stored for a @CurrentUser() parameter and call it directly. */
 function currentUserFactory(): (data: unknown, ctx: ExecutionContext) => AuthenticatedUser {

@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { SystemSettingsService } from '../application/services/system-settings.service';
 import { SaveSystemSettingsDto, SystemSettingsDto } from './dto/system-settings.dto';
@@ -10,6 +10,8 @@ import { SaveSystemSettingsDto, SystemSettingsDto } from './dto/system-settings.
 @ApiTags('System settings')
 @ApiBearerAuth()
 @Can('platformAdmin')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'system-settings', version: '1' })
 export class SystemSettingsController {
   constructor(private readonly settings: SystemSettingsService) {}

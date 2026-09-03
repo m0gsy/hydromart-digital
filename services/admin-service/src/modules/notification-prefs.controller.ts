@@ -1,8 +1,13 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { can } from '@hydromart/access';
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import {
+  AuditMutationsInterceptor,
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+} from '@hydromart/platform';
 
 import {
   AdminNotificationPrefService,
@@ -32,6 +37,8 @@ function scopeFor(role: string | null | undefined): NotificationScope {
 @ApiTags('Notification preferences')
 @ApiBearerAuth()
 @Can('ownNotifPrefs')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'notification-prefs', version: '1' })
 export class NotificationPrefsController {
   constructor(private readonly prefs: AdminNotificationPrefService) {}

@@ -9,10 +9,11 @@ import {
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ScheduledReportService } from '../application/services/scheduled-report.service';
 import {
@@ -30,6 +31,8 @@ import {
 @ApiTags('Scheduled reports')
 @ApiBearerAuth()
 @Can('hqBackOffice')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'scheduled-reports', version: '1' })
 export class ScheduledReportsController {
   constructor(

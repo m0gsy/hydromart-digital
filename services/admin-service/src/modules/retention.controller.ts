@@ -1,7 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { PurgeRunResult, PurgeService } from '../application/services/purge.service';
 import { RetentionService } from '../application/services/retention.service';
@@ -20,6 +30,8 @@ import { PurgeRunResponseDto } from './dto/responses.generated.dto';
 @ApiTags('Retention & backup')
 @ApiBearerAuth()
 @Can('platformAdmin')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'retention', version: '1' })
 export class RetentionController {
   constructor(

@@ -8,6 +8,7 @@ import {
   Param,
   Put,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -20,14 +21,20 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
-import { AccessMatrixService, AccessMatrixView } from '../../application/services/access-matrix.service';
+import {
+  AccessMatrixService,
+  AccessMatrixView,
+} from '../../application/services/access-matrix.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
-import { AccessMatrixResponseDto, InternalOverrides3ResponseDto } from '../dto/responses.generated.dto';
+import {
+  AccessMatrixResponseDto,
+  InternalOverrides3ResponseDto,
+} from '../dto/responses.generated.dto';
 
 export class SetCapabilityRolesDto {
   @IsArray()
@@ -69,6 +76,8 @@ export class ApplyMatrixDto {
  */
 @ApiTags('Access')
 @ApiBearerAuth()
+// CA-2-67: role and capability changes reach the audit trail.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'access', version: '1' })
 export class AccessController {
   constructor(private readonly matrix: AccessMatrixService) {}
@@ -78,7 +87,9 @@ export class AccessController {
   @ApiOkResponse({ type: AccessMatrixResponseDto })
   @Can('staffAdmin')
   @Get('matrix')
-  @ApiOperation({ summary: 'Compiled defaults, the super-admin overrides, and the effective matrix' })
+  @ApiOperation({
+    summary: 'Compiled defaults, the super-admin overrides, and the effective matrix',
+  })
   view(): Promise<AccessMatrixView> {
     return this.matrix.view();
   }

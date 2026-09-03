@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { SlaPolicyService } from '../application/services/sla-policy.service';
 import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
@@ -12,6 +12,8 @@ import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
 @ApiTags('SLA policy')
 @ApiBearerAuth()
 @Can('hqBackOffice')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'sla-policy', version: '1' })
 export class SlaPolicyController {
   constructor(private readonly policy: SlaPolicyService) {}

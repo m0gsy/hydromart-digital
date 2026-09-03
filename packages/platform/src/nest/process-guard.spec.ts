@@ -37,7 +37,10 @@ describe('guardProcess', () => {
   beforeEach(() => {
     flushRejects = false;
     for (const key of Object.keys(listeners)) delete listeners[key];
-    onSpy = jest.spyOn(process, 'on').mockImplementation(((event: string, fn: (a: unknown) => void) => {
+    onSpy = jest.spyOn(process, 'on').mockImplementation(((
+      event: string,
+      fn: (a: unknown) => void,
+    ) => {
       (listeners[event] ??= []).push(fn);
       return process;
     }) as never);
@@ -70,7 +73,9 @@ describe('guardProcess', () => {
     flushed.mockReset().mockResolvedValue(true);
     if (flushRejects) flushed.mockRejectedValue(new Error('sentry unreachable'));
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess('order-service');
+    (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess(
+      'order-service',
+    );
     /* eslint-enable @typescript-eslint/no-var-requires */
   };
 
@@ -137,7 +142,9 @@ describe('guardProcess', () => {
     install();
     const first = listeners.uncaughtException!.length;
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess('order-service');
+    (require('./process-guard') as { guardProcess: (n: string) => void }).guardProcess(
+      'order-service',
+    );
     expect(listeners.uncaughtException!.length).toBe(first);
   });
 });

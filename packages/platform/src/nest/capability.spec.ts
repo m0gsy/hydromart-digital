@@ -101,7 +101,11 @@ describe('RolesGuard capability path', () => {
     });
 
     it('an empty method @Roles list falls through to the class', () => {
-      const ctx = contextWith({ [ROLES_KEY]: [] }, { [CAPABILITY_KEY]: 'approvals' }, { role: 'CUSTOMER' });
+      const ctx = contextWith(
+        { [ROLES_KEY]: [] },
+        { [CAPABILITY_KEY]: 'approvals' },
+        { role: 'CUSTOMER' },
+      );
       expect(() => guardFor(ctx).canActivate(ctx)).toThrow(ForbiddenException);
     });
   });
@@ -110,7 +114,9 @@ describe('RolesGuard capability path', () => {
 describe('assertCapability', () => {
   it('passes a holder and rejects everyone else', () => {
     expect(() => assertCapability({ role: Role.SUPER_ADMIN }, 'settingsGlobal')).not.toThrow();
-    expect(() => assertCapability({ role: Role.MANAGER }, 'settingsGlobal')).toThrow(ForbiddenException);
+    expect(() => assertCapability({ role: Role.MANAGER }, 'settingsGlobal')).toThrow(
+      ForbiddenException,
+    );
     expect(() => assertCapability(undefined, 'settingsGlobal')).toThrow(ForbiddenException);
   });
 

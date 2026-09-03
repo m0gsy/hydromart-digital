@@ -23,10 +23,13 @@ describe('httpCapabilityLoader', () => {
   it.each([
     ['no url', { internalKey: 'k' }],
     ['no key', { authServiceUrl: 'http://auth:3001' }],
-  ])('throws when configured with %s, so the refresher keeps the last snapshot', async (_c, cfg) => {
-    await expect(httpCapabilityLoader(cfg)()).rejects.toThrow('not configured');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+  ])(
+    'throws when configured with %s, so the refresher keeps the last snapshot',
+    async (_c, cfg) => {
+      await expect(httpCapabilityLoader(cfg)()).rejects.toThrow('not configured');
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it('throws on a non-2xx response', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });

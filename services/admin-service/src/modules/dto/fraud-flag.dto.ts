@@ -104,6 +104,9 @@ export class FraudScanResultDto {
   flagged!: number;
   @ApiProperty({ type: Number })
   skipped!: number;
-  @ApiProperty({ type: Boolean, description: 'True = signals unreadable; `scanned` means nothing.' })
+  @ApiProperty({
+    type: Boolean,
+    description: 'True = signals unreadable; `scanned` means nothing.',
+  })
   unavailable!: boolean;
 }

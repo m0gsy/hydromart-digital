@@ -2,7 +2,15 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { DepotScopeGuard, JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import {
+  AUDIT_MUTATION_SINK,
+  AuditMutationsInterceptor,
+  DepotScopeGuard,
+  JwtAuthGuard,
+  RolesGuard,
+} from '@hydromart/platform';
+
+import { AdminAuditSink } from '../infrastructure/http/audit.sink';
 
 import { AdminConfigService } from '../config/admin-config.service';
 import { PurgeService } from '../application/services/purge.service';
@@ -117,8 +125,13 @@ const providers: Provider[] = [
     useClass: AdminNotificationPrefPrismaRepository,
   },
   { provide: ADMIN_TOKENS.OnboardingStateRepository, useClass: OnboardingStatePrismaRepository },
-    SweepService,
-    { provide: ADMIN_TOKENS.SweepRunRepository, useClass: SweepRunPrismaRepository },
+  SweepService,
+  { provide: ADMIN_TOKENS.SweepRunRepository, useClass: SweepRunPrismaRepository },
+  // CA-2-67: the trail this service never had. The interceptor is attached per
+  // controller (see @UseInterceptors on the privileged ones) rather than globally, so
+  // the partner webhook ingest and the internal machine routes do not flood it.
+  { provide: AUDIT_MUTATION_SINK, useClass: AdminAuditSink },
+  AuditMutationsInterceptor,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   // Registered even though neither controller takes a `depotId` today: the next

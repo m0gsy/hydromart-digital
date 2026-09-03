@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { OnboardingStateService } from '../application/services/onboarding-state.service';
 import { OnboardingStateDto, PatchOnboardingDto } from './dto/onboarding-state.dto';
@@ -10,6 +10,8 @@ import { OnboardingStateDto, PatchOnboardingDto } from './dto/onboarding-state.d
 @ApiTags('Onboarding wizard')
 @ApiBearerAuth()
 @Can('platformAdmin')
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'onboarding', version: '1' })
 export class OnboardingController {
   constructor(private readonly onboarding: OnboardingStateService) {}

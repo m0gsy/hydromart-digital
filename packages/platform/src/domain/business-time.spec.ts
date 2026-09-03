@@ -73,13 +73,11 @@ describe('business-time', () => {
   it('honours a zone other than the default', () => {
     // UTC+0: the same instant is still the 4th, but the day starts at 00:00Z.
     expect(localDayKey(LATE_EVENING_WIB, 'UTC')).toBe('2026-08-04');
-    expect(startOfLocalDay(LATE_EVENING_WIB, 'UTC').toISOString()).toBe(
-      '2026-08-04T00:00:00.000Z',
-    );
+    expect(startOfLocalDay(LATE_EVENING_WIB, 'UTC').toISOString()).toBe('2026-08-04T00:00:00.000Z');
     // A DST zone exercises the second offset pass: 2026-03-08 is the US spring forward.
-    expect(startOfLocalDay(new Date('2026-03-08T18:00:00Z'), 'America/New_York').toISOString()).toBe(
-      '2026-03-08T05:00:00.000Z',
-    );
+    expect(
+      startOfLocalDay(new Date('2026-03-08T18:00:00Z'), 'America/New_York').toISOString(),
+    ).toBe('2026-03-08T05:00:00.000Z');
   });
 });
 

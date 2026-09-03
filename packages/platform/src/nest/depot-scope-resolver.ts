@@ -94,7 +94,9 @@ export async function resolveDepotScope(staffId: string, role: Role): Promise<st
     if (!warnedUnconfigured) {
       warnedUnconfigured = true;
       // eslint-disable-next-line no-console
-      console.warn('[depot-scope] resolver not configured — multi-depot roles see only their own depot.');
+      console.warn(
+        '[depot-scope] resolver not configured — multi-depot roles see only their own depot.',
+      );
     }
     return null;
   }

@@ -40,6 +40,13 @@ export {
 export { assertCapability } from './nest/capability';
 export { recordAuditEvent, type AuditEvent, type AuditTrailConfig } from './nest/audit-trail';
 export {
+  AuditMutationsInterceptor,
+  AUDIT_MUTATION_SINK,
+  describeRoute,
+  redactBody,
+  type AuditMutationSink,
+} from './nest/audit-mutations.interceptor';
+export {
   startCapabilityRefresh,
   httpCapabilityLoader,
   capabilityMatrixStatus,

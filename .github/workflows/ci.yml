@@ -251,6 +251,14 @@ jobs:
       - name: Sweep-observer gate can go red
         run: bash scripts/check-sweep-observer.test.sh
 
+      # CA-2-67: admin-service owns the API keys that authenticate partner traffic, the
+      # feature flags, the webhooks and the security policy, and had no audit client of any
+      # kind — while the cross-service ingest it needed had been live since H-29. Nor did
+      # the RBAC matrix or any staff role change leave a row. The gate is the coverage
+      # itself: a mutating route is intercepted, or exempted with a written reason.
+      - name: Privileged writes reach the audit trail (CA-2-67)
+        run: node scripts/check-audit-coverage.mjs
+
       # H-49: a service added to compose without a scrape target is a service no alert
       # can fire about. hr-service was in exactly that state from the day it shipped.
       - name: Prometheus targets match compose

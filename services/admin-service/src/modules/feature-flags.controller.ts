@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { FeatureFlagService } from '../application/services/feature-flag.service';
 import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
@@ -10,6 +10,8 @@ import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
 // super-admin only (matching the task's "SUPER_ADMIN (+ HEAD_OFFICE read)" gate).
 @ApiTags('Feature flags')
 @ApiBearerAuth()
+// CA-2-67: every write below reaches the audit trail. See AuditMutationsInterceptor.
+@UseInterceptors(AuditMutationsInterceptor)
 @Controller({ path: 'feature-flags', version: '1' })
 export class FeatureFlagsController {
   constructor(private readonly flags: FeatureFlagService) {}
