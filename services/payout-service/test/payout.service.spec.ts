@@ -2,6 +2,7 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  UnknownPayoutDestinationError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
 } from '../src/domain/errors';
@@ -164,8 +165,12 @@ class FakeWithdrawals implements WithdrawalRepository {
     this.rows.set(row.id, row);
     return row;
   }
-  async listForOwner(): Promise<WithdrawalRecord[]> {
-    return [];
+  /** Newest first — the release path reads [0] to find the owner's last known account. */
+  async listForOwner(ownerId: string, limit: number): Promise<WithdrawalRecord[]> {
+    return [...this.rows.values()]
+      .filter((r) => r.franchiseOwnerId === ownerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
   }
   async listProcessing(limit: number): Promise<WithdrawalRecord[]> {
     return [...this.rows.values()].filter((r) => r.status === 'PROCESSING').slice(0, limit);
@@ -367,7 +372,12 @@ describe('PayoutService.settleWithdrawal', () => {
 describe('PayoutService.summary', () => {
   it('reports available balance, recent entries and the next payout date', async () => {
     const ledger = new FakeLedger([300000, -50000]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
 
     const s = await svc.summary('owner-1');
     expect(s.availableBalance).toBe(250000);
@@ -382,7 +392,12 @@ describe('PayoutService.summary', () => {
   it('points at this month’s 15th before it, and next month’s once it has passed', async () => {
     jest.useFakeTimers();
     try {
-      const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+      const svc = new PayoutService(
+        new FakeLedger([100000]),
+        new FakeWithdrawals(),
+        new FakeSchemes(),
+        payoutTestConfig(),
+      );
 
       // H-16 anchors the payout date to Asia/Jakarta, so the 15th is a fixed INSTANT:
       // 00:00 WIB = 17:00Z the day before. Building it from `new Date(2026, 7, 15)` used
@@ -404,7 +419,12 @@ describe('PayoutService.summary', () => {
 describe('PayoutService.ledgerPage', () => {
   it('wraps entries in a page envelope', async () => {
     const ledger = new FakeLedger([100000, 200000]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
 
     const page = await svc.ledgerPage('owner-1', 1, 10);
     expect(page).toMatchObject({ page: 1, limit: 10, total: 2, totalPages: 1 });
@@ -436,7 +456,12 @@ describe('PayoutService HQ release queue', () => {
       amount: -100000,
       description: '',
     });
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
 
     const pending = await svc.pendingPayouts();
     expect(pending.map((p) => p.franchiseOwnerId)).toEqual(['owner-b', 'owner-a']);
@@ -460,7 +485,12 @@ describe('PayoutService HQ release queue', () => {
       amount: -100000,
       description: '',
     });
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
 
     const bal = await svc.availableForOwner('owner-a');
     expect(bal.franchiseOwnerId).toBe('owner-a');
@@ -482,13 +512,63 @@ describe('PayoutService HQ release queue', () => {
     const withdrawals = new FakeWithdrawals(ledger);
     const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
 
-    const w = await svc.releaseForOwner('owner-a');
+    /*
+     * CA-2-63: this used to assert `bankAccountRef === 'Rilis HQ'` — the name of the
+     * BUTTON, written into the column the schema describes as the masked bank account.
+     * The one field that answers "where did my money go" read identically on every HQ
+     * release ever made, so an owner asking, or an accountant matching a transfer to a
+     * statement, had nothing to match on. HQ names the account now.
+     */
+    const w = await svc.releaseForOwner('owner-a', 'BCA ···· 4821');
     expect(w.amount).toBe(500000);
-    expect(w.bankAccountRef).toBe('Rilis HQ');
+    expect(w.bankAccountRef).toBe('BCA ···· 4821');
     expect(withdrawals.created).toHaveLength(1);
     expect(await ledger.balanceFor('owner-a')).toBe(0);
     // Cleared owner no longer appears in the queue.
     expect(await svc.pendingPayouts()).toHaveLength(0);
+  });
+
+  it('defaults to the account the owner was last paid to', async () => {
+    const ledger = new FakeLedger();
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
+    await ledger.create({
+      franchiseOwnerId: 'owner-a',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 300000,
+      description: '',
+    });
+    // The owner cashed out once themselves; that account is on file.
+    await svc.requestWithdrawal('owner-a', 100000, 'BNI ···· 7130');
+
+    const released = await svc.releaseForOwner('owner-a');
+
+    expect(released.bankAccountRef).toBe('BNI ···· 7130');
+  });
+
+  /*
+   * The debit leaves the balance the moment a withdrawal is requested (B-8), so a record
+   * whose destination is a placeholder is money gone with no answer to "where". Refusing
+   * is the only honest option when nobody has named an account.
+   */
+  it('refuses to release when there is no account on file and none given', async () => {
+    const ledger = new FakeLedger();
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
+    await ledger.create({
+      franchiseOwnerId: 'owner-new',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 200000,
+      description: '',
+    });
+
+    await expect(svc.releaseForOwner('owner-new')).rejects.toBeInstanceOf(
+      UnknownPayoutDestinationError,
+    );
+    // And the balance is untouched: nothing left, because nothing could be sent.
+    expect(await ledger.balanceFor('owner-new')).toBe(200000);
   });
 });
 
@@ -599,7 +679,12 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('posts the sale alone when the depot has no commission scheme', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
 
     const out = await svc.recordOrderRevenue(order);
 
@@ -643,7 +728,12 @@ describe('PayoutService.recordOrderRevenue', () => {
   });
 
   it('rejects a non-positive amount', async () => {
-    const svc = new PayoutService(new FakeLedger(), new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      new FakeLedger(),
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
     await expect(svc.recordOrderRevenue({ ...order, amountIdr: 0 })).rejects.toBeInstanceOf(
       InvalidRevenueAmountError,
     );
@@ -651,7 +741,12 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('falls back to the order id when no order number is given, and stamps the completion time', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+      payoutTestConfig(),
+    );
     const completedAt = new Date('2026-07-28T03:04:05.000Z');
 
     await svc.recordOrderRevenue({ ...order, orderNumber: null, occurredAt: completedAt });
@@ -666,8 +761,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         new FakeLedger(),
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct }]),
-      payoutTestConfig(),
-    );
+        payoutTestConfig(),
+      );
 
     it('backs out both rows and leaves the owner exactly where they started', async () => {
       const ledger = new FakeLedger();
@@ -675,8 +770,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         ledger,
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
-      payoutTestConfig(),
-    );
+        payoutTestConfig(),
+      );
       await svc.recordOrderRevenue(order);
       expect(await ledger.balanceFor('owner-a')).toBe(228000);
 
@@ -699,9 +794,7 @@ describe('PayoutService.recordOrderRevenue', () => {
     it('reverses what was charged, not what the current scheme would charge', async () => {
       const ledger = new FakeLedger();
       const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
-      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes,
-      payoutTestConfig(),
-    );
+      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig());
       await svc.recordOrderRevenue(order);
 
       schemes.current = [{ depotId: 'depot-1', pct: 20 }];
@@ -720,8 +813,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         ledger,
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
-      payoutTestConfig(),
-    );
+        payoutTestConfig(),
+      );
       await live.recordOrderRevenue(order);
       await live.reverseOrderRevenue(order.orderId, 'Batal');
       expect(await live.reverseOrderRevenue(order.orderId, 'Batal')).toEqual({ reversed: false });
@@ -730,7 +823,12 @@ describe('PayoutService.recordOrderRevenue', () => {
 
     it('writes no commission reversal when none was charged', async () => {
       const ledger = new FakeLedger();
-      const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
+      const svc = new PayoutService(
+        ledger,
+        new FakeWithdrawals(),
+        new FakeSchemes(),
+        payoutTestConfig(),
+      );
       await svc.recordOrderRevenue({ ...order, depotId: null });
 
       await svc.reverseOrderRevenue(order.orderId, 'Batal');

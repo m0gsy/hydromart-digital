@@ -10,7 +10,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import {
   OrderRevenueResult,
@@ -25,7 +31,13 @@ import {
   RequestWithdrawalDto,
   VoidOrderRevenueDto,
 } from './dto/payout.dto';
-import { OrderRevenueResponseDto, PagedLedgerEntryResponseDto, PayoutResponseDto, VoidRevenue2ResponseDto, WithdrawalResponseDto } from './dto/responses.generated.dto';
+import {
+  OrderRevenueResponseDto,
+  PagedLedgerEntryResponseDto,
+  PayoutResponseDto,
+  VoidRevenue2ResponseDto,
+  WithdrawalResponseDto,
+} from './dto/responses.generated.dto';
 
 // Owner-scoped: every endpoint reads the caller's own franchise ledger (user.sub).
 @ApiTags('Payout')
@@ -95,7 +107,9 @@ export class PayoutController {
   @ApiSecurity('internal-key')
   @Post('revenue/internal/void')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Back out a voided order's revenue + commission (internal service auth)" })
+  @ApiOperation({
+    summary: "Back out a voided order's revenue + commission (internal service auth)",
+  })
   voidRevenue(@Body() dto: VoidOrderRevenueDto): Promise<{ reversed: boolean }> {
     return this.payout.reverseOrderRevenue(dto.orderId, dto.reason);
   }

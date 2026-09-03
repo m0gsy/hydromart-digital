@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
-import {
-  OrderPaymentPort,
-  OrderPaymentSnapshot,
-} from '../../application/ports/order-payment.port';
+import { OrderPaymentPort, OrderPaymentSnapshot } from '../../application/ports/order-payment.port';
 
 /**
  * Reads an order's payment from payment-service's internal twin of the staff route.
@@ -57,9 +54,7 @@ export class OrderPaymentHttpAdapter implements OrderPaymentPort {
         throw new Error(`payment-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.error(
-        `cash reversal failed for order ${orderId}: ${(error as Error).message}`,
-      );
+      this.logger.error(`cash reversal failed for order ${orderId}: ${(error as Error).message}`);
       throw error;
     } finally {
       clearTimeout(timer);

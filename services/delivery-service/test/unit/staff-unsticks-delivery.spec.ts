@@ -73,7 +73,13 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
     const orderId = randomUUID();
     const delivery = await service.assign(
       staff.sub,
-      { orderId, orderNumber: 'HM-1', driverId: driver, depotId: DEPOT_ID, destinationAddress: 'Jl. Merdeka 10' },
+      {
+        orderId,
+        orderNumber: 'HM-1',
+        driverId: driver,
+        depotId: DEPOT_ID,
+        destinationAddress: 'Jl. Merdeka 10',
+      },
       AUTH,
     );
     await service.pickup(driver, delivery.id, AUTH);
@@ -87,7 +93,13 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
     await expect(
       service.assign(
         staff.sub,
-        { orderId, orderNumber: 'HM-1', driverId: otherDriver, depotId: DEPOT_ID, destinationAddress: 'Jl. Merdeka 10' },
+        {
+          orderId,
+          orderNumber: 'HM-1',
+          driverId: otherDriver,
+          depotId: DEPOT_ID,
+          destinationAddress: 'Jl. Merdeka 10',
+        },
         AUTH,
       ),
     ).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
@@ -105,7 +117,13 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
 
     const second = await service.assign(
       staff.sub,
-      { orderId, orderNumber: 'HM-1', driverId: otherDriver, depotId: DEPOT_ID, destinationAddress: 'Jl. Merdeka 10' },
+      {
+        orderId,
+        orderNumber: 'HM-1',
+        driverId: otherDriver,
+        depotId: DEPOT_ID,
+        destinationAddress: 'Jl. Merdeka 10',
+      },
       AUTH,
     );
     expect(second.driverId).toBe(otherDriver);
@@ -141,7 +159,9 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
       status: DeliveryStatus.RESCHEDULED,
     });
     const second = await inFlight();
-    await expect(service.cancelByStaff(staff, second.delivery.id, 'tanpa token')).resolves.toMatchObject({
+    await expect(
+      service.cancelByStaff(staff, second.delivery.id, 'tanpa token'),
+    ).resolves.toMatchObject({
       status: DeliveryStatus.FAILED,
     });
   });

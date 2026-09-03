@@ -101,9 +101,9 @@ describe('PaymentService', () => {
 
     it('refuses confirm, fail and refund from a depot head of another depot', async () => {
       const p1 = await paymentAtDepotB();
-      await expect(service.confirm(p1.id, 'kepala-a', undefined, undefined, outsider)).rejects.toThrow(
-        /depot/i,
-      );
+      await expect(
+        service.confirm(p1.id, 'kepala-a', undefined, undefined, outsider),
+      ).rejects.toThrow(/depot/i);
       await expect(service.fail(p1.id, 'kepala-a', outsider)).rejects.toThrow(/depot/i);
       expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
 
@@ -116,9 +116,9 @@ describe('PaymentService', () => {
     it('refuses a depot-scoped caller when the order depot cannot be read', async () => {
       const p = await paymentAtDepotB();
       orders.orderDepots.clear();
-      await expect(service.confirm(p.id, 'kepala-b', undefined, undefined, insider)).rejects.toThrow(
-        /depot/i,
-      );
+      await expect(
+        service.confirm(p.id, 'kepala-b', undefined, undefined, insider),
+      ).rejects.toThrow(/depot/i);
       await expect(service.confirm(p.id, 'finance-1')).resolves.toMatchObject({
         status: PaymentStatus.PAID,
       });
@@ -134,7 +134,7 @@ describe('PaymentService', () => {
      * depot's payment history. Delete the `assertOrderDepotAccess` call in `listForOrderAs`
      * and the first expectation below returns rows instead of throwing.
      */
-    it('refuses an order\'s payment history to a depot head of another depot', async () => {
+    it("refuses an order's payment history to a depot head of another depot", async () => {
       const p = await paymentAtDepotB();
       await expect(service.listForOrderAs(p.orderId, outsider)).rejects.toThrow(/depot/i);
       await expect(service.listForOrderAs(p.orderId, insider)).resolves.toMatchObject({
@@ -375,7 +375,10 @@ describe('PaymentService', () => {
         repo,
         gateway,
         orders,
-        buildTestConfig({ AUTH_SERVICE_URL: 'http://auth:3001', INTERNAL_SERVICE_KEY: 'k'.repeat(16) }),
+        buildTestConfig({
+          AUTH_SERVICE_URL: 'http://auth:3001',
+          INTERNAL_SERVICE_KEY: 'k'.repeat(16),
+        }),
       );
     const entries = (mock: jest.SpyInstance) =>
       mock.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
@@ -518,9 +521,11 @@ describe('PaymentService', () => {
    * sorted by key, `k=v&k=v`. Built from the payload rather than a hand-written template
    * so a field added to the DTO is signed here too, instead of quietly going uncovered.
    */
-  const signedWebhook = (
-    fields: { reference: string; event: 'PAID' | 'FAILED'; timestamp?: number },
-  ) => {
+  const signedWebhook = (fields: {
+    reference: string;
+    event: 'PAID' | 'FAILED';
+    timestamp?: number;
+  }) => {
     const payload = { timestamp: Date.now(), ...fields };
     const canonical = Object.keys(payload)
       .sort()
@@ -573,9 +578,7 @@ describe('PaymentService', () => {
       event: 'PAID',
       timestamp: Date.now() - 6 * 60 * 1000, // one minute past the 5-minute window
     });
-    await expect(service.handleWebhook(stale)).rejects.toBeInstanceOf(
-      InvalidWebhookSignatureError,
-    );
+    await expect(service.handleWebhook(stale)).rejects.toBeInstanceOf(InvalidWebhookSignatureError);
     expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
   });
 
@@ -793,7 +796,11 @@ describe('PaymentService', () => {
       const orderId = randomUUID();
       await initiate(PaymentMethod.TRANSFER, 45000, orderId);
 
-      const settled = await service.cancelForOrder(orderId, 'Dibatalkan pelanggan', 'order-service');
+      const settled = await service.cancelForOrder(
+        orderId,
+        'Dibatalkan pelanggan',
+        'order-service',
+      );
 
       expect(settled?.status).toBe(PaymentStatus.FAILED);
       expect(settled?.refundedAmount).toBeNull();

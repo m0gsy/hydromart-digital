@@ -40,7 +40,9 @@ export class IncidentService {
       lat: data.lat ?? null,
       lng: data.lng ?? null,
     });
-    this.logger.log(`Incident ${incident.id} (${incident.severity}/${incident.category}) reported by ${driverId}`);
+    this.logger.log(
+      `Incident ${incident.id} (${incident.severity}/${incident.category}) reported by ${driverId}`,
+    );
 
     if (escalatesToOps(incident.severity)) {
       await this.ops.incidentReported({

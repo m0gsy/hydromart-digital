@@ -70,12 +70,18 @@ export class SlaAlertService {
     }
 
     if (breached > 0) {
-      this.logger.log(`SLA sweep: ${breached} breached, ${alerted} alerted (${candidates.length} checked)`);
+      this.logger.log(
+        `SLA sweep: ${breached} breached, ${alerted} alerted (${candidates.length} checked)`,
+      );
     }
     return { ok: breached === 0 || alerted > 0, checked: candidates.length, breached, alerted };
   }
 
-  private async alert(candidate: SlaCandidate, minutes: number, thresholdMinutes: number): Promise<boolean> {
+  private async alert(
+    candidate: SlaCandidate,
+    minutes: number,
+    thresholdMinutes: number,
+  ): Promise<boolean> {
     return this.ops.slaBreached({
       orderNumber: candidate.orderNumber,
       minutes,

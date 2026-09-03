@@ -34,7 +34,9 @@ export class CashierShiftHttpAdapter implements CashierShiftPort {
       const body = (await res.json().catch(() => null)) as { id?: string } | null;
       return body?.id ?? null;
     } catch (error) {
-      this.logger.warn(`open-shift lookup failed: ${(error as Error).message}; payment left unattributed`);
+      this.logger.warn(
+        `open-shift lookup failed: ${(error as Error).message}; payment left unattributed`,
+      );
       return null;
     }
   }

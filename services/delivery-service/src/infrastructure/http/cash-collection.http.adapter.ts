@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
-import { CashCollected, CashCollectionPort, OrderCash } from '../../application/ports/cash-collection.port';
+import {
+  CashCollected,
+  CashCollectionPort,
+  OrderCash,
+} from '../../application/ports/cash-collection.port';
 
 /**
  * Reads PAID-cash totals from payment-service's GET /payments/cash-collected,
@@ -42,7 +46,10 @@ export class CashCollectionHttpAdapter implements CashCollectionPort {
       // it then reads as "no PAID cash on any order", which is the fail-closed direction:
       // the expectation falls back to the COD on the delivery row and no money vanishes.
       const byOrder: OrderCash[] = Array.isArray(body.byOrder)
-        ? body.byOrder.map((r) => ({ orderId: String(r.orderId), amountIdr: Number(r.amountIdr ?? 0) }))
+        ? body.byOrder.map((r) => ({
+            orderId: String(r.orderId),
+            amountIdr: Number(r.amountIdr ?? 0),
+          }))
         : [];
       return { total: Number(body.total ?? 0), count: Number(body.count ?? 0), byOrder };
     } catch (error) {

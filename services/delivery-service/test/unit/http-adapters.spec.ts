@@ -487,9 +487,7 @@ describe('the 5s timeout actually aborts', () => {
     global.fetch = hang() as never;
     await settleAfterTimeout(
       expect(
-        new OrderPaymentHttpAdapter(makeConfig()).forOrder(
-          'a2f0d0f8-0000-4000-8000-000000000001',
-        ),
+        new OrderPaymentHttpAdapter(makeConfig()).forOrder('a2f0d0f8-0000-4000-8000-000000000001'),
       ).rejects.toThrow(/aborted/),
     );
   });
@@ -591,13 +589,11 @@ describe('missing fields in an owner response', () => {
   });
 
   it('a depot with coordinates but no name still anchors the radius check', async () => {
-    global.fetch = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ lat: -6.2, lng: 106.8 }),
-      }) as never;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ lat: -6.2, lng: 106.8 }),
+    }) as never;
     expect(await new DepotLocationHttpAdapter(makeConfig()).find('dep-1')).toEqual({
       id: 'dep-1',
       name: '',
@@ -720,11 +716,10 @@ describe('OrderPaymentHttpAdapter', () => {
 
     // Defaulting to PENDING would say "the courier is not holding it" about an order that
     // may well be PAID; defaulting to PAID would invent a debt. Neither is ours to guess.
-    await expect(
-      new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER),
-    ).rejects.toThrow('no status');
+    await expect(new OrderPaymentHttpAdapter(makeConfig()).forOrder(ORDER)).rejects.toThrow(
+      'no status',
+    );
   });
-
 
   it('reads the order payment over the internal key, never a bearer', async () => {
     fetchMock.mockResolvedValueOnce(

@@ -76,9 +76,7 @@ export class PerformanceService {
     // Rank = 1 + couriers who delivered strictly more. The caller's own count comes
     // from `delivered` (0 if they're absent from the leaderboard).
     const rank =
-      depotId === undefined
-        ? null
-        : 1 + depotCounts.filter((c) => c.count > delivered).length;
+      depotId === undefined ? null : 1 + depotCounts.filter((c) => c.count > delivered).length;
     // Prior-week rank on the same board (own prior count = prevRows.length). Null when
     // the courier had no delivery last week — there's no meaningful rank to compare to.
     const rankPrev =

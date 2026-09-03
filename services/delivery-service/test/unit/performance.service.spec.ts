@@ -61,7 +61,6 @@ describe('PerformanceService.weekly', () => {
     service = new PerformanceService(repo, rating, buildTestConfig());
   });
 
-
   it('a week with no deliveries scores 0, not a division by zero', async () => {
     const summary = await service.weekly(driver, '2026-07-13');
     expect(summary.delivered).toBe(0);

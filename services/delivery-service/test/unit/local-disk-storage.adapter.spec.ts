@@ -36,7 +36,11 @@ describe('LocalDiskStorageAdapter', () => {
   // previous run (or a manual cleanup) already removed.
   it('removes a written file, and treats a missing one as done', async () => {
     const adapter = new LocalDiskStorageAdapter(makeConfig(dir));
-    const { key } = await adapter.put({ body: Buffer.from('x'), contentType: 'image/png', ext: 'png' });
+    const { key } = await adapter.put({
+      body: Buffer.from('x'),
+      contentType: 'image/png',
+      ext: 'png',
+    });
 
     await adapter.remove(key);
     expect(existsSync(join(dir, key))).toBe(false);

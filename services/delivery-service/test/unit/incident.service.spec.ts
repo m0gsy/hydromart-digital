@@ -28,7 +28,10 @@ describe('IncidentService', () => {
     expect(incident).toMatchObject({ severity: IncidentSeverity.HIGH, driverId: driver });
     expect(repo.rows).toHaveLength(1);
     expect(ops.alerts).toHaveLength(1);
-    expect(ops.alerts[0]).toMatchObject({ severity: IncidentSeverity.HIGH, category: IncidentCategory.ACCIDENT });
+    expect(ops.alerts[0]).toMatchObject({
+      severity: IncidentSeverity.HIGH,
+      category: IncidentCategory.ACCIDENT,
+    });
   });
 
   it('does not alert ops for LOW/MEDIUM severity', async () => {

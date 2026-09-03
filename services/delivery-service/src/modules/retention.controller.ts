@@ -27,7 +27,8 @@ export class RetentionController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete proof-of-delivery records older than the cutoff (internal, UU PDP)',
-    description: 'The cutoff comes from the admin-service retention policy, not from a local setting.',
+    description:
+      'The cutoff comes from the admin-service retention policy, not from a local setting.',
   })
   async purgeExpired(@Body() dto: PurgeProofsDto): Promise<{ purged: number; deleted: number }> {
     const { purged } = await this.deliveries.purgeProofsOlderThan(new Date(dto.cutoff));

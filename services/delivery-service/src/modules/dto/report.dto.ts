@@ -33,7 +33,10 @@ export class SlaReportQueryDto {
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string'
-      ? value.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+      ? value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
       : value,
   )
   @IsUUID('4', { each: true })
@@ -45,7 +48,9 @@ export class DepotTeamReportQueryDto {
   @IsUUID()
   depotId!: string;
 
-  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601); defaults to month start.' })
+  @ApiPropertyOptional({
+    description: 'Inclusive lower bound (ISO 8601); defaults to month start.',
+  })
   @IsOptional()
   @IsISO8601()
   from?: string;

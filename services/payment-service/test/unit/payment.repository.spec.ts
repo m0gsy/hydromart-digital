@@ -64,7 +64,11 @@ describe('PaymentPrismaRepository.updateIfStatus — refund claim', () => {
     };
     const repo = new PaymentPrismaRepository({ payment } as never);
 
-    const result = await repo.updateIfStatus('pay-1', ['PAID'] as never, { status: 'REFUNDED' } as never);
+    const result = await repo.updateIfStatus(
+      'pay-1',
+      ['PAID'] as never,
+      { status: 'REFUNDED' } as never,
+    );
 
     expect(payment.updateMany).toHaveBeenCalledWith({
       where: { id: 'pay-1', status: { in: ['PAID'] } },

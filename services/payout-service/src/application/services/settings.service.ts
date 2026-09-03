@@ -11,10 +11,7 @@ import { SETTING_DEFS, SETTING_DEF_BY_KEY } from '../../config/setting-defs';
  */
 @Injectable()
 export class SettingsService extends SettingsSliceService {
-  constructor(
-    @Inject(SETTINGS_REPOSITORY) repo: SettingsRepository,
-    cache: SettingsCache,
-  ) {
+  constructor(@Inject(SETTINGS_REPOSITORY) repo: SettingsRepository, cache: SettingsCache) {
     super(repo, cache, SETTING_DEFS, SETTING_DEF_BY_KEY);
   }
 }

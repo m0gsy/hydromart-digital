@@ -11,7 +11,9 @@ describe('DeliveryConfigService with settings cache', () => {
   const env = new ConfigService({ SHIFT_LENGTH_HOURS: '8' } as never);
 
   it('returns depot override when present', async () => {
-    const cache = cacheWith([{ scope: 'DEPOT', depotId: 'd1', key: 'shiftLengthHours', value: '6' }]);
+    const cache = cacheWith([
+      { scope: 'DEPOT', depotId: 'd1', key: 'shiftLengthHours', value: '6' },
+    ]);
     await cache.refresh();
     const cfg = new DeliveryConfigService(env, cache);
     expect(cfg.shiftLengthHours('d1')).toBe(6);

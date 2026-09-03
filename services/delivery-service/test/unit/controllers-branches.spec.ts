@@ -23,7 +23,6 @@ import { DeliveryConfigService } from '../../src/config/delivery-config.service'
 const deliveryTestConfig = (timeZone = 'Asia/Jakarta'): DeliveryConfigService =>
   ({ businessTimeZone: timeZone }) as DeliveryConfigService;
 
-
 const user = { sub: 'user-1' } as AuthenticatedUser;
 const depotId = '00000000-0000-4000-8000-000000000001';
 const id = '00000000-0000-4000-8000-0000000000aa';
@@ -50,7 +49,11 @@ describe('CommissionController', () => {
   });
 
   it('honours an explicit [from,to) window', async () => {
-    await controller.run({ depotId, from: '2026-06-01T00:00:00.000Z', to: '2026-06-30T00:00:00.000Z' });
+    await controller.run({
+      depotId,
+      from: '2026-06-01T00:00:00.000Z',
+      to: '2026-06-30T00:00:00.000Z',
+    });
     expect(commission.run).toHaveBeenCalledWith(
       depotId,
       new Date('2026-06-01T00:00:00.000Z'),
@@ -76,7 +79,11 @@ describe('DriverIncidentController', () => {
   const controller = new DriverIncidentController(incidents as never);
 
   it('reports an incident and maps it to the DTO', async () => {
-    const dto = { category: IncidentCategory.ACCIDENT, severity: IncidentSeverity.HIGH, description: 'Ban bocor' };
+    const dto = {
+      category: IncidentCategory.ACCIDENT,
+      severity: IncidentSeverity.HIGH,
+      description: 'Ban bocor',
+    };
     const out = await controller.report(user, dto as never);
     expect(incidents.report).toHaveBeenCalledWith(user.sub, dto);
     expect(out).toMatchObject({ id, category: IncidentCategory.ACCIDENT });
@@ -225,7 +232,16 @@ describe('DriverDeliveryController', () => {
       user.sub,
       id,
       // sealIntact null: this body omits the field, which is an old APK — never asked.
-      { photoUrl: 'p', signatureUrl: null, sealIntact: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: null, capturedAt: null },
+      {
+        photoUrl: 'p',
+        signatureUrl: null,
+        sealIntact: null,
+        recipientName: 'Budi',
+        latitude: -6.9,
+        longitude: 107.6,
+        note: null,
+        capturedAt: null,
+      },
       auth,
     );
   });
@@ -234,13 +250,29 @@ describe('DriverDeliveryController', () => {
     void controller.complete(
       user,
       id,
-      { photoUrl: 'p', signatureUrl: 's', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok' } as never,
+      {
+        photoUrl: 'p',
+        signatureUrl: 's',
+        recipientName: 'Budi',
+        latitude: -6.9,
+        longitude: 107.6,
+        note: 'ok',
+      } as never,
       auth,
     );
     expect(deliveries.complete).toHaveBeenCalledWith(
       user.sub,
       id,
-      { photoUrl: 'p', signatureUrl: 's', sealIntact: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok', capturedAt: null },
+      {
+        photoUrl: 'p',
+        signatureUrl: 's',
+        sealIntact: null,
+        recipientName: 'Budi',
+        latitude: -6.9,
+        longitude: 107.6,
+        note: 'ok',
+        capturedAt: null,
+      },
       auth,
     );
   });
@@ -250,7 +282,13 @@ describe('DriverDeliveryController', () => {
     void controller.complete(
       user,
       id,
-      { photoUrl: 'p', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, capturedAt } as never,
+      {
+        photoUrl: 'p',
+        recipientName: 'Budi',
+        latitude: -6.9,
+        longitude: 107.6,
+        capturedAt,
+      } as never,
       auth,
     );
     expect(deliveries.complete.mock.calls.at(-1)?.[2].capturedAt).toEqual(new Date(capturedAt));
@@ -265,18 +303,33 @@ describe('DriverDeliveryController', () => {
 
   it('defaults the contact-attempt method to CALL when omitted', () => {
     void controller.recordContactAttempt(user, id, { note: 'no answer' } as never);
-    expect(deliveries.recordContactAttempt).toHaveBeenCalledWith(user.sub, id, ContactMethod.CALL, 'no answer');
+    expect(deliveries.recordContactAttempt).toHaveBeenCalledWith(
+      user.sub,
+      id,
+      ContactMethod.CALL,
+      'no answer',
+    );
   });
 
   it('passes an explicit contact-attempt method through', () => {
     void controller.recordContactAttempt(user, id, { method: ContactMethod.WHATSAPP } as never);
-    expect(deliveries.recordContactAttempt).toHaveBeenCalledWith(user.sub, id, ContactMethod.WHATSAPP, undefined);
+    expect(deliveries.recordContactAttempt).toHaveBeenCalledWith(
+      user.sub,
+      id,
+      ContactMethod.WHATSAPP,
+      undefined,
+    );
   });
 
   it('marks a no-show and reschedules (parsing the date)', () => {
     void controller.markNoShow(user, id, 'Bearer t');
     expect(deliveries.markNoShow).toHaveBeenCalledWith(user.sub, id, expect.any(Date), 'Bearer t');
-    void controller.reschedule(user, id, { rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Sore', note: 'n' } as never, 'Bearer t');
+    void controller.reschedule(
+      user,
+      id,
+      { rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Sore', note: 'n' } as never,
+      'Bearer t',
+    );
     expect(deliveries.reschedule).toHaveBeenCalledWith(user.sub, id, {
       authorization: 'Bearer t',
       rescheduledFor: new Date('2026-08-01T09:00:00.000Z'),
@@ -346,7 +399,11 @@ describe('ShiftController (dispatch)', () => {
   const controller = new ShiftController(shifts as never);
 
   it('lists with an explicit window', () => {
-    void controller.list({ depotId, from: '2026-07-01T00:00:00.000Z', to: '2026-07-31T00:00:00.000Z' } as never);
+    void controller.list({
+      depotId,
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-07-31T00:00:00.000Z',
+    } as never);
     expect(shifts.search).toHaveBeenCalledWith({
       depotId,
       from: new Date('2026-07-01T00:00:00.000Z'),
@@ -368,7 +425,11 @@ describe('ReportController delegation', () => {
   const controller = new ReportController(reports as never, deliveryTestConfig());
 
   it('delegates sla, translating the range and passing filters', () => {
-    void controller.sla({ from: '2026-07-01T00:00:00.000Z', thresholdMinutes: 90, depotIds: [depotId] } as never);
+    void controller.sla({
+      from: '2026-07-01T00:00:00.000Z',
+      thresholdMinutes: 90,
+      depotIds: [depotId],
+    } as never);
     expect(reports.sla).toHaveBeenCalledWith(
       { from: new Date('2026-07-01T00:00:00.000Z'), to: undefined },
       90,

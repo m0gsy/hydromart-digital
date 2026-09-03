@@ -379,7 +379,10 @@ describe('PaymentPrismaRepository', () => {
     const to = new Date('2026-08-03T09:00:00.000Z');
     model.aggregate.mockResolvedValue({ _sum: { amount: 1_250_000 }, _count: { _all: 9 } });
 
-    expect(await repo.sumDepotCash('depot-1', { from, to })).toEqual({ total: 1_250_000, count: 9 });
+    expect(await repo.sumDepotCash('depot-1', { from, to })).toEqual({
+      total: 1_250_000,
+      count: 9,
+    });
     expect(model.aggregate).toHaveBeenCalledWith({
       where: {
         depotId: 'depot-1',

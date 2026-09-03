@@ -2,8 +2,20 @@
 
 import { useMemo, useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { monthWib } from '@/lib/wib';
 
-import { Button, Card, ErrorState, Field, FormError, Input, LinkButton, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  FormError,
+  Input,
+  LinkButton,
+  LoadError,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
@@ -15,7 +27,8 @@ import type { Customer, DepotAdmin, Page } from '@/lib/types';
 import { ResellerRow } from './reseller-row';
 
 function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  // CA-2-63: UTC, so the commission month flipped seven hours early in Jakarta.
+  return monthWib();
 }
 
 const EMPTY_DEPOTS: Page<DepotAdmin> = { items: [], total: 0, page: 1, limit: 100 };
@@ -96,13 +109,27 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       <h2 className="mb-3 font-semibold">{t('hrFix.resellers.add')}</h2>
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-3">
         <Field label={t('hrFix.resellers.phone')} hint={t('hrFix.resellers.phoneHint')}>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="081234567890" />
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="081234567890"
+          />
         </Field>
         <Field label={t('hrFix.resellers.monthlyTarget')}>
-          <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="100" />
+          <Input
+            type="number"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder="100"
+          />
         </Field>
         <Field label={t('hrFix.resellers.discount')} hint={t('hrFix.resellers.discountHint')}>
-          <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" />
+          <Input
+            type="number"
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
+            placeholder="10"
+          />
         </Field>
         <Field label={t('hrFix.resellers.flatPrice')} hint={t('hrFix.resellers.flatPriceHint')}>
           <Input
@@ -144,12 +171,18 @@ export default function ResellersPage() {
   const depotId = hq ? pickedDepotId : (customer?.assignedDepotId ?? '');
 
   const depotList = useAsync<Page<DepotAdmin>>(
-    () => (hq ? api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true) : Promise.resolve(EMPTY_DEPOTS)),
+    () =>
+      hq
+        ? api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true)
+        : Promise.resolve(EMPTY_DEPOTS),
     [hq],
   );
 
   const registry = useAsync<Reseller[]>(
-    () => (depotId ? api.get<Reseller[]>(endpoints.resellers.list({ depotId }), true) : Promise.resolve([])),
+    () =>
+      depotId
+        ? api.get<Reseller[]>(endpoints.resellers.list({ depotId }), true)
+        : Promise.resolve([]),
     [depotId],
   );
 
@@ -164,7 +197,10 @@ export default function ResellersPage() {
 
   // Resolve reseller ids → names for the row labels (auth-service owns the customer name).
   const names = useAsync<Customer[]>(
-    () => (ids.length ? api.get<Customer[]>(endpoints.auth.customersByIds(ids), true) : Promise.resolve([])),
+    () =>
+      ids.length
+        ? api.get<Customer[]>(endpoints.auth.customersByIds(ids), true)
+        : Promise.resolve([]),
     [ids.join(',')],
   );
 

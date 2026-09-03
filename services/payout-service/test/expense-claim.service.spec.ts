@@ -48,7 +48,9 @@ class FakeLedger implements CourierLedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
-  async earningsByDepot(): Promise<{ courierId: string; earnedIdr: number; paidDeliveries: number }[]> {
+  async earningsByDepot(): Promise<
+    { courierId: string; earnedIdr: number; paidDeliveries: number }[]
+  > {
     return [];
   }
   async countByType(): Promise<number> {
@@ -290,18 +292,15 @@ describe('ExpenseClaimService', () => {
     });
 
     it('files against the token depot when the body names none', async () => {
-      const claim = await service.submit(
-        COURIER,
-        { ...input(25000), depotId: null },
-        courier,
-      );
+      const claim = await service.submit(COURIER, { ...input(25000), depotId: null }, courier);
       expect(claim.depotId).toBe('depot-1');
     });
 
     it('still accepts the courier own depot', async () => {
-      await expect(
-        service.submit(COURIER, input(25000), courier),
-      ).resolves.toMatchObject({ depotId: 'depot-1', status: 'APPROVED' });
+      await expect(service.submit(COURIER, input(25000), courier)).resolves.toMatchObject({
+        depotId: 'depot-1',
+        status: 'APPROVED',
+      });
     });
   });
 

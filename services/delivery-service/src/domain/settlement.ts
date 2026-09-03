@@ -72,6 +72,8 @@ export function canResolve(status: SettlementStatus): boolean {
  */
 export function appendNote(previous: string | null, addition: string): string {
   const before = previous?.trim();
-  return before ? `${before}
-— ${addition.trim()}` : addition.trim();
+  return before
+    ? `${before}
+— ${addition.trim()}`
+    : addition.trim();
 }

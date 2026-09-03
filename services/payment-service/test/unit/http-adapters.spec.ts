@@ -49,7 +49,9 @@ describe('PaymentGatewayHttpAdapter', () => {
   // charge is possible at all. Production answers false — the variable is empty there.
   it('isConfigured follows the base URL', () => {
     expect(new PaymentGatewayHttpAdapter(makeConfig()).isConfigured()).toBe(true);
-    expect(new PaymentGatewayHttpAdapter(makeConfig({ gatewayBaseUrl: '' })).isConfigured()).toBe(false);
+    expect(new PaymentGatewayHttpAdapter(makeConfig({ gatewayBaseUrl: '' })).isConfigured()).toBe(
+      false,
+    );
   });
 
   it('createCharge: posts to /charges and parses reference + instruction', async () => {
@@ -197,9 +199,9 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
     expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers([])).size).toBe(0);
     expect(
       (
-        await new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).getOrderNumbers([
-          'o1',
-        ])
+        await new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).getOrderNumbers(
+          ['o1'],
+        )
       ).size,
     ).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -209,14 +211,14 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
   // A refund decision must never be blocked because a number could not be read.
   it('degrades to no numbers on a refusal or an outage', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
-    expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size).toBe(
-      0,
-    );
+    expect(
+      (await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size,
+    ).toBe(0);
 
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-    expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size).toBe(
-      0,
-    );
+    expect(
+      (await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size,
+    ).toBe(0);
   });
 });
 
@@ -226,7 +228,12 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
 describe('OrderCoordinationHttpAdapter.getOrderDepot', () => {
   it('reads the depot of exactly the order asked for', async () => {
     fetchMock.mockResolvedValue(
-      res({ body: [{ orderId: 'o1', depotId: 'depot-1' }, { orderId: 'o2', depotId: 'depot-2' }] }),
+      res({
+        body: [
+          { orderId: 'o1', depotId: 'depot-1' },
+          { orderId: 'o2', depotId: 'depot-2' },
+        ],
+      }),
     );
 
     await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBe(
@@ -243,17 +250,25 @@ describe('OrderCoordinationHttpAdapter.getOrderDepot', () => {
     await expect(
       new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).getOrderDepot('o1'),
     ).resolves.toBeNull();
-    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('')).resolves.toBeNull();
+    await expect(
+      new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot(''),
+    ).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
 
     fetchMock.mockResolvedValueOnce(res({ body: [] }));
-    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+    await expect(
+      new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1'),
+    ).resolves.toBeNull();
 
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
-    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+    await expect(
+      new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1'),
+    ).resolves.toBeNull();
 
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-    await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1')).resolves.toBeNull();
+    await expect(
+      new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepot('o1'),
+    ).resolves.toBeNull();
   });
 });
 
@@ -310,7 +325,9 @@ describe('CashierShiftHttpAdapter', () => {
   });
 
   it('answers null with no depot-service configured, and asks nobody', async () => {
-    await expect(adapter({ depotServiceUrl: '' }).openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
+    await expect(
+      adapter({ depotServiceUrl: '' }).openShiftId('depot-1', 'Bearer t'),
+    ).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -330,7 +347,13 @@ describe('CashierShiftHttpAdapter', () => {
   });
 
   it('answers null on a body it cannot parse', async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('bad json'); } } as unknown as Response);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error('bad json');
+      },
+    } as unknown as Response);
     await expect(adapter().openShiftId('depot-1', 'Bearer t')).resolves.toBeNull();
   });
 });

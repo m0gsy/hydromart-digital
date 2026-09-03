@@ -7,7 +7,6 @@ import { DeliveryConfigService } from '../../src/config/delivery-config.service'
 const deliveryTestConfig = (timeZone = 'Asia/Jakarta'): DeliveryConfigService =>
   ({ businessTimeZone: timeZone }) as DeliveryConfigService;
 
-
 describe('ReportController.depotTeam', () => {
   const depotId = '00000000-0000-4000-8000-000000000001';
   const reports = { depotTeam: jest.fn() };
@@ -44,7 +43,10 @@ describe('ReportController.depotTeam', () => {
 });
 
 describe('ReportController range parsing', () => {
-  const reports = { sla: jest.fn().mockResolvedValue({}), slaByDepot: jest.fn().mockResolvedValue({}) };
+  const reports = {
+    sla: jest.fn().mockResolvedValue({}),
+    slaByDepot: jest.fn().mockResolvedValue({}),
+  };
   const controller = new ReportController(reports as never, deliveryTestConfig());
 
   it('passes through the window when one is given, and undefined when it is not', async () => {

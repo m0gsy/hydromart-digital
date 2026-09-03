@@ -86,11 +86,7 @@ export class DeliveryConfigService {
     return this.tunable('shiftLengthHours', this.num('SHIFT_LENGTH_HOURS'), depotId);
   }
   shiftBreakQuotaMinutes(depotId: string | null = null): number {
-    return this.tunable(
-      'shiftBreakQuotaMinutes',
-      this.num('SHIFT_BREAK_QUOTA_MINUTES'),
-      depotId,
-    );
+    return this.tunable('shiftBreakQuotaMinutes', this.num('SHIFT_BREAK_QUOTA_MINUTES'), depotId);
   }
   /** Minimum contact attempts before a no-show may be declared (design 5a). */
   noShowMinContactAttempts(depotId: string | null = null): number {

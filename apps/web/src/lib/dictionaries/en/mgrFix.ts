@@ -1,11 +1,13 @@
 // English mirror of id/mgrFix.ts — SAME shape, NO `as const`. See the id file for context.
 export const mgrFix = {
   approvalDecide: {
-    approveTitle: "Approve this request?",
-    rejectTitle: "Reject this request?",
-    thisItem: "this request",
-    approveConfirm: "Approve {kind}? The money moves as soon as this is saved, and this screen cannot undo it.",
-    rejectConfirm: "Reject {kind}? The shortfall stays charged to whoever filed it, and this decision cannot be undone from this screen.",
+    approveTitle: 'Approve this request?',
+    rejectTitle: 'Reject this request?',
+    thisItem: 'this request',
+    approveConfirm:
+      'Approve {kind}? The money moves as soon as this is saved, and this screen cannot undo it.',
+    rejectConfirm:
+      'Reject {kind}? The shortfall stays charged to whoever filed it, and this decision cannot be undone from this screen.',
   },
   approvalKind: {
     OPNAME_VARIANCE: 'Stock-count variance',
@@ -70,6 +72,7 @@ export const mgrFix = {
   },
   // 8a — Monthly P&L report.
   pnl: {
+    monthLabel: 'Report month',
     title: 'P&L report',
     subtitle: '{depot} · {month}',
     operational: 'Operational',
@@ -87,7 +90,8 @@ export const mgrFix = {
     coverage: 'Direct COGS coverage',
     coverageSummary: '{covered} of {total} units mapped ({percent}%)',
     units: '{n} units',
-    opexCoverage: '{included} outflows counted · {excluded} verified PO payments excluded · {unverified} PO categories unverified',
+    opexCoverage:
+      '{included} outflows counted · {excluded} verified PO payments excluded · {unverified} PO categories unverified',
     disclaimer: 'Operational management report, not statutory accounting or a tax document.',
     noDepot: 'Select a depot',
     noDepotBody: 'Select a depot to view its operational P&L.',
@@ -112,7 +116,8 @@ export const mgrFix = {
     audChurn: 'Churn risk',
     audNew: 'New customers',
     sendCustomers: 'Send to {n} customers',
-    customerNote: 'Customer broadcasts reach only your depot customers. Cross-depot & email/SMS campaigns are run by the marketing team.',
+    customerNote:
+      'Customer broadcasts reach only your depot customers. Cross-depot & email/SMS campaigns are run by the marketing team.',
     reachCount: '{n} recipients',
   },
   // manager-mobile home tiles + per-event notifications.
@@ -120,8 +125,8 @@ export const mgrFix = {
     pendingApproval: '{count} awaiting approval',
     depotManager: 'Depot manager · {depot}',
     depotPicker: 'Depot shown',
-    yourDepot: "Your depot",
-    signOut: "Sign out",
+    yourDepot: 'Your depot',
+    signOut: 'Sign out',
     stockCritical: 'Critical stock',
     stockHint: 'Items below minimum',
     activeCouriers: 'Active couriers',

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Lightbulb, Lock, Target } from '@phosphor-icons/react';
+import { monthWib, wibParts } from '@/lib/wib';
 
 import { RequireAuth } from '@/components/require-auth';
 import {
@@ -24,11 +25,18 @@ import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { DepotTarget, ReportDepotMonthly } from '@/lib/types';
 
+/*
+ * CA-2-63: these read the DEVICE clock, not the business one. A manager whose laptop is on
+ * another timezone — or simply set wrong — got a different target month from the depot they
+ * are managing, silently. `wibParts` does the calendar arithmetic on the business zone's
+ * parts, which is exactly what it exists for.
+ */
 const now = new Date();
+const WIB = wibParts(now);
 const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(now);
 const DAY = now.getDate();
-const DAYS_IN_MONTH = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-const MONTH_KEY = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const DAYS_IN_MONTH = new Date(Date.UTC(WIB.year, WIB.month, 0)).getUTCDate();
+const MONTH_KEY = monthWib(now);
 const PACE = DAY / DAYS_IN_MONTH; // fraction of the month elapsed
 
 type Goal = {
@@ -51,9 +59,7 @@ function fmtValue(v: number | null, g: Goal): string {
 function GoalBar({ goal }: { goal: Goal }) {
   const pct = goal.target > 0 && goal.actual != null ? (goal.actual / goal.target) * 100 : 0;
   // Cumulative metrics: behind if below the linear month pace. Rate metrics: behind if under target.
-  const behind =
-    goal.actual != null &&
-    (goal.rate ? goal.actual < goal.target : pct < PACE * 100);
+  const behind = goal.actual != null && (goal.rate ? goal.actual < goal.target : pct < PACE * 100);
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
@@ -122,16 +128,40 @@ function TargetForm({
     <Card className="flex flex-col gap-4 p-5">
       <p className="font-semibold">{t('opsFix.targets.editTitle', { month: MONTH })}</p>
       <Field label={t('opsFix.targets.revenue')} htmlFor="t-revenue">
-        <Input id="t-revenue" type="number" inputMode="numeric" value={revenue} onChange={(e) => setRevenue(e.target.value)} />
+        <Input
+          id="t-revenue"
+          type="number"
+          inputMode="numeric"
+          value={revenue}
+          onChange={(e) => setRevenue(e.target.value)}
+        />
       </Field>
       <Field label={t('opsFix.targets.orders')} htmlFor="t-orders">
-        <Input id="t-orders" type="number" inputMode="numeric" value={orders} onChange={(e) => setOrders(e.target.value)} />
+        <Input
+          id="t-orders"
+          type="number"
+          inputMode="numeric"
+          value={orders}
+          onChange={(e) => setOrders(e.target.value)}
+        />
       </Field>
       <Field label={t('opsFix.targets.sla')} htmlFor="t-sla">
-        <Input id="t-sla" type="number" inputMode="numeric" value={sla} onChange={(e) => setSla(e.target.value)} />
+        <Input
+          id="t-sla"
+          type="number"
+          inputMode="numeric"
+          value={sla}
+          onChange={(e) => setSla(e.target.value)}
+        />
       </Field>
       <Field label={t('opsFix.targets.newCustomers')} htmlFor="t-newcust">
-        <Input id="t-newcust" type="number" inputMode="numeric" value={newCustomers} onChange={(e) => setNewCustomers(e.target.value)} />
+        <Input
+          id="t-newcust"
+          type="number"
+          inputMode="numeric"
+          value={newCustomers}
+          onChange={(e) => setNewCustomers(e.target.value)}
+        />
       </Field>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
@@ -256,7 +286,12 @@ function TargetsBody() {
       money: true,
     },
     { label: t('opsFix.targets.goalOrders'), actual: a?.orders ?? null, target: tgt.ordersTarget },
-    { label: t('opsFix.targets.sla'), actual: a?.slaPct ?? null, target: tgt.slaTargetPct, rate: true },
+    {
+      label: t('opsFix.targets.sla'),
+      actual: a?.slaPct ?? null,
+      target: tgt.slaTargetPct,
+      rate: true,
+    },
     // ponytail: no new-customer count in depot-monthly report; wire when a report exposes it.
     { label: t('opsFix.targets.newCustomers'), actual: null, target: tgt.newCustomersTarget },
   ];

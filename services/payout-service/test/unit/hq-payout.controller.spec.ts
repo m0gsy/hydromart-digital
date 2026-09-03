@@ -35,9 +35,17 @@ describe('HqPayoutController', () => {
     expect(payout.availableForOwner).toHaveBeenCalledWith('owner-9');
   });
 
-  it('release delegates with dto.franchiseOwnerId', async () => {
+  it('release passes the destination account through, and omits it when absent', async () => {
     await controller.release({ franchiseOwnerId: 'owner-9' } as ReleasePayoutDto);
-    expect(payout.releaseForOwner).toHaveBeenCalledWith('owner-9');
+    // CA-2-63: undefined means "use the account the owner was last paid to" — not the
+    // literal string this route used to record as the destination.
+    expect(payout.releaseForOwner).toHaveBeenCalledWith('owner-9', undefined);
+
+    await controller.release({
+      franchiseOwnerId: 'owner-9',
+      bankAccountRef: 'BCA ···· 4821',
+    } as ReleasePayoutDto);
+    expect(payout.releaseForOwner).toHaveBeenLastCalledWith('owner-9', 'BCA ···· 4821');
   });
 
   /*
@@ -57,7 +65,9 @@ describe('HqPayoutController', () => {
     await controller.markWithdrawalPaid(user, 'w-9');
     expect(payout.settleWithdrawal).toHaveBeenCalledWith('w-9', 'PAID', 'finance-1');
 
-    await controller.markWithdrawalFailed(user, 'w-9', { reason: 'Rekening tutup' } as SettleWithdrawalDto);
+    await controller.markWithdrawalFailed(user, 'w-9', {
+      reason: 'Rekening tutup',
+    } as SettleWithdrawalDto);
     expect(payout.settleWithdrawal).toHaveBeenLastCalledWith(
       'w-9',
       'FAILED',

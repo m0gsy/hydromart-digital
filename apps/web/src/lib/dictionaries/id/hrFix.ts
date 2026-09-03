@@ -1294,6 +1294,7 @@ export const hrFix = {
     ownerHint: "PT Hydromart Cikini",
   },
   monthlyReview: {
+    courierDelivered: '{name} · {n} antar',
     forMeeting: 'untuk rapat bulanan head office',
     gateBody2: "Tinjauan ops bulanan hanya untuk Manajer depot.",
     title: "Tinjauan ops",

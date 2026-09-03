@@ -11,7 +11,11 @@ import {
 
 const ASSIGNED = new Date('2026-06-10T00:00:00.000Z');
 
-function seedDelivered(repo: InMemoryDeliveryRepository, depotId: string | null, offsetMin: number): void {
+function seedDelivered(
+  repo: InMemoryDeliveryRepository,
+  depotId: string | null,
+  offsetMin: number,
+): void {
   repo.rows.push({
     id: randomUUID(),
     orderId: randomUUID(),
@@ -53,7 +57,12 @@ describe('ReportService remaining branches', () => {
 
   beforeEach(() => {
     repo = new InMemoryDeliveryRepository();
-    service = new ReportService(repo, new InMemorySettlementRepository(), new FakeRating(), buildTestConfig());
+    service = new ReportService(
+      repo,
+      new InMemorySettlementRepository(),
+      new FakeRating(),
+      buildTestConfig(),
+    );
   });
 
   it('slaByDepot echoes an explicit from/to range (non-null branch)', async () => {
@@ -109,6 +118,8 @@ describe('ReportService remaining branches', () => {
       new Date('2026-06-01T00:00:00.000Z'),
       new Date('2026-07-01T00:00:00.000Z'),
     );
-    expect(r.couriers).toEqual([{ driverId, delivered: 0, onTimeRate: 0, failed: 1, rating: null }]);
+    expect(r.couriers).toEqual([
+      { driverId, delivered: 0, onTimeRate: 0, failed: 1, rating: null },
+    ]);
   });
 });

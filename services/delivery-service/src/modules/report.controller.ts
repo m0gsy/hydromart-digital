@@ -1,13 +1,13 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiSecurity,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, InternalAuthGuard, Public, addLocalMonths, startOfLocalMonth } from '@hydromart/platform';
+import {
+  Can,
+  InternalAuthGuard,
+  Public,
+  addLocalMonths,
+  startOfLocalMonth,
+} from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/delivery.repository';
 import { ReportService } from '../application/services/report.service';

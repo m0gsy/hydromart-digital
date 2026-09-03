@@ -120,7 +120,9 @@ export class ReportService {
     // depot-wide order-service contract only if this becomes a measured latency bottleneck.
     const couriers = await Promise.all(
       activity.map(async (row) => {
-        const rating = await this.rating.avgRating(row.delivered.map((delivery) => delivery.orderId));
+        const rating = await this.rating.avgRating(
+          row.delivered.map((delivery) => delivery.orderId),
+        );
         const onTime = row.delivered.filter(
           (delivery) =>
             (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60_000 <= threshold,

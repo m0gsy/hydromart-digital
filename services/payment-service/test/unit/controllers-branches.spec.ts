@@ -58,7 +58,13 @@ describe('PaymentController', () => {
   // O5: the screen needs one answer to "which methods can this take", and there was no
   // endpoint that could give it — so it offered all five and let two fail at the gateway.
   it('answers which payment methods are available', () => {
-    svc.availableMethods.mockReturnValue({ CASH: true, TRANSFER: true, QRIS: true, EWALLET: false, VA: false });
+    svc.availableMethods.mockReturnValue({
+      CASH: true,
+      TRANSFER: true,
+      QRIS: true,
+      EWALLET: false,
+      VA: false,
+    });
     expect(controller.methods()).toMatchObject({ EWALLET: false, VA: false });
     expect(svc.availableMethods).toHaveBeenCalled();
   });
@@ -71,7 +77,9 @@ describe('PaymentController', () => {
 
   it('staff initiate bills the buyer in the body, not the cashier holding the token', async () => {
     const dto = { orderId: 'o1', method: 'CASH', amount: 45000, customerId: 'buyer-9' };
-    expect(await controller.initiateForCustomer(dto as never, 'Bearer cashier-token')).toBe('RESULT');
+    expect(await controller.initiateForCustomer(dto as never, 'Bearer cashier-token')).toBe(
+      'RESULT',
+    );
     // atCounter marks it a counter sale, which changes the CASH instruction copy.
     // C2: the cashier's own bearer rides along so the service can ask depot-service which
     // drawer THEY have open. It is not a body field on purpose — a body that could name the
@@ -201,7 +209,12 @@ describe('PaymentController', () => {
   // C2: a shift close names itself, and that is what turns "this depot's window" into
   // "this drawer". Two cashiers open at once used to each claim the whole window.
   it('depotCash forwards the shift when the caller is a shift close', async () => {
-    await controller.depotCash({ depotId: 'depot-1', from: ISO, to: ISO, cashierShiftId: 'shift-7' } as never);
+    await controller.depotCash({
+      depotId: 'depot-1',
+      from: ISO,
+      to: ISO,
+      cashierShiftId: 'shift-7',
+    } as never);
     expect(svc.depotCashCollected).toHaveBeenLastCalledWith(
       'depot-1',
       { from: new Date(ISO), to: new Date(ISO) },
@@ -244,7 +257,6 @@ describe('PaymentController', () => {
       'courier-42',
     );
   });
-
 
   it('cashCollectedByOrder forwards the order ids from the body', async () => {
     await controller.cashCollectedByOrder({ orderIds: ['o1', 'o2'] } as never);
@@ -347,22 +359,17 @@ describe('PaymentController', () => {
 
     it('answers a storage outage with 503 and a sentence, not a bare 500', async () => {
       storage.put.mockRejectedValueOnce(new Error('bucket unreachable'));
-      await expect(
-        controller.uploadProof(user, id, { buffer: png } as never),
-      ).rejects.toThrow(/Penyimpanan bukti bayar/);
+      await expect(controller.uploadProof(user, id, { buffer: png } as never)).rejects.toThrow(
+        /Penyimpanan bukti bayar/,
+      );
     });
 
     it('stores the receipt and attaches it to the payment', async () => {
       storage.put.mockResolvedValueOnce({ url: 'https://cdn/payment-proof/a.png', key: 'k' });
       await controller.uploadProof(user, id, { buffer: png } as never);
-      expect(svc.attachProof).toHaveBeenCalledWith(
-        'cust-1',
-        id,
-        'https://cdn/payment-proof/a.png',
-      );
+      expect(svc.attachProof).toHaveBeenCalledWith('cust-1', id, 'https://cdn/payment-proof/a.png');
     });
   });
-
 });
 
 describe('TaxController', () => {

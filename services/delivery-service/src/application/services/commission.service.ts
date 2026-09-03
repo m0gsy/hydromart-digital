@@ -58,7 +58,8 @@ export interface CommissionRun {
 export class CommissionService {
   constructor(
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
-    @Inject(DELIVERY_TOKENS.SettlementRepository) private readonly settlements: SettlementRepository,
+    @Inject(DELIVERY_TOKENS.SettlementRepository)
+    private readonly settlements: SettlementRepository,
     @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
   ) {}
 

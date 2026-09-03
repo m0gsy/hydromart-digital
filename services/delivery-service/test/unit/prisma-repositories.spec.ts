@@ -24,7 +24,12 @@ describe('DeliveryPrismaRepository', () => {
   const contactAttempt = { create: jest.fn(), count: jest.fn(), findFirst: jest.fn() };
   const proofOfDelivery = { deleteMany: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();
-  const prisma = { delivery, contactAttempt, proofOfDelivery, $queryRaw } as unknown as PrismaService;
+  const prisma = {
+    delivery,
+    contactAttempt,
+    proofOfDelivery,
+    $queryRaw,
+  } as unknown as PrismaService;
   const repo = new DeliveryPrismaRepository(prisma);
 
   const proofRow = {
@@ -183,9 +188,19 @@ describe('DeliveryPrismaRepository', () => {
     contactAttempt.count.mockResolvedValue(2);
     const at = new Date('2026-01-01T09:00:00Z');
     contactAttempt.findFirst.mockResolvedValue({ createdAt: at });
-    const state = await repo.recordContactAttempt('del-1', 'drv-1', ContactMethod.CALL, 'no answer');
+    const state = await repo.recordContactAttempt(
+      'del-1',
+      'drv-1',
+      ContactMethod.CALL,
+      'no answer',
+    );
     expect(contactAttempt.create).toHaveBeenCalledWith({
-      data: { deliveryId: 'del-1', driverId: 'drv-1', method: ContactMethod.CALL, note: 'no answer' },
+      data: {
+        deliveryId: 'del-1',
+        driverId: 'drv-1',
+        method: ContactMethod.CALL,
+        note: 'no answer',
+      },
     });
     expect(state).toEqual({ attempts: 2, firstAttemptAt: at });
   });
@@ -225,7 +240,6 @@ describe('DeliveryPrismaRepository', () => {
       take: 10,
     });
   });
-
 
   /*
    * CA-2-29. The tracking board loaded ON_DELIVERY only, so the pull-back button was
@@ -368,7 +382,11 @@ describe('DeliveryPrismaRepository', () => {
       { orderId: 'ord-1', assignedAt, deliveredAt },
     ]);
     expect(delivery.findMany).toHaveBeenCalledWith({
-      where: { driverId: 'drv-1', status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      where: {
+        driverId: 'drv-1',
+        status: DeliveryStatus.DELIVERED,
+        deliveredAt: { gte: from, lt: to },
+      },
       select: { orderId: true, assignedAt: true, deliveredAt: true },
     });
   });
@@ -396,7 +414,11 @@ describe('DeliveryPrismaRepository', () => {
     ]);
     expect(delivery.groupBy).toHaveBeenCalledWith({
       by: ['driverId'],
-      where: { depotId: 'dep-1', status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      where: {
+        depotId: 'dep-1',
+        status: DeliveryStatus.DELIVERED,
+        deliveredAt: { gte: from, lt: to },
+      },
       _count: { _all: true },
     });
   });
@@ -426,9 +448,7 @@ describe('DeliveryPrismaRepository', () => {
         deliveredAt: from,
         failedAt: null,
       }));
-    delivery.findMany
-      .mockResolvedValueOnce(page(500, 0))
-      .mockResolvedValueOnce(page(120, 500));
+    delivery.findMany.mockResolvedValueOnce(page(500, 0)).mockResolvedValueOnce(page(120, 500));
 
     const out = await repo.depotCourierActivityInWindow('dep-1', from, to);
 
@@ -663,7 +683,10 @@ describe('DeliveryPrismaRepository', () => {
       { depotid: 'dep-1', total: 4n, ontime: 3n, summinutes: 90 },
       { depotid: 'dep-2', total: 2n, ontime: 2n, summinutes: null },
     ]);
-    const rows = await repo.slaStatsByDepot({ from: new Date('2026-01-01'), to: new Date('2026-02-01') }, 30);
+    const rows = await repo.slaStatsByDepot(
+      { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
+      30,
+    );
     expect(rows).toEqual([
       { depotId: 'dep-1', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 90 },
       { depotId: 'dep-2', totalDelivered: 2, onTime: 2, breached: 0, sumMinutes: 0 },
@@ -703,7 +726,10 @@ describe('DeliveryPrismaRepository', () => {
 
     await repo.markSlaAlerted('del-1', at);
 
-    expect(delivery.update).toHaveBeenCalledWith({ where: { id: 'del-1' }, data: { slaAlertedAt: at } });
+    expect(delivery.update).toHaveBeenCalledWith({
+      where: { id: 'del-1' },
+      data: { slaAlertedAt: at },
+    });
   });
 });
 
@@ -855,7 +881,10 @@ describe('SettlementPrismaRepository', () => {
 
   it('search filters by depot and status when given', async () => {
     cashSettlement.findMany.mockResolvedValue([settlementRow({ status: 'VERIFIED' })]);
-    const rows = await repo.search({ depotId: 'dep-1', status: SettlementStatus.VERIFIED } as never);
+    const rows = await repo.search({
+      depotId: 'dep-1',
+      status: SettlementStatus.VERIFIED,
+    } as never);
     expect(rows[0].status).toBe(SettlementStatus.VERIFIED);
     expect(cashSettlement.findMany).toHaveBeenCalledWith({
       where: { depotId: 'dep-1', status: SettlementStatus.VERIFIED },
@@ -872,6 +901,14 @@ describe('SettlementPrismaRepository', () => {
     );
   });
 
+  /*
+   * CA-2-63: keyed on `verifiedAt`, like the deposit half of the same settlement.
+   *
+   * It was `createdAt` — the moment the COURIER submitted — while `depositedInWindow`
+   * below has always used `verifiedAt`, with the reason written beside it. So a shortfall
+   * submitted 31 August and verified 1 September was deducted from AUGUST's commission
+   * while its deposit counted as September, and August's pay run may already have closed.
+   */
   it('chargedShortfallByDriver reports the absolute owed amount', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-01-31');
@@ -886,7 +923,7 @@ describe('SettlementPrismaRepository', () => {
     ]);
     expect(cashSettlement.groupBy).toHaveBeenCalledWith({
       by: ['driverId'],
-      where: { depotId: 'dep-1', chargedToDriver: true, createdAt: { gte: from, lt: to } },
+      where: { depotId: 'dep-1', chargedToDriver: true, verifiedAt: { gte: from, lt: to } },
       _sum: { variance: true },
     });
   });
@@ -952,7 +989,12 @@ describe('SettlementPrismaRepository', () => {
   });
 
   it('resolve applies the patch and maps the row', async () => {
-    const patch = { status: SettlementStatus.VERIFIED, verifiedBy: 'cash-1', verifiedAt: new Date(), chargedToDriver: true };
+    const patch = {
+      status: SettlementStatus.VERIFIED,
+      verifiedBy: 'cash-1',
+      verifiedAt: new Date(),
+      chargedToDriver: true,
+    };
     cashSettlement.update.mockResolvedValue(settlementRow({ status: 'VERIFIED' }));
     const rec = await repo.resolve('set-1', patch as never);
     expect(rec.status).toBe(SettlementStatus.VERIFIED);

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {  AuthenticatedUser,  assertDepotAccess,  depotScopeIds,} from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
   ExpenseClaimNotFoundError,
@@ -12,7 +12,6 @@ import { CourierLedgerRepository } from '../ports/courier-ledger.repository';
 import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-claim.repository';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
-
 
 export interface SubmitExpenseInput {
   category: ExpenseCategory;
@@ -176,10 +175,7 @@ export class ExpenseClaimService {
     return receiptUrl.startsWith(`${base}/`);
   }
 
-  private async loadPending(
-    id: string,
-    reviewer?: AuthenticatedUser,
-  ): Promise<ExpenseClaimRecord> {
+  private async loadPending(id: string, reviewer?: AuthenticatedUser): Promise<ExpenseClaimRecord> {
     const claim = await this.claims.findById(id);
     if (!claim) throw new ExpenseClaimNotFoundError();
     // AUTHZ-A5: approving credits a courier's ledger. Whose depot the claim came from was

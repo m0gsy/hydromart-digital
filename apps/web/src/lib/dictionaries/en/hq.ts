@@ -225,8 +225,8 @@ export const hq = {
       other: 'Other',
     },
     caps: {
-      approvalThresholdWrite: "Approval threshold (edit)",
-      settingsRead: "Settings (view)",
+      approvalThresholdWrite: 'Approval threshold (edit)',
+      settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
       orderQueue: 'Order queue',
       inventoryRead: 'View inventory',
@@ -568,7 +568,8 @@ export const hq = {
       paid: 'Paid',
       failed: 'Failed',
       confirmPaid: 'Mark this withdrawal as paid? This cannot be undone.',
-      confirmFailed: 'Mark this withdrawal as failed? The balance is re-credited and this cannot be undone.',
+      confirmFailed:
+        'Mark this withdrawal as failed? The balance is re-credited and this cannot be undone.',
       markedPaid: 'Withdrawal marked paid.',
       markedFailed: 'Withdrawal marked failed; the balance was re-credited.',
     },
@@ -1080,7 +1081,8 @@ export const hq = {
     rewards: 'Point rewards',
     points: '{n} points',
     manage: 'Manage reward catalogue',
-    manageHint: 'Change points, stock, or retire a reward. Until this screen the table could only be edited with SQL.',
+    manageHint:
+      'Change points, stock, or retire a reward. Until this screen the table could only be edited with SQL.',
     addItem: 'Add reward',
     itemName: 'Reward name',
     itemUnit: 'Unit',
@@ -1244,27 +1246,29 @@ export const hq = {
     radius: 'Default service radius',
     km: '{n} km',
   },
-    outbox: {
-      title: 'Order side-effect queue',
-      subtitle: 'Stock consume, loyalty award, referral qualification and owner commission still owed. A PENDING row means money that has not been booked.',
-      pending: 'Pending',
-      done: 'Done',
-      dead: 'Given up',
-      drain: 'Drain now',
-      drained: 'Sweep ran: {delivered} delivered, {failed} failed.',
-      drainError: 'Could not run the sweep.',
-      loadError: 'Could not read the queue.',
-      healthy: 'The queue is empty.',
-    },
-    backfill: {
-      title: 'Rebuild read models',
-      subtitle: 'Repopulate the recommendation and forecast models from completed orders. Used when a model is empty or has drifted; safe to repeat.',
-      forecast: 'Forecast',
-      recommendations: 'Recommendations',
-      run: 'Rebuild',
-      done: '{n} order(s) ingested.',
-      failed: 'Rebuild failed.',
-    },
+  outbox: {
+    title: 'Order side-effect queue',
+    subtitle:
+      'Stock consume, loyalty award, referral qualification and owner commission still owed. A PENDING row means money that has not been booked.',
+    pending: 'Pending',
+    done: 'Done',
+    dead: 'Given up',
+    drain: 'Drain now',
+    drained: 'Sweep ran: {delivered} delivered, {failed} failed.',
+    drainError: 'Could not run the sweep.',
+    loadError: 'Could not read the queue.',
+    healthy: 'The queue is empty.',
+  },
+  backfill: {
+    title: 'Rebuild read models',
+    subtitle:
+      'Repopulate the recommendation and forecast models from completed orders. Used when a model is empty or has drifted; safe to repeat.',
+    forecast: 'Forecast',
+    recommendations: 'Recommendations',
+    run: 'Rebuild',
+    done: '{n} order(s) ingested.',
+    failed: 'Rebuild failed.',
+  },
   sweeps: {
     title: 'Scheduled sweeps',
     subtitle:
@@ -1462,8 +1466,10 @@ export const hq = {
     planTitle: 'Sweep plan: {n} rows would be deleted',
     planRows: '{n} rows',
     planUnenforced: 'unenforced',
-    sweepConfirmPlanned: 'Permanently delete the {n} rows the preview just listed? Deleted customer data cannot be restored from this screen.',
-    sweepConfirmUnplanned: 'Run the sweep without a preview? Rows past their window are deleted permanently, and you have not seen the count. Previewing first is safer.',
+    sweepConfirmPlanned:
+      'Permanently delete the {n} rows the preview just listed? Deleted customer data cannot be restored from this screen.',
+    sweepConfirmUnplanned:
+      'Run the sweep without a preview? Rows past their window are deleted permanently, and you have not seen the count. Previewing first is safer.',
     runSweep: 'Run retention sweep',
     sweepHint:
       'Deletes data past its window for datasets that have an executor. Financial data is never touched.',
@@ -1755,6 +1761,9 @@ export const hq = {
     },
   },
   invoiceTemplate: {
+    sample: 'Sample',
+    unpaid: 'Unpaid · {status}',
+    statusUnknown: 'status unavailable',
     title: 'Invoice template',
     subtitle: 'Print preview built from tax settings (19f)',
     invoiceNo: 'Invoice No.',
