@@ -158,6 +158,8 @@ export const en: Dictionary = {
       maskedHint: 'Optional, e.g. ••••4821',
       save: 'Save',
       addError: 'Could not save method.',
+      defaultError: 'Could not make this the default method.',
+      removeError: 'Could not remove this method.',
     },
     addressesCard: {
       title: 'Saved addresses',

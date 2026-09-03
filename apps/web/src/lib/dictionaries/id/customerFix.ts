@@ -77,6 +77,8 @@ export const customerFix = {
     copy: 'Salin',
     copied: 'Tersalin',
     promoProducts: 'Produk promo',
+    catalogHead: 'Produk terlaris',
+    loadError: 'Gagal memuat promo.',
     viewAll: 'Lihat semua',
     badge: 'Promo',
     empty: 'Belum ada promo aktif. Cek lagi nanti.',

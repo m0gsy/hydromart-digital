@@ -14,7 +14,13 @@ import type { Order, OrderStatus, Page } from '@/lib/types';
 // Live status of the customer's most recent in-flight order, surfaced at the top
 // of the Home page for returning users. Hides for guests / when nothing is open.
 
-const CLOSED: OrderStatus[] = ['COMPLETED', 'CANCELLED'];
+/*
+ * CA-3-32. `VOIDED` was missing, so a counter sale the cashier undid stayed on the
+ * customer's home screen as "pesanan berjalan" for ever — there is no later status to
+ * move it on, and nothing else on the app ever clears it. Every status that means the
+ * order is over belongs here; the card exists to show the ones that are not.
+ */
+const CLOSED: OrderStatus[] = ['COMPLETED', 'CANCELLED', 'VOIDED'];
 
 export function ActiveOrderCard() {
   const { customer } = useAuth();

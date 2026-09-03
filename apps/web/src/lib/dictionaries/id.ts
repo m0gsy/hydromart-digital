@@ -159,6 +159,8 @@ export const id = {
       maskedHint: 'Opsional, mis. ••••4821',
       save: 'Simpan',
       addError: 'Gagal menyimpan metode.',
+      defaultError: 'Gagal menjadikan metode ini utama.',
+      removeError: 'Gagal menghapus metode ini.',
     },
     addressesCard: {
       title: 'Alamat tersimpan',

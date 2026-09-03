@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { CheckCircle, Clock, Copy, Tag } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
-import { Card, CenterState, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -149,10 +149,12 @@ export default function PromoPage() {
 
   // Public active-promo feed (active + within date window, sorted). Fail-soft: on
   // error we fall through to the fallback hero + empty voucher note, never a dead end.
-  const { data: promos, loading } = useAsync<Promotion[]>(
-    () => api.get<Promotion[]>(endpoints.promotions.list),
-    [],
-  );
+  const {
+    data: promos,
+    loading,
+    error: promoError,
+    reload: reloadPromos,
+  } = useAsync<Promotion[]>(() => api.get<Promotion[]>(endpoints.promotions.list), []);
 
   // ponytail: no promo-tagged product endpoint exists, so the strip just shows the
   // active catalog head. Swap to a promo-scoped query when the backend grows one.
@@ -232,7 +234,15 @@ export default function PromoPage() {
         <h2 className="mb-3.5 text-lg font-extrabold tracking-[-0.02em]">
           {t('customerFix.promo.claimVouchers')}
         </h2>
-        {vouchers.length > 0 ? (
+        {/*
+         * CA-3-30: a failed read is not an empty list. The error was never destructured,
+         * so a promo service that was down told the customer "belum ada promo aktif" —
+         * they close the page and do not come back, and nothing anywhere says a request
+         * failed. An empty answer to a question nobody could ask is not an empty answer.
+         */}
+        {promoError ? (
+          <ErrorState message={t('customerFix.promo.loadError')} onRetry={reloadPromos} />
+        ) : vouchers.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {vouchers.map((p) => (
               <VoucherCard key={p.id} promo={p} />
@@ -250,8 +260,15 @@ export default function PromoPage() {
       {products.length > 0 && (
         <section>
           <div className="mb-3.5 flex items-center justify-between">
+            {/*
+             * CA-3-30: these are not promo products. The comment beside the fetch says so
+             * — there is no promo-tagged product endpoint, so this strip is the active
+             * catalogue head — and the heading and the badge both claimed otherwise. A
+             * shopper reading "Produk promo" over an ordinary galon at its ordinary price
+             * is being told something untrue by a screen whose whole subject is price.
+             */}
             <h2 className="text-lg font-extrabold tracking-[-0.02em]">
-              {t('customerFix.promo.promoProducts')}
+              {t('customerFix.promo.catalogHead')}
             </h2>
             <Link
               href="/products"
@@ -269,7 +286,6 @@ export default function PromoPage() {
                 key={p.id}
                 product={p}
                 memberRate={memberRate}
-                badge={t('customerFix.promo.badge')}
                 depotPrice={shelf.prices.get(p.id)}
               />
             ))}
