@@ -321,24 +321,35 @@ export class ReportService {
     private readonly depotCosts?: DepotCostsPort,
   ) {}
 
-  async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
-    const buckets = await this.orders.salesSeries(granularity, range, this.config.businessTimeZone);
+  async sales(
+    granularity: 'daily' | 'monthly',
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<SalesReport> {
+    const buckets = await this.orders.salesSeries(
+      granularity,
+      range,
+      this.config.businessTimeZone,
+      depotIds,
+    );
     return { granularity, ...ReportService.rangeView(range), buckets };
   }
 
   async topCustomers(
     range: ReportRange,
     limit: number,
+    depotIds?: readonly string[],
   ): Promise<ReportRangeView & { items: CustomerSales[] }> {
-    const items = await this.orders.topCustomers(range, ReportService.clampLimit(limit));
+    const items = await this.orders.topCustomers(range, ReportService.clampLimit(limit), depotIds);
     return { ...ReportService.rangeView(range), items };
   }
 
   async topDepots(
     range: ReportRange,
     limit: number,
+    depotIds?: readonly string[],
   ): Promise<ReportRangeView & { items: DepotSales[] }> {
-    const items = await this.orders.topDepots(range, ReportService.clampLimit(limit));
+    const items = await this.orders.topDepots(range, ReportService.clampLimit(limit), depotIds);
     return { ...ReportService.rangeView(range), items };
   }
 

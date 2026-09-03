@@ -207,12 +207,28 @@ export class DashboardService {
     };
   }
 
-  async executive(range: DateRange, token: string): Promise<ExecutiveDashboard> {
+  /**
+   * `depotIds` is the caller's own scope, resolved by the controller: a depot manager gets
+   * their depots' numbers, head office gets `undefined` and with it the network.
+   *
+   * It used to take no scope at all, which is how the mobile manager console came to print
+   * the whole network's revenue and order count directly under the name of one depot — and
+   * how /dashboard showed a supervisor takings from depots they have never seen. Every one
+   * of the four reads below can be scoped; nothing here needs to sum anything itself.
+   */
+  async executive(
+    range: DateRange,
+    token: string,
+    depotIds?: readonly string[],
+  ): Promise<ExecutiveDashboard> {
+    const scope = depotIds ? [...depotIds] : undefined;
     const [sales, topCustomers, topDepots, deliverySla] = await Promise.all([
-      this.sources.sales(range, token),
-      this.sources.topCustomers(range, DashboardService.TOP_LIMIT, token),
-      this.sources.topDepots(range, DashboardService.TOP_LIMIT, token),
-      this.sources.deliverySla(range, token),
+      this.sources.sales(range, token, scope),
+      this.sources.topCustomers(range, DashboardService.TOP_LIMIT, token, scope),
+      this.sources.topDepots(range, DashboardService.TOP_LIMIT, token, scope),
+      // An EMPTY scope must not read as "no filter" here: delivery-service treats an empty
+      // `depotIds` as global, so the empty case is answered without asking.
+      scope && scope.length === 0 ? Promise.resolve(null) : this.sources.deliverySla(range, token, scope),
     ]);
 
     const orderOk = sales !== null && topCustomers !== null && topDepots !== null;

@@ -6,10 +6,19 @@ import { api } from './api';
 import { endpoints } from './endpoints';
 import { getDepot, setDepot, subscribe } from './depot-store';
 import { getSession, subscribe as subscribeSession } from './session-store';
-import type { Depot, Page } from './types';
+import type { Depot } from './types';
 
 export interface DepotContextValue {
-  /** All depots the console can scope to (active, public browse). */
+  /**
+   * The depots this console may scope to — the SIGNED-IN account's own set, straight from
+   * `GET /depots/scope`, which answers with exactly what `depotScopeIds` lets the API serve.
+   *
+   * It used to be the anonymous network browse. Nothing about that list belonged to the
+   * person reading it: a kepala depot in Bandung opened the console on whichever depot the
+   * network returned first, `scopedId` handed that id to every screen underneath, and the
+   * mobile manager console — which has no switcher to correct it with — asked for that
+   * depot's approvals forever. The switcher can no longer offer a depot the API refuses.
+   */
   depots: Depot[];
   /** Selected depot id, or null for "All depots / Semua depot". */
   selectedId: string | null;
@@ -17,7 +26,12 @@ export interface DepotContextValue {
   selected: Depot | null;
   /**
    * A concrete depot id for pages that need exactly one depot (Inventori · Harga ·
-   * Perkiraan): the selection, or the first depot when "All" is active.
+   * Perkiraan): the selection, or the first depot in scope when "All" is active.
+   *
+   * A stored selection outside the list is ignored rather than passed on. The selection
+   * outlives a sign-out (it is in localStorage), so the next person to sign in on the same
+   * phone inherited the previous one's depot — an id their own token is refused for, which
+   * every screen then reported as an error instead of simply scoping to their own depot.
    */
   scopedId: string | null;
   ready: boolean;
@@ -65,10 +79,10 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     setListSettled(false);
     api
-      .get<Page<Depot>>(endpoints.depots.browse({ limit: 100 }), true)
-      .then((page) => {
+      .get<Depot[]>(endpoints.depots.scope, true)
+      .then((items) => {
         if (!alive) return;
-        setDepots(page.items ?? []);
+        setDepots(items ?? []);
         setError(null);
       })
       .catch((e) => {
@@ -88,7 +102,8 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<DepotContextValue>(() => {
     const selected = depots.find((d) => d.id === selectedId) ?? null;
-    const scopedId = selectedId ?? depots[0]?.id ?? null;
+    const inScope = selectedId !== null && selected !== null;
+    const scopedId = (inScope ? selectedId : depots[0]?.id) ?? null;
     return {
       depots,
       selectedId,

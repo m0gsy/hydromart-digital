@@ -145,6 +145,20 @@ export class DepotService {
     }
   }
 
+  /**
+   * The depots behind a list of ids, in the order the ids arrive.
+   *
+   * Active AND inactive on purpose: these are the caller's OWN depots, and a depot that was
+   * deactivated yesterday is exactly the one its kepala depot needs to still be able to open.
+   * Rows that do not exist are simply absent — a stale id in a resolved scope is not an error.
+   */
+  async listByIds(ids: string[]): Promise<DepotRecord[]> {
+    if (ids.length === 0) return [];
+    const found = await this.depots.findManyByIds(ids, false);
+    const byId = new Map(found.map((d) => [d.id, d]));
+    return ids.map((id) => byId.get(id)).filter((d): d is DepotRecord => d !== undefined);
+  }
+
   /** Depots managed by a franchise owner (active and inactive — an owner manages their own). */
   async listMine(ownerId: string): Promise<DepotRecord[]> {
     return this.depots.findByOwner(ownerId);

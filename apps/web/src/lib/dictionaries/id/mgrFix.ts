@@ -122,6 +122,7 @@ export const mgrFix = {
   mMgr: {
     pendingApproval: '{count} menunggu approval',
     depotManager: 'Manajer depot · {depot}',
+    depotPicker: 'Depot yang ditampilkan',
     yourDepot: "Depot kamu",
     signOut: "Keluar",
     stockCritical: 'Stok kritis',

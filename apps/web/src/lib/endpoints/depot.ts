@@ -25,6 +25,10 @@ depots: {
     if (q.limit) p.set('limit', String(q.limit));
     return `/depots/api/v1/depots/nearby?${p.toString()}`;
   },
+  // The depots the SIGNED-IN account may act on — the only list a staff console's depot
+  // switcher may be built from. `browse` above is the anonymous network directory: building
+  // a switcher from it pre-selected somebody else's depot for every depot-scoped role.
+  scope: '/depots/api/v1/depots/scope',
   // Admin listing incl. inactive depots (create/update/deactivate target these).
   manage: (q: { page?: number; limit?: number; search?: string; ownershipType?: string } = {}) => {
     const p = new URLSearchParams();

@@ -154,10 +154,14 @@ export const insight = {
   dashboard: {
     monthlyPnl: (depotId: string, month: string) =>
       `/dashboard/api/v1/dashboard/monthly-pnl?${new URLSearchParams({ depotId, month })}`,
-    executive: (q: { from?: string; to?: string } = {}) => {
+    // `depotId` scopes the whole dashboard to one depot. A depot-scoped caller is narrowed
+    // to their own depots with or without it; naming one is how a console that displays a
+    // single depot's name makes sure the numbers under it belong to that depot.
+    executive: (q: { from?: string; to?: string; depotId?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);
       if (q.to) p.set('to', q.to);
+      if (q.depotId) p.set('depotId', q.depotId);
       const qs = p.toString();
       return `/dashboard/api/v1/dashboard/executive${qs ? `?${qs}` : ''}`;
     },

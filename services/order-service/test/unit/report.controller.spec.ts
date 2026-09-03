@@ -43,6 +43,9 @@ const DEPOT_B = '22222222-2222-4222-8222-222222222222';
 const kepalaDepot = (depotId: string) =>
   ({ sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '0811', depotId }) as never;
 const headOffice = () => ({ sub: 'hq-1', role: 'HEAD_OFFICE', phone: '0822' }) as never;
+// A manager's depots are the SET DepotScopeGuard resolved onto the request, not a token claim.
+const manager = (...depotIds: string[]) =>
+  ({ sub: 'mgr-1', role: 'MANAGER', phone: '0833', depotId: depotIds[0] ?? null, depotIds }) as never;
 
 describe('ReportController', () => {
   let service: Mocked;
@@ -83,8 +86,8 @@ describe('ReportController', () => {
   });
 
   it('sales: defaults granularity to daily and parses an empty range to undefined bounds', async () => {
-    await expect(controller.sales({} as never)).resolves.toBe('sales');
-    expect(service.sales).toHaveBeenCalledWith('daily', { from: undefined, to: undefined });
+    await expect(controller.sales({} as never, headOffice())).resolves.toBe('sales');
+    expect(service.sales).toHaveBeenCalledWith('daily', { from: undefined, to: undefined }, undefined);
   });
 
   it('sales: forwards explicit granularity and parses from/to into Dates', async () => {
@@ -92,7 +95,7 @@ describe('ReportController', () => {
       granularity: 'monthly',
       from: '2026-01-01',
       to: '2026-02-01',
-    } as never);
+    } as never, headOffice());
     const [granularity, range] = service.sales.mock.calls[0];
     expect(granularity).toBe('monthly');
     expect(range.from).toBeInstanceOf(Date);
@@ -101,15 +104,56 @@ describe('ReportController', () => {
   });
 
   it('topCustomers: defaults limit to 10, then honours an explicit limit', async () => {
-    await expect(controller.topCustomers({} as never)).resolves.toBe('topCustomers');
-    expect(service.topCustomers).toHaveBeenCalledWith({ from: undefined, to: undefined }, 10);
-    await controller.topCustomers({ limit: 5 } as never);
-    expect(service.topCustomers).toHaveBeenLastCalledWith(expect.anything(), 5);
+    await expect(controller.topCustomers({} as never, headOffice())).resolves.toBe('topCustomers');
+    expect(service.topCustomers).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      10,
+      undefined,
+    );
+    await controller.topCustomers({ limit: 5 } as never, headOffice());
+    expect(service.topCustomers).toHaveBeenLastCalledWith(expect.anything(), 5, undefined);
   });
 
   it('topDepots: defaults limit to 10', async () => {
-    await expect(controller.topDepots({} as never)).resolves.toBe('topDepots');
-    expect(service.topDepots).toHaveBeenCalledWith({ from: undefined, to: undefined }, 10);
+    await expect(controller.topDepots({} as never, headOffice())).resolves.toBe('topDepots');
+    expect(service.topDepots).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      10,
+      undefined,
+    );
+  });
+
+  /*
+   * CA-4-06 / CA-2-15, order-service half. `orderReports` admits MANAGER — a depot-scoped
+   * role — and none of these three routes carries a depotId, so DepotScopeGuard had nothing
+   * to compare and all three answered with the whole network: every depot's revenue, and the
+   * network's highest-spending customers by name.
+   */
+  describe('network reports narrow to the caller', () => {
+    it("scopes a manager's sales, top customers and top depots to their own depots", async () => {
+      const mgr = manager(DEPOT_A, DEPOT_B);
+      await controller.sales({} as never, mgr);
+      await controller.topCustomers({} as never, mgr);
+      await controller.topDepots({} as never, mgr);
+      expect(service.sales).toHaveBeenCalledWith('daily', expect.anything(), [DEPOT_A, DEPOT_B]);
+      expect(service.topCustomers).toHaveBeenCalledWith(expect.anything(), 10, [DEPOT_A, DEPOT_B]);
+      expect(service.topDepots).toHaveBeenCalledWith(expect.anything(), 10, [DEPOT_A, DEPOT_B]);
+    });
+
+    it('leaves head office unscoped — the network report is still the network', async () => {
+      await controller.sales({} as never, headOffice());
+      expect(service.sales).toHaveBeenCalledWith('daily', expect.anything(), undefined);
+    });
+
+    it('honours an explicit depotIds list (the guard has already vetted it)', async () => {
+      await controller.sales({ depotIds: `${DEPOT_A}, ${DEPOT_B}` } as never, headOffice());
+      expect(service.sales).toHaveBeenCalledWith('daily', expect.anything(), [DEPOT_A, DEPOT_B]);
+    });
+
+    it('refuses a scoped account that is responsible for no depot at all', () => {
+      expect(() => controller.sales({} as never, manager())).toThrow();
+      expect(service.sales).not.toHaveBeenCalled();
+    });
   });
 
   it('shippingByDepot / refundsByDepot / ratingByDepot: delegate with the parsed range', async () => {

@@ -229,11 +229,14 @@ export class ForecastPrismaRepository implements ForecastRepository {
 
   async listCustomerActivity(query: {
     depotId?: string | null;
+    depotIds?: readonly string[];
     limit: number;
   }): Promise<CustomerActivityRow[]> {
-    const { depotId, limit } = query;
+    const { depotId, depotIds, limit } = query;
     const rows = await this.prisma.customerActivity.findMany({
-      where: { ...(depotId === undefined ? {} : { depotId }) },
+      where: depotIds
+        ? { depotId: { in: [...depotIds] } }
+        : { ...(depotId === undefined ? {} : { depotId }) },
       orderBy: { lastOrderAt: 'asc' }, // oldest / most at-risk first
       take: limit,
     });

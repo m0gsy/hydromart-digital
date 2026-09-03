@@ -641,10 +641,21 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
+  /**
+   * Prisma `where` fragment for a depot set, or nothing when the caller is unscoped.
+   *
+   * An EMPTY set is not "no filter": it is a caller with no depots, and it must match no
+   * rows. `{ in: [] }` is exactly that, so the empty case needs no branch of its own.
+   */
+  private static depotIn(depotIds?: readonly string[]) {
+    return depotIds ? { depotId: { in: [...depotIds] } } : {};
+  }
+
   async salesSeries(
     granularity: 'daily' | 'monthly',
     range: ReportRange,
     tz: string,
+    depotIds?: readonly string[],
   ): Promise<SalesBucket[]> {
     // Whitelisted so the trunc unit / format are never attacker-controlled.
     const unit = granularity === 'monthly' ? 'month' : 'day';
@@ -652,6 +663,16 @@ export class OrderPrismaRepository implements OrderRepository {
     const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    // A depot-scoped caller sends its own set here. `IN ()` is not valid SQL, so the empty
+    // set — an account responsible for no depot — is written as a condition that is simply
+    // false: it must report nothing, never everything.
+    if (depotIds) {
+      conds.push(
+        depotIds.length === 0
+          ? Prisma.sql`false`
+          : Prisma.sql`"depotId" IN (${Prisma.join([...depotIds])})`,
+      );
+    }
     const rows = await this.prisma.$queryRaw<
       { period: string; orderCount: bigint; revenue: Prisma.Decimal | null }[]
     >(Prisma.sql`
@@ -673,10 +694,14 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]> {
+  async topCustomers(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<CustomerSales[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['customerId'],
-      where: this.reportWhere(range),
+      where: { ...this.reportWhere(range), ...OrderPrismaRepository.depotIn(depotIds) },
       _sum: { total: true },
       _count: { _all: true },
       orderBy: { _sum: { total: 'desc' } },
@@ -689,13 +714,21 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async topDepots(range: ReportRange, limit: number): Promise<DepotSales[]> {
+  async topDepots(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<DepotSales[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
-      where: { ...this.reportWhere(range), depotId: { not: null } },
-      // `subtotal` rides along in the same aggregate — it is the franchise commission base
-      // (goods before discount), and the reconciliation statement was recomputing HQ's cut
-      // from `total` while payout-service charges it on this (CA-2-09).
+      // CA-2-33: narrowed to the depots the caller actually reaches; unscoped callers
+      // still see every depot that has one.
+      where: depotIds
+        ? { ...this.reportWhere(range), depotId: { in: [...depotIds] } }
+        : { ...this.reportWhere(range), depotId: { not: null } },
+      // CA-2-09: `subtotal` rides along in the same aggregate — it is the franchise
+      // commission base (goods before discount), and the reconciliation statement was
+      // recomputing HQ's cut from `total` while payout-service charges it on this.
       _sum: { total: true, subtotal: true },
       _count: { _all: true },
       orderBy: { _sum: { total: 'desc' } },

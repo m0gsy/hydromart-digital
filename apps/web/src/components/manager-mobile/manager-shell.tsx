@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useT } from '@/lib/locale-context';
 import { usePathname } from 'next/navigation';
 import { Bell, ChartBar, Gavel, House, User } from '@phosphor-icons/react';
 
 import { CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canUseManagerConsole } from '@/lib/roles';
 
 const TABS = [
@@ -43,6 +44,41 @@ function ManagerNav() {
 }
 
 /**
+ * Which depot this console is reading — and the way to change it.
+ *
+ * A manager covers a SET of depots (the supervision chain), and this console had no way to
+ * say which one: every screen took `scopedId`, which is the first depot in the set, so an
+ * approval queue or a team roster for the second depot was unreachable from a phone. The
+ * desktop rail has had a switcher since B2; this is the same choice in the space a phone has.
+ *
+ * Hidden at one depot: with nothing to choose, a picker is a control that cannot do
+ * anything. Native `<select>` on purpose — the phone's own wheel is the accessible one.
+ */
+function DepotBar() {
+  const { t } = useT();
+  const { depots, scopedId, setSelected } = useDepot();
+  if (depots.length < 2) return null;
+  return (
+    <label className="flex items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2">
+      <span className="text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
+        {t('mgrFix.mMgr.depotPicker')}
+      </span>
+      <select
+        value={scopedId ?? ''}
+        onChange={(e) => setSelected(e.target.value)}
+        className="min-h-11 min-w-0 flex-1 bg-transparent text-right text-[12.5px] font-extrabold text-brand-700"
+      >
+        {depots.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
  * Depot-manager phone frame: MANAGER-only gate + bottom nav. Sign-in itself is
  * handled by RequireAuth in the route layout; this only checks the manager role.
  * `nav={false}` for full-bleed detail flows (approval detail) that own the whole screen.
@@ -70,6 +106,7 @@ export function ManagerShell({
   // on any WebView older than 140, which is most of the fleet.
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col pt-[var(--safe-area-inset-top,env(safe-area-inset-top))]">
+      {nav && <DepotBar />}
       <div className="flex-1">{children}</div>
       {nav && <ManagerNav />}
     </div>

@@ -25,13 +25,29 @@ function initials(name: string | null): string {
 export default function TeamPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const { scopedId } = useDepot();
+  const { scopedId, ready } = useDepot();
   const depotId = scopedId ?? customer?.assignedDepotId ?? null;
 
-  const roster = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  /*
+   * The depot goes in the REQUEST, not in a filter afterwards.
+   *
+   * This asked for the roster with no depot at all and then kept the rows whose
+   * `assignedDepotId` matched `scopedId` — and `scopedId` was the first depot of the whole
+   * network, so the tab was empty for everyone whose depot was not that one. For a manager
+   * covering several depots it was worse than empty: auth-service refuses an unscoped read
+   * from them outright, so the tab was a 403. Naming the depot answers both, and the server
+   * is then the one deciding whether this account may read it.
+   */
+  const roster = useAsync<Customer[]>(
+    () =>
+      depotId
+        ? api.get(endpoints.auth.driversAt(depotId), true)
+        : Promise.resolve([] as Customer[]),
+    [depotId],
+  );
 
   const couriers = (roster.data ?? [])
-    .filter((c) => !depotId || c.assignedDepotId === depotId)
+    .slice()
     .sort((a, b) => (a.fullName ?? '').localeCompare(b.fullName ?? ''));
   const activeCount = couriers.filter((c) => c.status === 'ACTIVE').length;
 
@@ -44,7 +60,7 @@ export default function TeamPage() {
         </p>
       </header>
 
-      {roster.loading ? (
+      {roster.loading || !ready ? (
         <Skeleton className="h-64 w-full" />
       ) : roster.error ? (
         <ErrorState message={roster.error} onRetry={roster.reload} />

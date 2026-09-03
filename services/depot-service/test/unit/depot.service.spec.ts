@@ -175,6 +175,23 @@ describe('DepotService', () => {
     expect(mine.some((d) => !d.active)).toBe(true);
   });
 
+  /*
+   * CA-2-15. The console's depot list is now the caller's own set of ids. A deactivated
+   * depot stays in it on purpose — it is still that account's depot, and hiding it is how a
+   * kepala depot loses the only screen that could reactivate it. An id that no longer
+   * exists is simply dropped: a stale entry in a resolved scope is not an error.
+   */
+  it('reads depots by id, keeps inactive ones, and drops ids that no longer exist', async () => {
+    const a = await service.create(base({ code: 'IDS-A' }));
+    const b = await service.create(base({ code: 'IDS-B' }));
+    await service.deactivate(b.id);
+
+    const out = await service.listByIds([b.id, a.id, 'gone']);
+    expect(out.map((d) => d.id)).toEqual([b.id, a.id]);
+    expect(out[0].active).toBe(false);
+    await expect(service.listByIds([])).resolves.toEqual([]);
+  });
+
   it('hides a soft-deleted depot from public get but not admin', async () => {
     const d = await service.create(base());
     await service.deactivate(d.id);

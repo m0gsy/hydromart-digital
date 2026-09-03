@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { DailySalesBroadcastResult, ReportService } from '../application/services/report.service';
@@ -58,25 +58,69 @@ function toRange(q: { from?: string; to?: string }): ReportRange {
 export class ReportController {
   constructor(private readonly reports: ReportService) {}
 
+  /**
+   * The depots one of these three network reports may cover, decided from the CALLER.
+   *
+   * `orderReports` admits MANAGER, and a manager is a depot-SCOPED role: these routes were
+   * handing them the whole network's revenue, its highest-spending customers and every
+   * depot's takings, because the reports carry no depotId for DepotScopeGuard to compare.
+   * `depotScopeIds` is the answer the rest of the platform already gives — the caller's own
+   * set, `undefined` for head office, and a refusal for a scoped account with no depots.
+   *
+   * An explicit `depotIds=` narrows further; it never widens, because the guard has already
+   * refused any id outside the caller's set before this method runs.
+   */
+  private static reportScope(
+    user: AuthenticatedUser,
+    requested?: string,
+  ): readonly string[] | undefined {
+    const asked = (requested ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    return asked.length > 0 ? asked : depotScopeIds(user);
+  }
+
   @ApiOkResponse({ type: SalesReportResponseDto })
   @Get('sales')
   @ApiOperation({ summary: 'Daily/monthly sales series (FR-095/096)' })
-  sales(@Query() q: SalesReportQueryDto): Promise<SalesReport> {
-    return this.reports.sales(q.granularity ?? 'daily', toRange(q));
+  sales(
+    @Query() q: SalesReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SalesReport> {
+    return this.reports.sales(
+      q.granularity ?? 'daily',
+      toRange(q),
+      ReportController.reportScope(user, q.depotIds),
+    );
   }
 
   @ApiOkResponse({ type: TopCustomersResponseDto })
   @Get('top-customers')
   @ApiOperation({ summary: 'Highest-spending customers (FR-097)' })
-  topCustomers(@Query() q: TopReportQueryDto): Promise<ReportRangeView & { items: CustomerSales[] }> {
-    return this.reports.topCustomers(toRange(q), q.limit ?? 10);
+  topCustomers(
+    @Query() q: TopReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReportRangeView & { items: CustomerSales[] }> {
+    return this.reports.topCustomers(
+      toRange(q),
+      q.limit ?? 10,
+      ReportController.reportScope(user, q.depotIds),
+    );
   }
 
   @ApiOkResponse({ type: TopDepotsResponseDto })
   @Get('top-depots')
   @ApiOperation({ summary: 'Highest-revenue depots (FR-098)' })
-  topDepots(@Query() q: TopReportQueryDto): Promise<ReportRangeView & { items: DepotSales[] }> {
-    return this.reports.topDepots(toRange(q), q.limit ?? 10);
+  topDepots(
+    @Query() q: TopReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReportRangeView & { items: DepotSales[] }> {
+    return this.reports.topDepots(
+      toRange(q),
+      q.limit ?? 10,
+      ReportController.reportScope(user, q.depotIds),
+    );
   }
 
   @ApiOkResponse({ type: ShippingByDepotResponseDto })

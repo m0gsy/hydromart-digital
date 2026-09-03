@@ -496,11 +496,26 @@ export interface OrderRepository {
     granularity: 'daily' | 'monthly',
     range: ReportRange,
     tz: string,
+    depotIds?: readonly string[],
   ): Promise<SalesBucket[]>;
-  /** Highest-spending customers in the window (CANCELLED excluded). FR-097. */
-  topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
+  /**
+   * Highest-spending customers in the window (CANCELLED excluded). FR-097.
+   *
+   * `depotIds` narrows the report to a set of depots. Omitted means the whole network, which
+   * is what a head-office caller asks for; a depot-scoped caller must never reach this
+   * without it — see the note on the controller.
+   */
+  topCustomers(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
-  topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
+  topDepots(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<DepotSales[]>;
   shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
   /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
   refundsByDepot(range: ReportRange): Promise<DepotRefund[]>;

@@ -1002,6 +1002,52 @@ describe('OrderPrismaRepository', () => {
     expect(q.values).toContain('Asia/Jakarta');
   });
 
+  /*
+   * CA-4-06. The depot filter has to reach the SQL, and the empty set has to reach it as a
+   * condition that is false. `IN ()` is not valid SQL, so the tempting shortcut — skip the
+   * clause when the list is empty — reports the whole network to an account responsible for
+   * no depot at all, which is the exact opposite of what an empty scope means.
+   */
+  it('narrows the sales series to the depots asked for, and to NOTHING for an empty set', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.salesSeries('daily', {}, 'Asia/Jakarta', ['depot-a', 'depot-b']);
+    let q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).toContain('"depotId" IN');
+    expect(q.values).toContain('depot-a');
+    expect(q.values).toContain('depot-b');
+
+    await repo.salesSeries('daily', {}, 'Asia/Jakarta', []);
+    q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).toContain('false');
+    expect(twoHop(q)).not.toContain('"depotId" IN');
+
+    // No scope at all is still the whole network — head office reads the same report.
+    await repo.salesSeries('daily', {}, 'Asia/Jakarta');
+    q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).not.toContain('"depotId"');
+  });
+
+  it('narrows top customers and top depots to the depots asked for', async () => {
+    order.groupBy.mockResolvedValue([]);
+    await repo.topCustomers({}, 5, ['depot-a']);
+    expect(order.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ depotId: { in: ['depot-a'] } }),
+      }),
+    );
+    await repo.topDepots({}, 5, ['depot-a']);
+    expect(order.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ depotId: { in: ['depot-a'] } }),
+      }),
+    );
+    // Unscoped keeps the old shape: every depot, excluding the null-depot rows.
+    await repo.topDepots({}, 5);
+    expect(order.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ depotId: { not: null } }) }),
+    );
+  });
+
   it('cuts retention cohorts on the LOCAL month, not on UTC', async () => {
     $queryRaw.mockResolvedValue([]);
     await repo.retentionCohort({}, 'Asia/Jakarta');

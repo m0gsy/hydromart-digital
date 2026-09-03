@@ -76,6 +76,11 @@ auth: {
   deleteStaff: (id: string) => `/auth/api/v1/auth/staff/${id}`,
   // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
   drivers: '/auth/api/v1/auth/drivers',
+  // The same roster for ONE named depot. A manager who covers more than one depot MUST
+  // name one: auth-service refuses an unscoped read from them rather than widening it to
+  // the network (`resolveScopedDepot`), so the caller that omitted this got a 403 and the
+  // caller that got a list still had to be told which depot it was.
+  driversAt: (depotId: string) => `/auth/api/v1/auth/drivers?depotId=${encodeURIComponent(depotId)}`,
 },
 
 // The signed-in customer's own profile: membership tier, point balance, and
