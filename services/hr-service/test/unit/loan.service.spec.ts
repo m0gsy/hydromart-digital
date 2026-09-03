@@ -60,9 +60,41 @@ function fakeConfig() {
   return { timeZone: 'Asia/Jakarta' } as unknown as import('../../src/config/hr-config.service').HrConfigService;
 }
 
+/**
+ * The repayment ledger the balance is now read from (CA-1-05). `repaid` is what earlier
+ * payslips actually took, keyed by loan id; empty = payroll has never collected anything.
+ */
+class FakePayrolls {
+  /** One row per payslip line: which loan, which period, how much it really took. */
+  ledger: { loanId: string; periodMonth: string; amount: number }[] = [];
+  lastBefore?: string;
+  async deductedBySourceRefBefore(
+    _employeeId: string,
+    beforePeriodMonth: string,
+  ): Promise<Map<string, number>> {
+    this.lastBefore = beforePeriodMonth;
+    const out = new Map<string, number>();
+    for (const row of this.ledger) {
+      if (row.periodMonth >= beforePeriodMonth) continue;
+      out.set(row.loanId, (out.get(row.loanId) ?? 0) + row.amount);
+    }
+    return out;
+  }
+}
+
 function make() {
   const repo = new FakeRepo();
-  return { repo, svc: new LoanService(repo, fakeEmployees(), fakeConfig()) };
+  const payrolls = new FakePayrolls();
+  return {
+    repo,
+    payrolls,
+    svc: new LoanService(
+      repo,
+      fakeEmployees(),
+      fakeConfig(),
+      payrolls as unknown as import('../../src/application/ports/payroll.repository').PayrollRepository,
+    ),
+  };
 }
 
 const base = {
@@ -113,11 +145,35 @@ describe('LoanService.deactivate', () => {
 });
 
 describe('LoanService.listByEmployee', () => {
-  it('computes remaining + settled as of the requested period', async () => {
-    const { svc } = make();
-    await svc.create(hr, base);
+  it('computes remaining + settled from what payroll really took', async () => {
+    const { payrolls, svc } = make();
+    const loan = await svc.create(hr, base);
+    for (const periodMonth of ['2026-07', '2026-08', '2026-09']) {
+      payrolls.ledger.push({ loanId: loan.id, periodMonth, amount: 300_000 });
+    }
     const views = await svc.listByEmployee(hr, 'e1', '2026-09');
     expect(views[0]).toMatchObject({ remaining: 100_000, settled: false });
+    // Through '2026-09' inclusive — the ledger is asked for everything before October.
+    expect(payrolls.lastBefore).toBe('2026-10');
+  });
+
+  // CA-1-05: the balance used to be months-elapsed × installment, so a month payroll never
+  // ran for, and a month that could only afford part of an installment, both read as paid.
+  it('does not write off an installment that was never collected', async () => {
+    const { payrolls, svc } = make();
+    const loan = await svc.create(hr, base);
+    // Four months elapsed by 2026-10, but only two payslips ever took anything.
+    payrolls.ledger.push({ loanId: loan.id, periodMonth: '2026-07', amount: 300_000 });
+    payrolls.ledger.push({ loanId: loan.id, periodMonth: '2026-08', amount: 100_000 });
+    const [view] = await svc.listByEmployee(hr, 'e1', '2026-10');
+    expect(view).toMatchObject({ remaining: 600_000, settled: false });
+  });
+
+  it('shows the whole principal while no payroll has run at all', async () => {
+    const { svc } = make();
+    await svc.create(hr, base);
+    const [view] = await svc.listByEmployee(hr, 'e1', '2026-10');
+    expect(view).toMatchObject({ remaining: 1_000_000, settled: false });
   });
 
   it('falls back to the current month for an invalid period', async () => {
@@ -140,7 +196,10 @@ describe('LoanService.listByEmployee', () => {
 // still due and August's as not yet started.
 describe('LoanService.listForEmployee default period (C2)', () => {
   it('defaults to the LOCAL month, not the UTC one', async () => {
-    const { repo, svc } = make();
+    const { repo, payrolls, svc } = make();
+    // August's payslip already took an instalment. Read as JULY (the UTC month at this
+    // instant) the ledger stops before August and the balance is still the full principal.
+    payrolls.ledger.push({ loanId: 'l1', periodMonth: '2026-08', amount: 300_000 });
     repo.rows = [
       {
         id: 'l1',

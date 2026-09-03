@@ -30,6 +30,25 @@ export interface OvertimeBreakdown {
   totalMinutes: number;
 }
 
+/** How one attended day is reckoned — the rota's answer for the weekday it fell on. */
+export interface DayRule {
+  /** Minutes that count as a normal day before overtime starts, NET of the break. */
+  standardMinutes: number;
+  /** Unpaid break taken off a day of at least `BREAK_AFTER_MINUTES`. 0 = the depot pays it. */
+  breakMinutes: number;
+  /** Weekly-off day or national holiday: not an expected working day at all. */
+  offDay: boolean;
+}
+
+/**
+ * D2 — the break is only taken off a day of six hours or more.
+ *
+ * Measured on the recorded presence (check-in to check-out), which is what "jam kerjanya"
+ * names: a four-hour morning has no lunch hour to deduct, and deducting one would turn a
+ * short day into a shorter one for no reason anybody could point at.
+ */
+export const BREAK_AFTER_MINUTES = 360;
+
 /**
  * Split attended days into ordinary and off-day overtime.
  *
@@ -38,23 +57,31 @@ export interface OvertimeBreakdown {
  * worked minute is overtime — that is what "libur nasional diperlakukan sebagai libur
  * mingguan" means in payroll terms.
  *
+ * The unpaid break comes off FIRST, on both branches (D2). `workingMinutes` is the gap
+ * between the two punches, and nobody punches out for lunch — so an 08:00–17:00 day recorded
+ * 540 minutes, the standard shift was 480, and every single employee was paid an hour of
+ * overtime every single day for eating. On an off day the same hour was paid at the off-day
+ * multiplier. A depot that really does pay through the break sets its break minutes to 0.
+ *
  * Days that were never checked out (workingMinutes null) contribute nothing: guessing
  * an end time would invent wages.
  */
 export function splitOvertime(
   days: readonly WorkedDay[],
-  standardWorkingMinutes: number,
-  isOffDay: (workDate: string) => boolean,
+  ruleFor: (workDate: string) => DayRule,
 ): OvertimeBreakdown {
   let regularMinutes = 0;
   let offDayMinutes = 0;
   for (const day of days) {
-    const worked = day.workingMinutes ?? 0;
-    if (worked <= 0) continue;
-    if (isOffDay(day.workDate)) {
+    const present = day.workingMinutes ?? 0;
+    if (present <= 0) continue;
+    const rule = ruleFor(day.workDate);
+    const worked =
+      present >= BREAK_AFTER_MINUTES ? Math.max(0, present - rule.breakMinutes) : present;
+    if (rule.offDay) {
       offDayMinutes += worked;
     } else {
-      regularMinutes += Math.max(0, worked - standardWorkingMinutes);
+      regularMinutes += Math.max(0, worked - rule.standardMinutes);
     }
   }
   return { regularMinutes, offDayMinutes, totalMinutes: regularMinutes + offDayMinutes };

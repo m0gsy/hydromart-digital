@@ -87,6 +87,10 @@ function build(opts: {
   workedMinutes?: { workDate: string; workingMinutes: number | null; lateMinutes?: number }[];
   overtimePct?: number;
   overtimeOffDayPct?: number;
+  /** D2 unpaid break, both weekdays at once; omitted = the shipped 60/90. */
+  breakMinutes?: number;
+  /** The rota HR built: shift assignments + the shifts/rotations they name (CA-1-38). */
+  shifts?: import('../../src/application/ports/shift.repository').ShiftRepository;
   /** Depot SOP daily gallon bonus ladder; '' (the default) = feature off. */
   gallonTiers?: string;
   /** Gallons the depot sold per local day; null = order-service unavailable. */
@@ -122,10 +126,14 @@ function build(opts: {
   const bonuses: BonusRepository = {
     create: async () => ({}) as Bonus,
     listByEmployeePeriod: async () => (opts.bonuses ?? []) as Bonus[],
+    findById: async () => null,
+    delete: async () => undefined,
   };
   const deductions: DeductionRepository = {
     create: async () => ({}) as Deduction,
     listByEmployeePeriod: async () => (opts.deductions ?? []) as Deduction[],
+    findById: async () => null,
+    delete: async () => undefined,
   };
   const employees = {
     getById: async () =>
@@ -137,6 +145,8 @@ function build(opts: {
     absenceDeductionAmount: () => opts.absenceRate ?? 0,
     weeklyOffDays: () => opts.weeklyOff ?? '',
     standardWorkingMinutes: () => 480,
+    // D2's shipped defaults. Tests that want the old "the break is paid" behaviour pass 0.
+    breakMinutes: (isFriday: boolean) => opts.breakMinutes ?? (isFriday ? 90 : 60),
     overtimeMultiplierPct: () => opts.overtimePct ?? 150,
     overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
     dailySalesBonusTiers: () => opts.gallonTiers ?? '',
@@ -186,6 +196,8 @@ function build(opts: {
       undefined,
       undefined,
       sales,
+      undefined,
+      opts.shifts,
     ),
   };
 }
@@ -281,7 +293,12 @@ describe('PayrollService.generate', () => {
 
   it('pays overtime above the standard shift as a BONUS line (M24-17)', async () => {
     // 31 July 2026 days, no weekly-off, no holiday → 31 working days.
-    // MONTHLY 4,464,000 / (31 × 480) = 300 per minute. 120 overtime minutes × 1.5 = 54,000.
+    // MONTHLY 4,464,000 / (31 × 480) = 300 per minute.
+    //
+    // D2 (owner decision, 2 September 2026): 60 minutes of the day are unpaid break — 90 on
+    // a Friday — deducted from any day of 6 hours or more. 2026-07-06 is a Monday, so 600
+    // worked minutes are 540 paid: 60 over the standard shift, not 120.
+    // 60 × 300 × 1.5 = 27,000.
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
       summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
@@ -289,8 +306,8 @@ describe('PayrollService.generate', () => {
     });
     await svc.generate(user, 'e1', '2026-07');
     const line = repo.lastWrite!.items.find((i) => i.label.startsWith('Lembur'));
-    expect(line).toMatchObject({ kind: 'BONUS', amount: 54_000 });
-    expect(line!.label).toContain('hari kerja 2j');
+    expect(line).toMatchObject({ kind: 'BONUS', amount: 27_000 });
+    expect(line!.label).toContain('hari kerja 1j');
   });
 
   it('pays every worked minute on a national holiday, at the off-day rate (M24-17)', async () => {
@@ -740,7 +757,7 @@ describe('PPh 21 in December', () => {
       summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     });
     repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 1_000_000, months: 11 };
-    await svc.generate(user, 'e1', '2026-12');
+    await svc.generate(user, 'e1', '2025-12');
     const tax = repo.lastWrite?.items.find((i) => i.label === 'PPh 21');
     // A year of Rp 20jt/month owes far more than Rp 1jt, so December collects the gap —
     // which is much larger than any single ordinary month.
@@ -760,7 +777,7 @@ describe('PPh 21 in December', () => {
       summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     });
     repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 900_000_000, months: 11 };
-    await svc.generate(user, 'e1', '2026-12');
+    await svc.generate(user, 'e1', '2025-12');
     expect(repo.lastWrite?.items.some((i) => i.label === 'PPh 21')).toBe(false);
   });
 
@@ -777,10 +794,200 @@ describe('PPh 21 in December', () => {
       summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     });
     repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 0, months: 11 };
-    await svc.generate(user, 'e1', '2026-11');
+    await svc.generate(user, 'e1', '2025-11');
     const tax = Number(repo.lastWrite?.items.find((i) => i.label === 'PPh 21')?.amount ?? 0);
     // November ignores the year to date entirely: it is one month's estimate.
     expect(tax).toBeGreaterThan(0);
     expect(tax).toBeLessThan(5_000_000);
+  });
+});
+
+/*
+ * CA-1-38 / CA-1-39 — payroll reads the rota HR actually built, net of the unpaid break.
+ *
+ * The standard day used to come from one per-depot number, so a depot running two shift
+ * lengths priced overtime off the wrong line for everyone on the shorter one. And the span a
+ * shift declares is GROSS: owner decision D2 takes 60 minutes out of it (90 on a Friday)
+ * before anything counts as overtime.
+ *
+ * None of this was reachable from a test before — nothing wired the shift repository — which
+ * is why payroll.service.ts sat at 80% branches while every assertion in the file passed.
+ */
+describe('PayrollService · CA-1-38/CA-1-39 the roster decides the standard day', () => {
+  /** A shift row, cast once here so each case reads as data rather than as ceremony. */
+  const shift = (id: string, startTime: string, endTime: string) =>
+    ({ id, startTime, endTime, depotId: 'd1', name: id }) as never;
+
+  const rota = (o: Record<string, unknown>) => o as never;
+
+  const MONDAY = [{ workDate: '2026-07-06', workingMinutes: 600 }];
+  const base = {
+    summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    workedMinutes: MONDAY,
+  };
+  const overtimeLine = (repo: { lastWrite?: { items: { label: string }[] } | null }) =>
+    repo.lastWrite?.items.find((i) => i.label.startsWith('Lembur'));
+
+  it('takes the standard day from the assigned shift, not the depot default', async () => {
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never, shiftId: 's-long' },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [],
+        findRotationById: async () => null,
+        // 07:00–17:00 is a 600-minute day, so today's 600 worked minutes are NOT overtime —
+        // the 480-minute depot default would have called 120 of them overtime and paid it.
+        findById: async () => shift('s-long', '07:00', '17:00'),
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(overtimeLine(repo)).toBeUndefined();
+  });
+
+  it('takes the unpaid break off BOTH the worked day and the rostered span', async () => {
+    const { repo, svc } = build({
+      ...base,
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 660 }],
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never, shiftId: 's-long' },
+      // D2's default: 60 unpaid minutes on a Monday, and it comes off BOTH sides — the day
+      // worked AND the span it is measured against. So a courier who works exactly their
+      // 600-minute roster earns no overtime (540 paid against a 540 standard), and only the
+      // 60 minutes BEYOND the roster are overtime here.
+      shifts: rota({
+        listAssignmentsUpTo: async () => [],
+        findRotationById: async () => null,
+        findById: async () => shift('s-long', '07:00', '17:00'),
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(overtimeLine(repo)).toBeDefined();
+  });
+
+  it('reads a rotation pattern, whose blank days are days off', async () => {
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [
+          { id: 'a1', employeeId: 'e1', rotationId: 'r1', shiftId: null, effectiveFrom: new Date('2026-01-01') },
+        ],
+        findRotationById: async () => ({ id: 'r1', name: 'R', pattern: { 0: null, 1: 's1', 2: 's1', 3: 's1', 4: 's1', 5: 's1', 6: 's1' } }),
+        findById: async () => shift('s1', '07:00', '17:00'),
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(overtimeLine(repo)).toBeUndefined();
+  });
+
+  it('queries each distinct shift once, however many days name it', async () => {
+    const seen: string[] = [];
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [
+          { id: 'a1', employeeId: 'e1', rotationId: 'r1', shiftId: null, effectiveFrom: new Date('2026-01-01') },
+        ],
+        // Six days on one shift, one on another: a weekly pattern names two or three shifts
+        // across seven days and this must not become seven queries.
+        findRotationById: async () => ({ id: 'r1', name: 'R', pattern: { 0: 's1', 1: 's1', 2: 's1', 3: 's1', 4: 's1', 5: 's1', 6: 's2' } }),
+        findById: async (id: string) => {
+          seen.push(id);
+          return shift(id, '07:00', id === 's1' ? '17:00' : '15:00');
+        },
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(seen.sort()).toEqual(['s1', 's2']);
+    // Two different shift lengths, so there is no single uniform standard day to price by.
+    expect(repo.lastWrite).toBeTruthy();
+  });
+
+  it('treats a dangling shift id as no span, not as a zero-hour day', async () => {
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [
+          { id: 'a1', employeeId: 'e1', rotationId: 'r1', shiftId: null, effectiveFrom: new Date('2026-01-01') },
+        ],
+        findRotationById: async () => ({ id: 'r1', name: 'R', pattern: { 0: 'gone', 1: 'gone', 2: 'gone', 3: 'gone', 4: 'gone', 5: 'gone', 6: 'gone' } }),
+        // ShiftService.remove can leave a pattern naming an id that no longer resolves.
+        findById: async () => null,
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite).toBeTruthy();
+  });
+
+  it('falls back to the depot shift when the employee is on no roster', async () => {
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [],
+        findRotationById: async () => null,
+        findById: async () => null,
+        findActiveForDepot: async () => shift('s-depot', '07:00', '17:00'),
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(overtimeLine(repo)).toBeUndefined();
+  });
+
+  it('keeps the configured standard day when nothing rosters the employee at all', async () => {
+    const { repo, svc } = build({
+      ...base,
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      breakMinutes: 0,
+      shifts: rota({
+        listAssignmentsUpTo: async () => [],
+        findRotationById: async () => null,
+        findById: async () => null,
+        findActiveForDepot: async () => null,
+      }),
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    // No span anywhere, so the 480-minute default stands and 120 minutes are overtime.
+    expect(overtimeLine(repo)).toBeDefined();
+  });
+});
+
+/*
+ * CA-1-06 — a month that has not finished cannot be paid.
+ *
+ * Generating mid-month fined every day the employee had not worked yet: the summary counts
+ * absences against a FULL month of working days, so the days still in the future read as
+ * days missed.
+ */
+describe('PayrollService · CA-1-06 an unfinished month cannot be paid', () => {
+  const key = (offsetMonths: number) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + offsetMonths);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const svcOf = () =>
+    build({
+      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
+      summary: { presentDays: 1, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    }).svc;
+
+  it('refuses the current month', async () => {
+    await expect(svcOf().generate(user, 'e1', key(0))).rejects.toThrow(/belum selesai/i);
+  });
+
+  it('refuses a future month', async () => {
+    await expect(svcOf().generate(user, 'e1', key(1))).rejects.toThrow(/belum selesai/i);
   });
 });

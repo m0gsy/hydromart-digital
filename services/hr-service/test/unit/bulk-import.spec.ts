@@ -130,7 +130,13 @@ describe('AdjustmentService.importDeductions', () => {
     async listByEmployeePeriod(): Promise<Deduction[]> {
       return this.rows;
     }
+    async findById(): Promise<Deduction | null> {
+      return null;
+    }
+    async delete(): Promise<void> {}
   }
+  /** No payroll generated yet, so every imported period is still open (CA-1-08). */
+  const openPayrolls = { findByEmployeeAndPeriod: async () => null } as never;
 
   const row = {
     employeeCode: 'HR-0001',
@@ -141,7 +147,7 @@ describe('AdjustmentService.importDeductions', () => {
 
   it('writes one deduction per row, keyed by staff code', async () => {
     const deductions = new FakeDeductions();
-    const svc = new AdjustmentService({} as never, deductions, fakeEmployees());
+    const svc = new AdjustmentService({} as never, deductions, fakeEmployees(), openPayrolls);
 
     const summary = await svc.importDeductions(hr, [row, row]);
 
@@ -153,7 +159,7 @@ describe('AdjustmentService.importDeductions', () => {
 
   it('fails the row whose staff code is unknown', async () => {
     const deductions = new FakeDeductions();
-    const svc = new AdjustmentService({} as never, deductions, fakeEmployees());
+    const svc = new AdjustmentService({} as never, deductions, fakeEmployees(), openPayrolls);
 
     const summary = await svc.importDeductions(hr, [{ ...row, employeeCode: 'HR-4242' }]);
 
@@ -194,7 +200,7 @@ describe('LoanService.importMany', () => {
 
   it('creates an active loan from the remaining balance', async () => {
     const repo = new FakeRepo();
-    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never);
+    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never, {} as never);
 
     const summary = await svc.importMany(hr, [row]);
 
@@ -208,7 +214,7 @@ describe('LoanService.importMany', () => {
 
   it('fails a row with a malformed period instead of the whole file', async () => {
     const repo = new FakeRepo();
-    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never);
+    const svc = new LoanService(repo, fakeEmployees(), { timeZone: 'Asia/Jakarta' } as never, {} as never);
 
     const summary = await svc.importMany(hr, [{ ...row, startPeriod: 'Agustus' }, row]);
 

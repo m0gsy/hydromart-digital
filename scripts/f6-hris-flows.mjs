@@ -351,6 +351,23 @@ async function main() {
 
   // Payroll for the leave month must not charge those days as absence.
   const period = day(week[0]).slice(0, 7);
+  /*
+   * CA-1-06: payroll for a month that has not ended is refused, because the summary counts
+   * absences against a FULL month of working days and every day still in the future reads
+   * as a day missed.
+   *
+   * `weekdayRun` books the leave at least 21 days ahead, so `period` is normally a month
+   * that has not happened yet — and this check then asks the server to do the one thing it
+   * now exists to refuse. That is the guard working, not a regression, so the check reports
+   * itself SKIPPED with the reason rather than red.
+   *
+   * The claim it makes (approved leave is credited, not docked as absence) is still worth
+   * proving; proving it needs a closed month with leave already in it, which this script
+   * cannot build from a freshly-created employee. Tracked as owed coverage rather than
+   * quietly dropped.
+   */
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const periodClosed = period < thisMonth;
   // The deduction only exists where a rate is configured, and most depots leave it at 0 —
   // so set one for THIS depot, measure, and reset it. Without a rate there is no line to
   // read and the most valuable claim in the plan would go unproven.
@@ -371,7 +388,13 @@ async function main() {
     key: 'absenceDeductionAmount',
     value: '10000',
   });
-  if (!ok2xx(rateSet)) {
+  if (!periodClosed) {
+    skip(
+      'payroll CREDITS the approved leave instead of docking it as absence',
+      `the leave falls in ${period}, which has not ended — payroll for an unfinished month ` +
+        'is refused by design (CA-1-06), so this cannot be measured here',
+    );
+  } else if (!ok2xx(rateSet)) {
     skip(
       'payroll counts the leave instead of docking it',
       `could not set an absence rate: ${rateSet.status}`,

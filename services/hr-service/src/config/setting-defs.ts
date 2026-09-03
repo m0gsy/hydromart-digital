@@ -68,6 +68,27 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1440,
     envDefault: 480,
   },
+  // D2 — the unpaid break, taken off any day of six hours or more before overtime is
+  // reckoned. Two keys because Friday is longer (Jumatan). Per depot, and settable to 0 by
+  // a depot that genuinely pays its people through the break.
+  {
+    key: 'breakMinutes',
+    label: 'Istirahat (hari biasa)',
+    type: 'int',
+    unit: 'menit (0 = istirahat dibayar)',
+    min: 0,
+    max: 240,
+    envDefault: 60,
+  },
+  {
+    key: 'breakMinutesFriday',
+    label: 'Istirahat (Jumat)',
+    type: 'int',
+    unit: 'menit (0 = istirahat dibayar)',
+    min: 0,
+    max: 240,
+    envDefault: 90,
+  },
   {
     key: 'annualLeaveQuotaDays',
     label: 'Kuota cuti tahunan',

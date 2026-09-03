@@ -2,9 +2,10 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { AuthenticatedUser, ImportSummary, localMonthKey, runImport } from '@hydromart/platform';
 
 import { Loan } from '../../../prisma/generated/client';
-import { loanRemainingAfter, loanIsSettled } from '../../domain/loan';
+import { loanRemainingAfter, loanIsSettled, nextPeriod } from '../../domain/loan';
 import { HrConfigService } from '../../config/hr-config.service';
 import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
+import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -22,6 +23,7 @@ export class LoanService {
     @Inject(LOAN_REPOSITORY) private readonly repo: LoanRepository,
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
+    @Inject(PAYROLL_REPOSITORY) private readonly payrolls: PayrollRepository,
   ) {}
 
   async create(
@@ -96,16 +98,26 @@ export class LoanService {
       ? asOfPeriod
       : localMonthKey(new Date(), this.config.timeZone);
     const loans = await this.repo.listByEmployee(employeeId);
+    // CA-1-05: the balance is what payroll REALLY took, not what the calendar says it should
+    // have. `deductedBySourceRefBefore` is the same repayment ledger the deduction itself
+    // reads (D4), and "YYYY-MM" sorts as it dates, so asking for everything before the NEXT
+    // period is exactly "every payslip up to and including this one".
+    const repaid = await this.payrolls.deductedBySourceRefBefore(
+      employeeId,
+      nextPeriod(period),
+      loans.map((l) => l.id),
+    );
     return loans.map((l) => {
       const terms = {
         principal: Number(l.principal),
         installmentAmount: Number(l.installmentAmount),
         startPeriod: l.startPeriod,
       };
+      const paid = repaid.get(l.id) ?? 0;
       return {
         ...l,
-        remaining: loanRemainingAfter(terms, period),
-        settled: loanIsSettled(terms, period),
+        remaining: loanRemainingAfter(terms, period, paid),
+        settled: loanIsSettled(terms, period, paid),
       };
     });
   }

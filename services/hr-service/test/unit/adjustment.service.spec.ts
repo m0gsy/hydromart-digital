@@ -1,11 +1,18 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { Bonus, BonusType, Deduction, DeductionType } from '../../prisma/generated/client';
+import {
+  Bonus,
+  BonusType,
+  Deduction,
+  DeductionType,
+  PayrollStatus,
+} from '../../prisma/generated/client';
 import {
   BonusRepository,
   DeductionRepository,
 } from '../../src/application/ports/adjustment.repository';
+import { PayrollRepository } from '../../src/application/ports/payroll.repository';
 import { AdjustmentService } from '../../src/application/services/adjustment.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
 
@@ -33,6 +40,12 @@ class FakeBonusRepo implements BonusRepository {
         (r as unknown as { periodMonth: string }).periodMonth === periodMonth,
     );
   }
+  async findById(id: string): Promise<Bonus | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async delete(id: string): Promise<void> {
+    this.rows = this.rows.filter((r) => r.id !== id);
+  }
 }
 
 class FakeDeductionRepo implements DeductionRepository {
@@ -56,6 +69,20 @@ class FakeDeductionRepo implements DeductionRepository {
         (r as unknown as { periodMonth: string }).periodMonth === periodMonth,
     );
   }
+  async findById(id: string): Promise<Deduction | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async delete(id: string): Promise<void> {
+    this.rows = this.rows.filter((r) => r.id !== id);
+  }
+}
+
+/** Only the one method the adjustment guard reads: is this period's payslip still open? */
+class FakePayrolls {
+  status: PayrollStatus | null = null;
+  async findByEmployeeAndPeriod(): Promise<{ status: PayrollStatus } | null> {
+    return this.status ? { status: this.status } : null;
+  }
 }
 
 /** Employee stub: resolves for the known id, else 404; cross-depot manager → Forbidden. */
@@ -74,7 +101,18 @@ function fakeEmployees(): EmployeeService {
 function make() {
   const bonuses = new FakeBonusRepo();
   const deductions = new FakeDeductionRepo();
-  return { bonuses, deductions, svc: new AdjustmentService(bonuses, deductions, fakeEmployees()) };
+  const payrolls = new FakePayrolls();
+  return {
+    bonuses,
+    deductions,
+    payrolls,
+    svc: new AdjustmentService(
+      bonuses,
+      deductions,
+      fakeEmployees(),
+      payrolls as unknown as PayrollRepository,
+    ),
+  };
 }
 
 describe('AdjustmentService', () => {
@@ -159,5 +197,95 @@ describe('AdjustmentService', () => {
       }),
     ).rejects.toThrow(NotFoundException);
     await expect(svc.listDeductions(hr, 'x', '2026-07')).rejects.toThrow(NotFoundException);
+  });
+});
+
+const bonusInput = {
+  employeeId: 'e1',
+  type: 'MANUAL' as BonusType,
+  amount: 100_000,
+  periodMonth: '2026-07',
+};
+const deductionInput = {
+  employeeId: 'e1',
+  type: 'MANUAL' as DeductionType,
+  amount: 50_000,
+  periodMonth: '2026-07',
+};
+
+// CA-1-08 — a bonus is only ever paid by `PayrollService.generate`, and generate refuses to
+// re-run once the payroll leaves DRAFT. So a bonus typed against an APPROVED period was
+// saved, listed back, and paid to nobody, with nothing anywhere saying so.
+describe('AdjustmentService — a period whose payslip is signed off (CA-1-08)', () => {
+  it('refuses a bonus for an APPROVED period, and says where to put it instead', async () => {
+    const { bonuses, payrolls, svc } = make();
+    payrolls.status = 'APPROVED' as PayrollStatus;
+    await expect(svc.addBonus(hr, bonusInput)).rejects.toThrow(ConflictException);
+    await expect(svc.addBonus(hr, bonusInput)).rejects.toThrow(/periode berikutnya/);
+    expect(bonuses.rows).toHaveLength(0);
+  });
+
+  it('refuses a deduction for a PAID period', async () => {
+    const { deductions, payrolls, svc } = make();
+    payrolls.status = 'PAID' as PayrollStatus;
+    await expect(svc.addDeduction(hr, deductionInput)).rejects.toThrow(ConflictException);
+    expect(deductions.rows).toHaveLength(0);
+  });
+
+  it('still accepts both while the payroll is DRAFT or not generated yet', async () => {
+    const { bonuses, deductions, payrolls, svc } = make();
+    payrolls.status = 'DRAFT' as PayrollStatus;
+    await svc.addBonus(hr, bonusInput);
+    payrolls.status = null;
+    await svc.addDeduction(hr, deductionInput);
+    expect(bonuses.rows).toHaveLength(1);
+    expect(deductions.rows).toHaveLength(1);
+  });
+});
+
+// CA-1-09 — there was no @Delete anywhere: a bonus typed as 5.000.000 instead of 500.000
+// could only be cancelled by entering a 4.500.000 deduction against the same month.
+describe('AdjustmentService — deleting a row typed by mistake (CA-1-09)', () => {
+  it('removes a bonus while its period is still open', async () => {
+    const { bonuses, svc } = make();
+    const b = await svc.addBonus(hr, bonusInput);
+    await svc.removeBonus(hr, b.id);
+    expect(bonuses.rows).toHaveLength(0);
+  });
+
+  it('removes a deduction while its period is still open', async () => {
+    const { deductions, svc } = make();
+    const d = await svc.addDeduction(hr, deductionInput);
+    await svc.removeDeduction(hr, d.id);
+    expect(deductions.rows).toHaveLength(0);
+  });
+
+  it('404s on a row that is not there', async () => {
+    const { svc } = make();
+    await expect(svc.removeBonus(hr, 'nope')).rejects.toThrow(NotFoundException);
+    await expect(svc.removeDeduction(hr, 'nope')).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to rewrite what an APPROVED payslip already counted', async () => {
+    const { bonuses, deductions, payrolls, svc } = make();
+    const b = await svc.addBonus(hr, bonusInput);
+    const d = await svc.addDeduction(hr, deductionInput);
+    payrolls.status = 'APPROVED' as PayrollStatus;
+    await expect(svc.removeBonus(hr, b.id)).rejects.toThrow(ConflictException);
+    await expect(svc.removeDeduction(hr, d.id)).rejects.toThrow(ConflictException);
+    expect(bonuses.rows).toHaveLength(1);
+    expect(deductions.rows).toHaveLength(1);
+  });
+
+  it('depot-checks through the owning employee', async () => {
+    const { svc } = make();
+    const b = await svc.addBonus(hr, bonusInput);
+    const stranger: AuthenticatedUser = {
+      sub: 'mgr',
+      role: 'MANAGER' as never,
+      phone: '0800',
+      depotId: '99999999-9999-9999-9999-999999999999',
+    };
+    await expect(svc.removeBonus(stranger, b.id)).rejects.toThrow(ForbiddenException);
   });
 });

@@ -3,9 +3,27 @@ import {
   parseRotationPattern,
   resolveShiftStart,
   shiftIdForDay,
+  shiftSpanMinutes,
 } from '../../src/domain/shift-rotation';
 
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+// CA-1-38: payroll needs the LENGTH of the shift HR rostered, not just its start.
+describe('shiftSpanMinutes', () => {
+  it('measures the clock span of an ordinary shift', () => {
+    expect(shiftSpanMinutes('08:00', '17:00')).toBe(540);
+    expect(shiftSpanMinutes('08:30', '16:00')).toBe(450);
+  });
+
+  it('wraps a night shift past midnight instead of going negative', () => {
+    expect(shiftSpanMinutes('22:00', '06:00')).toBe(480);
+  });
+
+  it('reads a malformed time as no shift at all, never as a zero-hour day', () => {
+    expect(shiftSpanMinutes('pagi', '17:00')).toBe(0);
+    expect(shiftSpanMinutes('08:00', '')).toBe(0);
+  });
+});
 
 describe('rotation pattern (C3)', () => {
   it('keeps weekday keys and drops anything else', () => {

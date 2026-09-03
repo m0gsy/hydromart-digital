@@ -38,14 +38,29 @@ export function loanDeductionFor(loan: LoanTerms, period: string, paidSoFar?: nu
   return Math.max(0, Math.round(Math.min(loan.installmentAmount, loan.principal - paidBefore)));
 }
 
-/** Outstanding balance after `period`'s installment is applied. */
-export function loanRemainingAfter(loan: LoanTerms, period: string): number {
+/** The period after `period`, "YYYY-MM". */
+export function nextPeriod(period: string): string {
+  const [y, m] = period.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Outstanding balance once `period`'s installment has been applied.
+ *
+ * `paidSoFar` is what payslips ACTUALLY took through `period` — the same ledger
+ * `loanDeductionFor` reads. Without it this counts the MONTHS THAT PASSED and multiplies
+ * them by the installment, so a month that could only afford part of one, and a month whose
+ * payroll was never generated at all, both read as collected in full. The kasbon screen then
+ * showed "Lunas" over a balance payroll was still deducting: two numbers on one screen, from
+ * two different ledgers.
+ */
+export function loanRemainingAfter(loan: LoanTerms, period: string, paidSoFar?: number): number {
   const n = installmentsElapsed(loan, period);
-  const paid = Math.min(loan.principal, loan.installmentAmount * n);
+  const paid = Math.min(loan.principal, paidSoFar ?? loan.installmentAmount * n);
   return Math.max(0, Math.round(loan.principal - paid));
 }
 
 /** True once the loan is fully repaid as of `period`. */
-export function loanIsSettled(loan: LoanTerms, period: string): boolean {
-  return loanRemainingAfter(loan, period) <= 0;
+export function loanIsSettled(loan: LoanTerms, period: string, paidSoFar?: number): boolean {
+  return loanRemainingAfter(loan, period, paidSoFar) <= 0;
 }

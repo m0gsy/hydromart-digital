@@ -58,6 +58,32 @@ describe('HrConfigService', () => {
     expect(svc.standardWorkingMinutes()).toBe(480);
   });
 
+  /*
+   * D2 (owner decision, 2 September 2026): 60 unpaid break minutes, 90 on a Friday.
+   *
+   * A setting rather than a constant because a depot that genuinely pays the break sets it
+   * to 0, and that is a change to how people are paid — a release is the wrong unit for it.
+   */
+  it('takes 60 unpaid break minutes, and 90 on a Friday', async () => {
+    const svc = new HrConfigService(config(), await cacheWith([]));
+    expect(svc.breakMinutes(false)).toBe(60);
+    expect(svc.breakMinutes(true)).toBe(90);
+  });
+
+  it('lets one depot pay its break without a release', async () => {
+    const svc = new HrConfigService(
+      config(),
+      await cacheWith([
+        { scope: 'DEPOT', depotId, key: 'breakMinutes', value: '0' },
+        { scope: 'DEPOT', depotId, key: 'breakMinutesFriday', value: '0' },
+      ]),
+    );
+    expect(svc.breakMinutes(false, depotId)).toBe(0);
+    expect(svc.breakMinutes(true, depotId)).toBe(0);
+    // Every other depot is untouched.
+    expect(svc.breakMinutes(false)).toBe(60);
+  });
+
   it('honors a per-depot override', async () => {
     const cache = await cacheWith([
       { scope: 'DEPOT', depotId, key: 'lateDeductionAmount', value: '20000' },
