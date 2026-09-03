@@ -25,12 +25,16 @@ const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as 
 export function PaymentSettle({ order }: { order: Order }) {
   const { t } = useT();
   const { customer } = useAuth();
-  const { askReason } = useConfirm();
+  const { askReason, confirm: askConfirm } = useConfirm();
   const canConfirm = canConfirmPayment(customer?.role);
   // CA-2-24 — the same capability payment-service checks on POST :id/refund, so the button
   // is offered to exactly the roles the server will serve and to nobody else.
   const canRefund = can('refundIssue', customer?.role);
-  const { data, error: readError, reload } = useAsync<Page<Payment>>(
+  const {
+    data,
+    error: readError,
+    reload,
+  } = useAsync<Page<Payment>>(
     () => api.get(endpoints.payments.forOrderStaff(order.id), true),
     [order.id],
   );
@@ -58,6 +62,41 @@ export function PaymentSettle({ order }: { order: Order }) {
         true,
       );
       setCash('');
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.payFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /*
+   * CA-2-45 — say a pending payment did NOT arrive.
+   *
+   * `POST :id/fail` and the `paymentSettle` capability behind it have existed since
+   * settlement shipped, and no screen ever called it. The only thing staff could say about
+   * a PENDING payment was that it had landed. A transfer that never came, a QRIS scan that
+   * was abandoned, a customer who changed their mind at the door — all of them sat PENDING
+   * for ever, holding the order's stock and appearing in the settlement queue as work
+   * still to do.
+   *
+   * FAILED is not the end of the road: `needsPayment` treats it as "no active payment", so
+   * the customer can pay again. That is why this asks for a plain confirmation rather than
+   * a reason — it is reversible by paying, unlike the refund below it.
+   */
+  async function markFailed() {
+    if (!payment) return;
+    const ok = await askConfirm({
+      title: t('hrFix.orderDetail.failTitle'),
+      message: t('hrFix.orderDetail.failMessage', { order: order.orderNumber }),
+      confirmLabel: t('hrFix.orderDetail.failConfirm'),
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(endpoints.payments.fail(payment.id), undefined, true);
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hrFix.orderDetail.payFailed'));
@@ -113,7 +152,9 @@ export function PaymentSettle({ order }: { order: Order }) {
         <span className="font-medium">
           {t('hrFix.orderDetail.paymentMethod', { method: payment.method })}
         </span>
-        <Badge tone={payment.status === 'PAID' ? 'success' : pending ? 'warning' : 'neutral'}>{payment.status}</Badge>
+        <Badge tone={payment.status === 'PAID' ? 'success' : pending ? 'warning' : 'neutral'}>
+          {payment.status}
+        </Badge>
       </div>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
@@ -164,9 +205,14 @@ export function PaymentSettle({ order }: { order: Order }) {
         </div>
       )}
       {canConfirm && pending && (
-        <Button onClick={confirm} loading={busy}>
-          Konfirmasi lunas
-        </Button>
+        <div className="flex flex-wrap gap-2.5">
+          <Button onClick={confirm} loading={busy}>
+            Konfirmasi lunas
+          </Button>
+          <Button variant="secondary" onClick={markFailed} loading={busy}>
+            {t('hrFix.orderDetail.failAction')}
+          </Button>
+        </div>
       )}
       {canRefund && payment.status === 'PAID' && (
         <Button variant="secondary" onClick={refund} loading={busy}>
@@ -191,20 +237,22 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   const { data: shifts } = useAsync<CourierShift[] | null>(() => {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
-    return api
-      .get<CourierShift[]>(
-        endpoints.deliveries.shiftsOnDuty(since.toISOString(), order.depotId ?? undefined),
-        true,
-      )
-      /*
-       * C-1: `null`, NOT `[]`. Fail-soft means the list stays selectable and the service
-       * keeps the final say — but an empty array is a real answer meaning "nobody is on
-       * shift", and the guard below reads `shifts != null`. Catching to `[]` therefore
-       * disabled every courier and labelled them all "belum buka shift", so one transient
-       * 5xx from delivery-service blocked dispatch entirely — the exact opposite of what
-       * this catch is for.
-       */
-      .catch(() => null);
+    return (
+      api
+        .get<CourierShift[]>(
+          endpoints.deliveries.shiftsOnDuty(since.toISOString(), order.depotId ?? undefined),
+          true,
+        )
+        /*
+         * C-1: `null`, NOT `[]`. Fail-soft means the list stays selectable and the service
+         * keeps the final say — but an empty array is a real answer meaning "nobody is on
+         * shift", and the guard below reads `shifts != null`. Catching to `[]` therefore
+         * disabled every courier and labelled them all "belum buka shift", so one transient
+         * 5xx from delivery-service blocked dispatch entirely — the exact opposite of what
+         * this catch is for.
+         */
+        .catch(() => null)
+    );
   }, [order.depotId]);
   const onDuty = dispatchableDrivers(shifts ?? []);
   const [driverId, setDriverId] = useState('');
@@ -291,7 +339,11 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
         </p>
       )}
       <div className="flex justify-end">
-        <Button onClick={submit} loading={busy} disabled={!drivers.data || drivers.data.length === 0}>
+        <Button
+          onClick={submit}
+          loading={busy}
+          disabled={!drivers.data || drivers.data.length === 0}
+        >
           Tugaskan &amp; kirim
         </Button>
       </div>
@@ -300,7 +352,15 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
 }
 
 /** Full order drill-down (7a/3i): items, address, status timeline, advance + assign. */
-export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClose: () => void; onChanged: () => void }) {
+export function OrderDetail({
+  order,
+  onClose,
+  onChanged,
+}: {
+  order: Order;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
   const { t, locale } = useT();
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,7 +408,9 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
             {order.postalCode ? ` ${order.postalCode}` : ''}
           </p>
           {order.notes && (
-            <p className="mt-1 text-muted">{t('hrFix.orderDetail.notes', { notes: order.notes })}</p>
+            <p className="mt-1 text-muted">
+              {t('hrFix.orderDetail.notes', { notes: order.notes })}
+            </p>
           )}
           {/*
             B5. The customer picks a delivery window at checkout, is shown a confirmation of

@@ -36,7 +36,8 @@ interface RefundsByDepot {
  * A null rate prints the bare label: the row beside it is already showing "—", and
  * "(null%)" would be worse than saying nothing about a rate nobody could read.
  */
-const pctLabel = (label: string, pct: number | null) => (pct == null ? label : `${label} (${pct}%)`);
+const pctLabel = (label: string, pct: number | null) =>
+  pct == null ? label : `${label} (${pct}%)`;
 
 const SELECT_CLASS =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
@@ -78,9 +79,15 @@ export default function HqReconciliationPage() {
    * directory read is gone rather than paged.
    */
   const rollup = useAsync<NetworkDashboard>(() => api.getCached(endpoints.hq.rollup(range), true));
-  const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
-  const refundsByDepot = useAsync<RefundsByDepot>(() => api.get(endpoints.reports.refundsByDepot(range), true));
-  const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
+  const shipping = useAsync<ShippingByDepot>(() =>
+    api.get(endpoints.reports.shippingByDepot(range), true),
+  );
+  const refundsByDepot = useAsync<RefundsByDepot>(() =>
+    api.get(endpoints.reports.refundsByDepot(range), true),
+  );
+  const gallon = useAsync<GallonOutstanding[]>(() =>
+    api.get(endpoints.gallonNetwork.outstanding, true),
+  );
   // The agreed franchise cut per depot — the row this statement must bill against.
   const schemes = useAsync<CommissionScheme[]>(() => api.get(endpoints.commission.schemes, true));
 
@@ -104,7 +111,10 @@ export default function HqReconciliationPage() {
    */
   const maySeeSettings = can('depotAdmin', customer?.role);
   const payoutSettings = useAsync<SettingsSchema>(
-    () => (maySeeSettings ? fetchSettingsSchema('/payout/api/v1', selected || null) : Promise.resolve({} as SettingsSchema)),
+    () =>
+      maySeeSettings
+        ? fetchSettingsSchema('/payout/api/v1', selected || null)
+        : Promise.resolve({} as SettingsSchema),
     [selected, maySeeSettings],
   );
 
@@ -159,8 +169,18 @@ export default function HqReconciliationPage() {
    * a capability gap tracked separately; until it is closed they see `—` here rather than
    * a number nobody agreed.
    */
+  /*
+   * CA-2-11. The paragraph above already says what should happen to a role that cannot read
+   * the settings: they see `—`. The code did something else. When `maySeeSettings` is false
+   * the fetcher resolves to `{}` — not an error, not loading — so `?? 0` made the fee read
+   * **0%**, and the NET below it was computed as though the platform took nothing. Every
+   * role but SUPER_ADMIN and MANAGER read a statement that was wrong by the whole fee.
+   *
+   * Unknown is not zero. A fee CONFIGURED as zero is still zero; a fee nobody was allowed
+   * to ask about is `—`, and so is the net that depends on it.
+   */
   const platformFeePct =
-    payoutSettings.error || payoutSettings.loading
+    !maySeeSettings || payoutSettings.error || payoutSettings.loading
       ? null
       : Number(payoutSettings.data?.effective?.platformFeePct ?? 0);
   const platformFee =
@@ -180,7 +200,10 @@ export default function HqReconciliationPage() {
     shipping.error,
     shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled,
   );
-  const gallonDeposit = line(gallon.error, gallon.data?.find((r) => r.depotId === selected)?.netDeposit);
+  const gallonDeposit = line(
+    gallon.error,
+    gallon.data?.find((r) => r.depotId === selected)?.netDeposit,
+  );
   // Real: refunds settled on this depot's orders in the window (payment-service → order-service).
   const refunds = line(
     refundsByDepot.error,
@@ -219,7 +242,8 @@ export default function HqReconciliationPage() {
       : null;
 
   const dash20 = t('hq.common.dash');
-  const money = (n: number | null) => (n == null ? <span className="text-muted">{dash20}</span> : <Money amount={n} />);
+  const money = (n: number | null) =>
+    n == null ? <span className="text-muted">{dash20}</span> : <Money amount={n} />;
 
   /**
    * The statement as a spreadsheet, built from the rows on screen.
@@ -271,13 +295,22 @@ export default function HqReconciliationPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Scales} title={t('hq.reconciliation.title')} subtitle={t('hq.reconciliation.subtitle')} />
+      <HqPageHeader
+        icon={Scales}
+        title={t('hq.reconciliation.title')}
+        subtitle={t('hq.reconciliation.subtitle')}
+      />
 
       <div className="max-w-sm">
         <label htmlFor="recon-depot" className="mb-1.5 block text-sm font-medium">
           {t('hq.reconciliation.pickDepot')}
         </label>
-        <select id="recon-depot" className={SELECT_CLASS} value={selected} onChange={(e) => setDepotId(e.target.value)}>
+        <select
+          id="recon-depot"
+          className={SELECT_CLASS}
+          value={selected}
+          onChange={(e) => setDepotId(e.target.value)}
+        >
           {items.map((d) => (
             <option key={d.depotId} value={d.depotId}>
               {d.name} · {d.code}
@@ -293,7 +326,9 @@ export default function HqReconciliationPage() {
       ) : (
         <Card className="flex min-w-0 flex-col p-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">{t('hq.reconciliation.statement', { depot: depot.name })}</h2>
+            <h2 className="font-semibold">
+              {t('hq.reconciliation.statement', { depot: depot.name })}
+            </h2>
             <Button variant="secondary" onClick={download}>
               <DownloadSimple size={16} weight="bold" />
               {t('hq.reconciliation.download')}
