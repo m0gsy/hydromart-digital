@@ -201,7 +201,7 @@ export class DepotController {
   @ApiOkResponse({ type: PublicDepotView, isArray: true })
   @ApiBearerAuth()
   @Get('scope')
-  @ApiOperation({ summary: "Depots the calling account may act on (its own scope)" })
+  @ApiOperation({ summary: 'Depots the calling account may act on (its own scope)' })
   async scope(@CurrentUser() user: AuthenticatedUser): Promise<PublicDepotView[]> {
     if (user.role === Role.FRANCHISE_OWNER) {
       return (await this.depots.listMine(user.sub)).map(PublicDepotView.from);

@@ -13,6 +13,7 @@ import {
 } from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
 import { DisputeRepository } from '../ports/dispute.repository';
+import { DisputeRefundPort } from '../ports/dispute-refund.port';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface RaiseDisputeInput {
@@ -34,6 +35,7 @@ export class DisputeService {
   constructor(
     @Inject(DEPOT_TOKENS.DisputeRepository) private readonly disputes: DisputeRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    @Inject(DEPOT_TOKENS.DisputeRefund) private readonly refunds: DisputeRefundPort,
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
@@ -80,9 +82,35 @@ export class DisputeService {
     resolution: DisputeResolution,
     resolutionNote: string | null,
     resolvedBy: string,
+    authorization = '',
   ): Promise<OrderDispute> {
     const current = await this.require(id);
     if (current.status !== DisputeStatus.OPEN) throw new DisputeAlreadyResolvedError();
+    /*
+     * CA-2-39: REFUND asks for the money back, then records that it did.
+     *
+     * This method used to write the dispute row and nothing else, so a manager choosing
+     * REFUND believed the customer would be repaid and nothing repaid them — the only
+     * record was a status on a queue nobody reconciles against the money.
+     *
+     * It QUEUES a refund, it does not pay one: payment-service already has the path, and a
+     * requested refund waits for HQ approval before it settles. The decision a depot
+     * manager may make is "this customer should be refunded"; the decision HQ may make is
+     * "and here is the money". The manager's own token travels with the request, so
+     * `Can('refundIssue')` applies to them and the refund is attributed to them.
+     *
+     * Before the write, and fail-closed: a dispute marked RESOLVED against a refund that
+     * was never queued is the state this whole row is about. RESEND is deliberately NOT
+     * wired — creating a replacement order is a product decision, not a plumbing one, and
+     * inventing one here would repeat the mistake in the other direction.
+     */
+    if (resolution === DisputeResolution.REFUND) {
+      await this.refunds.request(
+        current.orderRef,
+        resolutionNote?.trim() || `Sengketa ${current.category}`,
+        authorization,
+      );
+    }
     const status =
       resolution === DisputeResolution.REJECTED ? DisputeStatus.REJECTED : DisputeStatus.RESOLVED;
     return this.disputes.update(id, {

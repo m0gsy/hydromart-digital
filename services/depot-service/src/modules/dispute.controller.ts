@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
@@ -51,8 +61,17 @@ export class DisputeController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveDisputeDto,
     @CurrentUser() user: AuthenticatedUser,
+    // CA-2-39: the manager's own bearer rides along, so `Can('refundIssue')` applies to
+    // them and the refund is attributed to them rather than to a service key.
+    @Headers('authorization') authorization = '',
   ): Promise<OrderDispute> {
     assertDepotAccess(user, (await this.disputes.get(id)).depotId);
-    return this.disputes.resolve(id, dto.resolution, dto.resolutionNote ?? null, user.sub);
+    return this.disputes.resolve(
+      id,
+      dto.resolution,
+      dto.resolutionNote ?? null,
+      user.sub,
+      authorization,
+    );
   }
 }

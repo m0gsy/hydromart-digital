@@ -20,6 +20,8 @@ export const DEPOT_TOKENS = {
   CashierShiftRepository: Symbol('CashierShiftRepository'),
   DepotCash: Symbol('DepotCash'),
   DisputeRepository: Symbol('DisputeRepository'),
+  /** CA-2-39: queues the refund a dispute resolution asks for. Fails CLOSED. */
+  DisputeRefund: Symbol('DisputeRefund'),
   MaintenanceRepository: Symbol('MaintenanceRepository'),
   WholesaleTierRepository: Symbol('WholesaleTierRepository'),
   SubscriptionRepository: Symbol('SubscriptionRepository'),

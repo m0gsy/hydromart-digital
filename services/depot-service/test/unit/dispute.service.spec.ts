@@ -19,7 +19,7 @@ import {
   DisputeRepository,
   UpdateDisputeData,
 } from '../../src/application/ports/dispute.repository';
-import { InMemoryDepotRepository } from '../support/fakes';
+import { FakeDisputeRefund, InMemoryDepotRepository } from '../support/fakes';
 
 // Local in-memory DisputeRepository (do not edit shared fakes.ts).
 class InMemoryDisputeRepository implements DisputeRepository {
@@ -70,11 +70,13 @@ describe('DisputeService', () => {
   let repo: InMemoryDisputeRepository;
   let service: DisputeService;
   let depotId: string;
+  let refunds: FakeDisputeRefund;
 
   beforeEach(async () => {
     const depotRepo = new InMemoryDepotRepository();
     repo = new InMemoryDisputeRepository();
-    service = new DisputeService(repo, depotRepo);
+    refunds = new FakeDisputeRefund();
+    service = new DisputeService(repo, depotRepo, refunds);
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
       name: 'Depot Cikini',
@@ -188,5 +190,122 @@ describe('DisputeService', () => {
     );
     expect(d.amountIdr).toBe(45_000);
     expect(d.courierName).toBe('Andi');
+  });
+});
+
+/** CA-2-39: the same depot every test in this block needs, without the outer beforeEach. */
+async function seedDepot(depotRepo: InMemoryDepotRepository): Promise<string> {
+  const depot = await new DepotService(depotRepo).create({
+    code: 'JKT-09',
+    name: 'Depot Refund',
+    ownershipType: OwnershipType.HKP,
+    address: 'a',
+    city: 'Jakarta',
+    province: 'DKI',
+    lat: -6.19,
+    lng: 106.84,
+    serviceRadiusKm: 5,
+    deliveryFee: 5000,
+    minOrderAmount: null,
+    ownerId: null,
+    operatingHours: {},
+    holidays: [],
+  });
+  return depot.id;
+}
+
+/*
+ * CA-2-39: resolving a dispute as REFUND asked for the money back — or rather, it did not.
+ *
+ * `resolve()` wrote the dispute row and nothing else, so a manager choosing REFUND believed
+ * the customer would be repaid and nothing repaid them. The only record was a status on a
+ * queue nobody reconciles against the money.
+ */
+describe('DisputeService REFUND queues the money (CA-2-39)', () => {
+  const raise = async (svc: DisputeService, depotId: string) =>
+    svc.raise(
+      {
+        depotId,
+        orderRef: 'HM-260902-001',
+        customerName: 'Siti',
+        category: DisputeCategory.WRONG_ITEM,
+        description: 'galon bocor',
+      },
+      MANAGER,
+    );
+
+  it('queues a refund for the order, carrying the manager token', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const d = await raise(svc, depot);
+
+    const out = await svc.resolve(
+      d.id,
+      DisputeResolution.REFUND,
+      'galon bocor',
+      MANAGER,
+      'Bearer t',
+    );
+
+    expect(out.status).toBe(DisputeStatus.RESOLVED);
+    expect(refunds.calls).toEqual([
+      { orderRef: 'HM-260902-001', reason: 'galon bocor', authorization: 'Bearer t' },
+    ]);
+  });
+
+  /*
+   * The heart of it. A dispute marked RESOLVED against a refund that was never queued is
+   * the exact state this row is about, so the failure has to reach the manager while they
+   * are still on the screen — and the dispute stays OPEN.
+   */
+  it('leaves the dispute OPEN when the refund could not be queued', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const repo = new InMemoryDisputeRepository();
+    const svc = new DisputeService(repo, depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const d = await raise(svc, depot);
+    refunds.fail = 'pesanan HM-260902-001 tidak ditemukan';
+
+    await expect(
+      svc.resolve(d.id, DisputeResolution.REFUND, null, MANAGER, 'Bearer t'),
+    ).rejects.toThrow(/tidak ditemukan/);
+
+    expect((await svc.get(d.id)).status).toBe(DisputeStatus.OPEN);
+  });
+
+  /*
+   * RESEND is deliberately NOT wired: creating a replacement order is a product decision,
+   * not a plumbing one, and inventing one here would repeat the mistake in the other
+   * direction. REJECTED moves no money by definition.
+   */
+  it.each([DisputeResolution.RESEND, DisputeResolution.REJECTED])(
+    'moves no money for %s',
+    async (resolution) => {
+      const depotRepo = new InMemoryDepotRepository();
+      const refunds = new FakeDisputeRefund();
+      const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+      const depot = await seedDepot(depotRepo);
+      const d = await raise(svc, depot);
+
+      await svc.resolve(d.id, resolution, null, MANAGER, 'Bearer t');
+
+      expect(refunds.calls).toEqual([]);
+    },
+  );
+
+  it('falls back to the category when the manager left no note', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const d = await raise(svc, depot);
+
+    await svc.resolve(d.id, DisputeResolution.REFUND, '   ', MANAGER, 'Bearer t');
+
+    // A refund with no reason at all is one nobody can review later.
+    expect(refunds.calls[0]!.reason).toBe(`Sengketa ${DisputeCategory.WRONG_ITEM}`);
   });
 });

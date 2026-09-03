@@ -260,10 +260,15 @@ describe('DisputeController', () => {
     );
     await c.list({ depotId: DEPOT, status: 'OPEN' } as never);
     expect(svc.list).toHaveBeenCalledWith(DEPOT, 'OPEN');
+    // CA-2-39: the manager's own bearer rides along, so `Can('refundIssue')` applies to
+    // them and the queued refund is attributed to them rather than to a service key.
+    await c.resolve(ID, { resolution: 'REFUND' } as never, user, 'Bearer t');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1', 'Bearer t');
+    await c.resolve(ID, { resolution: 'REFUND', resolutionNote: 'n' } as never, user, 'Bearer t');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', 'n', 'user-1', 'Bearer t');
+    // Absent header: the service refuses rather than issuing the refund as somebody else.
     await c.resolve(ID, { resolution: 'REFUND' } as never, user);
-    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1');
-    await c.resolve(ID, { resolution: 'REFUND', resolutionNote: 'n' } as never, user);
-    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', 'n', 'user-1');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1', '');
   });
 });
 
@@ -917,7 +922,7 @@ describe('DepotController', () => {
     const scoped = (...depotIds: string[]) =>
       ({ sub: 'kd-1', role: 'KEPALA_DEPOT', depotId: depotIds[0] ?? null, depotIds }) as never;
 
-    it("answers a depot-scoped account with its OWN depots, never the network", async () => {
+    it('answers a depot-scoped account with its OWN depots, never the network', async () => {
       svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }]);
       const out = await c.scope(scoped(DEPOT));
       expect(svc.listByIds).toHaveBeenCalledWith([DEPOT]);
@@ -927,8 +932,16 @@ describe('DepotController', () => {
     });
 
     it('answers a manager with every depot in their resolved set', async () => {
-      svc.listByIds.mockResolvedValue([{ id: DEPOT, name: 'D' }, { id: OTHER, name: 'E' }]);
-      await c.scope({ sub: 'm', role: 'MANAGER', depotId: DEPOT, depotIds: [DEPOT, OTHER] } as never);
+      svc.listByIds.mockResolvedValue([
+        { id: DEPOT, name: 'D' },
+        { id: OTHER, name: 'E' },
+      ]);
+      await c.scope({
+        sub: 'm',
+        role: 'MANAGER',
+        depotId: DEPOT,
+        depotIds: [DEPOT, OTHER],
+      } as never);
       expect(svc.listByIds).toHaveBeenCalledWith([DEPOT, OTHER]);
     });
 
