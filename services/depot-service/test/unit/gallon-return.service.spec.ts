@@ -180,6 +180,21 @@ describe('GallonReturnService', () => {
     });
   });
 
+  /**
+   * A customer's OWN issue book. CA-4-47: a courier return is measured against this, never
+   * against the depot's pooled book, so a courier test that wants a refund has to say whose
+   * gallons these are — which is the point of the row.
+   */
+  const seedFor = (customerId: string, quantity = 100) =>
+    issues.create({
+      depotId,
+      customerId,
+      quantity,
+      depositHeld: quantity * GALLON_DEPOSIT_IDR,
+      note: null,
+      actorId: 'staff-1',
+    });
+
   it('records an over-return and queues it for review instead of rejecting it (M15-11)', async () => {
     await service.record(depotId, { quantity: 98 }, 'staff-1');
     const record = await service.record(depotId, { quantity: 5 }, 'staff-1');
@@ -308,7 +323,7 @@ describe('GallonReturnService', () => {
     const before = arm();
     const unbooked = await before.svc.recordFromCourier(
       depotId,
-      { orderId: order('a1'), quantity: 2 },
+      { orderId: order('a1'), customerId: 'ani', quantity: 2 },
       'c-1',
     );
     expect(unbooked.depositRefunded).toBe(0);
@@ -320,7 +335,7 @@ describe('GallonReturnService', () => {
     await after.issues.createFromOrder({
       depotId,
       orderId: order('b2'),
-      customerId: null,
+      customerId: 'ani',
       quantity: 2,
       depositHeld: 2 * GALLON_DEPOSIT_IDR,
       note: null,
@@ -328,7 +343,7 @@ describe('GallonReturnService', () => {
     });
     const booked = await after.svc.recordFromCourier(
       depotId,
-      { orderId: order('b2'), quantity: 2 },
+      { orderId: order('b2'), customerId: 'ani', quantity: 2 },
       'c-1',
     );
     expect(booked.depositRefunded).toBe(2 * GALLON_DEPOSIT_IDR);
@@ -419,12 +434,13 @@ describe('GallonReturnService', () => {
   });
 
   it('caps a courier refund at the deposit held and queues the excess (M15-11)', async () => {
+    await seedFor('ani');
     const record = await service.recordFromCourier(
       depotId,
-      { orderId: '00000000-0000-4000-8000-00000000000a', quantity: 101 },
+      { orderId: '00000000-0000-4000-8000-00000000000a', customerId: 'ani', quantity: 101 },
       'courier-1',
     );
-    // 100 gallons were issued, so only 100 deposits are held — never refund the 101st.
+    // 100 gallons went out to Ani, so only 100 deposits are held — never refund the 101st.
     expect(record.depositRefunded).toBe(100 * GALLON_DEPOSIT_IDR);
     expect(record.quantity).toBe(101);
     expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)[0]).toMatchObject({
@@ -451,10 +467,59 @@ describe('GallonReturnService', () => {
     expect(page.items[0].condition).toBe(GallonCondition.DAMAGED); // newest first
   });
 
-  it('derives the deposit from config on a courier return (deposit × qty)', async () => {
+  /**
+   * CA-4-47, the row in one test. `beforeEach` seeds the depot with 100 gallons issued to
+   * NOBODY — the pooled book, which is exactly the production state for a depot with any
+   * counter sales at all. A courier return that carries no customerId used to be measured
+   * against that pool, so it passed the outstanding check and was paid a full deposit out
+   * of money held for customers who ARE identified.
+   *
+   * Nothing here says the empties are fake. They are recorded, in full. What stops is
+   * paying for them automatically from somebody else's deposit.
+   */
+  it('refunds nothing for a courier return with no customer, and queues it (CA-4-47)', async () => {
     const rec = await service.recordFromCourier(
       depotId,
-      { orderId: '00000000-0000-4000-8000-00000000abcd', quantity: 2 },
+      { orderId: '00000000-0000-4000-8000-00000000c447', quantity: 2 },
+      'courier-1',
+    );
+
+    // The pool holds 100 × deposit and none of it is Ani's, or anybody's, to hand over.
+    expect(rec.depositRefunded).toBe(0);
+    // The gallons themselves are still on the books — the depot really did receive them.
+    expect(rec.quantity).toBe(2);
+    expect((await service.summary(depotId)).gallons).toBe(2);
+
+    // ...and a human is told, with the exposure priced, rather than the money moving quietly.
+    const queued = approvals.ofType(ApprovalType.DEPOSIT_REFUND);
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({
+      depotId,
+      subjectRef: rec.id,
+      amountIdr: 2 * GALLON_DEPOSIT_IDR,
+      payload: { unidentified: true, depositRefunded: 0, quantity: 2 },
+    });
+  });
+
+  /* The identified twin of the test above: same depot, same quantity — the ONE difference
+   * is that these gallons have an owner, and that is what makes the refund payable. */
+  it('pays the same return when it carries a customer (CA-4-47)', async () => {
+    await seedFor('ani');
+    const rec = await service.recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000c448', customerId: 'ani', quantity: 2 },
+      'courier-1',
+    );
+
+    expect(rec.depositRefunded).toBe(2 * GALLON_DEPOSIT_IDR);
+    expect(approvals.ofType(ApprovalType.DEPOSIT_REFUND)).toHaveLength(0);
+  });
+
+  it('derives the deposit from config on a courier return (deposit × qty)', async () => {
+    await seedFor('ani');
+    const rec = await service.recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000abcd', customerId: 'ani', quantity: 2 },
       'courier-1',
     );
     expect(rec.depositRefunded).toBe(GALLON_DEPOSIT_IDR * 2);
@@ -487,8 +552,10 @@ describe('GallonReturnService', () => {
    */
   it('books a repeated courier handover once — the deposit is not refunded twice', async () => {
     const orderId = '00000000-0000-4000-8000-00000000ab01';
-    const first = await service.recordFromCourier(depotId, { orderId, quantity: 2 }, 'courier-1');
-    const retry = await service.recordFromCourier(depotId, { orderId, quantity: 2 }, 'courier-1');
+    await seedFor('ani');
+    const handover = { orderId, customerId: 'ani', quantity: 2 };
+    const first = await service.recordFromCourier(depotId, handover, 'courier-1');
+    const retry = await service.recordFromCourier(depotId, handover, 'courier-1');
 
     expect(retry.id).toBe(first.id);
     expect(returns.all().filter((r) => r.orderId === orderId)).toHaveLength(1);
