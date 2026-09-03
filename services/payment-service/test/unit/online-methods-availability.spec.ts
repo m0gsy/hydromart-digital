@@ -71,7 +71,11 @@ describe('O5 · a method with no gateway is refused before it costs a row', () =
 
   it('lets a configured gateway through exactly as before', async () => {
     const { repo, gateway, service } = build(true);
-    await service.initiate(customer, { orderId: randomUUID(), method: PaymentMethod.VA, amount: 45000 });
+    await service.initiate(customer, {
+      orderId: randomUUID(),
+      method: PaymentMethod.VA,
+      amount: 45000,
+    });
     expect(gateway.charges).toHaveLength(1);
     expect(repo.rows).toHaveLength(1);
   });

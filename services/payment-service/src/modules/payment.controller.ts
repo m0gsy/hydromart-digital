@@ -396,7 +396,9 @@ export class PaymentController {
   @ApiOkResponse({ type: CashByOrderResponseDto })
   @Get('cash-collected')
   @Can('paymentSettle')
-  @ApiOperation({ summary: 'PAID cash over a set of orders, total + per order (courier COD deposit)' })
+  @ApiOperation({
+    summary: 'PAID cash over a set of orders, total + per order (courier COD deposit)',
+  })
   cashCollected(
     @Query() query: CashCollectedQueryDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
@@ -464,7 +466,11 @@ export class PaymentController {
     }
     let url: string;
     try {
-      ({ url } = await this.storage.put({ body: file.buffer, contentType: SNIFFED_MIME[ext], ext }));
+      ({ url } = await this.storage.put({
+        body: file.buffer,
+        contentType: SNIFFED_MIME[ext],
+        ext,
+      }));
     } catch (error) {
       this.logger.error(`Payment proof upload failed: ${(error as Error).message}`);
       // 503, not 500: the customer did nothing wrong and retrying in a moment works.

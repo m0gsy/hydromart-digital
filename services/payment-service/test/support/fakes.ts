@@ -282,7 +282,11 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   /** orderId -> HM-… number. Empty = order-service could not be read (fail-soft). */
   orderNumbers = new Map<string, string>();
   async getOrderNumbers(orderIds: string[]): Promise<Map<string, string>> {
-    return new Map(orderIds.filter((id) => this.orderNumbers.has(id)).map((id) => [id, this.orderNumbers.get(id)!]));
+    return new Map(
+      orderIds
+        .filter((id) => this.orderNumbers.has(id))
+        .map((id) => [id, this.orderNumbers.get(id)!]),
+    );
   }
 }
 

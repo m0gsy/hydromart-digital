@@ -47,8 +47,15 @@ import {
   IncidentRecord,
   IncidentRepository,
 } from '../../src/application/ports/incident.repository';
-import { OpsIncidentAlert, OpsNotifierPort, OpsSlaBreachAlert } from '../../src/application/ports/ops-notifier.port';
-import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
+import {
+  OpsIncidentAlert,
+  OpsNotifierPort,
+  OpsSlaBreachAlert,
+} from '../../src/application/ports/ops-notifier.port';
+import {
+  CashCollected,
+  CashCollectionPort,
+} from '../../src/application/ports/cash-collection.port';
 import { RatingPort, RatingSummary } from '../../src/application/ports/rating.port';
 import {
   CashVarianceChargedEvent,
@@ -94,13 +101,23 @@ const ACTIVE: DeliveryStatus[] = [
 ];
 
 /** J8: the states a delivery is still on the road in — the ones an SLA can still be blown by. */
-const IN_FLIGHT: DeliveryStatus[] = [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY];
+const IN_FLIGHT: DeliveryStatus[] = [
+  DeliveryStatus.ASSIGNED,
+  DeliveryStatus.PICKED_UP,
+  DeliveryStatus.ON_DELIVERY,
+];
 
 export class InMemoryDeliveryRepository implements DeliveryRepository {
   rows: DeliveryRecord[] = [];
   /** J8: stands in for the `slaAlertedAt` column. */
   slaAlerted = new Map<string, Date>();
-  attempts: { deliveryId: string; driverId: string; method: ContactMethod; note: string | null; createdAt: Date }[] = [];
+  attempts: {
+    deliveryId: string;
+    driverId: string;
+    method: ContactMethod;
+    note: string | null;
+    createdAt: Date;
+  }[] = [];
 
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
     const now = nextDate();
@@ -163,7 +180,8 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     let n = 0;
     for (const row of this.rows) {
-      if (row.customerId !== customerId && (phone === null || row.recipientPhone !== phone)) continue;
+      if (row.customerId !== customerId && (phone === null || row.recipientPhone !== phone))
+        continue;
       row.recipientPhone = null;
       row.notes = null;
       if (row.proof) row.proof.recipientName = '';
@@ -229,11 +247,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       })
       .map((r) => ({ orderId: r.orderId, codAmount: r.codAmount, status: r.status }));
   }
-  async driverDeliveredInWindow(
-    driverId: string,
-    from: Date,
-    to: Date,
-  ): Promise<DeliveredRow[]> {
+  async driverDeliveredInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredRow[]> {
     return this.rows
       .filter(
         (r) =>
@@ -352,7 +366,12 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       estimatedArrivalAt: null,
       updatedAt: nextDate(),
     });
-    row.history.push({ status: DeliveryStatus.ASSIGNED, changedBy, note, createdAt: row.updatedAt });
+    row.history.push({
+      status: DeliveryStatus.ASSIGNED,
+      changedBy,
+      note,
+      createdAt: row.updatedAt,
+    });
     return clone(row);
   }
   async completeWithProof(
@@ -398,7 +417,9 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const scoped = depotIds !== undefined && depotIds.length > 0;
     const inScope = (r: DeliveryRecord): boolean =>
       !scoped || (r.depotId !== null && depotIds!.includes(r.depotId));
-    const delivered = this.rows.filter((r) => r.deliveredAt && inRange(r.deliveredAt) && inScope(r));
+    const delivered = this.rows.filter(
+      (r) => r.deliveredAt && inRange(r.deliveredAt) && inScope(r),
+    );
     let onTime = 0;
     let sumMinutes = 0;
     for (const r of delivered) {
@@ -421,9 +442,13 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const byDepot = new Map<string, DepotSlaStats>();
     for (const r of this.rows) {
       if (!r.depotId || !r.deliveredAt || !inRange(r.deliveredAt)) continue;
-      const cur =
-        byDepot.get(r.depotId) ??
-        { depotId: r.depotId, totalDelivered: 0, onTime: 0, breached: 0, sumMinutes: 0 };
+      const cur = byDepot.get(r.depotId) ?? {
+        depotId: r.depotId,
+        totalDelivered: 0,
+        onTime: 0,
+        breached: 0,
+        sumMinutes: 0,
+      };
       const minutes = (r.deliveredAt.getTime() - r.assignedAt.getTime()) / 60000;
       cur.totalDelivered += 1;
       cur.sumMinutes += minutes;
@@ -444,7 +469,12 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       )
       .sort((a, b) => a.assignedAt.getTime() - b.assignedAt.getTime())
       .slice(0, limit)
-      .map((r) => ({ id: r.id, orderNumber: r.orderNumber, depotId: r.depotId, assignedAt: r.assignedAt }));
+      .map((r) => ({
+        id: r.id,
+        orderNumber: r.orderNumber,
+        depotId: r.depotId,
+        assignedAt: r.assignedAt,
+      }));
   }
 
   async markSlaAlerted(id: string, at: Date): Promise<void> {
@@ -771,7 +801,9 @@ export class InMemorySettingsRepository implements SettingsRepository {
     else this.rows.push(row);
   }
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    const i = this.rows.findIndex(
+      (r) => r.scope === scope && r.depotId === depotId && r.key === key,
+    );
     if (i >= 0) this.rows.splice(i, 1);
   }
 }

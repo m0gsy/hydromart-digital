@@ -228,8 +228,8 @@ export const hq = {
       other: 'Lainnya',
     },
     caps: {
-      approvalThresholdWrite: "Ambang persetujuan (ubah)",
-      settingsRead: "Setelan (lihat)",
+      approvalThresholdWrite: 'Ambang persetujuan (ubah)',
+      settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Lihat inventori',
@@ -572,7 +572,8 @@ export const hq = {
       paid: 'Lunas',
       failed: 'Gagal',
       confirmPaid: 'Tandai penarikan ini sudah dibayar? Tidak bisa dibatalkan.',
-      confirmFailed: 'Tandai penarikan ini gagal? Saldonya akan dikembalikan dan ini tidak bisa dibatalkan.',
+      confirmFailed:
+        'Tandai penarikan ini gagal? Saldonya akan dikembalikan dan ini tidak bisa dibatalkan.',
       markedPaid: 'Penarikan ditandai lunas.',
       markedFailed: 'Penarikan ditandai gagal; saldonya dikembalikan.',
     },
@@ -1084,7 +1085,8 @@ export const hq = {
     rewards: 'Hadiah tukar poin',
     points: '{n} poin',
     manage: 'Kelola katalog hadiah',
-    manageHint: 'Ubah poin, stok, atau pensiunkan hadiah. Sebelum layar ini, tabelnya hanya bisa diubah lewat SQL.',
+    manageHint:
+      'Ubah poin, stok, atau pensiunkan hadiah. Sebelum layar ini, tabelnya hanya bisa diubah lewat SQL.',
     addItem: 'Tambah hadiah',
     itemName: 'Nama hadiah',
     itemUnit: 'Satuan',
@@ -1247,27 +1249,29 @@ export const hq = {
     radius: 'Radius layanan default',
     km: '{n} km',
   },
-    outbox: {
-      title: 'Antrean efek pesanan',
-      subtitle: 'Potong stok, poin, kualifikasi referral, dan komisi pemilik yang masih terutang. Baris PENDING berarti ada uang yang belum dibukukan.',
-      pending: 'Menunggu',
-      done: 'Selesai',
-      dead: 'Menyerah',
-      drain: 'Tiriskan sekarang',
-      drained: 'Sapuan dijalankan: {delivered} terkirim, {failed} gagal.',
-      drainError: 'Gagal menjalankan sapuan.',
-      loadError: 'Gagal membaca antrean.',
-      healthy: 'Antrean kosong.',
-    },
-    backfill: {
-      title: 'Bangun ulang read model',
-      subtitle: 'Isi ulang model rekomendasi dan ramalan dari pesanan yang sudah selesai. Dipakai kalau modelnya kosong atau ketinggalan; aman diulang.',
-      forecast: 'Ramalan',
-      recommendations: 'Rekomendasi',
-      run: 'Bangun ulang',
-      done: '{n} pesanan diserap.',
-      failed: 'Gagal membangun ulang.',
-    },
+  outbox: {
+    title: 'Antrean efek pesanan',
+    subtitle:
+      'Potong stok, poin, kualifikasi referral, dan komisi pemilik yang masih terutang. Baris PENDING berarti ada uang yang belum dibukukan.',
+    pending: 'Menunggu',
+    done: 'Selesai',
+    dead: 'Menyerah',
+    drain: 'Tiriskan sekarang',
+    drained: 'Sapuan dijalankan: {delivered} terkirim, {failed} gagal.',
+    drainError: 'Gagal menjalankan sapuan.',
+    loadError: 'Gagal membaca antrean.',
+    healthy: 'Antrean kosong.',
+  },
+  backfill: {
+    title: 'Bangun ulang read model',
+    subtitle:
+      'Isi ulang model rekomendasi dan ramalan dari pesanan yang sudah selesai. Dipakai kalau modelnya kosong atau ketinggalan; aman diulang.',
+    forecast: 'Ramalan',
+    recommendations: 'Rekomendasi',
+    run: 'Bangun ulang',
+    done: '{n} pesanan diserap.',
+    failed: 'Gagal membangun ulang.',
+  },
   /*
    * CA-5-01. Kata-katanya sengaja menyebut apa yang TERJADI, bukan sekadar sehat/rusak:
    * "belum pernah jalan" dan "gagal" adalah dua kegagalan yang berbeda, dan yang pertama
@@ -1468,12 +1472,15 @@ export const hq = {
   },
   retention: {
     preview: 'Pratinjau (tanpa menghapus)',
-    previewDone: 'Pratinjau: {n} baris memenuhi syarat, {gaps} dataset belum ditegakkan. Belum ada yang dihapus.',
+    previewDone:
+      'Pratinjau: {n} baris memenuhi syarat, {gaps} dataset belum ditegakkan. Belum ada yang dihapus.',
     planTitle: 'Rencana sapuan: {n} baris akan dihapus',
     planRows: '{n} baris',
     planUnenforced: 'belum ditegakkan',
-    sweepConfirmPlanned: 'Hapus permanen {n} baris sesuai pratinjau barusan? Data pelanggan yang terhapus tidak bisa dikembalikan dari layar ini.',
-    sweepConfirmUnplanned: 'Jalankan sapuan tanpa pratinjau? Baris yang lewat masa simpan akan dihapus permanen, dan jumlahnya belum pernah kamu lihat. Pratinjau dulu lebih aman.',
+    sweepConfirmPlanned:
+      'Hapus permanen {n} baris sesuai pratinjau barusan? Data pelanggan yang terhapus tidak bisa dikembalikan dari layar ini.',
+    sweepConfirmUnplanned:
+      'Jalankan sapuan tanpa pratinjau? Baris yang lewat masa simpan akan dihapus permanen, dan jumlahnya belum pernah kamu lihat. Pratinjau dulu lebih aman.',
     runSweep: 'Jalankan sapuan retensi',
     sweepHint:
       'Menghapus data yang lewat masa simpan untuk dataset yang punya eksekutor. Data keuangan tidak pernah disentuh.',
@@ -1765,6 +1772,9 @@ export const hq = {
     },
   },
   invoiceTemplate: {
+    sample: 'Contoh',
+    unpaid: 'Belum lunas · {status}',
+    statusUnknown: 'status tidak terbaca',
     title: 'Template faktur',
     subtitle: 'Pratinjau cetak dari pengaturan pajak (19f)',
     invoiceNo: 'No. Faktur',

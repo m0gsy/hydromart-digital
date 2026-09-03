@@ -63,7 +63,10 @@ export class AssignDeliveryDto {
   @IsUUID()
   driverId!: string;
 
-  @ApiPropertyOptional({ example: 'Budi', description: 'Courier display name, snapshotted onto the order.' })
+  @ApiPropertyOptional({
+    example: 'Budi',
+    description: 'Courier display name, snapshotted onto the order.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -71,7 +74,7 @@ export class AssignDeliveryDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: "Depot the order was routed to; snapshotted for per-franchise SLA.",
+    description: 'Depot the order was routed to; snapshotted for per-franchise SLA.',
   })
   @IsOptional()
   @IsUUID()
@@ -95,7 +98,8 @@ export class AssignDeliveryDto {
 
   @ApiPropertyOptional({
     example: '081234567890',
-    description: "Recipient's phone, snapshotted so the courier can call without a cross-service lookup.",
+    description:
+      "Recipient's phone, snapshotted so the courier can call without a cross-service lookup.",
   })
   @IsOptional()
   @IsString()
@@ -122,14 +126,20 @@ export class AssignDeliveryDto {
   @MaxLength(30)
   driverPhone?: string;
 
-  @ApiPropertyOptional({ type: [DeliveryItemDto], description: 'Order line-items ({name, qty}) for the courier manifest.' })
+  @ApiPropertyOptional({
+    type: [DeliveryItemDto],
+    description: 'Order line-items ({name, qty}) for the courier manifest.',
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DeliveryItemDto)
   items?: DeliveryItemDto[];
 
-  @ApiPropertyOptional({ example: 84000, description: 'Whole-IDR cash to collect on delivery; null/0 = non-COD.' })
+  @ApiPropertyOptional({
+    example: 84000,
+    description: 'Whole-IDR cash to collect on delivery; null/0 = non-COD.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -201,7 +211,8 @@ export class ProofOfDeliveryDto {
 
   @ApiPropertyOptional({
     example: '2026-07-29T08:15:00.000Z',
-    description: 'Device time for proof queued offline. Clamped to [assignedAt, now]; omit when live.',
+    description:
+      'Device time for proof queued offline. Clamped to [assignedAt, now]; omit when live.',
   })
   @IsOptional()
   @IsDateString()
@@ -223,7 +234,10 @@ export class FailDeliveryDto {
    * disputed. The other default would write it off silently. Only consulted when
    * payment-service reports this order's payment as CASH and PAID.
    */
-  @ApiPropertyOptional({ default: false, description: 'Courier returned the collected cash to the customer.' })
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Courier returned the collected cash to the customer.',
+  })
   @IsOptional()
   @IsBoolean()
   cashReturned?: boolean;
@@ -243,7 +257,10 @@ export class RecordContactAttemptDto {
 }
 
 export class RescheduleDeliveryDto {
-  @ApiProperty({ format: 'date-time', description: 'New target delivery time agreed with the customer.' })
+  @ApiProperty({
+    format: 'date-time',
+    description: 'New target delivery time agreed with the customer.',
+  })
   @IsDateString()
   rescheduledFor!: string;
 
@@ -267,7 +284,10 @@ export class RescheduleDeliveryDto {
    * disputed. The other default would write it off silently. Only consulted when
    * payment-service reports this order's payment as CASH and PAID.
    */
-  @ApiPropertyOptional({ default: false, description: 'Courier returned the collected cash to the customer.' })
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Courier returned the collected cash to the customer.',
+  })
   @IsOptional()
   @IsBoolean()
   cashReturned?: boolean;
@@ -299,13 +319,17 @@ export class ListDeliveriesQueryDto {
    * both arrive, so the narrower question is the one answered.
    */
   @ApiPropertyOptional({
-    description: 'Comma-separated statuses; matches any of them. Overrides `status` when both are sent.',
+    description:
+      'Comma-separated statuses; matches any of them. Overrides `status` when both are sent.',
     example: 'ASSIGNED,PICKED_UP,ON_DELIVERY',
   })
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string'
-      ? value.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+      ? value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
       : value,
   )
   @IsEnum(DeliveryStatus, { each: true })
@@ -313,7 +337,8 @@ export class ListDeliveriesQueryDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: 'Filter to one depot (HQ/finance/marketing only; depot-locked roles are forced to their own depot).',
+    description:
+      'Filter to one depot (HQ/finance/marketing only; depot-locked roles are forced to their own depot).',
   })
   @IsOptional()
   @IsUUID()

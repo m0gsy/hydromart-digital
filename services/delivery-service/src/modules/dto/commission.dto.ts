@@ -8,7 +8,9 @@ export class CommissionQueryDto {
   @IsUUID()
   depotId!: string;
 
-  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601); defaults to month start.' })
+  @ApiPropertyOptional({
+    description: 'Inclusive lower bound (ISO 8601); defaults to month start.',
+  })
   @IsOptional()
   @IsISO8601()
   from?: string;

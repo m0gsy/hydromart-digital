@@ -11,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export class RequestWithdrawalDto {
@@ -47,6 +48,23 @@ export class ReleasePayoutDto {
   @ApiProperty({ format: 'uuid', description: 'Franchise owner whose balance HQ is releasing.' })
   @IsUUID()
   franchiseOwnerId!: string;
+
+  /*
+   * CA-2-63: the destination, which this release used to record as the literal string
+   * "Rilis HQ" — the name of the button, in the column the schema describes as the masked
+   * bank account. Optional here because the owner's own last cash-out is the honest
+   * default; when they have never cashed out, the service refuses rather than inventing a
+   * placeholder for money that is already leaving the balance.
+   */
+  @ApiPropertyOptional({
+    example: 'BCA ···· 4821',
+    description: "Masked destination account. Defaults to the owner's most recent cash-out.",
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  bankAccountRef?: string;
 }
 
 /** Internal push from order-service when an order reaches COMPLETED (design 6a). */

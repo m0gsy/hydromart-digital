@@ -20,10 +20,7 @@ import type {
   CreateCourierWithdrawalData,
 } from '../src/application/ports/courier-withdrawal.repository';
 import type { SettleWithdrawalOutcome } from '../src/application/ports/withdrawal.repository';
-import {
-  WithdrawalNotFoundError,
-  WithdrawalNotProcessingError,
-} from '../src/domain/errors';
+import { WithdrawalNotFoundError, WithdrawalNotProcessingError } from '../src/domain/errors';
 
 const DEFAULT_RULE: CourierEarningRuleRecord = {
   id: 'rule-1',
@@ -76,12 +73,19 @@ class FakeCourierLedger implements CourierLedgerRepository {
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
   async earningsByDepot(depotId: string, from: Date, to: Date) {
-    const rows = new Map<string, { courierId: string; earnedIdr: number; paidDeliveries: number }>();
+    const rows = new Map<
+      string,
+      { courierId: string; earnedIdr: number; paidDeliveries: number }
+    >();
     for (const e of this.entries) {
       if (e.depotId !== depotId) continue;
       if (e.type !== 'EARNING' && e.type !== 'INCENTIVE') continue;
       if (e.occurredAt < from || e.occurredAt > to) continue;
-      const row = rows.get(e.courierId) ?? { courierId: e.courierId, earnedIdr: 0, paidDeliveries: 0 };
+      const row = rows.get(e.courierId) ?? {
+        courierId: e.courierId,
+        earnedIdr: 0,
+        paidDeliveries: 0,
+      };
       row.earnedIdr += e.amount;
       if (e.type === 'EARNING') row.paidDeliveries += 1;
       rows.set(e.courierId, row);
@@ -484,9 +488,9 @@ describe('CourierPayoutService', () => {
         ...validRule,
         effectiveDate: new Date('2026-01-01'),
       });
-      await expect(
-        service.deleteScheduledRule(created.id, new Date('2026-08-31')),
-      ).rejects.toThrow(/already taken effect/);
+      await expect(service.deleteScheduledRule(created.id, new Date('2026-08-31'))).rejects.toThrow(
+        /already taken effect/,
+      );
       expect(ledger.deleted).toEqual([]);
     });
 

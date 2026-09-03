@@ -4,11 +4,13 @@
 // mirrors this exact shape. NO `as const` (coordinator registers the fragment).
 export const mgrFix = {
   approvalDecide: {
-    approveTitle: "Setujui pengajuan ini?",
-    rejectTitle: "Tolak pengajuan ini?",
-    thisItem: "pengajuan ini",
-    approveConfirm: "Setujui {kind}? Uangnya bergerak begitu ini disimpan, dan layar ini tidak bisa membatalkannya.",
-    rejectConfirm: "Tolak {kind}? Selisihnya tetap menjadi tanggungan orang yang mengajukannya, dan keputusan ini tidak bisa dibatalkan dari layar ini.",
+    approveTitle: 'Setujui pengajuan ini?',
+    rejectTitle: 'Tolak pengajuan ini?',
+    thisItem: 'pengajuan ini',
+    approveConfirm:
+      'Setujui {kind}? Uangnya bergerak begitu ini disimpan, dan layar ini tidak bisa membatalkannya.',
+    rejectConfirm:
+      'Tolak {kind}? Selisihnya tetap menjadi tanggungan orang yang mengajukannya, dan keputusan ini tidak bisa dibatalkan dari layar ini.',
   },
   approvalKind: {
     OPNAME_VARIANCE: 'Selisih opname',
@@ -73,6 +75,7 @@ export const mgrFix = {
   },
   // 8a — Laporan L/R bulanan.
   pnl: {
+    monthLabel: 'Bulan laporan',
     title: 'Laporan L/R',
     subtitle: '{depot} · {month}',
     operational: 'Operasional',
@@ -86,12 +89,15 @@ export const mgrFix = {
     sources: 'Sumber data',
     orderSource: 'Pendapatan order-service',
     costSource: 'Biaya depot-service',
-    partial: 'Sebagian sumber atau cakupan biaya belum lengkap. Nilai turunan yang tidak aman ditampilkan sebagai —.',
+    partial:
+      'Sebagian sumber atau cakupan biaya belum lengkap. Nilai turunan yang tidak aman ditampilkan sebagai —.',
     coverage: 'Cakupan HPP langsung',
     coverageSummary: '{covered} dari {total} unit terpetakan ({percent}%)',
     units: '{n} unit',
-    opexCoverage: '{included} arus keluar dihitung · {excluded} pembayaran PO terverifikasi dikecualikan · {unverified} kategori PO belum terverifikasi',
-    disclaimer: 'Laporan manajemen operasional, bukan laporan akuntansi statutori atau dokumen pajak.',
+    opexCoverage:
+      '{included} arus keluar dihitung · {excluded} pembayaran PO terverifikasi dikecualikan · {unverified} kategori PO belum terverifikasi',
+    disclaimer:
+      'Laporan manajemen operasional, bukan laporan akuntansi statutori atau dokumen pajak.',
     noDepot: 'Pilih depot',
     noDepotBody: 'Pilih depot untuk melihat laporan L/R operasional.',
     status: {
@@ -115,7 +121,8 @@ export const mgrFix = {
     audChurn: 'Berisiko churn',
     audNew: 'Pelanggan baru',
     sendCustomers: 'Kirim ke {n} pelanggan',
-    customerNote: 'Broadcast pelanggan hanya ke pelanggan depot Anda. Kampanye lintas depot & email/SMS dikelola tim marketing.',
+    customerNote:
+      'Broadcast pelanggan hanya ke pelanggan depot Anda. Kampanye lintas depot & email/SMS dikelola tim marketing.',
     reachCount: '{n} penerima',
   },
   // manager-mobile home tiles + per-event notifications.
@@ -123,8 +130,8 @@ export const mgrFix = {
     pendingApproval: '{count} menunggu approval',
     depotManager: 'Manajer depot · {depot}',
     depotPicker: 'Depot yang ditampilkan',
-    yourDepot: "Depot kamu",
-    signOut: "Keluar",
+    yourDepot: 'Depot kamu',
+    signOut: 'Keluar',
     stockCritical: 'Stok kritis',
     stockHint: 'Item di bawah ambang',
     activeCouriers: 'Kurir aktif',

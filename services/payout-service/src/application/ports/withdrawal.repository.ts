@@ -14,8 +14,7 @@ export interface CreateWithdrawalData {
  * raise and the repository stays free of domain errors.
  */
 export type WithdrawalOutcome =
-  | { ok: true; withdrawal: WithdrawalRecord }
-  | { ok: false; balance: number };
+  { ok: true; withdrawal: WithdrawalRecord } | { ok: false; balance: number };
 
 /**
  * Settling a withdrawal: it was PAID and written, it was already settled, or there is no

@@ -77,6 +77,24 @@ export class SettlementPrismaRepository implements SettlementRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  /**
+   * CA-2-63: keyed on `verifiedAt`, like the deposit it belongs to.
+   *
+   * It was keyed on `createdAt` — the moment the COURIER submitted — while
+   * `depositedInWindow` two functions below has always keyed the same settlement on
+   * `verifiedAt`, with the reason written there: a deposit belongs to the day the cashier
+   * ACCEPTED the cash. So the two halves of one settlement landed in different periods. A
+   * shortfall submitted on 31 August and verified on 1 September was deducted from
+   * AUGUST's commission while its deposit counted as September — and August's pay run may
+   * already have closed, which means a deduction against a period nobody can still pay.
+   *
+   * `chargedToDriver` is decided AT verification, too: until a cashier accepts the cash and
+   * charges it, there is no charge to report. Keying on the moment before that decision was
+   * asking when the courier handed over a bag, not when the depot took the loss.
+   *
+   * A settlement not yet verified has a null `verifiedAt`, so it simply falls outside every
+   * window until somebody accepts it — which is the honest answer, not a zero.
+   */
   async chargedShortfallByDriver(
     depotId: string,
     from: Date,
@@ -84,11 +102,14 @@ export class SettlementPrismaRepository implements SettlementRepository {
   ): Promise<CourierShortfall[]> {
     const rows = await this.prisma.cashSettlement.groupBy({
       by: ['driverId'],
-      where: { depotId, chargedToDriver: true, createdAt: { gte: from, lt: to } },
+      where: { depotId, chargedToDriver: true, verifiedAt: { gte: from, lt: to } },
       _sum: { variance: true },
     });
     // variance is negative for a shortfall; report the positive amount owed.
-    return rows.map((r) => ({ driverId: r.driverId, shortfallIdr: Math.abs(r._sum.variance ?? 0) }));
+    return rows.map((r) => ({
+      driverId: r.driverId,
+      shortfallIdr: Math.abs(r._sum.variance ?? 0),
+    }));
   }
 
   /**

@@ -1,6 +1,7 @@
 'use client';
 
 import { Lock } from '@phosphor-icons/react';
+import { BUSINESS_TZ, monthWib } from '@/lib/wib';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -14,8 +15,23 @@ import { canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ReportDepotMonthly } from '@/lib/types';
 
-const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date());
-const MONTH_KEY = new Date().toISOString().slice(0, 7); // YYYY-MM
+/*
+ * CA-2-63: the money period came from `toISOString()`, which is UTC.
+ *
+ * Jakarta is UTC+7, so between midnight and 07:00 on the first of a month this read the
+ * PREVIOUS month — a manager opening the review before breakfast on 1 September got
+ * August's numbers under a heading that said September. And both were module constants,
+ * frozen when the bundle loaded and computed on the server during SSR, so the answer also
+ * depended on which machine rendered it.
+ *
+ * `monthWib` is the same helper every other business-date read in the app already uses.
+ */
+const MONTH_KEY = monthWib();
+const MONTH = new Intl.DateTimeFormat('id-ID', {
+  timeZone: BUSINESS_TZ,
+  month: 'long',
+  year: 'numeric',
+}).format(new Date());
 
 type Stat = { label: string; value: string; caption: string };
 type Row = { label: string; value: string };
@@ -45,7 +61,9 @@ function MonthlyReviewBody() {
 
   const review = useAsync<ReportDepotMonthly | null>(
     () =>
-      depot ? api.get(endpoints.reports.depotMonthly(depot.id, MONTH_KEY), true) : Promise.resolve(null),
+      depot
+        ? api.get(endpoints.reports.depotMonthly(depot.id, MONTH_KEY), true)
+        : Promise.resolve(null),
     [depot?.id],
   );
 
@@ -80,7 +98,10 @@ function MonthlyReviewBody() {
     {
       label: t('hrFix.monthlyReview.avgSla'),
       value: r?.slaPct != null ? `${r.slaPct}%` : '—',
-      caption: r?.slaPct != null ? t('hrFix.monthlyReview.onTimeDeliveries') : t('hrFix.monthlyReview.noDeliveries'),
+      caption:
+        r?.slaPct != null
+          ? t('hrFix.monthlyReview.onTimeDeliveries')
+          : t('hrFix.monthlyReview.noDeliveries'),
     },
     {
       label: t('hrFix.monthlyReview.netProfit'),
@@ -98,7 +119,10 @@ function MonthlyReviewBody() {
   const idrOrDash = (v: number | null | undefined): string => (v == null ? '—' : formatIDR(v));
   const profit: Row[] = [
     { label: t('hrFix.monthlyReview.turnover'), value: r ? formatIDR(r.revenueIdr) : '—' },
-    { label: t('hrFix.monthlyReview.purchasesReceived'), value: idrOrDash(r?.profitBreakdown.cogsIdr) },
+    {
+      label: t('hrFix.monthlyReview.purchasesReceived'),
+      value: idrOrDash(r?.profitBreakdown.cogsIdr),
+    },
     { label: t('hrFix.monthlyReview.payrollNet'), value: idrOrDash(r?.profitBreakdown.payrollIdr) },
     { label: t('hrFix.monthlyReview.cashOut'), value: idrOrDash(r?.profitBreakdown.opexIdr) },
   ];
@@ -114,9 +138,18 @@ function MonthlyReviewBody() {
   const g = r?.governance ?? null;
   const signed = (v: number): string => (v > 0 ? `+${formatIDR(v)}` : formatIDR(v));
   const governance: Row[] = [
-    { label: t('hrFix.monthlyReview.approvalsReviewed'), value: g ? g.approvalsReviewed.toLocaleString('id-ID') : '—' },
-    { label: t('hrFix.monthlyReview.stocktakeVariance'), value: g ? signed(g.opnameVarianceIdr) : '—' },
-    { label: t('hrFix.monthlyReview.settlementVariance'), value: g ? signed(g.settlementVarianceIdr) : '—' },
+    {
+      label: t('hrFix.monthlyReview.approvalsReviewed'),
+      value: g ? g.approvalsReviewed.toLocaleString('id-ID') : '—',
+    },
+    {
+      label: t('hrFix.monthlyReview.stocktakeVariance'),
+      value: g ? signed(g.opnameVarianceIdr) : '—',
+    },
+    {
+      label: t('hrFix.monthlyReview.settlementVariance'),
+      value: g ? signed(g.settlementVarianceIdr) : '—',
+    },
     // The denominator: a variance of 0 over 2 closed days is not a clean month, it is two
     // days of bookkeeping and 28 days nobody counted.
     { label: t('hrFix.monthlyReview.daysClosed'), value: g ? `${g.daysClosed} hari` : '—' },
@@ -126,8 +159,14 @@ function MonthlyReviewBody() {
   // Omset is the revenue figure already on the stat row above; it is repeated here because
   // the SOP sheet reads as one block and a manager copies it line by line.
   const galon: Row[] = [
-    { label: t('hrFix.monthlyReview.gallonsLastMonth'), value: r ? r.prevGallons.toLocaleString('id-ID') : '—' },
-    { label: t('hrFix.monthlyReview.gallonsThisMonth'), value: r ? r.gallons.toLocaleString('id-ID') : '—' },
+    {
+      label: t('hrFix.monthlyReview.gallonsLastMonth'),
+      value: r ? r.prevGallons.toLocaleString('id-ID') : '—',
+    },
+    {
+      label: t('hrFix.monthlyReview.gallonsThisMonth'),
+      value: r ? r.gallons.toLocaleString('id-ID') : '—',
+    },
     {
       label: t('hrFix.monthlyReview.difference'),
       value: r ? `${r.gallonsDelta > 0 ? '+' : ''}${r.gallonsDelta.toLocaleString('id-ID')}` : '—',
@@ -146,8 +185,19 @@ function MonthlyReviewBody() {
   ];
 
   const team: Row[] = [
-    { label: t('hrFix.monthlyReview.topCourier'), value: r?.topCourier ? `${r.topCourier.name} · ${r.topCourier.delivered} antar` : '—' },
-    { label: t('hrFix.monthlyReview.activeCustomers'), value: r ? r.activeCustomers.toLocaleString('id-ID') : '—' },
+    {
+      label: t('hrFix.monthlyReview.topCourier'),
+      value: r?.topCourier
+        ? t('hrFix.monthlyReview.courierDelivered', {
+            name: r.topCourier.name,
+            n: r.topCourier.delivered,
+          })
+        : '—',
+    },
+    {
+      label: t('hrFix.monthlyReview.activeCustomers'),
+      value: r ? r.activeCustomers.toLocaleString('id-ID') : '—',
+    },
     { label: t('hrFix.monthlyReview.winBack'), value: '—' },
   ];
 
@@ -205,7 +255,10 @@ function Gate() {
   const { customer } = useAuth();
   if (!canViewDepotFinance(customer?.role)) {
     return (
-      <CenterState title={t('hrFix.monthlyReview.managerOnly')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('hrFix.monthlyReview.managerOnly')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('hrFix.monthlyReview.gateBody2')}
       </CenterState>
     );

@@ -25,7 +25,11 @@ import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { CodBearing, DeliveryRepository } from '../ports/delivery.repository';
-import { DepositedCod, SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
+import {
+  DepositedCod,
+  SettlementRecord,
+  SettlementRepository,
+} from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
@@ -129,7 +133,9 @@ export class SettlementService {
         : Math.round(collected.total);
       expectedAmount = Math.round(expectedAmount);
     } catch (error) {
-      this.logger.error(`cash-collected read failed for shift ${shiftId}: ${(error as Error).message}`);
+      this.logger.error(
+        `cash-collected read failed for shift ${shiftId}: ${(error as Error).message}`,
+      );
       throw new SettlementSyncError();
     }
 
@@ -157,7 +163,11 @@ export class SettlementService {
    * conditionally required. No new column, no migration, and no new status: DISPUTED has
    * no way back out (C10), so sending surplus there would hang the money for good.
    */
-  async verify(user: AuthenticatedUser, id: string, input: ResolveInput): Promise<SettlementRecord> {
+  async verify(
+    user: AuthenticatedUser,
+    id: string,
+    input: ResolveInput,
+  ): Promise<SettlementRecord> {
     const actorId = user.sub;
     const settlement = await this.resolvable(id, user);
     const note = input.note?.trim() ? input.note.trim() : null;

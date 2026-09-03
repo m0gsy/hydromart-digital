@@ -351,7 +351,7 @@ describe('ShiftService', () => {
       return row;
     };
 
-    it('opens a NEW shift rather than resuming yesterday\'s', async () => {
+    it("opens a NEW shift rather than resuming yesterday's", async () => {
       const yesterday = await abandon();
       const today = await checkIn();
       expect(today.id).not.toBe(yesterday.id);

@@ -5,6 +5,7 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  UnknownPayoutDestinationError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
 } from '../../domain/errors';
@@ -236,10 +237,34 @@ export class PayoutService {
    * HQ releases an owner's full available balance to their bank (design 6a "Rilis ke
    * bank"). Reuses the exact withdrawal path (withdrawal record + matching debit), so
    * the released amount leaves the balance the same way an owner-initiated cash-out does.
+   *
+   * CA-2-63: it used to record the destination as the literal string `'Rilis HQ'`.
+   *
+   * `bankAccountRef` is the column the schema describes as "Masked destination shown in the
+   * UI, e.g. BCA ···· 4821" — the one field on the record that answers "where did my money
+   * go". Filling it with the name of the BUTTON meant an owner asking that question, or an
+   * accountant reconciling a transfer against a bank statement, had nothing to match on:
+   * every HQ release in the table read identically.
+   *
+   * The account comes from the caller when HQ names one, and otherwise from the owner's own
+   * most recent cash-out — the account they have already been paid to, which is the honest
+   * default and saves re-typing one that is already on file. When there is neither, the
+   * release is REFUSED rather than recorded against a placeholder: money leaves the balance
+   * here, and a debit whose destination is unknown is the thing this row exists to prevent.
    */
-  async releaseForOwner(ownerId: string): Promise<WithdrawalRecord> {
+  async releaseForOwner(ownerId: string, bankAccountRef?: string): Promise<WithdrawalRecord> {
+    const destination = bankAccountRef?.trim() || (await this.lastKnownAccount(ownerId));
+    if (!destination) {
+      throw new UnknownPayoutDestinationError();
+    }
     const balance = await this.ledger.balanceFor(ownerId);
-    return this.requestWithdrawal(ownerId, balance, 'Rilis HQ');
+    return this.requestWithdrawal(ownerId, balance, destination);
+  }
+
+  /** The account this owner was last paid to, or null when they have never cashed out. */
+  private async lastKnownAccount(ownerId: string): Promise<string | null> {
+    const [latest] = await this.withdrawals.listForOwner(ownerId, 1);
+    return latest?.bankAccountRef?.trim() || null;
   }
 
   async ledgerPage(
@@ -328,9 +353,7 @@ export class PayoutService {
       if (outcome.reason === 'NOT_FOUND') throw new WithdrawalNotFoundError();
       throw new WithdrawalNotProcessingError(outcome.status);
     }
-    this.logger.log(
-      `Withdrawal ${outcome.withdrawal.reference} marked ${status} by ${actorId}`,
-    );
+    this.logger.log(`Withdrawal ${outcome.withdrawal.reference} marked ${status} by ${actorId}`);
     return outcome.withdrawal;
   }
 }

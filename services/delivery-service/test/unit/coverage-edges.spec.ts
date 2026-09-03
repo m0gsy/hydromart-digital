@@ -153,10 +153,12 @@ describe('ReportService arithmetic on empty sets', () => {
       ]),
     } as never;
 
-    const report = await new ReportService(deliveries, {} as never, {} as never, config).slaByDepot({
-      from: null,
-      to: null,
-    } as never);
+    const report = await new ReportService(deliveries, {} as never, {} as never, config).slaByDepot(
+      {
+        from: null,
+        to: null,
+      } as never,
+    );
 
     expect(report.depots[0]).toMatchObject({ slaRate: 0, avgMinutes: null });
     expect(report.depots[1]).toMatchObject({ slaRate: 0.75, avgMinutes: 50 });
@@ -228,9 +230,7 @@ describe('edges nothing else exercises', () => {
     const repo = new DeliveryPrismaRepository({ delivery: { findUnique } } as never);
 
     expect(await repo.findPingState('gone')).toBeNull();
-    expect(findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'gone' } }),
-    );
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'gone' } }));
   });
 
   it('gives no ETA when there is no ping and no depot to measure from', async () => {
@@ -240,7 +240,12 @@ describe('edges nothing else exercises', () => {
     const repo = new InMemoryDeliveryRepository();
     const orders = new FakeOrderCoordination();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
+    const shifts = new ShiftService(
+      new InMemoryShiftRepository(),
+      repo,
+      new FakeDepotLocation(),
+      config,
+    );
     const service = new DeliveryService(
       repo,
       orders,
@@ -273,7 +278,12 @@ describe('edges nothing else exercises', () => {
   it('refuses a contact attempt on a delivery that has already ended', async () => {
     const repo = new InMemoryDeliveryRepository();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
+    const shifts = new ShiftService(
+      new InMemoryShiftRepository(),
+      repo,
+      new FakeDepotLocation(),
+      config,
+    );
     const service = new DeliveryService(
       repo,
       new FakeOrderCoordination(),
@@ -303,7 +313,12 @@ describe('edges nothing else exercises', () => {
   it('logs a non-Error rejection from the bucket and keeps purging', async () => {
     const repo = new InMemoryDeliveryRepository();
     const config = buildTestConfig();
-    const shifts = new ShiftService(new InMemoryShiftRepository(), repo, new FakeDepotLocation(), config);
+    const shifts = new ShiftService(
+      new InMemoryShiftRepository(),
+      repo,
+      new FakeDepotLocation(),
+      config,
+    );
     // Buckets reject with strings and with objects, not only with Errors — and the sweep
     // has to survive either, because the proof ROW is already deleted by then.
     const storage = { put: jest.fn(), remove: jest.fn().mockRejectedValue('403 Forbidden') };

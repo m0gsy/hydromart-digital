@@ -18,11 +18,7 @@ export class EventPublisherHttpAdapter implements EventPublisherPort {
 
   constructor(private readonly config: DeliveryConfigService) {}
 
-  async publish(
-    event: string,
-    payload: Record<string, unknown>,
-    occurredAt: Date,
-  ): Promise<void> {
+  async publish(event: string, payload: Record<string, unknown>, occurredAt: Date): Promise<void> {
     const { adminServiceUrl, internalServiceKey } = this.config;
     if (!adminServiceUrl || !internalServiceKey) {
       this.logger.debug(`${event} not published (webhook fan-out not configured)`);

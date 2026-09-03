@@ -82,7 +82,12 @@ export class ShiftPrismaRepository implements ShiftRepository {
       where: {
         ...(query.depotId ? { depotId: query.depotId } : {}),
         ...(query.from || query.to
-          ? { checkInAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } }
+          ? {
+              checkInAt: {
+                ...(query.from ? { gte: query.from } : {}),
+                ...(query.to ? { lte: query.to } : {}),
+              },
+            }
           : {}),
       },
       orderBy: { checkInAt: 'desc' },

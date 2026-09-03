@@ -7,7 +7,10 @@ import { ExpenseClaimService } from '../application/services/expense-claim.servi
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
 import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
-import { ExpenseClaimResponseDto, PagedExpenseClaimResponseDto } from './dto/responses.generated.dto';
+import {
+  ExpenseClaimResponseDto,
+  PagedExpenseClaimResponseDto,
+} from './dto/responses.generated.dto';
 
 // Reviewer-scoped: depot managers / finance approve or reject courier claims (design 6a).
 // expenseApprove excludes STAFF_DEPOT, so a courier can never approve their own claim.

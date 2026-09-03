@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, TaxSettings } from '@/lib/types';
+import type { Order, Page, Payment, TaxSettings } from '@/lib/types';
 
 // Design 24d — invoice/receipt print preview. Company identity + PPN come from the REAL
 // tax settings (19f, payment-service); the previewed order (lines, number, date, subtotal)
@@ -18,24 +18,61 @@ export default function HqInvoiceTemplatePage() {
   const { t } = useT();
   const tax = useAsync<TaxSettings>(() => api.get(endpoints.tax.get, true));
   const latest = useAsync<Page<Order>>(() => api.get(endpoints.orders.manage({ limit: 1 }), true));
+  const previewOrder = latest.data?.items[0] ?? null;
+  /*
+   * CA-2-63: the LUNAS stamp was a hardcoded chip.
+   *
+   * It printed on whatever the preview happened to load — and the preview loads the NEWEST
+   * order, which is the one least likely to be paid. An invoice template that always says
+   * LUNAS is a template that certifies payment it knows nothing about, and this screen is
+   * what the real invoice is printed from.
+   *
+   * `Order` carries no payment status; that truth lives in payment-service, so it is asked.
+   */
+  const payment = useAsync<Payment | null>(
+    () =>
+      previewOrder
+        ? api
+            .get<Payment>(endpoints.payments.forOrderStaff(previewOrder.id), true)
+            .catch(() => null)
+        : Promise.resolve(null),
+    [previewOrder?.id],
+  );
 
   if (tax.loading || latest.loading) return <Skeleton className="h-96 w-full" />;
   if (tax.error) return <ErrorState message={t('hq.tax.loadError')} onRetry={tax.reload} />;
 
   const settings = tax.data!;
-  const order = latest.data?.items[0] ?? null;
+  const order = previewOrder;
   const lines = order?.items ?? [];
-  const gross = order?.subtotal ?? 0;
+  /*
+   * CA-2-63: the invoice was built from `subtotal`, which is the goods alone.
+   *
+   * Delivery fee and discount were both missing, so the printed total was a number the
+   * customer never paid — lower than the bill on a delivered order, higher than it on a
+   * discounted one. `total` is what was charged, and an invoice states what was charged.
+   */
+  const gross = order?.total ?? 0;
   const rate = settings.ppnPercent / 100;
   // "termasuk pajak": total is the gross and PPN is extracted; else PPN is added on top.
-  const ppn = settings.priceIncludesTax ? Math.round(gross - gross / (1 + rate)) : Math.round(gross * rate);
+  const ppn = settings.priceIncludesTax
+    ? Math.round(gross - gross / (1 + rate))
+    : Math.round(gross * rate);
   const net = settings.priceIncludesTax ? gross - ppn : gross;
   const total = settings.priceIncludesTax ? gross : gross + ppn;
   const invoiceNo = order
     ? order.orderNumber
-    : settings.invoiceFormat.replace('{YYYY}', '2026').replace('{MM}', '07').replace('{SEQ}', '0142').replace('{NNNN}', '0142');
+    : settings.invoiceFormat
+        .replace('{YYYY}', '2026')
+        .replace('{MM}', '07')
+        .replace('{SEQ}', '0142')
+        .replace('{NNNN}', '0142');
   const invoiceDate = order
-    ? new Date(order.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? new Date(order.createdAt).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
     : '16/07/2026';
 
   return (
@@ -63,15 +100,34 @@ export default function HqInvoiceTemplatePage() {
             </p>
           </div>
           <div className="text-right">
-            <Chip tone="success">{t('hq.invoiceTemplate.paid')}</Chip>
+            {(() => {
+              // A preview with no real order is a sample and says so; a real one shows the
+              // status payment-service reports, or admits it could not be read.
+              if (!order) return <Chip tone="outline">{t('hq.invoiceTemplate.sample')}</Chip>;
+              if (payment.loading) return <Chip tone="outline">…</Chip>;
+              const paid = payment.data?.status === 'PAID';
+              return (
+                <Chip tone={paid ? 'success' : 'amber'}>
+                  {paid
+                    ? t('hq.invoiceTemplate.paid')
+                    : t('hq.invoiceTemplate.unpaid', {
+                        status: payment.data?.status ?? t('hq.invoiceTemplate.statusUnknown'),
+                      })}
+                </Chip>
+              );
+            })()}
             <p className="mt-2 text-xs text-[#64757c]">{t('hq.invoiceTemplate.invoiceNo')}</p>
             <p className="font-mono text-sm font-bold">{invoiceNo}</p>
-            <p className="mt-1 text-xs text-[#64757c]">{t('hq.invoiceTemplate.date')}: {invoiceDate}</p>
+            <p className="mt-1 text-xs text-[#64757c]">
+              {t('hq.invoiceTemplate.date')}: {invoiceDate}
+            </p>
           </div>
         </div>
 
         <div className="py-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#64757c]">{t('hq.invoiceTemplate.billTo')}</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#64757c]">
+            {t('hq.invoiceTemplate.billTo')}
+          </p>
           {/* The one line on this preview that stayed invented. Everything around it —
               invoice number, date, line items — already branched to the real order, and
               the "contoh data" badge above already appears only when there ISN'T one. So
@@ -117,7 +173,9 @@ export default function HqInvoiceTemplatePage() {
             <Money amount={net} className="tabular-nums" />
           </div>
           <div className="flex justify-between">
-            <span className="text-[#64757c]">{t('hq.invoiceTemplate.ppn', { n: settings.ppnPercent })}</span>
+            <span className="text-[#64757c]">
+              {t('hq.invoiceTemplate.ppn', { n: settings.ppnPercent })}
+            </span>
             <Money amount={ppn} className="tabular-nums" />
           </div>
           <div className="mt-1 flex justify-between border-t border-[#e9e7df] pt-2 text-base font-extrabold">
@@ -126,7 +184,9 @@ export default function HqInvoiceTemplatePage() {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-[#64757c]">{t('hq.invoiceTemplate.fromTax')}</p>
+        <p className="mt-6 text-center text-[11px] text-[#64757c]">
+          {t('hq.invoiceTemplate.fromTax')}
+        </p>
       </Card>
     </div>
   );

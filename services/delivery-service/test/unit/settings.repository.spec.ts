@@ -34,7 +34,13 @@ describe('SettingsPrismaRepository', () => {
       },
     } as never;
     const repo = new SettingsPrismaRepository(prisma);
-    await repo.upsert({ scope: 'GLOBAL', depotId: null, key: 'fee', value: '2000', updatedBy: 'u1' });
+    await repo.upsert({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'fee',
+      value: '2000',
+      updatedBy: 'u1',
+    });
 
     expect(calls.map((c) => c.op)).toEqual(['findFirst', 'create']);
     expect(calls[0].arg).toEqual({
@@ -65,7 +71,13 @@ describe('SettingsPrismaRepository', () => {
       },
     } as never;
     const repo = new SettingsPrismaRepository(prisma);
-    await repo.upsert({ scope: 'DEPOT', depotId: 'd1', key: 'fee', value: '3000', updatedBy: 'u2' });
+    await repo.upsert({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'fee',
+      value: '3000',
+      updatedBy: 'u2',
+    });
 
     expect(calls.map((c) => c.op)).toEqual(['findFirst', 'update']);
     expect(calls[1].arg).toEqual({

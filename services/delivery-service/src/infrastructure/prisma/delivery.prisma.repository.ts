@@ -283,11 +283,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     }));
   }
 
-  async driverDeliveredInWindow(
-    driverId: string,
-    from: Date,
-    to: Date,
-  ): Promise<DeliveredRow[]> {
+  async driverDeliveredInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredRow[]> {
     const rows = await this.prisma.delivery.findMany({
       where: { driverId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
       select: { orderId: true, assignedAt: true, deliveredAt: true },
@@ -493,9 +489,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     // OR on the phone as well as the id: a delivery created before the customer registered
     // carries the number and no id, and that is the row the audit counted.
-    const match = phone
-      ? [{ customerId }, { recipientPhone: phone }]
-      : [{ customerId }];
+    const match = phone ? [{ customerId }, { recipientPhone: phone }] : [{ customerId }];
     const [deliveries, proofs] = await this.prisma.$transaction([
       this.prisma.delivery.updateMany({
         where: { OR: match },
@@ -571,10 +565,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     };
   }
 
-  async slaStatsByDepot(
-    range: ReportRange,
-    thresholdMinutes: number,
-  ): Promise<DepotSlaStats[]> {
+  async slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]> {
     const conds: Prisma.Sql[] = [
       Prisma.sql`"deliveredAt" IS NOT NULL`,
       Prisma.sql`"depotId" IS NOT NULL`,
@@ -611,7 +602,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   async findUnalertedInFlight(assignedBefore: Date, limit: number): Promise<SlaCandidate[]> {
     return this.prisma.delivery.findMany({
       where: {
-        status: { in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY] },
+        status: {
+          in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY],
+        },
         slaAlertedAt: null,
         assignedAt: { lt: assignedBefore },
       },

@@ -143,7 +143,9 @@ export class ProofResponseDto {
 
 /** Mirrors `DeliveryStatusHistoryRecord` exactly — generated for audit D-6, no field added or removed. */
 export class DeliveryStatusHistoryResponseDto {
-  @ApiProperty({ enum: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'FAILED', 'RESCHEDULED'] })
+  @ApiProperty({
+    enum: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'FAILED', 'RESCHEDULED'],
+  })
   status!: string;
   @ApiProperty({ type: String, nullable: true })
   changedBy!: string | null;
@@ -167,7 +169,9 @@ export class DeliveryResponseDto {
   depotId!: string | null;
   @ApiProperty({ type: String, nullable: true })
   customerId!: string | null;
-  @ApiProperty({ enum: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'FAILED', 'RESCHEDULED'] })
+  @ApiProperty({
+    enum: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'FAILED', 'RESCHEDULED'],
+  })
   status!: string;
   @ApiProperty({ type: String })
   destinationAddress!: string;

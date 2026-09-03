@@ -2,6 +2,8 @@
 
 import { ChartPieSlice, Lock, WarningCircle } from '@phosphor-icons/react';
 
+import { useMemo, useState } from 'react';
+
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -13,10 +15,40 @@ import { useT } from '@/lib/locale-context';
 import { canViewDashboard } from '@/lib/roles';
 import type { OperationalCogsUncoveredReason, OperationalMonthlyPnl } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
+import { BUSINESS_TZ, wibParts } from '@/lib/wib';
 
-const NOW = new Date();
-const MONTH_KEY = NOW.toISOString().slice(0, 7);
-const MONTH_LABEL = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(NOW);
+/*
+ * CA-2-63, two bugs in three lines.
+ *
+ * The month came from `toISOString()`, which is UTC — Jakarta is UTC+7, so between midnight
+ * and 07:00 on the first of a month this asked for the PREVIOUS month's profit and loss
+ * under a heading naming this one. And it was a module constant: frozen when the bundle
+ * loaded, and computed on whichever machine rendered the page.
+ *
+ * The bigger one: there was no way to read any month but the current. A profit-and-loss
+ * report you cannot look back through is not a report — on the first of the month it shows
+ * a day of trading, and the month everybody actually wants to close the books on became
+ * unreachable the moment it ended.
+ */
+const MONTH_LABEL_FMT = new Intl.DateTimeFormat('id-ID', {
+  timeZone: BUSINESS_TZ,
+  month: 'long',
+  year: 'numeric',
+});
+
+/** The last `count` months, newest first, as business-timezone `YYYY-MM` keys. */
+function recentMonths(count: number): { key: string; label: string }[] {
+  const { year, month } = wibParts();
+  return Array.from({ length: count }, (_, i) => {
+    // UTC arithmetic on parts already read in the business zone: no second timezone hop,
+    // and month overflow (month 0, month 13) is handled by Date itself.
+    const at = new Date(Date.UTC(year, month - 1 - i, 1));
+    return {
+      key: `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`,
+      label: MONTH_LABEL_FMT.format(at),
+    };
+  });
+}
 
 const money = (value: number | null): string => (value === null ? '—' : formatIDR(value));
 
@@ -24,12 +56,16 @@ function MonthlyPnlBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
+  // Twelve months back: a year is what a depot compares against, and it is one <select>.
+  const months = useMemo(() => recentMonths(12), []);
+  const [monthKey, setMonthKey] = useState(months[0]!.key);
+  const monthLabel = months.find((m) => m.key === monthKey)?.label ?? monthKey;
   const report = useAsync<OperationalMonthlyPnl | null>(
     () =>
       depot
-        ? api.get(endpoints.dashboard.monthlyPnl(depot.id, MONTH_KEY), true)
+        ? api.get(endpoints.dashboard.monthlyPnl(depot.id, monthKey), true)
         : Promise.resolve(null),
-    [depot?.id],
+    [depot?.id, monthKey],
   );
 
   if (!depot && !report.loading) {
@@ -44,11 +80,25 @@ function MonthlyPnlBody() {
           <div>
             <h1 className="text-2xl font-bold">{t('mgrFix.pnl.title')}</h1>
             <p className="text-sm text-muted">
-              {t('mgrFix.pnl.subtitle', { depot: depot?.name ?? '', month: MONTH_LABEL })}
+              {t('mgrFix.pnl.subtitle', { depot: depot?.name ?? '', month: monthLabel })}
             </p>
           </div>
         </div>
-        <Badge tone="brand">{t('mgrFix.pnl.operational')}</Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge tone="brand">{t('mgrFix.pnl.operational')}</Badge>
+          <select
+            value={monthKey}
+            onChange={(e) => setMonthKey(e.target.value)}
+            aria-label={t('mgrFix.pnl.monthLabel')}
+            className="surface-elevated rounded-lg border border-app px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+          >
+            {months.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {report.loading ? (
@@ -69,7 +119,10 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
   return (
     <>
       {partial && (
-        <div className="flex gap-2 rounded-xl bg-[color:var(--warning-bg)] p-3 text-sm text-[color:var(--warning)]" role="status">
+        <div
+          className="flex gap-2 rounded-xl bg-[color:var(--warning-bg)] p-3 text-sm text-[color:var(--warning)]"
+          role="status"
+        >
           <WarningCircle size={20} weight="fill" className="shrink-0" />
           <span>{t('mgrFix.pnl.partial')}</span>
         </div>
@@ -97,7 +150,12 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
         <PnlLine label={t('mgrFix.pnl.cogs')} value={data.cogsIdr} negative indent border />
         <PnlLine label={t('mgrFix.pnl.grossProfit')} value={data.grossProfitIdr} bold border />
         <PnlLine label={t('mgrFix.pnl.opex')} value={data.opexIdr} negative indent border />
-        <PnlLine label={t('mgrFix.pnl.netOperatingProfit')} value={data.netOperatingProfitIdr} bold brand />
+        <PnlLine
+          label={t('mgrFix.pnl.netOperatingProfit')}
+          value={data.netOperatingProfitIdr}
+          bold
+          brand
+        />
       </Card>
 
       <SourceCard data={data} />
@@ -144,7 +202,10 @@ function SourceRow({ label, status }: { label: string; status: 'ok' | 'partial' 
 function CoverageCard({ data }: { data: OperationalMonthlyPnl }) {
   const { t } = useT();
   const coverage = data.costCoverage!;
-  const percent = coverage.totalUnits === 0 ? 100 : Math.round((coverage.coveredUnits / coverage.totalUnits) * 100);
+  const percent =
+    coverage.totalUnits === 0
+      ? 100
+      : Math.round((coverage.coveredUnits / coverage.totalUnits) * 100);
   return (
     <Card className="space-y-3 p-4">
       <div>
@@ -161,12 +222,18 @@ function CoverageCard({ data }: { data: OperationalMonthlyPnl }) {
         <div className="h-full bg-brand-500" style={{ width: `${percent}%` }} />
       </div>
       <p className="text-sm">
-        {t('mgrFix.pnl.coveredCogs')}: <strong className="tabular-nums">{money(data.coveredCogsIdr)}</strong>
+        {t('mgrFix.pnl.coveredCogs')}:{' '}
+        <strong className="tabular-nums">{money(data.coveredCogsIdr)}</strong>
       </p>
       <ul className="space-y-2">
         {coverage.uncoveredItems.map((item) => (
-          <li key={`${item.itemId}-${item.reason}`} className="rounded-lg bg-[color:var(--surface-muted)] p-3 text-xs">
-            <p className="font-semibold">{item.label} · {t('mgrFix.pnl.units', { n: item.units })}</p>
+          <li
+            key={`${item.itemId}-${item.reason}`}
+            className="rounded-lg bg-[color:var(--surface-muted)] p-3 text-xs"
+          >
+            <p className="font-semibold">
+              {item.label} · {t('mgrFix.pnl.units', { n: item.units })}
+            </p>
             <p className="text-muted">{reasonLabel(item.reason, t)}</p>
           </li>
         ))}
@@ -199,9 +266,17 @@ function PnlLine({
   const valueColor = brand ? 'text-brand-700' : negative ? 'text-[color:var(--danger)]' : '';
   const display = value === null ? '—' : `${negative ? '−' : ''}${formatIDR(value)}`;
   return (
-    <div className={`flex items-center justify-between gap-3 py-2.5 ${border ? 'border-b border-[color:var(--border)]' : ''}`}>
-      <span className={`text-sm ${bold ? 'font-bold' : 'text-muted'} ${indent ? 'pl-3' : ''}`}>{label}</span>
-      <span className={`text-sm font-semibold tabular-nums ${bold ? 'font-bold' : ''} ${valueColor}`}>{display}</span>
+    <div
+      className={`flex items-center justify-between gap-3 py-2.5 ${border ? 'border-b border-[color:var(--border)]' : ''}`}
+    >
+      <span className={`text-sm ${bold ? 'font-bold' : 'text-muted'} ${indent ? 'pl-3' : ''}`}>
+        {label}
+      </span>
+      <span
+        className={`text-sm font-semibold tabular-nums ${bold ? 'font-bold' : ''} ${valueColor}`}
+      >
+        {display}
+      </span>
     </div>
   );
 }

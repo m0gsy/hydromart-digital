@@ -16,6 +16,25 @@ export class InvalidWithdrawalAmountError extends DomainError {
   }
 }
 
+/**
+ * CA-2-63: an HQ release with nowhere to send the money.
+ *
+ * The debit leaves the owner's balance the moment a withdrawal is requested (B-8), so a
+ * record whose destination is a placeholder is money gone with no answer to "where". HQ
+ * either names the account or the owner has one on file from a previous cash-out; neither
+ * is a reason to write "Rilis HQ" into the destination column and carry on.
+ */
+export class UnknownPayoutDestinationError extends DomainError {
+  readonly code = 'PAYOUT_UNKNOWN_DESTINATION';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'No destination account for this owner: they have never cashed out, so HQ must name ' +
+        'the bank account this release is going to.',
+    );
+  }
+}
+
 export class WithdrawalNotFoundError extends DomainError {
   readonly code = 'PAYOUT_WITHDRAWAL_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

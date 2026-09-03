@@ -34,12 +34,17 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-
   it('takes a lock keyed on the owner before reading the balance', async () => {
     ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 500 } });
     withdrawal.create.mockResolvedValue({
-      id: 'w', franchiseOwnerId: 'own-1', amount: '500', bankAccountRef: 'BCA',
-      status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+      id: 'w',
+      franchiseOwnerId: 'own-1',
+      amount: '500',
+      bankAccountRef: 'BCA',
+      status: 'PROCESSING',
+      reference: 'WD-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
     await repo.withdrawWithDebit(input);
     expect($executeRaw).toHaveBeenCalled();
@@ -52,8 +57,14 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
   it('writes the withdrawal and its debit in the same transaction', async () => {
     ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
     withdrawal.create.mockResolvedValue({
-      id: 'w', franchiseOwnerId: 'own-1', amount: '500', bankAccountRef: 'BCA',
-      status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+      id: 'w',
+      franchiseOwnerId: 'own-1',
+      amount: '500',
+      bankAccountRef: 'BCA',
+      status: 'PROCESSING',
+      reference: 'WD-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     const out = await repo.withdrawWithDebit(input);
@@ -100,8 +111,14 @@ describe('WithdrawalPrismaRepository.settle', () => {
   const repo = new WithdrawalPrismaRepository(prisma);
 
   const processing = {
-    id: 'wd-1', franchiseOwnerId: 'own-1', amount: '200000', bankAccountRef: 'BCA',
-    status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+    id: 'wd-1',
+    franchiseOwnerId: 'own-1',
+    amount: '200000',
+    bankAccountRef: 'BCA',
+    status: 'PROCESSING',
+    reference: 'WD-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   const reversal = { sourceRef: 'withdrawal-reversal:wd-1', description: 'Pencairan gagal' };
 
@@ -177,8 +194,14 @@ describe('CourierWithdrawalPrismaRepository.settle', () => {
   const repo = new CourierWithdrawalPrismaRepository(prisma);
 
   const processing = {
-    id: 'cwd-1', courierId: 'cou-1', amount: '120000', bankAccountRef: 'BRI',
-    status: 'PROCESSING', reference: 'CWD-1', createdAt: new Date(), updatedAt: new Date(),
+    id: 'cwd-1',
+    courierId: 'cou-1',
+    amount: '120000',
+    bankAccountRef: 'BRI',
+    status: 'PROCESSING',
+    reference: 'CWD-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   const reversal = { sourceRef: 'withdrawal-reversal:cwd-1', description: 'Penarikan gagal' };
 
@@ -552,8 +575,14 @@ describe('CourierWithdrawalPrismaRepository.withdrawWithDebit', () => {
     description: 'Penarikan saldo · CWD-9',
   };
   const created = {
-    id: 'cw', courierId: 'cou-1', amount: '300', bankAccountRef: 'BRI',
-    status: 'PROCESSING', reference: 'CWD-9', createdAt: new Date(), updatedAt: new Date(),
+    id: 'cw',
+    courierId: 'cou-1',
+    amount: '300',
+    bankAccountRef: 'BRI',
+    status: 'PROCESSING',
+    reference: 'CWD-9',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   beforeEach(() => jest.clearAllMocks());

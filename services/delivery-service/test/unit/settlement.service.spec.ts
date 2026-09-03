@@ -28,7 +28,12 @@ import {
 const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
 const AUTH = 'Bearer courier-token';
 // Cashier at the settlement's own depot (passes assertDepotAccess).
-const CASHIER: AuthenticatedUser = { sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: null, depotId: DEPOT_ID };
+const CASHIER: AuthenticatedUser = {
+  sub: randomUUID(),
+  role: Role.KEPALA_DEPOT,
+  phone: null,
+  depotId: DEPOT_ID,
+};
 
 describe('SettlementService', () => {
   let settlementRepo: InMemorySettlementRepository;
@@ -276,9 +281,9 @@ describe('SettlementService', () => {
       const s = await submit(60000, 75000); // variance -15000
       payout.variancePostAccepted = false;
 
-      await expect(
-        service.verify(CASHIER, s.id, { chargedToDriver: true }),
-      ).rejects.toBeInstanceOf(SettlementChargeUndeliverableError);
+      await expect(service.verify(CASHIER, s.id, { chargedToDriver: true })).rejects.toBeInstanceOf(
+        SettlementChargeUndeliverableError,
+      );
 
       // Nothing was recorded: the deposit is still awaiting a ruling, so the same
       // button retries it once payout is back.
@@ -356,7 +361,9 @@ describe('SettlementService', () => {
         depotId: '00000000-0000-4000-8000-000000000099',
       };
       await expect(service.verify(otherDepot, s.id, {})).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(service.dispute(otherDepot, s.id, 'x')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.dispute(otherDepot, s.id, 'x')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 

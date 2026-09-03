@@ -42,11 +42,7 @@ export class CourierPayoutHttpAdapter implements CourierPayoutPort {
    * could not be produced. Answering it with a locally configured rate is how two numbers
    * for the same delivery came to exist in the first place.
    */
-  async paidEarnings(
-    depotId: string,
-    from: Date,
-    to: Date,
-  ): Promise<CourierPaidEarnings[] | null> {
+  async paidEarnings(depotId: string, from: Date, to: Date): Promise<CourierPaidEarnings[] | null> {
     const { payoutServiceUrl, internalServiceKey } = this.config;
     if (!payoutServiceUrl || !internalServiceKey) {
       this.logger.warn('Courier earnings read skipped: payout integration is not configured');

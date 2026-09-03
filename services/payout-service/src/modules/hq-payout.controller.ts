@@ -66,7 +66,7 @@ export class HqPayoutController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Release an owner's full available balance to their bank" })
   release(@Body() dto: ReleasePayoutDto): Promise<WithdrawalRecord> {
-    return this.payout.releaseForOwner(dto.franchiseOwnerId);
+    return this.payout.releaseForOwner(dto.franchiseOwnerId, dto.bankAccountRef);
   }
 
   /*

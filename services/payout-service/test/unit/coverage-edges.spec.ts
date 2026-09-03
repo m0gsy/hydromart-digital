@@ -54,7 +54,9 @@ class Ledger implements CourierLedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
-  async earningsByDepot(): Promise<{ courierId: string; earnedIdr: number; paidDeliveries: number }[]> {
+  async earningsByDepot(): Promise<
+    { courierId: string; earnedIdr: number; paidDeliveries: number }[]
+  > {
     return [];
   }
   async countByType(): Promise<number> {
@@ -306,12 +308,23 @@ describe('money DTOs coerce what an HTTP client actually sends', () => {
 describe('CourierLedgerPrismaRepository.create races (B-10)', () => {
   const P2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
   const entry = {
-    id: 'e-1', courierId: 'c1', depotId: null, type: 'EARNING', amount: '8000',
-    description: 'Ongkir', sourceRef: 'earning:d1', occurredAt: new Date(), createdAt: new Date(),
+    id: 'e-1',
+    courierId: 'c1',
+    depotId: null,
+    type: 'EARNING',
+    amount: '8000',
+    description: 'Ongkir',
+    sourceRef: 'earning:d1',
+    occurredAt: new Date(),
+    createdAt: new Date(),
   };
   const data = {
-    courierId: 'c1', depotId: null, type: 'EARNING' as never, amount: 8000,
-    description: 'Ongkir', sourceRef: 'earning:d1',
+    courierId: 'c1',
+    depotId: null,
+    type: 'EARNING' as never,
+    amount: 8000,
+    description: 'Ongkir',
+    sourceRef: 'earning:d1',
   };
 
   // The callers guard with findBySourceRef, which is check-then-insert: two concurrent

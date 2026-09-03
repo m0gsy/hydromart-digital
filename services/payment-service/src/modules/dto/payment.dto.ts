@@ -47,7 +47,8 @@ export class StaffInitiatePaymentDto extends InitiatePaymentDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: "Depot whose drawer takes the money — what the cashier's shift is measured against.",
+    description:
+      "Depot whose drawer takes the money — what the cashier's shift is measured against.",
   })
   @IsOptional()
   @IsUUID()
@@ -104,7 +105,10 @@ export class DepotCashQueryDto {
    * predate the column and fall in the window). Absent = the whole depot over the window,
    * which is what the daily report wants.
    */
-  @ApiPropertyOptional({ format: 'uuid', description: 'The cashier shift asking, if it is a shift close.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'The cashier shift asking, if it is a shift close.',
+  })
   @IsOptional()
   @IsUUID()
   cashierShiftId?: string;

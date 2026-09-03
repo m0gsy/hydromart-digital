@@ -25,7 +25,10 @@ describe('SlaAlertService', () => {
   });
 
   /** Puts one delivery on the road, assigned `minutesAgo` before NOW. */
-  const onTheRoad = async (minutesAgo: number, status = DeliveryStatus.ON_DELIVERY): Promise<string> => {
+  const onTheRoad = async (
+    minutesAgo: number,
+    status = DeliveryStatus.ON_DELIVERY,
+  ): Promise<string> => {
     const row = await repo.create({
       orderId: randomUUID(),
       orderNumber: `HM-${minutesAgo}`,
