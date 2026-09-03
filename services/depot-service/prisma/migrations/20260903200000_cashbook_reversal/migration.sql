@@ -19,9 +19,16 @@
 ALTER TABLE "cashbook_entries" ADD COLUMN IF NOT EXISTS "reversesId" UUID;
 ALTER TABLE "cashbook_entries" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;
 
--- One reversal per entry. Without this, a retried request — or two operators pressing the
+-- One reversal per entry. Without it, a retried request — or two operators pressing the
 -- button together — posts the correction twice and leaves the book wrong in the other
 -- direction, which is the same bug with a minus sign.
-CREATE UNIQUE INDEX IF NOT EXISTS "cashbook_entries_reversesId_key"
-  ON "cashbook_entries" ("reversesId")
-  WHERE "reversesId" IS NOT NULL;
+--
+-- The index is NOT built here. A plain `CREATE INDEX` takes a lock that blocks writes for
+-- as long as it runs, and `CONCURRENTLY` cannot run inside the transaction Prisma wraps a
+-- migration in (audit H-39). So it is built concurrently by `scripts/create-indexes.sh`,
+-- which the deploy runs BEFORE migrate — this migration then finds it already there.
+--
+--   depot|cashbook_entries_reversesId_key
+--
+-- On this table the build is instant either way (the column is new, every row is NULL), but
+-- the rule is not about this table: it is about the next index somebody adds to `orders`.
