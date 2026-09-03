@@ -9,8 +9,6 @@ import {
   VoucherInactiveError,
   VoucherNotFoundError,
   VoucherNotStartedError,
-  VoucherRequestDecidedError,
-  VoucherRequestNotFoundError,
   VoucherUsageExceededError,
 } from '../../src/domain/errors';
 import { buildPage } from '../../src/application/pagination';
@@ -43,8 +41,6 @@ describe('domain errors', () => {
       [new VoucherUsageExceededError(), 'VOUCHER_USAGE_EXCEEDED'],
       [new VoucherCustomerLimitReachedError(), 'VOUCHER_CUSTOMER_LIMIT'],
       [new VoucherBudgetExhaustedError(), 'VOUCHER_BUDGET_EXHAUSTED'],
-      [new VoucherRequestNotFoundError(), 'VOUCHER_REQUEST_NOT_FOUND'],
-      [new VoucherRequestDecidedError(), 'VOUCHER_REQUEST_DECIDED'],
     ] as const;
     for (const [err, code] of cases) {
       expect(err.code).toBe(code);

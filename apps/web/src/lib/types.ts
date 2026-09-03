@@ -1846,6 +1846,14 @@ export interface RefundQueueItem {
   amount: number;
   refundReason: string | null;
   refundApproval: RefundApproval;
+  /**
+   * CA-2-34: the order's status, or null when order-service could not be read.
+   *
+   * `CANCELLED` and `null` both mean the same thing to this screen: do not offer to reject.
+   * A cancelled order that was paid gets its money back — that is the rule — and an
+   * unreadable order cannot be proven not to be cancelled, which the server refuses on.
+   */
+  orderStatus: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1885,30 +1893,6 @@ export interface PriceOverrideProposalItem {
   /** Account name behind `proposedBy` (§G-3). Null when the account has none. */
   proposedByName: string | null;
   decidedBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Depot→HQ voucher request (promo-service voucher-requests, design 14b).
-export interface VoucherRequestItem {
-  id: string;
-  depotId: string;
-  depotName: string;
-  code: string;
-  description: string | null;
-  discountType: 'PERCENTAGE' | 'FIXED';
-  value: number;
-  minSpend: number;
-  maxDiscount: number | null;
-  usageLimit: number | null;
-  perCustomerLimit: number;
-  note: string | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  requestedBy: string;
-  /** Account name behind `requestedBy` (§G-3). Null when the account has none. */
-  requestedByName: string | null;
-  decidedBy: string | null;
-  createdVoucherId: string | null;
   createdAt: string;
   updatedAt: string;
 }

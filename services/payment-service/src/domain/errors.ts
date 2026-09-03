@@ -53,6 +53,36 @@ export class RefundNotPendingError extends DomainError {
   }
 }
 
+/**
+ * CA-2-34: a cancelled order that was paid gets its money back, full stop.
+ *
+ * Refusing a refund used to be available on any queued row. On a CANCELLED order that
+ * left the customer's money with the business with no cash back, no store credit, and
+ * nothing said to them — the order was over and the money simply stayed. Rejection is now
+ * for disputes on orders that are still standing; a cancelled one is not a judgement call.
+ */
+export class RefundOnCancelledOrderError extends DomainError {
+  readonly code = 'REFUND_CANCELLED_ORDER';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Pesanan ini sudah dibatalkan, jadi refundnya tidak bisa ditolak — uang pelanggan harus dikembalikan.',
+    );
+  }
+}
+
+/**
+ * CA-2-34: the order behind this refund could not be read, so we cannot prove it was NOT
+ * cancelled. Refusing is the answer that cannot take a customer's money by accident.
+ */
+export class RefundOrderUnreadableError extends DomainError {
+  readonly code = 'REFUND_ORDER_UNREADABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Status pesanan tidak terbaca, jadi penolakan refund tidak bisa diproses. Coba lagi.');
+  }
+}
+
 /** COD cash handed over is less than the amount due — cannot settle short. */
 export class CashShortError extends DomainError {
   readonly code = 'PAYMENT_CASH_SHORT';

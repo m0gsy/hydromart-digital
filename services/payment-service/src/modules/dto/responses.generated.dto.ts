@@ -102,6 +102,14 @@ export class RefundQueueRowResponseDto extends PaymentResponseDto {
   /** §G-3: the order's HM-… number, resolved from order-service. Null when unresolved. */
   @ApiProperty({ type: String, nullable: true })
   orderNumber!: string | null;
+
+  /**
+   * CA-2-34: the order's status. `CANCELLED` (or null, meaning unreadable) is why the
+   * console must not offer to REJECT the refund — a cancelled order that was paid gets
+   * its money back.
+   */
+  @ApiProperty({ type: String, nullable: true })
+  orderStatus!: string | null;
 }
 
 /** The refund queue's page — same envelope, rows carrying the order number. */

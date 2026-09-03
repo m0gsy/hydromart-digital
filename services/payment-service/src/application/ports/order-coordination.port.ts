@@ -30,6 +30,19 @@ export interface OrderCoordinationPort {
    */
   getOrderNumbers(orderIds: string[]): Promise<Map<string, string>>;
   /**
+   * CA-2-34: the current status of a batch of orders, for the refund queue.
+   *
+   * A cancelled order that was paid gets its money back — that is the owner's rule — so a
+   * REJECTION on one has to be refused. A payment row knows nothing about the order beyond
+   * its id, so this is the only way to ask.
+   *
+   * Fails SOFT here, like `getOrderNumbers`: an id that could not be read simply stays out
+   * of the map. The CALLER decides what an absent answer means, and for the rejection path
+   * it means "refuse" — see `rejectRefund`. Decorating a queue and blocking a decision are
+   * different jobs, and only one of them may be wrong in the customer's favour.
+   */
+  getOrderStatuses(orderIds: string[]): Promise<Map<string, string>>;
+  /**
    * The depot an order belongs to, or null if it is unassigned, unknown, or order-service
    * could not be reached (AUTHZ-2).
    *

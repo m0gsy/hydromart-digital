@@ -86,7 +86,23 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     );
   }
 
+  /**
+   * CA-2-34. Same round trip as `getOrderNumbers` — `internal/values` carries both — so
+   * this is `getValues` asked for a different field rather than a second endpoint.
+   */
+  async getOrderStatuses(orderIds: string[]): Promise<Map<string, string>> {
+    return this.getValues(orderIds, 'status');
+  }
+
   async getOrderNumbers(orderIds: string[]): Promise<Map<string, string>> {
+    return this.getValues(orderIds, 'orderNumber');
+  }
+
+  /** One field of `internal/values`, keyed by order id. Fails SOFT: the map just misses. */
+  private async getValues(
+    orderIds: string[],
+    field: 'orderNumber' | 'status',
+  ): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     const { orderServiceUrl, internalServiceKey } = this.config;
     const unique = [...new Set(orderIds.filter((id) => id.length > 0))];
@@ -102,13 +118,18 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`order-service responded ${res.status}`);
-      const rows = (await res.json()) as { orderId?: string; orderNumber?: string }[];
+      const rows = (await res.json()) as Record<string, string | undefined>[];
       for (const r of rows) {
-        if (r.orderId && r.orderNumber) out.set(r.orderId, r.orderNumber);
+        const value = r[field];
+        if (r.orderId && value) out.set(r.orderId, value);
       }
     } catch (error) {
-      // Fail SOFT, unlike getOrderTotal: this decorates a queue, it does not price anything.
-      this.logger.warn(`Order numbers unresolved: ${(error as Error).message}`);
+      /*
+       * Fail SOFT, unlike getOrderTotal: this decorates a queue, it does not price
+       * anything. CA-2-34's rejection guard reads the same map and treats an ABSENT
+       * answer as a refusal — that decision belongs to the caller, not here.
+       */
+      this.logger.warn(`Order ${field} unresolved: ${(error as Error).message}`);
     } finally {
       clearTimeout(timer);
     }

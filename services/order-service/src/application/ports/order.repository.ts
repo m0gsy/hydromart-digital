@@ -275,6 +275,14 @@ export interface RatingSummary {
 
 export interface OrderValue {
   orderId: string;
+  /**
+   * CA-2-34: the order's current status.
+   *
+   * payment-service needs it to refuse a refund REJECTION on a cancelled order — the
+   * decision the owner took is that a cancelled, paid order gets its money back, full
+   * stop. A payment row cannot answer that: it knows nothing about the order beyond an id.
+   */
+  status: string;
   /** The human-readable HM-… number (§G-3): what every other console shows for an order. */
   orderNumber: string;
   totalIdr: number;

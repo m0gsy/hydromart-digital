@@ -107,18 +107,3 @@ export class VoucherBudgetExhaustedError extends DomainError {
   }
 }
 
-export class VoucherRequestNotFoundError extends DomainError {
-  readonly code = 'VOUCHER_REQUEST_NOT_FOUND';
-  readonly status = HTTP_STATUS.NOT_FOUND;
-  constructor() {
-    super('Voucher request not found.');
-  }
-}
-
-export class VoucherRequestDecidedError extends DomainError {
-  readonly code = 'VOUCHER_REQUEST_DECIDED';
-  readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor() {
-    super('This voucher request has already been decided.');
-  }
-}

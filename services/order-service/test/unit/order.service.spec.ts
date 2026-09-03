@@ -1140,7 +1140,13 @@ describe('OrderService', () => {
         findOrderValues(
           ids: string[],
         ): Promise<
-          { orderId: string; orderNumber: string; totalIdr: number; depotId: string | null }[]
+          {
+            orderId: string;
+            orderNumber: string;
+            totalIdr: number;
+            depotId: string | null;
+            status: string;
+          }[]
         >;
       }
     ).findOrderValues([order.id, missingId]);
@@ -1151,6 +1157,9 @@ describe('OrderService', () => {
         orderNumber: order.orderNumber,
         totalIdr: order.total,
         depotId: order.depotId ?? null,
+        // CA-2-34: payment-service reads this to refuse a refund REJECTION on a cancelled
+        // order — a cancelled order that was paid gets its money back.
+        status: order.status,
       },
     ]);
   });

@@ -1,10 +1,8 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promotion.prisma.repository';
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
-import { VoucherRequestPrismaRepository } from '../../src/infrastructure/prisma/voucher-request.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
 import { VoucherNotFoundError } from '../../src/domain/errors';
-import { VoucherRequestStatus } from '../../src/domain/voucher-request';
 
 describe('PromotionPrismaRepository', () => {
   const model = {
@@ -466,110 +464,3 @@ describe('VoucherPrismaRepository.redeemAtomic', () => {
   });
 });
 
-describe('VoucherRequestPrismaRepository', () => {
-  const model = {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    findUnique: jest.fn(),
-    update: jest.fn(),
-  };
-  const prisma = { voucherRequest: model } as unknown as PrismaService;
-  const repo = new VoucherRequestPrismaRepository(prisma);
-
-  const requestRow = () => ({
-    id: 'req-1',
-    depotId: 'd-1',
-    depotName: 'Depot Satu',
-    code: 'DEPOT10',
-    description: null,
-    discountType: 'PERCENTAGE',
-    value: 10,
-    minSpend: 0,
-    maxDiscount: null,
-    usageLimit: null,
-    perCustomerLimit: 1,
-    note: null,
-    status: 'PENDING',
-    requestedBy: 'mgr-1',
-    decidedBy: null,
-    createdVoucherId: null,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
-  });
-
-  beforeEach(() => jest.clearAllMocks());
-
-  it('create maps the persisted row to a record', async () => {
-    model.create.mockResolvedValue(requestRow());
-    const data = { depotId: 'd-1', code: 'DEPOT10' } as never;
-    const rec = await repo.create(data);
-    expect(rec.discountType).toBe(DiscountType.PERCENTAGE);
-    expect(rec.status).toBe(VoucherRequestStatus.PENDING);
-    expect(model.create).toHaveBeenCalledWith({ data });
-  });
-
-  it('list filters by status, paginates, and maps items', async () => {
-    model.findMany.mockResolvedValue([requestRow()]);
-    model.count.mockResolvedValue(1);
-    const res = await repo.list({ status: VoucherRequestStatus.PENDING, page: 2, limit: 5 });
-    expect(res.total).toBe(1);
-    expect(res.items[0].id).toBe('req-1');
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { status: VoucherRequestStatus.PENDING },
-      orderBy: { createdAt: 'desc' },
-      skip: 5,
-      take: 5,
-    });
-    expect(model.count).toHaveBeenCalledWith({ where: { status: VoucherRequestStatus.PENDING } });
-  });
-
-  it('list without a status uses an empty where', async () => {
-    model.findMany.mockResolvedValue([]);
-    model.count.mockResolvedValue(0);
-    const res = await repo.list({ page: 1, limit: 10 } as never);
-    expect(res).toEqual({ items: [], total: 0 });
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: {},
-      orderBy: { createdAt: 'desc' },
-      skip: 0,
-      take: 10,
-    });
-  });
-
-  it('findById maps or returns null', async () => {
-    model.findUnique.mockResolvedValue(requestRow());
-    expect((await repo.findById('req-1'))?.id).toBe('req-1');
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'req-1' } });
-    model.findUnique.mockResolvedValue(null);
-    expect(await repo.findById('nope')).toBeNull();
-  });
-
-  it('update applies only the provided fields', async () => {
-    model.update.mockResolvedValue({
-      ...requestRow(),
-      status: 'APPROVED',
-      decidedBy: 'hq-1',
-      createdVoucherId: 'v-9',
-    });
-    const rec = await repo.update('req-1', {
-      status: VoucherRequestStatus.APPROVED,
-      decidedBy: 'hq-1',
-      createdVoucherId: 'v-9',
-    });
-    expect(rec.status).toBe(VoucherRequestStatus.APPROVED);
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'req-1' },
-      data: { status: VoucherRequestStatus.APPROVED, decidedBy: 'hq-1', createdVoucherId: 'v-9' },
-    });
-  });
-
-  it('update omits fields that are undefined', async () => {
-    model.update.mockResolvedValue(requestRow());
-    await repo.update('req-1', {});
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'req-1' },
-      data: {},
-    });
-  });
-});

@@ -66,6 +66,7 @@ import {
   RefundCountsQueryDto,
   PaymentWebhookDto,
   RefundPaymentDto,
+  RejectRefundDto,
   StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
   RefundRulesDto,
@@ -547,12 +548,18 @@ export class PaymentController {
   @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/refund/reject')
   @Can('refundQueue')
-  @ApiOperation({ summary: 'Reject a queued refund → no money moves (HQ)' })
+  @ApiOperation({
+    summary:
+      'Reject a queued refund → no money moves (HQ). Refused on a CANCELLED order: a ' +
+      'cancelled order that was paid gets its money back (CA-2-34).',
+  })
   rejectRefund(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: RefundPaymentDto,
+    @Body() dto: RejectRefundDto,
   ): Promise<PaymentRecord> {
+    // CA-2-34: the reason is required by the DTO, so the audit records the REJECTOR's
+    // words rather than falling back to the requester's.
     return this.payments.rejectRefund(id, user.sub, dto.reason);
   }
 

@@ -33,49 +33,6 @@ export class PromotionResponseDto {
   updatedAt!: string;
 }
 
-/** Mirrors `VoucherRequestRecord` exactly — generated for audit D-6, no field added or removed. */
-export class VoucherRequestResponseDto {
-  @ApiProperty({ type: String })
-  id!: string;
-  @ApiProperty({ type: String })
-  depotId!: string;
-  @ApiProperty({ type: String })
-  depotName!: string;
-  @ApiProperty({ type: String })
-  code!: string;
-  @ApiProperty({ type: String, nullable: true })
-  description!: string | null;
-  @ApiProperty({ enum: ['PERCENTAGE', 'FIXED', 'FREE_SHIPPING'] })
-  discountType!: string;
-  @ApiProperty({ type: Number })
-  value!: number;
-  @ApiProperty({ type: Number })
-  minSpend!: number;
-  @ApiProperty({ type: Number, nullable: true })
-  maxDiscount!: number | null;
-  @ApiProperty({ type: Number, nullable: true })
-  usageLimit!: number | null;
-  @ApiProperty({ type: Number })
-  perCustomerLimit!: number;
-  @ApiProperty({ type: String, nullable: true })
-  note!: string | null;
-  @ApiProperty({ enum: ['PENDING', 'APPROVED', 'REJECTED'] })
-  status!: string;
-  @ApiProperty({ type: String })
-  requestedBy!: string;
-  /** §G-3: denormalised from auth-service so HQ sees who is asking. */
-  @ApiProperty({ type: String, nullable: true })
-  requestedByName!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  decidedBy!: string | null;
-  @ApiProperty({ type: String, nullable: true })
-  createdVoucherId!: string | null;
-  @ApiProperty({ type: String, format: 'date-time' })
-  createdAt!: string;
-  @ApiProperty({ type: String, format: 'date-time' })
-  updatedAt!: string;
-}
-
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class BurnSummaryResponseDto {
   @ApiProperty({ type: Number })
@@ -162,20 +119,6 @@ export class Grant2ResponseDto {
   voucher!: VoucherResponseDto;
   @ApiProperty({ type: Boolean })
   granted!: boolean;
-}
-
-/** Mirrors `Page<VoucherRequestRecord>` — the paged envelope this route already returns. */
-export class PagedVoucherRequestResponseDto {
-  @ApiProperty({ type: [VoucherRequestResponseDto] })
-  items!: VoucherRequestResponseDto[];
-  @ApiProperty({ type: Number })
-  total!: number;
-  @ApiProperty({ type: Number })
-  page!: number;
-  @ApiProperty({ type: Number })
-  limit!: number;
-  @ApiProperty({ type: Number })
-  totalPages!: number;
 }
 
 /** Mirrors `Page<VoucherRecord>` — the paged envelope this route already returns. */

@@ -10,6 +10,8 @@ import {
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
+  RefundOnCancelledOrderError,
+  RefundOrderUnreadableError,
 } from '../../src/domain/errors';
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
 import {
@@ -361,10 +363,47 @@ describe('PaymentService', () => {
   it('rejecting a queued refund leaves the payment PAID and unrefunded', async () => {
     const payment = await paidOver(150_000);
     await service.refund(payment.id, 'finance');
+    // CA-2-34: the order has to be readable and still standing for a refusal to be allowed.
+    orders.orderStatuses.set(payment.orderId, 'DELIVERED');
     const rejected = await service.rejectRefund(payment.id, 'hq', 'tidak valid');
     expect(rejected.status).toBe(PaymentStatus.PAID);
     expect(rejected.refundApproval).toBe(RefundApproval.REJECTED);
     expect((await service.listRefundQueue({})).total).toBe(0);
+  });
+
+  /*
+   * CA-2-34, the owner's rule: a cancelled order that was paid gets its money back.
+   *
+   * Refusal used to be available on any queued row. On a CANCELLED order that left the
+   * customer's money with the business — payment still PAID, order over, nothing said to
+   * them. Refusal is for disputes on orders that are still standing.
+   */
+  it('refuses to reject a refund on a cancelled order', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance', 'pesanan dibatalkan');
+    orders.orderStatuses.set(payment.orderId, 'CANCELLED');
+
+    await expect(service.rejectRefund(payment.id, 'hq', 'tidak valid')).rejects.toBeInstanceOf(
+      RefundOnCancelledOrderError,
+    );
+    // Still queued: a refusal that was refused must not quietly close the claim either.
+    expect((await service.listRefundQueue({})).total).toBe(1);
+  });
+
+  /*
+   * Fails CLOSED. If order-service cannot say, we cannot prove the order was NOT cancelled,
+   * and refusing to reject is the answer that cannot take somebody's money by accident. HQ
+   * retries; nothing is lost but a minute.
+   */
+  it('refuses to reject when the order cannot be read at all', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance');
+    orders.orderStatuses.clear();
+
+    await expect(service.rejectRefund(payment.id, 'hq', 'tidak valid')).rejects.toBeInstanceOf(
+      RefundOrderUnreadableError,
+    );
+    expect((await service.listRefundQueue({})).total).toBe(1);
   });
 
   // H-29: every one of these decisions used to leave nothing behind but a log line that
@@ -415,6 +454,7 @@ describe('PaymentService', () => {
       const svc = auditedService();
       const payment = await paidOver(150_000);
       await svc.refund(payment.id, 'finance');
+      orders.orderStatuses.set(payment.orderId, 'DELIVERED');
       await svc.rejectRefund(payment.id, 'hq', 'tidak valid');
 
       const rejected = entries(fetchMock).find((e) => e.action === 'payment.refund.rejected');
@@ -451,14 +491,26 @@ describe('PaymentService', () => {
       expect(settled.actorId).toBeUndefined();
     });
 
-    it('records a rejection with no reason given', async () => {
+    /*
+     * CA-2-34. This used to assert that a rejection with no reason recorded `null`, and it
+     * passed — but the service did not record null, it fell back to `payment.refundReason`,
+     * the REQUESTER's words. The audit then read as though the person refusing had written
+     * the reason the person asking had written. The test only saw null because that refund
+     * had been queued without a reason either.
+     *
+     * A reason is required now, and there is no fallback: a refusal spends nobody's money
+     * but it ends somebody's claim, and it has to say why in its own words.
+     */
+    it("records the rejector's own reason, not the requester's", async () => {
       const svc = auditedService();
       const payment = await paidOver(150_000);
-      await svc.refund(payment.id, 'finance'); // queued, no reason
-      await svc.rejectRefund(payment.id, 'hq'); // rejected, no reason
+      await svc.refund(payment.id, 'finance', 'galon bocor'); // the REQUESTER's words
+      orders.orderStatuses.set(payment.orderId, 'DELIVERED');
+      await svc.rejectRefund(payment.id, 'hq', 'sudah diganti di tempat');
 
       const rejected = entries(fetchMock).find((e) => e.action === 'payment.refund.rejected');
-      expect(rejected.metadata.reason).toBeNull();
+      expect(rejected.metadata.reason).toBe('sudah diganti di tempat');
+      expect(rejected.metadata.reason).not.toBe('galon bocor');
     });
 
     // Fail-open: the money already moved, so the trail must not be able to undo it.

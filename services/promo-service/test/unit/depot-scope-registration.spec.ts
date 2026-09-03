@@ -7,6 +7,11 @@ import { providers } from '../../src/modules/promo.module';
 // B-14: promo-service exposed `depots/:depotId/voucher-requests` and passed the path
 // parameter straight into the service, but never registered DepotScopeGuard — so depot
 // scoping on vouchers and promotions was enforced by a guard the service does not install.
+//
+// CA-2-42 removed that route (the owner chose to let depots create their own vouchers
+// rather than queue them for HQ). The guard stays and so does this test: it is a
+// module-wide APP_GUARD, promo-service will grow another depot-scoped path, and taking it
+// out now means the next one arrives unguarded — which is how B-14 happened.
 // Twelve other services register it; promo-service was the only outlier with depot-scoped
 // routes.
 //

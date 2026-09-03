@@ -249,6 +249,8 @@ export class InMemoryOrderRepository implements OrderRepository {
         orderNumber: row.orderNumber,
         totalIdr: row.total,
         depotId: row.depotId ?? null,
+        // CA-2-34: payment-service reads this to refuse a rejection on a cancelled order.
+        status: row.status,
       }));
   }
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
