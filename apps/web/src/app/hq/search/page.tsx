@@ -42,6 +42,16 @@ const PHONE_RE = /^\+?\d[\d\s-]{6,}$/;
 // filter them in JavaScript, which made it both expensive and wrong: a staff member on
 // page 2 of the directory, or an order older than the last twenty, was unfindable. Each
 // list takes the term as a query parameter now and returns at most ten rows.
+/** The phone lookup, on one line so the endpoint gate can read its verb. */
+async function lookupCustomer(term: string): Promise<Customer[]> {
+  if (!PHONE_RE.test(term)) return [];
+  try {
+    return [await api.get<Customer>(endpoints.auth.customerLookup(term), true)];
+  } catch {
+    return [];
+  }
+}
+
 export default function HqSearchPage() {
   const { t } = useT();
   const [query, setQuery] = useState('');
@@ -100,12 +110,14 @@ export default function HqSearchPage() {
       ),
       // A miss is not a failure here: most search terms are not phone numbers, and a
       // 404 for "budi" must not be reported as "customers could not be searched".
-      PHONE_RE.test(debounced)
-        ? api
-            .get<Customer>(endpoints.auth.customerLookup(debounced), true)
-            .then((c) => [c])
-            .catch(() => [] as Customer[])
-        : Promise.resolve([] as Customer[]),
+      //
+      // Written as a helper rather than inline: `scripts/check-endpoint-contracts.mjs`
+      // reads `api.<verb>(endpoints.a.b)` with a regex to check the client and the
+      // controller agree on the verb, and inside a ternary this call was long enough that
+      // prettier broke the line after `api` — so nothing verified it. Keeping the call on
+      // one line is what restores the check; hoisting the URL into a variable would
+      // silence the counter and lose the check with it.
+      lookupCustomer(debounced),
     ]).then(([depots, staff, orders, customers]) => {
       if (!alive) return;
       setResults({ depots, staff, orders, customer: customers[0] ?? null });
