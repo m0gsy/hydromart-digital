@@ -173,7 +173,7 @@ describe('CashierShiftController', () => {
 });
 
 describe('CashbookController', () => {
-  const svc = { list: jest.fn(), record: jest.fn() };
+  const svc = { list: jest.fn(), record: jest.fn(), reverse: jest.fn() };
   const costs = { costsInRange: jest.fn().mockResolvedValue({ cogsIdr: 0, opexIdr: 0 }) };
   const c = new CashbookController(svc as never, costs as never);
   beforeEach(() => jest.clearAllMocks());
@@ -189,6 +189,16 @@ describe('CashbookController', () => {
     expect(svc.list).toHaveBeenCalledWith(DEPOT, { from: undefined, to: undefined });
     await c.list({ depotId: DEPOT, from: ISO, to: ISO } as never);
     expect(svc.list).toHaveBeenLastCalledWith(DEPOT, { from: new Date(ISO), to: new Date(ISO) });
+  });
+
+  /*
+   * CA-2-22: a correction is a POST that CREATES the opposite leg, not a PATCH. The reason
+   * is the only thing the caller supplies — amount, direction and depot all come from the
+   * entry being cancelled, so a "correction" cannot quietly post a different number.
+   */
+  it('passes only the id, the reason and the actor to a correction', async () => {
+    await c.reverse(ID, { reason: 'salah ketik' } as never, user);
+    expect(svc.reverse).toHaveBeenCalledWith(ID, 'salah ketik', 'user-1');
   });
 
   it('records with and without occurredAt', async () => {

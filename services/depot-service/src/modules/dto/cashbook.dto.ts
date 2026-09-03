@@ -84,3 +84,22 @@ export class DepotCostsQueryDto {
   @IsWithinDays('from')
   to!: string;
 }
+
+/**
+ * CA-2-22: correcting an entry.
+ *
+ * A reason, and nothing else — the amount, direction and depot all come from the entry
+ * being cancelled. Letting the caller restate them would let a "correction" post a
+ * different number against a different depot, which is a new entry wearing a correction's
+ * name.
+ */
+export class ReverseCashbookDto {
+  @ApiProperty({
+    example: 'Salah ketik: Rp 5.000.000 seharusnya Rp 500.000',
+    description: 'Why the entry is being corrected. Shown beside both entries in the book.',
+  })
+  @IsString()
+  @MinLength(4)
+  @MaxLength(300)
+  reason!: string;
+}

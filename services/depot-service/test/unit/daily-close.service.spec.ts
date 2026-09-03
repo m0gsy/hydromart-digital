@@ -21,9 +21,24 @@ import { OwnershipType } from '../../src/domain/inventory';
 const DAY = '2026-08-04';
 
 class FakeCashbook implements CashbookRepository {
+  // CA-2-22: corrections are not this suite's subject, but the port grew two reads and a
+  // fake that lies about the interface is worse than no fake.
+  async findById(): Promise<null> {
+    return null;
+  }
+  async findReversalOf(): Promise<null> {
+    return null;
+  }
+
   rows: CashbookEntry[] = [];
   async create(data: CreateCashbookEntryData): Promise<CashbookEntry> {
-    const row: CashbookEntry = { id: randomUUID(), ...data, createdAt: new Date() };
+    const row: CashbookEntry = {
+      id: randomUUID(),
+      ...data,
+      reversesId: data.reversesId ?? null,
+      reversalReason: data.reversalReason ?? null,
+      createdAt: new Date(),
+    };
     this.rows.push(row);
     return row;
   }

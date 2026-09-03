@@ -621,9 +621,19 @@ model CashbookEntry {
   occurredAt DateTime      @default(now())
   /// Optional link to the source (settlement id, PO number) when auto-posted.
   sourceRef  String?
+  /// CA-2-22: the entry this one cancels, for a correction.
+  ///
+  /// The book is append-only on purpose — a ledger you can edit is a ledger nobody can
+  /// audit — so a mistake is put right by POSTING THE OPPOSITE, not by rewriting history.
+  /// Null on every ordinary entry. Unique, so one entry can be reversed exactly once.
+  reversesId     String?   @db.Uuid
+  /// Why it was reversed. Required by the service when `reversesId` is set: a correction
+  /// with no reason is the same unexplained number in the other direction.
+  reversalReason String?
   actorId    String        @db.Uuid
   createdAt  DateTime      @default(now())
 
+  @@unique([reversesId])
   @@index([depotId, occurredAt])
   @@map("cashbook_entries")
 }
