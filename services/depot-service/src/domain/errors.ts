@@ -368,6 +368,22 @@ export class PriceOverrideSelfApprovalError extends DomainError {
   }
 }
 
+/**
+ * CA-2-39: the refund a dispute resolution asked for could not be queued.
+ *
+ * Fail-closed on purpose. A dispute marked RESOLVED/REFUND against an order nobody could
+ * find, or a payment nobody could refund, is exactly the state this row is about — a
+ * decision recorded and never carried out. The manager is told while they are still on the
+ * screen, with the reason the other service gave.
+ */
+export class DisputeRefundUnavailableError extends DomainError {
+  readonly code = 'DISPUTE_REFUND_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(reason: string) {
+    super(`Refund tidak bisa diminta: ${reason}`);
+  }
+}
+
 export class DisputeNotFoundError extends DomainError {
   readonly code = 'DISPUTE_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

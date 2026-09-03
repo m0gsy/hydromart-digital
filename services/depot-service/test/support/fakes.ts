@@ -891,3 +891,19 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
     return [...map.entries()].map(([depotId, v]) => ({ depotId, ...v }));
   }
 }
+
+/**
+ * CA-2-39: the refund a dispute resolution asks for.
+ *
+ * `fail` is the case that matters — a dispute must NOT be recorded as resolved when the
+ * refund could not be queued.
+ */
+export class FakeDisputeRefund {
+  calls: { orderRef: string; reason: string; authorization: string }[] = [];
+  fail: string | null = null;
+
+  async request(orderRef: string, reason: string, authorization: string): Promise<void> {
+    if (this.fail) throw new Error(this.fail);
+    this.calls.push({ orderRef, reason, authorization });
+  }
+}

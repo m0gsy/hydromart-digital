@@ -260,10 +260,15 @@ describe('DisputeController', () => {
     );
     await c.list({ depotId: DEPOT, status: 'OPEN' } as never);
     expect(svc.list).toHaveBeenCalledWith(DEPOT, 'OPEN');
+    // CA-2-39: the manager's own bearer rides along, so `Can('refundIssue')` applies to
+    // them and the queued refund is attributed to them rather than to a service key.
+    await c.resolve(ID, { resolution: 'REFUND' } as never, user, 'Bearer t');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1', 'Bearer t');
+    await c.resolve(ID, { resolution: 'REFUND', resolutionNote: 'n' } as never, user, 'Bearer t');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', 'n', 'user-1', 'Bearer t');
+    // Absent header: the service refuses rather than issuing the refund as somebody else.
     await c.resolve(ID, { resolution: 'REFUND' } as never, user);
-    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1');
-    await c.resolve(ID, { resolution: 'REFUND', resolutionNote: 'n' } as never, user);
-    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', 'n', 'user-1');
+    expect(svc.resolve).toHaveBeenLastCalledWith(ID, 'REFUND', null, 'user-1', '');
   });
 });
 

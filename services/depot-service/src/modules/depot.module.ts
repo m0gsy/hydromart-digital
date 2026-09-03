@@ -39,6 +39,7 @@ import { DailyClosePrismaRepository } from '../infrastructure/prisma/daily-close
 import { CourierCodHttpAdapter } from '../infrastructure/http/courier-cod.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../infrastructure/http/order-subscription.http.adapter';
 import { DisputeService } from '../application/services/dispute.service';
+import { DisputeRefundHttpAdapter } from '../infrastructure/http/dispute-refund.http.adapter';
 import { MaintenanceService } from '../application/services/maintenance.service';
 import { WholesaleTierService } from '../application/services/wholesale-tier.service';
 import { SubscriptionService } from '../application/services/subscription.service';
@@ -138,6 +139,8 @@ const providers: Provider[] = [
   CashierShiftService,
   DailyCloseService,
   DisputeService,
+  // CA-2-39: resolving a dispute as REFUND queues the refund. Fails CLOSED — see the port.
+  { provide: DEPOT_TOKENS.DisputeRefund, useClass: DisputeRefundHttpAdapter },
   MaintenanceService,
   WholesaleTierService,
   SubscriptionService,
