@@ -50,6 +50,11 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
     return this.toRecord(row);
   }
 
+  async findById(id: string): Promise<FraudFlagRecord | null> {
+    const row = await this.prisma.fraudFlag.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
+  }
+
   async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
     const existing = await this.prisma.fraudFlag.findUnique({ where: { id } });
     if (!existing) return null;

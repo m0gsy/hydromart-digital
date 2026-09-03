@@ -113,8 +113,6 @@ export class ConsentController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SetConsentDto,
   ): Promise<ConsentHistoryEntryDto> {
-    return ConsentHistoryEntryDto.from(
-      await this.consents.set(user.sub, dto.purpose, dto.granted),
-    );
+    return ConsentHistoryEntryDto.from(await this.consents.set(user.sub, dto.purpose, dto.granted));
   }
 }

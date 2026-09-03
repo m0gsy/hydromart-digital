@@ -87,7 +87,10 @@ export class DepotAuditQueryDto {
 
 /** Cross-service audit event posted by another service (internal auth). */
 export class IngestAuditDto {
-  @ApiPropertyOptional({ format: 'uuid', description: 'Acting account id (null for system events).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Acting account id (null for system events).',
+  })
   @IsOptional()
   @IsUUID()
   actorId?: string;
@@ -108,7 +111,9 @@ export class IngestAuditDto {
   @IsBoolean()
   success?: boolean;
 
-  @ApiPropertyOptional({ description: 'Non-sensitive structured context (e.g. a before/after diff).' })
+  @ApiPropertyOptional({
+    description: 'Non-sensitive structured context (e.g. a before/after diff).',
+  })
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;

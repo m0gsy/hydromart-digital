@@ -1,10 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import {
-  AuditLogEntry,
-  AuditLogListItem,
-  AuditLogRepository,
-} from '../ports/audit-log.repository';
+import { AuditLogEntry, AuditLogListItem, AuditLogRepository } from '../ports/audit-log.repository';
 import { AUTH_TOKENS } from '../tokens';
 
 /**

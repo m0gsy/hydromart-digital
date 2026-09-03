@@ -87,7 +87,9 @@ export class InternalAccountController {
   @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff/managed')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create or promote an HR-managed staff account (internal service auth)' })
+  @ApiOperation({
+    summary: 'Create or promote an HR-managed staff account (internal service auth)',
+  })
   async provisionManagedStaff(@Body() dto: ProvisionManagedStaffDto): Promise<PublicCustomerDto> {
     const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
     return PublicCustomerDto.from(staff);
@@ -106,6 +108,27 @@ export class InternalAccountController {
   async setStaffActive(@Body() dto: SetStaffActiveDto): Promise<PublicCustomerDto> {
     const staff = await this.account.setStaffActiveInternal(dto.customerId, dto.active);
     return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * CA-2-05: head office blocking a fraud flag, reaching the account behind it.
+   *
+   * The fraud queue's "Blokir" button only ever set the FLAG's own status, so an operator
+   * pressed it, the row turned red, and the customer kept ordering. This is the door that
+   * makes it mean something — `SUSPENDED` is refused at sign-in by
+   * `Customer.ensureCanAuthenticate`.
+   *
+   * Separate from `staff/status` on purpose: that route refuses a CUSTOMER, this one
+   * refuses staff. Suspending an employee has to go through HR so the employee record
+   * agrees.
+   */
+  @ApiOkResponse({ type: PublicCustomerDto })
+  @Post('customers/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suspend or reinstate an end customer (internal service auth)' })
+  async setCustomerActive(@Body() dto: SetStaffActiveDto): Promise<PublicCustomerDto> {
+    const customer = await this.account.setCustomerActiveInternal(dto.customerId, dto.active);
+    return PublicCustomerDto.from(customer);
   }
 
   /**

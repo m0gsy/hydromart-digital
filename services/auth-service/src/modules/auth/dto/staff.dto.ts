@@ -80,7 +80,10 @@ export class ListDriversQueryDto {
 }
 
 export class InviteStaffDto {
-  @ApiProperty({ example: '+628123456789', description: 'Phone of the account to grant a staff role.' })
+  @ApiProperty({
+    example: '+628123456789',
+    description: 'Phone of the account to grant a staff role.',
+  })
   @IsString()
   phone!: string;
 
@@ -88,7 +91,10 @@ export class InviteStaffDto {
   @IsEnum(Role)
   role!: Role;
 
-  @ApiPropertyOptional({ example: 'Budi Santoso', description: 'Name for a newly created account.' })
+  @ApiPropertyOptional({
+    example: 'Budi Santoso',
+    description: 'Name for a newly created account.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -99,13 +105,19 @@ export class InviteStaffDto {
   @IsUUID()
   depotId?: string;
 
-  @ApiPropertyOptional({ example: 'MOTOR', description: 'STAFF_DEPOT vehicle type (free text). Ignored for non-driver roles.' })
+  @ApiPropertyOptional({
+    example: 'MOTOR',
+    description: 'STAFF_DEPOT vehicle type (free text). Ignored for non-driver roles.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(40)
   vehicleType?: string;
 
-  @ApiPropertyOptional({ example: 'B 1234 ABC', description: 'STAFF_DEPOT vehicle plate number. Ignored for non-driver roles.' })
+  @ApiPropertyOptional({
+    example: 'B 1234 ABC',
+    description: 'STAFF_DEPOT vehicle plate number. Ignored for non-driver roles.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(20)

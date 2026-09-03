@@ -94,7 +94,6 @@ export class AuthConfigService {
     };
   }
 
-
   get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
     return {
       baseUrl: this.config.get<string>('ZENZIVA_BASE_URL', 'https://console.zenziva.net'),

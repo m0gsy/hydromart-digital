@@ -214,9 +214,7 @@ export class DataSubjectService {
           dataset: executor.dataset,
           coverage: 'UNENFORCED',
           rows: null,
-          note:
-            executor.unenforcedReason ??
-            'Owner service is not configured in this environment.',
+          note: executor.unenforcedReason ?? 'Owner service is not configured in this environment.',
         });
         this.logger.warn(`Erasure UNENFORCED for ${executor.dataset}: owner not configured`);
         continue;
@@ -294,7 +292,10 @@ export class DataSubjectService {
     await this.customerData.anonymise(targetId);
     // Same fan-out as the customer path: a deleted staff account is a person too, and their
     // phone sits in the same crm/delivery/admin tables. One definition of "deleted".
-    const coverage = await this.eraseEverywhere({ customerId: targetId, phone: target.phone ?? null });
+    const coverage = await this.eraseEverywhere({
+      customerId: targetId,
+      phone: target.phone ?? null,
+    });
     await this.requests.anonymiseCustomer(targetId, anonymisedIdentity(targetId));
     let employeeAnonymised = true;
     if (this.hr && target.role !== Role.FRANCHISE_OWNER) {
@@ -357,7 +358,9 @@ export class DataSubjectService {
     } catch (error) {
       // A downstream outage must not silently produce a half-empty export that looks
       // complete. Say so in the payload instead.
-      this.logger.error(`customer-service export failed for ${customerId}: ${(error as Error).message}`);
+      this.logger.error(
+        `customer-service export failed for ${customerId}: ${(error as Error).message}`,
+      );
       customer = { error: 'customer-service unreachable; profile and addresses missing' };
     }
     return {

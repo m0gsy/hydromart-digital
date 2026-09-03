@@ -11,6 +11,7 @@ import {
 } from '@hydromart/platform';
 
 import { AdminAuditSink } from '../infrastructure/http/audit.sink';
+import { AccountSuspensionHttpAdapter } from '../infrastructure/http/account-suspension.http.adapter';
 
 import { AdminConfigService } from '../config/admin-config.service';
 import { PurgeService } from '../application/services/purge.service';
@@ -131,6 +132,8 @@ const providers: Provider[] = [
   // controller (see @UseInterceptors on the privileged ones) rather than globally, so
   // the partner webhook ingest and the internal machine routes do not flood it.
   { provide: AUDIT_MUTATION_SINK, useClass: AdminAuditSink },
+  // CA-2-05: "Blokir" in the fraud queue now reaches the account. Fails closed.
+  { provide: ADMIN_TOKENS.AccountSuspension, useClass: AccountSuspensionHttpAdapter },
   AuditMutationsInterceptor,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
