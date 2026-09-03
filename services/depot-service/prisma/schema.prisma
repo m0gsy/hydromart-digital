@@ -322,6 +322,13 @@ model FranchiseApplication {
 enum PricingAdjustType {
   PERCENT
   FIXED
+  /// CA-2-35: the value IS the price, not a delta from it.
+  ///
+  /// PERCENT and FIXED are both relative — one multiplies the current price, the other adds
+  /// to it — so the HQ form's "harga tetap" was stored as `target - basePrice` and drifted
+  /// whenever the catalogue moved. The one adjust type whose whole promise is "this number
+  /// and no other" was the one that did not keep it.
+  ABSOLUTE
 }
 
 /// HQ decision on a depot's price-override proposal (design 7a). PENDING until HQ

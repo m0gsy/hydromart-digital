@@ -95,6 +95,10 @@ const KNOWN_CALLERS = {
   'apps/web/src/app/dashboard/inventory/new-line-form.tsx': 'product-service',
   'apps/web/src/app/dashboard/inventory/page.tsx': 'product-service',
   'apps/web/src/app/dashboard/pricing/page.tsx': 'product-service',
+  // CA-2-30: the wholesale-band form reads the catalogue so a band can name ONE product.
+  // Every band used to apply to the whole catalogue, so a "50+ galon" price also priced a
+  // bottle of mineral water — the picker is what makes that a choice rather than a default.
+  'apps/web/src/app/dashboard/wholesale/page.tsx': 'product-service',
   'apps/web/src/app/dashboard/subscriptions/page.tsx': 'product-service',
   // The whole depot directory — every network screen that COUNTS depots reads through it.
   'apps/web/src/lib/all-depots.ts': 'depot-service',

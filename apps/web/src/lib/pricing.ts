@@ -109,13 +109,23 @@ export function computeEffective(base: number, resolved?: ResolvedPrice): Effect
   const override = resolved?.sellPrice ?? null;
   const start = override ?? base;
   const adjustType = resolved?.adjustType ?? null;
-  const adjustValue = adjustType ? resolved?.value ?? 0 : null;
+  const adjustValue = adjustType ? (resolved?.value ?? 0) : null;
+  /*
+   * CA-2-35: ABSOLUTE is the price, not a step towards it.
+   *
+   * PERCENT multiplies and FIXED adds — both relative — so an "absolute" target used to be
+   * stored as `target - basePrice` and drifted whenever the catalogue moved. A rule written
+   * to sell at Rp 18.000 against a base of Rp 20.000 stored −2.000, and once the base rose
+   * to Rp 25.000 the depot sold at Rp 23.000 while every screen showed the rule as healthy.
+   */
   const raw =
     adjustType === 'PERCENT'
       ? start * (1 + (adjustValue ?? 0) / 100)
       : adjustType === 'FIXED'
         ? start + (adjustValue ?? 0)
-        : start;
+        : adjustType === 'ABSOLUTE'
+          ? (adjustValue ?? 0)
+          : start;
   return { base, override, adjustType, adjustValue, effective: Math.round(Math.max(0, raw)) };
 }
 
@@ -133,7 +143,11 @@ function toMinutes(hhmm: string): number | null {
 export function toRulePayload(
   form: RuleForm,
 ): { ok: true; value: PricingRulePayload } | { ok: false; error: string } {
-  if (form.adjustType !== 'PERCENT' && form.adjustType !== 'FIXED') {
+  if (
+    form.adjustType !== 'PERCENT' &&
+    form.adjustType !== 'FIXED' &&
+    form.adjustType !== 'ABSOLUTE'
+  ) {
     return { ok: false, error: 'Pick an adjustment type.' };
   }
   const value = Number(form.value);

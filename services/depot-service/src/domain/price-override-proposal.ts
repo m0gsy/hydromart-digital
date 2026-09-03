@@ -48,7 +48,15 @@ export function overrideImpactIdr(
   adjustType: PricingAdjustType,
   value: number,
 ): number {
-  const raw = adjustType === PricingAdjustType.PERCENT ? (currentPrice * value) / 100 : value;
+  // CA-2-35: ABSOLUTE names the new price, so its impact is the DIFFERENCE from today's —
+  // reading it as a delta would report a Rp 18.000 target as an eighteen-thousand-rupiah
+  // cut on a Rp 20.000 product.
+  const raw =
+    adjustType === PricingAdjustType.PERCENT
+      ? (currentPrice * value) / 100
+      : adjustType === PricingAdjustType.ABSOLUTE
+        ? value - currentPrice
+        : value;
   return Math.abs(Math.round(raw));
 }
 

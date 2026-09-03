@@ -342,6 +342,9 @@ export const dashC = {
     gateBody: 'Live tracking tersedia untuk staf depot.',
   },
   wholesale: {
+    product: 'Produk',
+    productHint: 'Kosongkan bila harga borongan ini berlaku untuk semua produk',
+    allProducts: 'Semua produk',
     rangeOpen: '{min}+ galon',
     rangeBand: '{min}–{max} galon',
     invalidBasic: 'Isi label, jumlah minimum (≥1), dan harga.',

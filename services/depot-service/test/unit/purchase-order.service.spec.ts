@@ -8,6 +8,7 @@ import { PoStatus } from '../../src/domain/purchase-order';
 import {
   DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
+  InventoryItemNotFoundError,
   PurchaseOrderNotFoundError,
   SupplierNotFoundError,
 } from '../../src/domain/errors';
@@ -257,7 +258,20 @@ describe('PurchaseOrderService', () => {
     await expect(service.list(UNKNOWN)).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 
-  it('receives best-effort: a line with no depot stock line is skipped, PO still RECEIVED', async () => {
+  /*
+   * CA-2-31: this test used to end `expect(received.status).toBe(RECEIVED)`.
+   *
+   * The intent behind it is right and is kept: one unconfigured stock line must not fail a
+   * whole delivery, so the receipt is still best-effort and the other lines still book. What
+   * was wrong is what the PO then SAID. Nothing had been added to the ledger and the screen
+   * read "Diterima" — and because `receiveStock` targets the raw singleton line
+   * (`productId: null`), a purchase order for CATALOGUE goods threw on every line and every
+   * one of those POs was marked received with no stock behind it.
+   *
+   * The shortfall is now visible where somebody will act on it, instead of at the next
+   * opname.
+   */
+  it('leaves a line whose stock could not be booked outstanding, and the PO open', async () => {
     const po = await service.create({
       depotId,
       supplierId,
@@ -267,9 +281,15 @@ describe('PurchaseOrderService', () => {
     });
     await service.send(po.id);
     const movesBefore = inventoryRepo.moves.length;
+
     const received = await service.receive(po.id, ACTOR);
-    expect(received.status).toBe(PoStatus.RECEIVED);
+
+    // Still no movement — the depot has no line for TUTUP, and inventing one here would be
+    // worse than reporting it.
     expect(inventoryRepo.moves).toHaveLength(movesBefore);
+    // And the PO does not claim otherwise.
+    expect(received.status).toBe(PoStatus.SENT);
+    expect(received.lines[0]!.receivedQuantity ?? 0).toBe(0);
   });
 
   /*
@@ -337,6 +357,33 @@ describe('PurchaseOrderService', () => {
      * PO or a supplier sending goods nobody agreed to buy, and the stock ledger must not be
      * where that gets decided silently.
      */
+    /*
+     * CA-2-31: a PO whose stock could not be booked was still marked "Diterima".
+     *
+     * `receiveStock` targets the raw singleton line (`productId: null`), so a purchase order
+     * for CATALOGUE goods threw every time — and the catch, which is right, let the line's
+     * received quantity advance anyway. The PO reached RECEIVED, the screen said so, and no
+     * stock had moved. The only evidence was the discrepancy somebody found at the next
+     * opname.
+     */
+    it('does not record a line as received when its stock could not be booked', async () => {
+      const id = await sent();
+      // The seal line has an inventory line; the galon one is made to fail.
+      jest.spyOn(inventory, 'receiveStock').mockImplementation(async (_d, itemType) => {
+        if (itemType === InventoryItemType.GALON) throw new InventoryItemNotFoundError();
+        return {} as never;
+      });
+
+      const after = await service.receive(id, ACTOR);
+
+      // The line that failed is still outstanding, so the PO stays open and the shortfall
+      // is visible rather than discovered at the next opname.
+      expect(after.status).toBe(PoStatus.SENT);
+      expect(after.lines[0]!.receivedQuantity ?? 0).toBe(0);
+      // And the line that DID arrive is booked — one bad line must not lose the delivery.
+      expect(after.lines[1]!.receivedQuantity).toBe(200);
+    });
+
     it('refuses more than the line still has outstanding', async () => {
       const id = await sent();
       await service.receive(id, ACTOR, { 0: 40 });
