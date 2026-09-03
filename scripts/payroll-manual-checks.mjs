@@ -184,21 +184,27 @@ async function main() {
      * The claim here is about ONE thing — days before somebody started must not be fined —
      * so it reads the one line that would say so.
      */
-    const absenceLine = (jp.body?.items ?? []).find((i) =>
-      String(i.label).startsWith('Potongan absen'),
-    );
-    const deductions = absenceLine ? Number(absenceLine.amount) : 0;
     if (base > 0 && base < 3_000_000) ok(`19 base pay prorated: Rp ${base.toLocaleString('id-ID')} of 3.000.000`);
     else bad('19 base pay NOT prorated', `base=${base}`);
-    // Guarded, because this assertion can pass for the wrong reason: if the depot's
-    // `absenceDeductionAmount` is 0 there is no fine to avoid, and "no deductions" proves
-    // nothing at all. Seen happening on a stale stack, where it read as a pass while the
-    // prorate beside it was plainly broken.
-    // Switch the fine ON for this depot first. Without it there is no fine to escape, and
-    // "no deductions" would read as a pass while proving nothing — which is exactly what
-    // happened the first time this ran. The value is restored below.
-    // `scope` is required and the API rejects the request without it — a per-depot value
-    // and a network-wide one are deliberately different writes.
+
+    /*
+     * The absence fine, measured against the claim this check actually makes.
+     *
+     * It used to assert that a joiner has NO deductions at all, and that assertion is
+     * wrong: somebody who joins on the 25th and never turns up for the remaining days of
+     * the month has genuinely been absent for those days, and the fine is right to cover
+     * them. What must never happen is a fine for the days BEFORE they joined — the other
+     * 24, which were not theirs.
+     *
+     * The run that exposed this reported `Potongan absen (7 hari) = 70000` and was called a
+     * failure. Seven is exactly the number of days from the 25th to the end of the month:
+     * the code was right and the check was measuring the wrong thing. It had also been
+     * reading a slip generated BEFORE the fine was switched on, so on a depot with no fine
+     * configured it passed while proving nothing.
+     *
+     * Both are fixed here: the fine goes on first, the slip is regenerated against it, and
+     * the assertion is on the DAY COUNT rather than on the presence of a deduction.
+     */
     await api('PUT', '/hr/api/v1/hr/settings', {
       key: 'absenceDeductionAmount',
       value: '50000',
@@ -210,21 +216,35 @@ async function main() {
       periodMonth: PERIOD,
     });
     const fineIsConfigured = sumKind(control.body, 'DEDUCTION') > 0;
+    // Regenerated now that the fine is on — `jp` above was produced without it.
+    const jpFined = await api('POST', '/hr/api/v1/payroll/generate', {
+      employeeId: joiner.id,
+      periodMonth: PERIOD,
+    });
+    const fineLine = (jpFined.body?.items ?? []).find((i) =>
+      String(i.label).startsWith('Potongan absen'),
+    );
+    const finedDays = Number(String(fineLine?.label ?? '').match(/\((\d+) hari\)/)?.[1] ?? 0);
+    // The days that are genuinely theirs: the 25th to the end of the month, inclusive.
+    const [py, pm] = PERIOD.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+    const daysAfterJoining = daysInMonth - 24;
+
     if (!fineIsConfigured) {
       bad(
         '19 absence fine is not configured on this depot',
         'cannot prove a joiner escapes it — set absenceDeductionAmount > 0 and re-run',
       );
-    } else if (deductions === 0) {
-      ok('19 no absence fine for the days before they joined');
+    } else if (finedDays <= daysAfterJoining) {
+      ok(
+        `19 absence fine covers only the days from joining (${finedDays} of ${daysAfterJoining}, ` +
+          `not ${daysInMonth})`,
+      );
     } else {
       bad(
         '19 joiner fined for days before joining',
-        `absence line = ${absenceLine?.label} (${deductions}); all deductions: ` +
-          (jp.body?.items ?? [])
-            .filter((i) => i.kind === 'DEDUCTION')
-            .map((i) => `${i.label}=${i.amount}`)
-            .join(', '),
+        `${finedDays} day(s) fined but only ${daysAfterJoining} fall after the joining date; ` +
+          `line = ${fineLine?.label} (${fineLine?.amount})`,
       );
     }
     // Put the depot back the way it was found. A verification script that leaves a fine
