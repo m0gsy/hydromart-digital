@@ -82,7 +82,14 @@ export class BelowMinimumOrderError extends DomainError {
   readonly code = 'ORDER_BELOW_MINIMUM';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor(minimum: number) {
-    super(`This depot has a minimum order of ${minimum}. Please add more items.`);
+    /*
+     * CA-3-20: a customer reads this. It reached the checkout screen in English, as the
+     * only warning that a minimum existed at all — the screen now says it in advance, but
+     * the server's refusal is still the last word when a cart changes underneath.
+     */
+    super(
+      `Minimum pesanan di depot ini Rp ${minimum.toLocaleString('id-ID')}. Tambah barang lagi ya.`,
+    );
   }
 }
 

@@ -16,6 +16,8 @@ export const order: typeof base = {
     addOnAria: 'Add {name} to cart',
     summary: 'Summary',
     subtotal: 'Subtotal',
+    removedLines: '{names} is no longer sold and was removed from your cart.',
+    removedUnknown: 'An item',
     memberDiscount: 'Member discount ({pct}%)',
     estTotal: 'Estimated total',
     shippingNote: 'Delivery is calculated at checkout, once a depot is set.',
@@ -117,6 +119,8 @@ export const order: typeof base = {
     notFound: 'Order not found.',
     payError: 'Could not start payment.',
     cancelError: 'Could not cancel the order.',
+    repeatNothing: "Nothing from this order is still on sale.",
+    repeatPartial: "{n} item(s) are no longer sold and were not added.",
     repeatError: 'Could not add these items again.',
     // Payment instruction sheets (spec 5e)
     copy: 'Copy',

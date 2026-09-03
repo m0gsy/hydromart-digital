@@ -8,7 +8,8 @@ import { Check, Drop, Plus } from '@phosphor-icons/react';
 import { RemoteImage } from '@/components/remote-image';
 import { MemberPrice, Money } from '@/components/ui';
 import { haptic } from '@/lib/platform';
-import { api } from '@/lib/api';
+import { useToast } from '@/components/toast';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { cartDepotId } from '@/lib/location-store';
 import { currentPath, setPendingAdd } from '@/lib/pending-add';
@@ -44,6 +45,7 @@ export function ProductCard({
   const { customer } = useAuth();
   const { bump, apply } = useCart();
   const { t } = useT();
+  const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -62,10 +64,23 @@ export function ProductCard({
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: product.id, quantity: 1 }, true));
+      apply(
+        await api.post<Cart>(
+          endpoints.cart.items(cartDepotId()),
+          { productId: product.id, quantity: 1 },
+          true,
+        ),
+      );
       setAdded(true);
-    } catch {
+    } catch (err) {
       bump(-1); // roll the badge back on failure
+      /*
+       * CA-3-24: this was a bare `catch {}`. The badge rolled back and nothing else
+       * happened — no message, no error state — so a failed add looked exactly like a tap
+       * that missed. The customer taps again, and again. The card has no room for an error
+       * line, and it is a Link, so the toast is the surface that fits.
+       */
+      toast(err instanceof ApiError ? err.message : t('shop.pdp.addError'), 'error');
     } finally {
       setAdding(false);
     }
@@ -107,7 +122,10 @@ export function ProductCard({
                 price otherwise — and the caller labels the grid when it is the latter. */}
             <Money amount={shelfPrice} className="text-[17px] font-extrabold tracking-[-0.01em]" />
             {memberRate > 0 && (
-              <MemberPrice amount={memberPrice(shelfPrice, memberRate)} className="px-[9px] py-0.5 text-[11.5px]" />
+              <MemberPrice
+                amount={memberPrice(shelfPrice, memberRate)}
+                className="px-[9px] py-0.5 text-[11.5px]"
+              />
             )}
           </div>
           <button

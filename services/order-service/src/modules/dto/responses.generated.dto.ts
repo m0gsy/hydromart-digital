@@ -404,10 +404,22 @@ export class CartResellerResponseDto {
   discount!: number | null;
 }
 
+/** Mirrors `CartRemovedLineView` exactly (CA-3-23). */
+export class CartRemovedLineResponseDto {
+  @ApiProperty({ type: String })
+  productId!: string;
+  @ApiProperty({ type: String, nullable: true })
+  productName!: string | null;
+  @ApiProperty({ type: Number })
+  quantity!: number;
+}
+
 /** Mirrors `CartView` exactly — generated for audit D-6, no field added or removed. */
 export class CartResponseDto {
   @ApiProperty({ type: [CartLineResponseDto] })
   items!: CartLineResponseDto[];
+  @ApiProperty({ type: [CartRemovedLineResponseDto] })
+  removed!: CartRemovedLineResponseDto[];
   @ApiProperty({ type: Number })
   subtotal!: number;
   @ApiProperty({ type: String, nullable: true })

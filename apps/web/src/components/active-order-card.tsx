@@ -21,7 +21,7 @@ export function ActiveOrderCard() {
   const { t } = useT();
 
   const { data } = useAsync<Page<Order>>(
-    () => (customer ? api.get(endpoints.orders.list, true) : Promise.resolve(null as never)),
+    () => (customer ? api.get(endpoints.orders.list(), true) : Promise.resolve(null as never)),
     [customer],
   );
 

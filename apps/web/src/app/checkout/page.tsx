@@ -318,6 +318,28 @@ function CheckoutInner() {
   const payMethods = offeredMethods(methodsAvailable ?? null, depot);
 
   /*
+   * CA-3-22. `method` is chosen once and then never re-checked. The list it was chosen from
+   * narrows whenever the depot changes — a transfer needs THAT depot's bank account, a QRIS
+   * is THAT depot's printed code — so a customer who picked QRIS and then switched depot
+   * kept a selection the picker no longer offered: nothing looked selected, and the order
+   * went out naming a method the depot cannot take.
+   *
+   * Falls back to the first method still on offer. Cash is never filtered, so there is
+   * always one. The customer is told rather than quietly re-billed: a payment method
+   * changing itself is exactly the kind of silence this register is full of.
+   */
+  const offered = payMethods.map((m) => m.value).join(',');
+  const [methodDropped, setMethodDropped] = useState<string | null>(null);
+  useEffect(() => {
+    if (payMethods.length === 0) return;
+    if (payMethods.some((m) => m.value === method)) return;
+    setMethodDropped(PAYMENT_METHODS.find((m) => m.value === method)?.label ?? null);
+    setMethod(payMethods[0]!.value);
+    // `payMethods` is rebuilt every render; `offered` is its identity as a value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offered, method]);
+
+  /*
    * A3. This address has a map pin and no depot's radius covers it. The server will refuse
    * the order for exactly this reason, so say it here rather than after the customer has
    * filled in the form, read a delivery fee, and pressed the button that spends money.
@@ -391,6 +413,16 @@ function CheckoutInner() {
    */
   const depotClosed = depot != null && depotState === 'tutup';
   const expressBlocked = express && depotClosed;
+
+  /*
+   * CA-3-20. The depot's minimum order was never said out loud. The customer filled the
+   * form in, read a total, pressed the button that spends money — and got a 422 written in
+   * English by a domain error nobody meant them to read. The number is on the depot row
+   * this screen already holds, so it can be said while there is still something to do
+   * about it, and the button that cannot succeed can simply not be pressable.
+   */
+  const minOrder = depot?.minOrderAmount ?? null;
+  const belowMinimum = minOrder !== null && cart != null && cart.subtotal < minOrder;
 
   // Ongkir estimate, charged per galon exactly as order.service.ts does it. Declared up here
   // because the voucher quote below needs it too: a FREE_SHIPPING voucher is priced against
@@ -1066,6 +1098,11 @@ function CheckoutInner() {
     <>
       {/* Payment method */}
       <div className="flex flex-col gap-3">
+        {methodDropped && (
+          <p className="text-[12.5px] font-medium text-[color:var(--warning)]" role="alert">
+            {t('customerFix.checkout.methodUnavailable', { method: t(methodDropped) })}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {payMethods.map((m) => {
             const Icon = PAY_ICONS[m.value];
@@ -1517,7 +1554,12 @@ function CheckoutInner() {
           <Button
             type="submit"
             loading={submitting}
-            disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked}
+            disabled={
+              (needsDepotPick && !pickedDepotId) ||
+              outOfServiceArea ||
+              expressBlocked ||
+              belowMinimum
+            }
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
@@ -1533,6 +1575,14 @@ function CheckoutInner() {
           {depotClosed && (
             <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
               {t('hrFix.checkoutFix.depotClosed')}
+            </p>
+          )}
+          {belowMinimum && (
+            <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+              {t('customerFix.checkout.belowMinimum', {
+                min: minOrder!.toLocaleString('id-ID'),
+                short: (minOrder! - cart.subtotal).toLocaleString('id-ID'),
+              })}
             </p>
           )}
           {/* SF-02: the depot lookup failed, so nothing on this screen is the depot's price. */}
@@ -1573,6 +1623,15 @@ function CheckoutInner() {
           {t('hrFix.checkoutFix.depotClosed')}
         </p>
       )}
+      {/* The phone only ever sees this copy, so the minimum has to be said here too. */}
+      {belowMinimum && (
+        <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
+          {t('customerFix.checkout.belowMinimum', {
+            min: minOrder!.toLocaleString('id-ID'),
+            short: (minOrder! - cart.subtotal).toLocaleString('id-ID'),
+          })}
+        </p>
+      )}
       {/* A direct child of the form on purpose: `sticky` only holds while its containing
           block is on screen, and a wrapper div is exactly as tall as the bar itself. */}
       <StickyActionBar className="lg:hidden" unstickAt="lg">
@@ -1590,7 +1649,9 @@ function CheckoutInner() {
         <Button
           type="submit"
           loading={submitting}
-          disabled={(needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked}
+          disabled={
+            (needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked || belowMinimum
+          }
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >
           {/* Not `placeOrder`: that string ends in an em dash because the rail version is

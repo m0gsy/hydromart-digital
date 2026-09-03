@@ -60,6 +60,23 @@ export function wibParts(at: Date = new Date()): { year: number; month: number; 
 }
 
 /**
+ * `YYYY-MM-DD`, `n` days from today, on the BUSINESS calendar.
+ *
+ * CA-3-21: the subscription form walked the DEVICE clock forward and then printed
+ * `toISOString()`, which is UTC. Between 00.00 and 07.00 WIB the UTC date is still
+ * yesterday, so "besok" came out as today — the default first delivery for anyone starting
+ * a subscription overnight was a date that had already begun, and the date input then
+ * refused it against its own `min`.
+ *
+ * The parts come from `wibParts` and the arithmetic happens at UTC midnight, which is what
+ * `mondayWib` below already does: a calendar day has no offset once it is only a date.
+ */
+export function dateInDaysWib(n: number, at: Date = new Date()): string {
+  const { year, month, day } = wibParts(at);
+  return new Date(Date.UTC(year, month - 1, day + n)).toISOString().slice(0, 10);
+}
+
+/**
  * `YYYY-MM-DD` of the Monday of the week containing `at`, in the business timezone.
  * Monday because that is where the courier performance week starts.
  */

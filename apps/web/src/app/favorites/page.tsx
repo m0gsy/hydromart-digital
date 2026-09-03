@@ -28,9 +28,20 @@ function FavoritesInner() {
     const settled = await Promise.allSettled(
       productIds.map((id) => api.get<Product>(endpoints.products.get(id))),
     );
-    return settled
+    const found = settled
       .filter((r): r is PromiseFulfilledResult<Product> => r.status === 'fulfilled')
       .map((r) => r.value);
+    /*
+     * CA-3-26. Skipping a product that 404s is right — a favourite whose product was
+     * deleted should not break the grid. Skipping ALL of them is a different event: the
+     * catalogue is unreachable, and the screen said "belum ada favorit" to somebody with a
+     * full list. An empty answer to a question nobody could ask is not an empty answer.
+     */
+    if (found.length === 0)
+      throw settled[0]!.status === 'rejected'
+        ? settled[0]!.reason
+        : new Error('favorites unavailable');
+    return found;
   });
 
   /*

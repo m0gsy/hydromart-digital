@@ -69,6 +69,25 @@ export interface CartView {
   pricingBasis: PricingBasis;
   /** Null when the caller is not an agen (or could not be checked). */
   reseller: CartResellerView | null;
+  /**
+   * CA-3-23: lines dropped because their product is delisted or gone.
+   *
+   * The comment beside the filter has always said these are "surfaced as unavailable
+   * rather than priced". They were not surfaced anywhere: the row vanished from the
+   * customer's cart between one visit and the next, with no message and no trace, and the
+   * only sign was a total that had gone down.
+   *
+   * Empty on the overwhelming majority of reads, so this costs nothing to carry.
+   */
+  removed: CartRemovedLineView[];
+}
+
+/** A cart line that can no longer be sold, named so the customer can be told which. */
+export interface CartRemovedLineView {
+  productId: string;
+  /** The catalogue's name if it still has a row; null when the product is gone entirely. */
+  productName: string | null;
+  quantity: number;
 }
 
 /**
@@ -172,6 +191,15 @@ export class CartService {
     // Stale lines (product delisted) are surfaced as unavailable rather than priced, so
     // they are dropped before pricing rather than filtered out of it.
     const live = rows.filter((r) => products.get(r.productId)?.active === true);
+    // CA-3-23: kept, not counted. These are not priced and not billed; they exist so the
+    // screen can say a word about the row that disappeared.
+    const removed: CartRemovedLineView[] = rows
+      .filter((r) => products.get(r.productId)?.active !== true)
+      .map((r) => ({
+        productId: r.productId,
+        productName: products.get(r.productId)?.name ?? null,
+        quantity: r.quantity,
+      }));
     const priced = priceLines(live, products, lookup.prices);
 
     const items: CartLineView[] = priced.items.map((i) => ({
@@ -193,6 +221,7 @@ export class CartService {
     const basis: PricingBasis = pricingDepotId && !lookup.unavailable ? 'DEPOT' : 'CATALOG';
     return {
       items,
+      removed,
       subtotal: priced.subtotal,
       depotId,
       pricingBasis: basis,

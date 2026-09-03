@@ -5,11 +5,21 @@ import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-ico
 
 import { RequireAuth } from '@/components/require-auth';
 import { ConfirmDialog } from '@/components/overlay';
-import { Button, Chip, ErrorState, Field, FormError, LinkButton, LoadError, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Chip,
+  ErrorState,
+  Field,
+  FormError,
+  LinkButton,
+  LoadError,
+  Skeleton,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
 import { subscriptions as subEN } from '@/lib/dictionaries/en/subscriptions';
@@ -25,18 +35,14 @@ import type {
 const FREQS: SubscriptionFrequency[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'];
 const BENEFIT_ICONS = [Percent, Truck, BellSlash, Pause];
 
-function inDays(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10); // yyyy-mm-dd for <input type="date">
-}
-
 function Panel() {
   const { t, locale } = useT();
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
-  const products = useAsync<Paged<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
+  const products = useAsync<Paged<Product>>(() =>
+    api.get(endpoints.products.browse({ limit: 50 })),
+  );
   const addresses = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
   const subs = useAsync<Subscription[]>(() => api.get(endpoints.subscriptions.list, true));
   const primaryAddress = useMemo(
@@ -95,12 +101,11 @@ function Panel() {
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(2);
   const [frequency, setFrequency] = useState<SubscriptionFrequency>('WEEKLY');
-  const [firstDate, setFirstDate] = useState(inDays(1));
+  const [firstDate, setFirstDate] = useState(dateInDaysWib(1));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID', {
@@ -210,16 +215,23 @@ function Panel() {
 
   return (
     <div>
-      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">{copy.title}</h1>
+      <h1 className="mb-5 hidden text-[28px] font-extrabold tracking-[-0.03em] sm:block">
+        {copy.title}
+      </h1>
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
         {/* setup */}
-        <form onSubmit={create} className="surface flex flex-col gap-4 rounded-[22px] border border-app p-6">
+        <form
+          onSubmit={create}
+          className="surface flex flex-col gap-4 rounded-[22px] border border-app p-6"
+        >
           <div>
             <Chip tone="tint">
               <ArrowsClockwise size={14} weight="fill" /> {copy.title}
             </Chip>
-            <div className="mt-3 text-[22px] font-extrabold tracking-[-0.02em]">{copy.setupHeading}</div>
+            <div className="mt-3 text-[22px] font-extrabold tracking-[-0.02em]">
+              {copy.setupHeading}
+            </div>
           </div>
 
           <Field label={copy.product} htmlFor="sub-product">
@@ -251,11 +263,19 @@ function Panel() {
           <div className="grid grid-cols-2 gap-4">
             <Field label={copy.quantity} htmlFor="sub-qty">
               <div className="flex h-12 items-center justify-between rounded-[14px] border-[1.5px] border-app px-2">
-                <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
+                >
                   −
                 </button>
                 <span className="text-sm font-extrabold tabular-nums">{quantity}</span>
-                <button type="button" onClick={() => setQuantity((q) => q + 1)} className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => q + 1)}
+                  className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
+                >
                   +
                 </button>
               </div>
@@ -264,7 +284,7 @@ function Panel() {
               <input
                 id="sub-date"
                 type="date"
-                min={inDays(0)}
+                min={dateInDaysWib(0)}
                 value={firstDate}
                 onChange={(e) => setFirstDate(e.target.value)}
                 className="h-12 w-full rounded-[14px] border-[1.5px] border-app surface px-3.5 text-sm outline-none focus:border-brand-600"
@@ -285,7 +305,9 @@ function Panel() {
                     className={`rounded-[14px] border-2 px-2 py-3 text-center transition-colors ${on ? 'border-brand-600 bg-brand-50' : 'border-app surface'}`}
                   >
                     <div className="text-[13px] font-extrabold">{t(`subscriptions.freq.${f}`)}</div>
-                    <div className="mt-0.5 text-[10.5px] text-muted">{t(`subscriptions.freqSub.${f}`)}</div>
+                    <div className="mt-0.5 text-[10.5px] text-muted">
+                      {t(`subscriptions.freqSub.${f}`)}
+                    </div>
                   </button>
                 );
               })}
@@ -297,7 +319,10 @@ function Panel() {
           ) : addresses.error ? (
             /* "Belum ada alamat" sends a shopper who HAS one off to add a duplicate, and the
                submit button stays disabled either way. Say the read failed. */
-            <LoadError onRetry={addresses.reload} className="rounded-[14px] border border-app px-3.5 py-3" />
+            <LoadError
+              onRetry={addresses.reload}
+              className="rounded-[14px] border border-app px-3.5 py-3"
+            />
           ) : chosenAddress ? (
             /* K1.9. A select rather than a read-only line: one saved address is still one
                option, and a select with one option reads honestly as "this one". */
@@ -318,7 +343,9 @@ function Panel() {
           ) : (
             <div className="flex flex-col items-start gap-2 rounded-[14px] border border-app px-3.5 py-3">
               <p className="text-[12.5px] text-muted">{copy.noAddress}</p>
-              <LinkButton href="/addresses" variant="secondary">{copy.addAddress}</LinkButton>
+              <LinkButton href="/addresses" variant="secondary">
+                {copy.addAddress}
+              </LinkButton>
             </div>
           )}
 
@@ -360,7 +387,9 @@ function Panel() {
                     <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
                       <Ic size={18} weight="fill" className="text-brand-600" />
                     </span>
-                    <span className="text-[13px] font-semibold text-[#3d565e] dark:text-[color:var(--text)]">{b}</span>
+                    <span className="text-[13px] font-semibold text-[#3d565e] dark:text-[color:var(--text)]">
+                      {b}
+                    </span>
                   </div>
                 );
               })}
@@ -381,7 +410,9 @@ function Panel() {
                   <div key={s.id} className="rounded-[16px] border border-app p-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[14px] font-extrabold">{s.productName}</div>
-                      <Chip tone={statusTone[s.status]}>{t(`subscriptions.status.${s.status}`)}</Chip>
+                      <Chip tone={statusTone[s.status]}>
+                        {t(`subscriptions.status.${s.status}`)}
+                      </Chip>
                     </div>
                     <div className="mt-1 text-[12.5px] text-muted">
                       {t('subscriptions.perCycle', {
@@ -392,7 +423,10 @@ function Panel() {
                     </div>
                     {s.status !== 'CANCELLED' && (
                       <div className="mt-1 text-[12.5px] text-muted">
-                        {copy.next}: <span className="font-bold text-[color:var(--text)]">{fmtDate(s.nextDeliveryAt)}</span>
+                        {copy.next}:{' '}
+                        <span className="font-bold text-[color:var(--text)]">
+                          {fmtDate(s.nextDeliveryAt)}
+                        </span>
                       </div>
                     )}
                     {/*
@@ -402,12 +436,11 @@ function Panel() {
                       delivering nothing and explaining nothing. New ones are refused at
                       creation; the ones already sitting here say why.
                     */}
-                    {s.status !== 'CANCELLED' &&
-                      (s.latitude == null || s.longitude == null) && (
-                        <div className="mt-2 rounded-xl bg-[color:var(--danger-bg)] px-3 py-2 text-[12px] font-semibold text-[color:var(--danger)]">
-                          {t('customerFix.subscriptionUnroutable')}
-                        </div>
-                      )}
+                    {s.status !== 'CANCELLED' && (s.latitude == null || s.longitude == null) && (
+                      <div className="mt-2 rounded-xl bg-[color:var(--danger-bg)] px-3 py-2 text-[12px] font-semibold text-[color:var(--danger)]">
+                        {t('customerFix.subscriptionUnroutable')}
+                      </div>
+                    )}
                     {/*
                       K1.9. The plan's own address, and the only place it can be changed.
                       Shown even for one saved address, because the line is also the answer
@@ -415,15 +448,23 @@ function Panel() {
                     */}
                     {s.status !== 'CANCELLED' && (addresses.data ?? []).length > 0 && (
                       <div className="mt-2">
-                        <label className="text-[11px] font-extrabold uppercase tracking-wide text-muted" htmlFor={`sub-addr-${s.id}`}>
+                        <label
+                          className="text-[11px] font-extrabold uppercase tracking-wide text-muted"
+                          htmlFor={`sub-addr-${s.id}`}
+                        >
                           {copy.deliverTo}
                         </label>
                         <select
                           id={`sub-addr-${s.id}`}
-                          value={(addresses.data ?? []).find((a) => a.addressLine === s.addressLine)?.id ?? ''}
+                          value={
+                            (addresses.data ?? []).find((a) => a.addressLine === s.addressLine)
+                              ?.id ?? ''
+                          }
                           disabled={busyId === s.id}
                           onChange={(e) => {
-                            const next = (addresses.data ?? []).find((a) => a.id === e.target.value);
+                            const next = (addresses.data ?? []).find(
+                              (a) => a.id === e.target.value,
+                            );
                             if (next) void moveAddress(s.id, next);
                           }}
                           className="mt-1 h-11 w-full rounded-[12px] border-[1.5px] border-app surface px-3 text-[12.5px] outline-none focus:border-brand-600"
@@ -443,11 +484,21 @@ function Panel() {
                     {s.status !== 'CANCELLED' && (
                       <div className="mt-3 flex gap-2.5">
                         {s.status === 'ACTIVE' ? (
-                          <Button variant="secondary" loading={busyId === s.id} onClick={() => act(s.id, 'pause')} className="flex-1">
+                          <Button
+                            variant="secondary"
+                            loading={busyId === s.id}
+                            onClick={() => act(s.id, 'pause')}
+                            className="flex-1"
+                          >
                             {copy.pause}
                           </Button>
                         ) : (
-                          <Button variant="secondary" loading={busyId === s.id} onClick={() => act(s.id, 'resume')} className="flex-1">
+                          <Button
+                            variant="secondary"
+                            loading={busyId === s.id}
+                            onClick={() => act(s.id, 'resume')}
+                            className="flex-1"
+                          >
                             {copy.resume}
                           </Button>
                         )}
