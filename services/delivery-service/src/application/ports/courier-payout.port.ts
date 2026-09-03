@@ -45,8 +45,14 @@ export interface CourierPayoutPort {
   paidEarnings(depotId: string, from: Date, to: Date): Promise<CourierPaidEarnings[] | null>;
   /**
    * Charges a courier for a COD deposit shortfall. At-least-once + idempotent by
-   * settlementId; fails OPEN — the settlement already records the charge, so a lost
-   * push never blocks verify (a reconcile can replay it).
+   * settlementId.
+   *
+   * CA-2-32: answers whether the debit actually landed, and the caller REFUSES the verify
+   * when it did not. This used to fail open behind `void` — the settlement was written
+   * `chargedToDriver: true` first and the push was fired at nothing, so an unreachable
+   * payout-service produced a settlement that said a courier had been charged and a wage
+   * ledger that had never heard of it. Nobody was looking for the difference, because the
+   * only record of the charge said it was made.
    */
-  cashVarianceCharged(event: CashVarianceChargedEvent): Promise<void>;
+  cashVarianceCharged(event: CashVarianceChargedEvent): Promise<boolean>;
 }

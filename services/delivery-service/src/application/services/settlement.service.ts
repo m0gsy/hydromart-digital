@@ -4,6 +4,7 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
   SettlementAlreadyExistsError,
+  SettlementChargeUndeliverableError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
   SettlementSurplusNoteRequiredError,
@@ -174,6 +175,28 @@ export class SettlementService {
     // surplus rule above is about leaving a trace, NOT about billing: it must never make
     // a surplus chargeable.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
+    /*
+     * CA-2-32: the debit is posted BEFORE the settlement claims it was, and a push that
+     * does not land refuses the verify.
+     *
+     * It used to be `void this.payout.cashVarianceCharged(...)` after the write — a charge
+     * fired at a service that might be down, from a row that already said the courier had
+     * been charged. Nothing reconciled the two, so a payout outage silently forgave the
+     * shortfall while the paperwork said it had been collected.
+     *
+     * Refusing loses nothing: the settlement stays awaiting a ruling, and the push is
+     * idempotent by settlement id, so pressing verify again is safe whether the first
+     * attempt reached payout or not.
+     */
+    if (charged) {
+      const posted = await this.payout.cashVarianceCharged({
+        courierId: settlement.driverId,
+        depotId: settlement.depotId,
+        settlementId: settlement.id,
+        amount: Math.abs(settlement.variance),
+      });
+      if (!posted) throw new SettlementChargeUndeliverableError();
+    }
     this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=${charged})`);
     const resolved = await this.settlements.resolve(id, {
       status: SettlementStatus.VERIFIED,
@@ -183,16 +206,6 @@ export class SettlementService {
       verifiedBy: actorId,
       verifiedAt: new Date(),
     });
-    // Debit the courier's payout ledger for the shortfall (design 2d→2c). Fire-and-forget,
-    // fail-open + idempotent by settlement id — the charge is already persisted here.
-    if (charged) {
-      void this.payout.cashVarianceCharged({
-        courierId: resolved.driverId,
-        depotId: resolved.depotId,
-        settlementId: resolved.id,
-        amount: Math.abs(resolved.variance),
-      });
-    }
     return resolved;
   }
 

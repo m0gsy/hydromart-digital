@@ -369,9 +369,11 @@ describe('CourierPayoutHttpAdapter', () => {
     });
   });
 
-  it('cashVarianceCharged: POSTs to the variance endpoint on happy path', async () => {
+  it('cashVarianceCharged: POSTs to the variance endpoint and reports it landed', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new CourierPayoutHttpAdapter(makeConfig()).cashVarianceCharged(variance);
+    await expect(
+      new CourierPayoutHttpAdapter(makeConfig()).cashVarianceCharged(variance),
+    ).resolves.toBe(true);
     expect(fetchMock.mock.calls[0][0]).toBe(
       'http://payout:3015/api/v1/courier/ledger/variance/internal',
     );
@@ -384,11 +386,20 @@ describe('CourierPayoutHttpAdapter', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('fails open (no throw) when payout-service is unreachable', async () => {
-    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+  /*
+   * CA-2-32. The charge push still never throws, but it no longer reports success it did
+   * not have: the three ways it can be lost each answer false, and SettlementService turns
+   * that into a refused verify rather than a settlement that says a courier was charged.
+   */
+  it.each([
+    ['a non-2xx', () => fetchMock.mockResolvedValue(res({ ok: false, status: 500 })), {}],
+    ['an unreachable service', () => fetchMock.mockRejectedValue(new Error('ECONNREFUSED')), {}],
+    ['payout not being configured', () => undefined, { payoutServiceUrl: '' }],
+  ])('reports the charge as NOT taken on %s', async (_label, arrange, over) => {
+    arrange();
     await expect(
-      new CourierPayoutHttpAdapter(makeConfig()).cashVarianceCharged(variance),
-    ).resolves.toBeUndefined();
+      new CourierPayoutHttpAdapter(makeConfig(over)).cashVarianceCharged(variance),
+    ).resolves.toBe(false);
   });
 });
 

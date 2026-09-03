@@ -6,6 +6,7 @@ import { AuthenticatedUser, Role } from '@hydromart/platform';
 import { SettlementService } from '../../src/application/services/settlement.service';
 import {
   SettlementAlreadyExistsError,
+  SettlementChargeUndeliverableError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
   SettlementSurplusNoteRequiredError,
@@ -264,6 +265,36 @@ describe('SettlementService', () => {
       expect(payout.variances).toEqual([
         expect.objectContaining({ courierId: driver, settlementId: s.id, amount: 15000 }),
       ]);
+    });
+
+    /*
+     * CA-2-32. The charge used to be fired with `void` AFTER the settlement was written
+     * `chargedToDriver: true`, so a payout-service that never took the debit left a
+     * settlement claiming a courier had been charged money nobody collected.
+     */
+    it('refuses the verify when the charge cannot be handed to payout', async () => {
+      const s = await submit(60000, 75000); // variance -15000
+      payout.variancePostAccepted = false;
+
+      await expect(
+        service.verify(CASHIER, s.id, { chargedToDriver: true }),
+      ).rejects.toBeInstanceOf(SettlementChargeUndeliverableError);
+
+      // Nothing was recorded: the deposit is still awaiting a ruling, so the same
+      // button retries it once payout is back.
+      const still = await service.getForDriver(driver, s.id);
+      expect(still.status).toBe(SettlementStatus.SUBMITTED);
+      expect(still.chargedToDriver).toBe(false);
+    });
+
+    it('verifies without asking payout at all when nothing is charged', async () => {
+      const s = await submit(60000, 75000);
+      payout.variancePostAccepted = false;
+
+      const verified = await service.verify(CASHIER, s.id, { chargedToDriver: false });
+
+      expect(verified.status).toBe(SettlementStatus.VERIFIED);
+      expect(verified.chargedToDriver).toBe(false);
     });
 
     it('never charges when the deposit covers the expected total', async () => {

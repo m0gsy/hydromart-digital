@@ -22,11 +22,17 @@ export class CourierPayoutHttpAdapter implements CourierPayoutPort {
   constructor(private readonly config: DeliveryConfigService) {}
 
   async deliveryCompleted(event: DeliveryCompletedEvent): Promise<void> {
+    // The earning push stays fail-open: the delivery is already made, and refusing to
+    // record it because payout is down would undo a handover that physically happened.
     await this.post('courier/ledger/internal', event, `earning ${event.deliveryId}`);
   }
 
-  async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<void> {
-    await this.post('courier/ledger/variance/internal', event, `variance ${event.settlementId}`);
+  /**
+   * CA-2-32: unlike the earning push above, this one REPORTS whether it landed. A charge
+   * the courier's ledger never received must not be recorded on the settlement as made.
+   */
+  async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<boolean> {
+    return this.post('courier/ledger/variance/internal', event, `variance ${event.settlementId}`);
   }
 
   /**
@@ -73,12 +79,15 @@ export class CourierPayoutHttpAdapter implements CourierPayoutPort {
     }
   }
 
-  /** Fires an internal payout push. Fails OPEN — logs and returns on any error. */
-  private async post(path: string, body: unknown, ref: string): Promise<void> {
+  /**
+   * Fires an internal payout push. Never throws — it answers TRUE when payout-service
+   * accepted it and FALSE otherwise, and each caller decides what a false means for it.
+   */
+  private async post(path: string, body: unknown, ref: string): Promise<boolean> {
     const { payoutServiceUrl, internalServiceKey } = this.config;
     if (!payoutServiceUrl || !internalServiceKey) {
       this.logger.debug(`Courier payout push skipped (payout integration disabled): ${ref}`);
-      return;
+      return false;
     }
     const url = `${payoutServiceUrl}/api/v1/${path}`;
     const controller = new AbortController();
@@ -93,8 +102,10 @@ export class CourierPayoutHttpAdapter implements CourierPayoutPort {
       if (!res.ok) {
         throw new Error(`payout-service responded ${res.status}`);
       }
+      return true;
     } catch (error) {
       this.logger.warn(`Courier payout push failed for ${ref}: ${(error as Error).message}`);
+      return false;
     } finally {
       clearTimeout(timer);
     }
