@@ -91,3 +91,27 @@ describe('HQ returns table (CA-2-69)', () => {
     await waitFor(() => expect(screen.queryByText('Depot Satu')).toBeNull());
   });
 });
+
+/**
+ * CA-2-69: the network stock page, and the same all-or-nothing fan-out the returns table
+ * had. This is the screen whose entire job is to say which depot needs restocking, so it
+ * disappearing when one depot is unreachable is the worst possible time for it to go.
+ */
+describe('HQ network stock (CA-2-69)', () => {
+  it('keeps the readable depots when one fails, and names the one that did not', async () => {
+    getCached.mockResolvedValue(DEPOTS);
+    get.mockImplementation(async (url: string) => {
+      if (String(url).includes('d2')) throw new Error('depot-service timed out');
+      return [{ id: 'i1', label: 'Galon', lowStock: true }];
+    });
+
+    const HqInventoryPage = (await import('@/app/hq/inventory/page')).default;
+    render(<HqInventoryPage />);
+
+    await waitFor(() => expect(screen.getByText('Depot Satu')).toBeTruthy());
+    expect(screen.queryByText('Depot Dua')).toBeNull();
+    // Counting "Kritis" over a slice is the same mistake CA-2-26 fixed; saying which depots
+    // are missing is what stops the number being read as the whole network.
+    expect(screen.getByText(/hq\.inventory\.partial/)).toBeTruthy();
+  });
+});

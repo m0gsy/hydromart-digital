@@ -788,6 +788,7 @@ export const hq = {
     },
   },
   inventory: {
+    partial: 'Tidak bisa membaca stok: {depots}. Hitungan di bawah belum lengkap.',
     title: 'Inventory jaringan',
     subtitle: 'Kesehatan stok tiap depot · 30 hari',
     critical: '{n} depot kritis',
