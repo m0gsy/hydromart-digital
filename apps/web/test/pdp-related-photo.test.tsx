@@ -133,7 +133,20 @@ describe('product detail — the states it draws', () => {
       if (p.includes('/loyalty/me')) return Promise.resolve({ discountRate: 0.05, tier: 'GOLD' });
       if (p.includes('/depots')) {
         return Promise.resolve([
-          { id: 'd-1', name: 'Depot Kemang', distanceKm: 1.2, deliveryFee: 5000 },
+          // CA-3-16/CA-3-18: the page now reads `withinService` and the depot's hours
+          // before it promises delivery, and it fails CLOSED — a row that does not say it
+          // serves this address is treated as one that does not. The real endpoint always
+          // sends both; this fixture was thin, and the thinness read as "out of area".
+          {
+            id: 'd-1',
+            name: 'Depot Kemang',
+            distanceKm: 1.2,
+            deliveryFee: 5000,
+            serviceRadiusKm: 10,
+            withinService: true,
+            operatingHours: { mon: { open: '00:00', close: '23:59' } },
+            holidays: [],
+          },
         ]);
       }
       return Promise.resolve(null);
