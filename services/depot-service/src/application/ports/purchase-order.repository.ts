@@ -16,6 +16,8 @@ export interface CreatePurchaseOrderData {
 export interface UpdatePurchaseOrderData {
   status?: PoStatus;
   receivedAt?: Date | null;
+  /** CA-2-64: rewritten on a partial receipt, to carry each line's received quantity. */
+  lines?: PoLine[];
 }
 
 export interface PurchaseOrderRepository {

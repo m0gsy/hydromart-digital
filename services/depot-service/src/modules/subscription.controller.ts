@@ -9,13 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiSecurity,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
   Can,
@@ -54,14 +48,14 @@ export class SubscriptionController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/customer-ids')
-  @ApiOperation({ summary: "Linked customer ids with an ACTIVE subscription at one depot (internal)" })
+  @ApiOperation({
+    summary: 'Linked customer ids with an ACTIVE subscription at one depot (internal)',
+  })
   @ApiOkResponse({ description: 'Distinct customer ids holding an active subscription.' })
   activeCustomerIds(
     @Query('depotId', ParseUUIDPipe) depotId: string,
   ): Promise<{ customerIds: string[] }> {
-    return this.subscriptions
-      .activeCustomerIds(depotId)
-      .then((customerIds) => ({ customerIds }));
+    return this.subscriptions.activeCustomerIds(depotId).then((customerIds) => ({ customerIds }));
   }
 
   /**

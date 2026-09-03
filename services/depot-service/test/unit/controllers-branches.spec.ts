@@ -115,18 +115,24 @@ describe('CashierShiftController', () => {
   // The token has no display name, so the shift row records the phone — the identifier a
   // depot will still recognise months later when the drawer is questioned.
   it('opens under the caller phone, falling back to their id', async () => {
-    await c.open({ depotId: DEPOT, openingFloat: 100 } as never, {
-      sub: 'user-1',
-      phone: '0812',
-    } as never);
+    await c.open(
+      { depotId: DEPOT, openingFloat: 100 } as never,
+      {
+        sub: 'user-1',
+        phone: '0812',
+      } as never,
+    );
     expect(svc.open).toHaveBeenCalledWith(
       { depotId: DEPOT, openingFloat: 100 },
       { id: 'user-1', name: '0812' },
     );
-    await c.open({ depotId: DEPOT, openingFloat: 100 } as never, {
-      sub: 'user-1',
-      phone: null,
-    } as never);
+    await c.open(
+      { depotId: DEPOT, openingFloat: 100 } as never,
+      {
+        sub: 'user-1',
+        phone: null,
+      } as never,
+    );
     expect(svc.open).toHaveBeenLastCalledWith(expect.anything(), { id: 'user-1', name: 'user-1' });
   });
 
@@ -386,7 +392,6 @@ describe('FranchiseApplicationController', () => {
     expect(passed).toBeInstanceOf(Date);
     expect(passed.toISOString()).toBe(cutoff);
   });
-
 });
 
 describe('GallonIssueController', () => {
@@ -890,7 +895,13 @@ describe('DepotController', () => {
     });
     // nearby maps through NearbyDepotView for the same reason browse/get do.
     svc.findNearby.mockResolvedValue([
-      { id: DEPOT, name: 'D', paymentBankAccountNumber: '123', distanceKm: 1.2, withinService: true },
+      {
+        id: DEPOT,
+        name: 'D',
+        paymentBankAccountNumber: '123',
+        distanceKm: 1.2,
+        withinService: true,
+      },
     ]);
   });
 
@@ -1370,7 +1381,13 @@ describe('SubscriptionController', () => {
 });
 
 describe('SupplierController', () => {
-  const svc = { create: jest.fn(), list: jest.fn(), get: jest.fn() };
+  const svc = {
+    create: jest.fn(),
+    list: jest.fn(),
+    get: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
   const c = new SupplierController(svc as never);
   beforeEach(() => {
     jest.clearAllMocks();
@@ -1397,6 +1414,20 @@ describe('SupplierController', () => {
     expect(svc.list).toHaveBeenCalledWith(DEPOT);
     await c.get(ID, user);
     expect(svc.get).toHaveBeenCalledWith(ID);
+  });
+
+  /*
+   * CA-2-64: the directory was create-list-get and nothing else — a supplier typed wrong
+   * was permanent. Both new routes read the record first, because that is where the depot
+   * this caller must be allowed to touch comes from.
+   */
+  it('corrects and deletes, checking depot access from the record first', async () => {
+    await c.update(ID, { name: 'Tirta Baru' } as never, user);
+    expect(svc.get).toHaveBeenCalledWith(ID);
+    expect(svc.update).toHaveBeenCalledWith(ID, { name: 'Tirta Baru' });
+
+    await c.remove(ID, user);
+    expect(svc.remove).toHaveBeenCalledWith(ID);
   });
 });
 
@@ -1473,8 +1504,12 @@ describe('PurchaseOrderController', () => {
     expect(svc.get).toHaveBeenCalledWith(ID);
     await c.send(ID, user);
     expect(svc.send).toHaveBeenCalledWith(ID);
-    await c.receive(ID, user);
-    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1');
+    // CA-2-64: an empty body still means "everything outstanding", so the single Terima
+    // button keeps working without sending a per-line map.
+    await c.receive(ID, {} as never, user);
+    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', undefined);
+    await c.receive(ID, { received: { 0: 40 } } as never, user);
+    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', { 0: 40 });
   });
 });
 

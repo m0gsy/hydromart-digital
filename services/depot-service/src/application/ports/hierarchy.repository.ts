@@ -20,7 +20,11 @@ export interface HierarchyRepository {
   directDepots(staffId: string): Promise<string[]>;
 
   /** Put a depot under an assistant supervisor, or clear it with null. */
-  setDepotAssistant(depotId: string, staffId: string | null, updatedBy: string | null): Promise<void>;
+  setDepotAssistant(
+    depotId: string,
+    staffId: string | null,
+    updatedBy: string | null,
+  ): Promise<void>;
   /** Point a person at their superior, replacing any existing link. */
   setSuperior(staffId: string, superiorId: string, updatedBy: string | null): Promise<void>;
   /** Remove a person's superior link. */

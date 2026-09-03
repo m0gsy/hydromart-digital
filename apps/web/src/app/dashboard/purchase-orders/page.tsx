@@ -100,13 +100,24 @@ type DraftLine = { picked: boolean; qty: string; cost: string };
 
 /** 12c — pick low-stock lines, choose a supplier, POST a DRAFT purchase order. Every
  *  endpoint is real (inventory low-stock lines + suppliers + create PO). */
-function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCreated: () => void; onClose: () => void }) {
+function LowStockDraft({
+  depotId,
+  onCreated,
+  onClose,
+}: {
+  depotId: string;
+  onCreated: () => void;
+  onClose: () => void;
+}) {
   const { t } = useT();
   const low = useAsync<InventoryItem[]>(
     () => api.get(endpoints.inventory.lines(depotId, { lowStockOnly: true }), true),
     [depotId],
   );
-  const suppliers = useAsync<Supplier[]>(() => api.get(endpoints.procurement.suppliers.list(depotId), true), [depotId]);
+  const suppliers = useAsync<Supplier[]>(
+    () => api.get(endpoints.procurement.suppliers.list(depotId), true),
+    [depotId],
+  );
 
   const [supplierId, setSupplierId] = useState('');
   const [lines, setLines] = useState<Record<string, DraftLine>>({});
@@ -115,9 +126,16 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
 
   const items = low.data ?? [];
   const lineOf = (i: InventoryItem): DraftLine =>
-    lines[i.id] ?? { picked: false, qty: String(Math.max(1, i.minimumStock - i.available)), cost: '' };
+    lines[i.id] ?? {
+      picked: false,
+      qty: String(Math.max(1, i.minimumStock - i.available)),
+      cost: '',
+    };
   const patch = (id: string, p: Partial<DraftLine>) =>
-    setLines((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { picked: false, qty: '', cost: '' }), ...p } }));
+    setLines((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { picked: false, qty: '', cost: '' }), ...p },
+    }));
 
   const picked = items.filter((i) => lineOf(i).picked);
 
@@ -128,6 +146,20 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
     }
     if (picked.length === 0) {
       setError(t('opsFix.poDraft.pickAtLeastOne'));
+      return;
+    }
+    /*
+     * CA-2-64: an emptied price box priced the line at nothing.
+     *
+     * `Number('')` is 0, and `Math.max(0, …)` waved it through — so clearing the field and
+     * submitting sent a line costing Rp 0. The PO then totalled less than it cost, and the
+     * RECEIPT it posts carried that zero into COGS: a margin that looks better than it is,
+     * on a screen nobody re-checks. The server refuses it now too; this says so before the
+     * round trip, and names the line, which the server's message cannot.
+     */
+    const priceless = picked.find((i) => !(Number(lineOf(i).cost) > 0));
+    if (priceless) {
+      setError(t('opsFix.poDraft.needPrice', { label: priceless.label }));
       return;
     }
     setBusy(true);
@@ -144,7 +176,7 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
               itemType: i.itemType,
               label: i.label,
               quantity: Math.max(1, Number(l.qty) || 1),
-              unitCostIdr: Math.max(0, Math.round(Number(l.cost) || 0)),
+              unitCostIdr: Math.max(1, Math.round(Number(l.cost) || 0)),
             };
           }),
         },
@@ -179,9 +211,14 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
         // Not `noSuppliers`: that sends an operator off to register a supplier that exists.
         <LoadError onRetry={suppliers.reload} />
       ) : suppliers.data && suppliers.data.length === 0 ? (
-        <p className="rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-sm text-muted">{t('opsFix.poDraft.noSuppliers')}</p>
+        <p className="rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-sm text-muted">
+          {t('opsFix.poDraft.noSuppliers')}
+        </p>
       ) : items.length === 0 ? (
-        <CenterState title={t('opsFix.poDraft.noLowStock')} icon={<Warning size={40} weight="fill" />} />
+        <CenterState
+          title={t('opsFix.poDraft.noLowStock')}
+          icon={<Warning size={40} weight="fill" />}
+        />
       ) : (
         <>
           <Field label={t('opsFix.poDraft.supplier')} htmlFor="po-supplier">
@@ -212,7 +249,10 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
                 {items.map((i) => {
                   const l = lineOf(i);
                   return (
-                    <div key={i.id} className="grid grid-cols-[24px_minmax(120px,1.8fr)_90px_120px] items-center gap-2 py-2">
+                    <div
+                      key={i.id}
+                      className="grid grid-cols-[24px_minmax(120px,1.8fr)_90px_120px] items-center gap-2 py-2"
+                    >
                       <input
                         type="checkbox"
                         checked={l.picked}
@@ -251,7 +291,9 @@ function LowStockDraft({ depotId, onCreated, onClose }: { depotId: string; onCre
             </p>
           )}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-muted">{t('opsFix.poDraft.selectedCount', { n: picked.length })}</span>
+            <span className="text-sm text-muted">
+              {t('opsFix.poDraft.selectedCount', { n: picked.length })}
+            </span>
             <Button onClick={create} loading={busy} disabled={picked.length === 0 || !supplierId}>
               {t('opsFix.poDraft.create')}
             </Button>
@@ -272,7 +314,10 @@ function Body() {
     () =>
       scopedId
         ? api.get(
-            endpoints.procurement.purchaseOrders.list({ depotId: scopedId, status: status || undefined }),
+            endpoints.procurement.purchaseOrders.list({
+              depotId: scopedId,
+              status: status || undefined,
+            }),
             true,
           )
         : Promise.resolve([]),
@@ -305,7 +350,11 @@ function Body() {
       </div>
 
       {draftOpen && scopedId && (
-        <LowStockDraft depotId={scopedId} onCreated={orders.reload} onClose={() => setDraftOpen(false)} />
+        <LowStockDraft
+          depotId={scopedId}
+          onCreated={orders.reload}
+          onClose={() => setDraftOpen(false)}
+        />
       )}
 
       {scopedDepot && (
@@ -334,7 +383,10 @@ function Body() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('hrFix.purchaseOrders.noDepot')} icon={<Truck size={40} weight="fill" />}>
+        <CenterState
+          title={t('hrFix.purchaseOrders.noDepot')}
+          icon={<Truck size={40} weight="fill" />}
+        >
           {t('opsFix.poDraft.noDepots2')}
         </CenterState>
       ) : orders.loading ? (
@@ -342,7 +394,10 @@ function Body() {
       ) : orders.error ? (
         <ErrorState message={orders.error} onRetry={orders.reload} />
       ) : !orders.data || orders.data.length === 0 ? (
-        <CenterState title={t('hrFix.purchaseOrders.empty')} icon={<ClipboardText size={40} weight="fill" />}>
+        <CenterState
+          title={t('hrFix.purchaseOrders.empty')}
+          icon={<ClipboardText size={40} weight="fill" />}
+        >
           {t('opsFix.poDraft.noOrders')}
         </CenterState>
       ) : (
@@ -361,7 +416,10 @@ function Gate() {
   const { customer } = useAuth();
   if (!canManageProcurement(customer?.role)) {
     return (
-      <CenterState title={t('hrFix.purchaseOrders.managerOnly')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('hrFix.purchaseOrders.managerOnly')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('opsFix.poDraft.gateBody2')}
       </CenterState>
     );

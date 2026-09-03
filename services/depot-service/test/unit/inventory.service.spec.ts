@@ -38,13 +38,15 @@ describe('InventoryService', () => {
   let catalog: FakeProductCatalog;
   let inventory: InventoryService;
   let depotId: string;
+  let approvalRepo: InMemoryApprovalRepository;
 
   beforeEach(async () => {
     depotRepo = new InMemoryDepotRepository();
     invRepo = new InMemoryInventoryRepository();
     alerts = new FakeLowStockAlert();
     const config = buildTestConfig();
-    const approvals = new ApprovalService(new InMemoryApprovalRepository(), depotRepo, config);
+    approvalRepo = new InMemoryApprovalRepository();
+    const approvals = new ApprovalService(approvalRepo, depotRepo, config);
     untracked = new FakeUntrackedSaleAlert();
     catalog = new FakeProductCatalog();
     inventory = new InventoryService(
@@ -320,6 +322,58 @@ describe('InventoryService', () => {
     expect(moves[0].delta).toBe(-5);
   });
 
+  /*
+   * CA-2-64: an opname can leave the depot owing more stock than it holds.
+   *
+   * The count is NOT refused, and these pin that. `reserved` is what customers have
+   * already paid for or queued for; the shelf is what it is, and a service that rejected
+   * "I counted 5" because the ledger promised 20 would make the ledger the authority over
+   * the building — and write a movement row nobody counted.
+   *
+   * What was missing is that nobody was told. Reservations quietly outran the stock, the
+   * shortfall surfaced when a courier reached an empty shelf, and the only trace was a
+   * negative `available` on a screen that renders it as "0 tersedia".
+   */
+  it('lets the count stand below what is reserved, and raises the shortfall', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR);
+    // Set the hold directly: `reserveForOrder` works through PRODUK lines and a catalogue
+    // lookup, and what this is about is the column, not how it came to be held.
+    invRepo.items.find((i) => i.id === item.id)!.reserved = 40;
+
+    const after = await inventory.opname(item.id, 5, 'monthly', ACTOR);
+
+    // The count stands. Reality is not negotiable with the ledger.
+    expect(after.quantity).toBe(5);
+    const raised = approvalRepo.rows.filter((a) => a.title.startsWith('Stok kurang dari pesanan'));
+    expect(raised).toHaveLength(1);
+    expect(raised[0].payload).toMatchObject({ counted: 5, reserved: 40, shortfall: 35 });
+  });
+
+  /*
+   * Side channel, so it fails open — and loudly. The count has already been written by the
+   * time this runs; refusing it because the warning could not be raised would throw away a
+   * physical count somebody walked the shelves for.
+   */
+  it('still records the count when the shortfall cannot be raised', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR);
+    invRepo.items.find((i) => i.id === item.id)!.reserved = 40;
+    jest.spyOn(approvalRepo, 'create').mockRejectedValue(new Error('approvals down'));
+
+    await expect(inventory.opname(item.id, 5, null, ACTOR)).resolves.toMatchObject({
+      quantity: 5,
+    });
+    jest.restoreAllMocks();
+  });
+
+  it('says nothing when the count still covers what is reserved', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR);
+    invRepo.items.find((i) => i.id === item.id)!.reserved = 40;
+
+    await inventory.opname(item.id, 40, null, ACTOR);
+
+    expect(approvalRepo.rows.filter((a) => a.title.startsWith('Stok kurang'))).toHaveLength(0);
+  });
+
   it('flags low stock and lists it', async () => {
     const item = await inventory.createLine(depotId, raw(), ACTOR);
     await inventory.adjust(item.id, -85, 'sales', ACTOR); // 100 -> 15, below minimum 20
@@ -438,11 +492,7 @@ describe('InventoryService', () => {
   // A mis-created line used to be permanent: nothing in any console could remove it.
   describe('deleting a stock line', () => {
     it('removes a line that never held stock or sold anything', async () => {
-      const line = await inventory.createLine(
-        depotId,
-        { ...raw(), quantity: 0 },
-        ACTOR,
-      );
+      const line = await inventory.createLine(depotId, { ...raw(), quantity: 0 }, ACTOR);
       await inventory.deleteLine(line.id);
       expect(await inventory.listForDepot(depotId, {})).toHaveLength(0);
     });
@@ -451,23 +501,39 @@ describe('InventoryService', () => {
     // explain it. Count it to zero first — that leaves an OPNAME movement saying so.
     it('refuses while stock is still on the line', async () => {
       const line = await inventory.createLine(depotId, raw(), ACTOR);
-      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(
+        InventoryLineNotEmptyError,
+      );
     });
 
     it('refuses while an order still holds units', async () => {
       const line = await produkLine(PRODUCT_ID, 5);
-      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);
+      await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 5 }],
+        ACTOR,
+      );
       await inventory.adjust(line.id, -0, null, ACTOR).catch(() => undefined);
-      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(
+        InventoryLineNotEmptyError,
+      );
     });
 
     // Movements cascade on delete, so a line that ever sold would take the depot's sales
     // record with it. Those are hidden by deactivating the product, never deleted.
     it('refuses a line that has recorded sales, even when it is empty now', async () => {
       const line = await produkLine(PRODUCT_ID, 2);
-      await inventory.consumeForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
       expect((await inventory.get(line.id)).quantity).toBe(0);
-      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineHasSalesError);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(
+        InventoryLineHasSalesError,
+      );
     });
 
     it('refuses an item id that does not exist', async () => {
@@ -482,7 +548,12 @@ describe('InventoryService', () => {
   describe('reservation drill-down', () => {
     it('lists the active holds on a line', async () => {
       await produkLine(PRODUCT_ID, 10);
-      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+      await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 3 }],
+        ACTOR,
+      );
       const [item] = await inventory.listForDepot(depotId, {});
       const holds = await inventory.listReservations(item.id);
       expect(holds).toHaveLength(1);
@@ -519,7 +590,14 @@ describe('InventoryService', () => {
       await produkLine(PRODUCT_ID, 10);
       await inventory.createLine(
         second.id,
-        { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'x', unit: 'x', quantity: 1, minimumStock: 0 },
+        {
+          itemType: InventoryItemType.PRODUK,
+          productId: PRODUCT_ID,
+          label: 'x',
+          unit: 'x',
+          quantity: 1,
+          minimumStock: 0,
+        },
         ACTOR,
       );
 
@@ -542,7 +620,12 @@ describe('InventoryService', () => {
     // an order placed before the product was switched off still has to settle.
     it('hides the line from the operator but keeps it settleable', async () => {
       const line = await produkLine(PRODUCT_ID, 10);
-      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
 
       await inventory.applyProductChange({
         productId: PRODUCT_ID,
@@ -644,7 +727,12 @@ describe('InventoryService', () => {
 
     it('a reservation with every product stocked stays quiet', async () => {
       await produkLine(PRODUCT_ID, 100);
-      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR);
+      await inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 1 }],
+        ACTOR,
+      );
       expect(untracked.emitted).toHaveLength(0);
     });
 
@@ -667,7 +755,12 @@ describe('InventoryService', () => {
 
     it('stays quiet when every product had a line', async () => {
       await produkLine(PRODUCT_ID, 100);
-      await inventory.consumeForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR);
+      await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 1 }],
+        ACTOR,
+      );
       expect(untracked.emitted).toHaveLength(0);
     });
 
@@ -685,7 +778,9 @@ describe('InventoryService', () => {
         ACTOR,
       );
       expect(result.consumed).toEqual([PRODUCT_ID]);
-      expect((await inventory.get((await invRepo.listForDepot(depotId, {}))[0].id)).quantity).toBe(6);
+      expect((await inventory.get((await invRepo.listForDepot(depotId, {}))[0].id)).quantity).toBe(
+        6,
+      );
     });
   });
 
@@ -709,7 +804,12 @@ describe('InventoryService', () => {
   describe('restockForOrder', () => {
     it('puts a voided counter sale back on the shelf', async () => {
       const line = await produkLine(PRODUCT_ID, 100);
-      await inventory.consumeForOrder(depotId, 'order-v', [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+      await inventory.consumeForOrder(
+        depotId,
+        'order-v',
+        [{ productId: PRODUCT_ID, quantity: 3 }],
+        ACTOR,
+      );
       expect((await inventory.get(line.id)).quantity).toBe(97);
 
       const result = await inventory.restockForOrder(
@@ -727,8 +827,18 @@ describe('InventoryService', () => {
     // own row, and reusing that key would erase the fact that the sale ever happened.
     it('leaves the original SALE movement intact beside the put-back', async () => {
       const line = await produkLine(PRODUCT_ID, 50);
-      await inventory.consumeForOrder(depotId, 'order-w', [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
-      await inventory.restockForOrder(depotId, 'order-w', [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      await inventory.consumeForOrder(
+        depotId,
+        'order-w',
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
+      await inventory.restockForOrder(
+        depotId,
+        'order-w',
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
 
       const moves = await inventory.movements(line.id);
       const sale = moves.find((m) => m.type === StockMovementType.SALE);
@@ -1194,9 +1304,9 @@ describe('InventoryService', () => {
       const insider = { sub: 'kepala', role: Role.KEPALA_DEPOT, depotId } as AuthenticatedUser;
 
       await expect(inventory.get(line.id, insider)).resolves.toMatchObject({ quantity: 100 });
-      await expect(inventory.opname(line.id, 90, null, ACTOR, TOKEN, insider)).resolves.toMatchObject(
-        { quantity: 90 },
-      );
+      await expect(
+        inventory.opname(line.id, 90, null, ACTOR, TOKEN, insider),
+      ).resolves.toMatchObject({ quantity: 90 });
     });
   });
 });

@@ -66,7 +66,13 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
   }
 
   async update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder> {
-    const row = await this.prisma.purchaseOrder.update({ where: { id }, data });
+    const { lines, ...rest } = data;
+    const row = await this.prisma.purchaseOrder.update({
+      where: { id },
+      // `lines` is a Json column, so it cannot ride along in the typed spread — Prisma
+      // wants the value cast, and passing it through untouched would drop the field.
+      data: lines ? { ...rest, lines: lines as unknown as Prisma.InputJsonValue } : rest,
+    });
     return this.toRecord(row);
   }
 }

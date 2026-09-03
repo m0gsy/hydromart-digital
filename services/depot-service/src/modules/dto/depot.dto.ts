@@ -279,7 +279,9 @@ export class NearbyDepotView extends PublicDepotView {
   @ApiProperty() distanceKm!: number;
   @ApiProperty() withinService!: boolean;
 
-  static fromNearby(d: DepotRecord & { distanceKm: number; withinService: boolean }): NearbyDepotView {
+  static fromNearby(
+    d: DepotRecord & { distanceKm: number; withinService: boolean },
+  ): NearbyDepotView {
     return { ...PublicDepotView.from(d), distanceKm: d.distanceKm, withinService: d.withinService };
   }
 }

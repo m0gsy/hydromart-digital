@@ -6,11 +6,13 @@ import { InventoryRepository } from '../../src/application/ports/inventory.repos
 const FROM = new Date('2026-07-01T00:00:00.000Z');
 const TO = new Date('2026-08-01T00:00:00.000Z');
 
-function make(over: {
-  reviewed?: number;
-  variances?: { sellPrice: number | null; delta: number }[];
-  closes?: { codDepositedIdr: number; codExpectedIdr: number }[];
-} = {}) {
+function make(
+  over: {
+    reviewed?: number;
+    variances?: { sellPrice: number | null; delta: number }[];
+    closes?: { codDepositedIdr: number; codExpectedIdr: number }[];
+  } = {},
+) {
   const approvals = {
     countReviewedInRange: jest.fn().mockResolvedValue(over.reviewed ?? 0),
   } as unknown as ApprovalRepository;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Phone, Plus, Storefront } from '@phosphor-icons/react';
+import { Lock, PencilSimple, Phone, Plus, Storefront, Trash } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import {
@@ -17,6 +17,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useConfirm } from '@/components/confirm';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
@@ -41,13 +42,26 @@ function initials(name: string): string {
     .join('');
 }
 
-/** Inline add-supplier form (design 11b "Tambah"). */
-function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+/*
+ * Inline supplier form (design 11b "Tambah") — and, since CA-2-64, "Ubah".
+ *
+ * One form, not two: the fields are the same fields, and a second copy would be the place
+ * one of them quietly went missing. `supplier` present means edit; absent means add.
+ */
+function SupplierForm({
+  depotId,
+  supplier,
+  onDone,
+}: {
+  depotId: string;
+  supplier?: Supplier;
+  onDone: () => void;
+}) {
   const { t } = useT();
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [phone, setPhone] = useState('');
-  const [categories, setCategories] = useState('');
+  const [name, setName] = useState(supplier?.name ?? '');
+  const [code, setCode] = useState(supplier?.code ?? '');
+  const [phone, setPhone] = useState(supplier?.contactPhone ?? '');
+  const [categories, setCategories] = useState((supplier?.categories ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,20 +73,22 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
     setBusy(true);
     setError(null);
     try {
-      await api.post(
-        endpoints.procurement.suppliers.create,
-        {
-          depotId,
-          name: name.trim(),
-          code: code.trim(),
-          contactPhone: phone.trim() || undefined,
-          categories: categories
-            .split(',')
-            .map((c) => c.trim())
-            .filter(Boolean),
-        },
-        true,
-      );
+      const body = {
+        name: name.trim(),
+        code: code.trim(),
+        // Cleared on purpose is null, not "leave it as it was" — the whole point of an
+        // edit form is being able to remove a number that turned out to be wrong.
+        contactPhone: phone.trim() || (supplier ? null : undefined),
+        categories: categories
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean),
+      };
+      if (supplier) {
+        await api.patch(endpoints.procurement.suppliers.detail(supplier.id), body, true);
+      } else {
+        await api.post(endpoints.procurement.suppliers.create, { depotId, ...body }, true);
+      }
       onDone();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('opsFix.suppliers.addError'));
@@ -83,18 +99,39 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
   return (
     <Card className="flex flex-col gap-3 p-4">
       <Field label={t('opsFix.suppliers.name')} htmlFor="sup-name">
-        <Input id="sup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('opsFix.suppliers.namePlaceholder')} autoFocus />
+        <Input
+          id="sup-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('opsFix.suppliers.namePlaceholder')}
+          autoFocus
+        />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label={t('opsFix.suppliers.code')} htmlFor="sup-code">
-          <Input id="sup-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('opsFix.suppliers.codePlaceholder')} />
+          <Input
+            id="sup-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={t('opsFix.suppliers.codePlaceholder')}
+          />
         </Field>
         <Field label={t('opsFix.suppliers.phone')} htmlFor="sup-phone">
-          <Input id="sup-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('opsFix.suppliers.phonePlaceholder')} />
+          <Input
+            id="sup-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={t('opsFix.suppliers.phonePlaceholder')}
+          />
         </Field>
       </div>
       <Field label={t('opsFix.suppliers.categories')} htmlFor="sup-cat">
-        <Input id="sup-cat" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder={t('opsFix.suppliers.categoriesPlaceholder')} />
+        <Input
+          id="sup-cat"
+          value={categories}
+          onChange={(e) => setCategories(e.target.value)}
+          placeholder={t('opsFix.suppliers.categoriesPlaceholder')}
+        />
       </Field>
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -113,9 +150,69 @@ function AddSupplierForm({ depotId, onDone }: { depotId: string; onDone: () => v
   );
 }
 
-function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats }) {
+function SupplierCard({
+  supplier,
+  stats,
+  canManage,
+  onChanged,
+}: {
+  supplier: Supplier;
+  stats: PoStats;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
   const [showDetail, setShowDetail] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { confirm } = useConfirm();
   const { t } = useT();
+
+  /*
+   * CA-2-64: the directory was create-and-forget — a phone number typed wrong, a name
+   * spelled wrong, a vendor that changed hands were all permanent, and the workaround was
+   * a second row for the same supplier, which split its purchase history in two.
+   *
+   * Deleting is only offered when nothing points at the supplier. The server is the
+   * authority on that (it counts the purchase orders); `stats.count` is what this screen
+   * already knows, so the button is hidden rather than offered and then refused.
+   */
+  async function remove() {
+    if (
+      !(await confirm({
+        title: t('opsFix.suppliers.deleteTitle', { name: supplier.name }),
+        message: t('opsFix.suppliers.deleteBody'),
+        confirmLabel: t('opsFix.suppliers.deleteConfirm'),
+        tone: 'danger',
+      }))
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(endpoints.procurement.suppliers.detail(supplier.id), true);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t('opsFix.suppliers.deleteError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <SupplierForm
+        depotId={supplier.depotId}
+        supplier={supplier}
+        onDone={() => {
+          setEditing(false);
+          onChanged();
+        }}
+      />
+    );
+  }
+
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start gap-3">
@@ -153,10 +250,33 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
       </button>
       {showDetail && <SupplierDetail supplierId={supplier.id} />}
 
+      {canManage && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            <PencilSimple size={15} weight="fill" className="mr-1" />
+            {t('opsFix.suppliers.edit')}
+          </Button>
+          {stats.count === 0 && (
+            <Button variant="ghost" onClick={remove} loading={busy}>
+              <Trash size={15} weight="fill" className="mr-1" />
+              {t('opsFix.suppliers.delete')}
+            </Button>
+          )}
+        </div>
+      )}
+      {error && (
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+          {error}
+        </p>
+      )}
+
       {supplier.categories.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {supplier.categories.map((c) => (
-            <span key={c} className="rounded-full border border-app px-2 py-0.5 text-[11px] font-medium text-muted">
+            <span
+              key={c}
+              className="rounded-full border border-app px-2 py-0.5 text-[11px] font-medium text-muted"
+            >
               {c}
             </span>
           ))}
@@ -176,7 +296,9 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
         </div>
         <div>
           <dt className="text-xs text-muted">{t('opsFix.suppliers.lastPo')}</dt>
-          <dd className="text-xs font-semibold">{stats.lastPo ? formatDateTime(stats.lastPo) : '—'}</dd>
+          <dd className="text-xs font-semibold">
+            {stats.lastPo ? formatDateTime(stats.lastPo) : '—'}
+          </dd>
         </div>
       </dl>
     </Card>
@@ -185,11 +307,16 @@ function SupplierCard({ supplier, stats }: { supplier: Supplier; stats: PoStats 
 
 function Body() {
   const { t } = useT();
+  const { customer } = useAuth();
+  const canManage = canManageProcurement(customer?.role);
   const { scopedId, selected, depots, ready } = useDepot();
   const [adding, setAdding] = useState(false);
 
   const suppliers = useAsync<Supplier[]>(
-    () => (scopedId ? api.get(endpoints.procurement.suppliers.list(scopedId), true) : Promise.resolve([])),
+    () =>
+      scopedId
+        ? api.get(endpoints.procurement.suppliers.list(scopedId), true)
+        : Promise.resolve([]),
     [scopedId],
   );
   const orders = useAsync<PurchaseOrder[]>(
@@ -236,7 +363,7 @@ function Body() {
       )}
 
       {adding && scopedId && (
-        <AddSupplierForm
+        <SupplierForm
           depotId={scopedId}
           onDone={() => {
             setAdding(false);
@@ -246,7 +373,10 @@ function Body() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title={t('opsFix.suppliers.noDepots')} icon={<Storefront size={40} weight="fill" />}>
+        <CenterState
+          title={t('opsFix.suppliers.noDepots')}
+          icon={<Storefront size={40} weight="fill" />}
+        >
           {t('opsFix.suppliers.noDepotsBody')}
         </CenterState>
       ) : suppliers.loading ? (
@@ -254,21 +384,27 @@ function Body() {
       ) : suppliers.error ? (
         <ErrorState message={suppliers.error} onRetry={suppliers.reload} />
       ) : !suppliers.data || suppliers.data.length === 0 ? (
-        <CenterState title={t('opsFix.suppliers.empty')} icon={<Storefront size={40} weight="fill" />}>
+        <CenterState
+          title={t('opsFix.suppliers.empty')}
+          icon={<Storefront size={40} weight="fill" />}
+        >
           {t('opsFix.suppliers.emptyBody')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Every card's PO count, value and last-order date come from ONE read, and each
               falls back to 0/—. A supplier the depot buys from weekly then reads as dormant. */}
-          {orders.error && (
-            <LoadError onRetry={orders.reload} className="sm:col-span-2" />
-          )}
+          {orders.error && <LoadError onRetry={orders.reload} className="sm:col-span-2" />}
           {suppliers.data.map((s) => (
             <SupplierCard
               key={s.id}
               supplier={s}
               stats={statsBySupplier.get(s.id) ?? { count: 0, value: 0, lastPo: null }}
+              canManage={canManage}
+              onChanged={() => {
+                suppliers.reload();
+                orders.reload();
+              }}
             />
           ))}
         </div>

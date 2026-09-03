@@ -16,7 +16,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, ImportSummary } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  ImportSummary,
+} from '@hydromart/platform';
 
 import {
   InventoryService,
@@ -42,7 +49,20 @@ import {
   UpdateInventoryItemDto,
   WastageQueryDto,
 } from './dto/inventory.dto';
-import { ConsumeResponseDto, ImportResponseDto, ItemResponseDto, PagedDepotStockMovementResponseDto, ProductChangedResponseDto, ReleaseResponseDto, ReservationResponseDto, ReserveResponseDto, ResolvedProductPriceResponseDto, RestockResponseDto, StockMovementResponseDto, WastageResponseDto } from './dto/responses.generated.dto';
+import {
+  ConsumeResponseDto,
+  ImportResponseDto,
+  ItemResponseDto,
+  PagedDepotStockMovementResponseDto,
+  ProductChangedResponseDto,
+  ReleaseResponseDto,
+  ReservationResponseDto,
+  ReserveResponseDto,
+  ResolvedProductPriceResponseDto,
+  RestockResponseDto,
+  StockMovementResponseDto,
+  WastageResponseDto,
+} from './dto/responses.generated.dto';
 
 // SEC-2: reserve/consume/release are service-to-service (order-service on checkout /
 // cancel / completion), NOT end-user actions. They authenticate with the shared
@@ -251,9 +271,7 @@ export class InventoryController {
   @ApiOperation({
     summary: 'Apply a catalog rename/deactivation to every depot line for that product (internal)',
   })
-  productChanged(
-    @Body() dto: ProductChangedDto,
-  ): Promise<{ renamed: number; hidden: number }> {
+  productChanged(@Body() dto: ProductChangedDto): Promise<{ renamed: number; hidden: number }> {
     return this.inventory.applyProductChange(dto);
   }
 

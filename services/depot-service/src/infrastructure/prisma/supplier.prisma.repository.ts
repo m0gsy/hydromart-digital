@@ -4,6 +4,7 @@ import { Supplier } from '../../domain/supplier';
 import {
   CreateSupplierData,
   SupplierRepository,
+  UpdateSupplierData,
 } from '../../application/ports/supplier.repository';
 import { PrismaService } from './prisma.service';
 
@@ -13,6 +14,18 @@ export class SupplierPrismaRepository implements SupplierRepository {
 
   async create(data: CreateSupplierData): Promise<Supplier> {
     return this.prisma.supplier.create({ data });
+  }
+
+  async update(id: string, data: UpdateSupplierData): Promise<Supplier> {
+    return this.prisma.supplier.update({ where: { id }, data });
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.prisma.supplier.delete({ where: { id } });
+  }
+
+  async countPurchaseOrders(supplierId: string): Promise<number> {
+    return this.prisma.purchaseOrder.count({ where: { supplierId } });
   }
 
   async listForDepot(depotId: string): Promise<Supplier[]> {

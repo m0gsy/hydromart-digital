@@ -212,10 +212,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // AUTHZ-A1 over HTTP: a depot head from somewhere else knows the line id (the movement
     // export prints it) and gets nothing — read or write.
     const elsewhere = signStaff(Role.KEPALA_DEPOT, '99999999-9999-4999-8999-999999999999');
-    await request(server())
-      .get(`/api/v1/inventory/${itemId}`)
-      .set(auth(elsewhere))
-      .expect(403);
+    await request(server()).get(`/api/v1/inventory/${itemId}`).set(auth(elsewhere)).expect(403);
     await request(server())
       .post(`/api/v1/inventory/${itemId}/opname`)
       .set(auth(elsewhere))

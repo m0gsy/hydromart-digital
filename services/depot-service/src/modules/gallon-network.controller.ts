@@ -109,7 +109,7 @@ export class GallonNetworkController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/returns-range')
-  @ApiOperation({ summary: "Gallons returned at one depot over a window (internal)" })
+  @ApiOperation({ summary: 'Gallons returned at one depot over a window (internal)' })
   returnsInRange(@Query() query: GallonReturnRangeQueryDto): Promise<GallonReturnRangeSummary> {
     return this.gallon.gallonsInRange(query.depotId, new Date(query.from), new Date(query.to));
   }

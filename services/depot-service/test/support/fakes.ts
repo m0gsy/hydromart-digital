@@ -54,6 +54,7 @@ import { Supplier } from '../../src/domain/supplier';
 import {
   CreateSupplierData,
   SupplierRepository,
+  UpdateSupplierData,
 } from '../../src/application/ports/supplier.repository';
 import { PoStatus, PurchaseOrder } from '../../src/domain/purchase-order';
 import {
@@ -198,7 +199,9 @@ export class InMemoryDepotRepository implements DepotRepository {
   async findManyByIds(ids: string[], activeOnly: boolean): Promise<DepotRecord[]> {
     this.findManyByIdsCalls += 1;
     const wanted = new Set(ids);
-    return this.rows.filter((x) => wanted.has(x.id) && (!activeOnly || x.active)).map((x) => ({ ...x }));
+    return this.rows
+      .filter((x) => wanted.has(x.id) && (!activeOnly || x.active))
+      .map((x) => ({ ...x }));
   }
   // Audit S-19: the existence check the depot guard uses. Counted, so a test can prove the
   // guard stopped reading whole rows.
@@ -343,10 +346,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
    * carries the before/after the write actually produced. A fake that still clobbered the
    * quantity would let a lost-update test pass against a repository that lost updates.
    */
-  async applyMovement(
-    itemId: string,
-    movement: RecordMovementData,
-  ): Promise<InventoryItemRecord> {
+  async applyMovement(itemId: string, movement: RecordMovementData): Promise<InventoryItemRecord> {
     const rec = this.items.find((x) => x.id === itemId);
     // Mirrors the SQL: the floor guards TYPED movements, never a SALE. A sale that takes
     // the line negative is reality being recorded, not an error to refuse.
@@ -390,7 +390,9 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   async itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>> {
     this.movementLookupCalls += 1;
     return new Set(
-      this.moves.filter((m) => m.orderId === orderId && itemIds.includes(m.itemId)).map((m) => m.itemId),
+      this.moves
+        .filter((m) => m.orderId === orderId && itemIds.includes(m.itemId))
+        .map((m) => m.itemId),
     );
   }
   async countMovements(itemId: string, type: StockMovementType): Promise<number> {
@@ -426,8 +428,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     const page = rows.slice(start, start + filter.limit);
     return {
       total: rows.length,
-      nextCursor:
-        page.length === filter.limit ? (page[page.length - 1]?.move.id ?? null) : null,
+      nextCursor: page.length === filter.limit ? (page[page.length - 1]?.move.id ?? null) : null,
       items: page.map(({ move, item }) => ({
         ...move,
         itemLabel: item!.label,
@@ -645,6 +646,19 @@ export class InMemorySupplierRepository implements SupplierRepository {
     this.rows.push(row);
     return { ...row };
   }
+  async update(id: string, data: UpdateSupplierData): Promise<Supplier> {
+    const r = this.rows.find((x) => x.id === id)!;
+    Object.assign(r, data);
+    return { ...r };
+  }
+  async remove(id: string): Promise<void> {
+    this.rows = this.rows.filter((x) => x.id !== id);
+  }
+  /** Set by the test that needs it; a directory with no orders is the ordinary case. */
+  purchaseOrderCount = 0;
+  async countPurchaseOrders(): Promise<number> {
+    return this.purchaseOrderCount;
+  }
   async listForDepot(depotId: string): Promise<Supplier[]> {
     return this.rows
       .filter((r) => r.depotId === depotId)
@@ -668,7 +682,11 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
     // By receivedAt: a PO raised in June and delivered in July is July's stock.
     return this.rows
       .filter(
-        (r) => r.depotId === depotId && r.receivedAt !== null && r.receivedAt >= from && r.receivedAt < to,
+        (r) =>
+          r.depotId === depotId &&
+          r.receivedAt !== null &&
+          r.receivedAt >= from &&
+          r.receivedAt < to,
       )
       .reduce((sum, r) => sum + r.totalIdr, 0);
   }

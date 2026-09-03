@@ -163,16 +163,16 @@ describe('Staff hierarchy HTTP flows (e2e)', () => {
       .set(asManager)
       .send({ assistantSupervisorId: SUPERVISOR })
       .expect(403);
-    await request(server()).delete(`${base}/depots/${DEPOT_A}/assistant`).set(asManager).expect(403);
+    await request(server())
+      .delete(`${base}/depots/${DEPOT_A}/assistant`)
+      .set(asManager)
+      .expect(403);
     await request(server())
       .put(`${base}/${ASSISTANT}/superior`)
       .set(asManager)
       .send({ superiorId: SUPERVISOR })
       .expect(403);
-    await request(server())
-      .delete(`${base}/${ASSISTANT}/superior`)
-      .set(asManager)
-      .expect(403);
+    await request(server()).delete(`${base}/${ASSISTANT}/superior`).set(asManager).expect(403);
     await request(server())
       .put(`${base}/${SUPERVISOR}/depots/${DEPOT_B}`)
       .set(asManager)

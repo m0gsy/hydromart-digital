@@ -106,10 +106,12 @@ export class GallonNetworkService {
     const depotsById = new Map(
       owing.length === 0
         ? []
-        : (await this.depots.findManyByIds(owing.map((i) => i.depotId), false)).map((d) => [
-            d.id,
-            d,
-          ]),
+        : (
+            await this.depots.findManyByIds(
+              owing.map((i) => i.depotId),
+              false,
+            )
+          ).map((d) => [d.id, d]),
     );
 
     const rows: CustomerDepotDepositRow[] = [];

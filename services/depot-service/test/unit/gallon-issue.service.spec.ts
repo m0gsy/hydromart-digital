@@ -59,14 +59,22 @@ describe('GallonIssueService', () => {
   // An anonymous counter sale still takes empties off the shelf, so the gallons are booked
   // with nobody named. The depot's outstanding balance has to say so either way.
   it('books an anonymous fulfilment issue with no customer (I1)', async () => {
-    const rec = await service.recordFromOrder(depotId, { orderId: 'o-2', quantity: 1 }, 'order-service');
+    const rec = await service.recordFromOrder(
+      depotId,
+      { orderId: 'o-2', quantity: 1 },
+      'order-service',
+    );
     expect(rec.customerId).toBeNull();
     expect(rec.depositHeld).toBe(GALLON_DEPOSIT_IDR);
   });
 
   it('rejects a fulfilment issue against an unknown depot (I1)', async () => {
     await expect(
-      service.recordFromOrder('00000000-0000-4000-8000-000000000000', { orderId: 'o-3', quantity: 1 }, 'order-service'),
+      service.recordFromOrder(
+        '00000000-0000-4000-8000-000000000000',
+        { orderId: 'o-3', quantity: 1 },
+        'order-service',
+      ),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 

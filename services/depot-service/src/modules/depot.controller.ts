@@ -23,7 +23,18 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, depotScopeIds, InternalAuthGuard, Public, Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  depotScopeIds,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+  SNIFFED_MIME,
+  sniffFileType,
+} from '@hydromart/platform';
 
 import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
@@ -41,7 +52,15 @@ import {
   PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
-import { DepotResponseDto, InternalContactsResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
+import {
+  DepotResponseDto,
+  InternalContactsResponseDto,
+  InternalOwnedResponseDto,
+  InternalOwnerResponseDto,
+  NearbyDepotResponseDto,
+  PagedDepotResponseDto,
+  PagedPublicDepotResponseDto,
+} from './dto/responses.generated.dto';
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;

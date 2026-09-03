@@ -260,7 +260,11 @@ export class InventoryService {
     unit: string;
     active: boolean;
   }): Promise<{ renamed: number; hidden: number }> {
-    const renamed = await this.inventory.renameByProductId(change.productId, change.name, change.unit);
+    const renamed = await this.inventory.renameByProductId(
+      change.productId,
+      change.name,
+      change.unit,
+    );
     const hidden = await this.inventory.setHiddenByProductId(change.productId, !change.active);
     return { renamed, hidden };
   }
@@ -396,7 +400,60 @@ export class InventoryService {
       authorization,
     );
     await this.emitVarianceApproval(item, variance, reason, actorId);
+    await this.warnIfReservationsUnbacked(updated, actorId);
     return this.toView(updated);
+  }
+
+  /**
+   * CA-2-64: an opname can leave the depot owing more stock than it holds.
+   *
+   * The count is not refused, and must not be. `reserved` is what customers have already
+   * paid for or queued for; the physical shelf is what it is, and a service that rejected
+   * "I counted 5" because the ledger promised 20 would make the ledger the authority over
+   * the building. That is the wrong way round, and the resulting movement row would be a
+   * number nobody counted.
+   *
+   * What was missing is that NOBODY WAS TOLD. Reservations quietly outran the stock, the
+   * shortfall surfaced when a courier arrived at a shelf with nothing on it, and the only
+   * trace was a negative `available` on a screen that renders it as "0 tersedia".
+   *
+   * So the count stands and the shortfall is raised — as an approval, on the same queue a
+   * manager already works, because someone has to decide which orders get the stock.
+   *
+   * Best-effort like the variance above: this is a side channel, and an opname that has
+   * already been written must not fail because the warning could not be raised.
+   */
+  private async warnIfReservationsUnbacked(
+    item: InventoryItemRecord,
+    actorId: string,
+  ): Promise<void> {
+    const shortfall = item.reserved - item.quantity;
+    if (shortfall <= 0) return;
+    try {
+      await this.approvals.create(
+        {
+          depotId: item.depotId,
+          type: ApprovalType.OPNAME_VARIANCE,
+          title: `Stok kurang dari pesanan: ${item.label}`,
+          subjectRef: item.label,
+          amountIdr: Math.round(shortfall * (item.sellPrice ?? 0)),
+          payload: {
+            counted: item.quantity,
+            reserved: item.reserved,
+            shortfall,
+            note:
+              'Hasil opname di bawah jumlah yang sudah dipesan pelanggan. ' +
+              'Pesanan sebanyak selisih ini belum ada barangnya.',
+          },
+        },
+        actorId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Unbacked reservations not raised for ${item.label} (depot ${item.depotId}): ` +
+          `counted ${item.quantity}, reserved ${item.reserved} — ${(error as Error).message}`,
+      );
+    }
   }
 
   /**

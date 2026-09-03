@@ -11,7 +11,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, ImportSummary, assertDepotAccess } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  ImportSummary,
+  assertDepotAccess,
+} from '@hydromart/platform';
 
 import {
   PriceOverrideProposalView,
@@ -27,7 +33,12 @@ import {
   ListPriceOverridesQueryDto,
   ProposePriceOverrideDto,
 } from './dto/price-override.dto';
-import { CountByProductResponseDto, ImportResponseDto, PagedPriceOverrideProposalResponseDto, PriceOverrideProposalResponseDto } from './dto/responses.generated.dto';
+import {
+  CountByProductResponseDto,
+  ImportResponseDto,
+  PagedPriceOverrideProposalResponseDto,
+  PriceOverrideProposalResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * Depot-side propose (design 7a): a depot manager proposes a per-product price

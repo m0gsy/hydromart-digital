@@ -178,8 +178,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
    * stock: only the lines that are actually low come back.
    */
   async listLowStock(depotIds?: string | readonly string[]): Promise<InventoryItemRecord[]> {
-    const ids =
-      typeof depotIds === 'string' ? [depotIds] : depotIds ? [...depotIds] : undefined;
+    const ids = typeof depotIds === 'string' ? [depotIds] : depotIds ? [...depotIds] : undefined;
     if (ids && ids.length === 0) return [];
     const scope = ids
       ? Prisma.sql`AND "depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})`
@@ -215,10 +214,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
    * / `quantityAfter` come from the row the statement returned, not from the caller's stale
    * read, so the ledger records what actually happened rather than what was expected to.
    */
-  async applyMovement(
-    itemId: string,
-    movement: RecordMovementData,
-  ): Promise<InventoryItemRecord> {
+  async applyMovement(itemId: string, movement: RecordMovementData): Promise<InventoryItemRecord> {
     /*
      * The floor is NOT universal, and that distinction is the whole of it.
      *

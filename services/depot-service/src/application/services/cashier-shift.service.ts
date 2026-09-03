@@ -40,10 +40,7 @@ export class CashierShiftService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
   ) {}
 
-  async open(
-    input: OpenShiftInput,
-    cashier: { id: string; name: string },
-  ): Promise<CashierShift> {
+  async open(input: OpenShiftInput, cashier: { id: string; name: string }): Promise<CashierShift> {
     if (!(await this.depots.findById(input.depotId, false))) {
       throw new DepotNotFoundError();
     }
@@ -64,7 +61,10 @@ export class CashierShiftService {
   }
 
   /** Who is on the counter now, plus the last closed shifts for the day's reconciliation. */
-  async list(depotId: string, closedLimit = 20): Promise<{ open: CashierShift[]; closed: CashierShift[] }> {
+  async list(
+    depotId: string,
+    closedLimit = 20,
+  ): Promise<{ open: CashierShift[]; closed: CashierShift[] }> {
     const [open, closed] = await Promise.all([
       this.shifts.listOpen(depotId),
       this.shifts.listClosed(depotId, closedLimit),
@@ -108,7 +108,12 @@ export class CashierShiftService {
     // so two cashiers open at once each closed against the other's takings as well as
     // their own — one short by exactly what the other took, and the counter cash posted
     // to the book twice.
-    const taken = await this.depotCash.totalPaidCash(shift.depotId, shift.openedAt, closedAt, shift.id);
+    const taken = await this.depotCash.totalPaidCash(
+      shift.depotId,
+      shift.openedAt,
+      closedAt,
+      shift.id,
+    );
     const expected = expectedCash(shift.openingFloat, taken);
     const closed = await this.shifts.close(shiftId, {
       closedAt,

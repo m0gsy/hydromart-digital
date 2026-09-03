@@ -271,4 +271,90 @@ describe('PurchaseOrderService', () => {
     expect(received.status).toBe(PoStatus.RECEIVED);
     expect(inventoryRepo.moves).toHaveLength(movesBefore);
   });
+
+  /*
+   * CA-2-64: receiving was all-or-nothing.
+   *
+   * One button, and it booked in the FULL ordered quantity of every line and stamped the
+   * PO RECEIVED. A supplier who sends 40 of 60 galon — the ordinary case — left the depot
+   * with two bad answers: press it and put 20 units into the stock ledger that are not in
+   * the building, or leave the PO open and book none of the 40 that are. The first is the
+   * worse one: that ledger is what the reorder point, the COGS and the next opname read.
+   */
+  describe('partial receipt (CA-2-64)', () => {
+    // PO receipts only — `createLine` posts its opening balance as a RECEIPT too, and
+    // counting that as goods-in would make every assertion here off by the opening stock.
+    const receiptsFor = (itemId: string) =>
+      inventoryRepo.moves
+        .filter(
+          (m) =>
+            m.itemId === itemId &&
+            m.type === StockMovementType.RECEIPT &&
+            String(m.reason ?? '').startsWith('PO '),
+        )
+        .map((m) => m.delta);
+
+    async function sent() {
+      const po = await draft();
+      await service.send(po.id);
+      return po.id;
+    }
+
+    it('books in only what arrived, and keeps the PO open', async () => {
+      const id = await sent();
+
+      const after = await service.receive(id, ACTOR, { 0: 40 });
+
+      expect(receiptsFor(galonItemId)).toEqual([40]);
+      expect(receiptsFor(segelItemId)).toEqual([]);
+      expect(after.status).toBe(PoStatus.SENT);
+      expect(after.receivedAt).toBeNull();
+      expect(after.lines.map((l) => l.receivedQuantity ?? 0)).toEqual([40, 0]);
+    });
+
+    it('posts the delta on the second delivery, never the line twice', async () => {
+      const id = await sent();
+
+      await service.receive(id, ACTOR, { 0: 40 });
+      const after = await service.receive(id, ACTOR, { 0: 10, 1: 200 });
+
+      expect(receiptsFor(galonItemId)).toEqual([40, 10]);
+      expect(after.status).toBe(PoStatus.RECEIVED);
+      expect(after.receivedAt).not.toBeNull();
+    });
+
+    it('still receives everything outstanding when no map is given', async () => {
+      const id = await sent();
+
+      const after = await service.receive(id, ACTOR);
+
+      expect(receiptsFor(galonItemId)).toEqual([50]);
+      expect(after.status).toBe(PoStatus.RECEIVED);
+    });
+
+    /*
+     * Booking in more than was ordered is not a rounding question — it is either the wrong
+     * PO or a supplier sending goods nobody agreed to buy, and the stock ledger must not be
+     * where that gets decided silently.
+     */
+    it('refuses more than the line still has outstanding', async () => {
+      const id = await sent();
+      await service.receive(id, ACTOR, { 0: 40 });
+
+      await expect(service.receive(id, ACTOR, { 0: 11 })).rejects.toBeInstanceOf(
+        InvalidPurchaseOrderTransitionError,
+      );
+    });
+
+    it('refuses a negative quantity, and a receipt that receives nothing', async () => {
+      const id = await sent();
+
+      await expect(service.receive(id, ACTOR, { 0: -1 })).rejects.toBeInstanceOf(
+        InvalidPurchaseOrderTransitionError,
+      );
+      await expect(service.receive(id, ACTOR, { 0: 0, 1: 0 })).rejects.toThrow(
+        /Nothing to receive/,
+      );
+    });
+  });
 });
