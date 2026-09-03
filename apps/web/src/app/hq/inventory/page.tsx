@@ -24,22 +24,40 @@ interface DepotStock {
 export default function HqInventoryPage() {
   const { t } = useT();
 
-  const data = useAsync<DepotStock[]>(async () => {
+  const data = useAsync<{ rows: DepotStock[]; unreadable: string[] }>(async () => {
     // CA-2-26. "Kritis: 3" is the count of depots short of stock — and it was counted over
     // the first 100 depots only, on the one screen whose whole job is to say which depot in
     // the NETWORK needs restocking. A depot past the hundredth could not appear here however
     // empty its shelves were, and the reassuring green "semua sehat" pill was computed from
     // the same slice.
     const depots = (await fetchAllDepots()).filter((d) => d.active);
-    return Promise.all(
+    /*
+     * CA-2-69: one depot that cannot be read must not blank the other thirty-nine.
+     *
+     * `Promise.all` rejects on the first failure, so a single slow or unreachable depot
+     * turned the whole network stock page into an error — the screen whose entire job is
+     * to say which depot needs restocking disappeared exactly when part of the network was
+     * in trouble.
+     *
+     * The depots that answered are shown, and the ones that did not are NAMED. Quietly
+     * rendering fewer rows would be worse than the error it replaces: "Kritis: 3" would be
+     * counted over a slice again — the same mistake CA-2-26 fixed above — and the green
+     * "semua sehat" pill would be computed from depots nobody could read.
+     */
+    const settled = await Promise.allSettled(
       depots.map(async (depot) => {
         const lines = await api.get<InventoryItem[]>(endpoints.inventory.lines(depot.id), true);
         return { depot, total: lines.length, low: lines.filter((l) => l.lowStock).length };
       }),
     );
+    return {
+      rows: settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])),
+      unreadable: depots.filter((_d, i) => settled[i]!.status === 'rejected').map((d) => d.name),
+    };
   });
 
-  const rows = data.data ?? [];
+  const rows = data.data?.rows ?? [];
+  const unreadable = data.data?.unreadable ?? [];
   const critical = rows.filter((r) => r.low > 0).length;
 
   return (
@@ -63,6 +81,15 @@ export default function HqInventoryPage() {
           </>
         }
       />
+
+      {unreadable.length > 0 && (
+        <p
+          className="rounded-xl border border-app bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800"
+          role="status"
+        >
+          {t('hq.inventory.partial', { depots: unreadable.join(', ') })}
+        </p>
+      )}
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

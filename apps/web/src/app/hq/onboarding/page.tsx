@@ -26,7 +26,20 @@ const STEPS = [
   { id: 'provision', ownerKey: 'hq' as const, href: '/hq/depots?onboard=1' },
   { id: 'stock', ownerKey: 'manager' as const, href: '/hq/catalog' },
   { id: 'staff', ownerKey: 'hq' as const, href: '/hq/staff' },
-  { id: 'payments', ownerKey: 'finance' as const, href: '/hq/payments' },
+  /*
+   * CA-2-69: the link went to the wrong screen.
+   *
+   * The step's test is `paymentBankAccountNumber || paymentQrisImageUrl`, and those two
+   * fields are set in the DEPOT form — the same one `provision` above points at. `/hq/payments`
+   * is the settlement and payout queue and has no such field, so an operator following the
+   * checklist arrived somewhere that could not tick the box they were sent to tick, and the
+   * step stayed grey however long they looked.
+   *
+   * The other half of this step — that it could never turn green at all, because the page
+   * read the public depot projection which carries no payment fields — was CA-2-26 and is
+   * already fixed above.
+   */
+  { id: 'payments', ownerKey: 'finance' as const, href: '/hq/depots?onboard=1' },
 ];
 
 export default function HqOnboardingPage() {
@@ -42,17 +55,26 @@ export default function HqOnboardingPage() {
     // carries no payment fields — so the "payments" step below, whose whole test is
     // `paymentBankAccountNumber || paymentQrisImageUrl`, could never turn green no matter
     // how the depot was set up.
-    () => (depotId ? api.get<DepotAdmin>(endpoints.depots.manageDetail(depotId), true) : Promise.resolve(null)),
+    () =>
+      depotId
+        ? api.get<DepotAdmin>(endpoints.depots.manageDetail(depotId), true)
+        : Promise.resolve(null),
     [depotId],
   );
   const inv = useAsync<InventoryItem[]>(
-    () => (depotId ? api.get<InventoryItem[]>(endpoints.inventory.lines(depotId), true) : Promise.resolve([])),
+    () =>
+      depotId
+        ? api.get<InventoryItem[]>(endpoints.inventory.lines(depotId), true)
+        : Promise.resolve([]),
     [depotId],
   );
   const staff = useAsync<{ total: number }>(
     () =>
       depotId
-        ? api.get<{ items: Customer[]; total: number }>(endpoints.auth.staff({ depotId, limit: 1 }), true)
+        ? api.get<{ items: Customer[]; total: number }>(
+            endpoints.auth.staff({ depotId, limit: 1 }),
+            true,
+          )
         : Promise.resolve({ total: 0 }),
     [depotId],
   );
@@ -83,11 +105,20 @@ export default function HqOnboardingPage() {
         title={t('hq.onboarding.title')}
         subtitle={t('hq.onboarding.subtitle')}
         action={
-          d ? <Badge tone="brand">{t('hq.onboarding.progress', { done: doneCount, total: STEPS.length })}</Badge> : undefined
+          d ? (
+            <Badge tone="brand">
+              {t('hq.onboarding.progress', { done: doneCount, total: STEPS.length })}
+            </Badge>
+          ) : undefined
         }
       />
 
-      <select aria-label={t('hq.onboarding.pickDepot')} value={depotId} onChange={(e) => setDepotId(e.target.value)} className={selectClass}>
+      <select
+        aria-label={t('hq.onboarding.pickDepot')}
+        value={depotId}
+        onChange={(e) => setDepotId(e.target.value)}
+        className={selectClass}
+      >
         <option value="">{t('hq.onboarding.pickDepot')}</option>
         {(depots.data ?? []).map((dp) => (
           <option key={dp.id} value={dp.id}>
@@ -115,7 +146,10 @@ export default function HqOnboardingPage() {
       ) : (
         <>
           <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-soft)]">
-            <div className="h-full rounded-full bg-brand-600" style={{ width: `${(doneCount / STEPS.length) * 100}%` }} />
+            <div
+              className="h-full rounded-full bg-brand-600"
+              style={{ width: `${(doneCount / STEPS.length) * 100}%` }}
+            />
           </div>
 
           <ol className="flex flex-col gap-3">
