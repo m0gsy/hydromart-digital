@@ -167,6 +167,40 @@ export class GallonReturnService {
     );
   }
 
+  /**
+   * CA-4-47: an unidentified return, queued so the deposit is somebody's decision.
+   *
+   * The empties are real and are recorded; the deposit is not paid, because it cannot be
+   * attributed and paying it from the depot's pool takes it from customers who ARE
+   * identified. This is what stops that being a silence: a manager sees the exposure, the
+   * quantity and the courier, and rules on it.
+   */
+  private async queueUnidentifiedRefund(
+    depotId: string,
+    record: GallonReturnRecord,
+    reason: string | null,
+    actorId: string,
+  ): Promise<void> {
+    await this.approvals.create(
+      {
+        depotId,
+        type: ApprovalType.DEPOSIT_REFUND,
+        title: `Retur galon tanpa pelanggan (${record.quantity} galon)`,
+        subjectRef: record.id,
+        // The exposure, not a proposal: nothing was paid, and this is what would be.
+        amountIdr: this.config.gallonDepositIdr(depotId) * record.quantity,
+        payload: {
+          returnId: record.id,
+          quantity: record.quantity,
+          depositRefunded: 0,
+          unidentified: true,
+          reason,
+        },
+      },
+      actorId,
+    );
+  }
+
   async record(
     depotId: string,
     input: RecordReturnInput,
@@ -224,11 +258,27 @@ export class GallonReturnService {
       input.quantity,
       input.customerId ?? null,
     );
-    // The courier never supplies an amount, so instead of refusing the handover when
-    // the depot's held deposit is short, refund what is actually held. The gallons are
-    // still recorded, and the shortfall surfaces as the variance approval below.
+    /*
+     * CA-4-47: an unidentified return refunds NOTHING.
+     *
+     * `measureAgainstOutstanding` falls back to the DEPOT's totals when there is no
+     * customer, so a handover with `customerId: null` was capped by everybody's gallons
+     * rather than by this customer's — the deposit came out of the collective pool. Two
+     * things follow, and both are wrong: the refund is not bounded by anything this person
+     * ever paid, and the "excess" check passes as long as ANY gallons are out, so a return
+     * from somebody who never took one looks legitimate.
+     *
+     * A deposit was taken FROM a customer. It cannot be paid back to a person nobody
+     * named, out of money that belongs to the ones who were. The empties are still real,
+     * so they are still recorded — the physical count and the stock ledger stay correct —
+     * and the customer claims the deposit at the depot where they can be identified.
+     *
+     * Not a refusal: refusing the handover would leave the courier holding gallons the
+     * depot has no record of, which is worse for everyone.
+     */
+    const identified = Boolean(input.customerId);
     const depositRefunded =
-      condition === GallonCondition.GOOD
+      condition === GallonCondition.GOOD && identified
         ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
         : 0;
     // MONEY-04: idempotent on the order, because the courier's handover travels through the
@@ -253,6 +303,14 @@ export class GallonReturnService {
     if (!created) return record;
     if (excessGallons > 0) {
       await this.queueVariance(depotId, excessGallons, record.id, courierId);
+    }
+    /*
+     * CA-4-47: an unidentified GOOD return owes somebody a deposit, and this is the only
+     * trace of it. Queued for a manager so the money is a decision with a name on it
+     * rather than a silence — the same treatment a damaged return already gets.
+     */
+    if (condition === GallonCondition.GOOD && !identified) {
+      await this.queueUnidentifiedRefund(depotId, record, input.note ?? null, courierId);
     }
     if (condition === GallonCondition.DAMAGED) {
       await this.queueDamagedRefund(depotId, record, input.note ?? null, courierId);
