@@ -133,13 +133,15 @@ export interface InventoryRepository {
   /** ACTIVE holds on one line, newest first — who is holding the "dipesan" units. */
   listReservations(itemId: string): Promise<ReservationRecord[]>;
   /**
-   * Atomically set the new quantity and append the movement row. Returns the updated item.
+   * Apply `movement.delta` to the line and append the movement row, in one transaction.
+   *
+   * The caller passes the delta, never the resulting quantity: the adapter adds it to
+   * whatever the row holds at write time, so two concurrent adjustments both land
+   * (CA-2-21). `quantityBefore`/`quantityAfter` on the stored movement are overwritten
+   * with the values the write actually produced. Throws NegativeStockError when the delta
+   * would take the line below zero, or when the line no longer exists.
    */
-  applyMovement(
-    itemId: string,
-    newQuantity: number,
-    movement: RecordMovementData,
-  ): Promise<InventoryItemRecord>;
+  applyMovement(itemId: string, movement: RecordMovementData): Promise<InventoryItemRecord>;
   /** True if a movement for this item already recorded the given order (SALE idempotency). */
   hasMovementForOrder(itemId: string, orderId: string): Promise<boolean>;
   listMovements(itemId: string): Promise<StockMovementRecord[]>;

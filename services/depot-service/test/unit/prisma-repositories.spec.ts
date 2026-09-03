@@ -26,6 +26,7 @@ import {
   StockMovementType,
 } from '../../src/domain/inventory';
 import { GallonCondition } from '../../src/domain/gallon-return';
+import { NegativeStockError } from '../../src/domain/errors';
 
 // Unit-tests every depot-service Prisma repository against a per-model jest.fn() mock of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma call
@@ -1463,18 +1464,88 @@ describe('InventoryPrismaRepository', () => {
     });
   });
 
-  it('applies a movement atomically (item update + movement create in one txn)', async () => {
-    inventoryItem.update.mockResolvedValue(item);
+  // CA-2-21. The old shape took the finished quantity from the caller and wrote it
+  // absolutely, so of two concurrent adjustments the second erased the first. These two
+  // pin the replacement: the arithmetic happens inside the UPDATE, and the ledger's
+  // before/after are read back off the row the statement returned.
+  it('adds the delta inside the UPDATE instead of writing a quantity computed in Node', async () => {
+    // Someone else's +3 landed between the caller's read and this write: the row comes
+    // back at 18, not at the 15 the caller would have computed from what it read.
+    $queryRaw.mockResolvedValue([{ ...item, quantity: 18 }]);
     stockMovement.create.mockResolvedValue({ id: 'mv-1' });
-    const movement = { type: StockMovementType.RECEIPT, delta: 5 } as never;
-    const out = await repo.applyMovement('it-1', 15, movement);
-    expect(inventoryItem.update).toHaveBeenCalledWith({
-      where: { id: 'it-1' },
-      data: { quantity: 15 },
+    const movement = {
+      itemId: 'it-1',
+      type: StockMovementType.RECEIPT,
+      delta: 5,
+      quantityBefore: 10,
+      quantityAfter: 15,
+    } as never;
+    const out = await repo.applyMovement('it-1', movement);
+
+    expect(inventoryItem.update).not.toHaveBeenCalled();
+    const sql = ($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] };
+    const text = sql.strings.join('?');
+    // The SET clause itself must be relative. Asserting on the whole statement is not
+    // enough: the floor in the WHERE also reads `"quantity" + `, so an absolute
+    // `SET "quantity" = ?` passed that check while reintroducing the whole race.
+    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"\s*\+/);
+    expect(text).toContain('>= 0');
+    // Not 10 -> 15. The movement records the write that really happened: 13 -> 18.
+    expect(stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ quantityBefore: 13, quantityAfter: 18 }),
     });
-    expect(stockMovement.create).toHaveBeenCalledWith({ data: movement });
     expect($transaction).toHaveBeenCalledTimes(1);
-    expect(out.id).toBe('it-1');
+    expect(out.quantity).toBe(18);
+  });
+
+
+  /*
+   * CA-2-21, and the line the floor must NOT cross.
+   *
+   * depot-service has always let a SALE take a line negative on purpose: the gallon left
+   * the shelf, and refusing to record that does not put it back — it just makes the count
+   * disagree with the world and hides the disagreement. Every other movement is somebody
+   * typing a number, and those are the ones a concurrent sale can slip underneath.
+   */
+  it('leaves the floor off a SALE, so reality is still recordable', async () => {
+    $queryRaw.mockResolvedValue([{ ...item, quantity: -2 }]);
+    stockMovement.create.mockResolvedValue({ id: 'mv-2' });
+
+    await repo.applyMovement('it-1', {
+      itemId: 'it-1',
+      type: StockMovementType.SALE,
+      delta: -12,
+      quantityBefore: 10,
+      quantityAfter: -2,
+    } as never);
+
+    const text = (($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }).strings.join('?');
+    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"\s*\+/);
+    expect(text).not.toContain('>= 0');
+  });
+
+  it('keeps the floor on a typed adjustment', async () => {
+    $queryRaw.mockResolvedValue([{ ...item, quantity: 4 }]);
+    stockMovement.create.mockResolvedValue({ id: 'mv-3' });
+
+    await repo.applyMovement('it-1', {
+      itemId: 'it-1',
+      type: StockMovementType.ADJUSTMENT,
+      delta: -6,
+      quantityBefore: 10,
+      quantityAfter: 4,
+    } as never);
+
+    const text = (($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }).strings.join('?');
+    expect(text).toContain('>= 0');
+  });
+
+  it('refuses the movement, and writes no ledger row, when the floor rejects it', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await expect(
+      repo.applyMovement('it-1', { itemId: 'it-1', type: StockMovementType.SALE, delta: -99 } as never),
+    ).rejects.toBeInstanceOf(NegativeStockError);
+    expect(stockMovement.create).not.toHaveBeenCalled();
   });
 
   it('detects an existing movement for an order', async () => {

@@ -227,7 +227,7 @@ export class InventoryService {
     });
 
     if (input.quantity > 0) {
-      const updated = await this.inventory.applyMovement(item.id, input.quantity, {
+      const updated = await this.inventory.applyMovement(item.id, {
         itemId: item.id,
         type: StockMovementType.RECEIPT,
         delta: input.quantity,
@@ -341,7 +341,7 @@ export class InventoryService {
     if (next < 0) {
       throw new NegativeStockError();
     }
-    const updated = await this.inventory.applyMovement(itemId, next, {
+    const updated = await this.inventory.applyMovement(itemId, {
       itemId,
       type: StockMovementType.ADJUSTMENT,
       delta,
@@ -350,17 +350,25 @@ export class InventoryService {
       reason,
       actorId,
     });
-    // Reserved is unchanged by an adjustment, so available moves with quantity.
+    // Reserved is unchanged by an adjustment, so available moves with quantity. Measured
+    // against what the write actually produced, not against the `next` computed from a read
+    // that a concurrent adjustment may already have overtaken (CA-2-21).
     await this.alertIfNewlyLow(
       item,
       available(item.quantity, item.reserved),
-      available(next, item.reserved),
+      available(updated.quantity, updated.reserved),
       authorization,
     );
     return this.toView(updated);
   }
 
-  /** Physical count reconciliation (FR-073): system quantity becomes the counted quantity. */
+  /**
+   * Physical count reconciliation (FR-073): system quantity becomes the counted quantity.
+   *
+   * Written as the VARIANCE, not as an absolute set (CA-2-21). If a sale lands between the
+   * count and the save, "the shelf held 50 and two were sold since" is 48 — clobbering the
+   * row with 50 would have swallowed that sale.
+   */
   async opname(
     itemId: string,
     countedQuantity: number,
@@ -371,7 +379,7 @@ export class InventoryService {
   ): Promise<ItemView> {
     const item = await this.require(itemId, user);
     const variance = countedQuantity - item.quantity;
-    const updated = await this.inventory.applyMovement(itemId, countedQuantity, {
+    const updated = await this.inventory.applyMovement(itemId, {
       itemId,
       type: StockMovementType.OPNAME,
       delta: variance,
@@ -384,7 +392,7 @@ export class InventoryService {
     await this.alertIfNewlyLow(
       item,
       available(item.quantity, item.reserved),
-      available(countedQuantity, item.reserved),
+      available(updated.quantity, updated.reserved),
       authorization,
     );
     await this.emitVarianceApproval(item, variance, reason, actorId);
@@ -639,7 +647,7 @@ export class InventoryService {
         continue;
       }
       const next = line.quantity - quantity;
-      await this.inventory.applyMovement(line.id, next, {
+      await this.inventory.applyMovement(line.id, {
         itemId: line.id,
         type: StockMovementType.SALE,
         delta: -quantity,
@@ -721,7 +729,7 @@ export class InventoryService {
         continue;
       }
       const next = line.quantity + quantity;
-      await this.inventory.applyMovement(line.id, next, {
+      await this.inventory.applyMovement(line.id, {
         itemId: line.id,
         type: StockMovementType.ADJUSTMENT,
         delta: quantity,
@@ -757,7 +765,7 @@ export class InventoryService {
       throw new InventoryItemNotFoundError();
     }
     const next = line.quantity + quantity;
-    const updated = await this.inventory.applyMovement(line.id, next, {
+    const updated = await this.inventory.applyMovement(line.id, {
       itemId: line.id,
       type: StockMovementType.RECEIPT,
       delta: quantity,

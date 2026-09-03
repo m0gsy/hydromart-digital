@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { InventoryItemType } from '../../src/domain/inventory';
+import { NegativeStockError } from '../../src/domain/errors';
 import { PricingRuleRecord } from '../../src/domain/pricing-rule';
 import { DepotConfigService } from '../../src/config/depot-config.service';
 import {
@@ -336,16 +337,30 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     Object.assign(rec, patch, { updatedAt: nextDate() });
     return { ...rec };
   }
+  /**
+   * Mirrors the real adapter (CA-2-21): the delta is applied to whatever the row holds
+   * NOW, the floor is enforced here rather than by the caller, and the stored movement
+   * carries the before/after the write actually produced. A fake that still clobbered the
+   * quantity would let a lost-update test pass against a repository that lost updates.
+   */
   async applyMovement(
     itemId: string,
-    newQuantity: number,
     movement: RecordMovementData,
   ): Promise<InventoryItemRecord> {
-    const rec = this.items.find((x) => x.id === itemId)!;
-    rec.quantity = newQuantity;
+    const rec = this.items.find((x) => x.id === itemId);
+    // Mirrors the SQL: the floor guards TYPED movements, never a SALE. A sale that takes
+    // the line negative is reality being recorded, not an error to refuse.
+    if (!rec) throw new NegativeStockError();
+    if (movement.type !== StockMovementType.SALE && rec.quantity + movement.delta < 0) {
+      throw new NegativeStockError();
+    }
+    const before = rec.quantity;
+    rec.quantity = before + movement.delta;
     rec.updatedAt = nextDate();
     this.moves.push({
       ...movement,
+      quantityBefore: before,
+      quantityAfter: rec.quantity,
       orderId: movement.orderId ?? null,
       id: randomUUID(),
       createdAt: nextDate(),
