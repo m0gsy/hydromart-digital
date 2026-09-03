@@ -376,6 +376,45 @@ export class PriceOverrideSelfApprovalError extends DomainError {
  * decision recorded and never carried out. The manager is told while they are still on the
  * screen, with the reason the other service gave.
  */
+/** CA-2-22: the cashbook entry a correction points at does not exist. */
+export class CashbookEntryNotFoundError extends DomainError {
+  readonly code = 'CASHBOOK_ENTRY_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Entri kas tidak ditemukan.');
+  }
+}
+
+/**
+ * CA-2-22: this entry has already been corrected.
+ *
+ * One entry reverses exactly once. A second correction — a retried request, or two
+ * operators pressing the button together — would leave the book wrong in the OTHER
+ * direction, which is the same bug with a minus sign.
+ */
+export class CashbookAlreadyReversedError extends DomainError {
+  readonly code = 'CASHBOOK_ALREADY_REVERSED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Entri ini sudah dikoreksi.');
+  }
+}
+
+/**
+ * CA-2-22: a reversal cannot itself be reversed.
+ *
+ * Undoing a correction is posting the original again, which the ordinary record path
+ * already does. Allowing chains would make the book a puzzle: three entries where two
+ * would do, and no reader able to say which one is live.
+ */
+export class CashbookCannotReverseReversalError extends DomainError {
+  readonly code = 'CASHBOOK_CANNOT_REVERSE_REVERSAL';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Koreksi tidak bisa dikoreksi lagi — catat entri baru bila perlu.');
+  }
+}
+
 export class DisputeRefundUnavailableError extends DomainError {
   readonly code = 'DISPUTE_REFUND_UNAVAILABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

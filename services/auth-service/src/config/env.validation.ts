@@ -81,6 +81,8 @@ export const envValidationSchema = Joi.object({
   // the service still boots, but an invite then fails 503 rather than half-creating a person.
   HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: optionalSecret(16),
+  // CA-2-06: where the idle-session limit lives. Blank = no idle limit (fail-open).
+  ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
 
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),
   SMS_API_TOKEN: Joi.string().allow('').optional(),

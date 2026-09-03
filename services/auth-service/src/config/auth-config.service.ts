@@ -120,6 +120,20 @@ export class AuthConfigService {
   }
 
   /**
+   * CA-2-06: admin-service, for the idle-session limit head office set.
+   *
+   * Blank in dev = no idle limit, and the adapter says so rather than logging on every
+   * refresh. In production a blank URL is still a fail-OPEN: the env-driven refresh TTL
+   * bounds every session regardless, so the floor is a weaker limit, never none.
+   */
+  get securityPolicySource(): { adminServiceUrl: string; internalServiceKey: string } {
+    return {
+      adminServiceUrl: this.config.get<string>('ADMIN_SERVICE_URL', '').trim().replace(/\/+$/, ''),
+      internalServiceKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+
+  /**
    * customer-service, for the PDP export/anonymise fan-out (item 13). A blank URL is a
    * hard failure at call time, not a silent skip: an export that quietly omits the
    * customer's addresses, or a deletion that leaves them behind, is worse than an error.

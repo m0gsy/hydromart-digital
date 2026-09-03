@@ -1,18 +1,33 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
+  AuthenticatedUser,
   Can,
   CurrentUser,
-  AuthenticatedUser,
   InternalAuthGuard,
   Public,
+  assertDepotAccess,
 } from '@hydromart/platform';
 
 import { CashbookService, CashbookView } from '../application/services/cashbook.service';
 import { DepotCosts, DepotCostsService } from '../application/services/depot-costs.service';
 import { CashbookEntry } from '../domain/cashbook';
-import { CreateCashbookDto, DepotCostsQueryDto, ListCashbookQueryDto } from './dto/cashbook.dto';
+import {
+  CreateCashbookDto,
+  DepotCostsQueryDto,
+  ListCashbookQueryDto,
+  ReverseCashbookDto,
+} from './dto/cashbook.dto';
 import {
   CashbookEntryResponseDto,
   CashbookResponseDto,
@@ -77,5 +92,33 @@ export class CashbookController {
       },
       user.sub,
     );
+  }
+
+  /**
+   * CA-2-22: the correction path the book did not have.
+   *
+   * POST rather than PATCH or DELETE, and deliberately: this CREATES an entry — the
+   * opposite leg — rather than changing one. A ledger you can edit is a ledger nobody can
+   * audit, so the original stays exactly as posted and the pair explains itself.
+   */
+  @ApiOkResponse({ type: CashbookEntryResponseDto })
+  @Post(':id/reverse')
+  @ApiOperation({ summary: 'Correct an entry by posting its opposite (CA-2-22)' })
+  async reverse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReverseCashbookDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CashbookEntry> {
+    /*
+     * AUTHZ-B2: a by-id route reachable by a depot-scoped role must assert the ROW's depot.
+     *
+     * `depotFinance` reaches several depot-scoped roles and `:id` is invisible to
+     * DepotScopeGuard, so without this a finance user at depot A could correct depot B's
+     * cashbook — write access to another depot's money, through the one route added to fix
+     * a money bug. `scripts/check-depot-scope.mjs` caught it before it merged; the same
+     * shape as `dispute.controller.ts`.
+     */
+    assertDepotAccess(user, (await this.cashbook.get(id)).depotId);
+    return this.cashbook.reverse(id, dto.reason, user.sub);
   }
 }

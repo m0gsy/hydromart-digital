@@ -12,10 +12,12 @@ import {
   Chip,
   ErrorState,
   Field,
+  FormError,
   Input,
   Money,
   Skeleton,
 } from '@/components/ui';
+import { Sheet } from '@/components/overlay';
 import { api, ApiError } from '@/lib/api';
 import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
@@ -25,12 +27,14 @@ import { useDepot } from '@/lib/depot-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { CashDirection, CashbookResponse } from '@/lib/types';
+import type { CashDirection, CashbookEntry, CashbookResponse } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
 
-const TODAY = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(
-  new Date(),
-);
+const TODAY = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+}).format(new Date());
 const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
 const startOfTodayIso = () => {
   const d = new Date();
@@ -103,7 +107,12 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex gap-2">
         {(['IN', 'OUT'] as const).map((d) => (
-          <button key={d} type="button" onClick={() => setDirection(d)} aria-pressed={direction === d}>
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDirection(d)}
+            aria-pressed={direction === d}
+          >
             <Chip tone={direction === d ? 'ink' : 'outline'}>
               {d === 'IN' ? t('opsFix.cashbook.in') : t('opsFix.cashbook.out')}
             </Chip>
@@ -154,6 +163,34 @@ function CashbookBody() {
   const { t } = useT();
   const { scopedId } = useDepot();
   const [showForm, setShowForm] = useState(false);
+  /*
+   * CA-2-22: the entry being corrected, and the reason for it.
+   *
+   * The route existed with no way in — `check-route-parity` caught that, and a correction
+   * path nobody can reach from the console is the same class of bug as the one it fixes.
+   */
+  const [correcting, setCorrecting] = useState<CashbookEntry | null>(null);
+  const [reason, setReason] = useState('');
+  const [correctBusy, setCorrectBusy] = useState(false);
+  const [correctError, setCorrectError] = useState<string | null>(null);
+
+  async function submitCorrection() {
+    if (!correcting || reason.trim().length < 4) {
+      return setCorrectError(t('opsFix.cashbook.needReason'));
+    }
+    setCorrectBusy(true);
+    setCorrectError(null);
+    try {
+      await api.post(endpoints.cashbook.reverse(correcting.id), { reason: reason.trim() }, true);
+      setCorrecting(null);
+      setReason('');
+      book.reload();
+    } catch (err) {
+      setCorrectError(err instanceof ApiError ? err.message : t('opsFix.cashbook.correctError'));
+    } finally {
+      setCorrectBusy(false);
+    }
+  }
 
   const book = useAsync<CashbookResponse>(
     () =>
@@ -231,6 +268,43 @@ function CashbookBody() {
         />
       )}
 
+      <Sheet
+        open={correcting !== null}
+        onClose={() => {
+          setCorrecting(null);
+          setReason('');
+          setCorrectError(null);
+        }}
+        title={t('opsFix.cashbook.correctTitle')}
+      >
+        <div className="flex flex-col gap-3 pb-2">
+          {/* The original stays; this posts its opposite. Saying so is the point — an
+              operator who thinks they are deleting a row will not write a useful reason. */}
+          <p className="text-sm text-muted">{t('opsFix.cashbook.correctBody')}</p>
+          {correcting && (
+            <p className="rounded-lg border border-app px-3 py-2 text-sm">
+              <span className="font-semibold">{correcting.label}</span>
+              <span className="ml-2 tabular-nums text-muted">
+                {correcting.direction === 'IN' ? '+' : '−'}
+                <Money amount={correcting.amountIdr} />
+              </span>
+            </p>
+          )}
+          <Field label={t('opsFix.cashbook.reason')} htmlFor="cb-reason">
+            <Input
+              id="cb-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t('opsFix.cashbook.reasonPlaceholder')}
+            />
+          </Field>
+          <FormError message={correctError} />
+          <Button onClick={submitCorrection} loading={correctBusy}>
+            {t('opsFix.cashbook.correctConfirm')}
+          </Button>
+        </div>
+      </Sheet>
+
       {book.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : book.error ? (
@@ -244,6 +318,15 @@ function CashbookBody() {
           {entries.map((e) => {
             const isIn = e.direction === 'IN';
             const ArrowIcon: Icon = isIn ? ArrowDown : ArrowUp;
+            /*
+             * CA-2-22: a correction is possible on an ordinary entry, once.
+             *
+             * A reversal cannot itself be reversed — undoing one is recording the original
+             * again — and an entry that has already been corrected is done. Both are refused
+             * by the server too; hiding the button is the courtesy on top of the rule.
+             */
+            const corrected = entries.some((x) => x.reversesId === e.id);
+            const canCorrect = !e.reversesId && !corrected;
             return (
               <div key={e.id} className="flex items-center gap-3 p-4">
                 <span
@@ -269,6 +352,15 @@ function CashbookBody() {
                   {isIn ? '+' : '−'}
                   <Money amount={e.amountIdr} />
                 </span>
+                {canCorrect && (
+                  <button
+                    type="button"
+                    onClick={() => setCorrecting(e)}
+                    className="shrink-0 rounded-lg border border-app px-2.5 py-1.5 text-xs font-bold text-muted transition-colors hover:border-brand-600 hover:text-brand-700"
+                  >
+                    {t('opsFix.cashbook.correct')}
+                  </button>
+                )}
               </div>
             );
           })}

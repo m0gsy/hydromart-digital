@@ -73,6 +73,15 @@ class InMemoryShifts implements CashierShiftRepository {
 }
 
 class FakeCashbook implements CashbookRepository {
+  // CA-2-22: corrections are not this suite's subject, but the port grew two reads and a
+  // fake that lies about the interface is worse than no fake.
+  async findById(): Promise<null> {
+    return null;
+  }
+  async findReversalOf(): Promise<null> {
+    return null;
+  }
+
   entries: CreateCashbookEntryData[] = [];
   async create(data: CreateCashbookEntryData): Promise<never> {
     this.entries.push(data);

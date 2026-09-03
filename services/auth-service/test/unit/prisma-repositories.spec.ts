@@ -179,6 +179,9 @@ describe('RefreshTokenPrismaRepository', () => {
       expiresAt: new Date(),
       userAgent: null,
       ipAddress: null,
+      // CA-2-06: the app stamps the mint time now — the idle check reads it, and a security
+      // interval measured across app-vs-database clock skew is not one you can reason about.
+      createdAt: new Date(),
     });
     await repo.findByTokenHash('hmac');
     await repo.revoke('rt-1', new Date(), 'rt-2');

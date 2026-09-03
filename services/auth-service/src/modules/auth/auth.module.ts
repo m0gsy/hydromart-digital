@@ -12,6 +12,7 @@ import {
 } from '@hydromart/platform';
 
 import { AuthAuditMutationSink } from '../../infrastructure/audit-mutation.sink';
+import { SecurityPolicyHttpAdapter } from '../../infrastructure/http/security-policy.http.adapter';
 
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AUTH_TOKENS } from '../../application/tokens';
@@ -170,6 +171,8 @@ const globalGuards: Provider[] = [
     // CA-2-67: role grants and RBAC-matrix edits reached no trail at all. See
     // AuthAuditMutationSink for why this one writes to the table instead of over HTTP.
     { provide: AUDIT_MUTATION_SINK, useClass: AuthAuditMutationSink },
+    // CA-2-06: the idle-session limit head office set. Fails OPEN — see the port.
+    { provide: AUTH_TOKENS.SecurityPolicy, useClass: SecurityPolicyHttpAdapter },
     AuditMutationsInterceptor,
     ...adapterProviders,
     ...applicationServices,

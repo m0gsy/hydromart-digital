@@ -62,6 +62,12 @@ export class CashbookEntryResponseDto {
   occurredAt!: string;
   @ApiProperty({ type: String, nullable: true })
   sourceRef!: string | null;
+  /** CA-2-22: the entry this one cancels; null on an ordinary posting. */
+  @ApiProperty({ type: String, nullable: true })
+  reversesId!: string | null;
+  /** Why it was corrected. Always set when `reversesId` is. */
+  @ApiProperty({ type: String, nullable: true })
+  reversalReason!: string | null;
   @ApiProperty({ type: String })
   actorId!: string;
   @ApiProperty({ type: String, format: 'date-time' })

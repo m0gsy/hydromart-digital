@@ -696,6 +696,15 @@ export const opsFix = {
   },
   // dashboard/cashbook — PR-8. Sebelumnya seluruhnya hardcoded.
   cashbook: {
+    correct: 'Koreksi',
+    correctTitle: 'Koreksi entri kas',
+    correctBody:
+      'Entri aslinya tetap ada. Koreksi mencatat entri kebalikannya, supaya bukunya bisa diaudit dan pasangannya menjelaskan diri.',
+    reason: 'Alasan koreksi',
+    reasonPlaceholder: 'Salah ketik: nominalnya kelebihan satu nol',
+    correctConfirm: 'Catat koreksi',
+    needReason: 'Tulis alasan koreksinya (minimal 4 huruf).',
+    correctError: 'Gagal mencatat koreksi.',
     closeBookAt: 'Tutup buku harian ada di',
     exportExcel: 'Ekspor Excel',
     dailyReport: 'Laporan harian',

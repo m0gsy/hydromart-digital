@@ -303,7 +303,7 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
       replacedById: null,
       userAgent: data.userAgent,
       ipAddress: data.ipAddress,
-      createdAt: new Date(),
+      createdAt: data.createdAt,
     };
     this.rows.push(record);
     return { ...record };
@@ -485,5 +485,21 @@ export class InMemoryConsentRepository implements ConsentRepository {
 
   async listForCustomer(customerId: string): Promise<ConsentRecord[]> {
     return this.rows.filter((r) => r.customerId === customerId).map((r) => ({ ...r }));
+  }
+}
+
+/**
+ * CA-2-06: the idle-session limit, as auth-service sees it.
+ *
+ * `null` by default — no limit — because that is what an unconfigured environment and an
+ * unreachable admin-service both mean, and it is the shape every existing suite expects.
+ */
+export class FakeSecurityPolicy {
+  minutes: number | null = null;
+  calls = 0;
+
+  async idleTimeoutMinutes(): Promise<number | null> {
+    this.calls += 1;
+    return this.minutes;
   }
 }

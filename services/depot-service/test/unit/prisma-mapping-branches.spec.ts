@@ -127,6 +127,35 @@ describe('prisma repository null/empty branches', () => {
     });
   });
 
+  /*
+   * CA-2-22: the two reads a correction needs. `findReversalOf` is a point read because
+   * `reversesId` carries a partial unique index — and that index, not this lookup, is what
+   * stops two operators correcting the same entry at once.
+   */
+  it('reads one cashbook entry, and the correction that cancels it', async () => {
+    const cashbookEntry = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'e-1', direction: 'IN' }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'e-2', direction: 'OUT', reversesId: 'e-1' }),
+    };
+    const repo = new CashbookPrismaRepository({ cashbookEntry } as unknown as PrismaService);
+
+    expect(await repo.findById('e-1')).toMatchObject({ id: 'e-1' });
+    expect(cashbookEntry.findUnique).toHaveBeenCalledWith({ where: { id: 'e-1' } });
+
+    expect(await repo.findReversalOf('e-1')).toMatchObject({ id: 'e-2' });
+    expect(cashbookEntry.findFirst).toHaveBeenCalledWith({ where: { reversesId: 'e-1' } });
+  });
+
+  it('returns null when a cashbook entry, or its correction, is not there', async () => {
+    const cashbookEntry = {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(null),
+    };
+    const repo = new CashbookPrismaRepository({ cashbookEntry } as unknown as PrismaService);
+    expect(await repo.findById('missing')).toBeNull();
+    expect(await repo.findReversalOf('missing')).toBeNull();
+  });
+
   it('coerces null depot operatingHours/holidays json to empty', async () => {
     const depot = {
       findFirst: jest.fn().mockResolvedValue({

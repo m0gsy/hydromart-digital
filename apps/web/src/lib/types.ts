@@ -2605,6 +2605,16 @@ export interface CashbookEntry {
   amountIdr: number;
   occurredAt: string;
   sourceRef: string | null;
+  /**
+   * CA-2-22: the entry this one cancels, for a correction.
+   *
+   * The book is append-only on purpose — a ledger you can edit is a ledger nobody can
+   * audit — so a mistake is put right by posting the opposite. Null on every ordinary
+   * entry.
+   */
+  reversesId: string | null;
+  /** Why it was corrected. Always set when `reversesId` is. */
+  reversalReason: string | null;
   actorId: string;
   createdAt: string;
 }

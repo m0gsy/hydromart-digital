@@ -70,6 +70,7 @@ customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENT
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")
 crm|notifications_event_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "notifications_event_createdAt_idx" ON "notifications"("event", "createdAt")
 crm|campaigns_scheduledFor_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_scheduledFor_idx" ON "campaigns"("scheduledFor") WHERE "scheduledFor" IS NOT NULL
+depot|cashbook_entries_reversesId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "cashbook_entries_reversesId_key" ON "cashbook_entries"("reversesId") WHERE "reversesId" IS NOT NULL
 admin|scheduled_reports_enabled_nextRunAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "scheduled_reports_enabled_nextRunAt_idx" ON "scheduled_reports"("enabled", "nextRunAt")
 forecast|service_settings_scope_depot_id_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_scope_depot_id_idx" ON "service_settings"("scope", "depot_id")
 forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_global_key_key" ON "service_settings"("key") WHERE "scope" = 'GLOBAL'
