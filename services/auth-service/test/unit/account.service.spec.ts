@@ -187,7 +187,12 @@ describe('AccountService', () => {
     it('refuses head office minting a SUPER_ADMIN or a DIREKTUR', async () => {
       await expect(
         service.inviteStaffWithEmployee(
-          { ...EMPLOYMENT, phone: '+628997770001', role: Role.SUPER_ADMIN, fullName: 'Diri Sendiri' },
+          {
+            ...EMPLOYMENT,
+            phone: '+628997770001',
+            role: Role.SUPER_ADMIN,
+            fullName: 'Diri Sendiri',
+          },
           Role.HEAD_OFFICE,
         ),
       ).rejects.toBeInstanceOf(RoleEscalationError);
@@ -208,7 +213,13 @@ describe('AccountService', () => {
       ).resolves.toMatchObject({ role: Role.SUPER_ADMIN });
       await expect(
         service.inviteStaffWithEmployee(
-          { ...EMPLOYMENT, phone: '+628997770004', role: Role.KEPALA_DEPOT, fullName: 'Sari', depotId: 'depot-1' },
+          {
+            ...EMPLOYMENT,
+            phone: '+628997770004',
+            role: Role.KEPALA_DEPOT,
+            fullName: 'Sari',
+            depotId: 'depot-1',
+          },
           Role.HEAD_OFFICE,
         ),
       ).resolves.toMatchObject({ role: Role.KEPALA_DEPOT });
@@ -219,7 +230,12 @@ describe('AccountService', () => {
       const summary = await service.importStaff(
         [
           { ...EMPLOYMENT, phone: '+628997770011', role: Role.FINANCE, fullName: 'Keuangan' },
-          { ...EMPLOYMENT, phone: '+628997770012', role: Role.SUPER_ADMIN, fullName: 'Diri Sendiri' },
+          {
+            ...EMPLOYMENT,
+            phone: '+628997770012',
+            role: Role.SUPER_ADMIN,
+            fullName: 'Diri Sendiri',
+          },
         ],
         Role.HEAD_OFFICE,
       );
@@ -303,7 +319,12 @@ describe('AccountService', () => {
     // The half hr-service calls. If it answered back, the same change would bounce between
     // the two services forever.
     it('writes without telling hr-service when hr-service is the caller', async () => {
-      const staff = await service.inviteStaff('+628995550002', Role.KEPALA_DEPOT, 'Rina', 'depot-1');
+      const staff = await service.inviteStaff(
+        '+628995550002',
+        Role.KEPALA_DEPOT,
+        'Rina',
+        'depot-1',
+      );
 
       const off = await service.setStaffActiveInternal(staff.id, false);
 
@@ -312,9 +333,9 @@ describe('AccountService', () => {
     });
 
     it('refuses an unknown account and an end customer', async () => {
-      await expect(service.setStaffActive('11111111-1111-4111-8111-111111111111', false)).rejects.toBeInstanceOf(
-        CustomerNotFoundError,
-      );
+      await expect(
+        service.setStaffActive('11111111-1111-4111-8111-111111111111', false),
+      ).rejects.toBeInstanceOf(CustomerNotFoundError);
       const customer = makeCustomer({ phone: '+628995550003', role: Role.CUSTOMER });
       customers.seed(customer);
       await expect(service.setStaffActive(customer.id, false)).rejects.toBeInstanceOf(
@@ -361,7 +382,12 @@ describe('AccountService', () => {
      * here would leave the employee record saying they still work here.
      */
     it('refuses staff and an unknown account', async () => {
-      const staff = await service.inviteStaff('+628995550012', Role.KEPALA_DEPOT, 'Budi', 'depot-1');
+      const staff = await service.inviteStaff(
+        '+628995550012',
+        Role.KEPALA_DEPOT,
+        'Budi',
+        'depot-1',
+      );
       await expect(service.setCustomerActiveInternal(staff.id, false)).rejects.toBeInstanceOf(
         InvalidStaffRoleError,
       );
@@ -394,7 +420,13 @@ describe('AccountService', () => {
         { ...EMPLOYMENT, phone: '+628990004001', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
         // Depot-locked with no depot: rejected by inviteStaff, so this row alone fails.
         { ...EMPLOYMENT, phone: '+628990004002', role: Role.KEPALA_DEPOT, fullName: 'Tanpa Depot' },
-        { ...EMPLOYMENT, phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+        {
+          ...EMPLOYMENT,
+          phone: '+628990004003',
+          role: Role.STAFF_DEPOT,
+          fullName: 'Joko',
+          depotId: 'depot-1',
+        },
       ]);
 
       expect(first).toMatchObject({ created: 2, updated: 0, failed: 1 });
@@ -404,7 +436,13 @@ describe('AccountService', () => {
       // Same file again: the two accounts now exist, so they are promoted, not duplicated.
       const second = await service.importStaff([
         { ...EMPLOYMENT, phone: '+628990004001', role: Role.FINANCE, fullName: 'Kantor' },
-        { ...EMPLOYMENT, phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+        {
+          ...EMPLOYMENT,
+          phone: '+628990004003',
+          role: Role.STAFF_DEPOT,
+          fullName: 'Joko',
+          depotId: 'depot-1',
+        },
       ]);
       expect(second).toMatchObject({ created: 0, updated: 2, failed: 0 });
       expect(second.results[0].id).toBe(first.results[0].id);
@@ -573,7 +611,12 @@ describe('AccountService', () => {
      */
     describe('updateStaffProfileInternal', () => {
       it('carries a corrected name and normalises the new login number', async () => {
-        const staff = await service.inviteStaff('+628990004001', Role.STAFF_DEPOT, 'Budi', 'depot-1');
+        const staff = await service.inviteStaff(
+          '+628990004001',
+          Role.STAFF_DEPOT,
+          'Budi',
+          'depot-1',
+        );
 
         const updated = await service.updateStaffProfileInternal(staff.id, {
           fullName: 'Budi Santoso',
@@ -586,7 +629,12 @@ describe('AccountService', () => {
       });
 
       it('leaves untouched fields alone, including its own unchanged number', async () => {
-        const staff = await service.inviteStaff('+628990004002', Role.STAFF_DEPOT, 'Rina', 'depot-1');
+        const staff = await service.inviteStaff(
+          '+628990004002',
+          Role.STAFF_DEPOT,
+          'Rina',
+          'depot-1',
+        );
 
         const updated = await service.updateStaffProfileInternal(staff.id, {
           phone: '+628990004002',
@@ -598,7 +646,12 @@ describe('AccountService', () => {
       // Never a merge: the number IS the login, so moving it onto an account that exists
       // would hand one person another's session.
       it('refuses a number that already belongs to somebody else, and an unknown account', async () => {
-        const staff = await service.inviteStaff('+628990004003', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+        const staff = await service.inviteStaff(
+          '+628990004003',
+          Role.STAFF_DEPOT,
+          'Joko',
+          'depot-1',
+        );
         await service.inviteStaff('+628990004004', Role.STAFF_DEPOT, 'Sari', 'depot-1');
 
         await expect(
@@ -1023,7 +1076,12 @@ describe('AccountService', () => {
     });
 
     it('does not push for a franchise owner, who has no employee record', async () => {
-      const staff = await service.inviteStaff('+628990006006', Role.FRANCHISE_OWNER, 'Bu Sri', null);
+      const staff = await service.inviteStaff(
+        '+628990006006',
+        Role.FRANCHISE_OWNER,
+        'Bu Sri',
+        null,
+      );
       hr.depotCalls.length = 0;
 
       await service.setStaffDepot(staff.id, 'depot-2');
@@ -1194,5 +1252,4 @@ describe('AccountService', () => {
       expect(await service.staffIdsForDepot('depot-1')).toHaveLength(150);
     });
   });
-
 });

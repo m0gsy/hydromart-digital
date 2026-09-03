@@ -67,7 +67,10 @@ describe('OtpVerificationService', () => {
   });
 
   it('verifies a registration OTP, activates the account, and issues a session', async () => {
-    const pending = makeCustomer({ status: CustomerStatus.PENDING_VERIFICATION, phoneVerifiedAt: null });
+    const pending = makeCustomer({
+      status: CustomerStatus.PENDING_VERIFICATION,
+      phoneVerifiedAt: null,
+    });
     customers.seed(pending);
     await otp.issue(pending, OtpPurpose.REGISTRATION);
 
@@ -84,7 +87,9 @@ describe('OtpVerificationService', () => {
     expect(audit.actions()).toEqual(
       expect.arrayContaining([AuditAction.OTP_VERIFIED, AuditAction.LOGIN_SUCCEEDED]),
     );
-    expect(notifications.welcomed).toEqual([{ phone: pending.phone, name: activated!.fullName ?? 'Pelanggan' }]);
+    expect(notifications.welcomed).toEqual([
+      { phone: pending.phone, name: activated!.fullName ?? 'Pelanggan' },
+    ]);
   });
 
   it('does not send a welcome on a login verification', async () => {
@@ -92,7 +97,12 @@ describe('OtpVerificationService', () => {
     customers.seed(active);
     await otp.issue(active, OtpPurpose.LOGIN);
 
-    await service.verify({ phone: active.phone, code: '123456', purpose: OtpPurpose.LOGIN, context: ctx });
+    await service.verify({
+      phone: active.phone,
+      code: '123456',
+      purpose: OtpPurpose.LOGIN,
+      context: ctx,
+    });
     expect(notifications.welcomed).toEqual([]);
   });
 
@@ -102,7 +112,12 @@ describe('OtpVerificationService', () => {
     await otp.issue(active, OtpPurpose.LOGIN);
 
     await expect(
-      service.verify({ phone: active.phone, code: '000000', purpose: OtpPurpose.LOGIN, context: ctx }),
+      service.verify({
+        phone: active.phone,
+        code: '000000',
+        purpose: OtpPurpose.LOGIN,
+        context: ctx,
+      }),
     ).rejects.toBeInstanceOf(OtpInvalidError);
     expect(audit.actions()).toContain(AuditAction.OTP_FAILED);
   });
@@ -122,7 +137,11 @@ describe('OtpVerificationService', () => {
     const active = makeCustomer();
     customers.seed(active);
 
-    const result = await service.resend({ phone: active.phone, purpose: OtpPurpose.LOGIN, context: ctx });
+    const result = await service.resend({
+      phone: active.phone,
+      purpose: OtpPurpose.LOGIN,
+      context: ctx,
+    });
     expect(result.expiresInSeconds).toBe(300);
     expect(audit.actions()).toContain(AuditAction.OTP_RESENT);
   });

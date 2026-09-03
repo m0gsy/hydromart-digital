@@ -1,6 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { CAPABILITIES, can, loadOverrides, rolesFor, type Role as AccessRole } from '@hydromart/access';
+import {
+  CAPABILITIES,
+  can,
+  loadOverrides,
+  rolesFor,
+  type Role as AccessRole,
+} from '@hydromart/access';
 
 import {
   CapabilityOverrideRecord,
@@ -138,9 +144,9 @@ describe('AccessMatrixService', () => {
 
   // The one irreversible edit: handing the key to the lock to nobody.
   it('refuses to remove SUPER_ADMIN from accessMatrixWrite', async () => {
-    await expect(
-      service.set('accessMatrixWrite', [Role.HEAD_OFFICE], null),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.set('accessMatrixWrite', [Role.HEAD_OFFICE], null)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     await expect(
       service.set('accessMatrixWrite', [Role.HEAD_OFFICE, Role.SUPER_ADMIN], null),
     ).resolves.toBeUndefined();

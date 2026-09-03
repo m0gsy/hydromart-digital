@@ -60,9 +60,27 @@ describe('AuditService', () => {
   it('lists entries newest-first, paginated, filtered by action', async () => {
     const repo = new InMemoryAuditLogRepository();
     const service = new AuditService(repo);
-    await service.record({ customerId: 'a', action: 'x', success: true, ipAddress: null, userAgent: null });
-    await service.record({ customerId: 'b', action: 'depot.suspend', success: true, ipAddress: null, userAgent: null });
-    await service.record({ customerId: 'c', action: 'depot.suspend', success: false, ipAddress: null, userAgent: null });
+    await service.record({
+      customerId: 'a',
+      action: 'x',
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+    });
+    await service.record({
+      customerId: 'b',
+      action: 'depot.suspend',
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+    });
+    await service.record({
+      customerId: 'c',
+      action: 'depot.suspend',
+      success: false,
+      ipAddress: null,
+      userAgent: null,
+    });
 
     const all = await service.list({ page: 1, limit: 10 });
     expect(all.total).toBe(3);
@@ -111,7 +129,13 @@ describe('AuditService', () => {
 describe('AuditService.purgeOlderThan (retention enforcement)', () => {
   it('passes the cutoff straight to the repository and reports the count', async () => {
     const repo = new InMemoryAuditLogRepository();
-    await repo.record({ customerId: null, action: 'a', success: true, ipAddress: null, userAgent: null });
+    await repo.record({
+      customerId: null,
+      action: 'a',
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+    });
     const service = new AuditService(repo);
 
     const cutoff = new Date('2026-01-01T00:00:00.000Z');
@@ -145,9 +169,7 @@ describe('audit categories match actions that are really recorded', () => {
   ];
 
   it.each(Object.entries(AUDIT_CATEGORIES))('%s matches at least one', (_key, words) => {
-    const hits = RECORDED.filter((action) =>
-      words.some((w) => action.toLowerCase().includes(w)),
-    );
+    const hits = RECORDED.filter((action) => words.some((w) => action.toLowerCase().includes(w)));
     expect(hits.length).toBeGreaterThan(0);
   });
 

@@ -1,7 +1,10 @@
 import { Customer, CustomerProps } from '../../src/domain/customer/customer.entity';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Role } from '../../src/domain/customer/role.enum';
-import { AccountNotActiveError } from '../../src/domain/errors/auth.errors';
+import {
+  AccountNotActiveError,
+  AccountPendingVerificationError,
+} from '../../src/domain/errors/auth.errors';
 
 const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
   id: 'cust-1',
@@ -46,17 +49,35 @@ describe('Customer entity', () => {
 
   it('allows authentication only when active', () => {
     expect(() =>
-      Customer.fromPersistence(baseProps({ status: CustomerStatus.ACTIVE })).ensureCanAuthenticate(),
+      Customer.fromPersistence(
+        baseProps({ status: CustomerStatus.ACTIVE }),
+      ).ensureCanAuthenticate(),
     ).not.toThrow();
   });
 
-  it.each([
-    [CustomerStatus.PENDING_VERIFICATION],
-    [CustomerStatus.SUSPENDED],
-    [CustomerStatus.DELETED],
-  ])('blocks authentication for %s accounts', (status) => {
-    const customer = Customer.fromPersistence(baseProps({ status }));
-    expect(() => customer.ensureCanAuthenticate()).toThrow(AccountNotActiveError);
+  it.each([[CustomerStatus.SUSPENDED], [CustomerStatus.DELETED]])(
+    'blocks authentication for %s accounts',
+    (status) => {
+      const customer = Customer.fromPersistence(baseProps({ status }));
+      expect(() => customer.ensureCanAuthenticate()).toThrow(AccountNotActiveError);
+    },
+  );
+
+  /*
+   * CA-3-05: a separate error, because the ANSWER is different.
+   *
+   * All three states used to throw `AccountNotActiveError`, so the web client had one
+   * message for all three — "Akun ini tidak aktif. Hubungi dukungan Hydromart." Somebody
+   * who signed up and closed the app before typing the OTP was sent to a support queue for
+   * something they can fix themselves in ten seconds. Suspended and deleted genuinely need
+   * a human; this one needs a new code sent to the same phone.
+   */
+  it('blocks a pending account with its own error, not the support one', () => {
+    const customer = Customer.fromPersistence(
+      baseProps({ status: CustomerStatus.PENDING_VERIFICATION }),
+    );
+    expect(() => customer.ensureCanAuthenticate()).toThrow(AccountPendingVerificationError);
+    expect(() => customer.ensureCanAuthenticate()).not.toThrow(AccountNotActiveError);
   });
 
   // Re-hiring: HR sets a resigned employee back to ACTIVE, which lifts the SUSPENDED

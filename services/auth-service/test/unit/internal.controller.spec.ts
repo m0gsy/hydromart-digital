@@ -57,7 +57,10 @@ describe('InternalAccountController', () => {
     };
     account.setCustomerActiveInternal.mockResolvedValue(customer as never);
 
-    const res = await controller.setCustomerActive({ customerId: 'cust-1', active: false } as never);
+    const res = await controller.setCustomerActive({
+      customerId: 'cust-1',
+      active: false,
+    } as never);
 
     expect(account.setCustomerActiveInternal).toHaveBeenCalledWith('cust-1', false);
     expect(res).toMatchObject({ id: 'cust-1', role: Role.CUSTOMER });
@@ -163,7 +166,15 @@ describe('InternalAccountController', () => {
 
   it('resolves a batch of ids to public profiles', async () => {
     account.lookupByIds.mockResolvedValue([
-      { id: 'c1', phone: '+62811', fullName: 'Budi', email: null, role: Role.CUSTOMER, status: 'ACTIVE', avatarUrl: null },
+      {
+        id: 'c1',
+        phone: '+62811',
+        fullName: 'Budi',
+        email: null,
+        role: Role.CUSTOMER,
+        status: 'ACTIVE',
+        avatarUrl: null,
+      },
     ]);
 
     const out = await controller.lookupByIds({ ids: ['c1', 'c2'] } as never);

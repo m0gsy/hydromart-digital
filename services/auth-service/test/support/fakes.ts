@@ -16,7 +16,12 @@ import {
   CreateCustomerData,
   CustomerRepository,
 } from '../../src/application/ports/customer.repository';
-import { OtpDeliveryPort, OtpGatewayRejectedError, OtpGatewayUnreachableError, OtpMessage } from '../../src/application/ports/otp-delivery.port';
+import {
+  OtpDeliveryPort,
+  OtpGatewayRejectedError,
+  OtpGatewayUnreachableError,
+  OtpMessage,
+} from '../../src/application/ports/otp-delivery.port';
 import {
   CreateOtpTokenData,
   OtpTokenRecord,
@@ -330,7 +335,9 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
   }
   async listActiveForCustomer(customerId: string, now: Date): Promise<RefreshTokenRecord[]> {
     return this.rows
-      .filter((r) => r.customerId === customerId && !r.revokedAt && r.expiresAt.getTime() > now.getTime())
+      .filter(
+        (r) => r.customerId === customerId && !r.revokedAt && r.expiresAt.getTime() > now.getTime(),
+      )
       .map((r) => ({ ...r }));
   }
 }
@@ -362,24 +369,20 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
           !query.depotId ||
           (e.metadata as { depotId?: string } | undefined)?.depotId === query.depotId,
       )
-      .filter(
-        (e) => !category || category.some((s) => e.action.toLowerCase().includes(s)),
-      )
-      .map(
-        (e, i): AuditLogListItem => ({
-          id: `audit-${i}`,
-          customerId: e.customerId,
-          action: e.action,
-          success: e.success,
-          ipAddress: e.ipAddress,
-          userAgent: e.userAgent,
-          metadata: (e.metadata ?? null) as Record<string, unknown> | null,
-          createdAt: new Date(),
-          actorEmail: null,
-          actorName: null,
-          actorRole: null,
-        }),
-      )
+      .filter((e) => !category || category.some((s) => e.action.toLowerCase().includes(s)))
+      .map((e, i): AuditLogListItem => ({
+        id: `audit-${i}`,
+        customerId: e.customerId,
+        action: e.action,
+        success: e.success,
+        ipAddress: e.ipAddress,
+        userAgent: e.userAgent,
+        metadata: (e.metadata ?? null) as Record<string, unknown> | null,
+        createdAt: new Date(),
+        actorEmail: null,
+        actorName: null,
+        actorRole: null,
+      }))
       .reverse();
     // Models the real repository: a cursor seeks past that row and ignores `page`.
     const start = query.cursor

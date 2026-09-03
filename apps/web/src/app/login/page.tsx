@@ -41,7 +41,10 @@ function BrandPanel() {
           <br />
           {t('auth.login.heroLine2')}
         </h2>
-        <p className="mt-4 max-w-[340px]" style={{ fontSize: 14.5, color: 'rgba(255,255,255,.72)' }}>
+        <p
+          className="mt-4 max-w-[340px]"
+          style={{ fontSize: 14.5, color: 'rgba(255,255,255,.72)' }}
+        >
           {t('auth.login.heroBody')}
         </p>
         <div className="mt-7 flex gap-[22px]">
@@ -49,13 +52,17 @@ function BrandPanel() {
             <div className="font-extrabold" style={{ fontSize: 22, color: '#8fe3ee' }}>
               30 mnt
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>{t('hrFix.loginPage.avgDelivery')}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>
+              {t('hrFix.loginPage.avgDelivery')}
+            </div>
           </div>
           <div>
             <div className="font-extrabold" style={{ fontSize: 22, color: '#8fe3ee' }}>
               120+
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>{t('hrFix.loginPage.partnerDepots')}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>
+              {t('hrFix.loginPage.partnerDepots')}
+            </div>
           </div>
         </div>
       </div>
@@ -88,7 +95,8 @@ function LoginForm() {
       if (next) params.set('next', next);
       // E4: carry the server's own cooldown forward so /verify counts the same seconds
       // the server is enforcing, instead of its own guess.
-      if (challenge.resendCooldownSeconds) params.set('cd', String(challenge.resendCooldownSeconds));
+      if (challenge.resendCooldownSeconds)
+        params.set('cd', String(challenge.resendCooldownSeconds));
       // K1.1: and the code's own lifetime with it. The server has always answered with
       // `expiresInSeconds`; both screens dropped it, so /verify could not say the code
       // was about to die and could not tell a dead one from an unlucky one before a guess.
@@ -106,7 +114,22 @@ function LoginForm() {
       // with it. (This does not widen anything: the 404 already tells anyone asking
       // whether a number has an account. Closing that oracle is an auth-service change,
       // recorded and deliberately not made here.)
-      if (err instanceof ApiError && err.code === 'AUTH_CUSTOMER_NOT_FOUND') {
+      /*
+       * CA-3-05: registered but never verified, walked over the same way.
+       *
+       * That state used to share one error code with SUSPENDED and DELETED, so the client
+       * had one message for all three — "Akun ini tidak aktif. Hubungi dukungan Hydromart."
+       * Somebody who signed up and closed the app before typing the OTP was sent to a
+       * support queue for something they can fix themselves in ten seconds.
+       *
+       * `/register` re-issues an OTP for a PENDING number and activates the account on
+       * verify (see `preRegisterCustomer` in auth-service), so it is the same door, not a
+       * second account.
+       */
+      if (
+        err instanceof ApiError &&
+        (err.code === 'AUTH_CUSTOMER_NOT_FOUND' || err.code === 'AUTH_ACCOUNT_PENDING_VERIFICATION')
+      ) {
         const onward = new URLSearchParams({ phone });
         if (next) onward.set('next', next);
         router.push(`/register?${onward.toString()}`);
@@ -156,7 +179,11 @@ function LoginForm() {
         </p>
       )}
 
-      <Button type="submit" loading={loading} className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold">
+      <Button
+        type="submit"
+        loading={loading}
+        className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
+      >
         {t('auth.login.submit')}
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
@@ -171,7 +198,9 @@ function LoginForm() {
         </Link>
       </p>
 
-      <p className="text-center text-[11.5px] leading-relaxed text-muted">{t('auth.register.terms')}</p>
+      <p className="text-center text-[11.5px] leading-relaxed text-muted">
+        {t('auth.register.terms')}
+      </p>
     </form>
   );
 }
