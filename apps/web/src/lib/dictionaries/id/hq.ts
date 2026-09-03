@@ -23,6 +23,10 @@ export const hq = {
     admin: 'Admin & polish',
   },
   nav: {
+    allScreens: 'Semua layar',
+    more: 'Lainnya',
+    aria: 'Navigasi HQ',
+    closeMenu: 'Tutup menu',
     overview: 'Ringkasan jaringan',
     search: 'Pencarian',
     access: 'Peran & hak akses',
@@ -526,13 +530,13 @@ export const hq = {
   },
   search: {
     title: 'Pencarian',
-    subtitle: 'Cari depot, staf, dan pesanan di seluruh jaringan',
-    placeholder: 'Ketik nama depot, staf, atau nomor pesanan…',
+    subtitle: 'Cari depot, staf, pesanan, dan pelanggan di seluruh jaringan',
+    placeholder: 'Nama depot, staf, nomor pesanan, atau nomor HP pelanggan…',
     empty: 'Mulai mengetik untuk mencari di seluruh jaringan.',
     noResults: 'Tidak ada hasil untuk "{q}".',
     searching: 'Mencari…',
     partial: 'Tidak bisa mencari di: {sources}. Hasil di bawah belum lengkap.',
-    groups: { depots: 'Depot', staff: 'Staf', orders: 'Pesanan' },
+    groups: { depots: 'Depot', staff: 'Staf', orders: 'Pesanan', customers: 'Pelanggan' },
   },
   payments: {
     title: 'Pembayaran & payout',

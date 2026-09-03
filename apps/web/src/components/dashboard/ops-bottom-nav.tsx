@@ -14,6 +14,8 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { ConsoleSignOut } from '@/components/console-sign-out';
+
 import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
@@ -39,11 +41,26 @@ interface Tab {
 // small screens this carries dashboard navigation. Role-filtered; capped at the
 // first 4 the role can see so the bar never overflows.
 const TABS: Tab[] = [
-  { href: '/dashboard/franchise', label: 'hrFix.opsNav.summary', icon: Buildings, show: canViewFranchise },
+  {
+    href: '/dashboard/franchise',
+    label: 'hrFix.opsNav.summary',
+    icon: Buildings,
+    show: canViewFranchise,
+  },
   { href: '/dashboard', label: 'hrFix.opsNav.summary', icon: ChartLineUp, show: canViewDashboard },
   { href: '/dashboard/orders', label: 'hrFix.opsNav.queue', icon: ClipboardText, show: isStaff },
-  { href: '/dashboard/inventory', label: 'hrFix.opsNav.inventory', icon: Package, show: canViewInventory },
-  { href: '/dashboard/forecast', label: 'hrFix.opsNav.forecast', icon: TrendUp, show: canViewForecast },
+  {
+    href: '/dashboard/inventory',
+    label: 'hrFix.opsNav.inventory',
+    icon: Package,
+    show: canViewInventory,
+  },
+  {
+    href: '/dashboard/forecast',
+    label: 'hrFix.opsNav.forecast',
+    icon: TrendUp,
+    show: canViewForecast,
+  },
   { href: '/dashboard/pricing', label: 'hrFix.opsNav.pricing', icon: Tag, show: canManagePricing },
 ];
 
@@ -151,7 +168,9 @@ function MoreSheetTab() {
                       onClick={() => setOpen(false)}
                       className={
                         'flex items-center gap-2.5 rounded-[10px] px-2 py-2.5 text-[14px] transition-colors ' +
-                        (on ? 'bg-brand-50 font-extrabold text-brand-800' : 'text-[color:var(--text)]')
+                        (on
+                          ? 'bg-brand-50 font-extrabold text-brand-800'
+                          : 'text-[color:var(--text)]')
                       }
                     >
                       <Ic size={19} weight={on ? 'fill' : 'regular'} />
@@ -162,6 +181,11 @@ function MoreSheetTab() {
               </div>
             );
           })}
+          {/* CA-2-61: on a phone the rail is hidden, so this sheet is the only place an
+              exit can live. */}
+          <div className="mt-2 border-t border-app pt-2">
+            <ConsoleSignOut />
+          </div>
         </div>
       </Sheet>
     </>

@@ -54,6 +54,8 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { ConsoleSignOut } from '@/components/console-sign-out';
+
 import { isServedHere } from '@/lib/deep-link';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -118,7 +120,12 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'summary',
     items: [
-      { href: '/dashboard/franchise', labelKey: 'myFranchise', icon: Buildings, show: canViewFranchise },
+      {
+        href: '/dashboard/franchise',
+        labelKey: 'myFranchise',
+        icon: Buildings,
+        show: canViewFranchise,
+      },
       { href: '/dashboard', labelKey: 'operations', icon: ChartLineUp, show: canViewDashboard },
       { href: '/dashboard/search', labelKey: 'search', icon: MagnifyingGlass, show: isStaff },
       // The way back out. Console routes carry no shop nav, so without this an HQ account
@@ -140,14 +147,34 @@ export const GROUPS: RailGroup[] = [
     headKey: 'daily',
     items: [
       { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: isStaff },
-      { href: '/dashboard/walk-in', labelKey: 'walkIn', icon: Storefront, show: canRecordWalkInSale },
+      {
+        href: '/dashboard/walk-in',
+        labelKey: 'walkIn',
+        icon: Storefront,
+        show: canRecordWalkInSale,
+      },
       { href: '/dashboard/tracking', labelKey: 'tracking', icon: MapPin, show: canViewTracking },
-      { href: '/dashboard/inventory', labelKey: 'inventory', icon: Package, show: canViewInventory },
+      {
+        href: '/dashboard/inventory',
+        labelKey: 'inventory',
+        icon: Package,
+        show: canViewInventory,
+      },
       { href: '/dashboard/returns', labelKey: 'returns', icon: Recycle, show: canViewReturns },
       { href: '/dashboard/wastage', labelKey: 'wastage', icon: Trash, show: canUseManagerConsole },
       { href: '/dashboard/meter', labelKey: 'meter', icon: Gauge, show: canViewMeterReading },
-      { href: '/dashboard/notifications', labelKey: 'notifications', icon: Bell, show: canViewOpsNotifications },
-      { href: '/dashboard/settlements', labelKey: 'settlements', icon: HandCoins, show: canVerifySettlement },
+      {
+        href: '/dashboard/notifications',
+        labelKey: 'notifications',
+        icon: Bell,
+        show: canViewOpsNotifications,
+      },
+      {
+        href: '/dashboard/settlements',
+        labelKey: 'settlements',
+        icon: HandCoins,
+        show: canVerifySettlement,
+      },
       { href: '/dashboard/forecast', labelKey: 'forecast', icon: TrendUp, show: canViewForecast },
     ],
   },
@@ -164,7 +191,12 @@ export const GROUPS: RailGroup[] = [
     headKey: 'marketing',
     items: [
       { href: '/dashboard/promotions', labelKey: 'promo', icon: Megaphone, show: canViewCampaigns },
-      { href: '/dashboard/campaigns', labelKey: 'campaign', icon: ChatCircleText, show: canViewCampaigns },
+      {
+        href: '/dashboard/campaigns',
+        labelKey: 'campaign',
+        icon: ChatCircleText,
+        show: canViewCampaigns,
+      },
       { href: '/dashboard/vouchers', labelKey: 'vouchers', icon: Ticket, show: canViewVouchers },
       { href: '/dashboard/churn', labelKey: 'churn', icon: UsersThree, show: canViewChurn },
       /*
@@ -179,16 +211,41 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'approvals',
     items: [
-      { href: '/dashboard/approvals', labelKey: 'approvalsQueue', icon: Gavel, show: canReviewApprovals },
-      { href: '/dashboard/incidents', labelKey: 'incidents', icon: FirstAid, show: canViewIncidents },
-      { href: '/dashboard/disputes', labelKey: 'disputes', icon: Scales, show: (r) => can('depotDisputes', r) },
+      {
+        href: '/dashboard/approvals',
+        labelKey: 'approvalsQueue',
+        icon: Gavel,
+        show: canReviewApprovals,
+      },
+      {
+        href: '/dashboard/incidents',
+        labelKey: 'incidents',
+        icon: FirstAid,
+        show: canViewIncidents,
+      },
+      {
+        href: '/dashboard/disputes',
+        labelKey: 'disputes',
+        icon: Scales,
+        show: (r) => can('depotDisputes', r),
+      },
     ],
   },
   {
     headKey: 'procurement',
     items: [
-      { href: '/dashboard/purchase-orders', labelKey: 'purchaseOrders', icon: Truck, show: canManageProcurement },
-      { href: '/dashboard/suppliers', labelKey: 'suppliers', icon: Factory, show: canManageProcurement },
+      {
+        href: '/dashboard/purchase-orders',
+        labelKey: 'purchaseOrders',
+        icon: Truck,
+        show: canManageProcurement,
+      },
+      {
+        href: '/dashboard/suppliers',
+        labelKey: 'suppliers',
+        icon: Factory,
+        show: canManageProcurement,
+      },
     ],
   },
   {
@@ -198,31 +255,86 @@ export const GROUPS: RailGroup[] = [
       // supervision ranks land on this rail and had no way at all to reach /hr/me.
       { href: '/hr/me', labelKey: 'selfService', icon: CalendarCheck, show: canPunchAttendance },
       { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
-      { href: '/dashboard/targets', labelKey: 'targets', icon: Target, show: (r) => can('depotTargets', r) },
-      { href: '/dashboard/huddle', labelKey: 'huddle', icon: UsersThree, show: (r) => can('depotHuddle', r) },
-      { href: '/dashboard/handover', labelKey: 'handover', icon: ClipboardText, show: (r) => can('depotHandover', r) },
-      { href: '/dashboard/maintenance', labelKey: 'maintenance', icon: Wrench, show: (r) => can('depotMaintenance', r) },
-      { href: '/dashboard/onboarding', labelKey: 'staffOnboarding', icon: ListChecks, show: canUseManagerConsole },
+      {
+        href: '/dashboard/targets',
+        labelKey: 'targets',
+        icon: Target,
+        show: (r) => can('depotTargets', r),
+      },
+      {
+        href: '/dashboard/huddle',
+        labelKey: 'huddle',
+        icon: UsersThree,
+        show: (r) => can('depotHuddle', r),
+      },
+      {
+        href: '/dashboard/handover',
+        labelKey: 'handover',
+        icon: ClipboardText,
+        show: (r) => can('depotHandover', r),
+      },
+      {
+        href: '/dashboard/maintenance',
+        labelKey: 'maintenance',
+        icon: Wrench,
+        show: (r) => can('depotMaintenance', r),
+      },
+      {
+        href: '/dashboard/onboarding',
+        labelKey: 'staffOnboarding',
+        icon: ListChecks,
+        show: canUseManagerConsole,
+      },
     ],
   },
   {
     headKey: 'customers',
     items: [
-      { href: '/dashboard/customers', labelKey: 'customers', icon: UsersThree, show: canViewDepotCrm },
+      {
+        href: '/dashboard/customers',
+        labelKey: 'customers',
+        icon: UsersThree,
+        show: canViewDepotCrm,
+      },
       { href: '/dashboard/crm', labelKey: 'crm', icon: ChartPieSlice, show: canViewDepotCrm },
-      { href: '/dashboard/broadcast', labelKey: 'broadcast', icon: Megaphone, show: canBroadcastToCouriers },
+      {
+        href: '/dashboard/broadcast',
+        labelKey: 'broadcast',
+        icon: Megaphone,
+        show: canBroadcastToCouriers,
+      },
       { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: canUseManagerConsole },
-      { href: '/dashboard/redemptions', labelKey: 'redemptions', icon: Gift, show: canHandOverRewards },
+      {
+        href: '/dashboard/redemptions',
+        labelKey: 'redemptions',
+        icon: Gift,
+        show: canHandOverRewards,
+      },
       { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: canUseManagerConsole },
-      { href: '/dashboard/recommendations', labelKey: 'recommendations', icon: Sparkle, show: canManageDepots },
+      {
+        href: '/dashboard/recommendations',
+        labelKey: 'recommendations',
+        icon: Sparkle,
+        show: canManageDepots,
+      },
       { href: '/dashboard/ratings', labelKey: 'ratings', icon: Star, show: canUseManagerConsole },
-      { href: '/dashboard/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, show: (r) => can('depotSubscriptions', r) },
+      {
+        href: '/dashboard/subscriptions',
+        labelKey: 'subscriptions',
+        icon: ArrowsClockwise,
+        show: (r) => can('depotSubscriptions', r),
+      },
     ],
   },
   {
     headKey: 'catalog',
     items: [
-      { href: '/dashboard/products/manage', labelKey: 'manageProducts', icon: Cube, show: canManageDepots },
+      {
+        href: '/dashboard/products/manage',
+        labelKey: 'manageProducts',
+        icon: Cube,
+        show: canManageDepots,
+      },
       { href: '/dashboard/wholesale', labelKey: 'wholesale', icon: Stack, show: canManagePricing },
       { href: '/dashboard/payments', labelKey: 'payments', icon: QrCode, show: canManageDepots },
     ],
@@ -231,18 +343,58 @@ export const GROUPS: RailGroup[] = [
     headKey: 'finance',
     items: [
       { href: '/dashboard/payout', labelKey: 'payout', icon: Wallet, show: canViewPayout },
-      { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', icon: Receipt, show: canApproveExpense },
-      { href: '/dashboard/earning-rules', labelKey: 'earningRules', icon: Coins, show: canManageEarningRules },
-      { href: '/dashboard/cashbook', labelKey: 'cashbook', icon: Notebook, show: canViewDepotFinance },
-      { href: '/dashboard/payment-recon', labelKey: 'paymentRecon', icon: Scales, show: canViewDepotFinance },
-      { href: '/dashboard/commission', labelKey: 'commission', icon: HandCoins, show: canViewDepotFinance },
+      {
+        href: '/dashboard/expense-claims',
+        labelKey: 'expenseClaims',
+        icon: Receipt,
+        show: canApproveExpense,
+      },
+      {
+        href: '/dashboard/earning-rules',
+        labelKey: 'earningRules',
+        icon: Coins,
+        show: canManageEarningRules,
+      },
+      {
+        href: '/dashboard/cashbook',
+        labelKey: 'cashbook',
+        icon: Notebook,
+        show: canViewDepotFinance,
+      },
+      {
+        href: '/dashboard/payment-recon',
+        labelKey: 'paymentRecon',
+        icon: Scales,
+        show: canViewDepotFinance,
+      },
+      {
+        href: '/dashboard/commission',
+        labelKey: 'commission',
+        icon: HandCoins,
+        show: canViewDepotFinance,
+      },
       { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
-      { href: '/dashboard/monthly-review', labelKey: 'monthlyReview', icon: ClipboardText, show: canViewDepotFinance },
+      {
+        href: '/dashboard/monthly-review',
+        labelKey: 'monthlyReview',
+        icon: ClipboardText,
+        show: canViewDepotFinance,
+      },
       { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: canUseManagerConsole },
       // Built, gated and unreachable: nothing in any nav pointed at these two, so the only
       // way in was to type the URL. `canViewDashboard` is the gate each page enforces.
-      { href: '/dashboard/monthly-pnl', labelKey: 'monthlyPnl', icon: ChartPieSlice, show: canViewDashboard },
-      { href: '/dashboard/team-performance', labelKey: 'teamPerformance', icon: UsersThree, show: canViewDashboard },
+      {
+        href: '/dashboard/monthly-pnl',
+        labelKey: 'monthlyPnl',
+        icon: ChartPieSlice,
+        show: canViewDashboard,
+      },
+      {
+        href: '/dashboard/team-performance',
+        labelKey: 'teamPerformance',
+        icon: UsersThree,
+        show: canViewDashboard,
+      },
     ],
   },
   {
@@ -250,9 +402,19 @@ export const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
       { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
-      { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: canUseManagerConsole },
+      {
+        href: '/dashboard/profile',
+        labelKey: 'profile',
+        icon: UserGear,
+        show: canUseManagerConsole,
+      },
       // Also unreachable before: the depot config screen and the staff account screen.
-      { href: '/dashboard/depot-settings', labelKey: 'depotSettings', icon: GearSix, show: canManageDepots },
+      {
+        href: '/dashboard/depot-settings',
+        labelKey: 'depotSettings',
+        icon: GearSix,
+        show: canManageDepots,
+      },
       { href: '/dashboard/account', labelKey: 'account', icon: UserGear, show: isStaff },
     ],
   },
@@ -397,7 +559,11 @@ export function OpsRail() {
                         : 'font-semibold text-muted hover:bg-[color:var(--surface-soft)]')
                     }
                   >
-                    <Ic size={18} weight="fill" className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'} />
+                    <Ic
+                      size={18}
+                      weight="fill"
+                      className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'}
+                    />
                     <span className="flex-1">{t(`ops.nav.${item.labelKey}`)}</span>
                     {/*
                       O4: the ops half of the unread badge. An operational alert has always
@@ -428,7 +594,9 @@ export function OpsRail() {
                 onClick={() => setLocale(l)}
                 aria-pressed={locale === l}
                 className={`px-2.5 py-1 uppercase transition-colors ${
-                  locale === l ? 'bg-brand-600 text-on-brand' : 'text-muted hover:bg-[color:var(--surface-soft)]'
+                  locale === l
+                    ? 'bg-brand-600 text-on-brand'
+                    : 'text-muted hover:bg-[color:var(--surface-soft)]'
                 }`}
               >
                 {l}
@@ -439,9 +607,21 @@ export function OpsRail() {
         {role && (
           <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted">
             <ShieldCheck size={15} className="text-brand-600" />
-            {t('ops.role')}: <strong className="text-[color:var(--text)]">{t(`ops.roles.${role}`) === `ops.roles.${role}` ? role : t(`ops.roles.${role}`)}</strong>
+            {t('ops.role')}:{' '}
+            <strong className="text-[color:var(--text)]">
+              {t(`ops.roles.${role}`) === `ops.roles.${role}` ? role : t(`ops.roles.${role}`)}
+            </strong>
           </div>
         )}
+        {/*
+         * CA-2-61: the way out of the depot console.
+         *
+         * The only exit was the `/dashboard/profile` link two rows up, and that link is
+         * gated `canUseManagerConsole` — a manager or a super-admin. A supervisor, an
+         * assistant supervisor, head office, the director, finance, HR and marketing all
+         * land in this console and none of them could end their session from it.
+         */}
+        <ConsoleSignOut />
       </div>
     </aside>
   );
