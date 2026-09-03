@@ -86,7 +86,9 @@ export default function HqVouchersPage() {
             {t('hq.vouchers.budget.active', { n: active.length })}
           </span>
         </div>
-        <p className="text-xs uppercase tracking-wide text-muted">{t('hq.vouchers.budget.total')}</p>
+        <p className="text-xs uppercase tracking-wide text-muted">
+          {t('hq.vouchers.budget.total')}
+        </p>
         {/* Rp 0 burned is a budget report. Say the read failed instead. */}
         <p className="text-2xl font-bold tabular-nums">
           {burn.loading ? '…' : burn.error ? t('hq.common.dash') : <Money amount={totalUsed} />}
@@ -107,7 +109,18 @@ export default function HqVouchersPage() {
         ) : requestsQ.error ? (
           <ErrorState message={requestsQ.error} onRetry={requestsQ.reload} />
         ) : requests.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted">{t('hq.vouchers.requests.empty')}</p>
+          /*
+           * CA-2-42. "Tidak ada permintaan voucher" reads as a quiet day. It is not: no
+           * screen anywhere raises one, so this queue has never had a producer and cannot
+           * get one without a decision nobody has taken. An empty state that hides that is
+           * the same lie the rest of this register is about.
+           */
+          <div className="flex flex-col gap-2 py-4">
+            <p className="text-center text-sm text-muted">{t('hq.vouchers.requests.empty')}</p>
+            <p className="text-center text-xs text-[color:var(--warning)]">
+              {t('hq.vouchers.requests.emptyWhy')}
+            </p>
+          </div>
         ) : (
           <ul className="flex flex-col gap-3">
             {requests.map((r) => (
@@ -117,7 +130,9 @@ export default function HqVouchersPage() {
                   <span className="shrink-0 text-sm font-medium text-brand-700">
                     {r.discountType === 'PERCENTAGE'
                       ? t('hq.vouchers.requests.off', { off: r.value })
-                      : t('hq.vouchers.requests.offFixed', { off: r.value.toLocaleString('id-ID') })}
+                      : t('hq.vouchers.requests.offFixed', {
+                          off: r.value.toLocaleString('id-ID'),
+                        })}
                   </span>
                 </div>
                 <p className="text-xs text-muted">
@@ -180,7 +195,10 @@ export default function HqVouchersPage() {
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
-                    <div className="h-full rounded-full bg-brand-600" style={{ width: `${burnPct}%` }} />
+                    <div
+                      className="h-full rounded-full bg-brand-600"
+                      style={{ width: `${burnPct}%` }}
+                    />
                   </div>
                   <p className="flex items-center gap-1.5 text-xs text-muted">
                     {t('hq.vouchers.list.burn')}: <Money amount={burned} />

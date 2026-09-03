@@ -33,7 +33,8 @@ export default function HqFlagsPage() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   if (flagsQuery.loading) return <Skeleton className="h-96 w-full" />;
-  if (flagsQuery.error) return <ErrorState message={t('hq.flags.loadError')} onRetry={flagsQuery.reload} />;
+  if (flagsQuery.error)
+    return <ErrorState message={t('hq.flags.loadError')} onRetry={flagsQuery.reload} />;
 
   const rows = flags ?? flagsQuery.data!;
 
@@ -45,7 +46,10 @@ export default function HqFlagsPage() {
     try {
       const saved = await api.patch<FeatureFlag>(endpoints.admin.flag(row.key), { state }, true);
       setFlags((prev) => (prev ?? rows).map((f) => (f.key === row.key ? saved : f)));
-      toast(t('hq.flags.changed', { name: row.label, state: t(`hq.flags.states.${state}`) }), 'success');
+      toast(
+        t('hq.flags.changed', { name: row.label, state: t(`hq.flags.states.${state}`) }),
+        'success',
+      );
     } catch (err) {
       setFlags(rows);
       toast(err instanceof ApiError ? err.message : t('hq.flags.saveError'), 'error');
@@ -60,9 +64,30 @@ export default function HqFlagsPage() {
     <div className="flex flex-col gap-6">
       <HqPageHeader icon={Flag} title={t('hq.flags.title')} subtitle={t('hq.flags.subtitle')} />
 
+      {/*
+       * CA-2-07. This screen is a switchboard wired to nothing: no service in the repo
+       * reads a feature flag, so every switch here only writes a row in admin-service.
+       * The seed shipped "Cash on delivery: MATI" while COD was the primary way this
+       * business gets paid — an operator reading that screen would have believed COD was
+       * off across the network.
+       *
+       * Wiring the flags into every service is a real feature, not a label. What is not
+       * allowed in the meantime is a screen that looks like it governs the platform. The
+       * repo's rule is that an unenforced control says so rather than staying quiet.
+       */}
+      <Card className="flex flex-col gap-1 border-[color:var(--warning)] p-4">
+        <p className="text-sm font-extrabold text-[color:var(--warning)]">
+          {t('hq.flags.unenforcedTitle')}
+        </p>
+        <p className="text-xs text-muted">{t('hq.flags.unenforcedBody')}</p>
+      </Card>
+
       <div className="flex flex-col gap-3">
         {rows.map((f) => (
-          <Card key={f.key} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <Card
+            key={f.key}
+            className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div className="min-w-0">
               <p className="font-semibold">{f.label}</p>
               <p className="text-xs text-muted">{f.description}</p>
@@ -79,7 +104,9 @@ export default function HqFlagsPage() {
                   onClick={() => setState(f, s)}
                   aria-pressed={f.state === s}
                   className={`min-h-11 px-2.5 py-1 transition-colors disabled:opacity-60 ${
-                    f.state === s ? STATE_STYLE[s] : 'text-muted hover:bg-[color:var(--surface-soft)]'
+                    f.state === s
+                      ? STATE_STYLE[s]
+                      : 'text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >
                   {t(`hq.flags.states.${s}`)}
@@ -100,7 +127,10 @@ export default function HqFlagsPage() {
           <>
             <SettingRow label={t('hq.flags.tz')} value={settings.defaultTimezone} />
             <SettingRow label={t('hq.flags.currency')} value={settings.currency} />
-            <SettingRow label={t('hq.flags.radius')} value={t('hq.flags.km', { n: settings.serviceRadiusKm })} />
+            <SettingRow
+              label={t('hq.flags.radius')}
+              value={t('hq.flags.km', { n: settings.serviceRadiusKm })}
+            />
           </>
         )}
       </Card>

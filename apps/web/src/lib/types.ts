@@ -1937,6 +1937,26 @@ export interface CreatedApiKey extends ApiKey {
   token: string;
 }
 
+/**
+ * CA-2-43: one attempt to deliver one event to one endpoint.
+ *
+ * `DEAD` is the state that matters to an operator: the dispatcher gave up after its
+ * retries, and only a replay moves it.
+ */
+export interface WebhookDelivery {
+  id: string;
+  endpointId: string;
+  event: string;
+  payload: unknown;
+  status: 'PENDING' | 'DELIVERED' | 'FAILED' | 'DEAD';
+  attempts: number;
+  nextAttemptAt: string;
+  responseStatus: number | null;
+  lastError: string | null;
+  occurredAt: string;
+  deliveredAt: string | null;
+}
+
 export interface WebhookEndpoint {
   id: string;
   url: string;

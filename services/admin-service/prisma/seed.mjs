@@ -12,7 +12,13 @@ const FLAGS = [
   { key: 'subscriptions.galon', label: 'Galon subscriptions', description: 'Scheduled automatic refills', state: 'BETA', rolloutPct: null },
   { key: 'recommendations.ai', label: 'AI recommendations', description: 'Product suggestions on the home feed', state: 'ACTIVE', rolloutPct: null },
   { key: 'delivery.live_tracking', label: 'Courier live tracking', description: 'Real-time courier position map', state: 'ACTIVE', rolloutPct: null },
-  { key: 'payments.cash_on_delivery', label: 'Cash on delivery', description: 'COD at delivery time', state: 'OFF', rolloutPct: null },
+  /*
+   * CA-2-07: seeded ACTIVE because COD is how this business is actually paid. It shipped
+   * as 'OFF' while every depot took cash at the door, so the one screen that claims to
+   * govern the platform said the primary payment method was switched off. Nothing reads
+   * these flags yet — which is exactly why the seeded value must not contradict reality.
+   */
+  { key: 'payments.cash_on_delivery', label: 'Cash on delivery', description: 'COD at delivery time', state: 'ACTIVE', rolloutPct: null },
 ];
 
 async function main() {

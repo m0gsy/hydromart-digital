@@ -20,9 +20,10 @@ import { Sheet, ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { WebhookEndpoint } from '@/lib/types';
+import type { WebhookDelivery, WebhookEndpoint } from '@/lib/types';
 
 // Design 19c — webhook subscriptions. Real admin-service track: SUPER_ADMIN CRUD. Delivery
 // rate/status are stored fields updated by future delivery attempts; null until a real
@@ -119,6 +120,8 @@ export default function HqWebhooksPage() {
           ))}
         </div>
       )}
+
+      <DeliveryLog />
 
       <CreateWebhookSheet
         open={creating}
@@ -248,5 +251,95 @@ function CreateWebhookSheet({
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * CA-2-43 — the delivery log, and the button that sends one again.
+ *
+ * `GET /webhooks/deliveries` and `POST /webhooks/deliveries/:id/replay` shipped with the
+ * dispatcher and were unit-tested, and nothing in the console ever called either. So a
+ * partner asking "did you send us that order?" could only be answered by hand out of the
+ * database, and a delivery that went DEAD after its six retries stayed dead — the replay
+ * it was given had no door.
+ *
+ * Its own read, and its own error: a failed log must not take the endpoint list down with
+ * it, because the list is what an operator came here to manage.
+ */
+const STATUS_TONE = {
+  DELIVERED: 'success',
+  PENDING: 'brand',
+  FAILED: 'warning',
+  DEAD: 'danger',
+} as const;
+
+function DeliveryLog() {
+  const { t } = useT();
+  const { toast } = useToast();
+  const query = useAsync<WebhookDelivery[]>(() =>
+    api.get(endpoints.admin.webhooks.deliveries({ limit: 50 }), true),
+  );
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function replay(d: WebhookDelivery) {
+    setBusyId(d.id);
+    try {
+      await api.post(endpoints.admin.webhooks.replay(d.id), undefined, true);
+      toast(t('hq.webhooks.logReplayed'), 'success');
+      query.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.webhooks.logReplayError'), 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const rows = query.data ?? [];
+
+  return (
+    <Card className="flex flex-col gap-3 p-5">
+      <p className="text-sm font-extrabold">{t('hq.webhooks.logTitle')}</p>
+      {query.loading && <Skeleton className="h-24 w-full" />}
+      {query.error && <ErrorState message={t('hq.webhooks.logError')} onRetry={query.reload} />}
+      {!query.loading && !query.error && rows.length === 0 && (
+        <p className="text-sm text-muted">{t('hq.webhooks.logEmpty')}</p>
+      )}
+      {rows.map((d) => (
+        <div
+          key={d.id}
+          className="flex flex-col gap-2 border-t border-app pt-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{d.event}</p>
+            <p className="text-xs text-muted">
+              {formatDateTime(d.occurredAt)} · {t('hq.webhooks.logAttempts', { n: d.attempts })}
+              {d.responseStatus !== null ? ` · HTTP ${d.responseStatus}` : ''}
+              {/*
+               * The reason it failed is the whole value of a log: without it an operator
+               * can only press the button again and hope.
+               *
+               * Part of the meta line rather than its own alert region, and deliberately
+               * so: this is a recorded fact about something that already happened, and a
+               * screen reader announcing every historical row as a live error would be
+               * wrong. The a11y gate caught the first draft doing exactly that.
+               */}
+              {d.lastError ? (
+                <span className="block truncate">
+                  {t('hq.webhooks.logReason')} {d.lastError}
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2.5">
+            <Badge tone={STATUS_TONE[d.status]}>{d.status}</Badge>
+            {d.status !== 'DELIVERED' && (
+              <Button variant="secondary" onClick={() => replay(d)} loading={busyId === d.id}>
+                {t('hq.webhooks.logReplay')}
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </Card>
   );
 }

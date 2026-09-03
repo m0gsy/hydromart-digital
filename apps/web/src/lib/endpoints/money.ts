@@ -24,6 +24,15 @@ export const money = {
     // Staff: confirm a payment as received (cash/transfer/QRIS).
     confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
     /*
+     * CA-2-45: say a PENDING payment did NOT arrive (`paymentSettle`, same as confirm).
+     *
+     * The route shipped with settlement and nothing ever called it, so the only thing staff
+     * could say about a pending payment was that it had landed. A transfer that never came
+     * sat PENDING for ever, holding stock and sitting in the settlement queue as work still
+     * to do. FAILED is not terminal — `needsPayment` lets the customer pay again.
+     */
+    fail: (id: string) => `/payments/api/v1/payments/${id}/fail`,
+    /*
      * CA-2-24: RAISE a refund on a settled payment (`refundIssue` — FINANCE + MANAGER).
      *
      * The route has always existed and nothing in the console called it. The RBAC matrix

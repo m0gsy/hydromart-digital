@@ -687,6 +687,10 @@ export const hrFix = {
     courier: 'Kurir',
     payFailed: 'Gagal konfirmasi pembayaran.',
     refundAction: 'Ajukan refund',
+    failAction: 'Tandai gagal',
+    failTitle: 'Tandai pembayaran gagal?',
+    failMessage: 'Pembayaran untuk {order} ditandai GAGAL. Pesanannya tetap ada dan pelanggan masih bisa membayar lagi.',
+    failConfirm: 'Tandai gagal',
     refundTitle: 'Ajukan refund pembayaran',
     refundMessage:
       'Uang pesanan {order} dikembalikan ke pelanggan. Tindakan ini tidak bisa dibatalkan; refund bernilai besar menunggu persetujuan HQ dulu.',

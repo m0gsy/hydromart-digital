@@ -672,6 +672,10 @@ export const hrFix = {
     courier: 'Courier',
     payFailed: 'Could not confirm the payment.',
     refundAction: 'Raise a refund',
+    failAction: 'Mark as failed',
+    failTitle: 'Mark this payment failed?',
+    failMessage: 'The payment for {order} will be marked FAILED. The order stays, and the customer can still pay again.',
+    failConfirm: 'Mark failed',
     refundTitle: 'Raise a payment refund',
     refundMessage:
       'The money for order {order} goes back to the customer. This cannot be undone; a high-value refund waits for HQ approval first.',
