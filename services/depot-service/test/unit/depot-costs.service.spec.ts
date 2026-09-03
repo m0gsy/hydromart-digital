@@ -70,10 +70,13 @@ describe('DepotCostsService', () => {
 
   // Matched on the WHOLE category, not a prefix: a real "PORTAL" or "POS" expense is not
   // stock, and swallowing it would understate cost in the other direction.
-  it.each([['PORTAL'], ['POS'], ['POMPA']])('still charges a %s line as operating cost', async (category) => {
-    const { service } = build(0, [entry({ category, amountIdr: 250_000 })]);
-    expect((await service.costsInRange(DEPOT, FROM, TO)).opexIdr).toBe(250_000);
-  });
+  it.each([['PORTAL'], ['POS'], ['POMPA']])(
+    'still charges a %s line as operating cost',
+    async (category) => {
+      const { service } = build(0, [entry({ category, amountIdr: 250_000 })]);
+      expect((await service.costsInRange(DEPOT, FROM, TO)).opexIdr).toBe(250_000);
+    },
+  );
 
   it('reports zeroes for a window with no POs and no cash out', async () => {
     const { service } = build(0, []);

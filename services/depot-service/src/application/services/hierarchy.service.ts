@@ -13,9 +13,7 @@ import { HIERARCHY_REPOSITORY, HierarchyRepository } from '../ports/hierarchy.re
  */
 @Injectable()
 export class HierarchyService {
-  constructor(
-    @Inject(HIERARCHY_REPOSITORY) private readonly repo: HierarchyRepository,
-  ) {}
+  constructor(@Inject(HIERARCHY_REPOSITORY) private readonly repo: HierarchyRepository) {}
 
   /**
    * Depots this account is responsible for: the hierarchy walk UNION any direct grants.
@@ -56,7 +54,11 @@ export class HierarchyService {
   /** The ONLY writer of a depot's assistant supervisor — deliberately not the depot PATCH,
    *  which is depotAdmin: a manager must not be able to redraw the map that decides their
    *  own scope. */
-  setDepotAssistant(depotId: string, staffId: string | null, actorId: string | null): Promise<void> {
+  setDepotAssistant(
+    depotId: string,
+    staffId: string | null,
+    actorId: string | null,
+  ): Promise<void> {
     return this.repo.setDepotAssistant(depotId, staffId, actorId);
   }
 

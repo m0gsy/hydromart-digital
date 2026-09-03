@@ -186,10 +186,12 @@ describe('ProductCatalogHttpAdapter', () => {
     fetchMock.mockResolvedValue(
       jsonRes(200, { items: [{ ...product, id: 'p2', sku: 'AIR-19L-XL' }, product] }),
     );
-    await expect(new ProductCatalogHttpAdapter(makeConfig()).findBySku('AIR-19L')).resolves.toEqual({
-      status: 'found',
-      product,
-    });
+    await expect(new ProductCatalogHttpAdapter(makeConfig()).findBySku('AIR-19L')).resolves.toEqual(
+      {
+        status: 'found',
+        product,
+      },
+    );
     expect(fetchMock.mock.calls[0][0]).toBe(
       'http://products:3003/api/v1/products?search=AIR-19L&limit=20',
     );
@@ -279,7 +281,10 @@ describe('OrderSubscriptionHttpAdapter', () => {
 
     await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).resolves.toBe('eng-9');
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit & { headers: Record<string, string> },
+    ];
     expect(url).toBe('http://order:3004/api/v1/subscriptions/internal');
     expect(init.headers['x-internal-key']).toBe(KEY);
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;

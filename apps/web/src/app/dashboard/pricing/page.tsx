@@ -90,6 +90,15 @@ function RuleEditor({
   const { t, locale } = useT();
   const DAY_LABELS = shortWeekdays(locale, false);
   const [form, setForm] = useState<RuleForm>(rule ? formFromRule(rule) : EMPTY_RULE_FORM);
+  // Every page: a rule can target any product, and a catalogue that stops at the first
+  // hundred would silently make the rest untargetable.
+  const catalog = useAsync<Product[]>(
+    () =>
+      fetchAllPages<Product>(({ page, limit }) =>
+        api.get(endpoints.products.browse({ page, limit })),
+      ),
+    [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) =>
@@ -134,12 +143,29 @@ function RuleEditor({
           htmlFor="r-product"
           hint={t('dashboard.pricing.productHint')}
         >
-          <Input
+          {/*
+           * CA-2-64: this was a free-text box asking for a product UUID.
+           *
+           * Somebody had to find the id — from the URL of another screen, or a database —
+           * and type 36 characters by hand, into a field that priced goods. A typo does
+           * not error: the rule saves against a product that does not exist and simply
+           * never fires, so the discount the depot thinks it is running is not running.
+           * The list below is the same catalogue the preview at the bottom of this page
+           * already loads.
+           */}
+          <select
             id="r-product"
             value={form.productId}
             onChange={set('productId')}
-            placeholder={t('dashboard.pricing.productPlaceholder')}
-          />
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+          >
+            <option value="">{t('dashboard.pricing.productPlaceholder')}</option>
+            {(catalog.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label={t('dashboard.pricing.adjustTypeLabel')} htmlFor="r-type">
           <select

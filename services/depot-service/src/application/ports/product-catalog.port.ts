@@ -19,9 +19,7 @@ export interface CatalogProduct {
 }
 
 export type CatalogLookup =
-  | { status: 'found'; product: CatalogProduct }
-  | { status: 'missing' }
-  | { status: 'unavailable' };
+  { status: 'found'; product: CatalogProduct } | { status: 'missing' } | { status: 'unavailable' };
 
 export interface ProductCatalogPort {
   /** Resolve one product by id. Never throws — transport failure is `unavailable`. */

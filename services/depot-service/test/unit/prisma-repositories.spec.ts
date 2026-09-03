@@ -622,7 +622,6 @@ describe('FranchiseApplicationPrismaRepository', () => {
     model.deleteMany.mockResolvedValue({ count: 0 });
     expect(await repo.purgeRejectedBefore(new Date())).toBe(0);
   });
-
 });
 
 describe('GallonIssuePrismaRepository', () => {
@@ -918,7 +917,14 @@ describe('GallonReturnPrismaRepository', () => {
 
   it('reads one customer’s returns at one depot, coercing the Decimal refund', async () => {
     model.findMany.mockResolvedValue([
-      { id: 'gr-1', depotId: 'depot-1', customerId: 'c1', quantity: 2, condition: 'GOOD', depositRefunded: { toString: () => '40000' } },
+      {
+        id: 'gr-1',
+        depotId: 'depot-1',
+        customerId: 'c1',
+        quantity: 2,
+        condition: 'GOOD',
+        depositRefunded: { toString: () => '40000' },
+      },
     ]);
     await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([
       expect.objectContaining({ id: 'gr-1', depositRefunded: 40_000 }),
@@ -1023,7 +1029,11 @@ describe('GallonReturnPrismaRepository', () => {
       _sum: { quantity: true },
     });
     expect(model.aggregate).toHaveBeenNthCalledWith(2, {
-      where: { depotId: 'depot-1', createdAt: { gte: from, lt: to }, condition: GallonCondition.DAMAGED },
+      where: {
+        depotId: 'depot-1',
+        createdAt: { gte: from, lt: to },
+        condition: GallonCondition.DAMAGED,
+      },
       _sum: { quantity: true },
     });
     expect(out).toEqual({ gallons: 14, damaged: 3 });
@@ -1498,7 +1508,6 @@ describe('InventoryPrismaRepository', () => {
     expect(out.quantity).toBe(18);
   });
 
-
   /*
    * CA-2-21, and the line the floor must NOT cross.
    *
@@ -1519,7 +1528,9 @@ describe('InventoryPrismaRepository', () => {
       quantityAfter: -2,
     } as never);
 
-    const text = (($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }).strings.join('?');
+    const text = (
+      ($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }
+    ).strings.join('?');
     expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"\s*\+/);
     expect(text).not.toContain('>= 0');
   });
@@ -1536,14 +1547,20 @@ describe('InventoryPrismaRepository', () => {
       quantityAfter: 4,
     } as never);
 
-    const text = (($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }).strings.join('?');
+    const text = (
+      ($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }
+    ).strings.join('?');
     expect(text).toContain('>= 0');
   });
 
   it('refuses the movement, and writes no ledger row, when the floor rejects it', async () => {
     $queryRaw.mockResolvedValue([]);
     await expect(
-      repo.applyMovement('it-1', { itemId: 'it-1', type: StockMovementType.SALE, delta: -99 } as never),
+      repo.applyMovement('it-1', {
+        itemId: 'it-1',
+        type: StockMovementType.SALE,
+        delta: -99,
+      } as never),
     ).rejects.toBeInstanceOf(NegativeStockError);
     expect(stockMovement.create).not.toHaveBeenCalled();
   });
@@ -1754,7 +1771,11 @@ describe('InventoryPrismaRepository', () => {
     const lines = await repo.findLines('depot-1', InventoryItemType.PRODUK, ['prod-1']);
     expect(lines[0].id).toBe('it-1');
     expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: { in: ['prod-1'] } },
+      where: {
+        depotId: 'depot-1',
+        itemType: InventoryItemType.PRODUK,
+        productId: { in: ['prod-1'] },
+      },
     });
 
     expect(await repo.itemsWithMovementForOrder('ord-1', [])).toEqual(new Set());
@@ -1832,7 +1853,13 @@ describe('InventoryPrismaRepository', () => {
   // fell twice for one hold, `available` over-reported, and the depot oversold silently
   // and cumulatively. The claim is now a conditional updateMany on status: ACTIVE — the
   // same discipline reserveAtomic already uses one function above.
-  const activeHold = { id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' };
+  const activeHold = {
+    id: 'rs-1',
+    itemId: 'it-1',
+    orderId: 'ord-1',
+    quantity: 2,
+    status: 'ACTIVE',
+  };
 
   it('releaseReservation claims the hold conditionally and gives units back once', async () => {
     stockReservation.updateMany.mockResolvedValue({ count: 1 });
@@ -2197,6 +2224,29 @@ describe('PurchaseOrderPrismaRepository', () => {
       data: { status: 'RECEIVED' },
     });
   });
+
+  /*
+   * CA-2-64: a partial receipt writes each line's received quantity back.
+   *
+   * `lines` is a Json column and cannot ride along in the typed spread, so it is cast
+   * separately — and passing the update through untouched would silently drop the field,
+   * which would lose exactly the number the partial receipt exists to record.
+   */
+  it('writes the lines back on a partial receipt, and omits the field otherwise', async () => {
+    model.update.mockResolvedValue(row);
+    const lines = [{ label: 'Galon', quantity: 60, receivedQuantity: 40 }];
+    await repo.update('po-1', { status: 'SENT', lines } as never);
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'po-1' },
+      data: { status: 'SENT', lines },
+    });
+
+    await repo.update('po-1', { receivedAt: null } as never);
+    expect(model.update).toHaveBeenLastCalledWith({
+      where: { id: 'po-1' },
+      data: { receivedAt: null },
+    });
+  });
 });
 
 describe('RosterPrismaRepository', () => {
@@ -2342,8 +2392,15 @@ describe('SubscriptionPrismaRepository', () => {
 });
 
 describe('SupplierPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() };
-  const prisma = { supplier: model } as unknown as PrismaService;
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const poModel = { count: jest.fn() };
+  const prisma = { supplier: model, purchaseOrder: poModel } as unknown as PrismaService;
   const repo = new SupplierPrismaRepository(prisma);
   const row = { id: 'sup-1', depotId: 'depot-1', code: 'SUP1', name: 'PT Air' };
 
@@ -2368,6 +2425,28 @@ describe('SupplierPrismaRepository', () => {
     model.findUnique.mockResolvedValue(row);
     expect(await repo.findById('sup-1')).toBe(row);
     expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
+  });
+
+  /*
+   * CA-2-64: the directory was create-list-get. A supplier typed wrong was permanent, and
+   * the workaround was a second row for the same vendor, which split its purchase history.
+   */
+  it('corrects, deletes, and counts the orders that would block a delete', async () => {
+    model.update.mockResolvedValue({ ...row, name: 'PT Air Baru' });
+    expect(await repo.update('sup-1', { name: 'PT Air Baru' })).toMatchObject({
+      name: 'PT Air Baru',
+    });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'sup-1' },
+      data: { name: 'PT Air Baru' },
+    });
+
+    await repo.remove('sup-1');
+    expect(model.delete).toHaveBeenCalledWith({ where: { id: 'sup-1' } });
+
+    poModel.count.mockResolvedValue(3);
+    expect(await repo.countPurchaseOrders('sup-1')).toBe(3);
+    expect(poModel.count).toHaveBeenCalledWith({ where: { supplierId: 'sup-1' } });
   });
 
   it('finds by composite depotId_code key', async () => {

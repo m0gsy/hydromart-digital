@@ -28,7 +28,11 @@ export default function ImportPricesPage() {
   // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
   // silently resolve to depots[0] and propose price overrides for the wrong depot.
   if (!selectedId) {
-    return <CenterState title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')} />;
+    return (
+      <CenterState
+        title={ready ? t('hrFix.imports.pickDepot') : t('hrFix.imports.loadingDepots')}
+      />
+    );
   }
 
   return (

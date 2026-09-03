@@ -107,9 +107,7 @@ describe('HierarchyService.setSuperior', () => {
     repo.superiors.set('c', 'd');
     repo.superiors.set('b', 'c');
     repo.superiors.set('a', 'b');
-    await expect(service.setSuperior('f', 'a', null)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(service.setSuperior('f', 'a', null)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   // A cycle already in the table (written before the guard existed) must not hang the walk.

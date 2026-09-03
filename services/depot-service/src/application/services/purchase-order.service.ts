@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { computeTotal, PoLine, PoStatus, PurchaseOrder } from '../../domain/purchase-order';
+import {
+  computeTotal,
+  isFullyReceived,
+  PoLine,
+  PoStatus,
+  PurchaseOrder,
+  receivedOf,
+} from '../../domain/purchase-order';
 import {
   DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
@@ -95,24 +102,70 @@ export class PurchaseOrderService {
   }
 
   /**
-   * SENT → RECEIVED. For each line, add a RECEIPT movement of `quantity` for that itemType
-   * into the depot's inventory. Best-effort per line: a line whose depot inventory line does
-   * not exist is skipped (try/catch) so goods-in never blocks on an unconfigured stock line;
-   * the PO is still marked RECEIVED. ponytail: not a single DB transaction across the receipts
-   * — a mid-loop crash could leave some lines posted and the PO still SENT (retry-safe: RECEIPT
-   * is additive, so guard against a double-receive by only receiving from SENT).
+   * Book in what actually arrived — all of it, or some of it.
+   *
+   * CA-2-64: this used to be one button that posted the FULL ordered quantity of every
+   * line and stamped the PO RECEIVED. A supplier who sends 40 of 60 galon, which is the
+   * ordinary case, left the depot choosing between putting 20 units into the stock ledger
+   * that are not in the building, and booking none of the 40 that are. The first is worse:
+   * the ledger is what the reorder point, the COGS and the next opname all read.
+   *
+   * `received` names the quantity arriving NOW per line, keyed by line index. Omitted
+   * entirely, it means "everything still outstanding" — the old button's meaning, so the
+   * existing caller keeps working and a full delivery is still one press.
+   *
+   * The PO only reaches RECEIVED when every line is complete. Until then it stays SENT and
+   * can be received again; each call posts the delta, never the whole line twice.
+   *
+   * ponytail: not a single DB transaction across the receipts — a mid-loop crash can leave
+   * some lines posted and the PO still SENT. That is now SAFE rather than merely tolerable:
+   * re-running posts only what is still outstanding, because the arrived quantity is
+   * written back per line.
    */
-  async receive(id: string, actorId: string): Promise<PurchaseOrder> {
+  async receive(
+    id: string,
+    actorId: string,
+    received?: Record<number, number>,
+  ): Promise<PurchaseOrder> {
     const po = await this.require(id);
     if (po.status !== PoStatus.SENT) {
       throw new InvalidPurchaseOrderTransitionError('Only a SENT purchase order can be received.');
     }
-    for (const line of po.lines) {
+
+    const lines = po.lines.map((line, index) => {
+      const already = receivedOf(line);
+      const outstanding = line.quantity - already;
+      const asked = received ? (received[index] ?? 0) : outstanding;
+      if (asked < 0) {
+        throw new InvalidPurchaseOrderTransitionError(
+          `Line ${index + 1} ("${line.label}"): a received quantity cannot be negative.`,
+        );
+      }
+      if (asked > outstanding) {
+        // Booking in more than was ordered is not a rounding question — it is either the
+        // wrong PO or a supplier sending goods nobody agreed to buy, and the stock ledger
+        // must not be where that gets decided silently.
+        throw new InvalidPurchaseOrderTransitionError(
+          `Line ${index + 1} ("${line.label}"): ${asked} arriving would exceed the ` +
+            `${outstanding} still outstanding of ${line.quantity} ordered.`,
+        );
+      }
+      return { line, index, arriving: asked, next: { ...line, receivedQuantity: already + asked } };
+    });
+
+    if (lines.every((l) => l.arriving === 0)) {
+      throw new InvalidPurchaseOrderTransitionError(
+        'Nothing to receive: every line already has its full ordered quantity booked in.',
+      );
+    }
+
+    for (const { line, arriving } of lines) {
+      if (arriving === 0) continue;
       try {
         await this.inventory.receiveStock(
           po.depotId,
           line.itemType,
-          line.quantity,
+          arriving,
           actorId,
           `PO ${po.poNumber} · ${line.label}`,
         );
@@ -123,10 +176,19 @@ export class PurchaseOrderService {
         // only evidence used to be the discrepancy someone finds at the next opname.
         this.logger.error(
           `PO ${po.poNumber} (depot ${po.depotId}): stock not booked for "${line.label}" ` +
-            `×${line.quantity} — ${(error as Error).message}. Receipt continues; reconcile manually.`,
+            `×${arriving} — ${(error as Error).message}. Receipt continues; reconcile manually.`,
         );
       }
     }
-    return this.orders.update(id, { status: PoStatus.RECEIVED, receivedAt: new Date() });
+
+    const next = lines.map((l) => l.next);
+    const complete = isFullyReceived(next);
+    return this.orders.update(id, {
+      lines: next,
+      // Still SENT while anything is outstanding: a PO marked RECEIVED is one nobody
+      // chases, and the rest of the delivery is exactly what someone has to chase.
+      status: complete ? PoStatus.RECEIVED : PoStatus.SENT,
+      receivedAt: complete ? new Date() : null,
+    });
   }
 }

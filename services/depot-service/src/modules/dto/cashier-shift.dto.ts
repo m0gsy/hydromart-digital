@@ -11,7 +11,10 @@ export class OpenShiftDto {
   @IsUUID()
   depotId!: string;
 
-  @ApiProperty({ example: 200000, description: 'Change money in the drawer before the first sale.' })
+  @ApiProperty({
+    example: 200000,
+    description: 'Change money in the drawer before the first sale.',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(0)

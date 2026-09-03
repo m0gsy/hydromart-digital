@@ -40,7 +40,6 @@ import {
 /** The queue is what these tests are about; the names decorate it. */
 const noNames = async () => new Map<string, string>();
 
-
 const KNOWN_DEPOT = '11111111-1111-4111-8111-111111111111';
 
 class InMemoryMaintenanceRepository implements MaintenanceRepository {

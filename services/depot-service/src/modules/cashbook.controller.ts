@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiSecurity,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { CashbookService, CashbookView } from '../application/services/cashbook.service';
 import { DepotCosts, DepotCostsService } from '../application/services/depot-costs.service';

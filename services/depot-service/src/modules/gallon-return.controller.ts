@@ -11,7 +11,10 @@ import {
 } from '../application/ports/gallon-return.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonReturnDto, ListReturnsQueryDto } from './dto/gallon-return.dto';
-import { GallonReturnResponseDto, PagedGallonReturnResponseDto } from './dto/responses.generated.dto';
+import {
+  GallonReturnResponseDto,
+  PagedGallonReturnResponseDto,
+} from './dto/responses.generated.dto';
 
 /** Empty-gallon returns / deposit refunds nested under a depot (PRD Module 11). */
 @ApiTags('Gallon returns')

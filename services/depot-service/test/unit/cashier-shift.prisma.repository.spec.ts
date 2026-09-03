@@ -109,7 +109,9 @@ describe('CashierShiftPrismaRepository', () => {
     const closedAt = new Date('2026-08-03T09:00:00Z');
     const update = jest
       .fn()
-      .mockResolvedValue(row({ status: 'CLOSED', closedAt, countedCash: 1, expectedCash: 1, variance: 0 }));
+      .mockResolvedValue(
+        row({ status: 'CLOSED', closedAt, countedCash: 1, expectedCash: 1, variance: 0 }),
+      );
     const closed = await repoWith({ update }).close('shift-1', {
       closedAt,
       countedCash: 1,

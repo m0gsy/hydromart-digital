@@ -18,7 +18,10 @@ import {
   CloseShiftData,
   OpenShiftData,
 } from '../../src/application/ports/cashier-shift.repository';
-import { CashbookRepository, CreateCashbookEntryData } from '../../src/application/ports/cashbook.repository';
+import {
+  CashbookRepository,
+  CreateCashbookEntryData,
+} from '../../src/application/ports/cashbook.repository';
 import { DepotCashPort } from '../../src/application/ports/depot-cash.port';
 
 const DEPOT = 'depot-1';
@@ -49,7 +52,8 @@ class InMemoryShifts implements CashierShiftRepository {
   }
   async findOpen(depotId: string, cashierId: string): Promise<CashierShift | null> {
     const row = this.rows.find(
-      (r) => r.depotId === depotId && r.cashierId === cashierId && r.status === CashierShiftStatus.OPEN,
+      (r) =>
+        r.depotId === depotId && r.cashierId === cashierId && r.status === CashierShiftStatus.OPEN,
     );
     return row ? { ...row } : null;
   }
@@ -102,12 +106,7 @@ describe('CashierShiftService', () => {
     cashbook = new FakeCashbook();
     depotCash = new FakeDepotCash();
     depots = { findById: jest.fn(async () => ({ id: DEPOT })) };
-    service = new CashierShiftService(
-      shifts,
-      cashbook as never,
-      depotCash,
-      depots as never,
-    );
+    service = new CashierShiftService(shifts, cashbook as never, depotCash, depots as never);
   });
 
   const openShift = () =>
@@ -208,7 +207,11 @@ describe('CashierShiftService', () => {
     it('refuses to close another cashier drawer', async () => {
       const opened = await openShift();
       await expect(
-        service.close(opened.id, { countedCash: 1 }, { id: 'someone-else', canCloseAnyShift: false }),
+        service.close(
+          opened.id,
+          { countedCash: 1 },
+          { id: 'someone-else', canCloseAnyShift: false },
+        ),
       ).rejects.toBeInstanceOf(ShiftNotYoursError);
     });
 
@@ -252,7 +255,12 @@ describe('CashierShiftService', () => {
     } as unknown as AuthenticatedUser;
 
     await expect(
-      service.close(opened.id, { countedCash: 200_000 }, { ...CASHIER, canCloseAnyShift: true }, outsider),
+      service.close(
+        opened.id,
+        { countedCash: 200_000 },
+        { ...CASHIER, canCloseAnyShift: true },
+        outsider,
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(cashbook.entries).toHaveLength(0);
     expect(shifts.rows[0].status).toBe(CashierShiftStatus.OPEN);
@@ -268,7 +276,12 @@ describe('CashierShiftService', () => {
     } as unknown as AuthenticatedUser;
 
     await expect(
-      service.close(opened.id, { countedCash: 200_000 }, { ...CASHIER, canCloseAnyShift: true }, insider),
+      service.close(
+        opened.id,
+        { countedCash: 200_000 },
+        { ...CASHIER, canCloseAnyShift: true },
+        insider,
+      ),
     ).resolves.toMatchObject({ status: CashierShiftStatus.CLOSED });
   });
 

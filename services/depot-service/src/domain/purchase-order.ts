@@ -16,6 +16,30 @@ export interface PoLine {
   label: string;
   quantity: number;
   unitCostIdr: number;
+  /**
+   * CA-2-64: how much of this line has actually arrived.
+   *
+   * Receiving was all-or-nothing — one button that booked in the FULL ordered quantity of
+   * every line and stamped the PO RECEIVED. A supplier who sends 40 of 60 galon, which is
+   * the ordinary case, left the depot with two bad choices: press it and put 20 units of
+   * stock into the ledger that are not in the building, or leave the PO open and book none
+   * of the 40 that are.
+   *
+   * Absent on every PO written before this shipped, and read as 0 — the same thing it
+   * meant then. `lines` is a JSON column, so this needed no migration; what it did need is
+   * for every reader to treat the field as optional, which `receivedOf` below does.
+   */
+  receivedQuantity?: number;
+}
+
+/** How much of a line has arrived. Old rows carry no field at all; that is zero, not null. */
+export function receivedOf(line: PoLine): number {
+  return Math.max(0, Math.min(line.quantity, line.receivedQuantity ?? 0));
+}
+
+/** True once every line has its full ordered quantity booked in. */
+export function isFullyReceived(lines: PoLine[]): boolean {
+  return lines.length > 0 && lines.every((l) => receivedOf(l) >= l.quantity);
 }
 
 export interface PurchaseOrder {

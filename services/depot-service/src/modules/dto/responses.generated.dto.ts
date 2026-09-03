@@ -578,7 +578,16 @@ export class IncidentResponseDto {
   id!: string;
   @ApiProperty({ type: String })
   depotId!: string;
-  @ApiProperty({ enum: ['COURIER_FALL', 'VEHICLE_BREAKDOWN', 'CUSTOMER_CONFLICT', 'POWER_OUTAGE', 'GALLON_DAMAGE', 'OTHER'] })
+  @ApiProperty({
+    enum: [
+      'COURIER_FALL',
+      'VEHICLE_BREAKDOWN',
+      'CUSTOMER_CONFLICT',
+      'POWER_OUTAGE',
+      'GALLON_DAMAGE',
+      'OTHER',
+    ],
+  })
   type!: string;
   @ApiProperty({ enum: ['LOW', 'MEDIUM', 'HIGH'] })
   severity!: string;

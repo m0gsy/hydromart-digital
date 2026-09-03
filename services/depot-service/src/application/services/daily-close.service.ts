@@ -1,6 +1,11 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, addLocalDays, assertDepotAccess, dayStartUtc } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  addLocalDays,
+  assertDepotAccess,
+  dayStartUtc,
+} from '@hydromart/platform';
 
 import { DepotConfigService } from '../../config/depot-config.service';
 
@@ -9,7 +14,11 @@ import { DepotNotFoundError } from '../../domain/errors';
 import { CashbookRepository } from '../ports/cashbook.repository';
 import { CashierShiftRepository } from '../ports/cashier-shift.repository';
 import { COURIER_COD_PORT, CourierCodPort } from '../ports/courier-cod.port';
-import { DAILY_CLOSE_REPOSITORY, DailyCloseRecord, DailyCloseRepository } from '../ports/daily-close.repository';
+import {
+  DAILY_CLOSE_REPOSITORY,
+  DailyCloseRecord,
+  DailyCloseRepository,
+} from '../ports/daily-close.repository';
 import { DepotRepository } from '../ports/depot.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
@@ -65,7 +74,11 @@ export class DailyCloseService {
     return { from, to: addLocalDays(from, 1, tz) };
   }
 
-  async get(user: AuthenticatedUser, depotId: string, businessDate: string): Promise<DailyCloseView> {
+  async get(
+    user: AuthenticatedUser,
+    depotId: string,
+    businessDate: string,
+  ): Promise<DailyCloseView> {
     assertDepotAccess(user, depotId);
     const close = await this.closes.find(depotId, businessDate);
     if (!close) {

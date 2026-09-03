@@ -5,7 +5,11 @@ import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydroma
 
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { PurchaseOrder } from '../domain/purchase-order';
-import { CreatePurchaseOrderDto, PurchaseOrderQueryDto } from './dto/procurement.dto';
+import {
+  CreatePurchaseOrderDto,
+  PurchaseOrderQueryDto,
+  ReceivePurchaseOrderDto,
+} from './dto/procurement.dto';
 import { PurchaseOrderResponseDto } from './dto/responses.generated.dto';
 
 /** Depot purchase orders (design 7a/9d). Receiving posts a RECEIPT movement per line. */
@@ -64,13 +68,18 @@ export class PurchaseOrderController {
   @ApiOkResponse({ type: PurchaseOrderResponseDto })
   @Post(':id/receive')
   @ApiOperation({
-    summary: 'Receive goods (SENT → RECEIVED); posts a RECEIPT per line to inventory',
+    summary: 'Receive goods — all of them, or the part that arrived',
+    description:
+      'Posts a RECEIPT per line for the quantity arriving now. `received` keys the arriving ' +
+      'quantity by line index; omit it to receive everything still outstanding. The PO only ' +
+      'reaches RECEIVED once every line is complete, so a partial delivery stays open.',
   })
   async receive(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReceivePurchaseOrderDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PurchaseOrder> {
     assertDepotAccess(user, (await this.orders.get(id)).depotId);
-    return this.orders.receive(id, user.sub);
+    return this.orders.receive(id, user.sub, dto.received);
   }
 }

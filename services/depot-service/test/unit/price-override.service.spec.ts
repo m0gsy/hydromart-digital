@@ -21,7 +21,6 @@ import { DepotRecord, DepotRepository } from '../../src/application/ports/depot.
 /** The queue is what these tests are about; the names decorate it. */
 const noNames = async () => new Map<string, string>();
 
-
 class InMemoryProposalRepository implements PriceOverrideProposalRepository {
   rows: PriceOverrideProposalRecord[] = [];
   private seq = 0;

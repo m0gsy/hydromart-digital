@@ -52,7 +52,9 @@ export class ApprovalController {
   @ApiOkResponse({ type: CountsResponseDto })
   @Get('counts')
   @ApiOperation({ summary: 'Pending approval counts by type (queue badge)' })
-  counts(@Query() query: CountsApprovalQueryDto): Promise<{ total: number; byType: PendingCounts }> {
+  counts(
+    @Query() query: CountsApprovalQueryDto,
+  ): Promise<{ total: number; byType: PendingCounts }> {
     return this.approvals.counts(query.depotId);
   }
 

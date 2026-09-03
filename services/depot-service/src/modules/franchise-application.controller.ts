@@ -31,7 +31,11 @@ import {
   SubmitFranchiseApplicationDto,
   SubmittedApplicationView,
 } from './dto/franchise-application.dto';
-import { ApproveResponseDto, FranchiseApplicationResponseDto, PagedFranchiseApplicationResponseDto } from './dto/responses.generated.dto';
+import {
+  ApproveResponseDto,
+  FranchiseApplicationResponseDto,
+  PagedFranchiseApplicationResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * HQ franchise-application approvals queue (design 5a/5b). HQ-only: HEAD_OFFICE +
@@ -70,7 +74,9 @@ export class FranchiseApplicationController {
   @ApiSecurity('internal-key')
   @Post('internal/purge-rejected')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete rejected applications older than the cutoff (internal, UU PDP)' })
+  @ApiOperation({
+    summary: 'Delete rejected applications older than the cutoff (internal, UU PDP)',
+  })
   purgeRejected(@Body() dto: PurgeRejectedApplicationsDto): Promise<{ deleted: number }> {
     return this.applications.purgeRejectedOlderThan(new Date(dto.cutoff));
   }

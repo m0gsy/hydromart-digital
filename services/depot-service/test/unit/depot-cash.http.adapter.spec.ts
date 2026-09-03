@@ -16,7 +16,12 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): DepotConfigSer
   } as unknown as DepotConfigService;
 }
 
-function res(init: { ok?: boolean; status?: number; body?: unknown; throwJson?: boolean }): Response {
+function res(init: {
+  ok?: boolean;
+  status?: number;
+  body?: unknown;
+  throwJson?: boolean;
+}): Response {
   const status = init.status ?? (init.ok === false ? 500 : 200);
   return {
     ok: init.ok ?? status < 400,

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
@@ -12,7 +23,10 @@ import {
 
 import { HierarchyService } from '../application/services/hierarchy.service';
 import { HierarchyRepository } from '../application/ports/hierarchy.repository';
-import { InternalDescribeResponseDto, InternalOwnedResponseDto } from './dto/responses.generated.dto';
+import {
+  InternalDescribeResponseDto,
+  InternalOwnedResponseDto,
+} from './dto/responses.generated.dto';
 
 export class SetAssistantDto {
   @IsUUID()
@@ -109,7 +123,9 @@ export class HierarchyController {
   @Can('hierarchyAdmin')
   @Get(':staffId')
   @ApiOperation({ summary: 'Superior, direct reports and depots recorded for one account' })
-  describe(@Param('staffId', ParseUUIDPipe) staffId: string): ReturnType<HierarchyRepository['describe']> {
+  describe(
+    @Param('staffId', ParseUUIDPipe) staffId: string,
+  ): ReturnType<HierarchyRepository['describe']> {
     return this.hierarchy.describe(staffId);
   }
 
@@ -159,5 +175,4 @@ export class HierarchyController {
   ): Promise<void> {
     await this.hierarchy.revokeDepot(staffId, depotId);
   }
-
 }

@@ -45,10 +45,14 @@ function Stepper({ status }: { status: PoStatus }) {
             >
               {i + 1}
             </div>
-            <span className={`text-[11px] font-semibold ${i <= active ? '' : 'text-muted'}`}>{t(s.label)}</span>
+            <span className={`text-[11px] font-semibold ${i <= active ? '' : 'text-muted'}`}>
+              {t(s.label)}
+            </span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={`h-0.5 flex-1 ${i < active ? 'bg-brand-500' : 'bg-[color:var(--border)]'}`} />
+            <div
+              className={`h-0.5 flex-1 ${i < active ? 'bg-brand-500' : 'bg-[color:var(--border)]'}`}
+            />
           )}
         </div>
       ))}
@@ -58,9 +62,23 @@ function Stepper({ status }: { status: PoStatus }) {
 
 function Detail({ id }: { id: string }) {
   const { t } = useT();
-  const detail = useAsync<PurchaseOrder>(() => api.get(endpoints.procurement.purchaseOrders.detail(id), true), [id]);
+  const detail = useAsync<PurchaseOrder>(
+    () => api.get(endpoints.procurement.purchaseOrders.detail(id), true),
+    [id],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * CA-2-64: what actually turned up, per line.
+   *
+   * Receiving was one button that booked in the FULL ordered quantity of every line. A
+   * supplier who sends 40 of 60 galon — the ordinary case — left the depot choosing
+   * between 20 units of stock that are not in the building and none of the 40 that are.
+   *
+   * Empty means "everything still outstanding", so the button alone still works for a
+   * complete delivery and nobody has to type numbers they do not need to.
+   */
+  const [arriving, setArriving] = useState<Record<number, string>>({});
 
   async function act(kind: 'send' | 'receive') {
     setBusy(true);
@@ -70,7 +88,20 @@ function Detail({ id }: { id: string }) {
         kind === 'send'
           ? endpoints.procurement.purchaseOrders.send(id)
           : endpoints.procurement.purchaseOrders.receive(id);
-      await api.post(url, {}, true);
+      const typed = Object.entries(arriving).filter(([, v]) => v.trim() !== '');
+      const body =
+        kind === 'receive' && typed.length > 0
+          ? {
+              received: Object.fromEntries(
+                (detail.data?.lines ?? []).map((_l, i) => [
+                  i,
+                  Math.max(0, Math.round(Number(arriving[i] ?? '') || 0)),
+                ]),
+              ),
+            }
+          : {};
+      await api.post(url, body, true);
+      setArriving({});
       detail.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.poDetail.actionFailed'));
@@ -109,7 +140,9 @@ function Detail({ id }: { id: string }) {
             {po.supplierName} · {formatDateTime(po.createdAt)}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[po.status]}>{t(STEPS.find((s) => s.status === po.status)?.label ?? '')}</Badge>
+        <Badge tone={STATUS_TONE[po.status]}>
+          {t(STEPS.find((s) => s.status === po.status)?.label ?? '')}
+        </Badge>
       </header>
 
       <Card className="p-4">
@@ -123,6 +156,11 @@ function Detail({ id }: { id: string }) {
               <th className="px-4 py-2 font-bold">{t('hrFix.poDetail.items')}</th>
               <th className="px-4 py-2 text-right font-bold">{t('hrFix.poDetail.qtyPrice')}</th>
               <th className="px-4 py-2 text-right font-bold">{t('hrFix.poDetail.subtotal')}</th>
+              {po.status === 'SENT' && (
+                <th className="px-4 py-2 text-right font-bold">
+                  {t('hrFix.poDetail.arrivingNow')}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -137,7 +175,30 @@ function Detail({ id }: { id: string }) {
                 </td>
                 <td className="px-4 py-2 text-right font-semibold tabular-nums">
                   <Money amount={l.quantity * l.unitCostIdr} />
+                  {(l.receivedQuantity ?? 0) > 0 && (
+                    <p className="text-[11px] font-medium text-muted">
+                      {t('hrFix.poDetail.receivedSoFar', {
+                        received: l.receivedQuantity ?? 0,
+                        ordered: l.quantity,
+                      })}
+                    </p>
+                  )}
                 </td>
+                {po.status === 'SENT' && (
+                  <td className="px-4 py-2 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      max={l.quantity - (l.receivedQuantity ?? 0)}
+                      inputMode="numeric"
+                      value={arriving[i] ?? ''}
+                      onChange={(e) => setArriving((a) => ({ ...a, [i]: e.target.value }))}
+                      placeholder={String(l.quantity - (l.receivedQuantity ?? 0))}
+                      aria-label={t('hrFix.poDetail.arrivingFor', { label: l.label })}
+                      className="w-20 rounded-lg border border-app px-2 py-1.5 text-right text-sm tabular-nums"
+                    />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -161,7 +222,11 @@ function Detail({ id }: { id: string }) {
 
       <Card className="flex items-start gap-2 bg-brand-50 p-3">
         <Info size={18} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
-        <p className="text-sm text-brand-700">{t('hrFix.poDetail.receiveHintPre')}<strong>RECEIPT +qty</strong>{t('hrFix.poDetail.receiveHintPost')}</p>
+        <p className="text-sm text-brand-700">
+          {t('hrFix.poDetail.receiveHintPre')}
+          <strong>RECEIPT +qty</strong>
+          {t('hrFix.poDetail.receiveHintPost')}
+        </p>
       </Card>
 
       {error && (

@@ -1672,6 +1672,11 @@ export interface PoLine {
   label: string;
   quantity: number;
   unitCostIdr: number;
+  /**
+   * CA-2-64: how much of this line has actually arrived. Absent on every PO written before
+   * partial receipt shipped, and read as 0 — the same thing it meant then.
+   */
+  receivedQuantity?: number;
 }
 
 export interface PurchaseOrder {

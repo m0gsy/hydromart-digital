@@ -17,7 +17,9 @@ export class CashTotalUnavailableError extends DomainError {
   // asked for something that cannot be honoured right now, and must not retry blindly.
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Cash taken this shift cannot be read right now, so the shift cannot be closed. Try again shortly.');
+    super(
+      'Cash taken this shift cannot be read right now, so the shift cannot be closed. Try again shortly.',
+    );
   }
 }
 
@@ -152,7 +154,9 @@ export class CadenceNotSupportedError extends DomainError {
   readonly code = 'SUBSCRIPTION_CADENCE_NOT_SUPPORTED';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor(cadence: string) {
-    super(`Kadens ${cadence} belum didukung mesin langganan. Pilih mingguan, dua mingguan, atau bulanan.`);
+    super(
+      `Kadens ${cadence} belum didukung mesin langganan. Pilih mingguan, dua mingguan, atau bulanan.`,
+    );
   }
 }
 
@@ -287,6 +291,24 @@ export class SupplierNotFoundError extends DomainError {
   readonly status = HTTP_STATUS.NOT_FOUND;
   constructor() {
     super('Supplier not found.');
+  }
+}
+
+/**
+ * CA-2-64: a supplier named by a purchase order cannot be deleted.
+ *
+ * The PO snapshots `supplierName` so its history survives either way, but a live PO whose
+ * `supplierId` points at nothing is a broken row, and "remove the vendor" is never worth
+ * that. Renaming is always available and is what the mistake usually calls for.
+ */
+export class SupplierInUseError extends DomainError {
+  readonly code = 'SUPPLIER_IN_USE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(readonly purchaseOrders: number) {
+    super(
+      `This supplier is named by ${purchaseOrders} purchase order(s) and cannot be deleted. ` +
+        'Correct its details instead.',
+    );
   }
 }
 

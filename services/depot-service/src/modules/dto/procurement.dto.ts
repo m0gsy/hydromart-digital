@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -76,10 +77,72 @@ export class PoLineDto {
   @Min(1)
   quantity!: number;
 
-  @ApiProperty({ example: 18000, description: 'Unit cost in whole IDR.' })
+  @ApiProperty({ example: 18000, description: 'Unit cost in whole IDR. Must be at least 1.' })
   @IsInt()
-  @Min(0)
+  /*
+   * CA-2-64: zero was accepted, and zero is what an emptied form field sends.
+   *
+   * `Number('')` is 0, so clearing the price box on the PO form and submitting priced the
+   * line at nothing. The PO then totalled less than it cost, and the RECEIPT it posts
+   * carries that zero into COGS — a margin that looks better than it is, on a screen
+   * nobody re-checks. A supplier who genuinely gives goods away still invoices Rp 1 more
+   * honestly than a form that silently priced them at nothing.
+   */
+  @Min(1, { message: 'unitCostIdr must be at least 1 — an empty price field is not a free line.' })
   unitCostIdr!: number;
+}
+
+/**
+ * CA-2-64: what actually arrived, per line index.
+ *
+ * Omitted entirely means "everything still outstanding", which is what the single Terima
+ * button always meant and still means. Present, it books in a partial delivery.
+ */
+export class ReceivePurchaseOrderDto {
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'integer' },
+    example: { 0: 40, 1: 0 },
+    description: 'Quantity arriving now, keyed by line index. Omit to receive everything left.',
+  })
+  @IsOptional()
+  @IsObject()
+  received?: Record<number, number>;
+}
+
+/** CA-2-64: every field a depot may correct after the fact. `depotId` is not one of them. */
+export class UpdateSupplierDto {
+  @ApiPropertyOptional({ example: 'Tirta Makmur' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'SUP-01' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  code?: string;
+
+  @ApiPropertyOptional({ example: '081234567890' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  contactPhone?: string | null;
+
+  @ApiPropertyOptional({ type: [String], example: ['Galon 19L', 'Segel'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
+
+  @ApiPropertyOptional({ example: 0.95 })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  onTimeRate?: number | null;
 }
 
 export class CreatePurchaseOrderDto {

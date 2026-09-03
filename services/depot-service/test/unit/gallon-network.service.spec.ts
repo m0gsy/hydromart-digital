@@ -211,10 +211,7 @@ describe('GallonNetworkService.customerLedger', () => {
   // customer whose newest movements are all issues would see returns padding the list out.
   it('trims the merged list to the limit', async () => {
     const rows = await ledger(
-      [
-        issue('i1', '2026-08-05T00:00:00.000Z'),
-        issue('i2', '2026-08-04T00:00:00.000Z'),
-      ],
+      [issue('i1', '2026-08-05T00:00:00.000Z'), issue('i2', '2026-08-04T00:00:00.000Z')],
       [ret('r1', '2026-08-01T00:00:00.000Z')],
       2,
     );
@@ -223,9 +220,9 @@ describe('GallonNetworkService.customerLedger', () => {
 
   it('clamps a nonsense limit into [1, 100]', async () => {
     await expect(ledger([issue('i1', '2026-08-05T00:00:00.000Z')], [], 0)).resolves.toHaveLength(1);
-    await expect(
-      ledger([issue('i1', '2026-08-05T00:00:00.000Z')], [], 9999),
-    ).resolves.toHaveLength(1);
+    await expect(ledger([issue('i1', '2026-08-05T00:00:00.000Z')], [], 9999)).resolves.toHaveLength(
+      1,
+    );
   });
 });
 

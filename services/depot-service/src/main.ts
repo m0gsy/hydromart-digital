@@ -9,7 +9,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { configureDepotScope, enableMetrics, httpCapabilityLoader, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
+import {
+  configureDepotScope,
+  enableMetrics,
+  httpCapabilityLoader,
+  protectDocs,
+  startCapabilityRefresh,
+} from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { HierarchyService } from './application/services/hierarchy.service';

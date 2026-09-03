@@ -20,7 +20,12 @@ export class DepotCashHttpAdapter implements DepotCashPort {
 
   constructor(private readonly config: DepotConfigService) {}
 
-  async totalPaidCash(depotId: string, from: Date, to: Date, cashierShiftId?: string): Promise<number> {
+  async totalPaidCash(
+    depotId: string,
+    from: Date,
+    to: Date,
+    cashierShiftId?: string,
+  ): Promise<number> {
     const { paymentServiceUrl, internalServiceKey } = this.config;
     if (!paymentServiceUrl || !internalServiceKey) {
       throw new CashTotalUnavailableError();
