@@ -42,11 +42,20 @@ describe('RegistrationService', () => {
     delivery = new FakeOtpDelivery();
     const otp = new OtpService(otpTokens, delivery, new FakeCrypto(), clock, buildTestConfig());
     consents = new InMemoryConsentRepository();
-    service = new RegistrationService(customers, otp, new AuditService(audit), new ConsentService(consents));
+    service = new RegistrationService(
+      customers,
+      otp,
+      new AuditService(audit),
+      new ConsentService(consents),
+    );
   });
 
   it('creates a pending account and sends a registration OTP', async () => {
-    const result = await service.register({ phone: '081234567890', fullName: 'Budi', context: ctx });
+    const result = await service.register({
+      phone: '081234567890',
+      fullName: 'Budi',
+      context: ctx,
+    });
 
     expect(result.expiresInSeconds).toBe(300);
     expect(delivery.sent[0]?.purpose).toBe(OtpPurpose.REGISTRATION);
@@ -76,7 +85,11 @@ describe('RegistrationService', () => {
 
   it('rejects an email already used by another account', async () => {
     customers.seed(
-      makeCustomer({ phone: '+6289999999999', email: 'taken@x.com', status: CustomerStatus.ACTIVE }),
+      makeCustomer({
+        phone: '+6289999999999',
+        email: 'taken@x.com',
+        status: CustomerStatus.ACTIVE,
+      }),
     );
     await expect(
       service.register({ phone: '081234567890', email: 'taken@x.com', context: ctx }),

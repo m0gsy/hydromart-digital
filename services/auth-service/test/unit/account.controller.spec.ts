@@ -9,7 +9,6 @@ function phoneChangeStub() {
   return { request: jest.fn(), confirm: jest.fn() } as never;
 }
 
-
 describe('AccountController.listStaff depot-manager scope', () => {
   const ownDepot = '11111111-1111-4111-8111-111111111111';
   const otherDepot = '22222222-2222-4222-8222-222222222222';
@@ -21,11 +20,15 @@ describe('AccountController.listStaff depot-manager scope', () => {
     // to this mock so these cases still exercise the real rule with a mocked profile read.
 
     resolveScopedDepot: (u: never, d?: string) =>
-
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
     listStaff: jest.fn(),
   };
-  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
+  const controller = new AccountController(
+    account as never,
+    {} as never,
+    {} as never,
+    phoneChangeStub(),
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -80,13 +83,23 @@ describe('AccountController.listStaff depot-manager scope', () => {
     await expect(
       controller.listStaff(
         { page: 1, limit: 20 },
-        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot, otherDepot] },
+        {
+          sub: 'manager-1',
+          role: Role.MANAGER,
+          phone: '+62811111111',
+          depotIds: [ownDepot, otherDepot],
+        },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     await controller.listStaff(
       { depotId: otherDepot },
-      { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111', depotIds: [ownDepot, otherDepot] },
+      {
+        sub: 'manager-1',
+        role: Role.MANAGER,
+        phone: '+62811111111',
+        depotIds: [ownDepot, otherDepot],
+      },
     );
     expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, otherDepot, undefined);
   });
@@ -116,7 +129,12 @@ describe('AccountController.listDrivers depot scope', () => {
     resolveScopedDepot: (u: never, d?: string) =>
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
   };
-  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
+  const controller = new AccountController(
+    account as never,
+    {} as never,
+    {} as never,
+    phoneChangeStub(),
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -125,7 +143,11 @@ describe('AccountController.listDrivers depot scope', () => {
   });
 
   it('scopes a depot-locked caller to their own depot', async () => {
-    await controller.listDrivers({}, { sub: 'kd-1', role: Role.KEPALA_DEPOT, phone: '+62811' } as never);
+    await controller.listDrivers({}, {
+      sub: 'kd-1',
+      role: Role.KEPALA_DEPOT,
+      phone: '+62811',
+    } as never);
     expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
   });
 
@@ -133,10 +155,11 @@ describe('AccountController.listDrivers depot scope', () => {
   // request for another depot's couriers is a mistake worth telling somebody about.
   it('refuses a depot-locked caller asking for another depot', async () => {
     await expect(
-      controller.listDrivers(
-        { depotId: otherDepot },
-        { sub: 'kd-1', role: Role.KEPALA_DEPOT, phone: '+62811' } as never,
-      ),
+      controller.listDrivers({ depotId: otherDepot }, {
+        sub: 'kd-1',
+        role: Role.KEPALA_DEPOT,
+        phone: '+62811',
+      } as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(account.listDrivers).not.toHaveBeenCalled();
   });
@@ -144,40 +167,59 @@ describe('AccountController.listDrivers depot scope', () => {
   it('refuses a depot-locked caller with no depot at all — never falls back to all', async () => {
     account.getProfile.mockResolvedValue({ assignedDepotId: null });
     await expect(
-      controller.listDrivers(
-        {},
-        { sub: 'kd-2', role: Role.KEPALA_DEPOT, phone: '+62811' } as never,
-      ),
+      controller.listDrivers({}, {
+        sub: 'kd-2',
+        role: Role.KEPALA_DEPOT,
+        phone: '+62811',
+      } as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(account.listDrivers).not.toHaveBeenCalled();
   });
 
   it('scopes a depot manager to the depot they hold, as the staff directory does', async () => {
-    await controller.listDrivers(
-      {},
-      { sub: 'mgr-1', role: Role.MANAGER, phone: '+62811', depotIds: [ownDepot] } as never,
-    );
+    await controller.listDrivers({}, {
+      sub: 'mgr-1',
+      role: Role.MANAGER,
+      phone: '+62811',
+      depotIds: [ownDepot],
+    } as never);
     expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
   });
 
   it('lets HQ read one depot, or the whole network when it asks for neither', async () => {
-    await controller.listDrivers(
-      { depotId: otherDepot },
-      { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: '+62822' } as never,
-    );
+    await controller.listDrivers({ depotId: otherDepot }, {
+      sub: 'hq-1',
+      role: Role.SUPER_ADMIN,
+      phone: '+62822',
+    } as never);
     expect(account.listDrivers).toHaveBeenCalledWith(otherDepot);
 
-    await controller.listDrivers({}, { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: '+62822' } as never);
+    await controller.listDrivers({}, {
+      sub: 'hq-1',
+      role: Role.SUPER_ADMIN,
+      phone: '+62822',
+    } as never);
     expect(account.listDrivers).toHaveBeenLastCalledWith(undefined);
   });
 });
 
 describe('AccountController.importStaff', () => {
   const account = { importStaff: jest.fn() };
-  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
+  const controller = new AccountController(
+    account as never,
+    {} as never,
+    {} as never,
+    phoneChangeStub(),
+  );
 
   it('hands the rows to the service and returns the summary untouched', async () => {
-    const summary = { created: 1, updated: 0, skipped: 0, failed: 0, results: [{ row: 1, status: 'created' }] };
+    const summary = {
+      created: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      results: [{ row: 1, status: 'created' }],
+    };
     account.importStaff.mockResolvedValue(summary);
 
     const rows = [{ phone: '+628990005001', role: Role.HEAD_OFFICE }];
@@ -190,7 +232,12 @@ describe('AccountController.importStaff', () => {
 
 describe('AccountController.lookupByIds', () => {
   const account = { lookupByIds: jest.fn() };
-  const controller = new AccountController(account as never, {} as never, {} as never, phoneChangeStub());
+  const controller = new AccountController(
+    account as never,
+    {} as never,
+    {} as never,
+    phoneChangeStub(),
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -249,7 +296,11 @@ describe('AccountController phone change (K1.4)', () => {
   });
 
   it('hands the confirm step the code and NOTHING that could name a destination', async () => {
-    phoneChange.confirm.mockResolvedValue({ id: 'cust-1', phone: '+6289876543210', role: 'CUSTOMER' });
+    phoneChange.confirm.mockResolvedValue({
+      id: 'cust-1',
+      phone: '+6289876543210',
+      role: 'CUSTOMER',
+    });
 
     const out = await controller.confirmPhoneChange(user, { code: '123456' }, req);
 

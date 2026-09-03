@@ -26,8 +26,7 @@ describe('AuthConfigService', () => {
     expect(config.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
   });
 
-  it('returns the Google client id only when set', () => {
-  });
+  it('returns the Google client id only when set', () => {});
 
   // Blank fails the invite rather than creating half a person — the getter is what the
   // fail-closed check reads, so an empty pair has to come back as an empty pair.

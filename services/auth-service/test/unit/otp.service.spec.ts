@@ -208,7 +208,9 @@ describe('OtpService', () => {
     const customer = activeCustomer();
     await service.issue(customer, OtpPurpose.REGISTRATION);
 
-    await expect(service.verify(customer, OtpPurpose.REGISTRATION, '123456')).resolves.toBeUndefined();
+    await expect(
+      service.verify(customer, OtpPurpose.REGISTRATION, '123456'),
+    ).resolves.toBeUndefined();
     expect(otpRepo.rows[0].consumedAt).not.toBeNull();
   });
 
@@ -216,9 +218,9 @@ describe('OtpService', () => {
     const customer = activeCustomer();
     await service.issue(customer, OtpPurpose.REGISTRATION);
 
-    await expect(service.verify(customer, OtpPurpose.REGISTRATION, '000000')).rejects.toBeInstanceOf(
-      OtpInvalidError,
-    );
+    await expect(
+      service.verify(customer, OtpPurpose.REGISTRATION, '000000'),
+    ).rejects.toBeInstanceOf(OtpInvalidError);
     expect(otpRepo.rows[0].attempts).toBe(1);
   });
 
@@ -232,13 +234,13 @@ describe('OtpService', () => {
       ).rejects.toBeInstanceOf(OtpInvalidError);
     }
     // 5th wrong attempt reaches the max and reports the lock.
-    await expect(service.verify(customer, OtpPurpose.REGISTRATION, '000000')).rejects.toBeInstanceOf(
-      OtpMaxAttemptsError,
-    );
+    await expect(
+      service.verify(customer, OtpPurpose.REGISTRATION, '000000'),
+    ).rejects.toBeInstanceOf(OtpMaxAttemptsError);
     // Even a correct code is now rejected.
-    await expect(service.verify(customer, OtpPurpose.REGISTRATION, '123456')).rejects.toBeInstanceOf(
-      OtpMaxAttemptsError,
-    );
+    await expect(
+      service.verify(customer, OtpPurpose.REGISTRATION, '123456'),
+    ).rejects.toBeInstanceOf(OtpMaxAttemptsError);
   });
 
   // B-4: the limit has to hold for guesses, not for rounds of guesses. Ten requests that

@@ -103,7 +103,12 @@ describe('OTP delivery adapters', () => {
     function mockZenziva(body: unknown, ok = true, status = 200): jest.SpyInstance {
       return jest
         .spyOn(global, 'fetch')
-        .mockResolvedValue({ ok, status, json: async () => body, text: async () => '' } as Response);
+        .mockResolvedValue({
+          ok,
+          status,
+          json: async () => body,
+          text: async () => '',
+        } as Response);
     }
 
     function sentForm(fetchMock: jest.SpyInstance): URLSearchParams {

@@ -3,7 +3,10 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
-import { InternalAuthGuard, INTERNAL_KEY_HEADER } from '../../src/common/guards/internal-auth.guard';
+import {
+  InternalAuthGuard,
+  INTERNAL_KEY_HEADER,
+} from '../../src/common/guards/internal-auth.guard';
 import { JwtAuthGuard } from '../../src/common/guards/jwt-auth.guard';
 import { Role } from '../../src/domain/customer/role.enum';
 import { buildTestConfig } from '../support/fakes';
@@ -21,7 +24,9 @@ describe('JwtAuthGuard', () => {
   const config = buildTestConfig();
 
   function guardWith(reflectorValue: boolean | undefined, jwt: Partial<JwtService>): JwtAuthGuard {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(reflectorValue) } as unknown as Reflector;
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(reflectorValue),
+    } as unknown as Reflector;
     return new JwtAuthGuard(reflector, jwt as JwtService, config);
   }
 
@@ -52,7 +57,9 @@ describe('JwtAuthGuard', () => {
   });
 
   it('accepts a valid token and attaches the identity', async () => {
-    const verifyAsync = jest.fn().mockResolvedValue({ sub: 'c1', role: Role.CUSTOMER, phone: '+62811', exp: 1 });
+    const verifyAsync = jest
+      .fn()
+      .mockResolvedValue({ sub: 'c1', role: Role.CUSTOMER, phone: '+62811', exp: 1 });
     const guard = guardWith(false, { verifyAsync });
     const request: Partial<Request> = { headers: { authorization: 'Bearer good-token' } };
 
@@ -74,7 +81,13 @@ describe('JwtAuthGuard', () => {
   it('carries the depot claim through, so DepotScopeGuard can resolve `own`', async () => {
     const verifyAsync = jest
       .fn()
-      .mockResolvedValue({ sub: 'c1', role: Role.STAFF_DEPOT, phone: '+62811', depotId: 'depot-9', exp: 1 });
+      .mockResolvedValue({
+        sub: 'c1',
+        role: Role.STAFF_DEPOT,
+        phone: '+62811',
+        depotId: 'depot-9',
+        exp: 1,
+      });
     const guard = guardWith(false, { verifyAsync });
     const request: Partial<Request> = { headers: { authorization: 'Bearer good-token' } };
 

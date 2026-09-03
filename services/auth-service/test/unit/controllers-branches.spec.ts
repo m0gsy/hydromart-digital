@@ -22,7 +22,6 @@ function phoneChangeStub() {
   return { request: jest.fn(), confirm: jest.fn() } as never;
 }
 
-
 const publicCustomer = (overrides: Partial<PublicCustomer> = {}): PublicCustomer => ({
   id: 'cust-1',
   phone: '+6281234567890',
@@ -48,7 +47,6 @@ describe('AccountController delegation', () => {
     // to this mock so these cases still exercise the real rule with a mocked profile read.
 
     resolveScopedDepot: (u: never, d?: string) =>
-
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
     updateProfile: jest.fn(),
     lookupByPhone: jest.fn(),
@@ -61,7 +59,12 @@ describe('AccountController delegation', () => {
     logoutAll: jest.fn(),
   };
   const tokens = { logout: jest.fn() };
-  const controller = new AccountController(account as never, tokens as never, { deleteStaffAccount: jest.fn() } as never, phoneChangeStub());
+  const controller = new AccountController(
+    account as never,
+    tokens as never,
+    { deleteStaffAccount: jest.fn() } as never,
+    phoneChangeStub(),
+  );
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' };
 
   beforeEach(() => jest.clearAllMocks());
@@ -239,7 +242,10 @@ describe('AuditController delegation', () => {
 
   it('honours explicit depot pagination + type', async () => {
     audit.list.mockResolvedValue({ items: [], total: 0, page: 3, limit: 10 });
-    await controller.listForDepot({ depotId: 'depot-1', type: 'depot', page: 3, limit: 10 }, hqUser);
+    await controller.listForDepot(
+      { depotId: 'depot-1', type: 'depot', page: 3, limit: 10 },
+      hqUser,
+    );
     expect(audit.list).toHaveBeenCalledWith({
       page: 3,
       limit: 10,
@@ -264,9 +270,7 @@ describe('AuditController delegation', () => {
     await controller.listForDepot({ depotId: 'someone-elses-depot' }, lockedUser);
 
     expect(accounts.resolveScopedDepot).toHaveBeenCalledWith(lockedUser, 'someone-elses-depot');
-    expect(audit.list).toHaveBeenCalledWith(
-      expect.objectContaining({ depotId: 'own-depot' }),
-    );
+    expect(audit.list).toHaveBeenCalledWith(expect.objectContaining({ depotId: 'own-depot' }));
   });
 
   it('refuses when the caller may not read the depot it asked for', async () => {
@@ -327,10 +331,16 @@ describe('AvatarController', () => {
 
   it('rejects an unsupported file, however it was labelled', async () => {
     await expect(
-      controller.upload(user, file({ buffer: Buffer.from('%PDF-1.7 not an image') }) as Express.Multer.File),
+      controller.upload(
+        user,
+        file({ buffer: Buffer.from('%PDF-1.7 not an image') }) as Express.Multer.File,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     await expect(
-      controller.upload(user, file({ buffer: Buffer.from('<script>alert(1)</script>  ') }) as Express.Multer.File),
+      controller.upload(
+        user,
+        file({ buffer: Buffer.from('<script>alert(1)</script>  ') }) as Express.Multer.File,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

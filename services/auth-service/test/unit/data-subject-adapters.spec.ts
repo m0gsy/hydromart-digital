@@ -3,7 +3,10 @@ import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/pri
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
 import { RemoteErasureExecutor } from '../../src/infrastructure/http/remote-erasure.executor';
 import { UnenforcedErasure } from '../../src/infrastructure/http/unenforced-erasure.executor';
-import { anonymisedIdentity, isDecidable } from '../../src/domain/data-subject/data-subject-request';
+import {
+  anonymisedIdentity,
+  isDecidable,
+} from '../../src/domain/data-subject/data-subject-request';
 import { isConsentPurpose } from '../../src/domain/data-subject/consent';
 import { ConsentPrismaRepository } from '../../src/infrastructure/prisma/repositories/consent.prisma.repository';
 
@@ -24,7 +27,12 @@ describe('DataSubjectController (delegation)', () => {
     request: jest.fn(async () => row),
     listMine: jest.fn(async () => [row]),
     listForStaff: jest.fn(async () => [row]),
-    exportFor: jest.fn(async () => ({ exportedAt: 'now', account: {}, customer: {}, notIncluded: [] })),
+    exportFor: jest.fn(async () => ({
+      exportedAt: 'now',
+      account: {},
+      customer: {},
+      notIncluded: [],
+    })),
     approve: jest.fn(async () => ({ request: { ...row, status: 'COMPLETED' as const } })),
     reject: jest.fn(async () => ({ ...row, status: 'REJECTED' as const, reason: 'no' })),
   };
@@ -296,8 +304,20 @@ describe('ConsentPrismaRepository', () => {
     consentRecord.create.mockReturnValue(row as never);
     $transaction.mockResolvedValue([row, row] as never);
     const out = await repo.recordMany([
-      { customerId: 'cust-1', purpose: 'TERMS', granted: true, documentVersion: '1.0', source: 'registration' },
-      { customerId: 'cust-1', purpose: 'PRIVACY', granted: true, documentVersion: '1.0', source: 'registration' },
+      {
+        customerId: 'cust-1',
+        purpose: 'TERMS',
+        granted: true,
+        documentVersion: '1.0',
+        source: 'registration',
+      },
+      {
+        customerId: 'cust-1',
+        purpose: 'PRIVACY',
+        granted: true,
+        documentVersion: '1.0',
+        source: 'registration',
+      },
     ]);
     expect($transaction).toHaveBeenCalledTimes(1);
     expect(out).toHaveLength(2);
@@ -341,7 +361,12 @@ describe('RemoteErasureExecutor', () => {
   const originalFetch = global.fetch;
   const subject = { customerId: 'cust-1', phone: '+628111' };
   const make = (url = 'https://crm.example.com', key = 'k') =>
-    new RemoteErasureExecutor('crm.messages', url, '/api/v1/notifications/internal/pdp-anonymise', key);
+    new RemoteErasureExecutor(
+      'crm.messages',
+      url,
+      '/api/v1/notifications/internal/pdp-anonymise',
+      key,
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();

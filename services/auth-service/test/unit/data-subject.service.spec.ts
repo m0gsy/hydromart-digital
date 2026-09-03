@@ -122,7 +122,13 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       const saved: { id: string; status: string }[] = [];
       const makeRow = (id: string) => {
         const row = { id, role: overrides.role ?? 'KEPALA_DEPOT', status: 'ACTIVE' };
-        return { ...row, markDeleted: () => void (row.status = 'DELETED'), get status() { return row.status; } };
+        return {
+          ...row,
+          markDeleted: () => void (row.status = 'DELETED'),
+          get status() {
+            return row.status;
+          },
+        };
       };
       // B-4: the guard and the write are ONE repository call now, so the fake decides both
       // together — which is the whole point, and what a `listStaff` count could not express.
@@ -194,9 +200,7 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     // is the one that notices, and the caller has to translate that, not ignore it.
     it('reports not-found when the account disappears mid-delete', async () => {
       const { svc, repo } = makeService({});
-      repo.markDeletedGuardingLastSuperAdmin = jest.fn(
-        async (_id: string) => 'not-found',
-      ) as never;
+      repo.markDeletedGuardingLastSuperAdmin = jest.fn(async (_id: string) => 'not-found') as never;
       await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
         CustomerNotFoundError,
       );
@@ -288,7 +292,9 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     const created = await service.request(CUSTOMER, 'DELETE', null);
     customerData.anonymise.mockRejectedValueOnce(new Error('customer-service unreachable'));
 
-    await expect(service.approve(created.id, STAFF)).rejects.toThrow('customer-service unreachable');
+    await expect(service.approve(created.id, STAFF)).rejects.toThrow(
+      'customer-service unreachable',
+    );
 
     expect((await requests.findById(created.id))?.status).toBe('PENDING');
     expect(requests.anonymised).toEqual([]);
@@ -300,7 +306,9 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
 
     const result = await service.approve(created.id, STAFF);
 
-    expect(result.export?.customer).toMatchObject({ error: expect.stringContaining('unreachable') });
+    expect(result.export?.customer).toMatchObject({
+      error: expect.stringContaining('unreachable'),
+    });
   });
 
   it('refuses to decide the same request twice', async () => {
@@ -385,7 +393,15 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
         exemptions as never,
       );
 
-    const executor = (dataset: string, over: Partial<{ configured: boolean; rows: number; fail: string; unenforcedReason: string }> = {}) => ({
+    const executor = (
+      dataset: string,
+      over: Partial<{
+        configured: boolean;
+        rows: number;
+        fail: string;
+        unenforcedReason: string;
+      }> = {},
+    ) => ({
       dataset,
       configured: over.configured ?? true,
       unenforcedReason: over.unenforcedReason,
@@ -430,7 +446,10 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     // not the generic "not configured" — `depot.order_disputes` has no customerId column.
     it('carries the declared reason for a dataset with no executor yet', async () => {
       const svc = withRegistry([
-        executor('depot.order_disputes', { configured: false, unenforcedReason: 'no customerId column' }),
+        executor('depot.order_disputes', {
+          configured: false,
+          unenforcedReason: 'no customerId column',
+        }),
       ]);
       const created = await svc.request(CUSTOMER, 'DELETE', null);
 
@@ -454,7 +473,11 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
 
       expect(result.request.status).toBe('COMPLETED');
       expect(audit.record.mock.calls.at(-1)?.[0].metadata.coverage).toContainEqual(
-        expect.objectContaining({ dataset: 'crm.messages', coverage: 'FAILED', note: 'owner responded 503' }),
+        expect.objectContaining({
+          dataset: 'crm.messages',
+          coverage: 'FAILED',
+          note: 'owner responded 503',
+        }),
       );
     });
 

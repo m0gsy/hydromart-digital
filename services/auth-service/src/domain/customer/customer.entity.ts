@@ -1,4 +1,4 @@
-import { AccountNotActiveError } from '../errors/auth.errors';
+import { AccountNotActiveError, AccountPendingVerificationError } from '../errors/auth.errors';
 import { CustomerStatus } from './customer-status.enum';
 import { Role } from './role.enum';
 
@@ -93,7 +93,10 @@ export class Customer {
       case CustomerStatus.ACTIVE:
         return;
       case CustomerStatus.PENDING_VERIFICATION:
-        throw new AccountNotActiveError('Please verify your phone number first.');
+        // CA-3-05: its own code, because the answer is a new OTP rather than a support
+        // ticket. The other two branches keep `AccountNotActiveError` — those DO need a
+        // human, and flattening all three into one code is what sent this one to support.
+        throw new AccountPendingVerificationError();
       case CustomerStatus.SUSPENDED:
         throw new AccountNotActiveError('This account has been suspended.');
       case CustomerStatus.DELETED:

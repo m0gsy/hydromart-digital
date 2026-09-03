@@ -79,6 +79,26 @@ export class RoleEscalationError extends DomainError {
   }
 }
 
+/**
+ * CA-3-05: registered, never verified — and told to contact support.
+ *
+ * `AccountNotActiveError` covered three states with one code: PENDING_VERIFICATION,
+ * SUSPENDED and DELETED. The web client cannot tell them apart from a code, so it showed
+ * the one message it had for all three — "Akun ini tidak aktif. Hubungi dukungan
+ * Hydromart." Somebody who had signed up and closed the app before typing the OTP was sent
+ * to a support queue for something they could fix themselves in ten seconds.
+ *
+ * A separate code because the ANSWER is different, not because the status is: suspended and
+ * deleted genuinely need a human. This one needs a new code sent to the same phone.
+ */
+export class AccountPendingVerificationError extends DomainError {
+  readonly code = 'AUTH_ACCOUNT_PENDING_VERIFICATION';
+  readonly status = HTTP.FORBIDDEN;
+  constructor(message = 'This number is registered but not verified yet.') {
+    super(message);
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

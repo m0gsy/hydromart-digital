@@ -106,7 +106,9 @@ describe('HrDirectoryHttpAdapter', () => {
   });
 
   it('does not call hr-service at all for an empty file', async () => {
-    await expect(new HrDirectoryHttpAdapter(configured).provisionEmployees([])).resolves.toEqual([]);
+    await expect(new HrDirectoryHttpAdapter(configured).provisionEmployees([])).resolves.toEqual(
+      [],
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -156,9 +158,10 @@ describe('HrDirectoryHttpAdapter when hr-service hangs', () => {
 
   it('aborts and raises instead of hanging the invite', async () => {
     // The handler has to be attached before the timer fires, or the rejection lands unhandled.
-    const settled = new HrDirectoryHttpAdapter(configured)
-      .provisionEmployee(INPUT)
-      .then(() => 'resolved', () => 'rejected');
+    const settled = new HrDirectoryHttpAdapter(configured).provisionEmployee(INPUT).then(
+      () => 'resolved',
+      () => 'rejected',
+    );
     await jest.advanceTimersByTimeAsync(30_000);
     expect(await settled).toBe('rejected');
   });

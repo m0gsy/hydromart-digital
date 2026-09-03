@@ -90,7 +90,11 @@ describe('auth env validation — OTP channel credentials', () => {
 
   // H-26: `console` prints the login code to the container log. Production must not boot on it.
   it('refuses the console channel in production', () => {
-    const { error } = validate({ ...BASE, NODE_ENV: 'production', STORAGE_PUBLIC_BASE_URL: 'https://cdn.example.com' });
+    const { error } = validate({
+      ...BASE,
+      NODE_ENV: 'production',
+      STORAGE_PUBLIC_BASE_URL: 'https://cdn.example.com',
+    });
     expect(error?.message).toContain('OTP_DELIVERY_CHANNEL');
   });
 

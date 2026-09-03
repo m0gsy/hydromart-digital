@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError, primeAppHeaders } from '@/lib/api';
 
 function mockFetch(status: number, body: unknown) {
-  return vi.fn(async (_url?: string, _init?: RequestInit) =>
-    new Response(status === 204 ? null : JSON.stringify(body), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    }),
+  return vi.fn(
+    async (_url?: string, _init?: RequestInit) =>
+      new Response(status === 204 ? null : JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }),
   );
 }
 
@@ -15,7 +16,10 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('api client', () => {
   it('flattens a NestJS validation error array into one message', async () => {
-    vi.stubGlobal('fetch', mockFetch(400, { message: ['phone must not be empty', 'code too short'] }));
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(400, { message: ['phone must not be empty', 'code too short'] }),
+    );
     await expect(api.get('/x')).rejects.toMatchObject({
       status: 400,
       message: 'phone must not be empty, code too short',
@@ -44,9 +48,12 @@ describe('api client', () => {
   });
 
   it('maps a network failure to a status-0 ApiError', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new TypeError('failed to fetch');
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('failed to fetch');
+      }),
+    );
     await expect(api.get('/x')).rejects.toBeInstanceOf(ApiError);
     await expect(api.get('/x')).rejects.toHaveProperty('status', 0);
   });
@@ -66,7 +73,10 @@ describe('api client', () => {
     vi.stubGlobal('fetch', fetchMock);
     await api.del('/x', { scope: 'GLOBAL', key: 'k' }, true);
     const [, init] = fetchMock.mock.calls[0]!;
-    expect(init).toMatchObject({ method: 'DELETE', body: JSON.stringify({ scope: 'GLOBAL', key: 'k' }) });
+    expect(init).toMatchObject({
+      method: 'DELETE',
+      body: JSON.stringify({ scope: 'GLOBAL', key: 'k' }),
+    });
   });
 });
 
@@ -75,9 +85,12 @@ describe('api client', () => {
 // signal was answered in English under `lang="id"`. Indonesian is the bundled default.
 describe('messages the client writes itself', () => {
   it('a dropped connection is reported in Indonesian', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new TypeError('Failed to fetch');
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
     await expect(api.get('/anything')).rejects.toMatchObject({
       status: 0,
       message: 'Tidak bisa menghubungi server. Periksa koneksimu lalu coba lagi.',
@@ -98,14 +111,65 @@ describe('messages the client writes itself', () => {
 // screen does not have to know a code exists.
 describe('E6 · named server errors are answered in Indonesian', () => {
   const cases: Array<[string, number, string, string]> = [
-    ['AUTH_CUSTOMER_NOT_FOUND', 404, 'No account is registered with this phone number.', 'Nomor ini belum terdaftar.'],
-    ['AUTH_INVALID_PHONE', 422, '"abc" is not a valid Indonesian mobile number.', 'Nomor HP Indonesia tidak valid. Contoh: 081234567890.'],
-    ['AUTH_PHONE_TAKEN', 409, 'This phone number is already registered.', 'Nomor ini sudah terdaftar. Silakan masuk.'],
-    ['AUTH_EMAIL_TAKEN', 409, 'This email address is already registered.', 'Email ini sudah dipakai akun lain.'],
-    ['AUTH_OTP_INVALID', 401, 'The verification code is invalid or has expired.', 'Kode verifikasi salah.'],
-    ['AUTH_OTP_EXPIRED', 401, 'The verification code has expired.', 'Kode verifikasi sudah kedaluwarsa. Minta kode baru.'],
-    ['AUTH_OTP_MAX_ATTEMPTS', 429, 'Too many incorrect attempts. Please request a new code.', 'Terlalu banyak percobaan. Minta kode baru.'],
-    ['AUTH_ACCOUNT_NOT_ACTIVE', 403, 'This account is not active.', 'Akun ini tidak aktif. Hubungi dukungan Hydromart.'],
+    [
+      'AUTH_CUSTOMER_NOT_FOUND',
+      404,
+      'No account is registered with this phone number.',
+      'Nomor ini belum terdaftar.',
+    ],
+    [
+      'AUTH_INVALID_PHONE',
+      422,
+      '"abc" is not a valid Indonesian mobile number.',
+      'Nomor HP Indonesia tidak valid. Contoh: 081234567890.',
+    ],
+    [
+      'AUTH_PHONE_TAKEN',
+      409,
+      'This phone number is already registered.',
+      'Nomor ini sudah terdaftar. Silakan masuk.',
+    ],
+    [
+      'AUTH_EMAIL_TAKEN',
+      409,
+      'This email address is already registered.',
+      'Email ini sudah dipakai akun lain.',
+    ],
+    [
+      'AUTH_OTP_INVALID',
+      401,
+      'The verification code is invalid or has expired.',
+      'Kode verifikasi salah.',
+    ],
+    [
+      'AUTH_OTP_EXPIRED',
+      401,
+      'The verification code has expired.',
+      'Kode verifikasi sudah kedaluwarsa. Minta kode baru.',
+    ],
+    [
+      'AUTH_OTP_MAX_ATTEMPTS',
+      429,
+      'Too many incorrect attempts. Please request a new code.',
+      'Terlalu banyak percobaan. Minta kode baru.',
+    ],
+    [
+      'AUTH_ACCOUNT_NOT_ACTIVE',
+      403,
+      'This account is not active.',
+      'Akun ini tidak aktif. Hubungi dukungan Hydromart.',
+    ],
+    /*
+     * CA-3-05: its own code, because the answer is different. Suspended and deleted need a
+     * human; a number that was registered and never verified needs a new OTP, and used to
+     * be sent to the support queue by sharing a code with the other two.
+     */
+    [
+      'AUTH_ACCOUNT_PENDING_VERIFICATION',
+      403,
+      'This number is registered but not verified yet.',
+      'Nomor ini sudah terdaftar tapi belum diverifikasi. Kami kirim ulang kodenya.',
+    ],
   ];
 
   it.each(cases)('%s is translated', async (code, status, english, indonesian) => {
@@ -114,12 +178,22 @@ describe('E6 · named server errors are answered in Indonesian', () => {
   });
 
   it('keeps the code on the error so a screen can branch on it', async () => {
-    vi.stubGlobal('fetch', mockFetch(429, { statusCode: 429, code: 'AUTH_OTP_COOLDOWN', message: 'Please wait 60s.' }));
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(429, { statusCode: 429, code: 'AUTH_OTP_COOLDOWN', message: 'Please wait 60s.' }),
+    );
     await expect(api.get('/x')).rejects.toHaveProperty('code', 'AUTH_OTP_COOLDOWN');
   });
 
   it('leaves an unmapped code showing whatever the server said', async () => {
-    vi.stubGlobal('fetch', mockFetch(422, { statusCode: 422, code: 'ORDER_SOMETHING_ELSE', message: 'Pesanan ditolak.' }));
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(422, {
+        statusCode: 422,
+        code: 'ORDER_SOMETHING_ELSE',
+        message: 'Pesanan ditolak.',
+      }),
+    );
     await expect(api.get('/x')).rejects.toMatchObject({ message: 'Pesanan ditolak.' });
   });
 });

@@ -268,7 +268,9 @@ describe('PhoneChangeService', () => {
     });
 
     it('addresses an account with no name on it without saying "undefined"', async () => {
-      const nameless = await customers.save(makeCustomer({ phone: '+6281111111111', fullName: null }));
+      const nameless = await customers.save(
+        makeCustomer({ phone: '+6281111111111', fullName: null }),
+      );
       await service.request(nameless.id, NEW, ctx);
 
       await service.confirm(nameless.id, delivery.lastCode!, ctx);

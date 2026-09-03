@@ -12,10 +12,7 @@ import {
 } from '../../src/application/services/consent.service';
 import { ConsentController } from '../../src/modules/auth/consent.controller';
 import { CAPABILITY_KEY, ROLES_KEY, Role } from '@hydromart/platform';
-import {
-  ConsentLagPage,
-  ConsentLagReader,
-} from '../../src/application/ports/consent.repository';
+import { ConsentLagPage, ConsentLagReader } from '../../src/application/ports/consent.repository';
 import { ConsentPrismaRepository } from '../../src/infrastructure/prisma/repositories/consent.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import {
@@ -320,10 +317,7 @@ describe('ConsentService.fleetLag', () => {
         .mockResolvedValueOnce([]),
     } as unknown as PrismaService);
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        ConsentService,
-        { provide: AUTH_TOKENS.ConsentRepository, useValue: provider },
-      ],
+      providers: [ConsentService, { provide: AUTH_TOKENS.ConsentRepository, useValue: provider }],
     }).compile();
 
     const report = await moduleRef.get(ConsentService).fleetLag({});
@@ -464,7 +458,9 @@ describe('ConsentPrismaRepository.mandatoryLag', () => {
   });
 
   it('reports an explicit refusal as a refusal, never folded into the gap', async () => {
-    const { repo } = repoWith([{ id: 'cust-3', present: ['TERMS'], refused: ['TERMS'], outdated: [] }]);
+    const { repo } = repoWith([
+      { id: 'cust-3', present: ['TERMS'], refused: ['TERMS'], outdated: [] },
+    ]);
     expect((await repo.mandatoryLag(query)).items[0]).toEqual({
       id: 'cust-3',
       neverAsked: ['PRIVACY'],
@@ -512,12 +508,10 @@ describe('ConsentPrismaRepository.mandatoryLag', () => {
 describe('consent routes are bound to the capability they were reasoned about', () => {
   const capabilityOf = (method: keyof ConsentController) =>
     Reflect.getMetadata(CAPABILITY_KEY, ConsentController.prototype[method] as object) as
-      | string
-      | undefined;
+      string | undefined;
   const rolesOf = (method: keyof ConsentController) =>
     Reflect.getMetadata(ROLES_KEY, ConsentController.prototype[method] as object) as
-      | string[]
-      | undefined;
+      string[] | undefined;
 
   it('the fleet report is PDP desk work, not general HQ console work', () => {
     // `pdpRequests` is the capability that already decides an export or a deletion. A

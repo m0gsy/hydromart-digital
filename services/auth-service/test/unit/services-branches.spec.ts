@@ -1,4 +1,8 @@
-import { CustomerNotFoundError, InvalidRefreshTokenError, OtpInvalidError } from '../../src/domain/errors/auth.errors';
+import {
+  CustomerNotFoundError,
+  InvalidRefreshTokenError,
+  OtpInvalidError,
+} from '../../src/domain/errors/auth.errors';
 import { Role } from '../../src/domain/customer/role.enum';
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
@@ -54,7 +58,9 @@ describe('AccountService branch gaps', () => {
   });
 
   it('404s a phone lookup with no match', async () => {
-    await expect(service.lookupByPhone('081299998888')).rejects.toBeInstanceOf(CustomerNotFoundError);
+    await expect(service.lookupByPhone('081299998888')).rejects.toBeInstanceOf(
+      CustomerNotFoundError,
+    );
   });
 
   it('404s a profile update for a missing account', async () => {
@@ -79,7 +85,12 @@ describe('AccountService branch gaps', () => {
   it('renames an existing account while promoting it to staff', async () => {
     const customer = makeCustomer({ phone: '+628990002222', role: Role.CUSTOMER, fullName: 'Old' });
     customers.seed(customer);
-    const promoted = await service.inviteStaff('+628990002222', Role.MANAGER, 'New Name', 'depot-1');
+    const promoted = await service.inviteStaff(
+      '+628990002222',
+      Role.MANAGER,
+      'New Name',
+      'depot-1',
+    );
     expect(promoted.role).toBe(Role.MANAGER);
     expect(promoted.fullName).toBe('New Name');
   });
@@ -122,7 +133,9 @@ describe('SessionService branch gaps', () => {
     const first = await service.issueForCustomer(customer, ctx);
     customers.rows.delete(customer.id); // account deleted between issue and refresh
 
-    await expect(service.refresh(first.refreshToken, ctx)).rejects.toBeInstanceOf(InvalidRefreshTokenError);
+    await expect(service.refresh(first.refreshToken, ctx)).rejects.toBeInstanceOf(
+      InvalidRefreshTokenError,
+    );
   });
 
   it('revokes a session family the customer owns and reports true', async () => {
@@ -182,7 +195,10 @@ describe('OtpVerificationService branch gaps', () => {
   });
 
   it('completes registration even when the welcome notification rejects (fail-open)', async () => {
-    const pending = makeCustomer({ status: CustomerStatus.PENDING_VERIFICATION, phoneVerifiedAt: null });
+    const pending = makeCustomer({
+      status: CustomerStatus.PENDING_VERIFICATION,
+      phoneVerifiedAt: null,
+    });
     customers.seed(pending);
     await otp.issue(pending, OtpPurpose.REGISTRATION);
 
@@ -205,7 +221,12 @@ describe('OtpVerificationService branch gaps', () => {
 
   it('still rejects verification for an unknown phone (no disclosure)', async () => {
     await expect(
-      service.verify({ phone: '081200000000', code: '123456', purpose: OtpPurpose.LOGIN, context: ctx }),
+      service.verify({
+        phone: '081200000000',
+        code: '123456',
+        purpose: OtpPurpose.LOGIN,
+        context: ctx,
+      }),
     ).rejects.toBeInstanceOf(OtpInvalidError);
   });
 });

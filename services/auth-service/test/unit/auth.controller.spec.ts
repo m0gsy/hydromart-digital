@@ -12,7 +12,11 @@ import { TokenService } from '../../src/application/services/token.service';
 // The DTO always states deliveryPending, so the shape these routes return carries it too:
 // false on the ordinary path, true when the SMS gateway had not answered by reply time.
 const CHALLENGE = { phoneMasked: '+62812****890', expiresInSeconds: 300 };
-const CHALLENGE_RESPONSE = { ...CHALLENGE, resendCooldownSeconds: undefined, deliveryPending: false };
+const CHALLENGE_RESPONSE = {
+  ...CHALLENGE,
+  resendCooldownSeconds: undefined,
+  deliveryPending: false,
+};
 const SESSION = {
   tokenType: 'Bearer' as const,
   accessToken: 'at',

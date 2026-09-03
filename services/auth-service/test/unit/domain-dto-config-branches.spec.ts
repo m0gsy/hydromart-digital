@@ -27,21 +27,45 @@ import { getRequestContext } from '../../src/common/http/request-context';
 import { HealthController } from '../../src/modules/health/health.controller';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { MulterExceptionFilter } from '../../src/modules/auth/multer-exception.filter';
-import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from '../../src/modules/auth/dto/audit.dto';
-import { ImportStaffDto, InviteStaffDto, ListStaffQueryDto, SetStaffDepotDto } from '../../src/modules/auth/dto/staff.dto';
+import {
+  AuditLogDto,
+  AuditQueryDto,
+  DepotAuditQueryDto,
+  IngestAuditDto,
+} from '../../src/modules/auth/dto/audit.dto';
+import {
+  ImportStaffDto,
+  InviteStaffDto,
+  ListStaffQueryDto,
+  SetStaffDepotDto,
+} from '../../src/modules/auth/dto/staff.dto';
 import { SessionInfoDto } from '../../src/modules/auth/dto/responses.dto';
 import { buildTestConfig } from '../support/fakes';
 
 const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
-  id: 'cust-1', phone: '+6281234567890', email: null, fullName: null, role: Role.CUSTOMER,
-  status: CustomerStatus.ACTIVE, googleSub: null, avatarUrl: null, assignedDepotId: null,
-  vehicleType: null, plateNumber: null, phoneVerifiedAt: null, lastLoginAt: null,
-  createdAt: new Date('2026-01-01Z'), updatedAt: new Date('2026-01-01Z'), ...overrides,
+  id: 'cust-1',
+  phone: '+6281234567890',
+  email: null,
+  fullName: null,
+  role: Role.CUSTOMER,
+  status: CustomerStatus.ACTIVE,
+  googleSub: null,
+  avatarUrl: null,
+  assignedDepotId: null,
+  vehicleType: null,
+  plateNumber: null,
+  phoneVerifiedAt: null,
+  lastLoginAt: null,
+  createdAt: new Date('2026-01-01Z'),
+  updatedAt: new Date('2026-01-01Z'),
+  ...overrides,
 });
 
 describe('Customer entity branch gaps', () => {
   it('fills a missing email from Google but keeps an existing name', () => {
-    const customer = Customer.fromPersistence(baseProps({ email: null, fullName: 'Existing Name' }));
+    const customer = Customer.fromPersistence(
+      baseProps({ email: null, fullName: 'Existing Name' }),
+    );
     customer.linkGoogle('sub-1', 'from-google@x.com', 'Google Name');
     expect(customer.email).toBe('from-google@x.com'); // was null → filled
     expect(customer.fullName).toBe('Existing Name'); // already set → untouched
@@ -54,7 +78,9 @@ describe('Customer entity branch gaps', () => {
   });
 
   it('sets vehicle info and leaves undefined fields untouched', () => {
-    const customer = Customer.fromPersistence(baseProps({ vehicleType: 'OLD', plateNumber: 'OLD-1' }));
+    const customer = Customer.fromPersistence(
+      baseProps({ vehicleType: 'OLD', plateNumber: 'OLD-1' }),
+    );
     customer.setVehicle('MOTOR', 'B 1 ABC');
     expect(customer.vehicleType).toBe('MOTOR');
     expect(customer.plateNumber).toBe('B 1 ABC');
@@ -104,7 +130,11 @@ describe('AuthConfigService getters', () => {
     });
     expect(config.storagePublicBaseUrl).toBe('https://cdn.example');
     expect(config.storageDriver).toBe('s3');
-    expect(config.s3).toMatchObject({ endpoint: 'https://nos.example', region: 'auto', bucket: 'bucket' });
+    expect(config.s3).toMatchObject({
+      endpoint: 'https://nos.example',
+      region: 'auto',
+      bucket: 'bucket',
+    });
   });
 });
 
@@ -112,34 +142,52 @@ describe('getRequestContext', () => {
   const make = (partial: Partial<Request>): Request => partial as Request;
 
   it('takes the first ip from an array x-forwarded-for', () => {
-    const ctx = getRequestContext(make({ headers: { 'x-forwarded-for': ['1.1.1.1', '2.2.2.2'], 'user-agent': 'jest' }, socket: {} as never }));
+    const ctx = getRequestContext(
+      make({
+        headers: { 'x-forwarded-for': ['1.1.1.1', '2.2.2.2'], 'user-agent': 'jest' },
+        socket: {} as never,
+      }),
+    );
     expect(ctx.ipAddress).toBe('1.1.1.1');
     expect(ctx.userAgent).toBe('jest');
   });
 
   it('takes the first ip from a comma-joined x-forwarded-for', () => {
-    const ctx = getRequestContext(make({ headers: { 'x-forwarded-for': '3.3.3.3, 4.4.4.4' }, socket: {} as never }));
+    const ctx = getRequestContext(
+      make({ headers: { 'x-forwarded-for': '3.3.3.3, 4.4.4.4' }, socket: {} as never }),
+    );
     expect(ctx.ipAddress).toBe('3.3.3.3');
     expect(ctx.userAgent).toBeNull();
   });
 
   it('falls back to request.ip then socket.remoteAddress', () => {
-    expect(getRequestContext(make({ headers: {}, ip: '5.5.5.5', socket: {} as never })).ipAddress).toBe('5.5.5.5');
-    expect(getRequestContext(make({ headers: {}, socket: { remoteAddress: '6.6.6.6' } as never })).ipAddress).toBe('6.6.6.6');
+    expect(
+      getRequestContext(make({ headers: {}, ip: '5.5.5.5', socket: {} as never })).ipAddress,
+    ).toBe('5.5.5.5');
+    expect(
+      getRequestContext(make({ headers: {}, socket: { remoteAddress: '6.6.6.6' } as never }))
+        .ipAddress,
+    ).toBe('6.6.6.6');
     expect(getRequestContext(make({ headers: {}, socket: {} as never })).ipAddress).toBeNull();
   });
 });
 
 describe('query DTOs coerce numeric params', () => {
   it('transforms ListStaffQueryDto page/limit to numbers', () => {
-    const dto = plainToInstance(ListStaffQueryDto, { page: '2', limit: '10', role: Role.STAFF_DEPOT });
+    const dto = plainToInstance(ListStaffQueryDto, {
+      page: '2',
+      limit: '10',
+      role: Role.STAFF_DEPOT,
+    });
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(10);
   });
 
   it('transforms audit query DTOs', () => {
     expect(plainToInstance(AuditQueryDto, { page: '3', limit: '5' }).page).toBe(3);
-    expect(plainToInstance(DepotAuditQueryDto, { depotId: 'd', page: '4', limit: '9' }).limit).toBe(9);
+    expect(plainToInstance(DepotAuditQueryDto, { depotId: 'd', page: '4', limit: '9' }).limit).toBe(
+      9,
+    );
     expect(plainToInstance(IngestAuditDto, { action: 'x', success: true }).action).toBe('x');
   });
 });
@@ -186,8 +234,17 @@ describe('InviteStaffDto salary pairing', () => {
 
 describe('AuditLogDto.from', () => {
   const item = (metadata: Record<string, unknown> | null) => ({
-    id: 'a1', customerId: 'c1', action: 'depot.suspend', success: true, ipAddress: null, userAgent: null,
-    metadata, createdAt: new Date('2026-01-01T00:00:00Z'), actorEmail: null, actorName: null, actorRole: null,
+    id: 'a1',
+    customerId: 'c1',
+    action: 'depot.suspend',
+    success: true,
+    ipAddress: null,
+    userAgent: null,
+    metadata,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    actorEmail: null,
+    actorName: null,
+    actorRole: null,
   });
 
   it('lifts a string target out of metadata', () => {
@@ -203,7 +260,13 @@ describe('AuditLogDto.from', () => {
 describe('SessionInfoDto.from', () => {
   it('copies the session fields', () => {
     const now = new Date();
-    const dto = SessionInfoDto.from({ id: 's1', createdAt: now, expiresAt: now, ipAddress: '1.1.1.1', userAgent: 'jest' });
+    const dto = SessionInfoDto.from({
+      id: 's1',
+      createdAt: now,
+      expiresAt: now,
+      ipAddress: '1.1.1.1',
+      userAgent: 'jest',
+    });
     expect(dto).toMatchObject({ id: 's1', ipAddress: '1.1.1.1', userAgent: 'jest' });
   });
 });
@@ -212,11 +275,20 @@ describe('AllExceptionsFilter http error codes', () => {
   function run(exception: HttpException): { status?: number; body?: { code?: string } } {
     const captured: { status?: number; body?: { code?: string } } = {};
     const response = {
-      status(code: number) { captured.status = code; return this; },
-      json(payload: { code?: string }) { captured.body = payload; return this; },
+      status(code: number) {
+        captured.status = code;
+        return this;
+      },
+      json(payload: { code?: string }) {
+        captured.body = payload;
+        return this;
+      },
     };
     const host = {
-      switchToHttp: () => ({ getResponse: () => response, getRequest: () => ({ url: '/x', method: 'GET' }) }),
+      switchToHttp: () => ({
+        getResponse: () => response,
+        getRequest: () => ({ url: '/x', method: 'GET' }),
+      }),
     } as unknown as ArgumentsHost;
     new AllExceptionsFilter().catch(exception, host);
     return captured;
@@ -242,26 +314,43 @@ describe('AllExceptionsFilter http error codes', () => {
 
 describe('HealthController', () => {
   it('reports ok when the database probe succeeds', async () => {
-    const prisma = { $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } as unknown as PrismaService;
+    const prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+    } as unknown as PrismaService;
     const result = await new HealthController(prisma).check();
     expect(result.status).toBe('ok');
     expect(result.checks.database).toBe('up');
   });
 
   it('throws 503 when the database probe fails', async () => {
-    const prisma = { $queryRaw: jest.fn().mockRejectedValue(new Error('no db')) } as unknown as PrismaService;
-    await expect(new HealthController(prisma).check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const prisma = {
+      $queryRaw: jest.fn().mockRejectedValue(new Error('no db')),
+    } as unknown as PrismaService;
+    await expect(new HealthController(prisma).check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });
 
 describe('MulterExceptionFilter', () => {
-  function run(error: MulterError): { status?: number; body?: { statusCode?: number; error?: string } } {
+  function run(error: MulterError): {
+    status?: number;
+    body?: { statusCode?: number; error?: string };
+  } {
     const captured: { status?: number; body?: { statusCode?: number; error?: string } } = {};
     const response = {
-      status(code: number) { captured.status = code; return this; },
-      json(payload: { statusCode?: number; error?: string }) { captured.body = payload; return this; },
+      status(code: number) {
+        captured.status = code;
+        return this;
+      },
+      json(payload: { statusCode?: number; error?: string }) {
+        captured.body = payload;
+        return this;
+      },
     };
-    const host = { switchToHttp: () => ({ getResponse: () => response }) } as unknown as ArgumentsHost;
+    const host = {
+      switchToHttp: () => ({ getResponse: () => response }),
+    } as unknown as ArgumentsHost;
     new MulterExceptionFilter().catch(error, host);
     return captured;
   }
