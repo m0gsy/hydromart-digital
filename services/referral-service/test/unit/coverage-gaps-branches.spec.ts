@@ -163,10 +163,10 @@ describe('SettingsController reset depotId branch', () => {
     const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
 
     await controller.reset({ scope: 'DEPOT', depotId: 'd1', key: 'referrerPoints' }, staff);
-    expect(reset).toHaveBeenLastCalledWith('DEPOT', 'd1', 'referrerPoints');
+    expect(reset).toHaveBeenLastCalledWith('DEPOT', 'd1', 'referrerPoints', 'u1');
 
     await controller.reset({ scope: 'DEPOT', key: 'referrerPoints' } as never, staff);
-    expect(reset).toHaveBeenLastCalledWith('DEPOT', null, 'referrerPoints');
+    expect(reset).toHaveBeenLastCalledWith('DEPOT', null, 'referrerPoints', 'u1');
   });
 
   // GLOBAL scope now needs the `settingsGlobal` capability rather than a hardcoded
