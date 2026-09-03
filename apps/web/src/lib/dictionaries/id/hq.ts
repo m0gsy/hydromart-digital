@@ -1540,6 +1540,9 @@ export const hq = {
     empty: 'Belum ada dataset.',
   },
   security: {
+    idleEnforced: 'Ditegakkan: sesi yang menganggur lebih lama dari ini harus masuk ulang.',
+    ipUnenforced:
+      'BELUM DITEGAKKAN. Daftar ini tersimpan tapi belum ada yang menolak permintaan dari IP di luarnya. Jangan jadikan ini satu-satunya pengaman sampai penegakannya diputuskan dan dipasang.',
     title: 'Keamanan & 2FA',
     subtitle: 'Kebijakan sesi, 2FA, dan sesi aktif',
     sessionPolicy: 'Kebijakan sesi',

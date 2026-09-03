@@ -1529,6 +1529,9 @@ export const hq = {
     empty: 'No datasets yet.',
   },
   security: {
+    idleEnforced: 'Enforced: a session idle longer than this must sign in again.',
+    ipUnenforced:
+      'NOT ENFORCED. This list is stored, but nothing yet refuses a request from an address outside it. Do not rely on it as your only control until enforcement is decided and built.',
     title: 'Security & 2FA',
     subtitle: 'Session policy, 2FA, and active sessions',
     sessionPolicy: 'Session policy',
