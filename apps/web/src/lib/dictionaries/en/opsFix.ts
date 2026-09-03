@@ -193,7 +193,7 @@ export const opsFix = {
     colCost: 'Cost/unit (IDR)',
     selectedCount: '{n} items selected',
     pickAtLeastOne: 'Pick at least one item.',
-    needPrice: '{label} has no unit price. A line without one enters the cost report as Rp 0.',
+    needPrice: '{label} has no unit price. A line without one enters the cost report as zero.',
     needSupplier: 'Choose a supplier first.',
     create: 'Create draft PO',
     created: 'Draft PO created.',

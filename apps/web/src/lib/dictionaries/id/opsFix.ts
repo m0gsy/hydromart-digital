@@ -193,7 +193,7 @@ export const opsFix = {
     selectedCount: '{n} item dipilih',
     pickAtLeastOne: 'Pilih minimal satu item.',
     needPrice:
-      'Harga satuan {label} belum diisi. Baris tanpa harga akan masuk laporan sebagai Rp 0.',
+      'Harga satuan {label} belum diisi. Baris tanpa harga masuk ke laporan biaya sebagai nol.',
     needSupplier: 'Pilih pemasok dulu.',
     create: 'Buat PO draft',
     created: 'PO draft dibuat.',
