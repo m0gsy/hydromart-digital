@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MagnifyingGlass, Storefront, Package, User, Lock } from '@phosphor-icons/react';
+import { MagnifyingGlass, Storefront, Package, User, Lock, Receipt } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Input, Money, Skeleton } from '@/components/ui';
@@ -12,13 +12,25 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, DepotAdmin, Page, Product } from '@/lib/types';
+import type { Customer, DepotAdmin, Order, Page, Product } from '@/lib/types';
 
-// ponytail: client-side fan-out over existing search endpoints (depots/products/
-// customer-by-phone). A server-side unified endpoint incl. orders is the follow-up.
+/*
+ * CA-2-61: the depot console's search did not search orders.
+ *
+ * Depots and products and a customer-by-phone — everything except the object the console
+ * exists to work on. A staff member with an order number in their hand, which is what
+ * a customer reads out over the phone, got "Tidak ada hasil". The comment here used to
+ * call a unified server endpoint "the follow-up"; it is not needed, because `/hq/search`
+ * has searched orders by number over the whole table since audit F-12, through an
+ * endpoint this console can call just as well.
+ *
+ * ponytail: still a client-side fan-out over four existing endpoints. One request per
+ * source on a screen somebody opens deliberately is not worth a new backend route.
+ */
 interface Results {
   depots: DepotAdmin[];
   products: Product[];
+  orders: Order[];
   customer: Customer | null;
 }
 
@@ -34,18 +46,28 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
 }
 
 async function runSearch(q: string): Promise<Results> {
-  const [depotPage, productPage, customer] = await Promise.all([
+  const [depotPage, productPage, orderPage, customer] = await Promise.all([
     safe(api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ search: q, limit: 8 }), true), {
       items: [],
     } as unknown as Page<DepotAdmin>),
     safe(api.get<Page<Product>>(endpoints.products.browse({ search: q, limit: 8 }), true), {
       items: [],
     } as unknown as Page<Product>),
+    // Order-number substring, matched by order-service over the whole table (F-12) —
+    // not the last twenty rows filtered in the browser.
+    safe(api.get<Page<Order>>(endpoints.orders.manage({ orderNumber: q, limit: 8 }), true), {
+      items: [],
+    } as unknown as Page<Order>),
     PHONE_RE.test(q.trim())
       ? safe(api.get<Customer>(endpoints.auth.customerLookup(q.trim()), true), null)
       : Promise.resolve(null),
   ]);
-  return { depots: depotPage.items ?? [], products: productPage.items ?? [], customer };
+  return {
+    depots: depotPage.items ?? [],
+    products: productPage.items ?? [],
+    orders: orderPage.items ?? [],
+    customer,
+  };
 }
 
 function Section({
@@ -75,9 +97,17 @@ function SearchBody() {
   const { t } = useT();
   const [input, setInput] = useState('');
   const [q, setQ] = useState('');
-  const res = useAsync<Results | null>(() => (q.trim() ? runSearch(q.trim()) : Promise.resolve(null)), [q]);
+  const res = useAsync<Results | null>(
+    () => (q.trim() ? runSearch(q.trim()) : Promise.resolve(null)),
+    [q],
+  );
 
-  const total = res.data ? res.data.depots.length + res.data.products.length + (res.data.customer ? 1 : 0) : 0;
+  const total = res.data
+    ? res.data.depots.length +
+      res.data.products.length +
+      res.data.orders.length +
+      (res.data.customer ? 1 : 0)
+    : 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -101,7 +131,10 @@ function SearchBody() {
       </form>
 
       {!q.trim() ? (
-        <CenterState title={t('dashC.search.startTitle')} icon={<MagnifyingGlass size={40} weight="fill" />}>
+        <CenterState
+          title={t('dashC.search.startTitle')}
+          icon={<MagnifyingGlass size={40} weight="fill" />}
+        >
           {t('dashC.search.startBody')}
         </CenterState>
       ) : res.loading ? (
@@ -111,12 +144,19 @@ function SearchBody() {
         // could not run is a statement about the search.
         <ErrorState message={res.error} onRetry={res.reload} />
       ) : total === 0 ? (
-        <CenterState title={t('dashC.search.noResultsTitle')} icon={<MagnifyingGlass size={40} weight="fill" />}>
+        <CenterState
+          title={t('dashC.search.noResultsTitle')}
+          icon={<MagnifyingGlass size={40} weight="fill" />}
+        >
           {t('dashC.search.noResultsBody', { q })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-5">
-          <Section title={t('dashC.search.depots')} icon={<Storefront size={16} weight="fill" />} count={res.data!.depots.length}>
+          <Section
+            title={t('dashC.search.depots')}
+            icon={<Storefront size={16} weight="fill" />}
+            count={res.data!.depots.length}
+          >
             {res.data!.depots.map((d) => (
               <Link key={d.id} href="/dashboard/depots">
                 <Card className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:border-brand-600">
@@ -131,7 +171,11 @@ function SearchBody() {
             ))}
           </Section>
 
-          <Section title={t('dashC.search.products')} icon={<Package size={16} weight="fill" />} count={res.data!.products.length}>
+          <Section
+            title={t('dashC.search.products')}
+            icon={<Package size={16} weight="fill" />}
+            count={res.data!.products.length}
+          >
             {res.data!.products.map((p) => (
               <Card key={p.id} className="flex items-center justify-between gap-3 p-3.5">
                 <div>
@@ -143,10 +187,34 @@ function SearchBody() {
             ))}
           </Section>
 
+          <Section
+            title={t('dashC.search.orders')}
+            icon={<Receipt size={16} weight="fill" />}
+            count={res.data!.orders.length}
+          >
+            {res.data!.orders.map((o) => (
+              <Link key={o.id} href={`/dashboard/orders/${o.id}`}>
+                <Card className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:border-brand-600">
+                  <div>
+                    <p className="font-semibold">{o.orderNumber}</p>
+                    <p className="text-xs text-muted">{o.status}</p>
+                  </div>
+                  <Money amount={o.total} className="font-semibold" />
+                </Card>
+              </Link>
+            ))}
+          </Section>
+
           {res.data!.customer && (
-            <Section title={t('dashC.search.customers')} icon={<User size={16} weight="fill" />} count={1}>
+            <Section
+              title={t('dashC.search.customers')}
+              icon={<User size={16} weight="fill" />}
+              count={1}
+            >
               <Card className="p-3.5">
-                <p className="font-semibold">{res.data!.customer.fullName || res.data!.customer.phone}</p>
+                <p className="font-semibold">
+                  {res.data!.customer.fullName || res.data!.customer.phone}
+                </p>
                 <p className="text-xs text-muted">{res.data!.customer.phone}</p>
               </Card>
             </Section>

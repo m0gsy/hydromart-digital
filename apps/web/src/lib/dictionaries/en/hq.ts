@@ -21,6 +21,10 @@ export const hq = {
     admin: 'Admin & polish',
   },
   nav: {
+    allScreens: 'All screens',
+    more: 'More',
+    aria: 'HQ navigation',
+    closeMenu: 'Close menu',
     overview: 'Network overview',
     search: 'Search',
     access: 'Roles & access',
@@ -522,13 +526,13 @@ export const hq = {
   },
   search: {
     title: 'Search',
-    subtitle: 'Search depots, staff, and orders across the network',
-    placeholder: 'Type a depot name, staff, or order number…',
+    subtitle: 'Search depots, staff, orders, and customers across the network',
+    placeholder: 'Type a depot name, staff, order number, or a customer phone number…',
     empty: 'Start typing to search across the network.',
     noResults: 'No results for "{q}".',
     searching: 'Searching…',
     partial: 'Could not search: {sources}. The results below are incomplete.',
-    groups: { depots: 'Depots', staff: 'Staff', orders: 'Orders' },
+    groups: { depots: 'Depots', staff: 'Staff', orders: 'Orders', customers: 'Customers' },
   },
   payments: {
     title: 'Payments & payout',

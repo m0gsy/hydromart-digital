@@ -114,7 +114,8 @@ export const dashC = {
     heading: 'Roles & access',
     subtitle: 'The depot manager role is highlighted',
     readOnly: 'Read-only',
-    readOnlyBody: 'The matrix & server guards read the same map (CAPABILITIES) — they cannot differ.',
+    readOnlyBody:
+      'The matrix & server guards read the same map (CAPABILITIES) — they cannot differ.',
     gateTitle: 'Staff access only',
     gateBody: 'The role matrix is for depot and head-office staff only.',
     role: {
@@ -132,8 +133,8 @@ export const dashC = {
       SUPER_ADMIN: 'Super admin',
     },
     cap: {
-      approvalThresholdWrite: "Approval threshold (edit)",
-      settingsRead: "Settings (view)",
+      approvalThresholdWrite: 'Approval threshold (edit)',
+      settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
       orderQueue: 'Order queue',
       inventoryRead: 'Inventory (view)',
@@ -241,6 +242,7 @@ export const dashC = {
     noResultsBody: 'Nothing matches “{q}”.',
     depots: 'Depots',
     products: 'Products',
+    orders: 'Orders',
     customers: 'Customers',
     gateTitle: 'Staff access only',
     gateBody: 'Global search is available to staff.',
@@ -250,7 +252,8 @@ export const dashC = {
     inviteError: 'Could not invite the staff member.',
     inviteBtn: 'Invite staff',
     inviteTitle: 'Invite / assign a staff role',
-    inviteHint: 'An already-registered number is promoted; a new number gets an active staff account (login via OTP).',
+    inviteHint:
+      'An already-registered number is promoted; a new number gets an active staff account (login via OTP).',
     phone: 'Phone number',
     fullName: 'Name (for a new account)',
     role: 'Role',
@@ -362,9 +365,11 @@ export const dashC = {
     emptyBody: 'This depot has no wholesale tiers yet. Add the first tier.',
     tiersTitle: 'Price tiers',
     tierCount: '{n} tiers',
-    infoPart1: 'Wholesale pricing overrides retail pricing for B2B customers. When a dynamic pricing rule is also active, ',
+    infoPart1:
+      'Wholesale pricing overrides retail pricing for B2B customers. When a dynamic pricing rule is also active, ',
     infoStrong: 'the highest priority wins',
-    infoPart2: ' — set the wholesale tier priority above discount rules so wholesale prices are not overridden.',
+    infoPart2:
+      ' — set the wholesale tier priority above discount rules so wholesale prices are not overridden.',
     gateTitle: 'Depot managers only',
     gateBody: 'Wholesale pricing can only be set by depot managers.',
   },

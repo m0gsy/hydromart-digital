@@ -116,7 +116,8 @@ export const dashC = {
     heading: 'Peran & hak akses',
     subtitle: 'Peran Manajer depot disorot',
     readOnly: 'Read-only',
-    readOnlyBody: 'Matriks & guard server membaca peta yang sama (CAPABILITIES) — tak bisa berbeda.',
+    readOnlyBody:
+      'Matriks & guard server membaca peta yang sama (CAPABILITIES) — tak bisa berbeda.',
     gateTitle: 'Khusus staf',
     gateBody: 'Matriks peran hanya untuk staf depot dan kantor pusat.',
     role: {
@@ -134,8 +135,8 @@ export const dashC = {
       SUPER_ADMIN: 'Super admin',
     },
     cap: {
-      approvalThresholdWrite: "Ambang persetujuan (ubah)",
-      settingsRead: "Setelan (lihat)",
+      approvalThresholdWrite: 'Ambang persetujuan (ubah)',
+      settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Inventory (lihat)',
@@ -246,6 +247,7 @@ export const dashC = {
     noResultsBody: 'Tidak ada yang cocok dengan “{q}”.',
     depots: 'Depot',
     products: 'Produk',
+    orders: 'Pesanan',
     customers: 'Pelanggan',
     gateTitle: 'Khusus staf',
     gateBody: 'Pencarian global tersedia untuk staf.',
@@ -255,7 +257,8 @@ export const dashC = {
     inviteError: 'Gagal mengundang staf.',
     inviteBtn: 'Undang staf',
     inviteTitle: 'Undang / tetapkan peran staf',
-    inviteHint: 'Nomor yang sudah terdaftar akan dipromosikan; nomor baru dibuatkan akun staf aktif (login via OTP).',
+    inviteHint:
+      'Nomor yang sudah terdaftar akan dipromosikan; nomor baru dibuatkan akun staf aktif (login via OTP).',
     phone: 'Nomor telepon',
     fullName: 'Nama (untuk akun baru)',
     role: 'Peran',
@@ -367,9 +370,11 @@ export const dashC = {
     emptyBody: 'Depot ini belum punya tingkat harga borongan. Tambahkan tingkat pertama.',
     tiersTitle: 'Tingkat harga',
     tierCount: '{n} tingkat',
-    infoPart1: 'Harga borongan menimpa harga eceran untuk pelanggan B2B. Saat aturan harga dinamis juga aktif, ',
+    infoPart1:
+      'Harga borongan menimpa harga eceran untuk pelanggan B2B. Saat aturan harga dinamis juga aktif, ',
     infoStrong: 'prioritas tertinggi yang menang',
-    infoPart2: ' — atur prioritas tingkat borongan di atas aturan diskon agar harga grosir tidak tertimpa.',
+    infoPart2:
+      ' — atur prioritas tingkat borongan di atas aturan diskon agar harga grosir tidak tertimpa.',
     gateTitle: 'Manajer depot saja',
     gateBody: 'Harga borongan hanya dapat diatur oleh manajer depot.',
   },
