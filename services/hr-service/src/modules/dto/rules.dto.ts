@@ -1,5 +1,5 @@
 import { OmitType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -13,6 +13,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -63,6 +64,20 @@ export class CreateLoanDto {
 
 export class ListLoanDto {
   @IsUUID() employeeId!: string;
+  @IsOptional() @Matches(PERIOD) asOfPeriod?: string;
+}
+
+/**
+ * CA-1-34: the network-wide loan list.
+ *
+ * `pageSize` is capped at 100 by the service as well, because a query string is not a place
+ * to trust a number: `page * pageSize` is an OFFSET, and an unbounded one makes Postgres
+ * walk the whole table.
+ */
+export class ListAllLoansDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
+  @IsOptional() @Transform(({ value }: { value: unknown }) => value === 'true' || value === true) @IsBoolean() activeOnly?: boolean;
   @IsOptional() @Matches(PERIOD) asOfPeriod?: string;
 }
 

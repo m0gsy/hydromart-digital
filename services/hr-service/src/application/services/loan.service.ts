@@ -1,14 +1,26 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, localMonthKey, runImport } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  depotScopeIds,
+  ImportSummary,
+  localMonthKey,
+  runImport,
+} from '@hydromart/platform';
 
 import { Loan } from '../../../prisma/generated/client';
 import { loanRemainingAfter, loanIsSettled, nextPeriod } from '../../domain/loan';
 import { HrConfigService } from '../../config/hr-config.service';
-import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
+import { LOAN_REPOSITORY, LoanListRow, LoanRepository } from '../ports/loan.repository';
 import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** A network-wide row: the same computed balance, plus who it belongs to. */
+export interface LoanListView extends LoanListRow {
+  remaining: number;
+  settled: boolean;
+}
 
 export interface LoanView extends Loan {
   /** Outstanding balance as of the current month (computed, not stored). */
@@ -120,5 +132,58 @@ export class LoanService {
         settled: loanIsSettled(terms, period, paid),
       };
     });
+  }
+
+  /**
+   * CA-1-34: every loan on the books, with the same computed balance the per-employee view
+   * shows.
+   *
+   * `/hr/loans/import` could put five hundred kasbon rows into the ledger in one paste, and
+   * no screen listed them — the only way to see a loan was to know whose it was. A
+   * bulk-import wizard with no list is a one-way door.
+   *
+   * The balance is what payroll REALLY deducted (CA-1-05), asked once for the whole page
+   * rather than per row, so the list cannot disagree with the employee's own screen.
+   */
+  async listAll(
+    user: AuthenticatedUser,
+    query: { page?: number; pageSize?: number; activeOnly?: boolean; asOfPeriod?: string },
+  ): Promise<{ rows: LoanListView[]; total: number }> {
+    const page = Math.max(1, query.page ?? 1);
+    const take = Math.min(100, Math.max(1, query.pageSize ?? 20));
+    const period = PERIOD_RE.test(query.asOfPeriod ?? '')
+      ? query.asOfPeriod!
+      : localMonthKey(new Date(), this.config.timeZone);
+
+    const { rows, total } = await this.repo.listAll({
+      depotIds: depotScopeIds(user),
+      activeOnly: query.activeOnly,
+      skip: (page - 1) * take,
+      take,
+    });
+    if (rows.length === 0) return { rows: [], total };
+
+    // One repayment read for the page, keyed by loan — not one per row.
+    const repaid = await this.payrolls.deductedBySourceRefBefore(
+      null,
+      nextPeriod(period),
+      rows.map((l) => l.id),
+    );
+    return {
+      rows: rows.map((l) => {
+        const terms = {
+          principal: Number(l.principal),
+          installmentAmount: Number(l.installmentAmount),
+          startPeriod: l.startPeriod,
+        };
+        const paid = repaid.get(l.id) ?? 0;
+        return {
+          ...l,
+          remaining: loanRemainingAfter(terms, period, paid),
+          settled: loanIsSettled(terms, period, paid),
+        };
+      }),
+      total,
+    };
   }
 }

@@ -535,6 +535,17 @@ export interface LoanView extends Loan {
   settled: boolean;
 }
 
+/**
+ * CA-1-34: a loan on the network-wide list, which has to say WHOSE it is.
+ *
+ * The per-employee view never needed a name — you were already looking at the employee.
+ * Null for a record anonymised under the retention policy.
+ */
+export interface LoanListView extends LoanView {
+  employeeName: string | null;
+  employeeCode: string | null;
+}
+
 export const BONUS_METRIC_LABEL: Record<BonusMetric, string> = {
   ATTENDANCE_RATE: 'hrFix.map.bonusMetric.ATTENDANCE_RATE',
   PRESENT_DAYS: 'hrFix.map.bonusMetric.PRESENT_DAYS',

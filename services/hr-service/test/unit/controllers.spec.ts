@@ -664,7 +664,7 @@ describe('ReportsController', () => {
 
 describe('BonusRuleController / LoanController', () => {
   const rules = svcMock(['list', 'create', 'update']);
-  const loans = svcMock(['listByEmployee', 'create', 'deactivate', 'importMany']);
+  const loans = svcMock(['listByEmployee', 'listAll', 'create', 'deactivate', 'importMany']);
   const rc = new BonusRuleController(rules as never);
   const lc = new LoanController(loans as never);
 
@@ -696,6 +696,16 @@ describe('BonusRuleController / LoanController', () => {
     const rows = [{ employeeCode: 'HR-0001', principal: 100 }] as never;
     lc.import({ rows } as never, user);
     expect(loans.importMany).toHaveBeenCalledWith(user, rows);
+  });
+  /*
+   * CA-1-34: the network-wide list. The caller travels with it because the SERVICE decides
+   * what this reader may see — a depot-scoped role gets their own depot, HQ gets the
+   * network — and a controller that dropped the user would hand everyone everything.
+   */
+  it('the network-wide loan list carries the caller and the query', () => {
+    const q = { page: 2, pageSize: 50, activeOnly: true } as never;
+    lc.listAll(q, user);
+    expect(loans.listAll).toHaveBeenCalledWith(user, q);
   });
 });
 

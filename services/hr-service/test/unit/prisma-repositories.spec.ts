@@ -2172,6 +2172,56 @@ describe('LoanPrismaRepository', () => {
       orderBy: { createdAt: 'asc' },
     });
   });
+
+  /*
+   * CA-1-34. The depot lives on the EMPLOYEE, not on the loan, so the scope is a filter on
+   * the relation the row already has — the same relation that carries the name and the
+   * staff code the list needs.
+   */
+  it('listAll scopes by the employee’s depot and names the borrower', async () => {
+    const p = makePrisma();
+    m(p, 'loan').findMany.mockResolvedValue([
+      { id: 'l1', employee: { fullName: 'Budi', employeeCode: 'K001' } },
+    ]);
+    m(p, 'loan').count.mockResolvedValue(1);
+    const repo = new LoanPrismaRepository(asService(p));
+
+    await expect(repo.listAll({ depotIds: ['d1', 'd2'], activeOnly: true, skip: 5, take: 10 }))
+      .resolves.toEqual({
+        rows: [{ id: 'l1', employeeName: 'Budi', employeeCode: 'K001' }],
+        total: 1,
+      });
+    const where = { active: true, employee: { depotId: { in: ['d1', 'd2'] } } };
+    expect(m(p, 'loan').findMany).toHaveBeenCalledWith({
+      where,
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: 5,
+      take: 10,
+    });
+    expect(m(p, 'loan').count).toHaveBeenCalledWith({ where });
+  });
+
+  it('listAll with no scope and no filter asks for everything', async () => {
+    const p = makePrisma();
+    m(p, 'loan').findMany.mockResolvedValue([{ id: 'l1', employee: null }]);
+    m(p, 'loan').count.mockResolvedValue(1);
+    const repo = new LoanPrismaRepository(asService(p));
+
+    // HQ sits above depots, so it gets an unfiltered read — and an anonymised employee has
+    // no row left to name, which is a null, not a crash.
+    await expect(repo.listAll({ skip: 0, take: 20 })).resolves.toEqual({
+      rows: [{ id: 'l1', employeeName: null, employeeCode: null }],
+      total: 1,
+    });
+    expect(m(p, 'loan').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
+  });
 });
 
 // ── PayrollPrismaRepository ────────────────────────────────────────────

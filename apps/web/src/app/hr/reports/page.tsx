@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
+import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { Button, Card, Input, SectionHeader } from '@/components/ui';
 import { getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
@@ -30,6 +31,16 @@ export default function ReportsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState('');
+  /*
+   * CA-1-21. Every one of these reports takes a `depotId` — the endpoints have always
+   * accepted it and the services have always honoured it — and this screen passed
+   * `undefined` for all of them. A supervisor who wanted their own depot's lateness had to
+   * download the whole network and filter a spreadsheet by hand.
+   *
+   * Empty = the whole network, which is what the reports did before and what HQ wants.
+   */
+  const [depotId, setDepotId] = useState('');
+  const scope = depotId || undefined;
 
   async function run(key: string, path: string, filename: string) {
     setBusy(key);
@@ -59,28 +70,29 @@ export default function ReportsPage() {
       label: t('hrFix.reports.attendance'),
       hint: t('hrFix.reports.attendanceBody'),
       base: 'attendance',
-      path: (f: Format) => endpoints.hr.reportAttendance(from, to, undefined, f),
+      path: (f: Format) => endpoints.hr.reportAttendance(from, to, scope, f),
     },
     {
       key: 'late',
       label: t('hrFix.reports.lateness'),
       hint: t('hrFix.reports.latenessBody'),
       base: 'late',
-      path: (f: Format) => endpoints.hr.hrReport('late', { from, to, format: f }),
+      path: (f: Format) => endpoints.hr.hrReport('late', { from, to, depotId: scope, format: f }),
     },
     {
       key: 'leave',
       label: t('hrFix.reports.leave'),
       hint: t('hrFix.reports.leaveBody'),
       base: 'leave',
-      path: (f: Format) => endpoints.hr.hrReport('leave', { from, to, format: f }),
+      path: (f: Format) => endpoints.hr.hrReport('leave', { from, to, depotId: scope, format: f }),
     },
     {
       key: 'ann',
       label: t('hrFix.reports.announcements'),
       hint: t('hrFix.reports.announcementsBody'),
       base: 'announcements',
-      path: (f: Format) => endpoints.hr.hrReport('announcements', { from, to, format: f }),
+      path: (f: Format) =>
+        endpoints.hr.hrReport('announcements', { from, to, depotId: scope, format: f }),
     },
   ];
 
@@ -102,6 +114,16 @@ export default function ReportsPage() {
             {t('hrFix.reports.period2')}
             <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
+          {/* CA-1-21: the filter the whole API supported and no screen offered. Blank means
+              the whole network, which is what every report did before this existed. */}
+          <div className="text-sm">
+            <HrDepotPicker
+              value={depotId}
+              onChange={setDepotId}
+              label={t('hrFix.reports.depot')}
+              includeEmpty={t('hrFix.reports.allDepots')}
+            />
+          </div>
         </div>
         <p className="text-xs text-muted">{t('hrFix.reports.rangeHint')}</p>
       </Card>
@@ -114,9 +136,7 @@ export default function ReportsPage() {
         <Formats
           busy={busy}
           prefix="emp"
-          onPick={(f) =>
-            run(`emp-${f}`, endpoints.hr.reportEmployees(undefined, f), `employees.${f}`)
-          }
+          onPick={(f) => run(`emp-${f}`, endpoints.hr.reportEmployees(scope, f), `employees.${f}`)}
         />
       </Card>
 
@@ -144,11 +164,7 @@ export default function ReportsPage() {
           busy={busy}
           prefix="pay"
           onPick={(f) =>
-            run(
-              `pay-${f}`,
-              endpoints.hr.reportPayroll(period, undefined, f),
-              `payroll-${period}.${f}`,
-            )
+            run(`pay-${f}`, endpoints.hr.reportPayroll(period, scope, f), `payroll-${period}.${f}`)
           }
         />
       </Card>
@@ -164,7 +180,11 @@ export default function ReportsPage() {
           onPick={(f) =>
             run(
               `perf-${f}`,
-              endpoints.hr.hrReport('performance', { periodMonth: period, format: f }),
+              endpoints.hr.hrReport('performance', {
+                periodMonth: period,
+                depotId: scope,
+                format: f,
+              }),
               `performance-${period}.${f}`,
             )
           }
@@ -180,7 +200,11 @@ export default function ReportsPage() {
           busy={busy}
           prefix="asset"
           onPick={(f) =>
-            run(`asset-${f}`, endpoints.hr.hrReport('assets', { format: f }), `assets.${f}`)
+            run(
+              `asset-${f}`,
+              endpoints.hr.hrReport('assets', { depotId: scope, format: f }),
+              `assets.${f}`,
+            )
           }
         />
       </Card>

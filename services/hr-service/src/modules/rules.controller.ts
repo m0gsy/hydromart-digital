@@ -4,12 +4,13 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser, ImportSummary } from '@hydromart/platform';
 
 import { BonusRuleService } from '../application/services/bonus-rule.service';
-import { LoanService } from '../application/services/loan.service';
+import { LoanListView, LoanService } from '../application/services/loan.service';
 import {
   CreateBonusRuleDto,
   CreateLoanDto,
   ImportLoansDto,
   ListBonusRuleDto,
+  ListAllLoansDto,
   ListLoanDto,
   UpdateBonusRuleDto,
 } from './dto/rules.dto';
@@ -65,6 +66,24 @@ export class LoanController {
   @ApiOperation({ summary: 'List an employee’s loans with computed remaining balance' })
   list(@Query() q: ListLoanDto, @CurrentUser() user: AuthenticatedUser): Promise<LoanView[]> {
     return this.loans.listByEmployee(user, q.employeeId, q.asOfPeriod ?? '');
+  }
+
+  /*
+   * CA-1-34: every loan on the books. Declared before `@Post()` for readability only —
+   * they are different verbs, so route order does not matter here.
+   *
+   * `hrView`, the same capability as the per-employee list, and scoped by depot inside the
+   * service: a supervisor sees their own depot's kasbon, HQ sees the network.
+   */
+  @ApiOkResponse({ type: LoanResponseDto, isArray: true })
+  @Get('all')
+  @Can('hrView')
+  @ApiOperation({ summary: 'List every loan on the books (paged, depot-scoped)' })
+  listAll(
+    @Query() q: ListAllLoansDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ rows: LoanListView[]; total: number }> {
+    return this.loans.listAll(user, q);
   }
 
   @ApiOkResponse({ type: LoanResponseDto })

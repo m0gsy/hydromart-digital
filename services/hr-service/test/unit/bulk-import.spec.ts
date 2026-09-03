@@ -177,6 +177,11 @@ describe('LoanService.importMany', () => {
       this.rows.push(row);
       return row;
     }
+    /** CA-1-34: the network-wide list. Not what this file tests — present so the fake is a
+     *  faithful stand-in for the port rather than a subset of it. */
+    async listAll() {
+      return { rows: [], total: 0 };
+    }
     async update(): Promise<Loan> {
       throw new Error('unused');
     }

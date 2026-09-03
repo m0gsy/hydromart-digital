@@ -75,8 +75,13 @@ export interface PayrollRepository {
    * floored at 0), that assumption silently forgives the difference. This is what was
    * actually taken, so the remainder keeps being asked for.
    */
+  /**
+   * `employeeId: null` means "whoever the loan belongs to" — CA-1-34's network-wide list
+   * asks about many employees' loans at once, and `sourceRef` already identifies the loan,
+   * so narrowing by employee as well would only make the query wrong for that caller.
+   */
   deductedBySourceRefBefore(
-    employeeId: string,
+    employeeId: string | null,
     beforePeriodMonth: string,
     sourceRefs: readonly string[],
   ): Promise<Map<string, number>>;

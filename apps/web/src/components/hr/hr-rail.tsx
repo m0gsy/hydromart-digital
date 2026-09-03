@@ -28,7 +28,7 @@ import { useAuth } from '@/lib/auth-context';
 import { isServedHere } from '@/lib/deep-link';
 import { canManageHr, isHq } from '@/lib/roles';
 
-interface NavItem {
+export interface NavItem {
   href: string;
   /** Dictionary KEY — resolved where the item is rendered. */
   label: string;
@@ -36,7 +36,16 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const ITEMS: NavItem[] = [
+/*
+ * CA-1-33: exported because the phone's bottom nav reads this SAME table.
+ *
+ * The rail is `hidden sm:flex` and was the whole of the HR console's navigation, so below
+ * 640px there was none at all — every one of these twenty screens could only be reached by
+ * typing its URL. HQ had the identical defect and CA-2-61 fixed it by making the bar read
+ * the rail's own model. Two copies of a nav model is how a door gets hidden in one place
+ * and offered in another; there is one here.
+ */
+export const HR_ITEMS: NavItem[] = [
   { href: '/hr', label: 'hrFix.nav.dashboard', icon: Gauge },
   { href: '/hr/employees', label: 'hrFix.nav.employees', icon: Users },
   { href: '/hr/departments', label: 'hrFix.nav.departments', icon: Buildings },
@@ -47,6 +56,8 @@ const ITEMS: NavItem[] = [
   { href: '/hr/payroll', label: 'hrFix.nav.payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'hrFix.nav.adjustments', icon: ClipboardText },
   { href: '/hr/allowances', label: 'hrFix.nav.allowances', icon: CurrencyCircleDollar },
+  // CA-1-34: the kasbon ledger. It had an import wizard and no list.
+  { href: '/hr/loans', label: 'hrFix.nav.loans', icon: CurrencyCircleDollar },
   { href: '/hr/assets', label: 'hrFix.nav.assets', icon: Package },
   { href: '/hr/announcements', label: 'hrFix.nav.announcements', icon: Megaphone },
   { href: '/hr/rules', label: 'hrFix.nav.rules', icon: Sparkle, adminOnly: true },
@@ -66,11 +77,26 @@ const ITEMS: NavItem[] = [
   { href: '/hr/me', label: 'hrFix.nav.me', icon: UserCircle },
 ];
 
+/**
+ * The items this reader may actually open — the rail's own list, gates and all.
+ *
+ * Shared with the phone's bottom nav (CA-1-33) so the two cannot disagree: `adminOnly`
+ * screens stay hidden from a non-admin on both, and the `/hq` door appears on both for the
+ * roles whose console is elsewhere.
+ */
+export function hrNavItems(role: string | null | undefined): NavItem[] {
+  return [
+    ...(isHq(role) && isServedHere('/hq')
+      ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
+      : []),
+    ...HR_ITEMS.filter((i) => !i.adminOnly || canManageHr(role)),
+  ];
+}
+
 export function HrRail() {
   const { t } = useT();
   const pathname = usePathname();
   const { customer } = useAuth();
-  const isAdmin = canManageHr(customer?.role);
   /*
    * CA-2-17 — the way back out.
    *
@@ -82,12 +108,7 @@ export function HrRail() {
    * somewhere it could not leave. Same gate and same binary check as the ops rail's door,
    * because the Ops app prunes the whole `/hq` subtree.
    */
-  const items = [
-    ...(isHq(customer?.role) && isServedHere('/hq')
-      ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
-      : []),
-    ...ITEMS.filter((i) => !i.adminOnly || isAdmin),
-  ];
+  const items = hrNavItems(customer?.role);
 
   return (
     <nav
