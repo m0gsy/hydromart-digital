@@ -231,6 +231,20 @@ function CartInner() {
           {t('customerFix.checkout.catalogPricing')}
         </p>
       )}
+      {/*
+       * CA-3-23: a line whose product was delisted used to vanish between one visit and the
+       * next, with no message — the only sign was a total that had gone down. The server
+       * now names them; this is where the customer reads it.
+       */}
+      {(data?.removed?.length ?? 0) > 0 && (
+        <p className="text-[12.5px] leading-relaxed text-[color:var(--warning)]" role="alert">
+          {t('order.cart.removedLines', {
+            names: data!
+              .removed!.map((r) => r.productName ?? t('order.cart.removedUnknown'))
+              .join(', '),
+          })}
+        </p>
+      )}
       <p className="text-[12.5px] leading-relaxed text-muted">{t('order.cart.shippingNote')}</p>
       {/* G7. The hint named a thing the customer owns and then left them to find it: the
           voucher wallet is a real screen, and this was the one place that mentioned

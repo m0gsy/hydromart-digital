@@ -27,6 +27,8 @@ export const customerFix = {
   checkout: {
     agentPrice: "Agent price Rp{amount}/gallon",
     catalogPricing: "Estimated prices — the depot's own prices apply when the order is placed",
+    belowMinimum: 'This depot has a minimum order of Rp {min}. Rp {short} to go.',
+    methodUnavailable: '{method} is not available at this depot. The payment method was changed — check it before ordering.',
     // SF-02 — see the Indonesian side.
     depotLookupFailed:
       "We could not work out which depot will deliver, so the prices and delivery fee here are catalog prices, not the depot's. Try again before ordering.",

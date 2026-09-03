@@ -23,6 +23,9 @@ import { ProductCard } from '@/components/product-card';
  *     is exactly why the three classes below need pinning by name.
  */
 
+// `ProductCard` and the recommendation rail now report a failed add through the toast
+// (CA-3-24), and `useToast` refuses to work outside its provider — as it should.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: null }) }));
 vi.mock('@/lib/cart-context', () => ({ useCart: () => ({ bump: vi.fn(), apply: vi.fn() }) }));

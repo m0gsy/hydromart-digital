@@ -32,6 +32,8 @@ export const customerFix = {
     // us the depot's own price, so these are catalog prices and the customer is told so
     // rather than left to find out at the receipt.
     catalogPricing: "Harga perkiraan — harga depot dipakai saat pesanan dibuat",
+    belowMinimum: 'Minimum pesanan di depot ini Rp {min}. Kurang Rp {short} lagi.',
+    methodUnavailable: '{method} tidak tersedia di depot ini. Metode bayar diganti — periksa sebelum memesan.',
     // SF-02: pencarian depot GAGAL (bukan "alamat di luar jangkauan"). Selama gagal, harga
     // di layar ini harga katalog, bukan harga depot yang akan menagih.
     depotLookupFailed:

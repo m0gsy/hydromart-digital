@@ -51,13 +51,38 @@ describe('CartService', () => {
     );
   });
 
-  it('hides a line whose product was delisted after it was added', async () => {
-    const p = catalog.seed({ id: randomUUID() });
-    await service.setItem(customer, p.id, 1, false);
+  /*
+   * CA-3-23. Dropping the line from the priced basket is right — it cannot be sold, so it
+   * must not be billed. What was wrong is that it was dropped SILENTLY: the row vanished
+   * from the customer's cart between one visit and the next and the only sign was a total
+   * that had gone down. The comment beside the filter even claimed these were "surfaced as
+   * unavailable"; nothing surfaced them anywhere.
+   */
+  it('drops a delisted line from the bill and names it as removed', async () => {
+    const p = catalog.seed({ id: randomUUID(), name: 'Galon 19L' });
+    await service.setItem(customer, p.id, 2, false);
     p.active = false;
     const view = await service.view(customer);
     expect(view.items).toHaveLength(0);
     expect(view.subtotal).toBe(0);
+    // ...and the customer can be told WHICH item, and how many they had.
+    expect(view.removed).toEqual([{ productId: p.id, productName: 'Galon 19L', quantity: 2 }]);
+  });
+
+  /* A product deleted outright has no catalogue row left to name it. Still reported —
+   * "an item was removed" beats a total that quietly shrank. */
+  it('reports a line whose product is gone entirely, with no name to give', async () => {
+    const p = catalog.seed({ id: randomUUID() });
+    await service.setItem(customer, p.id, 1, false);
+    catalog.products.delete(p.id);
+    const view = await service.view(customer);
+    expect(view.removed).toEqual([{ productId: p.id, productName: null, quantity: 1 }]);
+  });
+
+  it('reports nothing removed on an ordinary cart', async () => {
+    const p = catalog.seed({ id: randomUUID() });
+    await service.setItem(customer, p.id, 1, false);
+    expect((await service.view(customer)).removed).toEqual([]);
   });
 
   /*

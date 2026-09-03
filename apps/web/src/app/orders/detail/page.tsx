@@ -19,7 +19,15 @@ import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton, StickyActionBar } from '@/components/ui';
+import {
+  Button,
+  ErrorState,
+  LinkButton,
+  Money,
+  RadioCard,
+  Skeleton,
+  StickyActionBar,
+} from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
@@ -29,7 +37,15 @@ import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotPaymentPanel, Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
+import type {
+  Cart,
+  DepotPaymentPanel,
+  Order,
+  Page,
+  Payment,
+  PaymentMethod,
+  PaymentStatus,
+} from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 // White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
@@ -144,7 +160,11 @@ function ProofUpload({
           the label around it is not focusable, so uploading proof of transfer needed a
           mouse. Same defect, same fix as components/csv-import.tsx. */}
       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-app px-4 py-3 text-sm font-bold text-brand-700 hover:border-brand-500 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
-        {busy ? t('order.detail.proofUploading') : src ? t('order.detail.proofReplace') : t('order.detail.proofPick')}
+        {busy
+          ? t('order.detail.proofUploading')
+          : src
+            ? t('order.detail.proofReplace')
+            : t('order.detail.proofPick')}
         <input type="file" accept="image/*" onChange={pick} disabled={busy} className="sr-only" />
       </label>
     </div>
@@ -155,10 +175,12 @@ function OrderDetailInner({ id }: { id: string }) {
   const { t } = useT();
   const router = useRouter();
   const { toast } = useToast();
-  const { data: order, error, loading, reload } = useAsync<Order>(
-    () => api.get(endpoints.orders.get(id), true),
-    [id],
-  );
+  const {
+    data: order,
+    error,
+    loading,
+    reload,
+  } = useAsync<Order>(() => api.get(endpoints.orders.get(id), true), [id]);
   const { data: payments, reload: reloadPayments } = useAsync<Page<Payment>>(
     () => api.get(endpoints.payments.forOrder(id), true),
     [id],
@@ -191,11 +213,18 @@ function OrderDetailInner({ id }: { id: string }) {
     api.getCached(endpoints.payments.methods),
   );
   const dispatched = order ? hasBeenDispatched(order.history ?? []) : false;
-  const depotOnly = order ? isDepotOnlyCancel(order.status) || (isCancellable(order.status) && dispatched) : false;
+  const depotOnly = order
+    ? isDepotOnlyCancel(order.status) || (isCancellable(order.status) && dispatched)
+    : false;
   const { data: contact } = useAsync<{ name: string; contactPhone: string | null } | null>(
     () =>
       depotId && depotOnly
-        ? api.get<{ name: string; contactPhone: string | null }>(endpoints.depots.contact(depotId), true).catch(() => null)
+        ? api
+            .get<{ name: string; contactPhone: string | null }>(
+              endpoints.depots.contact(depotId),
+              true,
+            )
+            .catch(() => null)
         : Promise.resolve(null),
     [depotId, depotOnly],
   );
@@ -269,7 +298,11 @@ function OrderDetailInner({ id }: { id: string }) {
     setActionError(null);
     try {
       // Backend CancelOrderDto.reason is optional; send the chosen reason when set.
-      await api.post(endpoints.orders.cancel(id), cancelReason ? { reason: cancelReason } : {}, true);
+      await api.post(
+        endpoints.orders.cancel(id),
+        cancelReason ? { reason: cancelReason } : {},
+        true,
+      );
       setCancelOpen(false);
       reload();
       toast(t('order.toast.cancelled'));
@@ -284,8 +317,26 @@ function OrderDetailInner({ id }: { id: string }) {
     setAction('repeat');
     setActionError(null);
     try {
-      await api.post(endpoints.orders.repeat(id), {}, true);
-      toast(t('order.toast.itemsAdded'));
+      /*
+       * CA-3-28. The server skips any line whose product is gone or deactivated, silently,
+       * and this said "Item ditambahkan ke keranjang" either way — including when NOTHING
+       * was added. The customer landed on a cart that had not changed, with a green toast
+       * saying it had.
+       *
+       * The answer is the whole priced cart, so the truth is already in hand: a line the
+       * cart does not carry was not added.
+       */
+      const cart = await api.post<Cart>(endpoints.orders.repeat(id), {}, true);
+      const inCart = new Set(cart.items.map((l) => l.productId));
+      const missing = (order?.items ?? []).filter((i) => !inCart.has(i.productId)).length;
+      if (missing > 0 && missing === (order?.items.length ?? 0)) {
+        setActionError(t('order.detail.repeatNothing'));
+        setAction(null);
+        return;
+      }
+      toast(
+        missing > 0 ? t('order.detail.repeatPartial', { n: missing }) : t('order.toast.itemsAdded'),
+      );
       router.push('/cart');
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : t('order.detail.repeatError'));
@@ -294,7 +345,8 @@ function OrderDetailInner({ id }: { id: string }) {
   }
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (error || !order) return <ErrorState message={error ?? t('order.detail.notFound')} onRetry={reload} />;
+  if (error || !order)
+    return <ErrorState message={error ?? t('order.detail.notFound')} onRetry={reload} />;
 
   const payment = payments?.items[0];
   const toneKey = tone(order.status);
@@ -437,7 +489,9 @@ function OrderDetailInner({ id }: { id: string }) {
             )}
 
             {/* delivery-to */}
-            <div className={`${PANEL} flex flex-col gap-1.5 p-[22px] text-sm ${payment ? '' : 'sm:col-span-2'}`}>
+            <div
+              className={`${PANEL} flex flex-col gap-1.5 p-[22px] text-sm ${payment ? '' : 'sm:col-span-2'}`}
+            >
               <h2 className="text-base font-extrabold">{t('order.detail.deliveryAddress')}</h2>
               <p className="text-sm font-bold">
                 {order.recipientName} · {order.phone}
@@ -471,8 +525,14 @@ function OrderDetailInner({ id }: { id: string }) {
                     <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
                       <p className="text-muted">{depot.paymentBankName ?? 'Bank'}</p>
                       <div className="flex items-center gap-2">
-                        <p className="font-mono text-lg font-bold tracking-wide">{depot.paymentBankAccountNumber}</p>
-                        <CopyButton value={depot.paymentBankAccountNumber} onCopy={copy} label={t('order.detail.copy')} />
+                        <p className="font-mono text-lg font-bold tracking-wide">
+                          {depot.paymentBankAccountNumber}
+                        </p>
+                        <CopyButton
+                          value={depot.paymentBankAccountNumber}
+                          onCopy={copy}
+                          label={t('order.detail.copy')}
+                        />
                       </div>
                       {depot.paymentBankAccountHolder && (
                         <p className="text-muted">a.n. {depot.paymentBankAccountHolder}</p>
@@ -529,12 +589,18 @@ function OrderDetailInner({ id }: { id: string }) {
             payment.reference && (
               <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
                 <h2 className="text-base font-extrabold">
-                  {payment.method === 'VA' ? t('order.detail.vaTitle') : t('order.detail.ewalletTitle')}
+                  {payment.method === 'VA'
+                    ? t('order.detail.vaTitle')
+                    : t('order.detail.ewalletTitle')}
                 </h2>
                 <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
                   <div className="flex items-center gap-2">
                     <p className="font-mono text-lg font-bold tracking-wide">{payment.reference}</p>
-                    <CopyButton value={payment.reference} onCopy={copy} label={t('order.detail.copy')} />
+                    <CopyButton
+                      value={payment.reference}
+                      onCopy={copy}
+                      label={t('order.detail.copy')}
+                    />
                   </div>
                   <p className="mt-1 font-bold">
                     {t('order.detail.nominal')}: <Money amount={order.total} />
@@ -572,7 +638,9 @@ function OrderDetailInner({ id }: { id: string }) {
                         payMethod === m.value ? 'border-brand-600' : 'border-app'
                       }`}
                     >
-                      {payMethod === m.value && <span className="h-2 w-2 rounded-full bg-brand-600" />}
+                      {payMethod === m.value && (
+                        <span className="h-2 w-2 rounded-full bg-brand-600" />
+                      )}
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-bold">{t(m.label)}</span>
@@ -609,7 +677,11 @@ function OrderDetailInner({ id }: { id: string }) {
               {t('order.detail.reorder')}
             </Button>
             {(order.status === 'DELIVERED' || order.status === 'COMPLETED') && !order.reviewed && (
-              <LinkButton href={`/orders/detail/review?id=${order.id}`} variant="secondary" className="rounded-full">
+              <LinkButton
+                href={`/orders/detail/review?id=${order.id}`}
+                variant="secondary"
+                className="rounded-full"
+              >
                 <Star size={17} weight="fill" />
                 {t('review.rateCta')}
               </LinkButton>
@@ -632,7 +704,9 @@ function OrderDetailInner({ id }: { id: string }) {
           */}
           {depotOnly && (
             <div className="mt-3 flex flex-wrap items-center gap-3 rounded-[14px] border border-app px-4 py-3">
-              <p className="min-w-0 flex-1 text-[13px] text-muted">{t('order.detail.cancelClosed')}</p>
+              <p className="min-w-0 flex-1 text-[13px] text-muted">
+                {t('order.detail.cancelClosed')}
+              </p>
               {depotPhone && (
                 <ExternalLink
                   href={`https://wa.me/${depotPhone.replace(/[^0-9]/g, '')}`}
@@ -660,11 +734,19 @@ function OrderDetailInner({ id }: { id: string }) {
           `unstickAt="lg"` matches where the inline copies above come back. */}
       <StickyActionBar className="lg:hidden" unstickAt="lg">
         {needsPayment(order, payment) ? (
-          <Button onClick={pay} loading={action === 'pay'} className="h-13 flex-1 rounded-full font-extrabold">
+          <Button
+            onClick={pay}
+            loading={action === 'pay'}
+            className="h-13 flex-1 rounded-full font-extrabold"
+          >
             {t('order.detail.payNow')}
           </Button>
         ) : (
-          <Button onClick={repeat} loading={action === 'repeat'} className="h-13 flex-1 rounded-full font-extrabold">
+          <Button
+            onClick={repeat}
+            loading={action === 'repeat'}
+            className="h-13 flex-1 rounded-full font-extrabold"
+          >
             <ArrowsClockwise size={17} weight="fill" />
             {t('order.detail.reorder')}
           </Button>
@@ -673,7 +755,11 @@ function OrderDetailInner({ id }: { id: string }) {
 
       {/* Cancel-with-reason sheet (spec 10b) — Sheet (not ConfirmDialog) so it can
           host the reason radios; the reason rides along in the cancel POST. */}
-      <Sheet open={cancelOpen} onClose={() => setCancelOpen(false)} title={t('order.detail.cancelTitle')}>
+      <Sheet
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title={t('order.detail.cancelTitle')}
+      >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">{t('order.detail.cancelIntro')}</p>
           <div className="flex flex-col gap-2">
@@ -684,7 +770,12 @@ function OrderDetailInner({ id }: { id: string }) {
               const label = t(`order.detail.cancelReasons.${key}`);
               const on = cancelReason === label;
               return (
-                <RadioCard key={key} selected={on} onSelect={() => setCancelReason(label)} className="items-center gap-3 p-3.5">
+                <RadioCard
+                  key={key}
+                  selected={on}
+                  onSelect={() => setCancelReason(label)}
+                  className="items-center gap-3 p-3.5"
+                >
                   <span
                     className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
                       on ? 'border-brand-600' : 'border-app'

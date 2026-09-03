@@ -252,6 +252,18 @@ export interface Cart {
   /** `CATALOG` = these are catalog base prices, NOT the depot's own. Never assume DEPOT. */
   pricingBasis: 'DEPOT' | 'CATALOG';
   reseller: CartReseller | null;
+  /**
+   * CA-3-23: lines the server dropped because the product is delisted or gone. Empty
+   * almost always. Optional here because an older API answers without it.
+   */
+  removed?: CartRemovedLine[];
+}
+
+/** A cart line that can no longer be sold. `productName` is null when the product is gone. */
+export interface CartRemovedLine {
+  productId: string;
+  productName: string | null;
+  quantity: number;
 }
 
 export interface DeliveryAddress {

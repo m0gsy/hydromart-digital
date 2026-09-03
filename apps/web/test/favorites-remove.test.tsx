@@ -10,6 +10,9 @@ const { get, getCached, post, del } = vi.hoisted(() => ({
   del: vi.fn(),
 }));
 
+// `ProductCard` and the recommendation rail now report a failed add through the toast
+// (CA-3-24), and `useToast` refuses to work outside its provider — as it should.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached, post, del },
   ApiError: class ApiError extends Error {},

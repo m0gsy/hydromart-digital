@@ -6,9 +6,11 @@ import { useState } from 'react';
 import { ArrowRight, Check, Drop, Plus } from '@phosphor-icons/react';
 
 import { RemoteImage } from '@/components/remote-image';
-import { api } from '@/lib/api';
+import { useToast } from '@/components/toast';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { cartDepotId } from '@/lib/location-store';
+import { currentPath, setPendingAdd } from '@/lib/pending-add';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -39,6 +41,7 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
   const { t } = useT();
   const { customer } = useAuth();
   const { bump, apply } = useCart();
+  const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -46,7 +49,17 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
     e.preventDefault();
     e.stopPropagation();
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${item.productId}`)}`);
+      /*
+       * CA-3-25. This threw the tap away twice: the chosen product was not remembered, so
+       * signing in added nothing; and `next` pointed at the product's DETAIL page, which is
+       * not where the guest was. They tapped "+" on the home rail and arrived, signed in,
+       * on a page they never asked for with an empty cart.
+       *
+       * G1 already solved this on `ProductCard` — the same two calls, and now the same
+       * behaviour: keep the item, come back HERE.
+       */
+      setPendingAdd({ productId: item.productId, quantity: 1 });
+      router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     setAdding(true);
@@ -54,10 +67,18 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
-      apply(await api.post<Cart>(endpoints.cart.items(cartDepotId()), { productId: item.productId, quantity: 1 }, true));
+      apply(
+        await api.post<Cart>(
+          endpoints.cart.items(cartDepotId()),
+          { productId: item.productId, quantity: 1 },
+          true,
+        ),
+      );
       setAdded(true);
-    } catch {
+    } catch (err) {
       bump(-1); // roll the badge back on failure
+      // CA-3-24: a bare catch here too — a failed add was indistinguishable from a missed tap.
+      toast(err instanceof ApiError ? err.message : t('shop.pdp.addError'), 'error');
     } finally {
       setAdding(false);
     }
@@ -129,7 +150,8 @@ export function ProductRecRail({
   const { data, loading, error } = useAsync<Recommendation[]>(
     // Audit F-13: recommendations change when an order is placed, and placing one is a
     // mutation — which drops the cache. Nothing else moves them within a minute.
-    () => (canFetch ? api.getCached<Recommendation[]>(endpoint, requiresAuth) : Promise.resolve([])),
+    () =>
+      canFetch ? api.getCached<Recommendation[]>(endpoint, requiresAuth) : Promise.resolve([]),
     [endpoint, canFetch],
   );
 

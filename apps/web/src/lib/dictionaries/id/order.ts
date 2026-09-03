@@ -15,6 +15,8 @@ export const order = {
     addOnAria: 'Tambah {name} ke keranjang',
     summary: 'Ringkasan',
     subtotal: 'Subtotal',
+    removedLines: '{names} tidak lagi dijual dan sudah dikeluarkan dari keranjang.',
+    removedUnknown: 'Satu barang',
     memberDiscount: 'Diskon member ({pct}%)',
     estTotal: 'Estimasi total',
     shippingNote: 'Ongkir dihitung saat checkout, setelah depot ditentukan.',
@@ -117,6 +119,8 @@ export const order = {
     payError: 'Tidak bisa memulai pembayaran.',
     cancelError: 'Tidak bisa membatalkan pesanan.',
     repeatError: 'Tidak bisa menambahkan item ini lagi.',
+    repeatNothing: 'Tidak ada barang pesanan ini yang masih dijual.',
+    repeatPartial: '{n} barang tidak lagi dijual dan tidak ikut ditambahkan.',
     // Payment instruction sheets (spec 5e)
     copy: 'Salin',
     copied: 'Disalin',
