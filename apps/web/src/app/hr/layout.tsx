@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 
 import { AccessDeniedHq } from '@/components/hq/access-denied';
+import { HrBottomNav } from '@/components/hr/hr-bottom-nav';
 import { HrRail } from '@/components/hr/hr-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
@@ -43,6 +44,8 @@ export default function HrLayout({ children }: { children: React.ReactNode }) {
           <div className="flex">
             <HrRail />
             <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
+            {/* CA-1-33: below 640px the rail is gone, and this is what replaces it. */}
+            <HrBottomNav />
           </div>
         </DepotProvider>
       </HrGate>

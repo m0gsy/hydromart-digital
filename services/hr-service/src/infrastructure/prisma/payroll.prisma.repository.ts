@@ -105,7 +105,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
   }
 
   async deductedBySourceRefBefore(
-    employeeId: string,
+    employeeId: string | null,
     beforePeriodMonth: string,
     sourceRefs: readonly string[],
   ): Promise<Map<string, number>> {
@@ -116,7 +116,13 @@ export class PayrollPrismaRepository implements PayrollRepository {
       where: {
         kind: 'DEDUCTION',
         sourceRef: { in: [...sourceRefs] },
-        payroll: { employeeId, periodMonth: { lt: beforePeriodMonth } },
+        // `employeeId: null` = any employee. The sourceRef IS the loan, so the employee
+        // clause only narrows; omitting it is what lets one query serve a page of loans
+        // belonging to different people (CA-1-34).
+        payroll: {
+          ...(employeeId ? { employeeId } : {}),
+          periodMonth: { lt: beforePeriodMonth },
+        },
       },
       _sum: { amount: true },
     });

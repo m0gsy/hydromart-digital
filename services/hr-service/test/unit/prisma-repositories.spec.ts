@@ -852,6 +852,40 @@ describe('Bonus/Deduction adjustment repositories', () => {
       orderBy: { createdAt: 'desc' },
     });
   });
+
+  /*
+   * `findById` and `delete` are how an adjustment is UNDONE — the controller reads the row
+   * to check the caller may touch it, then removes it. Neither had a test on either
+   * repository: four functions on the money path with nothing pinning them, so a `delete`
+   * that quietly became an update, or a `findById` that dropped its where clause, would
+   * have travelled to production unremarked.
+   */
+  it('BonusPrismaRepository reads and removes one row by id', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'bonus').findUnique.mockResolvedValue(out);
+    m(p, 'bonus').delete.mockResolvedValue(out);
+    const repo = new BonusPrismaRepository(asService(p));
+
+    await expect(repo.findById('b1')).resolves.toBe(out);
+    expect(m(p, 'bonus').findUnique).toHaveBeenCalledWith({ where: { id: 'b1' } });
+    // Returns nothing: the row is gone, and handing the caller the corpse invites a use.
+    await expect(repo.delete('b1')).resolves.toBeUndefined();
+    expect(m(p, 'bonus').delete).toHaveBeenCalledWith({ where: { id: 'b1' } });
+  });
+
+  it('DeductionPrismaRepository reads and removes one row by id', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'deduction').findUnique.mockResolvedValue(out);
+    m(p, 'deduction').delete.mockResolvedValue(out);
+    const repo = new DeductionPrismaRepository(asService(p));
+
+    await expect(repo.findById('d1')).resolves.toBe(out);
+    expect(m(p, 'deduction').findUnique).toHaveBeenCalledWith({ where: { id: 'd1' } });
+    await expect(repo.delete('d1')).resolves.toBeUndefined();
+    expect(m(p, 'deduction').delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
+  });
 });
 
 // ── ShiftPrismaRepository: rotations & assignments (C3) ────────────────
@@ -2172,6 +2206,56 @@ describe('LoanPrismaRepository', () => {
       orderBy: { createdAt: 'asc' },
     });
   });
+
+  /*
+   * CA-1-34. The depot lives on the EMPLOYEE, not on the loan, so the scope is a filter on
+   * the relation the row already has — the same relation that carries the name and the
+   * staff code the list needs.
+   */
+  it('listAll scopes by the employee’s depot and names the borrower', async () => {
+    const p = makePrisma();
+    m(p, 'loan').findMany.mockResolvedValue([
+      { id: 'l1', employee: { fullName: 'Budi', employeeCode: 'K001' } },
+    ]);
+    m(p, 'loan').count.mockResolvedValue(1);
+    const repo = new LoanPrismaRepository(asService(p));
+
+    await expect(repo.listAll({ depotIds: ['d1', 'd2'], activeOnly: true, skip: 5, take: 10 }))
+      .resolves.toEqual({
+        rows: [{ id: 'l1', employeeName: 'Budi', employeeCode: 'K001' }],
+        total: 1,
+      });
+    const where = { active: true, employee: { depotId: { in: ['d1', 'd2'] } } };
+    expect(m(p, 'loan').findMany).toHaveBeenCalledWith({
+      where,
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: 5,
+      take: 10,
+    });
+    expect(m(p, 'loan').count).toHaveBeenCalledWith({ where });
+  });
+
+  it('listAll with no scope and no filter asks for everything', async () => {
+    const p = makePrisma();
+    m(p, 'loan').findMany.mockResolvedValue([{ id: 'l1', employee: null }]);
+    m(p, 'loan').count.mockResolvedValue(1);
+    const repo = new LoanPrismaRepository(asService(p));
+
+    // HQ sits above depots, so it gets an unfiltered read — and an anonymised employee has
+    // no row left to name, which is a null, not a crash.
+    await expect(repo.listAll({ skip: 0, take: 20 })).resolves.toEqual({
+      rows: [{ id: 'l1', employeeName: null, employeeCode: null }],
+      total: 1,
+    });
+    expect(m(p, 'loan').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
+  });
 });
 
 // ── PayrollPrismaRepository ────────────────────────────────────────────
@@ -2420,6 +2504,32 @@ describe('PayrollPrismaRepository', () => {
       months: 0,
     });
     expect(m(p, 'payrollItem').findMany).not.toHaveBeenCalled();
+  });
+
+  /*
+   * CA-1-34: `employeeId: null` means "whoever the loan belongs to". The network-wide loan
+   * list asks about many people's loans in one query, and `sourceRef` already identifies
+   * the loan — narrowing by employee as well would make the query wrong for that caller,
+   * silently returning zero repaid for every row that is not theirs.
+   */
+  it('deductedBySourceRefBefore drops the employee clause when asked about anybody', async () => {
+    const p = makePrisma();
+    m(p, 'payrollItem').groupBy.mockResolvedValue([{ sourceRef: 'l1', _sum: { amount: 250_000 } }]);
+    const repo = new PayrollPrismaRepository(asService(p));
+
+    await expect(repo.deductedBySourceRefBefore(null, '2026-09', ['l1'])).resolves.toEqual(
+      new Map([['l1', 250_000]]),
+    );
+    expect(m(p, 'payrollItem').groupBy).toHaveBeenCalledWith({
+      by: ['sourceRef'],
+      where: {
+        kind: 'DEDUCTION',
+        sourceRef: { in: ['l1'] },
+        // No `employeeId` at all — the period bound is the only narrowing left.
+        payroll: { periodMonth: { lt: '2026-09' } },
+      },
+      _sum: { amount: true },
+    });
   });
 
   it('deductedBySourceRefBefore asks the database nothing when there are no loans', async () => {
