@@ -108,6 +108,8 @@ function build(opts: {
   /** D4: IDR already taken for each loan id in earlier periods. */
   repaid?: Record<string, number>;
   ladder?: string;
+  /** Per-day absence fine; 0 (the default) means no fine line is produced at all. */
+  absenceRate?: number;
   sales?: number | null;
   allowances?: Partial<Allowance>[];
   workedMinutes?: { workDate: string; workingMinutes: number | null }[];
@@ -150,7 +152,7 @@ function build(opts: {
   const config = {
     lateDeductionAmount: () => 10000,
     dailyRateTraining: () => 30000,
-    absenceDeductionAmount: () => 0,
+    absenceDeductionAmount: () => opts.absenceRate ?? 0,
     weeklyOffDays: () => '',
     tenureRaiseLadder: () => opts.ladder ?? '',
     standardWorkingMinutes: () => 480,
@@ -620,5 +622,50 @@ describe('PayrollService remaining pay shapes', () => {
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(basicOf(repo.lastWrite)).toBe(2_000_000);
+  });
+});
+
+/*
+ * The absence fine must never reach back before somebody started.
+ *
+ * scripts/payroll-manual-checks.mjs check 19 asserts this against a live stack; it went red
+ * on the HR branch while main stayed green, so this pins the same claim where it can be
+ * bisected — a MONTHLY joiner, an absence rate configured, and no attendance at all.
+ */
+describe('PayrollService absence fine and the joining date', () => {
+  it('refuses the period outright when they joined after it ended', async () => {
+    const { repo, svc } = build({
+      employee: {
+        salaryType: 'MONTHLY',
+        monthlyRate: 6_000_000 as never,
+        // Joined AFTER the period ended: not one day of July is theirs.
+        joinDate: new Date('2026-08-01T00:00:00.000Z') as never,
+      },
+      summary: { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      absenceRate: 50_000,
+    });
+
+    // Not "a slip with no fine" — no slip at all. Nobody worked that month.
+    await expect(svc.generate(user, 'e1', '2026-07')).rejects.toThrow(/tidak bekerja pada periode/i);
+    expect(repo.lastWrite).toBeFalsy();
+  });
+
+  it('fines only the days from the joining date onwards', async () => {
+    const { repo, svc } = build({
+      employee: {
+        salaryType: 'MONTHLY',
+        monthlyRate: 6_000_000 as never,
+        // Joined on the 30th: at most two of July's days can be theirs.
+        joinDate: new Date('2026-07-30T00:00:00.000Z') as never,
+      },
+      summary: { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      absenceRate: 50_000,
+    });
+
+    await svc.generate(user, 'e1', '2026-07');
+
+    const fine = repo.lastWrite!.items.find((i) => String(i.label).startsWith('Potongan absen'));
+    const days = Number(String(fine?.label).match(/\((\d+) hari\)/)?.[1] ?? 0);
+    expect(days).toBeLessThanOrEqual(2);
   });
 });
