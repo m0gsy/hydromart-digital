@@ -1,10 +1,8 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promotion.prisma.repository';
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
-import { VoucherRequestPrismaRepository } from '../../src/infrastructure/prisma/voucher-request.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
 import { VoucherNotFoundError } from '../../src/domain/errors';
-import { VoucherRequestStatus } from '../../src/domain/voucher-request';
 
 describe('PromotionPrismaRepository', () => {
   const model = {
@@ -372,6 +370,51 @@ describe('VoucherPrismaRepository', () => {
     ).rejects.toBe(dup);
   });
 
+  /*
+   * C4 · release. The voided-sale path: the redemption row goes and the counter comes back
+   * down. Locked exactly the way `redeemAtomic` locks — the counter and the rows must move
+   * together, or a concurrent redemption reads a count that disagrees with what is behind
+   * it.
+   */
+  it('releaseAtomic deletes the redemption and decrements the counter under a lock', async () => {
+    const red = { id: 'r-1', voucherId: 'v-1', orderId: 'o-9', discountApplied: 2_500 };
+    const tx = {
+      voucherRedemption: {
+        findUnique: jest.fn().mockResolvedValue(red),
+        delete: jest.fn().mockResolvedValue(red),
+      },
+      voucher: { update: jest.fn().mockResolvedValue(voucherRow()) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
+
+    const out = await repo.releaseAtomic('o-9');
+
+    expect(out?.id).toBe('r-1');
+    // The row lock comes BEFORE the write, which is the whole point of doing it in here.
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.voucherRedemption.delete).toHaveBeenCalledWith({ where: { orderId: 'o-9' } });
+    expect(tx.voucher.update).toHaveBeenCalledWith({
+      where: { id: 'v-1' },
+      data: { usedCount: { decrement: 1 } },
+    });
+  });
+
+  it('releaseAtomic answers null for an order that redeemed nothing', async () => {
+    const tx = {
+      voucherRedemption: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn() },
+      voucher: { update: jest.fn() },
+      $queryRaw: jest.fn(),
+    };
+    $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
+
+    // Idempotent: voiding a sale twice, or voiding one that never used a voucher, must not
+    // drive somebody else's counter down.
+    expect(await repo.releaseAtomic('o-none')).toBeNull();
+    expect(tx.voucher.update).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('grantVoucher returns false when a grant already exists', async () => {
     voucherGrant.findUnique.mockResolvedValue({ voucherId: 'v-1', customerId: 'c-1' });
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(false);
@@ -466,110 +509,3 @@ describe('VoucherPrismaRepository.redeemAtomic', () => {
   });
 });
 
-describe('VoucherRequestPrismaRepository', () => {
-  const model = {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    findUnique: jest.fn(),
-    update: jest.fn(),
-  };
-  const prisma = { voucherRequest: model } as unknown as PrismaService;
-  const repo = new VoucherRequestPrismaRepository(prisma);
-
-  const requestRow = () => ({
-    id: 'req-1',
-    depotId: 'd-1',
-    depotName: 'Depot Satu',
-    code: 'DEPOT10',
-    description: null,
-    discountType: 'PERCENTAGE',
-    value: 10,
-    minSpend: 0,
-    maxDiscount: null,
-    usageLimit: null,
-    perCustomerLimit: 1,
-    note: null,
-    status: 'PENDING',
-    requestedBy: 'mgr-1',
-    decidedBy: null,
-    createdVoucherId: null,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
-  });
-
-  beforeEach(() => jest.clearAllMocks());
-
-  it('create maps the persisted row to a record', async () => {
-    model.create.mockResolvedValue(requestRow());
-    const data = { depotId: 'd-1', code: 'DEPOT10' } as never;
-    const rec = await repo.create(data);
-    expect(rec.discountType).toBe(DiscountType.PERCENTAGE);
-    expect(rec.status).toBe(VoucherRequestStatus.PENDING);
-    expect(model.create).toHaveBeenCalledWith({ data });
-  });
-
-  it('list filters by status, paginates, and maps items', async () => {
-    model.findMany.mockResolvedValue([requestRow()]);
-    model.count.mockResolvedValue(1);
-    const res = await repo.list({ status: VoucherRequestStatus.PENDING, page: 2, limit: 5 });
-    expect(res.total).toBe(1);
-    expect(res.items[0].id).toBe('req-1');
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { status: VoucherRequestStatus.PENDING },
-      orderBy: { createdAt: 'desc' },
-      skip: 5,
-      take: 5,
-    });
-    expect(model.count).toHaveBeenCalledWith({ where: { status: VoucherRequestStatus.PENDING } });
-  });
-
-  it('list without a status uses an empty where', async () => {
-    model.findMany.mockResolvedValue([]);
-    model.count.mockResolvedValue(0);
-    const res = await repo.list({ page: 1, limit: 10 } as never);
-    expect(res).toEqual({ items: [], total: 0 });
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: {},
-      orderBy: { createdAt: 'desc' },
-      skip: 0,
-      take: 10,
-    });
-  });
-
-  it('findById maps or returns null', async () => {
-    model.findUnique.mockResolvedValue(requestRow());
-    expect((await repo.findById('req-1'))?.id).toBe('req-1');
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'req-1' } });
-    model.findUnique.mockResolvedValue(null);
-    expect(await repo.findById('nope')).toBeNull();
-  });
-
-  it('update applies only the provided fields', async () => {
-    model.update.mockResolvedValue({
-      ...requestRow(),
-      status: 'APPROVED',
-      decidedBy: 'hq-1',
-      createdVoucherId: 'v-9',
-    });
-    const rec = await repo.update('req-1', {
-      status: VoucherRequestStatus.APPROVED,
-      decidedBy: 'hq-1',
-      createdVoucherId: 'v-9',
-    });
-    expect(rec.status).toBe(VoucherRequestStatus.APPROVED);
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'req-1' },
-      data: { status: VoucherRequestStatus.APPROVED, decidedBy: 'hq-1', createdVoucherId: 'v-9' },
-    });
-  });
-
-  it('update omits fields that are undefined', async () => {
-    model.update.mockResolvedValue(requestRow());
-    await repo.update('req-1', {});
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'req-1' },
-      data: {},
-    });
-  });
-});

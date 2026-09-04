@@ -15,6 +15,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 import { PaymentMethod, PaymentStatus } from '../../domain/payment';
@@ -246,6 +247,22 @@ export class RefundPaymentDto {
   @IsString()
   @MaxLength(255)
   reason?: string;
+}
+
+/**
+ * CA-2-34: rejecting a refund REQUIRES a reason.
+ *
+ * The reject route took `RefundPaymentDto`, whose reason is optional, and the service then
+ * fell back to `payment.refundReason` — the REQUESTER's words — so the audit trail read as
+ * though the person refusing had written the reason the person asking had written. A
+ * refusal that spends nobody's money still ends somebody's claim, and it has to say why.
+ */
+export class RejectRefundDto {
+  @ApiProperty({ example: 'Barang sudah diterima dan tidak ada keluhan.' })
+  @IsString()
+  @MinLength(4)
+  @MaxLength(255)
+  reason!: string;
 }
 
 export class PaymentWebhookDto {

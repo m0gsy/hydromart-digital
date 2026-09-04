@@ -288,6 +288,19 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
         .map((id) => [id, this.orderNumbers.get(id)!]),
     );
   }
+  /*
+   * CA-2-34: orderId -> status. ABSENT is the interesting case, not an oversight — the
+   * rejection guard treats "order-service could not say" as a refusal, so a fake that
+   * always answered would hide exactly the branch that protects the customer.
+   */
+  orderStatuses = new Map<string, string>();
+  async getOrderStatuses(orderIds: string[]): Promise<Map<string, string>> {
+    return new Map(
+      orderIds
+        .filter((id) => this.orderStatuses.has(id))
+        .map((id) => [id, this.orderStatuses.get(id)!]),
+    );
+  }
 }
 
 export const WEBHOOK_SECRET = 'test-webhook-secret-01';

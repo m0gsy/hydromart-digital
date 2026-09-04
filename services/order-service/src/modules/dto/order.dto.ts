@@ -296,6 +296,14 @@ export class OrderValueDto {
       "The order's depot, or null while unassigned. payment-service scopes settlement on it.",
   })
   depotId!: string | null;
+
+  @ApiProperty({
+    example: 'CANCELLED',
+    description:
+      "The order's current status. payment-service refuses to REJECT a refund on a " +
+      'cancelled order: a cancelled order that was paid gets its money back (CA-2-34).',
+  })
+  status!: string;
 }
 
 /** Spec 7b: set up a recurring galon delivery. */

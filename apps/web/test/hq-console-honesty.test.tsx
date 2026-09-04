@@ -157,26 +157,12 @@ describe('the webhook delivery log has a door (CA-2-43)', () => {
 });
 
 /*
- * CA-2-42. "Tidak ada permintaan voucher" reads as a quiet day. It is not: nothing anywhere
- * raises one, so this queue has never had a producer and cannot get one without a decision
- * nobody has taken — the role that would propose (MANAGER) can already create vouchers
- * directly. An empty state that hides that is the same lie the rest of this register is
- * about.
+ * CA-2-42 used to be tested here: the HQ voucher-request queue explained why it was empty,
+ * because nothing anywhere raised a request.
+ *
+ * The owner settled it on 2026-09-04 — a depot manager may create vouchers for their own
+ * depot, and the approval queue is gone. There is no screen left to assert on, so the test
+ * went with it rather than being weakened into something that still passes. What replaced
+ * it is the absence itself: `check-endpoint-contracts` fails if the endpoints come back
+ * with no caller, and `check-route-parity` fails if the route does.
  */
-describe('an approval queue with no producer says so (CA-2-42)', () => {
-  it('explains why it is empty, instead of reading as a quiet day', async () => {
-    get.mockImplementation((url: string) => {
-      const u = String(url);
-      if (u.includes('voucher-requests'))
-        return Promise.resolve({ items: [], total: 0, page: 1, limit: 50 });
-      if (u.includes('burn')) return Promise.resolve({ totalUsed: 0, byVoucher: {} });
-      return Promise.resolve({ items: [], total: 0, page: 1, limit: 50 });
-    });
-
-    const { default: HqVouchersPage } = await import('@/app/hq/vouchers/page');
-    render(<HqVouchersPage />, { wrapper: LocaleProvider });
-
-    expect(await screen.findByText(/Tidak ada permintaan voucher/)).toBeTruthy();
-    expect(screen.getByText(/belum bisa terisi/i)).toBeTruthy();
-  });
-});

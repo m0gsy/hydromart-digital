@@ -609,8 +609,8 @@ describe('OrderPrismaRepository', () => {
 
   it('batch-reads order totals in one selected findMany query', async () => {
     order.findMany.mockResolvedValue([
-      { id: 'ord-1', orderNumber: 'HM-1', total: dec(103_000), depotId: 'depot-1' },
-      { id: 'ord-2', orderNumber: 'HM-2', total: dec(47_500), depotId: null },
+      { id: 'ord-1', orderNumber: 'HM-1', total: dec(103_000), depotId: 'depot-1', status: 'DELIVERED' },
+      { id: 'ord-2', orderNumber: 'HM-2', total: dec(47_500), depotId: null, status: 'CANCELLED' },
     ]);
 
     const result = await (
@@ -618,21 +618,35 @@ describe('OrderPrismaRepository', () => {
         findOrderValues(
           ids: string[],
         ): Promise<
-          { orderId: string; orderNumber: string; totalIdr: number; depotId: string | null }[]
+          {
+            orderId: string;
+            orderNumber: string;
+            totalIdr: number;
+            depotId: string | null;
+            status: string;
+          }[]
         >;
       }
     ).findOrderValues(['ord-1', 'ord-2', 'missing']);
 
     // AUTHZ-2: payment-service settles on the ORDER's depot, so the batch carries it. An
     // unassigned order answers null, and a depot-scoped caller is refused on that.
+    // CA-2-34: the status travels too — payment-service refuses to REJECT a refund on a
+    // cancelled order, and a payment row knows nothing about the order beyond its id.
     expect(result).toEqual([
-      { orderId: 'ord-1', orderNumber: 'HM-1', totalIdr: 103_000, depotId: 'depot-1' },
-      { orderId: 'ord-2', orderNumber: 'HM-2', totalIdr: 47_500, depotId: null },
+      {
+        orderId: 'ord-1',
+        orderNumber: 'HM-1',
+        totalIdr: 103_000,
+        depotId: 'depot-1',
+        status: 'DELIVERED',
+      },
+      { orderId: 'ord-2', orderNumber: 'HM-2', totalIdr: 47_500, depotId: null, status: 'CANCELLED' },
     ]);
     expect(order.findMany).toHaveBeenCalledTimes(1);
     expect(order.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['ord-1', 'ord-2', 'missing'] } },
-      select: { id: true, orderNumber: true, total: true, depotId: true },
+      select: { id: true, orderNumber: true, total: true, depotId: true, status: true },
     });
   });
 

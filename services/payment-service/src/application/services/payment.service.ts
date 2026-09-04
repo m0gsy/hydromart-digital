@@ -20,6 +20,8 @@ import {
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
+  RefundOnCancelledOrderError,
+  RefundOrderUnreadableError,
 } from '../../domain/errors';
 import {
   EXPIRABLE_PENDING_METHODS,
@@ -100,7 +102,17 @@ export interface WebhookPayload {
 }
 
 /** A refund-queue row plus the order's human-readable number (§G-3). */
-export type RefundQueueRow = PaymentRecord & { orderNumber: string | null };
+export type RefundQueueRow = PaymentRecord & {
+  orderNumber: string | null;
+  /**
+   * CA-2-34: the order's status, or null when order-service could not be read.
+   *
+   * `CANCELLED` means the refusal button must not be drawn — a cancelled order that was
+   * paid gets its money back. `null` means the same thing for a different reason: we
+   * cannot prove it was not cancelled, and the server will refuse on exactly that basis.
+   */
+  orderStatus: string | null;
+};
 
 @Injectable()
 export class PaymentService {
@@ -680,10 +692,20 @@ export class PaymentService {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(PaymentService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
     const { items, total } = await this.payments.listPendingRefunds({ page, limit });
-    const numbers = await this.orderCoordination.getOrderNumbers(items.map((i) => i.orderId));
+    const ids = items.map((i) => i.orderId);
+    /*
+     * CA-2-34: the status travels with the row so the console can say WHY a refusal is not
+     * on offer, instead of drawing a button and letting the server refuse it. Same batch
+     * route as the numbers, so this is one extra field, not one extra round trip.
+     */
+    const [numbers, statuses] = await Promise.all([
+      this.orderCoordination.getOrderNumbers(ids),
+      this.orderCoordination.getOrderStatuses(ids),
+    ]);
     const decorated = items.map((i) => ({
       ...i,
       orderNumber: numbers.get(i.orderId) ?? null,
+      orderStatus: statuses.get(i.orderId) ?? null,
     }));
     return buildPage(decorated, total, page, limit);
   }
@@ -697,29 +719,52 @@ export class PaymentService {
     return this.executeRefund(payment, changedBy, payment.refundReason, RefundApproval.APPROVED);
   }
 
-  /** HQ rejects a queued refund → no money moves; payment stays PAID. */
-  async rejectRefund(id: string, changedBy: string, reason?: string): Promise<PaymentRecord> {
+  /**
+   * HQ rejects a queued refund → no money moves; payment stays PAID.
+   *
+   * CA-2-34, the owner's rule: **a cancelled order that was paid gets its money back.**
+   * Rejection used to be available on any queued row, so a refund raised against an order
+   * that was already CANCELLED could simply be refused — and then the customer's money sat
+   * with the business, the payment stayed PAID, and nothing was ever said to them. The
+   * order was over; the money stayed. Refusal is for disputes on orders that are still
+   * standing, not for orders nobody is going to fulfil.
+   *
+   * Reads the order's status through the batch route the refund queue already uses, and
+   * **fails CLOSED**: if order-service cannot say, we cannot prove the order was not
+   * cancelled, and refusing to reject is the answer that cannot take somebody's money by
+   * accident. HQ retries; nothing is lost but a minute.
+   */
+  async rejectRefund(id: string, changedBy: string, reason: string): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     if (payment.refundApproval !== RefundApproval.PENDING) {
       throw new RefundNotPendingError();
     }
+
+    const statuses = await this.orderCoordination.getOrderStatuses([payment.orderId]);
+    const status = statuses.get(payment.orderId);
+    if (!status) throw new RefundOrderUnreadableError();
+    if (status === 'CANCELLED') throw new RefundOnCancelledOrderError();
+
     this.logger.log(`Refund ${id} rejected by ${changedBy}`);
-    // success:false — a refused approval is a decision someone made, and the record of
-    // who refused what is exactly as load-bearing as the record of who approved.
+    /*
+     * success:false — a refused approval is a decision someone made, and the record of who
+     * refused what is exactly as load-bearing as the record of who approved.
+     *
+     * CA-2-34: the REJECTOR's reason, with no fallback to `payment.refundReason`. That
+     * fallback wrote the REQUESTER's words into the rejection record, so the audit read as
+     * though the person refusing had given the reason the person asking had given.
+     */
     await this.audit(
       changedBy,
       'payment.refund.rejected',
       payment,
-      {
-        amountIdr: payment.amount,
-        reason: reason ?? payment.refundReason ?? null,
-      },
+      { amountIdr: payment.amount, reason },
       false,
     );
     return this.payments.update(id, {
       status: payment.status, // stays PAID
       refundApproval: RefundApproval.REJECTED,
-      refundReason: reason ?? payment.refundReason,
+      refundReason: reason,
     });
   }
 

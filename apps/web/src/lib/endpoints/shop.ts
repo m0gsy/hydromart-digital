@@ -236,22 +236,6 @@ export const shop = {
     detail: (id: string) => `/vouchers/api/v1/vouchers/${id}`,
   },
 
-  // Depot→HQ voucher requests (14b). HQ queue + approve/reject; propose is depot-side.
-  voucherRequests: {
-    queue: (q: { page?: number; limit?: number; status?: string } = {}) => {
-      const p = new URLSearchParams();
-      if (q.page) p.set('page', String(q.page));
-      if (q.limit) p.set('limit', String(q.limit));
-      if (q.status) p.set('status', q.status);
-      const qs = p.toString();
-      return `/vouchers/api/v1/voucher-requests${qs ? `?${qs}` : ''}`;
-    },
-    approve: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/approve`,
-    reject: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/reject`,
-    // (propose removed, audit F: the voucher approval queue was built read-and-decide —
-    // `list`/`decide` are called, nothing in the web app ever raises a request.)
-  },
-
   loyalty: {
     // depotId scopes both to that depot's membership ladder (thresholds + rates are
     // per-depot settings); omitted answers against the global one.
