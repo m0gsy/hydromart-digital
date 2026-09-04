@@ -203,6 +203,18 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 100,
     envDefault: 20,
   },
+  // CA-1-45 — the payslip month THR is paid in, per depot. Empty is what every depot reads
+  // until someone fills it in, so no payslip moves on its own the release this lands. A
+  // month rather than a date because a payslip is monthly: THR rides the payslip of the
+  // month it falls due in.
+  {
+    key: 'thrPeriodMonth',
+    label: 'Bulan pembayaran THR',
+    type: 'string',
+    unit: 'YYYY-MM (kosong = nonaktif)',
+    envDefault: '',
+    pattern: '^$|^\\d{4}-(0[1-9]|1[0-2])$',
+  },
   {
     key: 'tenureRaiseLadder',
     label: 'Kenaikan gaji masa kerja (Kepala Depot)',

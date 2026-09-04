@@ -17,6 +17,7 @@ import {
   LeaveType,
 } from '../../../prisma/generated/client';
 import { parseWeeklyOffDays } from '../../domain/calendar';
+import { annualLeaveQuotaFor } from '../../domain/tenure';
 import {
   BLOCKING_STATUSES,
   LeaveAction,
@@ -321,11 +322,24 @@ export class LeaveService {
     );
   }
 
+  /**
+   * CA-1-46: the quota is prorated in the employee's first calendar year and full after,
+   * so a November joiner is no longer handed a full year of leave for two months of work.
+   *
+   * The row is still written once, by `ensureBalance`'s deliberately empty update — a
+   * balance created before this shipped keeps the flat number it was born with, and the
+   * opening-balance CSV import stays the one way to correct it.
+   */
   private async balanceFor(employee: Employee, when: Date): Promise<LeaveBalance> {
+    const year = when.getUTCFullYear();
     return this.repo.ensureBalance(
       employee.id,
-      when.getUTCFullYear(),
-      this.config.annualLeaveQuotaDays(employee.depotId),
+      year,
+      annualLeaveQuotaFor(
+        this.config.annualLeaveQuotaDays(employee.depotId),
+        employee.joinDate,
+        year,
+      ),
     );
   }
 

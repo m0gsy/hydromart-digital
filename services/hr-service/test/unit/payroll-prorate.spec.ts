@@ -37,15 +37,19 @@ interface Overrides {
   allowance?: number;
   /** Depot SOP §2 tiered fines, `tier1,tier2,absent`. Empty = the flat branch. */
   lateFineCsv?: string;
+  /** CA-1-45 — the payslip month THR is paid in. Empty = no THR line. */
+  thrMonth?: string;
+  salaryType?: 'MONTHLY' | 'DAILY';
+  dailyRate?: number;
 }
 
 function build(o: Overrides = {}) {
   const employee = {
     id: 'emp_1',
     depotId: 'dep_1',
-    salaryType: 'MONTHLY' as const,
-    monthlyRate: RATE,
-    dailyRate: null,
+    salaryType: o.salaryType ?? ('MONTHLY' as const),
+    monthlyRate: o.salaryType === 'DAILY' ? null : RATE,
+    dailyRate: o.dailyRate ?? null,
     employmentStatus: 'PERMANENT' as const,
     status: o.status ?? 'ACTIVE',
     joinDate: new Date(o.joinDate ?? '2020-01-01T00:00:00.000Z'),
@@ -98,6 +102,7 @@ function build(o: Overrides = {}) {
       // No TER table configured is the shipped state, and the state these tests assume.
       pph21TerTable: () => ({}),
       tenureRaiseLadder: () => '',
+      thrPeriodMonth: () => o.thrMonth ?? '',
     } as never,
     undefined, // holidays
     undefined, // bonusRules
@@ -226,5 +231,69 @@ describe('who may be generated for at all', () => {
     });
     await svc.generate(USER, 'emp_1', PERIOD);
     expect(amountOf(created.items, 'BASE')).toBe(Math.round((RATE * 2) / 26));
+  });
+});
+
+/**
+ * CA-1-45 — THR per PP 36/2021, owner decision 2026-09-04.
+ *
+ * The anchor lives here rather than in `tenure.spec.ts` because a pure-formula test cannot
+ * see a reverted wiring: it is the payslip that has to carry the line, off the contracted
+ * wage and not off the window-prorated BASE.
+ */
+describe('CA-1-45 — THR', () => {
+  it('pays one whole month at twelve months of service or more', async () => {
+    const { svc, created } = build({ joinDate: '2020-01-01T00:00:00.000Z', thrMonth: PERIOD });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(RATE);
+  });
+
+  it('prorates masa kerja under a year', async () => {
+    // Joined 2025-04-15, THR month 2026-03 (asOf 2026-03-31) → 11 completed months.
+    const { svc, created } = build({ joinDate: '2025-04-15T00:00:00.000Z', thrMonth: PERIOD });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(Math.round((RATE * 11) / 12));
+  });
+
+  it('pays nothing under one month of service', async () => {
+    const { svc, created } = build({
+      joinDate: '2026-03-20T00:00:00.000Z',
+      presentDays: 8,
+      thrMonth: PERIOD,
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(0);
+  });
+
+  it('pays nothing at all when no THR month is configured', async () => {
+    const { svc, created } = build({ joinDate: '2020-01-01T00:00:00.000Z' });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(0);
+  });
+
+  it('pays the contracted month, not the days actually worked', async () => {
+    // Present for 6 of 26 working days: BASE is prorated, THR is not.
+    const { svc, created } = build({
+      joinDate: '2020-01-01T00:00:00.000Z',
+      presentDays: 6,
+      thrMonth: PERIOD,
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BASE')).toBe(RATE); // MONTHLY, full window
+    expect(amountOf(created.items, 'BONUS')).toBe(RATE);
+  });
+
+  it("pays a DAILY employee their rate over the month's working days", async () => {
+    // The owner's answer for staff who have no monthlyRate at all: dailyRate × 26.
+    const { svc, created } = build({
+      joinDate: '2020-01-01T00:00:00.000Z',
+      salaryType: 'DAILY',
+      dailyRate: 100_000,
+      presentDays: 20,
+      thrMonth: PERIOD,
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BASE')).toBe(100_000 * 20); // days present
+    expect(amountOf(created.items, 'BONUS')).toBe(100_000 * 26); // a month of work
   });
 });

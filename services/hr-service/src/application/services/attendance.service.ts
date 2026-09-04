@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -351,7 +352,19 @@ export class AttendanceService {
     return updated;
   }
 
-  /** HR manual attendance entry for a day with no check-in (e.g. LEAVE/HOLIDAY/ABSENT). */
+  /**
+   * HR manual attendance entry for a day with no check-in (e.g. LEAVE/HOLIDAY/ABSENT).
+   *
+   * CA-1-14: this used to upsert. A day that was actually punched carries a check-in time,
+   * a face photo and GPS coordinates; the upsert wrote only `status`, so those stayed in
+   * the row saying one thing while the status said another — and `summaryMany` counts
+   * PRESENT/LATE as worked days, so retyping a punched day moved payroll. `lateMinutes`
+   * survived too, keeping the tiered late fine on a day now called PRESENT.
+   *
+   * Manual entry is therefore only for a day with no record. Changing a day that has one
+   * goes through `adjust`, which files the old value, the new value, the reason and who
+   * approved it.
+   */
   async createManual(
     user: AuthenticatedUser,
     input: { employeeId: string; workDate: string; status: AttendanceStatus; reason: string },
@@ -362,6 +375,11 @@ export class AttendanceService {
 
     const workDate = new Date(`${input.workDate.slice(0, 10)}T00:00:00.000Z`);
     const existing = await this.repo.findByEmployeeAndDate(input.employeeId, workDate);
+    if (existing) {
+      throw new ConflictException(
+        'Hari itu sudah punya catatan kehadiran — ubah lewat koreksi pada baris tersebut, bukan absen manual',
+      );
+    }
     const updated = await this.repo.upsertManual({
       employeeId: input.employeeId,
       depotId: employee.depotId,
@@ -371,7 +389,7 @@ export class AttendanceService {
     await this.repo.recordAdjustment({
       attendanceId: updated.id,
       reason: input.reason,
-      before: existing ? snapshot(existing) : null,
+      before: null,
       after: snapshot(updated),
       approvedBy: user.sub,
     });
