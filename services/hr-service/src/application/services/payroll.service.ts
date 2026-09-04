@@ -241,6 +241,10 @@ export class PayrollService {
     //
     // BONUS, like every other bonus here: it stays out of `gross` and therefore out of the
     // BPJS and PPh21 monthly estimate, which is the repo-wide treatment documented below.
+    //
+    // `thrPeriodMonth` is the payslip PERIOD, and `assertPeriodClosed` above refuses a
+    // period that has not ended — so the month named there is the one BEFORE hari raya if
+    // PP 36/2021's H-7 deadline is to be met. Named in the setting's own unit text too.
     if (periodMonth === this.config.thrPeriodMonth(employee.depotId)) {
       // One call covers both: `basePay` reads `presentDays` for DAILY and ignores it for
       // MONTHLY, and the default fraction of 1 is what "undiminished by the window" means.
