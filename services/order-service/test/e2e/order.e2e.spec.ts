@@ -366,6 +366,10 @@ describe('Order HTTP flows (e2e)', () => {
         // AUTHZ-2: the depot payment-service scopes settlement on. Null here because
         // nothing has assigned this order to a depot yet.
         depotId: order.body.depotId ?? null,
+        // CA-2-34: payment-service refuses to REJECT a refund on a cancelled order, and a
+        // payment row knows nothing about the order beyond its id. A fresh checkout is
+        // CREATED, which is exactly the state where a refusal IS still allowed.
+        status: order.body.status,
       },
     ]);
 

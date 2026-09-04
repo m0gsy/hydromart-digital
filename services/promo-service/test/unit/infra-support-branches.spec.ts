@@ -78,6 +78,15 @@ describe('PromoConfigService', () => {
     expect(config.customerServiceUrl).toBe('');
     // trailing slashes are trimmed off the order-service base url
     expect(config.orderServiceUrl).toBe('http://order');
+    // Trimmed the same way, and for the same reason: a base url that ends in a slash makes
+    // every path built from it a double slash, which some gateways route and some 404.
+    expect(config.authServiceUrl).toBe('');
+    expect(buildTestConfig({ AUTH_SERVICE_URL: 'http://auth:3001/' }).authServiceUrl).toBe(
+      'http://auth:3001',
+    );
+    // H-16: one business timezone, defaulted rather than left to the server's locale.
+    expect(config.businessTimeZone).toBe('Asia/Jakarta');
+    expect(buildTestConfig({ PRICING_TZ: 'Asia/Makassar' }).businessTimeZone).toBe('Asia/Makassar');
   });
 
   it('defaults isProduction to false and parses/trims CORS origins', () => {

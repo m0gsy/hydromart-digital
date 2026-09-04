@@ -370,6 +370,51 @@ describe('VoucherPrismaRepository', () => {
     ).rejects.toBe(dup);
   });
 
+  /*
+   * C4 · release. The voided-sale path: the redemption row goes and the counter comes back
+   * down. Locked exactly the way `redeemAtomic` locks — the counter and the rows must move
+   * together, or a concurrent redemption reads a count that disagrees with what is behind
+   * it.
+   */
+  it('releaseAtomic deletes the redemption and decrements the counter under a lock', async () => {
+    const red = { id: 'r-1', voucherId: 'v-1', orderId: 'o-9', discountApplied: 2_500 };
+    const tx = {
+      voucherRedemption: {
+        findUnique: jest.fn().mockResolvedValue(red),
+        delete: jest.fn().mockResolvedValue(red),
+      },
+      voucher: { update: jest.fn().mockResolvedValue(voucherRow()) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
+
+    const out = await repo.releaseAtomic('o-9');
+
+    expect(out?.id).toBe('r-1');
+    // The row lock comes BEFORE the write, which is the whole point of doing it in here.
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.voucherRedemption.delete).toHaveBeenCalledWith({ where: { orderId: 'o-9' } });
+    expect(tx.voucher.update).toHaveBeenCalledWith({
+      where: { id: 'v-1' },
+      data: { usedCount: { decrement: 1 } },
+    });
+  });
+
+  it('releaseAtomic answers null for an order that redeemed nothing', async () => {
+    const tx = {
+      voucherRedemption: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn() },
+      voucher: { update: jest.fn() },
+      $queryRaw: jest.fn(),
+    };
+    $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
+
+    // Idempotent: voiding a sale twice, or voiding one that never used a voucher, must not
+    // drive somebody else's counter down.
+    expect(await repo.releaseAtomic('o-none')).toBeNull();
+    expect(tx.voucher.update).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('grantVoucher returns false when a grant already exists', async () => {
     voucherGrant.findUnique.mockResolvedValue({ voucherId: 'v-1', customerId: 'c-1' });
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(false);
