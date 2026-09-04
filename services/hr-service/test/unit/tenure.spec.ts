@@ -1,4 +1,11 @@
-import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../src/domain/tenure';
+import {
+  annualLeaveQuotaFor,
+  parseRaiseLadder,
+  tenureMonths,
+  tenureRaisePercent,
+  tenureYears,
+  thrAmount,
+} from '../../src/domain/tenure';
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -39,5 +46,49 @@ describe('tenureRaisePercent', () => {
   });
   it('returns 0 for an empty ladder', () => {
     expect(tenureRaisePercent([], 10)).toBe(0);
+  });
+});
+
+describe('tenureMonths', () => {
+  it('turns the month only once the day-of-month is reached', () => {
+    expect(tenureMonths(d('2026-03-15'), d('2026-04-14'))).toBe(0);
+    expect(tenureMonths(d('2026-03-15'), d('2026-04-15'))).toBe(1);
+    expect(tenureMonths(d('2025-03-15'), d('2026-04-15'))).toBe(13);
+  });
+  it('is 0 for a future join date', () => {
+    expect(tenureMonths(d('2026-06-01'), d('2026-03-10'))).toBe(0);
+  });
+});
+
+describe('annualLeaveQuotaFor', () => {
+  it('prorates the joining year, floored', () => {
+    expect(annualLeaveQuotaFor(12, d('2026-11-01'), 2026)).toBe(2); // Nov + Dec
+    expect(annualLeaveQuotaFor(12, d('2026-03-15'), 2026)).toBe(9); // 15 Mar → 1 Jan = 9 months
+    expect(annualLeaveQuotaFor(12, d('2026-12-20'), 2026)).toBe(0); // under a month
+  });
+  it('gives a January joiner the whole first year', () => {
+    expect(annualLeaveQuotaFor(12, d('2026-01-01'), 2026)).toBe(12);
+  });
+  it('floors rather than rounds against a non-12 depot quota', () => {
+    expect(annualLeaveQuotaFor(15, d('2026-08-01'), 2026)).toBe(6); // 5/12 × 15 = 6.25
+  });
+  it('pays the full quota in every year after the joining year, and nothing before it', () => {
+    expect(annualLeaveQuotaFor(12, d('2026-11-01'), 2027)).toBe(12);
+    expect(annualLeaveQuotaFor(12, d('2026-11-01'), 2025)).toBe(0);
+  });
+});
+
+describe('thrAmount', () => {
+  it('pays a whole month at twelve months or more', () => {
+    expect(thrAmount(3_000_000, 12)).toBe(3_000_000);
+    expect(thrAmount(3_000_000, 40)).toBe(3_000_000);
+  });
+  it('prorates one to eleven months', () => {
+    expect(thrAmount(3_000_000, 1)).toBe(250_000);
+    expect(thrAmount(3_000_000, 11)).toBe(2_750_000);
+  });
+  it('pays nothing under a month, and nothing on a zero wage', () => {
+    expect(thrAmount(3_000_000, 0)).toBe(0);
+    expect(thrAmount(0, 12)).toBe(0);
   });
 });

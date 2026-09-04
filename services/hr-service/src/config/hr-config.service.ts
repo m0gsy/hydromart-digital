@@ -263,6 +263,15 @@ export class HrConfigService {
       depotId,
     );
   }
+  /** The 'YYYY-MM' payslip month THR is paid in; '' = no THR line at all (CA-1-45). */
+  thrPeriodMonth(depotId: string | null = null): string {
+    return this.tunableStr(
+      'thrPeriodMonth',
+      this.config.get<string>('HR_THR_PERIOD_MONTH', ''),
+      depotId,
+    );
+  }
+
   /** Depot-head tenure raise ladder as CSV ("1:5,2:10"); '' = no automatic raise (Rule-E). */
   tenureRaiseLadder(depotId: string | null = null): string {
     return this.tunableStr(
