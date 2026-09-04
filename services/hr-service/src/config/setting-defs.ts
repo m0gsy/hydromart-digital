@@ -203,6 +203,22 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 100,
     envDefault: 20,
   },
+  // CA-1-45 — the payslip THR rides, per depot. Empty is what every depot reads until
+  // someone fills it in, so no payslip moves on its own the release this lands.
+  //
+  // It is the payslip's PERIOD, and a payslip cannot be generated until its month has
+  // ended (`assertPeriodClosed`). PP 36/2021 wants THR paid at latest H-7, so the month
+  // named here is the one BEFORE hari raya: naming the hari-raya month itself pays it in
+  // the following month, which is late. The unit says so, because a setting whose correct
+  // value is a month earlier than the obvious one will otherwise be typed wrong once.
+  {
+    key: 'thrPeriodMonth',
+    label: 'Bulan pembayaran THR',
+    type: 'string',
+    unit: 'YYYY-MM, periode slip SEBELUM hari raya (kosong = nonaktif)',
+    envDefault: '',
+    pattern: '^$|^\\d{4}-(0[1-9]|1[0-2])$',
+  },
   {
     key: 'tenureRaiseLadder',
     label: 'Kenaikan gaji masa kerja (Kepala Depot)',

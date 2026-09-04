@@ -42,6 +42,8 @@ const EMPLOYEE = {
   phone: '0811',
   authSubjectId: 'auth-emp',
   supervisorId: 'emp-boss',
+  // Joined years ago, so every existing expectation here reads the full configured quota.
+  joinDate: new Date('2020-01-06T00:00:00.000Z'),
 } as Employee;
 
 const SUPERVISOR = {
@@ -50,6 +52,7 @@ const SUPERVISOR = {
   fullName: 'Sari',
   phone: '0899',
   authSubjectId: 'auth-boss',
+  joinDate: new Date('2020-01-06T00:00:00.000Z'),
 } as Employee;
 
 class FakeLeaveRepo implements LeaveRepository {
@@ -125,7 +128,7 @@ class FakeLeaveRepo implements LeaveRepository {
   }
 }
 
-function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } = {}) {
+function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; joinDate?: Date } = {}) {
   const repo = new FakeLeaveRepo();
   const attendanceWrites: ManualAttendanceInput[] = [];
   const attendance = {
@@ -137,7 +140,7 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } 
   const employees = {
     getSelf: async (user: AuthenticatedUser) => {
       if (user.sub !== 'auth-emp') throw new NotFoundException('Akun ini belum tertaut');
-      return EMPLOYEE;
+      return opts.joinDate ? ({ ...EMPLOYEE, joinDate: opts.joinDate } as Employee) : EMPLOYEE;
     },
     findByIdInternal: async (id: string) =>
       id === EMPLOYEE.id ? EMPLOYEE : id === SUPERVISOR.id ? SUPERVISOR : null,
@@ -412,6 +415,30 @@ describe('LeaveService reads', () => {
       quotaDays: 15,
       usedDays: 0,
     });
+  });
+
+  // CA-1-46. Without the proration a November joiner opens the year with the full quota
+  // and can book a fortnight off for two months of work — and `submit`'s ceiling check
+  // reads the same number, so it lets them.
+  it('prorates the first calendar year and pays the full quota after it', async () => {
+    const joinDate = new Date('2026-11-01T00:00:00.000Z');
+    const first = await make({ quota: 12, joinDate }).svc.myBalance(staff, 2026);
+    expect(first.quotaDays).toBe(2); // Nov + Dec
+
+    const second = await make({ quota: 12, joinDate }).svc.myBalance(staff, 2027);
+    expect(second.quotaDays).toBe(12);
+  });
+
+  it('refuses leave beyond the prorated first-year quota', async () => {
+    const { svc } = make({ quota: 12, joinDate: new Date('2026-11-01T00:00:00.000Z') });
+    await expect(
+      svc.submit(staff, {
+        type: 'ANNUAL',
+        startDate: '2026-12-07',
+        endDate: '2026-12-11', // 5 working days against a 2-day quota
+        reason: 'liburan',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('reads the current year balance when no year is asked for', async () => {

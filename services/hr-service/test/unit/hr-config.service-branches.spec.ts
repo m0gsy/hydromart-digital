@@ -187,6 +187,20 @@ describe('HrConfigService — per-depot tunables', () => {
     expect(over.weeklyOffDays()).toBe('0');
   });
 
+  // CA-1-45. Empty is the shipped state — a depot only pays THR in the month it names.
+  it('reads thrPeriodMonth (empty by default, env, then a per-depot override)', async () => {
+    expect(new HrConfigService(config(), await cacheWith()).thrPeriodMonth()).toBe('');
+
+    const envd = new HrConfigService(config({ HR_THR_PERIOD_MONTH: '2026-03' }), await cacheWith());
+    expect(envd.thrPeriodMonth()).toBe('2026-03');
+
+    const over = new HrConfigService(
+      config({ HR_THR_PERIOD_MONTH: '2026-03' }),
+      await cacheWith([{ scope: 'DEPOT', depotId, key: 'thrPeriodMonth', value: '2026-04' }]),
+    );
+    expect(over.thrPeriodMonth(depotId)).toBe('2026-04');
+  });
+
   it('serves the offline-punch tunables from defaults and per-depot overrides', async () => {
     const svc = new HrConfigService(config(), await cacheWith());
     expect(svc.offlineAutoAcceptMinutes()).toBe(10);
