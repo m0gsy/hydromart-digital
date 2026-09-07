@@ -119,6 +119,8 @@ function build(opts: {
   noHolidays?: boolean;
   /** Depot SOP §2 tiered fines, `tier1,tier2,absent`. Empty = the flat branch. */
   fines?: string;
+  /** CA-1-45 — the payslip month THR is paid in. Empty = no THR line at all. */
+  thrMonth?: string;
 }) {
   const repo = new FakePayrollRepo();
   if (opts.repaid) repo.repaid = new Map(Object.entries(opts.repaid));
@@ -155,6 +157,7 @@ function build(opts: {
     absenceDeductionAmount: () => opts.absenceRate ?? 0,
     weeklyOffDays: () => '',
     tenureRaiseLadder: () => opts.ladder ?? '',
+    thrPeriodMonth: () => opts.thrMonth ?? '',
     standardWorkingMinutes: () => 480,
     // D2: 60 minutes unpaid break, 90 on Friday. Stubbed to 0 here so every pre-existing
     // arithmetic case keeps asserting what it was written to assert; the break itself is

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Attendance, Employee } from '../../prisma/generated/client';
@@ -95,24 +95,33 @@ describe('AttendanceService manual override', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('createManual audits the day it overwrote when one already existed', async () => {
+  // CA-1-14: a day that already has a record is refused outright, and nothing is written.
+  // Without the guard this upserts, so the row's photo, GPS, check-in time and lateMinutes
+  // stay behind a status that now contradicts them — and payroll counts the new status.
+  it('createManual refuses a day that already has a record, and writes nothing', async () => {
     const adjustments: { before: unknown }[] = [];
+    const upserts: ManualAttendanceInput[] = [];
     const repo = {
       findById: async () => row,
       findByEmployeeAndDate: async () => row,
-      upsertManual: async (input: ManualAttendanceInput) =>
-        ({ ...row, status: input.status }) as Attendance,
+      upsertManual: async (input: ManualAttendanceInput) => {
+        upserts.push(input);
+        return { ...row, status: input.status } as Attendance;
+      },
       recordAdjustment: async (d: { before: unknown }) => void adjustments.push(d),
     } as unknown as AttendanceRepository;
     const employees = { findById: async () => employee } as unknown as EmployeeRepository;
     const svc = new AttendanceService(repo, {} as never, {} as never, employees, {} as never);
-    await svc.createManual(user, {
-      employeeId: 'e1',
-      workDate: '2026-07-01',
-      status: 'HOLIDAY',
-      reason: 'libur depot',
-    });
-    expect((adjustments[0].before as { status: string }).status).toBe('ABSENT');
+    await expect(
+      svc.createManual(user, {
+        employeeId: 'e1',
+        workDate: '2026-07-01',
+        status: 'HOLIDAY',
+        reason: 'libur depot',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(upserts).toHaveLength(0);
+    expect(adjustments).toHaveLength(0);
   });
 
   it('createManual upserts a day (no check-in) and audits it', async () => {

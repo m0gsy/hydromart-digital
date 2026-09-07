@@ -151,6 +151,7 @@ function build(opts: {
     overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
     dailySalesBonusTiers: () => opts.gallonTiers ?? '',
     tenureRaiseLadder: () => '',
+    thrPeriodMonth: () => '',
     lateFineCsv: (isDepotManager: boolean) =>
       (isDepotManager ? opts.lateFineManager : opts.lateFineStaff) ?? '',
     lateTier2AfterMinutes: () => opts.lateTier2After ?? 0,

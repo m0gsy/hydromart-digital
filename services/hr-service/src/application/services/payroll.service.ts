@@ -4,7 +4,13 @@ import { AuthenticatedUser, depotScopeIds, localMonthKey } from '@hydromart/plat
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
-import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../domain/tenure';
+import {
+  parseRaiseLadder,
+  tenureMonths,
+  tenureRaisePercent,
+  tenureYears,
+  thrAmount,
+} from '../../domain/tenure';
 import {
   evalBonusRule,
   BonusContext,
@@ -220,6 +226,33 @@ export class PayrollService {
           amount: Math.round(rupiah(a.amount) * window.fraction),
           sourceRef: a.id,
         });
+      }
+    }
+
+    // CA-1-45 — THR, PP 36/2021 pasal 9: 12 bulan ke atas = 1 bulan upah, 1–12 bulan =
+    // prorata masa kerja / 12, di bawah 1 bulan = tidak dapat.
+    //
+    // Paid off the CONTRACTED wage, never off `base`: `base` is already prorated by this
+    // month's employment window and, for DAILY staff, by the days they actually turned up
+    // — PP 36/2021 pays a month of pay, not a share of the month worked. A DAILY employee's
+    // "one month's wage" is their daily rate over the month's working days, which is the
+    // same `periodDays` the window already counted (calendar days − rota off days −
+    // holidays), so the two definitions of "a month" on this payslip cannot drift apart.
+    //
+    // BONUS, like every other bonus here: it stays out of `gross` and therefore out of the
+    // BPJS and PPh21 monthly estimate, which is the repo-wide treatment documented below.
+    //
+    // `thrPeriodMonth` is the payslip PERIOD, and `assertPeriodClosed` above refuses a
+    // period that has not ended — so the month named there is the one BEFORE hari raya if
+    // PP 36/2021's H-7 deadline is to be met. Named in the setting's own unit text too.
+    if (periodMonth === this.config.thrPeriodMonth(employee.depotId)) {
+      // One call covers both: `basePay` reads `presentDays` for DAILY and ignores it for
+      // MONTHLY, and the default fraction of 1 is what "undiminished by the window" means.
+      const monthWage = this.basePay(employee, window.periodDays);
+      const months = tenureMonths(employee.joinDate, to);
+      const thr = thrAmount(monthWage, months);
+      if (thr > 0) {
+        items.push({ kind: 'BONUS', label: `THR (masa kerja ${months} bulan)`, amount: thr });
       }
     }
 

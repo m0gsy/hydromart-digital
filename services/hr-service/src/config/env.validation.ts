@@ -34,6 +34,8 @@ export const envValidationSchema = Joi.object({
   // Tenure raise ladder for depot heads (Rule-E): "years:pct" CSV, e.g. "1:5,2:10,3:15".
   // Empty = no automatic raise.
   HR_TENURE_RAISE_LADDER: Joi.string().allow('').default(''),
+  // The payslip month THR is paid in (CA-1-45), 'YYYY-MM'. Empty = no THR line.
+  HR_THR_PERIOD_MONTH: Joi.string().allow('').default(''),
   // Tiered late fine (depot SOP): "telat1,telat2,tidakAbsen" rupiah CSV per jabatan.
   // Empty = keep the flat HR_LATE_DEDUCTION_IDR. Boundaries are minutes after the shift start.
   HR_LATE_FINE_STAFF: Joi.string().allow('').default(''),
