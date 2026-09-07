@@ -1590,9 +1590,13 @@ describe('PurchaseOrderController', () => {
     // CA-2-64: an empty body still means "everything outstanding", so the single Terima
     // button keeps working without sending a per-line map.
     await c.receive(ID, {} as never, user);
-    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', undefined);
+    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', undefined, undefined);
     await c.receive(ID, { received: { 0: 40 } } as never, user);
-    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', { 0: 40 });
+    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', { 0: 40 }, undefined);
+
+    // CA-2-55: the shortfall reason rides the same call, keyed by the same line index.
+    await c.receive(ID, { received: { 0: 40 }, notes: { 0: 'sisanya batal' } } as never, user);
+    expect(svc.receive).toHaveBeenCalledWith(ID, 'user-1', { 0: 40 }, { 0: 'sisanya batal' });
   });
 });
 

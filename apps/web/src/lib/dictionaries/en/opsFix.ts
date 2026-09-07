@@ -175,7 +175,7 @@ export const opsFix = {
     fromSwitcher: '(from the switcher).',
     poFor: 'PO for',
     sendToSupplier: 'Send to supplier',
-    receive: 'Receive → RECEIPT',
+    openToReceive: 'Open to receive goods',
     fromForecast: 'Create from forecast',
     noDepots2: 'No depot has been configured yet.',
     noOrders: 'No purchase orders match this filter.',

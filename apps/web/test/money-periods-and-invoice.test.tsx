@@ -110,6 +110,49 @@ describe('invoice (CA-2-63)', () => {
     expect(screen.queryByText('hq.invoiceTemplate.paid')).toBeNull();
   });
 
+  /*
+   * CA-2-52 — owner decision 2026-09-04: the business is not PKP, so build nothing
+   * tax-shaped. The trouble was that something already existed and nobody switched it on:
+   * `ppnPercent` shipped defaulting to 11, there is no seed row and no SQL default, so an
+   * untouched database printed a PPN 11% line and an NPWP header over a real customer's
+   * real order, with a Print button. That is a faktur-shaped document.
+   */
+  it('prints no PPN line and no NPWP until a rate is deliberately set', async () => {
+    get.mockImplementation(async (url: string) => {
+      if (String(url).includes('/tax')) return { ...TAX, ppnPercent: 0, npwp: '01.222.333.4-555.000' };
+      if (String(url).includes('for-order')) {
+        return { id: 'p1', orderId: 'o1', status: 'PAID', amount: 110_000 };
+      }
+      return { items: [ORDER], total: 1, page: 1, limit: 1 };
+    });
+    render(<InvoiceTemplatePage />);
+
+    await waitFor(() => expect(screen.getAllByText(/110\.000/).length).toBeGreaterThan(0));
+    expect(screen.queryByText(/invoiceTemplate\.ppn/)).toBeNull();
+    expect(screen.queryByText(/invoiceTemplate\.npwp/)).toBeNull();
+  });
+
+  it('shows the tax block again once a rate is set', async () => {
+    get.mockImplementation(route({ id: 'p1', orderId: 'o1', status: 'PAID', amount: 110_000 }));
+    render(<InvoiceTemplatePage />);
+
+    await waitFor(() => expect(screen.getByText(/invoiceTemplate\.ppn/)).toBeTruthy());
+  });
+
+  /*
+   * The second defect in the same arithmetic, and the one that survives PKP registration:
+   * with "harga sudah termasuk pajak" OFF, the total was `gross + ppn` — 11% above what
+   * the customer actually paid, on an invoice for a settled order.
+   */
+  it('never states a total above what was charged', async () => {
+    get.mockImplementation(route({ id: 'p1', orderId: 'o1', status: 'PAID', amount: 110_000 }));
+    render(<InvoiceTemplatePage />);
+
+    await waitFor(() => expect(screen.getAllByText(/110\.000/).length).toBeGreaterThan(0));
+    // 110.000 + 11% = 122.100 — the figure this screen used to print as the grand total.
+    expect(screen.queryByText(/122\.100/)).toBeNull();
+  });
+
   it('says the status could not be read rather than claiming paid', async () => {
     get.mockImplementation(route(null));
     render(<InvoiceTemplatePage />);

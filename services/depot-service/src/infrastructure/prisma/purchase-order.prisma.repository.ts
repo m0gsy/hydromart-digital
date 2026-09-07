@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PoLine, PoStatus, PurchaseOrder } from '../../domain/purchase-order';
+import { PoLine, PoStatus, PurchaseOrder, receivedOf } from '../../domain/purchase-order';
 import {
   CreatePurchaseOrderData,
   PurchaseOrderRepository,
@@ -53,11 +53,18 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
   }
 
   async receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number> {
-    const agg = await this.prisma.purchaseOrder.aggregate({
+    // CA-2-55: what ARRIVED, not what was ordered. A line closed short with a note now
+    // lets the PO reach RECEIVED, so `SUM(totalIdr)` would bill the depot for goods that
+    // never came. Bounded by depot and one period — see the port's doc comment.
+    const rows = await this.prisma.purchaseOrder.findMany({
       where: { depotId, receivedAt: { gte: from, lt: to } },
-      _sum: { totalIdr: true },
+      select: { lines: true, shippingIdr: true },
     });
-    return agg._sum.totalIdr ?? 0;
+    return rows.reduce((sum, row) => {
+      const lines = (row.lines as unknown as PoLine[] | null) ?? [];
+      const goods = lines.reduce((n, l) => n + receivedOf(l) * l.unitCostIdr, 0);
+      return sum + goods + (row.shippingIdr ?? 0);
+    }, 0);
   }
 
   async findById(id: string): Promise<PurchaseOrder | null> {

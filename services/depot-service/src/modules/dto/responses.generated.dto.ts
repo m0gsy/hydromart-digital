@@ -1,7 +1,7 @@
 // GENERATED (audit D-6) — mirrors of the shapes these routes already return.
 // Regenerate rather than hand-edit: the point is that the documented schema cannot
 // drift from the response. No field is added, removed or renamed here.
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PublicDepotView } from './depot.dto';
 
 /** Mirrors `Approval` exactly — generated for audit D-6, no field added or removed. */
@@ -1058,6 +1058,17 @@ export class PoLineResponseDto {
   quantity!: number;
   @ApiProperty({ type: Number })
   unitCostIdr!: number;
+  // `receivedQuantity` was added to PoLine by CA-2-64 and never reached this class, whose
+  // own comment above claims it mirrors PoLine exactly. `check-api-responses.mjs` counts
+  // routes that declare a response; it never diffs a DTO's fields against the domain, so
+  // nothing caught it and nothing would have. Both fields are here now.
+  @ApiPropertyOptional({ type: Number, description: 'How much of this line has arrived.' })
+  receivedQuantity?: number;
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Why the balance is not coming; its presence closes a short line (CA-2-55).',
+  })
+  shortfallNote?: string;
 }
 
 /** Mirrors `PurchaseOrder` exactly — generated for audit D-6, no field added or removed. */

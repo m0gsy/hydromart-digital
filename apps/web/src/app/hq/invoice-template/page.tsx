@@ -59,7 +59,20 @@ export default function HqInvoiceTemplatePage() {
     ? Math.round(gross - gross / (1 + rate))
     : Math.round(gross * rate);
   const net = settings.priceIncludesTax ? gross - ppn : gross;
-  const total = settings.priceIncludesTax ? gross : gross + ppn;
+  /*
+   * CA-2-52. Two things, both about not stating a number nobody paid.
+   *
+   * The invoice total is what was CHARGED, full stop. The old `gross + ppn` branch printed
+   * a total 11% above the amount the customer actually paid whenever "harga sudah termasuk
+   * pajak" was off — an invoice for a settled order, stating a figure that never moved.
+   *
+   * And the whole tax block only prints once a rate has been set on purpose. The business
+   * is not PKP (owner decision 2026-09-04), the shipped default is now 0, and a document
+   * headed by an NPWP field with a PPN line on it is a faktur-shaped document. The screen
+   * stays exactly where it is for the day the business registers.
+   */
+  const total = gross;
+  const showsTax = settings.ppnPercent > 0;
   const invoiceNo = order
     ? order.orderNumber
     : settings.invoiceFormat
@@ -95,9 +108,11 @@ export default function HqInvoiceTemplatePage() {
           <div>
             <p className="text-lg font-extrabold">{settings.companyName}</p>
             <p className="mt-1 max-w-xs text-xs text-[#64757c]">{settings.address}</p>
-            <p className="mt-1 text-xs text-[#64757c]">
-              {t('hq.invoiceTemplate.npwp')}: {settings.npwp || '—'}
-            </p>
+            {showsTax && (
+              <p className="mt-1 text-xs text-[#64757c]">
+                {t('hq.invoiceTemplate.npwp')}: {settings.npwp || '—'}
+              </p>
+            )}
           </div>
           <div className="text-right">
             {(() => {
@@ -172,12 +187,14 @@ export default function HqInvoiceTemplatePage() {
             <span className="text-[#64757c]">{t('hq.invoiceTemplate.subtotal')}</span>
             <Money amount={net} className="tabular-nums" />
           </div>
-          <div className="flex justify-between">
-            <span className="text-[#64757c]">
-              {t('hq.invoiceTemplate.ppn', { n: settings.ppnPercent })}
-            </span>
-            <Money amount={ppn} className="tabular-nums" />
-          </div>
+          {showsTax && (
+            <div className="flex justify-between">
+              <span className="text-[#64757c]">
+                {t('hq.invoiceTemplate.ppn', { n: settings.ppnPercent })}
+              </span>
+              <Money amount={ppn} className="tabular-nums" />
+            </div>
+          )}
           <div className="mt-1 flex justify-between border-t border-[#e9e7df] pt-2 text-base font-extrabold">
             <span>{t('hq.invoiceTemplate.total')}</span>
             <Money amount={total} className="tabular-nums" />

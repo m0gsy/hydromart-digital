@@ -2226,6 +2226,42 @@ describe('PurchaseOrderPrismaRepository', () => {
   });
 
   /*
+   * CA-2-55: goods cost is what ARRIVED, not what was ordered.
+   *
+   * This used to be `SUM(totalIdr)` in SQL, and that was right only by accident: a PO could
+   * not reach RECEIVED until every line was full, so ordered and arrived were always equal.
+   * Now a line can close short with a note, and the ordered value would bill the depot's
+   * own P&L for goods that never came.
+   */
+  it('sums what arrived plus shipping, not the ordered value', async () => {
+    model.findMany.mockResolvedValue([
+      {
+        // 40 of 60 galon arrived, the rest cancelled; 200 of 200 segel arrived.
+        lines: [
+          { itemType: 'GALON', label: 'Galon', quantity: 60, unitCostIdr: 20_000, receivedQuantity: 40, shortfallNote: 'batal' },
+          { itemType: 'SEGEL', label: 'Segel', quantity: 200, unitCostIdr: 100, receivedQuantity: 200 },
+        ],
+        shippingIdr: 5_000,
+      },
+      // A historical row: no receivedQuantity anywhere, which reads as zero, not as full.
+      { lines: [{ itemType: 'AIR', label: 'Air', quantity: 10, unitCostIdr: 1_000 }], shippingIdr: 0 },
+      // A row whose lines column is null at all.
+      { lines: null, shippingIdr: 2_000 },
+    ]);
+
+    const from = new Date('2026-03-01T00:00:00Z');
+    const to = new Date('2026-04-01T00:00:00Z');
+    const total = await repo.receivedTotalInRange('depot-1', from, to);
+
+    // 40×20.000 + 200×100 + 5.000 = 825.000; historical row 0; null-lines row 2.000.
+    expect(total).toBe(40 * 20_000 + 200 * 100 + 5_000 + 0 + 2_000);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', receivedAt: { gte: from, lt: to } },
+      select: { lines: true, shippingIdr: true },
+    });
+  });
+
+  /*
    * CA-2-64: a partial receipt writes each line's received quantity back.
    *
    * `lines` is a Json column and cannot ride along in the typed spread, so it is cast

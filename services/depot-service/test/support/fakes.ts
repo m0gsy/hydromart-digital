@@ -56,7 +56,7 @@ import {
   SupplierRepository,
   UpdateSupplierData,
 } from '../../src/application/ports/supplier.repository';
-import { PoStatus, PurchaseOrder } from '../../src/domain/purchase-order';
+import { PoStatus, PurchaseOrder, receivedOf } from '../../src/domain/purchase-order';
 import {
   CreatePurchaseOrderData,
   PurchaseOrderRepository,
@@ -688,7 +688,16 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
           r.receivedAt >= from &&
           r.receivedAt < to,
       )
-      .reduce((sum, r) => sum + r.totalIdr, 0);
+      // CA-2-55: what ARRIVED, not what was ordered — the same rule as the Prisma
+      // repository. Two implementations of one port that disagree about money is a bug
+      // waiting for whichever one the next test happens to use.
+      .reduce(
+        (sum, r) =>
+          sum +
+          r.lines.reduce((n, l) => n + receivedOf(l) * l.unitCostIdr, 0) +
+          (r.shippingIdr ?? 0),
+        0,
+      );
   }
 
   async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {

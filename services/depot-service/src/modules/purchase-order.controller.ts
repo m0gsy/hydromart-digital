@@ -71,8 +71,10 @@ export class PurchaseOrderController {
     summary: 'Receive goods — all of them, or the part that arrived',
     description:
       'Posts a RECEIPT per line for the quantity arriving now. `received` keys the arriving ' +
-      'quantity by line index; omit it to receive everything still outstanding. The PO only ' +
-      'reaches RECEIVED once every line is complete, so a partial delivery stays open.',
+      'quantity by line index; omit it to receive everything still outstanding. A line that ' +
+      'came up short stays open unless `notes` carries a reason for it, which records the ' +
+      'shortfall and closes that line — so a delivery the supplier will not complete can ' +
+      'finish instead of sitting in SENT forever.',
   })
   async receive(
     @Param('id', ParseUUIDPipe) id: string,
@@ -80,6 +82,6 @@ export class PurchaseOrderController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PurchaseOrder> {
     assertDepotAccess(user, (await this.orders.get(id)).depotId);
-    return this.orders.receive(id, user.sub, dto.received);
+    return this.orders.receive(id, user.sub, dto.received, dto.notes);
   }
 }

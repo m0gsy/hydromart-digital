@@ -11,9 +11,19 @@ import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../domain/tax';
 /**
  * Defaults returned before HQ has saved any tax settings. These are editable config
  * defaults, not fabricated runtime data — the finance admin overrides them via PUT.
+ *
+ * CA-2-52 — owner decision 2026-09-04: the business is not PKP yet, so nothing tax-shaped
+ * gets built. But 11 was the shipped default and there is no seed row and no SQL default,
+ * so on an untouched database the invoice screen printed a "PPN 11%" line and an NPWP
+ * header over a real customer's real order, with a Print button — a faktur-shaped document
+ * issued by a business with no right to issue one. Nobody switched that on; it was on.
+ *
+ * 0 is the honest default: no rate is set, so no tax line is printed. The screen and the
+ * settings form stay exactly where they are for the day the business registers, and the
+ * whole feature comes back by typing a rate into /hq/tax.
  */
 const DEFAULTS: TaxSettingsRecord = {
-  ppnPercent: 11,
+  ppnPercent: 0,
   priceIncludesTax: true,
   taxRounding: DEFAULT_TAX_ROUNDING,
   invoiceFormat: 'HM/{YYYY}/{MM}/{SEQ}',

@@ -108,6 +108,26 @@ export class ReceivePurchaseOrderDto {
   @IsOptional()
   @IsObject()
   received?: Record<number, number>;
+
+  /**
+   * CA-2-55: why the balance of a line is not coming, keyed by the same line index.
+   *
+   * A note is what CLOSES a short line: with one, the PO can reach RECEIVED even though the
+   * line never filled. Without one, a short line still means "the rest is still coming",
+   * which is the ordinary partial delivery CA-2-64 was built for. The service trims and
+   * caps each value — `@IsObject()` cannot bound a Record's values.
+   */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { 0: 'pemasok kirim 40, sisanya dibatalkan' },
+    description:
+      'Reason the rest of a line is not coming, keyed by line index. Recorded as a short ' +
+      'delivery and closes that line, so the PO can finish. Max 200 characters.',
+  })
+  @IsOptional()
+  @IsObject()
+  notes?: Record<number, string>;
 }
 
 /** CA-2-64: every field a depot may correct after the fact. `depotId` is not one of them. */

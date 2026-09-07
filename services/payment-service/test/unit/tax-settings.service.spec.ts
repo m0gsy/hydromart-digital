@@ -28,10 +28,18 @@ describe('TaxSettingsService', () => {
     address: 'Jl. Uji 1',
   };
 
-  it('returns editable defaults before anything is saved', async () => {
+  /*
+   * CA-2-52 — owner decision 2026-09-04: not PKP yet, so nothing tax-shaped is built.
+   *
+   * The default used to be 11. There is no seed row for `tax_settings` and no SQL default
+   * on the column, so on an untouched database this served 11 and the invoice screen
+   * printed a "PPN 11%" line and an NPWP header over a real customer's real order, with a
+   * Print button. Nobody switched that on. It was on.
+   */
+  it('serves no tax rate until somebody sets one', async () => {
     const service = new TaxSettingsService(new InMemoryTaxSettingsRepository());
     const settings = await service.get();
-    expect(settings.ppnPercent).toBe(11);
+    expect(settings.ppnPercent).toBe(0);
     expect(settings.priceIncludesTax).toBe(true);
     expect(settings.updatedAt).toBeNull();
   });
