@@ -53,6 +53,18 @@ export class DepotSummaryQueryDto {
 
 /* ---------- Responses ---------- */
 
+/**
+ * CA-3-45 — the two numbers the /referral screen states out loud. Published so the copy
+ * quotes what the server is actually paying instead of a number typed into a dictionary
+ * once and never revisited: both are settings, and both have moved before.
+ */
+export class ReferralRulesDto {
+  @ApiProperty({ example: 500, description: 'Points the referrer gets when a referral qualifies.' })
+  referrerPoints!: number;
+  @ApiProperty({ example: 250, description: 'Welcome points the referee gets on the same event.' })
+  refereePoints!: number;
+}
+
 export class TopReferrerDto {
   @ApiProperty({ format: 'uuid', description: 'Referrer customerId (no name — see depot summary).' })
   customerId!: string;

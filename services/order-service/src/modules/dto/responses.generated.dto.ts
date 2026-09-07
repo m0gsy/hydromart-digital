@@ -1135,6 +1135,15 @@ export class InternalCustomerOrdersResponseDto {
   orders!: InternalCustomerOrdersOrdersResponseDto[];
 }
 
+/**
+ * CA-3-40 — referral-service asks whether a customer has ever completed an order, so it can
+ * hold "pelanggan baru" to what it always claimed.
+ */
+export class InternalCustomerCompletedResponseDto {
+  @ApiProperty({ type: Boolean })
+  hasCompleted!: boolean;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class RemindStale2ResponseDto {
   @ApiProperty({ type: Number })

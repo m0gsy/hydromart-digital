@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ReferralService } from '../../src/application/services/referral.service';
 import {
   FakeCustomerDirectory,
+  FakeOrderHistory,
   FakeLoyaltyReward,
   InMemoryReferralRepository,
   buildTestConfig,
@@ -49,6 +50,7 @@ describe('ReferralService.depotSummary', () => {
       new FakeLoyaltyReward(),
       new FakeCustomerDirectory(idsByDepot),
       buildTestConfig(),
+      new FakeOrderHistory(),
     );
   }
 

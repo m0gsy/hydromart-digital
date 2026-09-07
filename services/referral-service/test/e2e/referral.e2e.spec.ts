@@ -11,7 +11,11 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { ReferralModule } from '../../src/modules/referral.module';
 import { REFERRAL_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { FakeLoyaltyReward, InMemoryReferralRepository } from '../support/fakes';
+import {
+  FakeLoyaltyReward,
+  FakeOrderHistory,
+  InMemoryReferralRepository,
+} from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 const INTERNAL_KEY = 'test-internal-service-key-0123456789';
@@ -58,6 +62,11 @@ describe('Referral HTTP flows (e2e)', () => {
       .useValue(new InMemoryReferralRepository())
       .overrideProvider(REFERRAL_TOKENS.LoyaltyReward)
       .useValue(new FakeLoyaltyReward())
+      // CA-3-40: redeem now asks order-service whether the referee has ever completed an
+      // order, and refuses when it cannot be asked. `false` = a genuinely new customer,
+      // which is what every redemption case here is about.
+      .overrideProvider(REFERRAL_TOKENS.OrderHistory)
+      .useValue(new FakeOrderHistory(false))
       .compile();
 
     app = moduleRef.createNestApplication();

@@ -1505,7 +1505,7 @@ export const hrFix = {
   referral: {
     yourCode: 'Kode referral kamu',
     shareHint:
-      'Bagikan kode ini. Teman dapat potongan di pesanan pertama, kamu dapat poin saat pesanannya selesai.',
+      'Bagikan kode ini. Setelah pesanan pertama temanmu selesai, kamu dapat {referrer} poin dan temanmu dapat {referee} poin. Bukan potongan harga.',
     title: 'Ajak teman',
     accountAria: 'Akun',
     copyAria: 'Salin kode',

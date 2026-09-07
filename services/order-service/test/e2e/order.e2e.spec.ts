@@ -319,6 +319,29 @@ describe('Order HTTP flows (e2e)', () => {
       expect.objectContaining({ productId, sku: 'AIR-19L', unit: 'Galon 19L' }),
     ]);
     expect('nextCursor' in page.body).toBe(true);
+
+    // CA-3-40 — the same internal-key contract on the route referral-service asks before
+    // creating a referral. The customer above has just completed an order, so the honest
+    // answer here is `true`; a stranger's id must come back `false`, not empty.
+    const customerId = seeded.customerId as string;
+    await request(server())
+      .get(`/api/v1/orders/internal/customer-completed?customerId=${customerId}`)
+      .expect(401);
+    await request(server())
+      .get(`/api/v1/orders/internal/customer-completed?customerId=${customerId}`)
+      .set('x-internal-key', 'wrong')
+      .expect(401);
+    const completed = await request(server())
+      .get(`/api/v1/orders/internal/customer-completed?customerId=${customerId}`)
+      .set('x-internal-key', INTERNAL_KEY)
+      .expect(200);
+    expect(completed.body).toEqual({ hasCompleted: true });
+
+    const stranger = await request(server())
+      .get(`/api/v1/orders/internal/customer-completed?customerId=${randomUUID()}`)
+      .set('x-internal-key', INTERNAL_KEY)
+      .expect(200);
+    expect(stranger.body).toEqual({ hasCompleted: false });
   // The 30s budget every test in this workspace now gets lives in package.json's jest
   // block, not here. It used to be this one argument on this one test — and the very next
   // spec in the file, nine sequential round-trips with no override, went red the same way

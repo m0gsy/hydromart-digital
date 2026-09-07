@@ -30,6 +30,7 @@ import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { tierProgress } from '@/lib/loyalty';
 import { useLoyaltyRules } from '@/lib/loyalty-rules';
+import { useReferralRules } from '@/lib/referral-rules';
 import { useAsync } from '@/lib/use-async';
 import type {
   LoyaltyAccount,
@@ -489,6 +490,7 @@ function MyRedemptions({
 function HowPointsWork({ depotId }: { depotId: string | null }) {
   const { t } = useT();
   const earnRate = useLoyaltyRules(depotId).data?.earnRateRupiah ?? null;
+  const refereePoints = useReferralRules().data?.refereePoints ?? null;
   const rules = [
     { icon: ShoppingBag, key: 'earn' },
     { icon: ArrowsClockwise, key: 'reorder' },
@@ -505,9 +507,12 @@ function HowPointsWork({ depotId }: { depotId: string | null }) {
           <div>
             <div className="text-[13.5px] font-bold">{t(`profile.rewards.how.${key}.title`)}</div>
             <div className="mt-0.5 text-xs leading-snug text-muted">
-              {/* Only the earn row carries a number; the rate is dashed until it is read. */}
+              {/* Two rows carry a number, and both are settings — dashed until read.
+                  CA-3-45: the refer row said "+50 poin" against a setting that has paid
+                  500 for as long as it has existed. */}
               {t(`profile.rewards.how.${key}.body`, {
                 amount: earnRate == null ? '—' : formatIDR(earnRate),
+                referee: refereePoints == null ? '—' : String(refereePoints),
               })}
             </div>
           </div>

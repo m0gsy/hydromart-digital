@@ -1487,7 +1487,7 @@ export const hrFix = {
   referral: {
     yourCode: 'Your referral code',
     shareHint:
-      'Share this code. Your friend gets money off their first order, and you get points when it completes.',
+      'Share this code. Once your friend’s first order is complete you get {referrer} points and they get {referee} — points, not money off.',
     title: 'Invite a friend',
     accountAria: 'Account',
     copyAria: 'Copy the code',

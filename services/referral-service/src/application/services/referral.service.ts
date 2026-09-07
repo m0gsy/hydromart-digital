@@ -5,12 +5,15 @@ import { generateReferralCode, normalizeCode } from '../../domain/referral-code'
 import { ReferralStatus } from '../../domain/referral-status';
 import {
   AlreadyReferredError,
+  NotANewCustomerError,
+  OrderHistoryUnavailableError,
   ReferralCodeNotFoundError,
   SelfReferralError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
 import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { LoyaltyRewardPort } from '../ports/loyalty-reward.port';
+import { OrderHistoryPort } from '../ports/order-history.port';
 import {
   ReferralCodeRecord,
   ReferralRecord,
@@ -56,6 +59,7 @@ export class ReferralService {
     @Inject(REFERRAL_TOKENS.CustomerDirectory)
     private readonly customerDirectory: CustomerDirectoryPort,
     private readonly config: ReferralConfigService,
+    @Inject(REFERRAL_TOKENS.OrderHistory) private readonly orderHistory: OrderHistoryPort,
   ) {}
 
   /**
@@ -139,7 +143,15 @@ export class ReferralService {
 
   /**
    * A new customer redeems a referral code, creating a PENDING referral. Rejects using
-   * your own code (SelfReferralError) and being referred twice (AlreadyReferredError).
+   * your own code (SelfReferralError), being referred twice (AlreadyReferredError), and —
+   * CA-3-40 — not being a new customer at all.
+   *
+   * "New customer" was stated in this docblock and enforced nowhere, so the code was open
+   * to anyone who had shopped here for years. Owner decision 2026-09-04: new means never
+   * having had a single order reach COMPLETED. Account age does not count.
+   *
+   * The order-service lookup runs LAST, after the three cheap local checks: a wrong code,
+   * your own code, or a second attempt is refused without a network call at all.
    */
   async redeem(refereeCustomerId: string, rawCode: string): Promise<ReferralRecord> {
     const code = normalizeCode(rawCode);
@@ -149,6 +161,13 @@ export class ReferralService {
 
     const existing = await this.repo.findReferralByReferee(refereeCustomerId);
     if (existing) throw new AlreadyReferredError();
+
+    // Fails CLOSED. Qualification pays 500 + 250 points the instant the referee's first
+    // order completes and there is no way to take them back, so an unanswerable question
+    // is refused with a retryable 503 rather than read as "yes, they are new".
+    const hasCompleted = await this.orderHistory.hasCompletedOrder(refereeCustomerId);
+    if (hasCompleted === null) throw new OrderHistoryUnavailableError();
+    if (hasCompleted) throw new NotANewCustomerError();
 
     return this.repo.createReferral({
       referrerCustomerId: codeRecord.customerId,

@@ -8,6 +8,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useReferralRules } from '@/lib/referral-rules';
 import { useAsync } from '@/lib/use-async';
 import type { ReferralSummary } from '@/lib/types';
 
@@ -17,6 +18,10 @@ function ReferralInner() {
   const { data, error, loading, reload } = useAsync<ReferralSummary>(() =>
     api.get(endpoints.referrals.me, true),
   );
+  // CA-3-45: the sentence below names both rewards, so it reads them from the settings
+  // that pay them. Dashed until they land — a promise with a made-up number in it is the
+  // bug this row is about.
+  const rules = useReferralRules().data;
 
   const copy = (code: string) => {
     void navigator.clipboard?.writeText(code);
@@ -60,7 +65,10 @@ function ReferralInner() {
               </button>
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-muted">
-              {t('hrFix.referral.shareHint')}
+              {t('hrFix.referral.shareHint', {
+                referrer: rules ? String(rules.referrerPoints) : '—',
+                referee: rules ? String(rules.refereePoints) : '—',
+              })}
             </p>
           </div>
 

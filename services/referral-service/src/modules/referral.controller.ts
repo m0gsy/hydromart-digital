@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from
 
 import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
+import { ReferralConfigService } from '../config/referral-config.service';
 import { ReferralService } from '../application/services/referral.service';
 import {
   DepotReferralSummaryDto,
@@ -22,6 +23,7 @@ import {
   RedeemReferralDto,
   ReferralDto,
   ReferralPageQueryDto,
+  ReferralRulesDto,
   ReferralSummaryDto,
 } from './dto/referral.dto';
 import { QualifyResult } from '../application/services/referral.service';
@@ -34,7 +36,25 @@ import { QualifyResponseDto } from './dto/responses.generated.dto';
 @ApiTags('Referrals')
 @Controller({ path: 'referrals', version: '1' })
 export class ReferralController {
-  constructor(private readonly referrals: ReferralService) {}
+  constructor(
+    private readonly referrals: ReferralService,
+    private readonly config: ReferralConfigService,
+  ) {}
+
+  /**
+   * CA-3-45 — the reward the /referral screen promises, read from the settings that pay it.
+   *
+   * `@Public()` for the same reason `GET loyalty/rules` is: the screen states these numbers
+   * to a CUSTOMER, and a customer's role holds no `settingsRead`. No depotId — both values
+   * are `global: true` in setting-defs.ts, so a depot parameter would be a lie.
+   */
+  @ApiOkResponse({ type: ReferralRulesDto })
+  @Public()
+  @Get('rules')
+  @ApiOperation({ summary: 'Points a qualifying referral pays each side' })
+  rules(): ReferralRulesDto {
+    return { referrerPoints: this.config.referrerPoints, refereePoints: this.config.refereePoints };
+  }
 
   // Static `me/...` routes are declared before any `:param` route to avoid capture.
 

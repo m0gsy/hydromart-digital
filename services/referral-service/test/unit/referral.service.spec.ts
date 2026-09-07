@@ -3,12 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { ReferralStatus } from '../../src/domain/referral-status';
 import {
   AlreadyReferredError,
+  NotANewCustomerError,
+  OrderHistoryUnavailableError,
   ReferralCodeNotFoundError,
   SelfReferralError,
 } from '../../src/domain/errors';
 import { ReferralService } from '../../src/application/services/referral.service';
 import {
   FakeCustomerDirectory,
+  FakeOrderHistory,
   FakeLoyaltyReward,
   InMemoryReferralRepository,
   buildTestConfig,
@@ -22,7 +25,13 @@ describe('ReferralService', () => {
   beforeEach(() => {
     repo = new InMemoryReferralRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ReferralService(repo, loyalty, new FakeCustomerDirectory(), buildTestConfig());
+    service = new ReferralService(
+      repo,
+      loyalty,
+      new FakeCustomerDirectory(),
+      buildTestConfig(),
+      new FakeOrderHistory(),
+    );
   });
 
   describe('getOrCreateMyCode', () => {
@@ -56,6 +65,54 @@ describe('ReferralService', () => {
       const me = randomUUID();
       const { code } = await service.getOrCreateMyCode(me);
       await expect(service.redeem(me, code)).rejects.toBeInstanceOf(SelfReferralError);
+    });
+
+    // CA-3-40. "New customer" was in the docblock and nowhere in the code, so a customer
+    // who had shopped here for years could redeem one.
+    it('refuses a customer who has already completed an order (CA-3-40)', async () => {
+      const { code } = await service.getOrCreateMyCode(randomUUID());
+      const returning = new ReferralService(
+        repo,
+        loyalty,
+        new FakeCustomerDirectory(),
+        buildTestConfig(),
+        new FakeOrderHistory(true),
+      );
+      await expect(returning.redeem(randomUUID(), code)).rejects.toBeInstanceOf(
+        NotANewCustomerError,
+      );
+      expect(repo.referrals).toHaveLength(0);
+    });
+
+    // Fails CLOSED: an unanswerable question refuses rather than paying out 750 points.
+    it('refuses when order history cannot be read (CA-3-40)', async () => {
+      const { code } = await service.getOrCreateMyCode(randomUUID());
+      const blind = new ReferralService(
+        repo,
+        loyalty,
+        new FakeCustomerDirectory(),
+        buildTestConfig(),
+        new FakeOrderHistory(null),
+      );
+      await expect(blind.redeem(randomUUID(), code)).rejects.toBeInstanceOf(
+        OrderHistoryUnavailableError,
+      );
+      expect(repo.referrals).toHaveLength(0);
+    });
+
+    // Ordering: the three local checks come first, so a wrong code never costs a network
+    // call — proved by a service whose history port would refuse if it were reached.
+    it('refuses a wrong code without asking order-service (CA-3-40)', async () => {
+      const blind = new ReferralService(
+        repo,
+        loyalty,
+        new FakeCustomerDirectory(),
+        buildTestConfig(),
+        new FakeOrderHistory(null),
+      );
+      await expect(blind.redeem(randomUUID(), 'NOPENOPE')).rejects.toBeInstanceOf(
+        ReferralCodeNotFoundError,
+      );
     });
 
     it('rejects a second redemption by the same referee (AlreadyReferredError)', async () => {

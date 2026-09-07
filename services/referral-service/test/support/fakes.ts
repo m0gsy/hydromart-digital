@@ -6,6 +6,7 @@ import { SettingsCache, SettingRow } from '@hydromart/platform';
 import { ReferralConfigService } from '../../src/config/referral-config.service';
 import { ReferralStatus } from '../../src/domain/referral-status';
 import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
+import { OrderHistoryPort } from '../../src/application/ports/order-history.port';
 import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
 import {
@@ -177,6 +178,19 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
 
   async customerIdsForDepot(depotId: string): Promise<string[]> {
     return this.idsByDepot[depotId] ?? [];
+  }
+}
+
+/**
+ * CA-3-40. Defaults to `false` — "this customer has never completed an order", i.e. the
+ * only answer under which every pre-existing redeem test still passes. `null` is the
+ * could-not-ask case the guard refuses on.
+ */
+export class FakeOrderHistory implements OrderHistoryPort {
+  constructor(private readonly answer: boolean | null = false) {}
+
+  async hasCompletedOrder(): Promise<boolean | null> {
+    return this.answer;
   }
 }
 

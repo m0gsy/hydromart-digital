@@ -1,3 +1,4 @@
+import { ReferralConfigService } from '../../src/config/referral-config.service';
 import { ReferralController } from '../../src/modules/referral.controller';
 import { ReferralService } from '../../src/application/services/referral.service';
 import { ReferralStatus } from '../../src/domain/referral-status';
@@ -47,7 +48,12 @@ function makeController() {
     qualify: jest.fn().mockResolvedValue({ qualified: true, referral: referralRecord }),
     depotSummary: jest.fn().mockResolvedValue(depotSummary),
   } as unknown as jest.Mocked<ReferralService>;
-  return { controller: new ReferralController(service), service };
+  // CA-3-45: the rules route reads the two point settings straight off the config.
+  const config = {
+    referrerPoints: 500,
+    refereePoints: 250,
+  } as unknown as ReferralConfigService;
+  return { controller: new ReferralController(service, config), service };
 }
 
 describe('ReferralController', () => {
@@ -98,5 +104,12 @@ describe('ReferralController', () => {
     const out = await controller.byCustomer('u9', { page: 1, limit: 20 });
     expect(service.getCustomerSummary).toHaveBeenCalledWith('u9', 1, 20);
     expect(out.qualifiedCount).toBe(0);
+  });
+
+  // CA-3-45. The screen used to promise the friend a discount that nothing grants; it now
+  // quotes these numbers, so they have to come from the settings that actually pay.
+  it('publishes the two point settings on GET rules', () => {
+    const { controller } = makeController();
+    expect(controller.rules()).toEqual({ referrerPoints: 500, refereePoints: 250 });
   });
 });

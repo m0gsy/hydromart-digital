@@ -69,6 +69,7 @@ import {
   ExpireAbandoned2ResponseDto,
   InternalCompleted2ResponseDto,
   InternalConfirm2ResponseDto,
+  InternalCustomerCompletedResponseDto,
   InternalCustomerOrdersResponseDto,
   InternalDepotCustomers2ResponseDto,
   InternalDepotSales2ResponseDto,
@@ -587,6 +588,32 @@ export class OrderController {
         placedAt: o.createdAt.toISOString(),
       })),
     };
+  }
+
+  /**
+   * CA-3-40 — "has this customer ever completed an order?", for referral-service's
+   * new-customer rule. Internal key, not a user capability: the caller is a service
+   * deciding whether to create a referral, and it holds no token for this customer.
+   *
+   * Answered through `listForCustomer` rather than a bespoke repository method: `search`
+   * always runs a real `count`, and this fires at most once per customer ever (a second
+   * redemption is already refused by AlreadyReferredError), so one extra hydrated row is
+   * not worth a repository method plus its two mandatory test files.
+   */
+  @ApiOkResponse({ type: InternalCustomerCompletedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-completed')
+  @ApiOperation({ summary: 'Has this customer ever completed an order (internal service auth)' })
+  async internalCustomerCompleted(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<{ hasCompleted: boolean }> {
+    const page = await this.orders.listForCustomer(customerId, {
+      status: OrderStatus.COMPLETED,
+      limit: 1,
+    });
+    return { hasCompleted: page.total > 0 };
   }
 
   @Public()
