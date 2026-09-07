@@ -187,6 +187,13 @@ describe('DeliveryController staff escape hatches (B2)', () => {
   const deliveries = {
     releaseByStaff: jest.fn().mockResolvedValue({ id }),
     cancelByStaff: jest.fn().mockResolvedValue({ id }),
+    // CA-4-49: the proof photos live behind links that expire.
+    getAny: jest.fn().mockResolvedValue({
+      id,
+      depotId: null,
+      proof: { photoUrl: 'https://cdn/pod/x.jpg', signatureUrl: 'https://cdn/pod/sig.png' },
+    }),
+    signedPhotoUrl: jest.fn(async (url: string | null) => (url ? `signed:${url}` : null)),
   };
   const controller = new DeliveryController(deliveries as unknown as DeliveryService);
 
@@ -202,5 +209,28 @@ describe('DeliveryController staff escape hatches (B2)', () => {
       controller.cancel(user, id, { reason: 'Pelanggan batal' } as never, 'Bearer t'),
     ).resolves.toEqual({ id });
     expect(deliveries.cancelByStaff).toHaveBeenCalledWith(user, id, 'Pelanggan batal', 'Bearer t');
+  });
+
+  /*
+   * CA-4-49 — owner decision 2026-09-04: expiring signed links, not a public bucket.
+   *
+   * A separate route rather than a field on the delivery read: a signed URL on the main
+   * response is minted whether or not anyone opens the photo, and then rides into every
+   * cache and log that response touches.
+   */
+  it('mints a link per proof image, and only for the depot the caller may read', async () => {
+    await expect(controller.proofLinks(user, id)).resolves.toEqual({
+      photoUrl: 'signed:https://cdn/pod/x.jpg',
+      signatureUrl: 'signed:https://cdn/pod/sig.png',
+    });
+    expect(deliveries.getAny).toHaveBeenCalledWith(id);
+  });
+
+  it('answers null rather than a broken image when there is no proof', async () => {
+    deliveries.getAny.mockResolvedValueOnce({ id, depotId: null, proof: null });
+    await expect(controller.proofLinks(user, id)).resolves.toEqual({
+      photoUrl: null,
+      signatureUrl: null,
+    });
   });
 });

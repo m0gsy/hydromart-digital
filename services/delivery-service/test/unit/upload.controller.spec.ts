@@ -26,6 +26,8 @@ describe('UploadController', () => {
   const storage: StoragePort = {
     put: jest.fn().mockResolvedValue({ url: 'http://x/uploads/pod/abc.png', key: 'pod/abc.png' }),
     remove: jest.fn().mockResolvedValue(undefined),
+    // CA-4-49: the bucket is private now; every read path asks for a link that expires.
+    signedUrl: jest.fn().mockResolvedValue('https://signed.example/pod/abc.png?X-Amz-Expires=900'),
   };
   const controller = new UploadController(storage);
 

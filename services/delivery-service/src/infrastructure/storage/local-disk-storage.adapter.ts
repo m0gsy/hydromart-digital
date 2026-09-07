@@ -28,6 +28,15 @@ export class LocalDiskStorageAdapter implements StoragePort {
     return { url: `${this.config.storagePublicBaseUrl}/uploads/${key}`, key };
   }
 
+  /**
+   * CA-4-49: dev has no bucket policy and no presigner, so the "signed" link is the plain
+   * one the dev server already serves. Naming it here rather than special-casing the
+   * caller keeps one read path in the application: it asks for a link and gets one.
+   */
+  async signedUrl(key: string, _ttlSeconds: number): Promise<string> {
+    return `${this.config.storagePublicBaseUrl}/uploads/${key}`;
+  }
+
   /** `force` makes a missing file a success, which is what idempotent removal means here. */
   async remove(key: string): Promise<void> {
     await rm(join(this.config.storageLocalDir, key), { force: true });

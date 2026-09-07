@@ -3,9 +3,15 @@ jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
   DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
 }));
+// CA-4-49: presigning is pure local signing — the SDK builds and signs a URL without
+// talking to the endpoint at all, which is why this mock returns a string and `send` is
+// never touched.
+const getSignedUrl = jest.fn().mockResolvedValue('https://signed/pod/x.jpg?X-Amz-Expires=900');
+jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: (...a: unknown[]) => getSignedUrl(...a) }));
 
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { S3StorageAdapter } from '../../src/infrastructure/storage/s3-storage.adapter';
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
@@ -49,5 +55,19 @@ describe('S3StorageAdapter', () => {
 
     expect(DeleteObjectCommand).toHaveBeenCalledWith({ Bucket: 'pods', Key: 'pod/abc.jpg' });
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs a time-limited GET link without calling the endpoint (CA-4-49)', async () => {
+    const adapter = new S3StorageAdapter(makeConfig());
+
+    const url = await adapter.signedUrl('pod/x.jpg', 900);
+
+    expect(url).toBe('https://signed/pod/x.jpg?X-Amz-Expires=900');
+    expect(GetObjectCommand).toHaveBeenCalledWith({ Bucket: 'pods', Key: 'pod/x.jpg' });
+    expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      expiresIn: 900,
+    });
+    // Presigning is local: nothing goes over the wire.
+    expect(send).not.toHaveBeenCalled();
   });
 });

@@ -418,3 +418,14 @@ export class PdpErasedResponseDto {
   @ApiProperty({ type: Number })
   erased!: number;
 }
+
+/**
+ * CA-4-49: time-limited links to one delivery's proof images. Null when there is nothing
+ * to sign — no photo on the row, or no storage bound — never a broken image.
+ */
+export class ProofLinksResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  photoUrl!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  signatureUrl!: string | null;
+}

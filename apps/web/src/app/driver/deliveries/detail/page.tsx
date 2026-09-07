@@ -51,6 +51,19 @@ function Detail() {
     const delivery = await api.get<Delivery>(endpoints.deliveries.driver.get(id), true);
     return { delivery, codDue: Boolean(delivery.codAmount) && !delivery.cashHeld };
   }, [id]);
+  /*
+   * CA-4-49: the bucket is private, so `proof.photoUrl` no longer resolves — it is an
+   * identifier now, not a link. This asks for one that expires.
+   *
+   * Fetched through the app's own authenticated client rather than put on an `<img src>`
+   * pointed at our gateway: the browser sends no session cookie with a cross-origin image
+   * request, so that would 401. The signature on the URL below is what authorises the
+   * object store, so the image request itself needs no credentials at all.
+   */
+  const proofLinks = useAsync<{ photoUrl: string | null; signatureUrl: string | null }>(
+    () => api.get(endpoints.deliveries.proofLinks(id), true),
+    [id],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -317,7 +330,7 @@ function Detail() {
             Diterima {delivery.proof.recipientName}
           </div>
           <RemoteImage
-            src={delivery.proof.photoUrl}
+            src={proofLinks.data?.photoUrl}
             alt={t('courierFix.detail.proofAlt')}
             className="max-h-40 w-full rounded-xl object-cover"
           />
