@@ -746,6 +746,10 @@ export const hrFix = {
     inactive: 'Inactive',
   },
   settlement: {
+    expectedLabel: 'Expected deposit',
+    expectedUnavailable: 'Cannot be read yet',
+    shortWarning: '{amount} short of what is expected. A shortfall is deducted from your pay.',
+    overWarning: '{amount} more than expected. Check the count again.',
     checkOutFirst:
       'Finish and check out of your shift first. The deposit appears after you check out.',
     viewHistory: 'View deposit history',
@@ -1511,6 +1515,8 @@ export const hrFix = {
     hint: 'Move your head slightly or blink while the photo is taken.',
   },
   imports: {
+    gateTitle: 'Bulk import is not available for this role',
+    gateBody: 'A bulk import changes many rows at once, so it needs the same permission as changing them one by one. Ask your supervisor if you need it.',
     resellers: 'Import resellers / agents',
     resellersBody:
       'A phone with no account yet is pre-registered first, then listed as an agen of this depot. An agen already on the registry is UPDATED from this file — discount, target and flat gallon price. The join date is left alone.',

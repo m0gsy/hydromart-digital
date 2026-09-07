@@ -2,6 +2,11 @@
 
 import { CsvImport, intCell, type ImportColumn } from '@/components/csv-import';
 import { useT } from '@/lib/locale-context';
+import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/roles';
+import { RequireAuth } from '@/components/require-auth';
+import { Lock } from '@phosphor-icons/react';
+
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
@@ -25,7 +30,7 @@ const COLUMNS: ImportColumn[] = [
   { key: 'productId', example: '', text: true },
 ];
 
-export default function ImportInventoryPage() {
+function ImportInventoryBody() {
   const { t } = useT();
   const { selectedId, ready } = useDepot();
 
@@ -43,5 +48,34 @@ export default function ImportInventoryPage() {
       endpoint={endpoints.inventory.import(selectedId)}
       templateName="stok"
     />
+  );
+}
+
+/*
+ * CA-6-03: this screen had no capability gate of its own.
+ *
+ * The rail hid the link from roles that could not use it, and typing the URL walked
+ * straight past that — onto a wizard that reads a file, parses it, shows a preview, and
+ * only then 403s on submit. Hiding a link is a courtesy on top of an access rule, not the
+ * rule; `inventoryWrite` is the one the server actually turns on this import.
+ */
+function Gate() {
+  const { t } = useT();
+  const { customer } = useAuth();
+  if (!can('inventoryWrite', customer?.role)) {
+    return (
+      <CenterState title={t('hrFix.imports.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('hrFix.imports.gateBody')}
+      </CenterState>
+    );
+  }
+  return <ImportInventoryBody />;
+}
+
+export default function ImportInventoryPage() {
+  return (
+    <RequireAuth>
+      <Gate />
+    </RequireAuth>
   );
 }

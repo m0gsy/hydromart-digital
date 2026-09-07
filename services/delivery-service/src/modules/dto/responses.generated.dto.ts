@@ -429,3 +429,11 @@ export class ProofLinksResponseDto {
   @ApiProperty({ type: String, nullable: true })
   signatureUrl!: string | null;
 }
+
+/** CA-4-16: the total a courier's deposit will be measured against, before they hand it over. */
+export class ExpectedSettlementResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  shiftId!: string;
+  @ApiProperty({ type: Number })
+  expectedIdr!: number;
+}

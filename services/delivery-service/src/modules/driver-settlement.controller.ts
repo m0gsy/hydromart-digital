@@ -6,7 +6,10 @@ import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 import { SettlementService } from '../application/services/settlement.service';
 import { SettlementRecord } from '../application/ports/settlement.repository';
 import { SubmitSettlementDto } from './dto/settlement.dto';
-import { SettlementResponseDto } from './dto/responses.generated.dto';
+import {
+  ExpectedSettlementResponseDto,
+  SettlementResponseDto,
+} from './dto/responses.generated.dto';
 
 /** Courier-facing COD settlement: deposit a shift's cash, read own history (design 2d/9a). */
 @ApiTags('Driver Settlement')
@@ -30,6 +33,28 @@ export class DriverSettlementController {
   @ApiOperation({ summary: "The courier's settlement history, newest first" })
   history(@CurrentUser() user: AuthenticatedUser): Promise<SettlementRecord[]> {
     return this.settlements.listForDriver(user.sub);
+  }
+
+  /**
+   * CA-4-16 — what the courier is about to be measured against, before they hand over cash.
+   *
+   * The deposit screen asked for an amount and showed only what the courier typed. The
+   * number it is checked against was computed at submit time and never displayed — and any
+   * shortfall is debited from their pay. The one figure that decides whether money comes
+   * out of their wages was the one figure they could not see.
+   *
+   * Declared BEFORE `:id` so the static segment wins. Scoped to `user.sub` like every route
+   * here, so it can only ever show the caller their own shift.
+   */
+  @ApiOkResponse({ type: ExpectedSettlementResponseDto })
+  @Get('expected/:shiftId')
+  @ApiOperation({ summary: "The expected deposit total for one of the courier's own shifts" })
+  expected(
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization: string,
+    @Param('shiftId', ParseUUIDPipe) shiftId: string,
+  ): Promise<{ shiftId: string; expectedIdr: number }> {
+    return this.settlements.expectedForShift(user.sub, shiftId, authorization);
   }
 
   @ApiOkResponse({ type: SettlementResponseDto })

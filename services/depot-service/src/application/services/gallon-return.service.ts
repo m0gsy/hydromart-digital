@@ -250,7 +250,7 @@ export class GallonReturnService {
     depotId: string,
     input: CourierReturnInput,
     courierId: string,
-  ): Promise<GallonReturnRecord> {
+  ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
     await this.requireDepot(depotId);
     const condition = input.condition ?? GallonCondition.GOOD;
     const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
@@ -298,9 +298,21 @@ export class GallonReturnService {
       note: input.note ?? null,
       actorId: courierId,
     });
-    // Already booked. Return the refund that actually happened, and queue nothing: a second
-    // variance approval for one handover is a manager asked to rule on the same gallons twice.
-    if (!created) return record;
+    /*
+     * Already booked. Return the refund that actually happened, and queue nothing: a second
+     * variance approval for one handover is a manager asked to rule on the same gallons
+     * twice.
+     *
+     * CA-4-31: but SAY SO. The idempotency key is the ORDER, which is right for the queue
+     * replaying one handover and wrong for a genuine second one — a customer who returns
+     * one empty now and another later, on the same order. That second return was swallowed
+     * and the screen printed the FIRST return's quantity and refund as a fresh success, so
+     * the courier walked away believing empties were booked that were not.
+     *
+     * Recording a second return per order is a rule nobody has decided; telling the truth
+     * about what happened is not. The flag is what the screen reads.
+     */
+    if (!created) return { ...record, alreadyRecorded: true };
     if (excessGallons > 0) {
       await this.queueVariance(depotId, excessGallons, record.id, courierId);
     }
@@ -315,7 +327,7 @@ export class GallonReturnService {
     if (condition === GallonCondition.DAMAGED) {
       await this.queueDamagedRefund(depotId, record, input.note ?? null, courierId);
     }
-    return record;
+    return { ...record, alreadyRecorded: false };
   }
 
   async list(depotId: string, page: number, limit: number): Promise<Page<GallonReturnRecord>> {

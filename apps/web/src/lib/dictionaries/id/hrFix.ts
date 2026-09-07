@@ -761,6 +761,10 @@ export const hrFix = {
     inactive: 'Nonaktif',
   },
   settlement: {
+    expectedLabel: 'Seharusnya disetor',
+    expectedUnavailable: 'Belum bisa dibaca',
+    shortWarning: 'Kurang {amount} dari yang seharusnya. Selisih kurang dipotong dari upah Anda.',
+    overWarning: 'Lebih {amount} dari yang seharusnya. Periksa lagi hitungannya.',
     checkOutFirst: 'Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.',
     viewHistory: 'Lihat riwayat setoran',
     countHint:
@@ -1529,6 +1533,8 @@ export const hrFix = {
     hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
   },
   imports: {
+    gateTitle: 'Impor massal tidak tersedia untuk peran ini',
+    gateBody: 'Impor massal mengubah data banyak baris sekaligus, jadi izinnya sama dengan mengubahnya satu per satu. Minta ke atasan Anda kalau memang perlu.',
     resellers: 'Import Reseller / Agen',
     // J11: menyebut mode UPSERT, karena berkas kedua yang dikirim siapa pun adalah koreksi.
     resellersBody:

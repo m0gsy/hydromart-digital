@@ -10,6 +10,8 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/roles';
 import type { DepotAdmin, Page } from '@/lib/types';
 
 const inputClass =
@@ -37,6 +39,8 @@ export default function HqBroadcastPage() {
   const [audience, setAudience] = useState<Audience>('all');
   const [depotId, setDepotId] = useState('');
   const [title, setTitle] = useState('');
+  const { customer } = useAuth();
+  const role = customer?.role;
   const [message, setMessage] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,11 +60,22 @@ export default function HqBroadcastPage() {
       case 'loyalty':
         return api.get<{ count: number }>(endpoints.loyalty.memberCount, true);
       case 'staff':
-        return api
-          .get<{ total: number }>(endpoints.auth.staff({ limit: 1 }), true)
-          .then((r) => ({ count: r.total }));
+        /*
+         * CA-6-04: the staff count comes from `auth.staff`, which is `staffAdmin` —
+         * HEAD_OFFICE and SUPER_ADMIN. This page is gated on `campaignWrite`, which is
+         * MARKETING and SUPER_ADMIN. So the one role this screen is FOR got a 403 here and
+         * a card that never resolved, with nothing on screen saying why.
+         *
+         * Asking only when the caller can be answered. Null renders "—", which is the same
+         * thing the depot audience already shows before a depot is picked.
+         */
+        return can('staffAdmin', role)
+          ? api
+              .get<{ total: number }>(endpoints.auth.staff({ limit: 1 }), true)
+              .then((r) => ({ count: r.total }))
+          : Promise.resolve(null);
     }
-  }, [audience, depotId]);
+  }, [audience, depotId, role]);
 
   async function submit(schedule: boolean) {
     if (!title.trim()) return toast(t('hq.broadcast.needTitle'), 'error');

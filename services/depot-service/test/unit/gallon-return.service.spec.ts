@@ -562,6 +562,19 @@ describe('GallonReturnService', () => {
     const summary = await returns.summaryForDepot(depotId);
     expect(summary.depositRefunded).toBe(GALLON_DEPOSIT_IDR * 2);
     expect(summary.gallons).toBe(2);
+
+    /*
+     * CA-4-31: and it SAYS which of the two it was.
+     *
+     * The key is the ORDER — right for this replay, wrong for a genuine second return of
+     * one more empty later on the same order. That second one is still swallowed, and the
+     * screen used to print the FIRST return's quantity and refund as a fresh success, so a
+     * courier walked away believing empties were booked that were not. Recording a second
+     * return per order is a rule nobody has decided; telling the truth about what happened
+     * is not.
+     */
+    expect(first.alreadyRecorded).toBe(false);
+    expect(retry.alreadyRecorded).toBe(true);
   });
 
   /**
