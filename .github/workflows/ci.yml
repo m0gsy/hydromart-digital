@@ -886,7 +886,14 @@ jobs:
   # nothing whatsoever about this job. See the `ci` job at the bottom of this file.
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 90, measured on run 33831343180. This job builds all eighteen images before it drives
+    # anything, and 45 was set when the BuildKit cache was warm enough for that to take
+    # seventeen minutes. On 2026-09-04 the same job needed 46 and was killed at 45 — and a
+    # job killed by its cap is recorded as `cancelled`, not `failed`, so main went red
+    # through `ci` while this job showed no error of its own and Deploy skipped in silence.
+    # The cap exists to stop a hang, not to race a cold cache; 90 is comfortably above the
+    # ~65 minutes a fully cold eighteen-image build takes and still nowhere near a hang.
+    timeout-minutes: 90
     # CI-14: the two Docker jobs no longer start until `verify` is green. They are still
     # independent of each other and run in parallel — the chain exists so a lockfile,
     # typecheck or unit-test failure stops burning two more runners (each of which pays
@@ -979,7 +986,9 @@ jobs:
   # containerising it — same gateway, no extra image to build.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 100, for the same measurement as `integration` above: this job builds the same
+    # eighteen images AND then runs Playwright against them. See the step cap below.
+    timeout-minutes: 100
     needs: [verify, changes]
     if: needs.changes.outputs.docker == 'true'
     env:
@@ -1081,13 +1090,17 @@ jobs:
         # Deploy, Images — skips in silence. A step cap fails the step, which fails the
         # job, which is red and says which step it was.
         #
-        # 40, measured, not 15. This step builds every service image before it boots them,
-        # and 15 was a rule of thumb I applied to steps that were not named "Build" — it
-        # then failed a run whose containers had ALL reported Healthy in the same second the
-        # cap fired. A cap that cannot tell a hang from a cold Docker cache is not a safety
-        # net, it is a coin flip. The job cap is 60, so this still fails as a named step
-        # rather than a silent cancellation.
-        timeout-minutes: 40
+        # 75, measured twice on run 33831343180 — 40 was the previous number and it was
+        # itself a measurement, taken when the cache was warmer.
+        #
+        # Both attempts of that run got through twelve of the eighteen images in the full
+        # forty minutes and were killed mid-build, four batches into six. Extrapolated from
+        # the batch timings in its own log (~12 minutes a batch of three), a cold run needs
+        # about 65. The lesson from the last time this number was wrong still holds and is
+        # why it moves rather than being deleted: a cap that cannot tell a hang from a cold
+        # Docker cache is not a safety net, it is a coin flip. The job cap is 100, so this
+        # still fails as a named step rather than a silent cancellation.
+        timeout-minutes: 75
         run: |
           # pg_isready (via `docker compose exec`) checks Postgres over its in-container
           # unix socket, which can answer on the temporary init server before Postgres
