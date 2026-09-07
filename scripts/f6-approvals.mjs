@@ -104,7 +104,7 @@ const ALL_ROLES = [
 ];
 
 /**
- * The 14 decision points, each named by the CAPABILITY that guards it. The allowed
+ * The 12 decision points, each named by the CAPABILITY that guards it. The allowed
  * roles are read out of @hydromart/access at run time rather than copied here —
  * a hand-kept second list is the drift this whole rebuild exists to remove, and it
  * would quietly go stale the first time somebody widened a capability.
@@ -116,8 +116,16 @@ const DECISIONS = [
   { label: 'depot approval queue (opname/deposit/COD/gallon)', cap: 'approvals', method: 'PATCH', path: `/depots/api/v1/approvals/${NIL}/decide` },
   { label: 'price override approve', cap: 'priceOverrideDecide', method: 'POST', path: `/depots/api/v1/price-overrides/${NIL}/approve` },
   { label: 'price override reject', cap: 'priceOverrideDecide', method: 'POST', path: `/depots/api/v1/price-overrides/${NIL}/reject` },
-  { label: 'voucher request approve', cap: 'voucherRequestDecide', method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/approve` },
-  { label: 'voucher request reject', cap: 'voucherRequestDecide', method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/reject` },
+  // The two voucher-request rows are gone with the feature. CA-2-42 (#469) removed the
+  // approval queue outright — the owner's answer was that a depot prints its own vouchers,
+  // so there is nothing left to approve — and deleted the controller, service and
+  // repository. The probes stayed, kept POSTing to routes that no longer exist, and turned
+  // every 404 into a reported RBAC failure for all thirteen roles. A guard test that fails
+  // because the thing it guards was deliberately deleted reports a bug that is not there.
+  //
+  // `voucherRequestDecide` still sits in @hydromart/access and on the /hq/access matrix,
+  // now guarding nothing. That is a capability that grants nothing — its own defect, and
+  // its own register row; it is not fixed by leaving a broken probe pointed at a 404.
   { label: 'franchise application approve', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/approve` },
   { label: 'franchise application reject', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/reject` },
   // Reading the queue is NOT deciding it: the split is deliberate (`refundQueueRead` in
@@ -146,12 +154,8 @@ const SEPARATION = [
     // MANAGER may RAISE a refund but must never approve one.
     role: 'MANAGER',
   },
-  {
-    label: 'voucher: the depot that requests must not decide',
-    raise: { method: 'POST', path: `/vouchers/api/v1/depots/${NIL}/voucher-requests`, cap: 'voucherWrite' },
-    decide: { method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/approve`, cap: 'voucherRequestDecide' },
-    role: 'MANAGER',
-  },
+  // The voucher raise/decide separation went with the queue it separated (CA-2-42, #469):
+  // there is no request to raise and no decision to keep away from the same person.
 ];
 
 async function decisions() {
