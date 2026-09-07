@@ -656,7 +656,14 @@ describe('PayrollService.generate', () => {
 describe('PayrollService lifecycle', () => {
   it('approve DRAFT→APPROVED, then pay APPROVED→PAID', async () => {
     const { repo, svc } = build({ employee: {} });
-    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+    // CA-1-42: `getById` now reads the period's undecided attendance days, so the
+    // fixture carries the period a real payroll always has.
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
     await svc.approve(user, 'p1');
     expect(repo.status).toBe('APPROVED');
 
@@ -669,7 +676,14 @@ describe('PayrollService lifecycle', () => {
     const { repo, svc } = build({ employee: {} });
     repo.byId = { id: 'p1', employeeId: 'e1', status: 'PAID' } as PayrollWithItems;
     await expect(svc.approve(user, 'p1')).rejects.toThrow(ConflictException);
-    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+    // CA-1-42: `getById` now reads the period's undecided attendance days, so the
+    // fixture carries the period a real payroll always has.
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
     await expect(svc.markPaid(user, 'p1')).rejects.toThrow(ConflictException);
   });
 });
@@ -717,7 +731,14 @@ describe('PayrollService.list depot scoping (D1)', () => {
   // as somebody — the money rows survive the scrub on purpose (they are audit evidence).
   it('says the name is gone rather than printing an empty one', async () => {
     const { repo, svc } = build({ employee: { id: 'e1', fullName: null as never } });
-    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+    // CA-1-42: `getById` now reads the period's undecided attendance days, so the
+    // fixture carries the period a real payroll always has.
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
     await expect(svc.getById(manager(['dA']), 'p1')).resolves.toMatchObject({
       employeeName: null,
     });
@@ -725,11 +746,60 @@ describe('PayrollService.list depot scoping (D1)', () => {
 
   it('names the person on the payslip itself', async () => {
     const { repo, svc } = build({ employee: { id: 'e1', fullName: 'Sari Wulandari' } });
-    repo.byId = { id: 'p1', employeeId: 'e1', status: 'DRAFT' } as PayrollWithItems;
+    // CA-1-42: `getById` now reads the period's undecided attendance days, so the
+    // fixture carries the period a real payroll always has.
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
 
     const slip = await svc.getById(manager(['dA']), 'p1');
 
     expect(slip.employeeName).toBe('Sari Wulandari');
+  });
+
+  /*
+   * CA-1-42 — owner decision 2026-09-04: pay on time and correct next month.
+   *
+   * So this does NOT block approval; it makes what is about to be locked visible to whoever
+   * locks it. The number matters because a PENDING day moves money in OPPOSITE directions
+   * depending on who it belongs to: a monthly employee escapes the absence deduction for
+   * it, and a daily one is simply not paid for it (`basePay` counts presentDays, and
+   * PENDING is neither PRESENT nor LATE).
+   *
+   * Read LIVE, not stored: the question at the moment of approval is "how many are
+   * undecided right now", and the answer falls to zero on its own as HR works through them.
+   */
+  it('reports the period undecided attendance days on the payslip (CA-1-42)', async () => {
+    const { repo, svc } = build({
+      employee: { id: 'e1', fullName: 'Sari' },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 3 },
+    });
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
+
+    await expect(svc.getById(manager(['dA']), 'p1')).resolves.toMatchObject({ pendingDays: 3 });
+  });
+
+  it('still approves with days undecided — wages do not wait on a queue (CA-1-42)', async () => {
+    const { repo, svc } = build({
+      employee: { id: 'e1', fullName: 'Sari' },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0, pendingDays: 3 },
+    });
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+    } as PayrollWithItems;
+
+    await expect(svc.approve(manager(['dA']), 'p1')).resolves.toBeDefined();
   });
 
   it('leaves an HQ caller unscoped', async () => {

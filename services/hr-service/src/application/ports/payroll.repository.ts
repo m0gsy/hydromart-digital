@@ -36,7 +36,19 @@ export type PayrollWithItems = Payroll & { items: PayrollItem[] };
  * "Slip Gaji 2026-08 · 22 hari hadir · Rp 4.150.000" and named nobody. HR approved and
  * marked paid without ever seeing whose wage it was.
  */
-export type PayrollWithEmployee = PayrollWithItems & { employeeName: string | null };
+export type PayrollWithEmployee = PayrollWithItems & {
+  employeeName: string | null;
+  /**
+   * CA-1-42: attendance days in this period HR has still not decided, read live at the
+   * moment the slip is opened.
+   *
+   * Owner decision 2026-09-04 is pay-on-time-and-correct-next-month, so this does not block
+   * anything — it makes what is about to be locked visible to whoever locks it. A PENDING
+   * day escapes the absence deduction for a MONTHLY employee and is simply not paid for a
+   * DAILY one, so it moves money in opposite directions depending on who it belongs to.
+   */
+  pendingDays: number;
+};
 export type PayrollListRow = Payroll & { employeeName: string | null };
 
 export interface PayrollRepository {

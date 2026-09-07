@@ -1611,6 +1611,8 @@ export const hrFix = {
     empty: 'No attendance yet',
   },
   payrollDetail: {
+    pendingWarning: '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
+    approveConfirmPending: 'Approve a payment of {net}? {n} attendance day(s) are still undecided; the difference must be recorded in the next period.',
     failed: 'Failed',
     downloadFailed: 'Download failed',
     netPay: 'Net pay',
