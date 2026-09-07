@@ -465,6 +465,7 @@ services:
       REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       LOYALTY_SERVICE_URL: http://loyalty:3009
       CUSTOMER_SERVICE_URL: http://customer:3002
+      ORDER_SERVICE_URL: http://order:3004
       REFERRAL_REFERRER_POINTS: 500
       REFERRAL_REFEREE_POINTS: 250
     healthcheck:

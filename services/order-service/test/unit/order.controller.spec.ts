@@ -438,6 +438,21 @@ describe('OrderController', () => {
     expect(service.customerOrdersAtDepot).toHaveBeenCalledWith('d1', 'c1', undefined);
   });
 
+  // CA-3-40 — referral-service's new-customer rule. The route must answer from `total`,
+  // not from the rows: it asks for one row precisely so it does not hydrate a history it
+  // will not read.
+  it('internalCustomerCompleted: reports true from the COMPLETED count, false at zero', async () => {
+    service.listForCustomer.mockResolvedValue({ items: [], total: 3 });
+    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: true });
+    expect(service.listForCustomer).toHaveBeenCalledWith('c1', {
+      status: 'COMPLETED',
+      limit: 1,
+    });
+
+    service.listForCustomer.mockResolvedValue({ items: [], total: 0 });
+    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: false });
+  });
+
   // A junk `limit` must not become NaN or 0 rows — it falls through to the service default.
   it('internalCustomerOrders: forwards a usable limit and drops an unusable one', async () => {
     await controller.internalCustomerOrders('d1', 'c1', '3');

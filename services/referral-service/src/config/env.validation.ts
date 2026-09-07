@@ -15,6 +15,14 @@ export const envValidationSchema = Joi.object({
   // customer-service base URL for depot->customerIds lookup (depot referral aggregate).
   // Blank = directory lookup disabled; the aggregate degrades to zeros (fail-open).
   CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // CA-3-40: order-service base URL — asked whether a would-be referee has ever completed
+  // an order. Required in production: the lookup fails CLOSED, so an unset value refuses
+  // every redemption rather than quietly handing the points to returning customers.
+  ORDER_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   REFERRAL_REFERRER_POINTS: Joi.number().integer().positive().default(500),
   REFERRAL_REFEREE_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret: guards /referrals/qualify (order-service triggers

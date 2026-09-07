@@ -1,6 +1,7 @@
 import { ReferralConfigService } from '../../src/config/referral-config.service';
 import { LoyaltyRewardHttpAdapter } from '../../src/infrastructure/http/loyalty-reward.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
+import { OrderHistoryHttpAdapter } from '../../src/infrastructure/http/order-history.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, x-internal-key header, res.ok
 // branch, fail-open catch, response parsing) against a mocked global.fetch — the units
@@ -12,6 +13,7 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): ReferralConfig
   return {
     loyaltyServiceUrl: 'http://loyalty:3009',
     customerServiceUrl: 'http://customer:3002',
+    orderServiceUrl: 'http://order:3004',
     internalServiceKey: KEY,
     ...over,
   } as unknown as ReferralConfigService;
@@ -105,5 +107,53 @@ describe('CustomerDirectoryHttpAdapter', () => {
   it('returns [] (fail open) when customer-service is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);
+  });
+});
+
+/**
+ * CA-3-40. Every branch returns `null`, not `false`: this adapter is the one that fails
+ * CLOSED, and a `false` from a broken call would hand out 750 unreclaimable points.
+ */
+describe('OrderHistoryHttpAdapter', () => {
+  const ask = (over = {}) => new OrderHistoryHttpAdapter(makeConfig(over)).hasCompletedOrder('c1');
+
+  it('returns null when no key', async () => {
+    expect(await ask({ internalServiceKey: '' })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when no order-service url', async () => {
+    expect(await ask({ orderServiceUrl: '' })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reads hasCompleted (url-encoded + x-internal-key) on the happy path', async () => {
+    fetchMock.mockResolvedValue(res({ body: { hasCompleted: true } }));
+    const out = await new OrderHistoryHttpAdapter(makeConfig()).hasCompletedOrder('c 1');
+    expect(out).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://order:3004/api/v1/orders/internal/customer-completed?customerId=c%201',
+      expect.objectContaining({ headers: expect.objectContaining({ 'x-internal-key': KEY }) }),
+    );
+  });
+
+  it('passes a false through unchanged', async () => {
+    fetchMock.mockResolvedValue(res({ body: { hasCompleted: false } }));
+    expect(await ask()).toBe(false);
+  });
+
+  it('returns null when the body carries no boolean', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(await ask()).toBeNull();
+  });
+
+  it('returns null (fail closed) on non-2xx', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await ask()).toBeNull();
+  });
+
+  it('returns null (fail closed) when order-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await ask()).toBeNull();
   });
 });

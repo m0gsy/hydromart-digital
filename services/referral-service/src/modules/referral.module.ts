@@ -14,6 +14,7 @@ import { ReferralPrismaRepository } from '../infrastructure/prisma/referral.pris
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
+import { OrderHistoryHttpAdapter } from '../infrastructure/http/order-history.http.adapter';
 import { ReferralController } from './referral.controller';
 import { SettingsController } from './settings.controller';
 
@@ -31,6 +32,7 @@ const providers: Provider[] = [
   { provide: REFERRAL_TOKENS.ReferralRepository, useClass: ReferralPrismaRepository },
   { provide: REFERRAL_TOKENS.LoyaltyReward, useClass: LoyaltyRewardHttpAdapter },
   { provide: REFERRAL_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
+  { provide: REFERRAL_TOKENS.OrderHistory, useClass: OrderHistoryHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

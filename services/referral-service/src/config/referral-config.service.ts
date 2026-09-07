@@ -59,6 +59,13 @@ export class ReferralConfigService {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
   }
   /**
+   * order-service base URL; CA-3-40 asks it whether a would-be referee has ever completed
+   * an order. Blank = the lookup cannot be made, and `redeem()` refuses rather than guesses.
+   */
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '');
+  }
+  /**
    * Points granted to the referrer when a referral qualifies (FR-092). Global-only
    * tunable — qualify() has no depotId in scope (see setting-defs.ts).
    */

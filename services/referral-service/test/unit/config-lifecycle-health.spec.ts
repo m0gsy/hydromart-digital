@@ -82,6 +82,15 @@ describe('ReferralConfigService getters', () => {
     expect(c.internalServiceKey).toBe('k1');
     expect(c.customerServiceUrl).toBe('http://cust');
   });
+
+  // CA-3-40. Blank is not "skip the check" here — the adapter turns it into `null` and
+  // `redeem()` refuses, which is why the key is required in production.
+  it('defaults the order-service URL to blank and reads it when set', () => {
+    expect(cfg({}).orderServiceUrl).toBe('');
+    expect(cfg({ ORDER_SERVICE_URL: 'http://order:3004' }).orderServiceUrl).toBe(
+      'http://order:3004',
+    );
+  });
 });
 
 describe('PrismaService lifecycle', () => {

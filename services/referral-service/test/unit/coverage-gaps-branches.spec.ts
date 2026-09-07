@@ -8,6 +8,7 @@ import { SettingsService } from '../../src/application/services/settings.service
 import { SettingsController } from '../../src/modules/settings.controller';
 import {
   FakeCustomerDirectory,
+  FakeOrderHistory,
   FakeLoyaltyReward,
   InMemoryReferralRepository,
   InMemorySettingsRepository,
@@ -25,7 +26,13 @@ describe('ReferralService branch gaps', () => {
   beforeEach(() => {
     repo = new InMemoryReferralRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ReferralService(repo, loyalty, new FakeCustomerDirectory(), buildTestConfig());
+    service = new ReferralService(
+      repo,
+      loyalty,
+      new FakeCustomerDirectory(),
+      buildTestConfig(),
+      new FakeOrderHistory(),
+    );
   });
 
   describe('getOrCreateMyCode', () => {
@@ -91,7 +98,7 @@ describe('ReferralService branch gaps', () => {
   describe('depotSummary', () => {
     it('returns 0% conversion when the depot has customers but no referrals', async () => {
       const dir = new FakeCustomerDirectory({ d1: ['cust-1', 'cust-2'] });
-      const svc = new ReferralService(repo, loyalty, dir, buildTestConfig());
+      const svc = new ReferralService(repo, loyalty, dir, buildTestConfig(), new FakeOrderHistory());
       const out = await svc.depotSummary('d1');
       expect(out).toMatchObject({ invited: 0, qualified: 0, conversionPct: 0, pointsAwarded: 0 });
     });
@@ -104,7 +111,7 @@ describe('ReferralService branch gaps', () => {
       await service.qualify(referee, randomUUID(), '');
 
       const dir = new FakeCustomerDirectory({ d1: [referrer] });
-      const svc = new ReferralService(repo, loyalty, dir, buildTestConfig());
+      const svc = new ReferralService(repo, loyalty, dir, buildTestConfig(), new FakeOrderHistory());
       const out = await svc.depotSummary('d1');
       expect(out.invited).toBe(1);
       expect(out.qualified).toBe(1);
@@ -186,7 +193,13 @@ describe('SettingsController reset depotId branch', () => {
 describe('ReferralService summary paging clamps', () => {
   function svc(): ReferralService {
     const repo = new InMemoryReferralRepository();
-    return new ReferralService(repo, new FakeLoyaltyReward(), new FakeCustomerDirectory(), buildTestConfig());
+    return new ReferralService(
+      repo,
+      new FakeLoyaltyReward(),
+      new FakeCustomerDirectory(),
+      buildTestConfig(),
+      new FakeOrderHistory(),
+    );
   }
 
   it('uses default page/limit when called with only a customerId', async () => {

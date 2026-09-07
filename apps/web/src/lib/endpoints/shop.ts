@@ -176,6 +176,9 @@ export const shop = {
 
   referrals: {
     me: '/referrals/api/v1/referrals/me',
+    // CA-3-45: the points a qualifying referral pays each side, so /referral and /rewards
+    // quote what the settings pay instead of a number typed into a dictionary once.
+    rules: '/referrals/api/v1/referrals/rules',
     // A staff read of ONE customer's referral standing (`loyaltyRead`). Built and reachable
     // from nowhere, so the depot could see its own referral rollup and never the person in
     // front of them — which is the row somebody is actually asking about.

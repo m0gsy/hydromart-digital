@@ -68,7 +68,7 @@ export const profile = {
       title: 'Cara kerja poin',
       earn: { title: 'Belanja, dapat poin', body: '1 poin setiap {amount} belanja.' },
       reorder: { title: 'Pesan ulang rutin', body: 'Bonus poin untuk langganan mingguan.' },
-      refer: { title: 'Ajak teman', body: '+50 poin tiap teman pesan pertama.' },
+      refer: { title: 'Ajak teman', body: '+{referee} poin tiap teman pesan pertama.' },
       expiry: 'Poin hangus setelah 12 bulan tanpa aktivitas.',
     },
     perks: {
