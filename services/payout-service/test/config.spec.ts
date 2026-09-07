@@ -37,6 +37,53 @@ describe('PayoutConfigService', () => {
     expect(cfg.expenseAutoApproveMaxIdr()).toBe(50000);
   });
 
+  /*
+   * CA-4-21, owner decision 2026-09-04: Rp 50.000 is the NETWORK ceiling and a depot may
+   * only LOWER it.
+   *
+   * Without the clamp, `effective()` serves whatever the depot row says — and a MANAGER
+   * holds `depotAdmin` and `expenseApprove` both, so the same person could raise their own
+   * depot's bar to Rp 5.000.000 and then have nothing left to approve.
+   */
+  describe('auto-approve ceiling (CA-4-21)', () => {
+    // The cache reads rows lazily, so it is refreshed once before the getter is asked.
+    const withSettings = async (
+      rows: { scope: string; depotId: string | null; key: string; value: string }[],
+    ) => {
+      const cache = new SettingsCache({ loadAll: async () => rows as never });
+      await cache.refresh();
+      return new PayoutConfigService(
+        new FakeConfig({ EXPENSE_AUTO_APPROVE_MAX_IDR: '50000' }) as unknown as ConfigService,
+        cache,
+      );
+    };
+
+    const DEPOT = 'dep-1';
+
+    it('lets a depot lower it', async () => {
+      const cfg = await withSettings([
+        { scope: 'DEPOT', depotId: DEPOT, key: 'expenseAutoApproveMaxIdr', value: '20000' },
+      ]);
+      expect(cfg.expenseAutoApproveMaxIdr(DEPOT)).toBe(20000);
+    });
+
+    it('refuses to let a depot raise it above the network figure', async () => {
+      const cfg = await withSettings([
+        { scope: 'DEPOT', depotId: DEPOT, key: 'expenseAutoApproveMaxIdr', value: '5000000' },
+      ]);
+      expect(cfg.expenseAutoApproveMaxIdr(DEPOT)).toBe(50000);
+    });
+
+    it('measures the ceiling against head office, not against the depot itself', async () => {
+      const cfg = await withSettings([
+        { scope: 'GLOBAL', depotId: null, key: 'expenseAutoApproveMaxIdr', value: '30000' },
+        { scope: 'DEPOT', depotId: DEPOT, key: 'expenseAutoApproveMaxIdr', value: '45000' },
+      ]);
+      expect(cfg.expenseAutoApproveMaxIdr(null)).toBe(30000);
+      expect(cfg.expenseAutoApproveMaxIdr(DEPOT)).toBe(30000);
+    });
+  });
+
   it('throws when a required numeric setting is absent', () => {
     expect(() => make({}).port).toThrow(/missing PAYOUT_SERVICE_PORT/);
   });

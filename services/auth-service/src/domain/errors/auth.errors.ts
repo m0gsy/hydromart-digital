@@ -207,6 +207,34 @@ export class DataSubjectRequestAlreadyDecidedError extends DomainError {
 }
 
 /**
+ * CA-3-54: a full data export is a queue decision, not a download button.
+ *
+ * The approval queue existed and worked; this one route walked around it. The only thing
+ * that ever gated it was a browser screen, and a cookie and curl skipped that.
+ */
+export class DataExportNotApprovedError extends DomainError {
+  readonly code = 'PDP_EXPORT_NOT_APPROVED';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('Ekspor data belum disetujui. Kirim permintaan dulu, kantor pusat akan meninjau.');
+  }
+}
+
+/**
+ * CA-3-54, owner decision 2026-09-04: an approval is good for seven days.
+ *
+ * The payload is rebuilt at download time, so a year-old approval would otherwise be a
+ * permanent door onto TODAY's data — not onto the data head office actually looked at.
+ */
+export class DataExportApprovalExpiredError extends DomainError {
+  readonly code = 'PDP_EXPORT_APPROVAL_EXPIRED';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini.');
+  }
+}
+
+/**
  * The dispatch driver roster is read whole, so it needs a ceiling — and PR6's rule is that
  * a ceiling REFUSES rather than truncating. A silently truncated roster is a courier who
  * exists but cannot be dispatched, which reads on screen as "that courier has no shift".

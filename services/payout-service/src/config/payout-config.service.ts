@@ -67,12 +67,23 @@ export class PayoutConfigService {
   get businessTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
-  /** Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer). */
+  /**
+   * Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer).
+   *
+   * CA-4-21, owner decision 2026-09-04: Rp 50.000 is the NETWORK ceiling and a depot may
+   * only LOWER it. `effective()` resolves DEPOT over GLOBAL over env, and by itself it
+   * would happily serve a depot override of Rp 5.000.000 — a manager holds `depotAdmin`
+   * and `expenseApprove` both, so the same person could raise their own depot's bar and
+   * then approve nothing. The clamp is what makes "boleh menurunkannya" mean only that.
+   *
+   * The network figure is the GLOBAL setting if head office has set one, else the env
+   * default — never a depot's own number, or the ceiling would be whatever it is measured
+   * against.
+   */
   expenseAutoApproveMaxIdr(depotId: string | null = null): number {
-    return this.tunable(
-      'expenseAutoApproveMaxIdr',
-      this.num('EXPENSE_AUTO_APPROVE_MAX_IDR'),
-      depotId,
-    );
+    const envValue = this.num('EXPENSE_AUTO_APPROVE_MAX_IDR');
+    const network = this.tunable('expenseAutoApproveMaxIdr', envValue, null);
+    if (depotId === null) return network;
+    return Math.min(this.tunable('expenseAutoApproveMaxIdr', envValue, depotId), network);
   }
 }

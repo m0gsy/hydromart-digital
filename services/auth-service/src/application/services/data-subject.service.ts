@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nest
 
 import {
   CustomerNotFoundError,
+  DataExportApprovalExpiredError,
+  DataExportNotApprovedError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
@@ -65,6 +67,14 @@ export interface DataExport {
  * copy of everything we hold about a person is a second copy to leak, and the request
  * row is the audit trail either way.
  */
+/**
+ * CA-3-54, owner decision 2026-09-04: how long an approved export stays downloadable.
+ *
+ * Seven days, counted from `processedAt`. The payload is rebuilt at download time, so this
+ * is what stops one approval becoming a standing subscription to the customer's data.
+ */
+const EXPORT_APPROVAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class DataSubjectService {
   private readonly logger = new Logger(DataSubjectService.name);
@@ -344,8 +354,39 @@ export class DataSubjectService {
     return request;
   }
 
-  /** The customer downloads their own completed export; staff never hold a stored copy. */
+  /**
+   * The customer downloads their own APPROVED export; staff never hold a stored copy.
+   *
+   * CA-3-54: this used to build the payload for anyone who asked, which made the approval
+   * queue above decorative. The only thing that ever gated it was a browser screen, and a
+   * cookie and curl skipped that. Head office decides, and `processedBy` on the row says
+   * who decided.
+   *
+   * Owner decision 2026-09-04: the approval is good for SEVEN DAYS. That matters because
+   * `buildExport` assembles the payload at DOWNLOAD time — a year-old approval would be a
+   * permanent door onto today's data, not onto the data head office actually looked at.
+   * `processedAt` already records when, so this needs no new column.
+   *
+   * The guard lives here and NOT in `buildExport`: `approve()` calls that while the
+   * request is still PENDING, so a guard there would refuse every approval, including the
+   * one that would satisfy it.
+   */
   async exportFor(customerId: string): Promise<DataExport> {
+    const approvals = (await this.requests.listByCustomer(customerId)).filter(
+      (r) => r.type === 'EXPORT' && r.status === 'COMPLETED',
+    );
+    if (approvals.length === 0) throw new DataExportNotApprovedError();
+
+    const newest = approvals.reduce((latest, r) =>
+      (r.processedAt?.getTime() ?? 0) > (latest.processedAt?.getTime() ?? 0) ? r : latest,
+    );
+    // A COMPLETED row with no `processedAt` cannot be dated, and an approval nobody can
+    // date cannot be shown to be inside its window. Refusing is the safe reading: the
+    // customer asks again, and the cost is one more queue entry.
+    const approvedAt = newest.processedAt?.getTime() ?? 0;
+    if (Date.now() - approvedAt > EXPORT_APPROVAL_WINDOW_MS) {
+      throw new DataExportApprovalExpiredError();
+    }
     return this.buildExport(customerId);
   }
 

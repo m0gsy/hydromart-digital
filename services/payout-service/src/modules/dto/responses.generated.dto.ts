@@ -356,3 +356,9 @@ export class DepotPayoutCostsResponseDto {
   @ApiProperty({ type: Number, description: 'Claims APPROVED in the window, by reviewedAt.' })
   expenseClaimIdr!: number;
 }
+
+/** CA-4-21: the auto-approve ceiling for one depot, so the courier screen can state it. */
+export class ExpenseLimitResponseDto {
+  @ApiProperty({ type: Number, description: 'Claims at or under this amount auto-approve.' })
+  autoApproveMaxIdr!: number;
+}

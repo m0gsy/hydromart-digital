@@ -142,6 +142,10 @@ export const money = {
     // (withdrawals removed, audit F: the SAME path as `withdraw` above, differing only in the
     // verb the caller happens to use — and the screen reads `recentWithdrawals` off `summary`.)
     expenses: '/payout/api/v1/courier/expenses',
+    // CA-4-21: the auto-approve ceiling for the caller's own depot. It is a per-depot
+    // setting, so the screen cannot hardcode it — and the settings schema is
+    // `depotAdmin`, which a courier does not hold.
+    expenseLimit: '/payout/api/v1/courier/expense-limit',
   },
 
   // Courier earning-rule editor (payout-service, design 6b; FINANCE/SUPER_ADMIN). GET lists

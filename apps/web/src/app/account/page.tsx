@@ -331,7 +331,22 @@ function PrivacyDataBody() {
     }
   }
 
-  const completedExport = (data ?? []).some((r) => r.type === 'EXPORT' && r.status === 'COMPLETED');
+  /*
+   * CA-3-54: the Download button appears only while an approval is still good.
+   *
+   * The server refuses outside that window either way — this screen was never the gate,
+   * and treating it as one is what let a cookie and curl walk around the queue. What it
+   * does do is stop offering a button whose only outcome is a 403, seven days after head
+   * office decided (owner decision 2026-09-04).
+   */
+  const EXPORT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+  const completedExport = (data ?? []).some(
+    (r) =>
+      r.type === 'EXPORT' &&
+      r.status === 'COMPLETED' &&
+      !!r.processedAt &&
+      Date.now() - new Date(r.processedAt).getTime() <= EXPORT_WINDOW_MS,
+  );
 
   return (
     <div>
