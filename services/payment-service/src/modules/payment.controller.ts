@@ -63,6 +63,7 @@ import {
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentsForOrdersDto,
+  DepotRefundsQueryDto,
   RefundCountsQueryDto,
   PaymentWebhookDto,
   RefundPaymentDto,
@@ -79,6 +80,7 @@ import {
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
   PaymentResponseDto,
+  DepotRefundsResponseDto,
   RefundCountsResponseDto,
   UnsettledMethodAggregateResponseDto,
   Webhook3ResponseDto,
@@ -274,6 +276,28 @@ export class PaymentController {
    * asks for a THRESHOLD rather than a list, so the answer is a review queue and never a
    * customer export. Declared before ':id'.
    */
+  /**
+   * CA-2-59: money refunded per depot in a window, for the head-office P&L.
+   *
+   * Internal key, not a user capability: the caller is dashboard-service composing a
+   * network report and holds no token for any of these depots. Declared before ':id'.
+   */
+  @ApiOkResponse({ type: DepotRefundsResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-refunds')
+  @ApiOperation({ summary: 'Refunded money per depot over a window (internal service auth)' })
+  async depotRefunds(
+    @Query() query: DepotRefundsQueryDto,
+  ): Promise<{ depotId: string; refundedIdr: number }[]> {
+    const ids = query.depotIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.payments.refundedTotalByDepot(ids, new Date(query.from), new Date(query.to));
+  }
+
   @ApiOkResponse({ type: RefundCountsResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)

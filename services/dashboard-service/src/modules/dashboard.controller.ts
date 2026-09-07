@@ -8,10 +8,11 @@ import {
   ExecutiveDashboard,
   FranchiseDashboard,
   NetworkDashboard,
+  NetworkPnl,
   MonthlyOperationalPnl,
 } from '../application/services/dashboard.service';
-import { ExecutiveQueryDto, MonthlyPnlQueryDto } from './dto/dashboard.dto';
-import { ExecutiveDashboardResponseDto, FranchiseDashboardResponseDto, MonthlyOperationalPnlResponseDto, NetworkDashboardResponseDto } from './dto/responses.generated.dto';
+import { ExecutiveQueryDto, MonthlyPnlQueryDto, NetworkPnlQueryDto } from './dto/dashboard.dto';
+import { ExecutiveDashboardResponseDto, FranchiseDashboardResponseDto, MonthlyOperationalPnlResponseDto, NetworkDashboardResponseDto, NetworkPnlResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
@@ -56,6 +57,25 @@ export class DashboardController {
     @Headers('authorization') token: string,
   ): Promise<MonthlyOperationalPnl> {
     return this.dashboard.monthlyPnl(query.depotId, query.month, token);
+  }
+
+  /**
+   * CA-2-59: the network profit-and-loss, per depot and in total.
+   *
+   * `network` below reports revenue and no cost term, so the only question it can answer
+   * is which depot sold the most — not which one earned anything. Same class-level
+   * capability: whoever may read the network roll-up may read what it cost to make.
+   */
+  @ApiOkResponse({ type: NetworkPnlResponseDto })
+  @Get('network-pnl')
+  @ApiOperation({
+    summary: "Network profit-and-loss for a month, per depot, from recorded costs only",
+  })
+  networkPnl(
+    @Query() query: NetworkPnlQueryDto,
+    @Headers('authorization') token: string,
+  ): Promise<NetworkPnl> {
+    return this.dashboard.networkPnl(query.month, token);
   }
 
   @ApiOkResponse({ type: NetworkDashboardResponseDto })

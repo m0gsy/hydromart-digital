@@ -107,6 +107,29 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
+  // CA-2-59: sums this fake's own refunded rows, so the network P&L's arithmetic is
+  // exercised against real numbers rather than a stub that always answers zero.
+  async refundedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    for (const p of this.rows) {
+      const row = p as unknown as {
+        depotId?: string | null;
+        status?: string;
+        refundedAt?: Date | null;
+        refundedAmount?: unknown;
+      };
+      if (!row.depotId || row.status !== 'REFUNDED' || !row.refundedAt) continue;
+      if (!depotIds.includes(row.depotId)) continue;
+      if (row.refundedAt < from || row.refundedAt >= to) continue;
+      out.set(row.depotId, (out.get(row.depotId) ?? 0) + Math.round(Number(row.refundedAmount ?? 0)));
+    }
+    return out;
+  }
+
   async refundCountsByCustomer(
     from: Date,
     to: Date,

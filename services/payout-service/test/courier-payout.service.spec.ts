@@ -72,6 +72,17 @@ class FakeCourierLedger implements CourierLedgerRepository {
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
+  // CA-2-59: the batch the network P&L reads. Sums whatever this fake was seeded with.
+  async commissionByDepot(depotIds: readonly string[], from: Date, to: Date) {
+    const out = new Map<string, number>();
+    for (const id of depotIds) {
+      const rows = await this.earningsByDepot(id, from, to);
+      const sum = rows.reduce((n, r) => n + r.earnedIdr, 0);
+      if (sum > 0) out.set(id, sum);
+    }
+    return out;
+  }
+
   async earningsByDepot(depotId: string, from: Date, to: Date) {
     const rows = new Map<
       string,

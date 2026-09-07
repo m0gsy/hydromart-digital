@@ -53,6 +53,9 @@ describe('DashboardConfigService', () => {
     expect(svc.adminServiceUrl).toBeUndefined();
     expect(svc.hrServiceUrl).toBeUndefined();
     expect(svc.customerServiceUrl).toBeUndefined();
+    // CA-2-59: undefined means the P&L reports that cost line as unavailable, not zero.
+    expect(svc.payoutServiceUrl).toBeUndefined();
+    expect(svc.paymentServiceUrl).toBeUndefined();
     // corsOrigins default split.
     expect(svc.corsOrigins).toEqual(['http://localhost:3000']);
   });
@@ -63,6 +66,8 @@ describe('DashboardConfigService', () => {
         ADMIN_SERVICE_URL: 'http://admin/',
         HR_SERVICE_URL: 'http://hr//',
         CUSTOMER_SERVICE_URL: 'http://customer/',
+        PAYOUT_SERVICE_URL: 'http://payout/',
+        PAYMENT_SERVICE_URL: 'http://payment//',
         CORS_ALLOWED_ORIGINS: 'http://a.com, http://b.com , ,',
       }),
     );
@@ -70,6 +75,8 @@ describe('DashboardConfigService', () => {
     expect(svc.adminServiceUrl).toBe('http://admin');
     expect(svc.hrServiceUrl).toBe('http://hr');
     expect(svc.customerServiceUrl).toBe('http://customer');
+    expect(svc.payoutServiceUrl).toBe('http://payout');
+    expect(svc.paymentServiceUrl).toBe('http://payment');
     expect(svc.corsOrigins).toEqual(['http://a.com', 'http://b.com']);
   });
 });
@@ -88,6 +95,7 @@ describe('DashboardController', () => {
     executive: jest.fn().mockResolvedValue('exec'),
     monthlyPnl: jest.fn().mockResolvedValue('pnl'),
     network: jest.fn().mockResolvedValue('net'),
+    networkPnl: jest.fn().mockResolvedValue('network-pnl'),
     franchise: jest.fn().mockResolvedValue('fr'),
   } as unknown as DashboardService;
   const controller = new DashboardController(stub);
@@ -125,6 +133,14 @@ describe('DashboardController', () => {
   it('delegates monthlyPnl with depotId + month', async () => {
     await expect(controller.monthlyPnl({ depotId: 'd1', month: '2026-07' }, 'Bearer t')).resolves.toBe('pnl');
     expect(stub.monthlyPnl).toHaveBeenCalledWith('d1', '2026-07', 'Bearer t');
+  });
+
+  // CA-2-59: no depotId — the whole point is the network. A depot's own P&L is monthlyPnl.
+  it('delegates networkPnl with the month + token', async () => {
+    await expect(controller.networkPnl({ month: '2026-07' }, 'Bearer t')).resolves.toBe(
+      'network-pnl',
+    );
+    expect(stub.networkPnl).toHaveBeenCalledWith('2026-07', 'Bearer t');
   });
 
   it('delegates network with the parsed range + token', async () => {

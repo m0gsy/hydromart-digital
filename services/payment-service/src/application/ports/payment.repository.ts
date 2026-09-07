@@ -140,6 +140,18 @@ export interface PaymentRepository {
    * already answer without interpretation. A refund is a settled fact with a timestamp and an
    * owner; nothing has to be guessed about intent to count them.
    */
+  /**
+   * CA-2-59: money refunded per depot in a window, for the network P&L.
+   *
+   * By `refundedAt` and half-open `[from, to)` — the window is about when money went back,
+   * and a month boundary belongs to exactly one month. Depots with no refunds are absent;
+   * the caller reads that as zero.
+   */
+  refundedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>>;
   refundCountsByCustomer(
     from: Date,
     to: Date,

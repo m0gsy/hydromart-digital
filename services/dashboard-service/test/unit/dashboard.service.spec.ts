@@ -475,3 +475,177 @@ describe('DashboardService when the depots list survives but nothing else does',
     expect(out.sources).toMatchObject({ order: 'unavailable', delivery: 'unavailable' });
   });
 });
+
+/*
+ * CA-2-59 — the network profit-and-loss head office never had.
+ *
+ * `/dashboard/network` reported revenue per depot and no cost term at all, so the only
+ * question head office could answer was which depot SOLD the most, not which one EARNED
+ * anything. Owner decision 2026-09-04: build it from what is already recorded and from
+ * nothing else — goods, wages, courier commission, expense claims, refunds. Rent and
+ * electricity are deliberately out, because nothing records them.
+ *
+ * The rule these tests exist to hold: a cost that could not be read is UNKNOWN, never zero.
+ * A zero is what makes a report like this flatter the business.
+ */
+describe('networkPnl (CA-2-59)', () => {
+  const build = () => {
+    const sources = new InMemoryDashboardSources();
+    return { sources, svc: new DashboardService(sources, dashboardTestConfig(), noNames) };
+  };
+
+  it('subtracts all five recorded cost lines, per depot and in total', async () => {
+    const { svc } = build();
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    // Fixtures: revenue 1.000.000, COGS 400.000, payroll GROSS 4.000.000,
+    // commission 250.000, claims 50.000, refunds 100.000 → −3.800.000 per depot.
+    const row = out.depots[0]!;
+    expect(row).toMatchObject({
+      revenueIdr: 1_000_000,
+      cogsIdr: 400_000,
+      payrollIdr: 4_000_000,
+      courierCommissionIdr: 250_000,
+      expenseClaimIdr: 50_000,
+      refundIdr: 100_000,
+      netProfitIdr: -3_800_000,
+    });
+    expect(out.depots).toHaveLength(2);
+    expect(out.totals.netProfitIdr).toBe(-7_600_000);
+    expect(out.sources).toMatchObject({ depot: 'ok', payout: 'ok', refunds: 'ok' });
+  });
+
+  // Gross, not net: net is what lands in the employee's account after BPJS, PPh 21, loan
+  // instalments and fines are withheld. Booking net as the cost turns a lateness fine into
+  // a saving for the depot that charged it.
+  it('costs wages at gross, not at what was paid out', async () => {
+    const { svc } = build();
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    expect(out.depots[0]!.payrollIdr).toBe(4_000_000);
+    expect(out.depots[0]!.payrollIdr).not.toBe(3_000_000);
+  });
+
+  it('asks HR for the month reported on, not for today', async () => {
+    const { sources, svc } = build();
+    await svc.networkPnl('2026-07', 'Bearer t');
+    expect(sources.hrSummaryManyMonth).toBe('2026-07');
+  });
+
+  it('reads an unreachable payout-service as UNKNOWN, never as zero cost', async () => {
+    const { sources, svc } = build();
+    sources.payoutCostsResult = null;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.courierCommissionIdr).toBeNull();
+    expect(out.depots[0]!.expenseClaimIdr).toBeNull();
+    expect(out.depots[0]!.netProfitIdr).toBeNull();
+    expect(out.totals.netProfitIdr).toBeNull();
+    expect(out.sources.payout).toBe('unavailable');
+  });
+
+  it('reads an unreachable payment-service the same way', async () => {
+    const { sources, svc } = build();
+    sources.depotRefundsResult = null;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.refundIdr).toBeNull();
+    expect(out.depots[0]!.netProfitIdr).toBeNull();
+    expect(out.sources.refunds).toBe('unavailable');
+  });
+
+  // A total assembled from the rows that happened to be readable is a smaller,
+  // confident-looking number that is wrong by exactly the depots nobody could read.
+  it('refuses to total when even one depot is unknown', async () => {
+    const { sources, svc } = build();
+    sources.depotRefundsResult = new Map([['depot-1', 100_000]]);
+    const originalRefunds = sources.depotRefunds.bind(sources);
+    sources.depotRefunds = async (ids, range) => {
+      const map = await originalRefunds(ids, range);
+      map?.delete('depot-2');
+      return map;
+    };
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    // depot-2 is absent from the map, which for a SUM over rows means zero, not unknown —
+    // so the total still adds up. This pins that distinction rather than assuming it.
+    expect(out.depots[1]!.refundIdr).toBe(0);
+    expect(out.totals.refundIdr).toBe(100_000);
+  });
+
+
+  it('reports every source unavailable when depot-service cannot list the depots', async () => {
+    const { sources, svc } = build();
+    sources.depotsDown = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots).toEqual([]);
+    expect(out.sources).toMatchObject({
+      depot: 'unavailable',
+      order: 'unavailable',
+      goods: 'unavailable',
+      payroll: 'unavailable',
+    });
+    // No rows means no unknown terms, so the totals are a legitimate zero.
+    expect(out.totals.netProfitIdr).toBe(0);
+  });
+
+  it('marks the revenue source partial and the profit unknown when order-service is down', async () => {
+    const sources = new InMemoryDashboardSources(true); // orderDown
+    const out = await new DashboardService(sources, dashboardTestConfig(), noNames).networkPnl(
+      '2026-07',
+      'Bearer t',
+    );
+
+    expect(out.depots[0]!.revenueIdr).toBeNull();
+    expect(out.depots[0]!.netProfitIdr).toBeNull();
+    expect(out.sources.order).toBe('partial');
+  });
+
+  it('marks the goods source partial when depot costs cannot be read', async () => {
+    const { sources, svc } = build();
+    sources.costsDown = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.cogsIdr).toBeNull();
+    expect(out.sources.goods).toBe('partial');
+  });
+
+  it('marks payroll partial when hr-service is down', async () => {
+    const { sources, svc } = build();
+    sources.hrDown = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.payrollIdr).toBeNull();
+    expect(out.sources.payroll).toBe('partial');
+  });
+
+  /*
+   * The deploy-order case, and the reason `payrollMtdGross` is optional on the wire: a
+   * dashboard-service that ships before hr-service gets an answer with no gross field. It
+   * must read that as UNKNOWN. Coercing it to 0 would print a month with a revenue, every
+   * other cost, and no wage bill — a profit figure that looks plausible and is not.
+   */
+  it('treats an hr-service that answers without gross as unknown, not as zero wages', async () => {
+    const { sources, svc } = build();
+    sources.hrOmitsGross = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.payrollIdr).toBeNull();
+    expect(out.depots[0]!.netProfitIdr).toBeNull();
+    expect(out.sources.payroll).toBe('partial');
+  });
+  it('windows the month in Jakarta time, not UTC', async () => {
+    const { svc } = build();
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    // 1 July 00:00 WIB is 30 June 17:00 UTC.
+    expect(out.from).toBe('2026-06-30T17:00:00.000Z');
+    expect(out.to).toBe('2026-07-31T17:00:00.000Z');
+    expect(out.month).toBe('2026-07');
+  });
+
+  it('says in the report itself that rent and electricity are not in it', async () => {
+    const { svc } = build();
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    expect(out.disclaimer).toMatch(/[Ss]ewa dan listrik tidak termasuk/);
+    expect(out.reportType).toBe('OPERATIONAL_MANAGEMENT');
+  });
+});

@@ -112,10 +112,13 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
     this.lowStockManyCalls += 1;
     return new Map(depotIds.map((id) => [id, LOW_STOCK[id] ?? []]));
   }
+  /* CA-2-59: depot-service down means there is no list of depots to report on at all,
+     which is a different failure from any single cost source being unreadable. */
+  depotsDown = false;
   async allDepots(_token: string): Promise<NetworkDepot[] | null> {
     // Independent of `orderDown` — depot-service is a distinct source; lets the
     // network test exercise "order down but depots/SLA still list".
-    return ALL_DEPOTS;
+    return this.depotsDown ? null : ALL_DEPOTS;
   }
   async slaByDepot(_range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
     return SLA_BY_DEPOT;
@@ -130,11 +133,13 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   ): Promise<DepotMonthlyRevenue | null> {
     return this.orderDown ? null : { depotId, month, orders: 12, revenueIdr: 1_000_000 };
   }
+  costsDown = false;
   async operationalCosts(
     depotId: string,
     range: Required<DateRange>,
     _token: string,
   ): Promise<DepotOperationalCosts | null> {
+    if (this.costsDown) return null;
     return {
       depotId,
       ...range,
@@ -163,13 +168,47 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
       },
     };
   }
+  /* CA-2-59: an hr-service one release behind answers without `payrollMtdGross`, and the
+     P&L must read that as UNKNOWN rather than as a month with no wage bill. */
+  hrOmitsGross = false;
+  hrDown = false;
   async hrSummary(depotId: string): Promise<HrDepotSummary | null> {
-    return { depotId, lateToday: 1, absentToday: 2, presentToday: 5, payrollMtdNet: 3_000_000, activeHeadcount: 8 };
+    if (this.hrDown) return null;
+    const row = { depotId, lateToday: 1, absentToday: 2, presentToday: 5, payrollMtdNet: 3_000_000, payrollMtdGross: 4_000_000, activeHeadcount: 8 };
+    if (this.hrOmitsGross) delete (row as { payrollMtdGross?: number }).payrollMtdGross;
+    return row;
   }
   hrSummaryManyCalls = 0;
-  async hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]> {
+  hrSummaryManyMonth: string | undefined;
+  async hrSummaryMany(depotIds: string[], month?: string): Promise<(HrDepotSummary | null)[]> {
     this.hrSummaryManyCalls += 1;
+    this.hrSummaryManyMonth = month;
     return Promise.all(depotIds.map((id) => this.hrSummary(id)));
+  }
+  /* CA-2-59. Null on either of these means the source could not be read at all, which the
+     P&L must report as unknown rather than as a cost of zero — so both are switchable. */
+  payoutCostsResult: Map<string, { commissionIdr: number; expenseClaimIdr: number }> | null =
+    new Map();
+  async payoutCosts(
+    depotIds: string[],
+    _range: { from: string; to: string },
+  ): Promise<Map<string, { commissionIdr: number; expenseClaimIdr: number }> | null> {
+    if (this.payoutCostsResult === null) return null;
+    const out = new Map(this.payoutCostsResult);
+    for (const id of depotIds) {
+      if (!out.has(id)) out.set(id, { commissionIdr: 250_000, expenseClaimIdr: 50_000 });
+    }
+    return out;
+  }
+  depotRefundsResult: Map<string, number> | null = new Map();
+  async depotRefunds(
+    depotIds: string[],
+    _range: { from: string; to: string },
+  ): Promise<Map<string, number> | null> {
+    if (this.depotRefundsResult === null) return null;
+    const out = new Map(this.depotRefundsResult);
+    for (const id of depotIds) if (!out.has(id)) out.set(id, 100_000);
+    return out;
   }
   async crmSummary(_depotId: string): Promise<CrmDepotSummary | null> {
     return { counts: { baru: 1, aktif: 3, inactive: 2, total: 6 }, repeatRatePct: 50, followUps: [{ customerId: 'c1' }] };

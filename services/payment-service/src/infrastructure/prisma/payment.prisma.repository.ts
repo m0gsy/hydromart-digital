@@ -173,6 +173,29 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  async refundedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (depotIds.length === 0) return out;
+    const grouped = await this.prisma.payment.groupBy({
+      by: ['depotId'],
+      where: {
+        depotId: { in: [...depotIds] },
+        status: PaymentStatus.REFUNDED,
+        refundedAt: { gte: from, lt: to },
+      },
+      _sum: { refundedAmount: true },
+    });
+    for (const g of grouped) {
+      if (!g.depotId) continue;
+      out.set(g.depotId, g._sum.refundedAmount ? Math.round(Number(g._sum.refundedAmount)) : 0);
+    }
+    return out;
+  }
+
   async refundCountsByCustomer(
     from: Date,
     to: Date,

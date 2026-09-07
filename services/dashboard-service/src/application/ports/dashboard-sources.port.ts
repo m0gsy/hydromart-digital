@@ -136,6 +136,13 @@ export interface HrDepotSummary {
   absentToday: number;
   presentToday: number;
   payrollMtdNet: number;
+  /**
+   * CA-2-59: BASE + ALLOWANCE before deductions — the employer's wage cost.
+   *
+   * Optional on the wire so a dashboard-service running against an older hr-service reads
+   * `undefined` and reports the payroll line as UNKNOWN, rather than as a very cheap month.
+   */
+  payrollMtdGross?: number;
   activeHeadcount: number;
 }
 
@@ -197,8 +204,19 @@ export interface DashboardSourcesPort {
   ): Promise<DepotOperationalCosts | null>;
   /** One depot's HR summary (late/absent today, payroll MTD); null when hr-service is unwired/down. */
   hrSummary(depotId: string): Promise<HrDepotSummary | null>;
+  /**
+   * CA-2-59: courier commission + approved expense claims per depot over a window.
+   * `null` = payout-service is unwired or unreachable — the P&L says so rather than
+   * reading a missing cost as zero.
+   */
+  payoutCosts(
+    depotIds: string[],
+    range: Required<DateRange>,
+  ): Promise<Map<string, { commissionIdr: number; expenseClaimIdr: number }> | null>;
+  /** CA-2-59: money refunded per depot over a window. `null` = unwired/unreachable. */
+  depotRefunds(depotIds: string[], range: Required<DateRange>): Promise<Map<string, number> | null>;
   /** HR summaries for MANY depots in one call, in the order asked for (audit S-1). */
-  hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]>;
+  hrSummaryMany(depotIds: string[], month?: string): Promise<(HrDepotSummary | null)[]>;
   /** One depot's CRM lifecycle summary; null when customer-service is unwired/down. */
   crmSummary(depotId: string): Promise<CrmDepotSummary | null>;
   /** CRM summaries for MANY depots in one call, in the order asked for (audit S-1). */

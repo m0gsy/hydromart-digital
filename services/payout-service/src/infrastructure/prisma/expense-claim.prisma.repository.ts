@@ -111,4 +111,27 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
     ]);
     return { items: rows.map((r) => this.toClaim(r as unknown as ClaimRow)), total };
   }
+
+  async approvedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (depotIds.length === 0) return out;
+    const grouped = await this.prisma.expenseClaim.groupBy({
+      by: ['depotId'],
+      where: {
+        depotId: { in: [...depotIds] },
+        status: 'APPROVED',
+        reviewedAt: { gte: from, lt: to },
+      },
+      _sum: { amount: true },
+    });
+    for (const g of grouped) {
+      if (!g.depotId) continue;
+      out.set(g.depotId, Number(g._sum.amount ?? 0));
+    }
+    return out;
+  }
 }

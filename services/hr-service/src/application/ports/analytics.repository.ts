@@ -31,6 +31,14 @@ export interface DepotSummaryFacts {
   absentToday: number;
   presentToday: number;
   payrollMtdNet: number;
+  /**
+   * CA-2-59: gross payroll — BASE + ALLOWANCE, before any deduction.
+   *
+   * The network P&L subtracts what the employer SPENDS on wages, and net is what lands in
+   * the employee's account after BPJS, PPh 21, loan instalments and fines are withheld.
+   * Treating net as the cost would book a lateness fine as a saving.
+   */
+  payrollMtdGross: number;
   activeHeadcount: number;
 }
 

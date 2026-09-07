@@ -324,3 +324,22 @@ export class RefundRulesDto {
   @ApiProperty({ description: 'Refunds above this amount need HQ approval first.' })
   hqApprovalThresholdIdr!: number;
 }
+
+/**
+ * CA-2-59: the depots and window the network P&L is asking about. Comma-separated ids,
+ * the same shape hr-service and payout-service use for their "many depots, one call"
+ * internal routes.
+ */
+export class DepotRefundsQueryDto {
+  @ApiProperty({ example: 'uuid-a,uuid-b', description: 'Comma-separated depot ids.' })
+  @IsString()
+  depotIds!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
+  @IsDateString()
+  to!: string;
+}

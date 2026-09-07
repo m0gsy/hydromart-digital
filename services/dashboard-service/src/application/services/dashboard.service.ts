@@ -137,6 +137,51 @@ export interface MonthlyOperationalPnl {
  * bearer token. Each source is best-effort — a null section marks its source
  * 'unavailable' instead of failing the whole response.
  */
+
+/**
+ * CA-2-59 — one depot's line in the network profit-and-loss, owner decision 2026-09-04.
+ *
+ * Five cost components, and only five: goods (supplier POs), wages and allowances, courier
+ * commission, expense claims, and refunds. Rent and electricity are deliberately ABSENT —
+ * the owner ruled them out because nothing records them, and a P&L that guesses at a cost
+ * is a P&L nobody can dispute a line of.
+ *
+ * Every term is `number | null`, and null means "could not be read", never zero. A cost
+ * silently read as zero is the single way a report like this flatters the business.
+ */
+export interface NetworkPnlDepotRow {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  revenueIdr: number | null;
+  cogsIdr: number | null;
+  payrollIdr: number | null;
+  courierCommissionIdr: number | null;
+  expenseClaimIdr: number | null;
+  refundIdr: number | null;
+  /** Revenue minus every cost above; null the moment any one of them is unknown. */
+  netProfitIdr: number | null;
+}
+
+export interface NetworkPnl {
+  month: string;
+  from: string;
+  to: string;
+  reportType: 'OPERATIONAL_MANAGEMENT';
+  disclaimer: string;
+  depots: NetworkPnlDepotRow[];
+  totals: Omit<NetworkPnlDepotRow, 'depotId' | 'code' | 'name' | 'active'>;
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'partial' | 'unavailable';
+    goods: 'ok' | 'partial' | 'unavailable';
+    payroll: 'ok' | 'partial' | 'unavailable';
+    payout: 'ok' | 'unavailable';
+    refunds: 'ok' | 'unavailable';
+  };
+}
+
 @Injectable()
 export class DashboardService {
   private static readonly TOP_LIMIT = 10;
@@ -264,6 +309,125 @@ export class DashboardService {
    * best-effort — a down source marks itself 'unavailable' and its columns read
    * as 0/null rather than failing the whole response (same pattern as executive).
    */
+
+  /**
+   * CA-2-59 — the network profit-and-loss head office never had.
+   *
+   * `/dashboard/network` reported REVENUE per depot and no cost term at all, so the only
+   * question head office could answer was which depot sold the most — not which one earned
+   * anything. Owner decision 2026-09-04: build it from what is already recorded, and from
+   * nothing else. Rent and electricity are out because nothing records them.
+   *
+   * Six reads, one per source, all in parallel and each independently allowed to fail. A
+   * missing source makes its own column null and marks itself in `sources`; it never makes
+   * a cost zero. `netProfitIdr` is null for any depot with an unknown term, and the totals
+   * are null the moment any depot's is — a network total assembled from partial rows is a
+   * number that looks authoritative and is not.
+   */
+  async networkPnl(month: string, token: string): Promise<NetworkPnl> {
+    // Same window arithmetic as `monthlyPnl` (H-16): `${month}-01T00:00Z` is 07:00 WIB, so
+    // a UTC window starts and ends seven hours late and gets the first and last day of
+    // every month partly wrong.
+    const tz = this.config.businessTimeZone;
+    const fromDate = dayStartUtc(`${month}-01`, tz);
+    const toDate = addLocalMonths(fromDate, 1, tz);
+    const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
+
+    const depots = await this.sources.allDepots(token);
+    const ids = (depots ?? []).map((d) => d.id);
+
+    const [revenues, goods, hr, payout, refunds] = await Promise.all([
+      Promise.all(ids.map((id) => this.sources.depotMonthly(id, month, token))),
+      Promise.all(ids.map((id) => this.sources.operationalCosts(id, range, token))),
+      this.sources.hrSummaryMany(ids, month),
+      this.sources.payoutCosts(ids, range),
+      this.sources.depotRefunds(ids, range),
+    ]);
+
+    let revenueMissing = false;
+    let goodsMissing = false;
+    let payrollMissing = false;
+
+    const rows: NetworkPnlDepotRow[] = (depots ?? []).map((d, i) => {
+      const revenueIdr = revenues[i]?.revenueIdr ?? null;
+      const cogsIdr = goods[i]?.cogs.amountIdr ?? null;
+      const payrollIdr = hr[i]?.payrollMtdGross ?? null;
+      const courierCommissionIdr = payout ? (payout.get(d.id)?.commissionIdr ?? 0) : null;
+      const expenseClaimIdr = payout ? (payout.get(d.id)?.expenseClaimIdr ?? 0) : null;
+      const refundIdr = refunds ? (refunds.get(d.id) ?? 0) : null;
+
+      if (revenueIdr === null) revenueMissing = true;
+      if (cogsIdr === null) goodsMissing = true;
+      if (payrollIdr === null) payrollMissing = true;
+
+      const terms = [
+        revenueIdr,
+        cogsIdr,
+        payrollIdr,
+        courierCommissionIdr,
+        expenseClaimIdr,
+        refundIdr,
+      ];
+      const netProfitIdr = terms.some((t) => t === null)
+        ? null
+        : revenueIdr! -
+          cogsIdr! -
+          payrollIdr! -
+          courierCommissionIdr! -
+          expenseClaimIdr! -
+          refundIdr!;
+
+      return {
+        depotId: d.id,
+        code: d.code,
+        name: d.name,
+        active: d.active,
+        revenueIdr,
+        cogsIdr,
+        payrollIdr,
+        courierCommissionIdr,
+        expenseClaimIdr,
+        refundIdr,
+        netProfitIdr,
+      };
+    });
+
+    // A total is the sum of every row or it is nothing. Summing the rows that happen to be
+    // readable produces a smaller, confident-looking number that is wrong by exactly the
+    // depots nobody could read — the failure mode E-3 already named on the revenue view.
+    const sum = (pick: (r: NetworkPnlDepotRow) => number | null): number | null =>
+      rows.some((r) => pick(r) === null) ? null : rows.reduce((n, r) => n + pick(r)!, 0);
+
+    return {
+      month,
+      ...range,
+      reportType: 'OPERATIONAL_MANAGEMENT',
+      disclaimer:
+        'Laporan manajemen operasional. Hanya biaya yang sudah tercatat: barang, gaji dan ' +
+        'tunjangan, komisi kurir, klaim biaya, dan pengembalian dana. Sewa dan listrik ' +
+        'tidak termasuk karena tidak dicatat di sistem ini. Bukan laporan akuntansi ' +
+        'statutori maupun surat pemberitahuan pajak.',
+      depots: rows,
+      totals: {
+        revenueIdr: sum((r) => r.revenueIdr),
+        cogsIdr: sum((r) => r.cogsIdr),
+        payrollIdr: sum((r) => r.payrollIdr),
+        courierCommissionIdr: sum((r) => r.courierCommissionIdr),
+        expenseClaimIdr: sum((r) => r.expenseClaimIdr),
+        refundIdr: sum((r) => r.refundIdr),
+        netProfitIdr: sum((r) => r.netProfitIdr),
+      },
+      sources: {
+        depot: depots !== null ? 'ok' : 'unavailable',
+        order: depots === null ? 'unavailable' : revenueMissing ? 'partial' : 'ok',
+        goods: depots === null ? 'unavailable' : goodsMissing ? 'partial' : 'ok',
+        payroll: depots === null ? 'unavailable' : payrollMissing ? 'partial' : 'ok',
+        payout: payout !== null ? 'ok' : 'unavailable',
+        refunds: refunds !== null ? 'ok' : 'unavailable',
+      },
+    };
+  }
+
   async network(range: DateRange, token: string): Promise<NetworkDashboard> {
     const [depots, topDepots, slaByDepot, ratingByDepot] = await Promise.all([
       this.sources.allDepots(token),

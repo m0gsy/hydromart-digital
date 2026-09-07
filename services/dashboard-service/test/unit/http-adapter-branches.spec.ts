@@ -11,6 +11,9 @@ type ConfigOverrides = Partial<{
   adminServiceUrl: string | undefined;
   hrServiceUrl: string | undefined;
   customerServiceUrl: string | undefined;
+  // CA-2-59: the two cost sources the network P&L reads.
+  payoutServiceUrl: string | undefined;
+  paymentServiceUrl: string | undefined;
   internalServiceKey: string;
 }>;
 
@@ -274,6 +277,67 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(await wired.hrSummaryMany([])).toEqual([]);
     fetchMock.mockResolvedValueOnce(errResponse(500));
     expect(await wired.hrSummaryMany(['d1'])).toEqual([null]);
+  });
+
+
+  // CA-2-59. Both of these return `null` on every failure, and null is load-bearing: the
+  // P&L turns it into "unavailable" rather than into a cost of zero.
+  it('payoutCosts asks once and keys the answer by depot', async () => {
+    const adapter = makeAdapter({ payoutServiceUrl: 'http://payout' });
+    fetchMock.mockResolvedValueOnce(
+      okResponse([{ depotId: 'd1', commissionIdr: 250_000, expenseClaimIdr: 50_000 }]),
+    );
+    const out = await adapter.payoutCosts(['d1', 'd2'], {
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-08-01T00:00:00.000Z',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'http://payout/api/v1/expenses/internal/depot-costs?depotIds=d1%2Cd2',
+    );
+    expect(out?.get('d1')).toEqual({ commissionIdr: 250_000, expenseClaimIdr: 50_000 });
+    expect(out?.has('d2')).toBe(false);
+  });
+
+  it('payoutCosts is null when payout-service is unwired, asked nothing, or down', async () => {
+    const range = { from: '2026-07-01T00:00:00.000Z', to: '2026-08-01T00:00:00.000Z' };
+    expect(await makeAdapter().payoutCosts(['d1'], range)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    const wired = makeAdapter({ payoutServiceUrl: 'http://payout' });
+    expect(await wired.payoutCosts([], range)).toBeNull();
+    fetchMock.mockResolvedValueOnce(errResponse(500));
+    expect(await wired.payoutCosts(['d1'], range)).toBeNull();
+  });
+
+  it('depotRefunds asks once and keys the answer by depot', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment' });
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd1', refundedIdr: 100_000 }]));
+    const out = await adapter.depotRefunds(['d1'], {
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-08-01T00:00:00.000Z',
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'http://payment/api/v1/payments/internal/depot-refunds?depotIds=d1',
+    );
+    expect(out?.get('d1')).toBe(100_000);
+  });
+
+  it('depotRefunds is null when payment-service is unwired, asked nothing, or down', async () => {
+    const range = { from: '2026-07-01T00:00:00.000Z', to: '2026-08-01T00:00:00.000Z' };
+    expect(await makeAdapter().depotRefunds(['d1'], range)).toBeNull();
+    const wired = makeAdapter({ paymentServiceUrl: 'http://payment' });
+    expect(await wired.depotRefunds([], range)).toBeNull();
+    fetchMock.mockResolvedValueOnce(errResponse(500));
+    expect(await wired.depotRefunds(['d1'], range)).toBeNull();
+  });
+
+  it('hrSummaryMany passes the reported month through when asked for one (CA-2-59)', async () => {
+    const adapter = makeAdapter({ hrServiceUrl: 'http://hr' });
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd1' }]));
+    await adapter.hrSummaryMany(['d1'], '2026-07');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('periodMonth=2026-07');
   });
 
   it('crmSummaryMany asks once and answers in the order requested', async () => {

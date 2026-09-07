@@ -243,15 +243,55 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     );
   }
 
-  async hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]> {
+  async hrSummaryMany(depotIds: string[], month?: string): Promise<(HrDepotSummary | null)[]> {
     if (!this.config.hrServiceUrl || depotIds.length === 0) return depotIds.map(() => null);
     const params = new URLSearchParams({ depotIds: depotIds.join(',') });
+    if (month) params.set('periodMonth', month);
     const rows = await this.getInternal<HrDepotSummary[]>(
       `${this.config.hrServiceUrl}/api/v1/hr-reports/internal/depot-summaries?${params.toString()}`,
     );
     if (rows === null) return depotIds.map(() => null);
     const byDepot = new Map(rows.map((r) => [r.depotId, r]));
     return depotIds.map((id) => byDepot.get(id) ?? null);
+  }
+
+  async payoutCosts(
+    depotIds: string[],
+    range: Required<DateRange>,
+  ): Promise<Map<string, { commissionIdr: number; expenseClaimIdr: number }> | null> {
+    if (!this.config.payoutServiceUrl || depotIds.length === 0) return null;
+    const params = new URLSearchParams({
+      depotIds: depotIds.join(','),
+      from: range.from,
+      to: range.to,
+    });
+    const rows = await this.getInternal<
+      { depotId: string; commissionIdr: number; expenseClaimIdr: number }[]
+    >(`${this.config.payoutServiceUrl}/api/v1/expenses/internal/depot-costs?${params.toString()}`);
+    if (rows === null) return null;
+    return new Map(
+      rows.map((r) => [
+        r.depotId,
+        { commissionIdr: r.commissionIdr, expenseClaimIdr: r.expenseClaimIdr },
+      ]),
+    );
+  }
+
+  async depotRefunds(
+    depotIds: string[],
+    range: Required<DateRange>,
+  ): Promise<Map<string, number> | null> {
+    if (!this.config.paymentServiceUrl || depotIds.length === 0) return null;
+    const params = new URLSearchParams({
+      depotIds: depotIds.join(','),
+      from: range.from,
+      to: range.to,
+    });
+    const rows = await this.getInternal<{ depotId: string; refundedIdr: number }[]>(
+      `${this.config.paymentServiceUrl}/api/v1/payments/internal/depot-refunds?${params.toString()}`,
+    );
+    if (rows === null) return null;
+    return new Map(rows.map((r) => [r.depotId, r.refundedIdr]));
   }
 
   async crmSummaryMany(depotIds: string[]): Promise<(CrmDepotSummary | null)[]> {

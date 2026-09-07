@@ -13,7 +13,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
       { key: 'PRESENT', count: 4 },
     ],
     payrollTotals: async () => ({
-      gross: 0,
+      gross: 11_000_000,
       totalBonus: 0,
       totalDeduction: 0,
       net: 9_000_000,
@@ -44,6 +44,7 @@ describe('AnalyticsService.depotSummary', () => {
       absentToday: 1,
       presentToday: 4,
       payrollMtdNet: 9_000_000,
+      payrollMtdGross: 11_000_000,
       activeHeadcount: 7,
     });
     expect(s.workDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -92,6 +93,7 @@ describe('AnalyticsService.depotSummaryMany', () => {
             absentToday: 1,
             presentToday: 4,
             payrollMtdNet: 9_000_000,
+            payrollMtdGross: 11_000_000,
             activeHeadcount: 7,
           },
         ],
@@ -102,7 +104,13 @@ describe('AnalyticsService.depotSummaryMany', () => {
     const rows = await svc.depotSummaryMany(['d-1', 'd-2']);
 
     expect(depotSummaryFacts).toHaveBeenCalledTimes(1);
-    expect(rows[0]).toMatchObject({ depotId: 'd-1', lateToday: 2, payrollMtdNet: 9_000_000 });
+    expect(rows[0]).toMatchObject({
+      depotId: 'd-1',
+      lateToday: 2,
+      payrollMtdNet: 9_000_000,
+      // CA-2-59: gross is what the P&L subtracts; net is what lands in the account.
+      payrollMtdGross: 11_000_000,
+    });
     // A depot with no rows still gets a card, all zeroes — a missing card reads as broken.
     expect(rows[1]).toMatchObject({
       depotId: 'd-2',
@@ -110,6 +118,7 @@ describe('AnalyticsService.depotSummaryMany', () => {
       absentToday: 0,
       presentToday: 0,
       payrollMtdNet: 0,
+      payrollMtdGross: 0,
       activeHeadcount: 0,
     });
   });
