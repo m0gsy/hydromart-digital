@@ -199,4 +199,31 @@ export class ExpenseClaimService {
       sourceRef,
     });
   }
+
+  /**
+   * CA-2-59: the two payout-side cost lines of a depot's month, for the network P&L.
+   *
+   * One method because both numbers live in this service already, and one HTTP round trip
+   * because the caller wants them together — a BFF that asks twice for one screen is two
+   * chances for half a P&L.
+   *
+   * `[from, to)`, half-open, so a month boundary belongs to exactly one month. Depots with
+   * nothing are absent from the maps; the caller reads that as zero, which is honest here
+   * because these are sums over rows that either exist or do not.
+   */
+  async costsByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ depotId: string; commissionIdr: number; expenseClaimIdr: number }[]> {
+    const [commission, claims] = await Promise.all([
+      this.ledger.commissionByDepot(depotIds, from, to),
+      this.claims.approvedTotalByDepot(depotIds, from, to),
+    ]);
+    return depotIds.map((depotId) => ({
+      depotId,
+      commissionIdr: commission.get(depotId) ?? 0,
+      expenseClaimIdr: claims.get(depotId) ?? 0,
+    }));
+  }
 }

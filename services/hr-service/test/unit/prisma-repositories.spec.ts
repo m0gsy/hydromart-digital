@@ -1046,7 +1046,9 @@ describe('AnalyticsPrismaRepository', () => {
       { depotId: null, _count: { _all: 3 } },
     ]);
     // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
-    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: { toString: () => '0' } }]);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([
+      { depotId: 'd1', net: { toString: () => '0' }, gross: { toString: () => '11000000' } },
+    ]);
 
     const repo = new AnalyticsPrismaRepository(asService(p));
     const facts = await repo.depotSummaryFacts(wd, '2026-07', ['d1', 'd2', 'd3']);
@@ -1056,6 +1058,8 @@ describe('AnalyticsPrismaRepository', () => {
       absentToday: 0,
       presentToday: 7,
       payrollMtdNet: 0,
+      // CA-2-59: gross comes back from the same raw SUM, read the same way.
+      payrollMtdGross: 11_000_000,
       activeHeadcount: 9,
     });
     expect(facts.get('d2')?.absentToday).toBe(1);
@@ -1069,11 +1073,12 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'attendance').groupBy.mockResolvedValue([]);
     m(p, 'employee').groupBy.mockResolvedValue([]);
-    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: null }]);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: null, gross: null }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
 
     const facts = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', ['d1']);
     expect(facts.get('d1')?.payrollMtdNet).toBe(0);
+    expect(facts.get('d1')?.payrollMtdGross).toBe(0);
 
     const none = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', []);
     expect(none.size).toBe(0);

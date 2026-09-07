@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -82,4 +83,25 @@ export class ExpenseQueryDto {
   @Min(1)
   @Max(100)
   limit = 20;
+}
+
+/**
+ * CA-2-59: the window and the depots the network P&L is asking about.
+ *
+ * Comma-separated ids rather than a repeated query parameter, matching hr-service's
+ * `internal/depot-summaries` — one shape for "many depots, one call" across the internal
+ * routes, so a BFF author does not have to remember which service chose which.
+ */
+export class DepotPayoutCostsQueryDto {
+  @ApiProperty({ example: 'uuid-a,uuid-b', description: 'Comma-separated depot ids.' })
+  @IsString()
+  depotIds!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
+  @IsDateString()
+  to!: string;
 }

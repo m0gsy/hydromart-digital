@@ -348,6 +348,21 @@ export class PaymentService {
   }
 
   /**
+   * CA-2-59: money refunded per depot in a window, for the network P&L.
+   *
+   * A refund is a cost line the owner named explicitly, and it is the only one of the five
+   * that lives here. Bounded by the depots asked for and one window.
+   */
+  async refundedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ depotId: string; refundedIdr: number }[]> {
+    const map = await this.payments.refundedTotalByDepot(depotIds, from, to);
+    return depotIds.map((depotId) => ({ depotId, refundedIdr: map.get(depotId) ?? 0 }));
+  }
+
+  /**
    * Customers with `minRefunds` or more settled refunds in a window (fraud scan, 15b).
    *
    * The bound is on the ANSWER, not on the query: a network-wide scan is the point, and

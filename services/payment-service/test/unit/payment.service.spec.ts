@@ -64,6 +64,27 @@ describe('PaymentService', () => {
    * asking for "customers with 1 or more refunds" is asking for a customer list, and this
    * route answers a review queue.
    */
+  /*
+   * CA-2-59: refunds are one of the five cost lines the owner named for the network P&L,
+   * and the only one that lives in payment-service. A depot with no refunds is a zero, not
+   * an absence: the caller renders one row per depot either way.
+   */
+  it('answers one refund total per depot asked for (CA-2-59)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    const spy = jest
+      .spyOn(repo, 'refundedTotalByDepot')
+      .mockResolvedValue(new Map([['dep-1', 100_000]]));
+
+    const out = await service.refundedTotalByDepot(['dep-1', 'dep-2'], from, to);
+
+    expect(out).toEqual([
+      { depotId: 'dep-1', refundedIdr: 100_000 },
+      { depotId: 'dep-2', refundedIdr: 0 },
+    ]);
+    expect(spy).toHaveBeenCalledWith(['dep-1', 'dep-2'], from, to);
+  });
+
   it('never reports below two refunds, however low the caller asks', async () => {
     const spy = jest.spyOn(repo, 'refundCountsByCustomer').mockResolvedValue([]);
     const from = new Date('2026-07-01');

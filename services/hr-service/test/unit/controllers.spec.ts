@@ -618,10 +618,18 @@ describe('ReportsController', () => {
   it('splits the depot-id list, trimming blanks', () => {
     const { analytics, c } = make();
     c.depotSummaries(' d1 , ,d2,');
-    expect(analytics.depotSummaryMany).toHaveBeenCalledWith(['d1', 'd2']);
+    expect(analytics.depotSummaryMany).toHaveBeenCalledWith(['d1', 'd2'], undefined);
 
     c.depotSummaries(undefined as never);
-    expect(analytics.depotSummaryMany).toHaveBeenLastCalledWith([]);
+    expect(analytics.depotSummaryMany).toHaveBeenLastCalledWith([], undefined);
+
+    // CA-2-59: the network P&L reports on a month that has usually already closed, so the
+    // batch takes one — under the same rule as the single-depot route, where anything that
+    // is not 'YYYY-MM' is ignored rather than 400'd, because this feeds a report.
+    c.depotSummaries('d1', '2026-07');
+    expect(analytics.depotSummaryMany).toHaveBeenLastCalledWith(['d1'], '2026-07');
+    c.depotSummaries('d1', 'bulan-lalu');
+    expect(analytics.depotSummaryMany).toHaveBeenLastCalledWith(['d1'], undefined);
   });
 
   it('employees export defaults to CSV with a BOM', async () => {

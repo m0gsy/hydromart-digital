@@ -54,6 +54,11 @@ class Ledger implements CourierLedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
+  // CA-2-59: this fake's ledger has no rows to sum — an empty map is the honest answer.
+  async commissionByDepot(): Promise<Map<string, number>> {
+    return new Map();
+  }
+
   async earningsByDepot(): Promise<
     { courierId: string; earnedIdr: number; paidDeliveries: number }[]
   > {
@@ -121,6 +126,20 @@ class Claims implements ExpenseClaimRepository {
   async listForCourier() {
     return { items: [], total: 0 };
   }
+  // CA-2-59: APPROVED claims per depot. The fakes here hold few rows, so filtering in
+  // memory keeps one definition of "approved in this window" rather than two.
+  async approvedTotalByDepot(depotIds: readonly string[], from: Date, to: Date) {
+    const out = new Map<string, number>();
+    for (const row of this.rows ?? []) {
+      const r = row as { depotId?: string | null; status?: string; reviewedAt?: Date | null; amount?: number };
+      if (!r.depotId || r.status !== 'APPROVED' || !r.reviewedAt) continue;
+      if (!depotIds.includes(r.depotId)) continue;
+      if (r.reviewedAt < from || r.reviewedAt >= to) continue;
+      out.set(r.depotId, (out.get(r.depotId) ?? 0) + Number(r.amount ?? 0));
+    }
+    return out;
+  }
+
   async searchForDepot() {
     return { items: [], total: 0 };
   }

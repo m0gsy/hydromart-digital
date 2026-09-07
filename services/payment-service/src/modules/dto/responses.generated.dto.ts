@@ -188,3 +188,11 @@ export class ExpirePendingPaymentsResponseDto {
   })
   ok!: boolean;
 }
+
+/** CA-2-59: money refunded at one depot in the window asked for. */
+export class DepotRefundsResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ type: Number })
+  refundedIdr!: number;
+}

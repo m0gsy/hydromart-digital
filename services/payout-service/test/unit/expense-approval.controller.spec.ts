@@ -8,6 +8,7 @@ describe('ExpenseApprovalController', () => {
     searchForDepot: jest.fn().mockResolvedValue({ items: [] }),
     approve: jest.fn().mockResolvedValue({ id: 'x1' }),
     reject: jest.fn().mockResolvedValue({ id: 'x1' }),
+    costsByDepot: jest.fn().mockResolvedValue([]),
   };
   const controller = new ExpenseApprovalController(expenses as unknown as ExpenseClaimService);
   const user = { sub: 'reviewer-1' } as AuthenticatedUser;
@@ -29,6 +30,15 @@ describe('ExpenseApprovalController', () => {
   it('list falls back to null for omitted depot + status', async () => {
     await controller.list({ page: 1, limit: 20 } as ExpenseQueryDto, user);
     expect(expenses.searchForDepot).toHaveBeenCalledWith(null, null, 1, 20, user);
+  });
+
+  // CA-2-59: internal key, not `expenseApprove` — the caller is dashboard-service and it
+  // holds no token for any of these depots. Splitting is the same shape hr-service uses.
+  it('internalDepotCosts splits the id list, trimming blanks', async () => {
+    const from = '2026-06-30T17:00:00.000Z';
+    const to = '2026-07-31T17:00:00.000Z';
+    await controller.internalDepotCosts({ depotIds: ' d1 , ,d2,', from, to } as never);
+    expect(expenses.costsByDepot).toHaveBeenCalledWith(['d1', 'd2'], new Date(from), new Date(to));
   });
 
   it('approve delegates id + reviewer sub + note', async () => {

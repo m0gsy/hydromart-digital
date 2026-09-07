@@ -154,6 +154,10 @@ export const insight = {
   dashboard: {
     monthlyPnl: (depotId: string, month: string) =>
       `/dashboard/api/v1/dashboard/monthly-pnl?${new URLSearchParams({ depotId, month })}`,
+    // CA-2-59: the network's profit-and-loss, per depot and in total. No depotId — the
+    // whole point is the network; one depot's own P&L is `monthlyPnl` above.
+    networkPnl: (month: string) =>
+      `/dashboard/api/v1/dashboard/network-pnl?${new URLSearchParams({ month })}`,
     // `depotId` scopes the whole dashboard to one depot. A depot-scoped caller is narrowed
     // to their own depots with or without it; naming one is how a console that displays a
     // single depot's name makes sure the numbers under it belong to that depot.

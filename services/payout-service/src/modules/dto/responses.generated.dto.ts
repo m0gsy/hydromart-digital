@@ -343,3 +343,16 @@ export class DepotEarningsResponseDto {
   @ApiProperty({ type: [CourierEarningsRowResponseDto] })
   couriers!: CourierEarningsRowResponseDto[];
 }
+
+/**
+ * CA-2-59: one depot's payout-side cost lines for a month — courier commission and the
+ * expense claims that were actually approved in that window.
+ */
+export class DepotPayoutCostsResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ type: Number, description: 'Courier EARNING + INCENTIVE paid in the window.' })
+  commissionIdr!: number;
+  @ApiProperty({ type: Number, description: 'Claims APPROVED in the window, by reviewedAt.' })
+  expenseClaimIdr!: number;
+}

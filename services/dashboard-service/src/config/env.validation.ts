@@ -22,6 +22,10 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // CA-2-59: the network P&L's payout-side and refund cost lines. Blank = that line reads
+  // "unavailable" on the report, never zero.
+  PAYOUT_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Q-6: shipped to every service by docker-compose's x-shared, and until now
   // validated by none of them. The capability poller reads it; unset, it fails open
   // and every service silently enforces the compiled RBAC defaults forever — which

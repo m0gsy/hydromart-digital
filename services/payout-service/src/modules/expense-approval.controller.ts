@@ -1,13 +1,33 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ExpenseClaimService } from '../application/services/expense-claim.service';
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
-import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
 import {
+  DepotPayoutCostsQueryDto,
+  ExpenseQueryDto,
+  ReviewExpenseDto,
+} from './dto/expense-claim.dto';
+import {
+  DepotPayoutCostsResponseDto,
   ExpenseClaimResponseDto,
   PagedExpenseClaimResponseDto,
 } from './dto/responses.generated.dto';
@@ -20,6 +40,33 @@ import {
 @Controller({ path: 'expenses', version: '1' })
 export class ExpenseApprovalController {
   constructor(private readonly expenses: ExpenseClaimService) {}
+
+  /**
+   * CA-2-59: courier commission and approved expense claims per depot, for the network P&L.
+   *
+   * Internal key rather than `expenseApprove`: the caller is dashboard-service composing a
+   * head-office report and holds no token for any of these depots. `@Public()`
+   * short-circuits RolesGuard so the class-level `@Can` cannot 403 a request that is
+   * deliberately identity-less — the same shape depot-service's `internal/depot-costs`
+   * uses. Declared FIRST so the static `internal` segment wins over any `:param` route.
+   */
+  @ApiOkResponse({ type: DepotPayoutCostsResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-costs')
+  @ApiOperation({
+    summary: 'Courier commission + approved claims per depot over a window (internal)',
+  })
+  internalDepotCosts(
+    @Query() query: DepotPayoutCostsQueryDto,
+  ): Promise<{ depotId: string; commissionIdr: number; expenseClaimIdr: number }[]> {
+    const ids = query.depotIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.expenses.costsByDepot(ids, new Date(query.from), new Date(query.to));
+  }
 
   @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
   @Get()

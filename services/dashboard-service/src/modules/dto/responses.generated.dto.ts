@@ -307,3 +307,84 @@ export class FranchiseDashboardResponseDto {
   @ApiProperty({ type: FranchiseDashboardSourcesResponseDto })
   sources!: FranchiseDashboardSourcesResponseDto;
 }
+
+/** Mirrors `NetworkPnlDepotRow` exactly (CA-2-59). Every money term is nullable on purpose:
+ *  null means "could not be read", and a cost read as zero is how a report flatters. */
+export class NetworkPnlDepotRowResponseDto {
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: String })
+  code!: string;
+  @ApiProperty({ type: String })
+  name!: string;
+  @ApiProperty({ type: Boolean })
+  active!: boolean;
+  @ApiProperty({ type: Number, nullable: true })
+  revenueIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  cogsIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  payrollIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  courierCommissionIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  expenseClaimIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  refundIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  netProfitIdr!: number | null;
+}
+
+/** Mirrors `NetworkPnl['totals']` exactly (CA-2-59). */
+export class NetworkPnlTotalsResponseDto {
+  @ApiProperty({ type: Number, nullable: true })
+  revenueIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  cogsIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  payrollIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  courierCommissionIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  expenseClaimIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  refundIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  netProfitIdr!: number | null;
+}
+
+/** Mirrors `NetworkPnl['sources']` exactly (CA-2-59). */
+export class NetworkPnlSourcesResponseDto {
+  @ApiProperty({ type: String })
+  depot!: string;
+  @ApiProperty({ type: String })
+  order!: string;
+  @ApiProperty({ type: String })
+  goods!: string;
+  @ApiProperty({ type: String })
+  payroll!: string;
+  @ApiProperty({ type: String })
+  payout!: string;
+  @ApiProperty({ type: String })
+  refunds!: string;
+}
+
+/** Mirrors `NetworkPnl` exactly (CA-2-59). */
+export class NetworkPnlResponseDto {
+  @ApiProperty({ type: String })
+  month!: string;
+  @ApiProperty({ type: String })
+  from!: string;
+  @ApiProperty({ type: String })
+  to!: string;
+  @ApiProperty({ type: String })
+  reportType!: string;
+  @ApiProperty({ type: String })
+  disclaimer!: string;
+  @ApiProperty({ type: [NetworkPnlDepotRowResponseDto] })
+  depots!: NetworkPnlDepotRowResponseDto[];
+  @ApiProperty({ type: NetworkPnlTotalsResponseDto })
+  totals!: NetworkPnlTotalsResponseDto;
+  @ApiProperty({ type: NetworkPnlSourcesResponseDto })
+  sources!: NetworkPnlSourcesResponseDto;
+}

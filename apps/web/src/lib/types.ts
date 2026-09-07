@@ -1057,6 +1057,44 @@ export interface NetworkDashboard {
   };
 }
 
+/**
+ * CA-2-59 — one depot's line in the network profit-and-loss.
+ *
+ * Every money term is nullable, and null means "could not be read", never zero. A cost
+ * silently rendered as Rp 0 is the one way a report like this flatters the business.
+ */
+export interface NetworkPnlDepotRow {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  revenueIdr: number | null;
+  cogsIdr: number | null;
+  payrollIdr: number | null;
+  courierCommissionIdr: number | null;
+  expenseClaimIdr: number | null;
+  refundIdr: number | null;
+  netProfitIdr: number | null;
+}
+
+export interface NetworkPnl {
+  month: string;
+  from: string;
+  to: string;
+  reportType: 'OPERATIONAL_MANAGEMENT';
+  disclaimer: string;
+  depots: NetworkPnlDepotRow[];
+  totals: Omit<NetworkPnlDepotRow, 'depotId' | 'code' | 'name' | 'active'>;
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'partial' | 'unavailable';
+    goods: 'ok' | 'partial' | 'unavailable';
+    payroll: 'ok' | 'partial' | 'unavailable';
+    payout: 'ok' | 'unavailable';
+    refunds: 'ok' | 'unavailable';
+  };
+}
+
 export interface FranchiseHr {
   lateToday: number;
   absentToday: number;

@@ -49,6 +49,8 @@ export interface HrDepotSummary {
   presentToday: number;
   /** Net payroll month-to-date (IDR) for the depot. */
   payrollMtdNet: number;
+  /** CA-2-59: BASE + ALLOWANCE before deductions — what the employer spends on wages. */
+  payrollMtdGross: number;
   activeHeadcount: number;
 }
 
@@ -103,9 +105,13 @@ export class AnalyticsService {
    * round-trip each. Depots with no rows still get a row, all zeroes, because the
    * dashboard renders one card per depot and a missing card reads as a broken page.
    */
-  async depotSummaryMany(depotIds: string[]): Promise<HrDepotSummary[]> {
+  async depotSummaryMany(depotIds: string[], month?: string): Promise<HrDepotSummary[]> {
     const workDate = this.today();
-    const periodMonth = workDate.slice(0, 7);
+    // CA-2-59: the network P&L asks about a month that has usually already closed, and
+    // reading THIS month's payroll into a report headed "Juli" is the same fiction the
+    // single-depot route was fixed for in S2. The attendance counts stay "today" either
+    // way — they are a live queue, not a period figure — and the rows say which month.
+    const periodMonth = month ?? workDate.slice(0, 7);
     if (depotIds.length === 0) return [];
     const facts = await this.repo.depotSummaryFacts(
       new Date(`${workDate}T00:00:00.000Z`),
@@ -120,6 +126,7 @@ export class AnalyticsService {
       absentToday: facts.get(depotId)?.absentToday ?? 0,
       presentToday: facts.get(depotId)?.presentToday ?? 0,
       payrollMtdNet: facts.get(depotId)?.payrollMtdNet ?? 0,
+      payrollMtdGross: facts.get(depotId)?.payrollMtdGross ?? 0,
       activeHeadcount: facts.get(depotId)?.activeHeadcount ?? 0,
     }));
   }
@@ -151,6 +158,7 @@ export class AnalyticsService {
       absentToday: count('ABSENT'),
       presentToday: count('PRESENT'),
       payrollMtdNet: payroll.net,
+      payrollMtdGross: payroll.gross,
       activeHeadcount: headcount.find((g) => g.key === 'ACTIVE')?.count ?? 0,
     };
   }

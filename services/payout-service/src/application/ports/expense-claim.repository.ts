@@ -57,4 +57,16 @@ export interface ExpenseClaimRepository {
     page: number,
     limit: number,
   ): Promise<{ items: ExpenseClaimRecord[]; total: number }>;
+  /**
+   * CA-2-59: APPROVED claims per depot over a window, by the date they were approved.
+   *
+   * By `reviewedAt`, not `createdAt`: a claim filed in June and approved in July is July's
+   * cost — the same rule the PO goods cost uses with `receivedAt`. Only APPROVED counts;
+   * a pending claim is a request, and a rejected one never became money.
+   */
+  approvedTotalByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>>;
 }

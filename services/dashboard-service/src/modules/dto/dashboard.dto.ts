@@ -27,6 +27,16 @@ export class ExecutiveQueryDto {
   to?: string;
 }
 
+/**
+ * CA-2-59: the month the network P&L reports on. No depotId — the whole point is the
+ * network, and a depot's own P&L is `monthly-pnl` one route above.
+ */
+export class NetworkPnlQueryDto {
+  @ApiProperty({ description: 'Reported month, YYYY-MM.' })
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'month must be a valid YYYY-MM' })
+  month!: string;
+}
+
 export class MonthlyPnlQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to report on.' })
   @IsUUID()

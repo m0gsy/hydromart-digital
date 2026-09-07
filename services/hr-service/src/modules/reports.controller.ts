@@ -64,12 +64,18 @@ export class ReportsController {
     summary: 'Per-depot HR summary for MANY depots, one call (internal service auth)',
   })
   @ApiOkResponse({ type: HrDepotResponseDto, isArray: true })
-  depotSummaries(@Query('depotIds') depotIds: string): Promise<HrDepotSummary[]> {
+  depotSummaries(
+    @Query('depotIds') depotIds: string,
+    @Query('periodMonth') periodMonth?: string,
+  ): Promise<HrDepotSummary[]> {
     const ids = (depotIds ?? '')
       .split(',')
       .map((id) => id.trim())
       .filter(Boolean);
-    return this.analytics.depotSummaryMany(ids);
+    // Same rule as the single-depot route above: 'YYYY-MM' or nothing, anything else is
+    // ignored rather than rejected, because this feeds a report and a 400 blanks it.
+    const month = /^\d{4}-\d{2}$/.test(periodMonth ?? '') ? periodMonth : undefined;
+    return this.analytics.depotSummaryMany(ids, month);
   }
 
   @Get('employees')

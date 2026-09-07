@@ -232,6 +232,42 @@ describe('PaymentPrismaRepository', () => {
     ]);
   });
 
+  /*
+   * CA-2-59. Half-open `[from, to)`, unlike the fraud scan above: a P&L month boundary must
+   * belong to exactly one month, or two consecutive months both bill the same midnight.
+   */
+  it('sums refunded money per depot over a half-open window (CA-2-59)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    model.groupBy.mockResolvedValue([
+      { depotId: 'dep-1', _sum: { refundedAmount: '100000' } },
+      { depotId: 'dep-2', _sum: { refundedAmount: null } },
+      // A payment with no depot cannot be attributed and must not crash the roll-up.
+      { depotId: null, _sum: { refundedAmount: '55000' } },
+    ]);
+
+    const out = await repo.refundedTotalByDepot(['dep-1', 'dep-2'], from, to);
+
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: {
+        depotId: { in: ['dep-1', 'dep-2'] },
+        status: PaymentStatus.REFUNDED,
+        refundedAt: { gte: from, lt: to },
+      },
+      _sum: { refundedAmount: true },
+    });
+    expect(out.get('dep-1')).toBe(100000);
+    expect(out.get('dep-2')).toBe(0);
+    expect(out.size).toBe(2);
+  });
+
+  it('asks nothing for no depots (CA-2-59)', async () => {
+    model.groupBy.mockClear();
+    expect((await repo.refundedTotalByDepot([], new Date(), new Date())).size).toBe(0);
+    expect(model.groupBy).not.toHaveBeenCalled();
+  });
+
   it('listPendingRefunds filters on PENDING approval, newest updated first', async () => {
     model.findMany.mockResolvedValue([fullRow()]);
     model.count.mockResolvedValue(1);

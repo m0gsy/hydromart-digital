@@ -23,6 +23,7 @@ describe('PaymentController', () => {
     listAll: jest.fn(),
     listForOrders: jest.fn(),
     refundCountsByCustomer: jest.fn(),
+    refundedTotalByDepot: jest.fn().mockResolvedValue([]),
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
@@ -118,6 +119,19 @@ describe('PaymentController', () => {
   it('listForOrders forwards the id set from the body', async () => {
     expect(await controller.listForOrders({ orderIds: ['o1', 'o2'] })).toBe('RESULT');
     expect(svc.listForOrders).toHaveBeenCalledWith(['o1', 'o2']);
+  });
+
+  // CA-2-59: internal key, not a user capability — the caller is dashboard-service and it
+  // holds no token for any of these depots. Same comma-splitting shape as hr-service.
+  it('depotRefunds splits the id list, trimming blanks (CA-2-59)', async () => {
+    const from = '2026-06-30T17:00:00.000Z';
+    const to = '2026-07-31T17:00:00.000Z';
+    await controller.depotRefunds({ depotIds: ' d1 , ,d2,', from, to } as never);
+    expect(svc.refundedTotalByDepot).toHaveBeenCalledWith(
+      ['d1', 'd2'],
+      new Date(from),
+      new Date(to),
+    );
   });
 
   it('refundCounts maps the ISO window to Dates and wraps the rows', async () => {

@@ -89,6 +89,9 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/vouchers', labelKey: 'vouchers', cap: 'voucherRead' },
       { href: '/hq/refunds', labelKey: 'refunds', cap: 'refundQueueRead' },
       { href: '/hq/reconciliation', labelKey: 'reconciliation', cap: 'commissionRead' },
+      // CA-2-59: the network P&L. Same capability as the revenue roll-up it completes —
+      // whoever may read what the network SOLD may read what it cost to make.
+      { href: '/hq/pnl', labelKey: 'pnl', cap: 'dashboard' },
       { href: '/hq/reports/export', labelKey: 'reportsExport', cap: 'orderReports' },
       { href: '/hq/tax', labelKey: 'tax', cap: 'taxSettings' },
     ],

@@ -106,6 +106,32 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     return Number(agg._sum.amount ?? 0);
   }
 
+  async commissionByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (depotIds.length === 0) return out;
+    // Half-open [from, to) — a month boundary must belong to exactly one month, and
+    // `earningsByDepot` above uses `lte` because a depot report names an inclusive last
+    // day. A P&L window that double-counts midnight is a P&L nobody can reconcile.
+    const grouped = await this.prisma.courierLedgerEntry.groupBy({
+      by: ['depotId'],
+      where: {
+        depotId: { in: [...depotIds] },
+        type: { in: ['EARNING', 'INCENTIVE'] },
+        occurredAt: { gte: from, lt: to },
+      },
+      _sum: { amount: true },
+    });
+    for (const g of grouped) {
+      if (!g.depotId) continue;
+      out.set(g.depotId, Number(g._sum.amount ?? 0));
+    }
+    return out;
+  }
+
   async earningsByDepot(depotId: string, from: Date, to: Date): Promise<CourierEarningsRow[]> {
     // Grouped by courier AND type: the sum wants both credit types, the delivery count
     // wants only EARNING (an incentive rung is a bonus, not a delivery).

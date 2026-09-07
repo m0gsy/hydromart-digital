@@ -187,6 +187,11 @@ export class HrDepotResponseDto {
   presentToday!: number;
   @ApiProperty({ type: Number })
   payrollMtdNet!: number;
+  @ApiProperty({
+    type: Number,
+    description: 'CA-2-59: BASE + ALLOWANCE before deductions — the employer wage cost.',
+  })
+  payrollMtdGross!: number;
   @ApiProperty({ type: Number })
   activeHeadcount!: number;
 }

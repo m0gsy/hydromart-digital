@@ -40,6 +40,18 @@ export class DashboardConfigService {
   get customerServiceUrl(): string | undefined {
     return this.config.get<string>('CUSTOMER_SERVICE_URL')?.replace(/\/+$/, '');
   }
+  /**
+   * CA-2-59 — optional, and optional is the point. The network P&L reports each cost line
+   * separately and says which source it could not read, so an unwired payout-service means
+   * a commission line marked unavailable rather than a P&L that quietly reads zero.
+   */
+  get payoutServiceUrl(): string | undefined {
+    return this.config.get<string>('PAYOUT_SERVICE_URL')?.replace(/\/+$/, '');
+  }
+  /** CA-2-59 — same rule: undefined means the refund line is unavailable, never zero. */
+  get paymentServiceUrl(): string | undefined {
+    return this.config.get<string>('PAYMENT_SERVICE_URL')?.replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.getOrThrow<string>('INTERNAL_SERVICE_KEY');
   }

@@ -60,6 +60,19 @@ export interface CourierLedgerRepository {
    * report (E-1). Credits only — deductions and withdrawals are not pay.
    */
   earningsByDepot(depotId: string, from: Date, to: Date): Promise<CourierEarningsRow[]>;
+  /**
+   * CA-2-59: courier commission paid at MANY depots over a window, one row per depot.
+   *
+   * The network P&L needs one number per depot, not one per courier, and asking
+   * `earningsByDepot` once per depot is a query per depot for a figure the database can
+   * group in one. Credits only, same as above — a deduction or a withdrawal is not pay.
+   * Depots with nothing paid are simply absent; the caller decides what that means.
+   */
+  commissionByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, number>>;
   /** Sum of entries of one type since an inclusive date (e.g. this month's earnings). */
   sumByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
   /**

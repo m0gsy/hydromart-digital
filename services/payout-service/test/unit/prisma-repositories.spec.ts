@@ -839,6 +839,43 @@ describe('ExpenseClaimPrismaRepository', () => {
     expect(result.items).toEqual([]);
     expect(result.total).toBe(0);
   });
+
+  /*
+   * CA-2-59. By `reviewedAt`, not `createdAt`: a claim filed in June and approved in July
+   * is July's cost — the same rule the goods cost uses with `receivedAt`. And only
+   * APPROVED: a pending claim is a request, and a rejected one never became money.
+   */
+  it('groups APPROVED claims per depot by when they were approved (CA-2-59)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    (model as unknown as { groupBy: jest.Mock }).groupBy = jest.fn().mockResolvedValue([
+      { depotId: 'dep-1', _sum: { amount: '50000' } },
+      { depotId: 'dep-2', _sum: { amount: null } },
+      { depotId: null, _sum: { amount: '77000' } },
+    ]);
+
+    const out = await repo.approvedTotalByDepot(['dep-1', 'dep-2'], from, to);
+
+    expect((model as unknown as { groupBy: jest.Mock }).groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: {
+        depotId: { in: ['dep-1', 'dep-2'] },
+        status: 'APPROVED',
+        reviewedAt: { gte: from, lt: to },
+      },
+      _sum: { amount: true },
+    });
+    expect(out.get('dep-1')).toBe(50000);
+    expect(out.get('dep-2')).toBe(0);
+    expect(out.size).toBe(2);
+  });
+
+  it('asks nothing for no depots (CA-2-59)', async () => {
+    const groupBy = jest.fn();
+    (model as unknown as { groupBy: jest.Mock }).groupBy = groupBy;
+    expect((await repo.approvedTotalByDepot([], new Date(), new Date())).size).toBe(0);
+    expect(groupBy).not.toHaveBeenCalled();
+  });
 });
 
 describe('CourierLedgerPrismaRepository', () => {
@@ -961,6 +998,48 @@ describe('CourierLedgerPrismaRepository', () => {
     expect(ledgerModel.count).toHaveBeenLastCalledWith({
       where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since }, depotId: 'dep-1' },
     });
+  });
+
+  /*
+   * CA-2-59. The network P&L wants one number per depot, not one per courier, and asking
+   * `earningsByDepot` once per depot is a query per depot for something the database can
+   * group in one pass.
+   *
+   * The window is HALF-OPEN here where `earningsByDepot` above is inclusive, and that is
+   * deliberate: a depot report names an inclusive last day, while a P&L month boundary must
+   * belong to exactly one month or two months both bill the same midnight.
+   */
+  it('groups commission per depot over a half-open window (CA-2-59)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    ledgerModel.groupBy.mockResolvedValue([
+      { depotId: 'dep-1', _sum: { amount: '250000' } },
+      // Prisma answers a null sum for a group it cannot total; that is 0 rupiah, not NaN.
+      { depotId: 'dep-2', _sum: { amount: null } },
+      // An entry with no depot cannot be attributed and must not crash the roll-up.
+      { depotId: null, _sum: { amount: '99000' } },
+    ]);
+
+    const out = await repo.commissionByDepot(['dep-1', 'dep-2'], from, to);
+
+    expect(ledgerModel.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: {
+        depotId: { in: ['dep-1', 'dep-2'] },
+        type: { in: ['EARNING', 'INCENTIVE'] },
+        occurredAt: { gte: from, lt: to },
+      },
+      _sum: { amount: true },
+    });
+    expect(out.get('dep-1')).toBe(250000);
+    expect(out.get('dep-2')).toBe(0);
+    expect(out.size).toBe(2);
+  });
+
+  it('asks nothing for no depots (CA-2-59)', async () => {
+    ledgerModel.groupBy.mockClear();
+    expect((await repo.commissionByDepot([], new Date(), new Date())).size).toBe(0);
+    expect(ledgerModel.groupBy).not.toHaveBeenCalled();
   });
 
   /*
