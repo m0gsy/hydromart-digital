@@ -1689,6 +1689,11 @@ export interface PoLine {
    * partial receipt shipped, and read as 0 — the same thing it meant then.
    */
   receivedQuantity?: number;
+  /**
+   * CA-2-55: why the balance of this line is not coming. Its presence is what closes a
+   * short line, so the PO can finish instead of sitting in SENT forever.
+   */
+  shortfallNote?: string;
 }
 
 export interface PurchaseOrder {

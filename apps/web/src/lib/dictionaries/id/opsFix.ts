@@ -174,7 +174,7 @@ export const opsFix = {
     fromSwitcher: '(dari switcher).',
     poFor: 'PO untuk',
     sendToSupplier: 'Kirim ke pemasok',
-    receive: 'Terima → RECEIPT',
+    openToReceive: 'Buka untuk terima barang',
     fromForecast: 'Buat dari forecast',
     noDepots2: 'Belum ada depot yang dikonfigurasi.',
     noOrders: 'Belum ada pesanan pembelian untuk filter ini.',

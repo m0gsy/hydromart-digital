@@ -22,6 +22,13 @@ import { SupplierRepository } from '../ports/supplier.repository';
 import { InventoryService } from './inventory.service';
 import { DEPOT_TOKENS } from '../tokens';
 
+/**
+ * CA-2-55: how long a shortfall note may be. It is free text on a money path that lands in
+ * a JSON column and, appended, in the stock-movement ledger's reason — so it gets a bound,
+ * and the bound lives next to the only code that writes it.
+ */
+const SHORTFALL_NOTE_MAX = 200;
+
 export interface CreatePurchaseOrderInput {
   depotId: string;
   supplierId: string;
@@ -126,6 +133,7 @@ export class PurchaseOrderService {
     id: string,
     actorId: string,
     received?: Record<number, number>,
+    notes?: Record<number, string>,
   ): Promise<PurchaseOrder> {
     const po = await this.require(id);
     if (po.status !== PoStatus.SENT) {
@@ -150,10 +158,29 @@ export class PurchaseOrderService {
             `${outstanding} still outstanding of ${line.quantity} ordered.`,
         );
       }
-      return { line, index, arriving: asked, next: { ...line, receivedQuantity: already + asked } };
+      // CA-2-55: a note on a line that came up short says the balance is not coming, and
+      // why. Trimmed and capped HERE because this is the only writer and `@IsObject()`
+      // cannot bound a Record's values — a free-text field on a money path that lands in
+      // a JSON column and in the stock ledger's reason needs one bound, in one place.
+      const note = notes?.[index]?.trim().slice(0, SHORTFALL_NOTE_MAX);
+      const short = outstanding - asked > 0;
+      return {
+        line,
+        index,
+        arriving: asked,
+        note,
+        next: {
+          ...line,
+          receivedQuantity: already + asked,
+          ...(short && note ? { shortfallNote: note } : {}),
+        },
+      };
     });
 
-    if (lines.every((l) => l.arriving === 0)) {
+    // A call that books nothing AND records nothing is the no-op this refuses. A call that
+    // books nothing but closes a line short with a note is not a no-op — it is a supplier
+    // cancelling the balance, which is exactly the case CA-2-55 exists to end.
+    if (lines.every((l) => l.arriving === 0 && !l.note)) {
       throw new InvalidPurchaseOrderTransitionError(
         'Nothing to receive: every line already has its full ordered quantity booked in.',
       );
@@ -175,7 +202,7 @@ export class PurchaseOrderService {
      * discovering it at the next opname.
      */
     const failed = new Set<number>();
-    for (const { line, arriving, index } of lines) {
+    for (const { line, arriving, index, note } of lines) {
       if (arriving === 0) continue;
       try {
         await this.inventory.receiveStock(
@@ -183,7 +210,11 @@ export class PurchaseOrderService {
           line.itemType,
           arriving,
           actorId,
-          `PO ${po.poNumber} · ${line.label}`,
+          // The shortfall reason rides into the stock ledger too, so the movement and the
+          // PO carry the same explanation rather than one of them holding it alone.
+          note
+            ? `PO ${po.poNumber} · ${line.label} · kurang kirim: ${note}`
+            : `PO ${po.poNumber} · ${line.label}`,
         );
       } catch (error) {
         failed.add(index);
@@ -201,6 +232,9 @@ export class PurchaseOrderService {
     // A line that could not be booked keeps the quantity it had: nothing arrived into the
     // ledger, so nothing is recorded as arrived.
     const next = lines.map((l) => (failed.has(l.index) ? l.line : l.next));
+    // CA-2-55: `isFullyReceived` now also accepts a line closed short with a note, so a
+    // delivery the supplier will not complete can finally reach RECEIVED instead of
+    // sitting in SENT forever with nothing able to close it.
     const complete = isFullyReceived(next);
     return this.orders.update(id, {
       lines: next,

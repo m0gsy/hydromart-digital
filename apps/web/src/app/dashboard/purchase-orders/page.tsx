@@ -45,15 +45,22 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function act(kind: 'send' | 'receive') {
+  /*
+   * CA-2-55 — `receive` is gone from this card, and that deletion is what closes the row.
+   *
+   * It posted an EMPTY body, and an empty body means "everything still outstanding": one
+   * tap booked the full ordered quantity of every line into the stock ledger, blind, with
+   * nobody typing what actually arrived. It was also the tap an operator reaches first, so
+   * the per-line form CA-2-64 built on the detail screen was routinely bypassed.
+   *
+   * Receiving now happens only where the quantities are typed. The card already links
+   * there.
+   */
+  async function act() {
     setBusy(true);
     setError(null);
     try {
-      const url =
-        kind === 'send'
-          ? endpoints.procurement.purchaseOrders.send(po.id)
-          : endpoints.procurement.purchaseOrders.receive(po.id);
-      await api.post(url, {}, true);
+      await api.post(endpoints.procurement.purchaseOrders.send(po.id), {}, true);
       onChanged();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.purchaseOrders.actionFailed'));
@@ -83,14 +90,17 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
         </p>
       )}
       {po.status === 'DRAFT' && (
-        <Button onClick={() => act('send')} loading={busy} className="w-full">
+        <Button onClick={act} loading={busy} className="w-full">
           {t('opsFix.poDraft.sendToSupplier')}
         </Button>
       )}
       {po.status === 'SENT' && (
-        <Button onClick={() => act('receive')} loading={busy} className="w-full">
-          {t('opsFix.poDraft.receive')}
-        </Button>
+        <Link
+          href={`/dashboard/purchase-orders/detail?id=${po.id}`}
+          className="w-full rounded-xl border border-app px-4 py-2.5 text-center text-sm font-bold hover:bg-brand-50"
+        >
+          {t('opsFix.poDraft.openToReceive')}
+        </Link>
       )}
     </Card>
   );

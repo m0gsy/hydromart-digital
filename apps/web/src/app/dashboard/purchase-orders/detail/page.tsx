@@ -79,6 +79,15 @@ function Detail({ id }: { id: string }) {
    * complete delivery and nobody has to type numbers they do not need to.
    */
   const [arriving, setArriving] = useState<Record<number, string>>({});
+  /**
+   * CA-2-55: why the balance of a line is not coming.
+   *
+   * A note is what makes a short line FINAL — with one, the PO can finish even though the
+   * line never filled; without one, a short line still means "the rest is on its way",
+   * which is the ordinary partial delivery. So the box only appears on a line the operator
+   * has actually typed a short quantity into.
+   */
+  const [shortNotes, setShortNotes] = useState<Record<number, string>>({});
 
   async function act(kind: 'send' | 'receive') {
     setBusy(true);
@@ -89,6 +98,9 @@ function Detail({ id }: { id: string }) {
           ? endpoints.procurement.purchaseOrders.send(id)
           : endpoints.procurement.purchaseOrders.receive(id);
       const typed = Object.entries(arriving).filter(([, v]) => v.trim() !== '');
+      const notes = Object.fromEntries(
+        Object.entries(shortNotes).filter(([, v]) => v.trim() !== ''),
+      );
       const body =
         kind === 'receive' && typed.length > 0
           ? {
@@ -98,10 +110,12 @@ function Detail({ id }: { id: string }) {
                   Math.max(0, Math.round(Number(arriving[i] ?? '') || 0)),
                 ]),
               ),
+              ...(Object.keys(notes).length > 0 ? { notes } : {}),
             }
           : {};
       await api.post(url, body, true);
       setArriving({});
+      setShortNotes({});
       detail.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.poDetail.actionFailed'));
@@ -183,6 +197,12 @@ function Detail({ id }: { id: string }) {
                       })}
                     </p>
                   )}
+                  {/* CA-2-55: a recorded shortfall is the reason this line ended short. */}
+                  {l.shortfallNote && (
+                    <p className="text-[11px] font-medium text-[color:var(--warning)]">
+                      {t('hrFix.poDetail.shortfallRecorded', { note: l.shortfallNote })}
+                    </p>
+                  )}
                 </td>
                 {po.status === 'SENT' && (
                   <td className="px-4 py-2 text-right">
@@ -197,6 +217,24 @@ function Detail({ id }: { id: string }) {
                       aria-label={t('hrFix.poDetail.arrivingFor', { label: l.label })}
                       className="w-20 rounded-lg border border-app px-2 py-1.5 text-right text-sm tabular-nums"
                     />
+                    {/* Only once the operator has typed a quantity BELOW what is still
+                        outstanding: a note is how a short line is declared final, and
+                        offering it on a full delivery would invite one that means nothing. */}
+                    {(arriving[i] ?? '').trim() !== '' &&
+                      Math.max(0, Math.round(Number(arriving[i]) || 0)) <
+                        l.quantity - (l.receivedQuantity ?? 0) && (
+                        <input
+                          type="text"
+                          maxLength={200}
+                          value={shortNotes[i] ?? ''}
+                          onChange={(e) =>
+                            setShortNotes((n) => ({ ...n, [i]: e.target.value }))
+                          }
+                          placeholder={t('hrFix.poDetail.shortfallPlaceholder')}
+                          aria-label={t('hrFix.poDetail.shortfallFor', { label: l.label })}
+                          className="mt-1.5 w-48 rounded-lg border border-app px-2 py-1.5 text-left text-xs"
+                        />
+                      )}
                   </td>
                 )}
               </tr>

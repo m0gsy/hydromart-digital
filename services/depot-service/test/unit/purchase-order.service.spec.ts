@@ -343,6 +343,80 @@ describe('PurchaseOrderService', () => {
       expect(after.receivedAt).not.toBeNull();
     });
 
+    /*
+     * CA-2-55 — owner decision 2026-09-04: the receiver types what came, the shortfall is
+     * recorded WITH a note, and the note is what closes the line.
+     *
+     * Without it, a PO the supplier will never complete is stuck in SENT forever:
+     * `isFullyReceived` was the only route to RECEIVED and `receive()` refuses once every
+     * line is at its cap. Nothing in the system could end it.
+     */
+    it('records the shortfall with a note and lets the PO finish short', async () => {
+      const id = await sent();
+
+      const after = await service.receive(
+        id,
+        ACTOR,
+        { 0: 40, 1: 200 },
+        { 0: 'pemasok kirim 40, sisanya dibatalkan' },
+      );
+
+      // Stock rose by what ARRIVED, never by what was ordered.
+      expect(receiptsFor(galonItemId)).toEqual([40]);
+      expect(after.lines[0]!.receivedQuantity).toBe(40);
+      // The shortfall is recorded, with its reason...
+      expect(after.lines[0]!.shortfallNote).toBe('pemasok kirim 40, sisanya dibatalkan');
+      // ...and that reason is what ends the PO.
+      expect(after.status).toBe(PoStatus.RECEIVED);
+      expect(after.receivedAt).not.toBeNull();
+    });
+
+    it('leaves a short line OPEN when no reason is given', async () => {
+      const id = await sent();
+
+      const after = await service.receive(id, ACTOR, { 0: 40, 1: 200 });
+
+      expect(after.lines[0]!.shortfallNote).toBeUndefined();
+      expect(after.status).toBe(PoStatus.SENT);
+      expect(after.receivedAt).toBeNull();
+    });
+
+    it('carries the reason into the stock ledger, and caps it at 200 characters', async () => {
+      const id = await sent();
+      const long = 'x'.repeat(250);
+
+      const after = await service.receive(id, ACTOR, { 0: 40, 1: 200 }, { 0: long });
+
+      expect(after.lines[0]!.shortfallNote).toHaveLength(200);
+      const move = inventoryRepo.moves.find(
+        (m) => m.itemId === galonItemId && String(m.reason ?? '').includes('kurang kirim'),
+      );
+      expect(move).toBeDefined();
+      expect(String(move!.reason)).toContain('kurang kirim: ');
+    });
+
+    // A supplier cancelling a line outright books nothing, so the old "nothing to receive"
+    // guard would have refused the very call that closes it.
+    it('closes a line where nothing arrived at all, given a reason', async () => {
+      const id = await sent();
+      await service.receive(id, ACTOR, { 0: 50, 1: 0 });
+
+      const after = await service.receive(id, ACTOR, { 0: 0, 1: 0 }, { 1: 'batal, stok habis' });
+
+      expect(receiptsFor(segelItemId)).toEqual([]);
+      expect(after.lines[1]!.shortfallNote).toBe('batal, stok habis');
+      expect(after.status).toBe(PoStatus.RECEIVED);
+    });
+
+    it('still refuses a call that books nothing and records nothing', async () => {
+      const id = await sent();
+      await service.receive(id, ACTOR);
+
+      await expect(service.receive(id, ACTOR, { 0: 0, 1: 0 })).rejects.toBeInstanceOf(
+        InvalidPurchaseOrderTransitionError,
+      );
+    });
+
     it('still receives everything outstanding when no map is given', async () => {
       const id = await sent();
 
