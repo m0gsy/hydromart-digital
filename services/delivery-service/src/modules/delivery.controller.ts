@@ -13,7 +13,11 @@ import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import { AssignDeliveryDto, FailDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
-import { DeliveryResponseDto, PagedDeliveryResponseDto } from './dto/responses.generated.dto';
+import {
+  DeliveryResponseDto,
+  PagedDeliveryResponseDto,
+  ProofLinksResponseDto,
+} from './dto/responses.generated.dto';
 
 @ApiTags('Deliveries (staff)')
 @ApiBearerAuth()
@@ -99,6 +103,40 @@ export class DeliveryController {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { depotId: _dropped, ...rest } = query;
     return this.deliveries.listAll({ ...rest, depotIds });
+  }
+
+  /**
+   * CA-4-49 — the proof photo and signature, as links that expire.
+   *
+   * Owner decision 2026-09-04: expiring signed links, not a public bucket. The stored
+   * value is unchanged — it is what every historical row holds and what payout-service's
+   * receipt allowlist prefix-matches on — and nothing renders it directly any more.
+   *
+   * A separate JSON route rather than a field on the delivery response, for two reasons.
+   * A signed URL on the main read is minted on every load whether or not anyone opens the
+   * photo, and it then rides into every cache and log that response touches. And a
+   * REDIRECT route would have been worse: the browser fetches an `<img src>` without the
+   * session cookie when the gateway is a different origin from the app, so the image would
+   * simply 401. Fetched through the app's own authenticated client, none of that applies —
+   * and the signature on the returned URL is what authorises the object store, so the
+   * image request itself needs no credentials at all.
+   */
+  @ApiOkResponse({ type: ProofLinksResponseDto })
+  @Get(':id/proof-links')
+  @ApiOperation({ summary: 'Time-limited links to the proof photo and signature' })
+  async proofLinks(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ photoUrl: string | null; signatureUrl: string | null }> {
+    const delivery = await this.deliveries.getAny(id);
+    // The same by-id vector the detail route closes: a depot-locked operator may only read
+    // their own depot's delivery, and therefore only its photos.
+    assertDepotAccess(user, delivery.depotId);
+    const [photoUrl, signatureUrl] = await Promise.all([
+      this.deliveries.signedPhotoUrl(delivery.proof?.photoUrl ?? null),
+      this.deliveries.signedPhotoUrl(delivery.proof?.signatureUrl ?? null),
+    ]);
+    return { photoUrl, signatureUrl };
   }
 
   @ApiOkResponse({ type: DeliveryResponseDto })

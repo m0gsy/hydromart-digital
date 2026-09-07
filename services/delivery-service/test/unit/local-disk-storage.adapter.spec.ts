@@ -47,4 +47,13 @@ describe('LocalDiskStorageAdapter', () => {
 
     await expect(adapter.remove(key)).resolves.toBeUndefined();
   });
+
+  // CA-4-49: dev has no bucket policy and no presigner, so the "signed" link is the plain
+  // one the dev server already serves. Named here so the application has ONE read path.
+  it('hands back the dev URL as its signed link', async () => {
+    const adapter = new LocalDiskStorageAdapter(makeConfig('/tmp/x'));
+    expect(await adapter.signedUrl('pod/x.jpg', 900)).toBe(
+      'http://localhost:3006/uploads/pod/x.jpg',
+    );
+  });
 });

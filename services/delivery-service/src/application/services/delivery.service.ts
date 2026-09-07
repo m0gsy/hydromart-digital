@@ -133,6 +133,11 @@ export interface RescheduleInput {
 @Injectable()
 export class DeliveryService {
   private static readonly MAX_LIMIT = 100;
+  /**
+   * CA-4-49: how long a photo link stays valid. Fifteen minutes is what a PoD screen
+   * needs to open; anything longer is a link that outlives the page it was minted for.
+   */
+  private static readonly PHOTO_LINK_TTL_SECONDS = 15 * 60;
   private readonly logger = new Logger(DeliveryService.name);
 
   constructor(
@@ -751,6 +756,24 @@ export class DeliveryService {
     const erased = await this.deliveries.erasePerson(customerId, phone);
     this.logger.log(`PDP erasure: scrubbed ${erased} delivery row(s) for ${customerId}`);
     return { erased };
+  }
+
+  /**
+   * CA-4-49 — a time-limited link to one stored photo, minted on demand.
+   *
+   * Owner decision 2026-09-04: expiring signed links, not a public bucket. Fifteen minutes
+   * is what a PoD screen needs, and a dispute reviewer months later gets a fresh link
+   * rather than an old one that still works — which is the whole point.
+   *
+   * Returns null when there is nothing to sign: no photo on the row, a URL whose key
+   * cannot be derived (a hand-typed value from before the upload path existed), or no
+   * storage bound at all. The caller turns that into a 404, never into a broken image.
+   */
+  async signedPhotoUrl(url: string | null): Promise<string | null> {
+    if (!url || !this.storage) return null;
+    const key = storageKeyFromUrl(url);
+    if (!key) return null;
+    return this.storage.signedUrl(key, DeliveryService.PHOTO_LINK_TTL_SECONDS);
   }
 
   async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {

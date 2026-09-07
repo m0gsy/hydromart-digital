@@ -21,6 +21,9 @@ deliveries: {
     const qs = p.toString();
     return `/deliveries/api/v1/deliveries${qs ? `?${qs}` : ''}`;
   },
+  // CA-4-49: time-limited links to a delivery's proof images. The stored value no longer
+  // resolves — the bucket is private — so the screen asks for a link that expires.
+  proofLinks: (id: string) => `/deliveries/api/v1/deliveries/${encodeURIComponent(id)}/proof-links`,
   // Assign a courier to an order (dispatch); advances the order to DRIVER_ASSIGNED.
   assign: '/deliveries/api/v1/deliveries',
   /*

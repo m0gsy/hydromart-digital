@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
@@ -15,9 +21,12 @@ import {
  * StoragePort as the local-disk dev adapter — the app never knows which is bound.
  * Primary target is BiznetGio NEO (Ceph RGW, endpoint https://nos.jkt-1.neo.id);
  * Cloudflare R2 and MinIO work through the same code. Path-style addressing keeps
- * it working against any of them without per-bucket DNS. The returned URL is the
- * object's public URL (`${STORAGE_PUBLIC_BASE_URL}/<key>`), so the bucket (or its
- * bound public domain) must serve `pod/*` publicly.
+ * it working against any of them without per-bucket DNS.
+ *
+ * CA-4-49: the bucket is PRIVATE. `put` still returns `${STORAGE_PUBLIC_BASE_URL}/<key>`
+ * — that string is what every stored row already holds and what payout-service's receipt
+ * allowlist prefix-matches on — but it no longer resolves. Reading a photo goes through
+ * `signedUrl`, which mints a link that expires.
  */
 @Injectable()
 export class S3StorageAdapter implements StoragePort {
@@ -48,6 +57,20 @@ export class S3StorageAdapter implements StoragePort {
       { abortSignal: AbortSignal.timeout(S3StorageAdapter.TIMEOUT_MS) },
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
+  }
+
+  /**
+   * CA-4-49: a GET link that expires. Minted per read, never stored.
+   *
+   * No `abortSignal` and no `await` on the network: presigning is pure local signing —
+   * the SDK builds and signs a URL without talking to the endpoint at all.
+   */
+  signedUrl(key: string, ttlSeconds: number): Promise<string> {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.config.s3.bucket, Key: key }),
+      { expiresIn: ttlSeconds },
+    );
   }
 
   /** S3 DELETE is already idempotent — deleting a missing key returns 204. */

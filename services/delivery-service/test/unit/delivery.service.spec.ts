@@ -68,7 +68,7 @@ describe('DeliveryService', () => {
   let payout: FakeCourierPayout;
   let shifts: ShiftService;
   let service: DeliveryService;
-  let storage: { put: jest.Mock; remove: jest.Mock };
+  let storage: { put: jest.Mock; remove: jest.Mock; signedUrl: jest.Mock };
   /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
   let makeStorageless: () => DeliveryService;
   let makeWithNotifier: (notifier: unknown) => DeliveryService;
@@ -87,7 +87,12 @@ describe('DeliveryService', () => {
     shifts = new ShiftService(new InMemoryShiftRepository(), repo, depots, config);
     payout = new FakeCourierPayout();
     payments = new FakeOrderPayment();
-    storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
+    storage = {
+      put: jest.fn(),
+      remove: jest.fn().mockResolvedValue(undefined),
+      // CA-4-49: the bucket is private; a read asks for a link that expires.
+      signedUrl: jest.fn(async (key: string) => `https://signed/${key}?X-Amz-Expires=900`),
+    };
     makeStorageless = () =>
       new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots, payments);
     // Same wiring as `service`, plus a customer-notification double — built here because
@@ -1069,6 +1074,30 @@ describe('DeliveryService', () => {
       const view = await service.getForDriver(driver, d.id);
 
       expect(view.cashHeld).toBe(false);
+    });
+  });
+
+  /*
+   * CA-4-49 — owner decision 2026-09-04: expiring signed links, not a public bucket.
+   *
+   * The stored value stays byte-for-byte what it was, because it is what every historical
+   * row holds and what payout-service's receipt allowlist prefix-matches on. It just stops
+   * resolving, and every read path mints a link instead.
+   */
+  describe('signedPhotoUrl (CA-4-49)', () => {
+    it('signs the key inside a stored proof URL, for fifteen minutes', async () => {
+      const out = await service.signedPhotoUrl('https://cdn/pod/x.jpg');
+      expect(out).toBe('https://signed/pod/x.jpg?X-Amz-Expires=900');
+      expect(storage.signedUrl).toHaveBeenCalledWith('pod/x.jpg', 15 * 60);
+    });
+
+    // Null, never a broken image: nothing to sign, nothing that can be signed, or no
+    // storage bound at all. The caller renders no photo rather than a dead one.
+    it('answers null when there is nothing it can sign', async () => {
+      expect(await service.signedPhotoUrl(null)).toBeNull();
+      expect(await service.signedPhotoUrl('https://cdn/elsewhere/x.jpg')).toBeNull();
+      expect(await makeStorageless().signedPhotoUrl('https://cdn/pod/x.jpg')).toBeNull();
+      expect(storage.signedUrl).not.toHaveBeenCalled();
     });
   });
 });
