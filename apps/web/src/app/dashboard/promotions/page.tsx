@@ -108,7 +108,7 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="text-lg font-bold">{promo ? t('hrFix.promotions.edit') : 'Promo baru'}</h2>
+      <h2 className="text-lg font-bold">{promo ? t('hrFix.promotions.edit') : t('hrFix.promotions.new')}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('hrFix.promotions.headline')}>
           <Input value={form.title} onChange={set('title')} placeholder={t('hrFix.promotions.headlineHint')} />
@@ -210,7 +210,7 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-xl font-extrabold tracking-tight">{data.voucherCode || data.title}</h1>
-            <Badge tone={promo.active ? 'success' : 'neutral'}>{promo.active ? 'Aktif' : t('hrFix.promotions.inactive')}</Badge>
+            <Badge tone={promo.active ? 'success' : 'neutral'}>{promo.active ? t('hrFix.promotions.active') : t('hrFix.promotions.inactive')}</Badge>
           </div>
           <p className="truncate text-xs text-muted">{promo.subtitle || promo.title}</p>
         </div>
@@ -364,7 +364,7 @@ function PromotionsAdmin() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-2 font-semibold">
                   {p.title}
-                  <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Aktif' : t('hrFix.promotions.inactive')}</Badge>
+                  <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? t('hrFix.promotions.active') : t('hrFix.promotions.inactive')}</Badge>
                 </span>
                 {p.subtitle && <span className="truncate text-sm text-muted">{p.subtitle}</span>}
               </div>

@@ -251,7 +251,7 @@ const PATTERNS = [
   // JSX props that render.
   {
     kind: 'prop',
-    re: /(?:label|title|placeholder|aria-label|heading|hint|emptyText|alt|message|subtitle|body|caption|description|tooltip|confirmLabel|cancelLabel|actionLabel)\s*=\s*(?:"([^"]{3,})"|'([^']{3,})'|\{'([^']{3,})'\}|\{"([^"]{3,})"\})/g,
+    re: /(?:label|title|placeholder|aria-label|heading|hint|emptyText|alt|message|subtitle|body|caption|description|tooltip|confirmLabel|cancelLabel|actionLabel|includeEmpty|emptyLabel|allLabel)\s*=\s*(?:"([^"]{3,})"|'([^']{3,})'|\{'([^']{3,})'\}|\{"([^"]{3,})"\})/g,
   },
   /*
    * CA-1-49 — the props whose VALUE is a template literal.
@@ -280,7 +280,25 @@ const PATTERNS = [
     // Any setter whose name ENDS in Error/Msg/Message/Notice, not the four spellings that
     // happened to exist when this was written: `setFileError` in components/csv-import.tsx
     // held two untranslated sentences that this list walked straight past.
-    re: /(?:toast|confirm|alert|set[A-Za-z]*(?:Error|Msg|Message|Notice))\(\s*(?:'([^']{3,})'|"([^"]{3,})"|`([^`${}]{3,})`)/g,
+    re: /(?:toast|notify|confirm|alert|set[A-Za-z]*(?:Error|Msg|Message|Notice))\(\s*(?:'([^']{3,})'|"([^"]{3,})"|`([^`${}]{3,})`)/g,
+  },
+  /*
+   * CA-1-52 — a ternary whose OTHER branch is already `t(...)`.
+   *
+   * The `ternary` pattern below needs BOTH branches to be quoted strings, so the commonest
+   * shape of a half-translated line — `cond ? t('key') : 'kalimat Indonesia'` — was read by
+   * nothing. That shape is the tell for copy somebody started translating and stopped, and
+   * `/dashboard/meter` carried one under a variance figure.
+   *
+   * Both directions, because the untranslated half sits on either side.
+   */
+  {
+    kind: 'halfTranslated',
+    re: /\?\s*t\([^)]*\)\s*:\s*(?:'([^']{3,})'|"([^"]{3,})")/g,
+  },
+  {
+    kind: 'halfTranslated',
+    re: /\?\s*(?:'([^']{3,})'|"([^"]{3,})")\s*:\s*t\(/g,
   },
   /**
    * The four shapes a browser pass found copy hiding in, none of which the patterns above

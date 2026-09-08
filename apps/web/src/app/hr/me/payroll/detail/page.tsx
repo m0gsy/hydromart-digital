@@ -90,7 +90,9 @@ export default function MyPayrollDetailPage() {
         </table>
       </Card>
 
-      <div className="grid grid-cols-3 gap-3 text-sm">
+      {/* CA-1-56: two columns on a phone — three money cards at 360pt leave about 100pt
+          each, and "Rp 4.250.000" does not fit in 100pt: the figures wrapped mid-number. */}
+      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <Card className="p-3">
           <p className="text-muted">Gross</p>
           <Money amount={Number(p.gross)} className="font-bold" />

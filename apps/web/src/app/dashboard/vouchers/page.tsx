@@ -384,7 +384,7 @@ function VouchersAdmin() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2 font-semibold">
                     {v.code}
-                    <Badge tone={v.active ? 'success' : 'neutral'}>{v.active ? 'Aktif' : t('hrFix.vouchers.inactive')}</Badge>
+                    <Badge tone={v.active ? 'success' : 'neutral'}>{v.active ? t('hrFix.vouchers.active') : t('hrFix.vouchers.inactive')}</Badge>
                   </span>
                   <span className="truncate text-sm text-muted">
                     {discountLabel(v)}

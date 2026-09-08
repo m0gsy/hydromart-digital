@@ -261,7 +261,7 @@ function MeterBody() {
               hint={
                 data?.varianceIdr != null
                   ? t('opsFix.meter.perGallonHint')
-                  : 'belum ada galon terkirim hari ini'
+                  : t('opsFix.meter.noGallonsYet')
               }
               tone={data?.overTolerance ? 'danger' : 'plain'}
             />

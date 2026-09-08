@@ -25,6 +25,11 @@ export function ZzI18nGateFixture({ depot, count }: { depot: string; count: numb
       <Header subtitle={`Pencapaian bulan ${depot}`} />
       <Chip label="Draft" />
       <Meter value={count} className="max-w-[1216px]" data-testid="zz-meter" />
+      {/* CA-1-52: half-translated ternaries — one branch already t(), the other never
+          wrapped. The commonest shape of copy somebody started translating and stopped. */}
+      <Badge>{count > 0 ? t('zz.key') : 'Belum ada pesanan hari ini'}</Badge>
+      <Badge>{count > 0 ? 'Sudah dibayar lunas' : t('zz.other')}</Badge>
+      <Picker includeEmpty="Pilih depot dulu" />
     </div>
   );
 }
@@ -36,7 +41,7 @@ if node scripts/check-i18n.mjs >"$OUT" 2>&1; then
   exit 1
 fi
 
-for expected in 'usulan harga' 'Gagal memuat data karyawan' 'Pencapaian bulan'; do
+for expected in 'usulan harga' 'Gagal memuat data karyawan' 'Pencapaian bulan'                 'Belum ada pesanan hari ini' 'Sudah dibayar lunas' 'Pilih depot dulu'; do
   grep -q "$expected" "$OUT" || {
     echo "FAIL: the gate did not report \"$expected\""
     cat "$OUT"

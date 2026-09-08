@@ -411,6 +411,7 @@ export const hrFix = {
     noEmployees: 'Belum ada karyawan',
   },
   settings: {
+    pickDepot: 'Pilih depot…',
     scopeDepot: 'depot ini',
     scopeGlobal: 'seluruh jaringan',
     notFilled: '(belum diisi)',
@@ -1114,6 +1115,7 @@ export const hrFix = {
     stopped: 'Dihentikan',
   },
   loans: {
+    stopFailed: 'Gagal menghentikan pinjaman',
     title: 'Pinjaman / Kasbon',
     empty: 'Belum ada pinjaman.',
     stop: 'Hentikan',
@@ -1135,6 +1137,7 @@ export const hrFix = {
     stopped: 'Dihentikan',
   },
   promotions: {
+    new: 'Promo baru',
     cancel2: 'Batal',
     emptyBody: 'Buat promo pertama untuk ditampilkan di beranda pelanggan.',
     delete2: 'Hapus',
@@ -1690,10 +1693,13 @@ export const hrFix = {
     plateHint: 'mis. B 1234 ABC',
   },
   myAttendance: {
+    title: 'Absensi Saya',
     emptyBody: 'Absensi kamu akan muncul di sini.',
     empty: 'Belum ada absensi',
   },
   payrollDetail: {
+    approvedAt: 'Disetujui',
+    paidAt: 'Dibayar',
     pendingWarning: 'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
     approveConfirmPending: 'Setujui pembayaran {net}? Masih ada {n} hari kehadiran yang belum diputuskan; selisihnya harus dicatat di periode berikutnya.',
     failed: 'Gagal',

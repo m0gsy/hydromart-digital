@@ -31,6 +31,7 @@ import {
   type CompareOp,
   type RewardKind,
 } from '@/lib/hr';
+import { formatIDR } from '@/lib/format';
 import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
@@ -42,6 +43,20 @@ interface DepotOption {
 const METRICS = Object.keys(BONUS_METRIC_LABEL) as BonusMetric[];
 const OPS = Object.keys(COMPARE_OP_LABEL) as CompareOp[];
 const KINDS = Object.keys(REWARD_KIND_LABEL) as RewardKind[];
+
+/**
+ * CA-1-60 — the threshold, in whatever the metric is actually counted in.
+ *
+ * It printed as a bare number, so "SALES_TOTAL ≥ 5000000" sat in a list of money rules
+ * looking like five million of nothing, and "ATTENDANCE_RATE ≥ 95" looked like 95 of the
+ * same nothing. Three metrics, three units: rupiah, per cent, days.
+ */
+function thresholdLabel(metric: BonusMetric, threshold: number | string): string {
+  const n = Number(threshold);
+  if (metric === 'SALES_TOTAL') return formatIDR(n);
+  if (metric === 'ATTENDANCE_RATE') return `${n}%`;
+  return String(n);
+}
 
 const EMPTY = {
   depotId: '',
@@ -185,7 +200,8 @@ function RulesBody() {
                   <Badge tone="brand">{r.bonusType}</Badge>
                 </div>
                 <p className="text-sm text-muted">
-                  {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]} {r.threshold} →{' '}
+                  {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]}{' '}
+                  {thresholdLabel(r.metric, r.threshold)} →{' '}
                   {r.rewardKind === 'FIXED' ? (
                     <Money amount={Number(r.rewardValue)} />
                   ) : (

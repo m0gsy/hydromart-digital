@@ -109,7 +109,7 @@ export default function HrSettingsPage() {
         </label>
         {/* G-1: was `placeholder={t('hrFix.settings.depotIdHint')}`, next to a depot list this app already holds. */}
         {scope === 'DEPOT' && (
-          <HrDepotPicker value={depotId} onChange={setDepotId} includeEmpty="Pilih depot…" />
+          <HrDepotPicker value={depotId} onChange={setDepotId} includeEmpty={t('hrFix.settings.pickDepot')} />
         )}
       </Card>
 

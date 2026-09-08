@@ -398,6 +398,7 @@ export const hrFix = {
     noEmployees: 'No employees yet',
   },
   settings: {
+    pickDepot: 'Choose a depot…',
     scopeDepot: 'this depot',
     scopeGlobal: 'the whole network',
     notFilled: '(not filled in)',
@@ -1098,6 +1099,7 @@ export const hrFix = {
     stopped: 'Stopped',
   },
   loans: {
+    stopFailed: 'Could not stop the advance',
     title: 'Loans & advances',
     empty: 'No loans yet.',
     stop: 'Stop',
@@ -1119,6 +1121,7 @@ export const hrFix = {
     stopped: 'Stopped',
   },
   promotions: {
+    new: 'New promotion',
     cancel2: 'Cancel',
     emptyBody: 'Create the first promotion to show on the customer home page.',
     delete2: 'Delete',
@@ -1672,10 +1675,13 @@ export const hrFix = {
     plateHint: 'e.g. B 1234 ABC',
   },
   myAttendance: {
+    title: 'My attendance',
     emptyBody: 'Your attendance will appear here.',
     empty: 'No attendance yet',
   },
   payrollDetail: {
+    approvedAt: 'Approved',
+    paidAt: 'Paid',
     pendingWarning: '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
     approveConfirmPending: 'Approve a payment of {net}? {n} attendance day(s) are still undecided; the difference must be recorded in the next period.',
     failed: 'Failed',
