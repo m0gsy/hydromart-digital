@@ -28,11 +28,13 @@ export const profile = {
       copied: 'Tersalin',
       use: 'Pakai',
       status: {
-        AVAILABLE: 'Aktif',
-        USED: 'Terpakai',
+        AVAILABLE: 'Bisa dipakai',
+        USED: 'Sudah dipakai',
         EXPIRED: 'Kedaluwarsa',
-        UPCOMING: 'Segera',
-        SOLD_OUT: 'Habis',
+        // CA-3-42: "Segera" reads as a promise; this one has to read as a refusal, because
+        // the voucher is offered on the same screen and cannot be spent yet.
+        UPCOMING: 'Belum berlaku',
+        SOLD_OUT: 'Kuota habis',
       },
     },
     catalog: {

@@ -18,6 +18,8 @@ export const order: typeof base = {
     subtotal: 'Subtotal',
     removedLines: '{names} is no longer sold and was removed from your cart.',
     removedUnknown: 'An item',
+    resellerDiscount: 'Reseller price',
+    resellerAtCheckout: 'Calculated at checkout',
     memberDiscount: 'Member discount ({pct}%)',
     estTotal: 'Estimated total',
     shippingNote: 'Delivery is calculated at checkout, once a depot is set.',

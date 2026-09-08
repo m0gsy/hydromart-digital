@@ -158,6 +158,15 @@ function Hero({
 
 /* ============================ Voucher wallet ============================ */
 
+/** CA-3-42: the tone for each wallet state; only AVAILABLE can be spent today. */
+const VOUCHER_STATUS_TONE: Record<VoucherStatus, string> = {
+  AVAILABLE: 'text-[color:var(--success)]',
+  UPCOMING: 'text-[color:var(--warning)]',
+  USED: 'text-muted',
+  EXPIRED: 'text-muted',
+  SOLD_OUT: 'text-muted',
+};
+
 const VOUCHER_MUTED: Record<VoucherStatus, boolean> = {
   AVAILABLE: false,
   USED: true,
@@ -219,6 +228,12 @@ function VoucherWallet({ onHistory }: { onHistory: () => void }) {
                         {t('profile.rewards.wallet.until', { date: formatDateTime(v.validUntil).split(',')[0] ?? '' })}
                       </span>
                     )}
+                  </div>
+                  {/* CA-3-42: which state this voucher is in. UPCOMING was drawn exactly
+                      like AVAILABLE, so a voucher that does not work yet looked like one
+                      that does — and the customer found out at checkout. */}
+                  <div className={`mt-1.5 text-[11.5px] font-bold ${VOUCHER_STATUS_TONE[v.status]}`}>
+                    {t(`profile.rewards.wallet.status.${v.status}`)}
                   </div>
                 </div>
               </div>
@@ -716,7 +731,22 @@ function RewardsInner() {
   const scrollToCatalog = () => catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const showLedger = () => {
     setLedgerOpen(true);
-    document.getElementById('rewards-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    /*
+     * CA-3-41: on a phone this button did nothing at all.
+     *
+     * The ledger lives inside `tab === 'riwayat' ? 'lg:block' : 'hidden lg:block'`, so
+     * below `lg` it is display:none unless that tab is the active one — and
+     * `scrollIntoView` on a hidden element scrolls nowhere. On a desktop the block is
+     * always visible, which is why this was only ever broken on the screen most customers
+     * use. Switching the tab is what makes the target exist.
+     */
+    setTab('riwayat');
+    // After the tab switch has painted, or the element is still hidden when we measure it.
+    requestAnimationFrame(() =>
+      document
+        .getElementById('rewards-ledger')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
   };
 
   return (

@@ -23,6 +23,30 @@ const VOUCHER_MUTED: Record<VoucherStatus, boolean> = {
   SOLD_OUT: true,
 };
 
+/*
+ * CA-3-42: the wallet never said which of these a voucher was.
+ *
+ * Only AVAILABLE can be spent today. UPCOMING was drawn exactly like AVAILABLE — full
+ * opacity AND a "Pakai" button — so a voucher that does not work yet was offered as one
+ * that does, and the customer found out at checkout. USED, EXPIRED and SOLD_OUT were faded
+ * but unlabelled, which says "something is wrong with this" without saying what.
+ */
+const USABLE_NOW: Record<VoucherStatus, boolean> = {
+  AVAILABLE: true,
+  USED: false,
+  EXPIRED: false,
+  UPCOMING: false,
+  SOLD_OUT: false,
+};
+
+const STATUS_TONE: Record<VoucherStatus, string> = {
+  AVAILABLE: 'text-[color:var(--success)]',
+  UPCOMING: 'text-[color:var(--warning)]',
+  USED: 'text-muted',
+  EXPIRED: 'text-muted',
+  SOLD_OUT: 'text-muted',
+};
+
 /** Copy + "use it" for one voucher the customer actually holds. */
 function VoucherActions({ code }: { code: string }) {
   const { t } = useT();
@@ -136,7 +160,12 @@ function VouchersInner() {
                     vouchers and already has the field, so all this screen owes it is the
                     code in the URL. Spent and expired vouchers get neither.
                   */}
-                  {!muted && <VoucherActions code={v.code} />}
+                  {/* CA-3-42: say which state this is, always — and only offer "Pakai"
+                      for the one state that can actually be spent today. */}
+                  <div className={`mt-1.5 text-[11.5px] font-bold ${STATUS_TONE[v.status]}`}>
+                    {t(`profile.rewards.wallet.status.${v.status}`)}
+                  </div>
+                  {USABLE_NOW[v.status] && <VoucherActions code={v.code} />}
                 </div>
               </div>
             );
