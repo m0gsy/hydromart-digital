@@ -9,7 +9,12 @@ import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { currentPosition, geoReason } from '@/lib/geo';
-import { fmtTime, type Attendance } from '@/lib/hr';
+import {
+  ATTENDANCE_STATUS_LABEL,
+  fmtTime,
+  type Attendance,
+  type AttendanceStatus,
+} from '@/lib/hr';
 import { runOrQueue } from '@/lib/offline-queue';
 
 type Mode = 'in' | 'out';
@@ -37,6 +42,14 @@ function getPosition(messages: {
     },
   );
 }
+
+/** CA-1-74: LATE and PENDING are not successes, and were painted as one. */
+const RESULT_TONE: Partial<Record<AttendanceStatus, string>> = {
+  PRESENT: 'text-green-700',
+  LATE: 'text-[color:var(--warning)]',
+  PENDING: 'text-[color:var(--warning)]',
+  ABSENT: 'text-[color:var(--danger)]',
+};
 
 export default function MeCheckInPage() {
   const { t } = useT();
@@ -115,7 +128,18 @@ export default function MeCheckInPage() {
 
       {result && (
         <Card className="p-4 text-center">
-          <p className="font-bold text-green-700">{result.status}</p>
+          {/*
+            * CA-1-74 — the answer to "did my punch count", in words and in the right colour.
+            *
+            * It printed `result.status` raw, so an employee standing at the door read
+            * "PENDING" or "LATE" — database values, in English — and it printed them GREEN
+            * whatever they said. PENDING is the one that matters: an offline punch whose
+            * device clock could not be trusted counts as nothing until HR decides, and it
+            * looked exactly like a successful check-in.
+            */}
+          <p className={`font-bold ${RESULT_TONE[result.status] ?? 'text-green-700'}`}>
+            {t(ATTENDANCE_STATUS_LABEL[result.status])}
+          </p>
           <p className="text-sm text-muted">
             {t('hrFix.checkIn.inAt', { at: fmtTime(result.checkInAt) })}
             {result.checkOutAt ? t('hrFix.checkIn.outAt', { at: fmtTime(result.checkOutAt) }) : ''}

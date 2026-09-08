@@ -11,7 +11,9 @@ import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
+  BONUS_TYPE_LABEL,
   BONUS_TYPES,
+  DEDUCTION_TYPE_LABEL,
   DEDUCTION_TYPES,
   currentPeriod,
   fmtDate,
@@ -156,7 +158,7 @@ export default function AdjustmentsPage() {
                 bonuses.map((b) => (
                   <div key={b.id} className="flex justify-between py-1 text-sm">
                     <span>
-                      {b.type}
+                      {t(BONUS_TYPE_LABEL[b.type])}
                       {b.note ? ` · ${b.note}` : ''}{' '}
                       <span className="text-muted">· {fmtDate(b.createdAt)}</span>
                     </span>
@@ -185,7 +187,7 @@ export default function AdjustmentsPage() {
                 deductions.map((d) => (
                   <div key={d.id} className="flex justify-between py-1 text-sm">
                     <span>
-                      {d.type}
+                      {t(DEDUCTION_TYPE_LABEL[d.type])}
                       {d.note ? ` · ${d.note}` : ''}{' '}
                       <span className="text-muted">· {fmtDate(d.createdAt)}</span>
                     </span>

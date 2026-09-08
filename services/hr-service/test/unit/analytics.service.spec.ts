@@ -59,7 +59,17 @@ describe('AnalyticsService.dashboard', () => {
   it('aggregates headcount, attendance, and payroll; totals headcount from status groups', async () => {
     const { svc } = build();
     const d = await svc.dashboard(hq, { periodMonth: '2026-07' });
-    expect(d.headcount.total).toBe(4); // 3 ACTIVE + 1 RESIGNED
+    /*
+     * CA-1-61 — three, not four. The fixture holds one RESIGNED row on purpose: the total
+     * summed EVERY status group, so "Total Karyawan" grew each time somebody quit, and the
+     * headcount a manager plans against sat above an attendance figure counted only over
+     * people who still work here.
+     */
+    expect(d.headcount.total).toBe(3);
+    // The breakdown still carries the leaver — the total is what was wrong, not the list.
+    expect(d.headcount.byStatus).toEqual(
+      expect.arrayContaining([{ key: 'RESIGNED', count: 1 }]),
+    );
     expect(d.headcount.byEmploymentStatus).toEqual([{ key: 'PERMANENT', count: 2 }]);
     expect(d.attendanceToday).toHaveLength(2);
     expect(d.payroll.totals.net).toBe(1050);

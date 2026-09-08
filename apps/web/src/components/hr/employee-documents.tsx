@@ -55,7 +55,7 @@ export function EmployeeDocuments({
         type,
         ...(expiresAt ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
       });
-      toast('Dokumen tersimpan');
+      toast(t('hrFix.documents2.saved'));
       if (fileRef.current) fileRef.current.value = '';
       setExpiresAt('');
       documents.reload();

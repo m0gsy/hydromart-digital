@@ -17,7 +17,7 @@ export default function ImportLoansPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <CsvImport
-        title="Import Kasbon Berjalan"
+        title="hrFix.imports.loansTitle"
         description="hrFix.imports.desc.loans"
         columns={COLUMNS}
         endpoint={endpoints.hr.importLoans}

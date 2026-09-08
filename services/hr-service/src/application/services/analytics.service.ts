@@ -85,7 +85,22 @@ export class AnalyticsService {
       periodMonth,
       workDate,
       headcount: {
-        total: byStatus.reduce((sum, g) => sum + g.count, 0),
+        /*
+         * CA-1-61 — "Total Karyawan" counted people who had left.
+         *
+         * `byStatus` groups every row in the table, RESIGNED included, and the total was
+         * its sum. So the first number on the HR dashboard grew every time somebody quit,
+         * and the headcount a manager plans against — and that sits above an attendance
+         * figure counted only over people who still work here — was wrong upward, quietly,
+         * for the life of the depot.
+         *
+         * ACTIVE and INACTIVE both count: an inactive employee is still on the books
+         * (suspended, on unpaid leave) and still has a record to plan around. RESIGNED is
+         * the one who is gone.
+         */
+        total: byStatus
+          .filter((g) => g.key !== 'RESIGNED')
+          .reduce((sum, g) => sum + g.count, 0),
         byStatus,
         byEmploymentStatus,
       },

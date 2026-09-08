@@ -22,9 +22,11 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
+  historyLabel,
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
   GENDER_LABEL,
@@ -51,6 +53,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function EmployeeDetailPage() {
   const { t } = useT();
+  const { depots } = useDepot();
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
@@ -126,11 +129,31 @@ export default function EmployeeDetailPage() {
               : departmentLabel(departments.data ?? [], e.departmentId, t)
           }
         />
+        {/*
+          * CA-1-63 — three facts this record carries and the screen never printed.
+          *
+          * `role` is the jabatan that decides what the person's login can do; `depotId` is
+          * where they work, and the one thing every other HR screen scopes by; `exitDate`
+          * is the day payroll stops counting them. All three were on the response, and the
+          * detail page — the screen somebody opens to answer a question about one employee
+          * — showed none of them.
+          */}
+        <Row
+          label={t('hrFix.employeeDetail.role')}
+          value={e.role ? t(`hq.roles.${e.role}`) : '—'}
+        />
+        <Row
+          label={t('hrFix.employeeDetail.depot')}
+          value={depots.find((d) => d.id === e.depotId)?.name ?? '—'}
+        />
         <Row label={t('hrFix.employeeDetail.joinDate')} value={fmtDate(e.joinDate)} />
+        {e.exitDate && (
+          <Row label={t('hrFix.employeeDetail.exitDate')} value={fmtDate(e.exitDate)} />
+        )}
         <Row label={t('hrFix.employeeDetail.tenure')} value={tenureLabel(e.joinDate, t)} />
         <Row
           label={t('hrFix.employeeDetail.salaryType')}
-          value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'}
+          value={t(`hrFix.map.salaryType.${e.salaryType}`)}
         />
         <Row
           label={t('hrFix.employeeDetail.salaryAmount')}
@@ -206,10 +229,12 @@ export default function EmployeeDetailPage() {
           />
           {frames.length > 0 && (
             <div className="flex items-center justify-between">
-              <span className="text-sm">{frames.length} foto siap</span>
+              <span className="text-sm">
+                {t('hrFix.employeeDetail.framesReady', { n: frames.length })}
+              </span>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => setFrames([])}>
-                  Reset
+                  {t('hrFix.employeeDetail.resetFrames')}
                 </Button>
                 <Button onClick={enroll} loading={enrolling}>
                   {t('hrFix.employeeDetail.saveEnrol')}
@@ -235,7 +260,9 @@ export default function EmployeeDetailPage() {
                 className="flex justify-between gap-3 border-l-2 border-brand-200 pl-3 text-sm"
               >
                 <span>
-                  <b>{h.changeType}</b>
+                  {/* A field added to hr-service's TRACKED list shows its own name rather
+                      than blanking the row — the history is evidence, not decoration. */}
+                  <b>{historyLabel(h.changeType, t)}</b>
                   {h.fromValue?.value != null && (
                     <>
                       {' '}

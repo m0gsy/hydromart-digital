@@ -8,6 +8,34 @@ export const hrFix = {
     employee: 'Employee',
   },
   map: {
+    historyChange: {
+      HIRED: 'Hired',
+      ACCOUNT_LINKED: 'Login account linked',
+      employmentStatus: 'Employment status',
+      position: 'Position',
+      role: 'Login role',
+      status: 'Status',
+      exitDate: 'Exit date',
+      salaryType: 'Pay type',
+      dailyRate: 'Daily rate',
+      monthlyRate: 'Monthly salary',
+      depotId: 'Depot',
+    },
+    salaryType: { DAILY: 'Daily', MONTHLY: 'Monthly' },
+    bonusType: {
+      ATTENDANCE: 'Attendance',
+      PERFORMANCE: 'Performance',
+      SALES: 'Sales',
+      DEPOT: 'Depot',
+      MANUAL: 'Manual',
+    },
+    deductionType: {
+      LATE: 'Late arrival',
+      ABSENCE: 'Absence',
+      MANUAL: 'Manual',
+      CASH_ADVANCE: 'Cash advance',
+      OTHER: 'Other',
+    },
     gender: { MALE: 'Male', FEMALE: 'Female' },
     ptkp: {
       TK0: 'TK/0 — single',
@@ -568,6 +596,11 @@ export const hrFix = {
     saved: 'Review saved',
   },
   employeeDetail: {
+    framesReady: '{n} photos ready',
+    resetFrames: 'Reset',
+    role: 'Role (login)',
+    depot: 'Depot',
+    exitDate: 'Exit date',
     viewPayroll: 'View payroll →',
     viewAttendance: 'Attendance history →',
     enrolHint: 'Take 1–3 clear face photos for attendance verification.',
@@ -1552,6 +1585,7 @@ export const hrFix = {
     hint: 'Move your head slightly or blink while the photo is taken.',
   },
   imports: {
+    loansTitle: 'Import outstanding advances',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
       customers:
@@ -1816,6 +1850,7 @@ export const hrFix = {
     none: 'No company property is held.',
   },
   documents2: {
+    saved: 'Document saved',
     pickFile: 'Choose a file first.',
     uploadFailed: 'Could not upload the document.',
   },

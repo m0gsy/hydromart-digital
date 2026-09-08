@@ -571,6 +571,61 @@ export interface LoanListView extends LoanView {
   employeeCode: string | null;
 }
 
+/**
+ * CA-1-59 — the two adjustment enums, in words.
+ *
+ * `/hr/adjustments` printed `b.type` and `d.type` raw, so the screen where HR reviews what
+ * was added to and taken off a wage read "CASH_ADVANCE" and "ATTENDANCE" — database values,
+ * in English, on a list of money that people ask questions about.
+ */
+/**
+ * CA-1-64 — the employment history, in words rather than column names.
+ *
+ * hr-service writes `changeType: String(field)` for every tracked field, so the history a
+ * payslip dispute is settled from read "monthlyRate", "employmentStatus", "depotId" —
+ * database identifiers, in English, on a screen an HR officer shows to an employee.
+ * `HIRED` and `ACCOUNT_LINKED` are the two the service names itself.
+ *
+ * A plain map with a fallback rather than a `Record<Union, string>`: `changeType` is a
+ * bare string on the wire (the service writes whatever `TRACKED` holds), and a field added
+ * there should show its own name rather than crash the row.
+ */
+export const HISTORY_CHANGE_LABEL: Record<string, string> = {
+  HIRED: 'hrFix.map.historyChange.HIRED',
+  ACCOUNT_LINKED: 'hrFix.map.historyChange.ACCOUNT_LINKED',
+  employmentStatus: 'hrFix.map.historyChange.employmentStatus',
+  position: 'hrFix.map.historyChange.position',
+  role: 'hrFix.map.historyChange.role',
+  status: 'hrFix.map.historyChange.status',
+  exitDate: 'hrFix.map.historyChange.exitDate',
+  salaryType: 'hrFix.map.historyChange.salaryType',
+  dailyRate: 'hrFix.map.historyChange.dailyRate',
+  monthlyRate: 'hrFix.map.historyChange.monthlyRate',
+  depotId: 'hrFix.map.historyChange.depotId',
+};
+
+/** The label for one history row, falling back to the raw field name. */
+export function historyLabel(changeType: string, t: (key: string) => string): string {
+  const key = HISTORY_CHANGE_LABEL[changeType];
+  return key ? t(key) : changeType;
+}
+
+export const BONUS_TYPE_LABEL: Record<BonusType, string> = {
+  ATTENDANCE: 'hrFix.map.bonusType.ATTENDANCE',
+  PERFORMANCE: 'hrFix.map.bonusType.PERFORMANCE',
+  SALES: 'hrFix.map.bonusType.SALES',
+  DEPOT: 'hrFix.map.bonusType.DEPOT',
+  MANUAL: 'hrFix.map.bonusType.MANUAL',
+};
+
+export const DEDUCTION_TYPE_LABEL: Record<DeductionType, string> = {
+  LATE: 'hrFix.map.deductionType.LATE',
+  ABSENCE: 'hrFix.map.deductionType.ABSENCE',
+  MANUAL: 'hrFix.map.deductionType.MANUAL',
+  CASH_ADVANCE: 'hrFix.map.deductionType.CASH_ADVANCE',
+  OTHER: 'hrFix.map.deductionType.OTHER',
+};
+
 export const BONUS_METRIC_LABEL: Record<BonusMetric, string> = {
   ATTENDANCE_RATE: 'hrFix.map.bonusMetric.ATTENDANCE_RATE',
   PRESENT_DAYS: 'hrFix.map.bonusMetric.PRESENT_DAYS',
