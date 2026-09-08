@@ -77,7 +77,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 34 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (empat baris Bagian VI ditemukan saat menyapu, bukan saat membaca audit)
 
 **Per status** (2 September 2026, sesudah sapuan `lain`/daftar-terpotong, dihitung dari baris tabel di bawah):
-`TERBUKA` 72 · `SUDAH DIPERBAIKI` 207 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
+`TERBUKA` 66 · `SUDAH DIPERBAIKI` 213 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
 baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 dan #429.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
@@ -173,12 +173,12 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | `CA-1-80` | §13 | Ringkas | Judul /hr/me/attendance hardcoded padahal key-nya sudah ada | `apps/web/src/app/hr/me/attendance/page.tsx:23` | `lain` | SUDAH DIPERBAIKI | `hr/me/attendance/page.tsx` | Memakai `hrFix.me.myAttendance` yang memang sudah ada, bukan judul yang diketik ulang di sebelahnya |
 | `CA-1-81` | §13 | Ringkas | loans/import mengirim judul mentah ke t(), bukan key | `apps/web/src/app/hr/loans/import/page.tsx:20` | `lain` | SUDAH DIPERBAIKI | `hr/loans/import/page.tsx` + `hrFix.imports.loansTitle` | Judul dikirim sebagai key, bukan kalimat mentah — CsvImport menjalankannya lewat t() |
 | `CA-1-82` | §13 | Ringkas | Dokumen kepegawaian: 7 string hardcoded | `apps/web/src/components/hr/employee-documents.tsx:58` | `lain` | SUDAH DIPERBAIKI | `components/hr/employee-documents.tsx` + `hrFix.documents2.saved` | Toast dokumen tersimpan lewat kamus |
-| `CA-1-83` | §13 | Ringkas | Kasbon: 8 string termasuk 3 badge status | `apps/web/src/components/hr/employee-loans.tsx:74` | `lain` | TERBUKA | — | — |
-| `CA-1-84` | §13 | Ringkas | Peringatan pengambilalihan akun seluruhnya hardcoded | `apps/web/src/components/hr/employee-form.tsx:366` | `lain` | TERBUKA | — | — |
-| `CA-1-85` | §13 | Ringkas | Halaman kinerja: 7 string skor & error | `apps/web/src/app/hr/performance/page.tsx:173` | `lain` | TERBUKA | — | — |
-| `CA-1-86` | §13 | Ringkas | Pengaturan: label Cakupan & opsi GLOBAL/DEPOT hardcoded | `apps/web/src/app/hr/settings/page.tsx:75` | `lain` | TERBUKA | — | — |
-| `CA-1-87` | §13 | Ringkas | Dashboard: dua judul kartu tidak diterjemahkan | `apps/web/src/app/hr/page.tsx:78, :83` | `lain` | TERBUKA | — | — |
-| `CA-1-88` | §13 | Ringkas | Riwayat mutasi aset: “dari” diterjemahkan, “ke” dan “kondisi” tidak | `apps/web/src/app/hr/assets/page.tsx:293` | `lain` | TERBUKA | — | — |
+| `CA-1-83` | §13 | Ringkas | Kasbon: 8 string termasuk 3 badge status | `apps/web/src/components/hr/employee-loans.tsx:74` | `lain` | SUDAH DIPERBAIKI | `employee-loans.tsx` + `hr-i18n-sweep.test.tsx` | Tiga status lewat kamus yang sama dengan /hr/loans; palet ikut disamakan — "Lunas" dulu neutral di sini dan success di sana |
+| `CA-1-84` | §13 | Ringkas | Peringatan pengambilalihan akun seluruhnya hardcoded | `apps/web/src/components/hr/employee-form.tsx:366` | `lain` | SUDAH DIPERBAIKI | `employee-form.tsx` roleLabel | Peta menyimpan KUNCI kamus, jadi peringatannya mencetak kuncinya sendiri; kini lewat t() dengan fallback ke peran mentah |
+| `CA-1-85` | §13 | Ringkas | Halaman kinerja: 7 string skor & error | `apps/web/src/app/hr/performance/page.tsx:173` | `lain` | SUDAH DIPERBAIKI | `hr/performance/page.tsx` + kunci performance | Label skor, tombol hitung, dan KEDUA toast gagal-simpan — bukan hanya yang ditunjuk anchor |
+| `CA-1-86` | §13 | Ringkas | Pengaturan: label Cakupan & opsi GLOBAL/DEPOT hardcoded | `apps/web/src/app/hr/settings/page.tsx:75` | `lain` | SUDAH DIPERBAIKI | `hr/settings/page.tsx` + kunci settings + `hr-i18n-sweep.test.tsx` | Cakupan, kedua opsinya, dan dua petunjuk di bawah tiap setelan |
+| `CA-1-87` | §13 | Ringkas | Dashboard: dua judul kartu tidak diterjemahkan | `apps/web/src/app/hr/page.tsx:78, :83` | `lain` | SUDAH DIPERBAIKI | `hr/page.tsx` + `hrFix.home.payrollPeriod` | Judul kartu lewat kamus, seperti `nav.payroll` di sebelahnya yang memang sudah key |
+| `CA-1-88` | §13 | Ringkas | Riwayat mutasi aset: “dari” diterjemahkan, “ke” dan “kondisi” tidak | `apps/web/src/app/hr/assets/page.tsx:293` | `lain` | SUDAH DIPERBAIKI | `hr/assets/page.tsx` + kunci assets | "ke" dan "kondisi" menyusul "dari" ke kamus; satu kalimat tidak lagi separuh tiap bahasa |
 
 ## Bagian II — Konsol depot dan kantor pusat (§16–§30, 132 halaman)
 

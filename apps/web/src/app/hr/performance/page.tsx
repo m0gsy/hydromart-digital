@@ -100,7 +100,7 @@ function PerformanceInner() {
       setNote('');
       load();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menyimpan', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.performance.saveFailed'), 'error');
     } finally {
       setBusy(false);
     }
@@ -148,7 +148,7 @@ function PerformanceInner() {
                 <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
               </label>
               <label className="text-sm">
-                Skor
+                {t('hrFix.performance.score')}
                 <Input
                   type="number"
                   min={0}
@@ -163,7 +163,7 @@ function PerformanceInner() {
                 <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" />
               </label>
               <Button variant="secondary" onClick={computeScore} loading={scoring}>
-                Hitung skor
+                {t('hrFix.performance.computeScore')}
               </Button>
               <Button onClick={save} loading={busy}>
                 {t('hrFix.performance.saveManual')}
@@ -224,7 +224,7 @@ function ScoreDashboard({
       );
       toast(t('hrFix.performance.savedFor', { name: row.fullName }));
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal menyimpan', 'error');
+      toast(e instanceof ApiError ? e.message : t('hrFix.performance.saveFailed'), 'error');
     } finally {
       setSaving(null);
     }

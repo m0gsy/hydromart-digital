@@ -71,10 +71,27 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold"><Money amount={Number(l.principal)} /></span>
-                  <Badge tone={l.settled ? 'neutral' : l.active ? 'success' : 'neutral'}>{l.settled ? 'Lunas' : l.active ? 'Berjalan' : 'Dihentikan'}</Badge>
+                  {/*
+                    * CA-1-83 — the same three states as /hr/loans, in the same words and
+                    * the same colours. This card had its own untranslated copy AND its own
+                    * palette: settled read `neutral` here and `success` there, so one fact
+                    * about one advance looked different depending on which screen an HR
+                    * officer happened to open.
+                    */}
+                  <Badge tone={l.settled ? 'success' : l.active ? 'brand' : 'neutral'}>
+                    {t(
+                      l.settled
+                        ? 'hrFix.loans.settled'
+                        : l.active
+                          ? 'hrFix.loans.running'
+                          : 'hrFix.loans.stopped',
+                    )}
+                  </Badge>
                 </div>
                 <p className="text-sm text-muted">
-                  Cicilan <Money amount={Number(l.installmentAmount)} />/bln sejak {l.startPeriod} · sisa <Money amount={l.remaining} />
+                  {t('hrFix.loans.terms', { period: l.startPeriod })}{' '}
+                  <Money amount={Number(l.installmentAmount)} /> · {t('hrFix.loans.remaining')}{' '}
+                  <Money amount={l.remaining} />
                   {l.note ? ` · ${l.note}` : ''}
                 </p>
               </div>

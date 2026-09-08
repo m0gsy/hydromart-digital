@@ -344,8 +344,10 @@ function AssetPanel({
               {m.fromEmployeeId
                 ? t('hrFix.assets.movedFrom', { name: nameOf(m.fromEmployeeId) })
                 : ''}
-              {m.toEmployeeId ? ` · ke ${nameOf(m.toEmployeeId)}` : ''}
-              {m.condition ? ` · kondisi: ${m.condition}` : ''}
+              {/* CA-1-88: "dari" went through the dictionary and its two neighbours on the
+                  same line did not, so one sentence read half in each language. */}
+              {m.toEmployeeId ? t('hrFix.assets.movedTo', { name: nameOf(m.toEmployeeId) }) : ''}
+              {m.condition ? t('hrFix.assets.movedCondition', { condition: m.condition }) : ''}
             </li>
           ))}
         </ol>

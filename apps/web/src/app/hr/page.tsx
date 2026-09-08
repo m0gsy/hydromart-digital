@@ -108,7 +108,11 @@ export default function HrDashboardPage() {
           </Card>
 
           <Card className="space-y-3 p-5">
-            <h3 className="font-bold">Payroll {data.periodMonth}</h3>
+            {/* CA-1-87: a translator could not reach this heading, though `nav.payroll`
+                beside it has always been a key. */}
+            <h3 className="font-bold">
+              {t('hrFix.home.payrollPeriod', { period: data.periodMonth })}
+            </h3>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div>
                 <p className="text-muted">{t('hrFix.home.gross')}</p>
