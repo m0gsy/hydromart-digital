@@ -140,8 +140,16 @@ export function OrderProgress({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold">{driverName}</p>
             <p className="text-[12.5px] text-muted">{t(`order.banner.${status}`)}</p>
+            {/*
+              CA-3-60. `.text-deep-teal` is a CONSTANT #0b4d57 across themes, and it is right
+              where it was designed for: dark text on an always-light surface (the frosted
+              hero pills, the white promo button). This banner is not one of those — it sits
+              on a surface that goes dark, and the ETA a customer is waiting for was 1.47:1
+              against it. `text-brand-800` is pixel-identical in light and brightens under
+              dark, the pair cart/page.tsx and account/page.tsx already use.
+            */}
             {eta && status === 'ON_DELIVERY' && (
-              <p className="text-[12px] font-bold text-deep-teal">
+              <p className="text-[12px] font-bold text-brand-800">
                 {t('order.detail.eta')} · ± {ETA_TIME.format(new Date(eta))}
               </p>
             )}
@@ -196,7 +204,10 @@ export function OrderTimeline({ history }: { history: OrderStatusEvent[] }) {
               {t(`order.status.${event.status}`)}
             </p>
             <p className="mt-0.5 text-[12px] text-muted">{formatDateTime(event.createdAt)}</p>
-            {event.note && <p className="mt-0.5 text-[12px] font-semibold text-deep-teal">{event.note}</p>}
+            {/* CA-3-60: same as the ETA above — this note sits on `--surface`, which goes dark. */}
+            {event.note && (
+              <p className="mt-0.5 text-[12px] font-semibold text-brand-800">{event.note}</p>
+            )}
           </div>
         </li>
       ))}

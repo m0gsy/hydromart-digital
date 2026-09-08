@@ -120,7 +120,7 @@ function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
         </Button>
       </div>
       {error && (
-        <p className="text-[11px] font-medium text-red-600" role="alert">
+        <p className="text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -226,7 +226,7 @@ function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
         </p>
       )}
       {error && (
-        <p className="max-w-[280px] text-right text-[11px] font-medium text-red-600" role="alert">
+        <p className="max-w-[280px] text-right text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

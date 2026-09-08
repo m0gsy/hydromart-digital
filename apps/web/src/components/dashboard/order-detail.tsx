@@ -157,7 +157,7 @@ export function PaymentSettle({ order }: { order: Order }) {
         </Badge>
       </div>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -334,7 +334,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
         </Field>
       )}
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -502,7 +502,7 @@ export function OrderDetail({
         )}
 
         {error && (
-          <p className="text-sm font-medium text-red-600" role="alert">
+          <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
             {error}
           </p>
         )}

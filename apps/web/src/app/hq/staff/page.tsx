@@ -283,7 +283,7 @@ function DepotPicker({
         ))}
       </select>
       {error && (
-        <p className="text-[11px] font-medium text-red-600" role="alert">
+        <p className="text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -331,7 +331,7 @@ function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => 
         {active ? t('hq.staff.deactivate') : t('hq.staff.activate')}
       </button>
       {error && (
-        <p className="text-[11px] font-medium text-red-600" role="alert">
+        <p className="text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -411,7 +411,7 @@ function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => v
         </button>
       </div>
       {error && (
-        <p className="text-[11px] font-medium text-red-600" role="alert">
+        <p className="text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

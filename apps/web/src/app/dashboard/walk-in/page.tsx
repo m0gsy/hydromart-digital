@@ -987,7 +987,7 @@ function WalkIn({ depotId }: { depotId: string }) {
             refusal — the till has to keep working — but the cashier is told which number
             they are looking at. The struk still comes from `order.total`. */}
         {resolved.error && (
-          <p role="alert" className="text-xs font-semibold text-red-600">
+          <p role="alert" className="text-xs font-semibold text-[color:var(--danger)]">
             {t('opsFix.walkIn.priceUnreadable')}{' '}
             <button type="button" onClick={resolved.reload} className="underline">
               {t('opsFix.walkIn.reload')}

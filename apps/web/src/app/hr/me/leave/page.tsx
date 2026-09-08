@@ -153,7 +153,7 @@ export default function MyLeavePage() {
             />
           </Field>
           {err && (
-            <p className="text-sm font-medium text-red-600" role="alert">
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
               {err}
             </p>
           )}
@@ -183,7 +183,9 @@ export default function MyLeavePage() {
               </p>
               <p className="text-sm text-muted">{r.reason}</p>
               {r.status === 'REJECTED' && r.decisionNote && (
-                <p className="text-sm text-red-600">Alasan penolakan: {r.decisionNote}</p>
+                <p className="text-sm text-[color:var(--danger)]">
+                  {t('hrFix.myLeave.rejectionReason', { note: r.decisionNote })}
+                </p>
               )}
               {(r.status === 'PENDING_MANAGER' || r.status === 'PENDING_HR') && (
                 <Button variant="secondary" onClick={() => cancel(r.id)}>

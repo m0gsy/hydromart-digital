@@ -363,7 +363,7 @@ export default function ProductDetailPage() {
               </Link>
             )}
             {addError && (
-              <p className="text-sm font-medium text-red-600" role="alert">
+              <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
                 {addError}
               </p>
             )}

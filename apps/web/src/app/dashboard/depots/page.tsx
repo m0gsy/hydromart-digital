@@ -90,7 +90,7 @@ function QrisUploader({
         </div>
       )}
       {error && (
-        <p className="mt-2 text-sm font-medium text-red-600" role="alert">
+        <p className="mt-2 text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -273,7 +273,7 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
         <MethodsPreview form={form} />
       </div>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -350,7 +350,7 @@ function DepotCard({
         </div>
       </dl>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

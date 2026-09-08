@@ -166,7 +166,7 @@ export function Field({
       {control}
       {hint && !error && <p className="text-xs text-muted">{hint}</p>}
       {error && (
-        <p className="text-xs font-medium text-red-600" role="alert">
+        <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -555,7 +555,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 export function LoadError({ onRetry, className }: { onRetry: () => void; className?: string }) {
   const { t } = useT();
   return (
-    <p className={cx('text-xs text-red-600', className)}>
+    <p className={cx('text-xs text-[color:var(--danger)]', className)}>
       {t('common.loadFailed')}{' '}
       <button type="button" onClick={onRetry} className="font-semibold underline">
         {t('common.retry')}

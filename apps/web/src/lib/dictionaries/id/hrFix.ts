@@ -1090,6 +1090,7 @@ export const hrFix = {
     noCustomers: 'Belum ada pelanggan',
   },
   myLeave: {
+    rejectionReason: 'Alasan penolakan: {note}',
     workingDays: '{days} hari kerja',
     cancel: 'Batalkan',
     cancelConfirm:

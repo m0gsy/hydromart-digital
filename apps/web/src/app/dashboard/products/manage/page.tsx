@@ -190,7 +190,7 @@ function ProductForm({
         </div>
       </Field>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -266,7 +266,7 @@ function ProductItem({
           {t('dashC.productsManage.skuStock', { sku: product.sku, unit: product.unit })}
         </p>
         {error && (
-          <p className="mt-1 text-xs font-medium text-red-600" role="alert">
+          <p className="mt-1 text-xs font-medium text-[color:var(--danger)]" role="alert">
             {error}
           </p>
         )}

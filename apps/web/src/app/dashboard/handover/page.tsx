@@ -108,7 +108,7 @@ function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onCh
       </Card>
 
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -206,7 +206,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
       </Field>
 
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

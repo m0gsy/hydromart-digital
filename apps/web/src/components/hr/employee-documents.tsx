@@ -160,7 +160,7 @@ export function EmployeeDocuments({
             />
           </Field>
           {err && (
-            <p className="col-span-full text-sm font-medium text-red-600" role="alert">
+            <p className="col-span-full text-sm font-medium text-[color:var(--danger)]" role="alert">
               {err}
             </p>
           )}

@@ -358,7 +358,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
       </Card>
 
       {err && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {err}
         </p>
       )}

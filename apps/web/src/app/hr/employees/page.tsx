@@ -103,7 +103,7 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
         {t('hrFix.employees.noAccountCreate')}
       </button>
       {error && (
-        <p className="max-w-[220px] text-right text-[11px] font-medium text-red-600" role="alert">
+        <p className="max-w-[220px] text-right text-[11px] font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
