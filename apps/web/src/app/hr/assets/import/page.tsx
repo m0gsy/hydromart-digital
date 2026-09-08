@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 
 import { CsvImport, intCell, type ImportColumn } from '@/components/csv-import';
+import { LoadError } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
 
@@ -17,7 +18,10 @@ const ASSET_TYPES = [
 ] as const;
 
 export default function ImportAssetsPage() {
-  const { depots } = useDepot();
+  // CA-1-71 (second of two): this page validates a depot CODE column against the list, so
+  // an unread list rejects every row with "kode depot tidak dikenal" — which reads as a bad
+  // spreadsheet, and the operator edits a file that was right all along.
+  const { depots, error: depotsError, reload: reloadDepots } = useDepot();
 
   const columns = useMemo<ImportColumn[]>(
     () => [
@@ -49,7 +53,8 @@ export default function ImportAssetsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl space-y-4">
+      {depotsError && <LoadError onRetry={reloadDepots} />}
       <CsvImport
         title="hrFix.imports.assets"
         description="hrFix.imports.desc.assets"

@@ -525,6 +525,7 @@ export const hrFix = {
     enrollFace: 'Enrol or update your face',
   },
   attendance: {
+    faceScoreLabel: 'Face-match score at check-in',
     trailShow: 'Show correction history',
     trailEmpty: 'Never corrected.',
     pendingTitle: 'Attendance awaiting approval ({count})',
