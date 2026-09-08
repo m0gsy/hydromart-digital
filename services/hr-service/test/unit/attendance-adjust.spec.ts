@@ -52,6 +52,34 @@ describe('AttendanceService manual override', () => {
     expect((adjustments[0].after as { status: string }).status).toBe('LEAVE');
   });
 
+  /*
+   * CA-1-24 — the correction trail is readable.
+   *
+   * `recordAdjustment` has written these since the correction path existed and NOTHING
+   * could read them: no repository method, no route, no screen. So the trail that exists
+   * precisely to answer "why does this payslip say that" could only be reached by opening
+   * the database, which for everyone who has to answer that question is the same as not
+   * having it at all.
+   */
+  it('lists the corrections filed against a row, scoped like the correction itself', async () => {
+    const rows = [
+      { id: 'adj-1', attendanceId: 'a1', reason: 'salah input', before: null, after: null, approvedBy: 'hr', createdAt: new Date() },
+    ];
+    const repo = {
+      findById: async (id: string) => (id === 'a1' ? row : null),
+      findByEmployeeAndDate: async () => null,
+      upsertManual: async () => row,
+      recordAdjustment: async () => undefined,
+      listAdjustments: async (id: string) => (id === 'a1' ? rows : []),
+    } as unknown as AttendanceRepository;
+    const employees = { findById: async () => employee } as unknown as EmployeeRepository;
+    const svc = new AttendanceService(repo, {} as never, {} as never, employees, {} as never);
+
+    await expect(svc.listAdjustments(user, 'a1')).resolves.toEqual(rows);
+    // Same 404 as `adjust`: an id that is not a row is not a row for either verb.
+    await expect(svc.listAdjustments(user, 'nope')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('adjust 404s an unknown attendance id', async () => {
     const { svc } = build();
     await expect(svc.adjust(user, 'nope', { status: 'LEAVE', reason: 'x' })).rejects.toBeInstanceOf(

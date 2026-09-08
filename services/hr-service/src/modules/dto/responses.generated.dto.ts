@@ -926,3 +926,25 @@ export class AnonymiseByAccountResponseDto {
   @ApiProperty({ type: Number })
   anonymised!: number;
 }
+
+/**
+ * CA-1-24: one recorded attendance correction. `before`/`after` are the row snapshots the
+ * correction path has been writing all along — the whole point of keeping them is that
+ * somebody can compare them later.
+ */
+export class AttendanceAdjustmentResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+  @ApiProperty({ type: String, format: 'uuid' })
+  attendanceId!: string;
+  @ApiProperty({ type: String })
+  reason!: string;
+  @ApiProperty({ type: Object, nullable: true, description: 'The row before the change.' })
+  before!: unknown;
+  @ApiProperty({ type: Object, nullable: true, description: 'The row after it.' })
+  after!: unknown;
+  @ApiProperty({ type: String, nullable: true, description: 'Who approved the correction.' })
+  approvedBy!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+}

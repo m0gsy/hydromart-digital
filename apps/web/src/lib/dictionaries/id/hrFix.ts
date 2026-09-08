@@ -483,6 +483,8 @@ export const hrFix = {
     enrollFace: 'Daftar / Perbarui Wajah',
   },
   attendance: {
+    trailShow: 'Lihat riwayat koreksi',
+    trailEmpty: 'Belum pernah dikoreksi.',
     pendingTitle: 'Absen menunggu persetujuan ({count})',
     pendingReason:
       'Terkirim jauh setelah waktu absen sehingga jamnya berasal dari perangkat, atau diambil di luar area semua depot yang jadi tanggung jawabnya. Belum dihitung hadir.',

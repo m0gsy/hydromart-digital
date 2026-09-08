@@ -315,6 +315,28 @@ export class AttendanceService {
   }
 
   /** HR manual correction of an existing attendance row (status/times), kept in the audit log. */
+  /**
+   * CA-1-24 — the corrections filed against one attendance row.
+   *
+   * `recordAdjustment` has written these since the correction path existed, and until now
+   * nothing could read them: no repository method, no route, no screen. So the trail that
+   * exists precisely to answer "why does this payslip say that" could only be reached by
+   * opening the database — which is the same as not having it, for everyone who has to
+   * answer that question.
+   *
+   * Scoped exactly like `adjust` itself: the row is loaded, its employee resolved, and the
+   * caller held to that employee's depot. Reading who changed somebody's attendance and why
+   * is no less sensitive than making the change.
+   */
+  async listAdjustments(user: AuthenticatedUser, id: string) {
+    const row = await this.repo.findById(id);
+    if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
+    const employee = await this.employees.findById(row.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    assertDepotAccess(user, employee.depotId);
+    return this.repo.listAdjustments(id);
+  }
+
   async adjust(
     user: AuthenticatedUser,
     id: string,

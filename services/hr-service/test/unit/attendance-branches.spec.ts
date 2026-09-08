@@ -34,6 +34,10 @@ const punch: FacePunch = {
 const AT = new Date('2026-07-24T01:10:00Z');
 
 class FakeAtt implements AttendanceRepository {
+  // CA-1-24: the correction trail is readable now; this fake holds none.
+  async listAdjustments(): Promise<never[]> {
+    return [];
+  }
   lastFilter?: AttendanceListFilter;
   async findByEmployeeAndDate(): Promise<Attendance | null> {
     return null;
