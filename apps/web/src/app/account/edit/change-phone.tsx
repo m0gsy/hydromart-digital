@@ -99,7 +99,25 @@ export function ChangePhone({ currentPhone }: { currentPhone: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] border border-app p-3">
+    /*
+     * CA-3-67. This block renders INSIDE the profile <form> (account/edit/page.tsx:184-220),
+     * whatever the comment above it claims. Every button here is `type="button"`, so the
+     * buttons were never the problem — implicit submission was: Enter in a text field
+     * submits the enclosing form, so a customer typing their new number and pressing Enter
+     * SAVED THEIR PROFILE and never sent the code. The screen looked like it did nothing.
+     *
+     * Keydown bubbles, so one handler on the wrapper covers the number field and the code
+     * field, and it runs the same action the primary button runs — Enter now means what the
+     * button means, which is what a reader assumes it already meant.
+     */
+    <div
+      className="flex flex-col gap-3 rounded-[14px] border border-app p-3"
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' || busy) return;
+        e.preventDefault();
+        void (sentTo === null ? sendCode() : confirm());
+      }}
+    >
       {sentTo === null ? (
         <Field
           label={t('hrFix.accountEdit.newPhone')}

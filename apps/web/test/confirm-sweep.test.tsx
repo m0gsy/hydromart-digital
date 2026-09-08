@@ -132,7 +132,11 @@ describe('destructive actions ask first', () => {
       pricingBasis: 'CATALOG',
       reseller: null,
     };
-    get.mockResolvedValue(CART);
+    get.mockImplementation(async (u: string) =>
+      // CA-3-62: the cart now also batches the catalogue for its add-on strip's photos.
+      // A blanket mock fed that call a cart object and the page threw on `.map`.
+      /\/products|\/recommendations/.test(String(u)) ? [] : CART,
+    );
     const { default: CartPage } = await import('@/app/cart/page');
     const user = userEvent.setup();
     renderIn(<CartPage />, true);

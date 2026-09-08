@@ -99,6 +99,11 @@ export function ProductCard({
             src={product.imageUrl}
             alt={product.name}
             className="h-full w-full object-cover"
+            // CA-3-63: `imageUrl ? … : <Drop/>` covers a MISSING photo. A photo that is
+            // present but dead (deleted from the bucket, host down) fell through to
+            // `fallback`, which defaults to null — an empty tinted square. Same droplet
+            // either way, because to the reader both are "no picture".
+            fallback={<Drop size={56} weight="thin" className="text-brand-300" />}
           />
         ) : (
           <Drop size={56} weight="thin" className="text-brand-300" />
