@@ -119,7 +119,19 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [recipientName, setRecipientName] = useState('');
-  const [sealOk, setSealOk] = useState(false);
+  /*
+   * CA-4-35: the seal answer, not a permission to continue.
+   *
+   * This was a checkbox that had to be TICKED before the handover could be submitted, so a
+   * broken seal could not be recorded at all — the courier's only options were to lie or to
+   * not deliver. Which means every "seal intact" already in the database was collected
+   * under a rule that refused the other answer, and the field K2.8b added to settle
+   * disputes could only ever say one thing.
+   *
+   * Null until answered: "never asked" is not "yes", which is the rule K2.8b wrote and this
+   * screen was quietly breaking.
+   */
+  const [sealOk, setSealOk] = useState<boolean | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +154,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     setError(null);
     const canvas = canvasRef.current;
     if (!photo) return setError(t('hrFix.pod.photoFirst'));
-    if (!sealOk) return setError(t('hrFix.pod.sealFirst'));
+    if (sealOk === null) return setError(t('hrFix.pod.sealFirst'));
     if (!recipientName.trim()) return setError(t('hrFix.pod.nameRequired'));
 
     setSubmitting(true);
@@ -224,21 +236,35 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         )}
       </div>
 
-      {/* K2.8b: the seal answer is recorded now, not merely gated on. It used to live for
-          exactly one button press — so a customer claiming a broken seal and a courier
-          insisting it was intact argued with no evidence on either side. */}
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[color:var(--border)] p-3">
-        <input
-          type="checkbox"
-          checked={sealOk}
-          onChange={(e) => setSealOk(e.target.checked)}
-          className="mt-0.5 size-4 shrink-0 accent-brand-600"
-        />
-        <span className="flex items-center gap-1.5 text-sm font-medium">
+      {/* K2.8b: the seal answer is recorded, not merely gated on — a customer claiming a
+          broken seal and a courier insisting it was intact used to argue with no evidence
+          on either side. CA-4-35: and BOTH answers submit. A tick-box that had to be
+          ticked meant a broken seal could not be recorded at all. */}
+      <fieldset className="rounded-xl border border-[color:var(--border)] p-3">
+        <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
           <SealCheck size={16} weight="fill" className="text-brand-700" />
-          {t('hrFix.pod.sealIntact')}
-        </span>
-      </label>
+          {t('hrFix.pod.sealQuestion')}
+        </legend>
+        <div className="mt-2 flex gap-2">
+          {([true, false] as const).map((answer) => (
+            <button
+              key={String(answer)}
+              type="button"
+              onClick={() => setSealOk(answer)}
+              aria-pressed={sealOk === answer}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-bold ${
+                sealOk === answer
+                  ? answer
+                    ? 'border-brand-600 bg-brand-50 text-brand-700'
+                    : 'border-[color:var(--danger)] bg-[color:var(--danger-bg)] text-[color:var(--danger)]'
+                  : 'border-[color:var(--border)]'
+              }`}
+            >
+              {t(answer ? 'hrFix.pod.sealIntact' : 'hrFix.pod.sealBroken')}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       <Field label={t('hrFix.pod.recipient')}>
         <Input

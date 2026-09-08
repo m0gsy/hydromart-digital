@@ -31,6 +31,7 @@ import {
   PaymentLookupUnavailableError,
   StaleCaptureError,
 } from '../../src/domain/errors';
+import { BadRequestException } from '@nestjs/common';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { haversineMeters } from '../../src/domain/geo';
 import { ContactMethod } from '../../src/domain/no-show';
@@ -46,6 +47,13 @@ import {
 } from '../support/fakes';
 
 const AUTH = 'Bearer token';
+/*
+ * CA-4-33 refuses a reschedule into the past, so these dates have to BE in the future —
+ * a fixed calendar date in a test outlives the day somebody wrote it and starts failing on
+ * its own. Relative to now, they never do.
+ */
+const TOMORROW = new Date(Date.now() + 86_400_000);
+const DAY_AFTER = new Date(Date.now() + 2 * 86_400_000);
 const PROOF = {
   // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
   photoUrl: 'https://cdn/pod/x.jpg',
@@ -208,11 +216,39 @@ describe('DeliveryService', () => {
     expect(failed.status).toBe(DeliveryStatus.FAILED);
   });
 
+  /*
+   * CA-4-33 — a new delivery time in the PAST is not a reschedule.
+   *
+   * The date was taken as typed and written straight onto the delivery, and the customer is
+   * TOLD about it — so a mis-typed year told somebody their water was coming last March.
+   * Nothing downstream could catch it either: dispatch reads `rescheduledFor` to decide
+   * what to assign next, and a date already gone sorts to the front of that queue.
+   */
+  it('refuses a reschedule into the past', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+
+    await expect(
+      service.reschedule(driver, d.id, { rescheduledFor: new Date(Date.now() - 60_000) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // The floor is NOW, not "today", so agreeing "in an hour" still works.
+  it('allows a reschedule later the same day', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+
+    const out = await service.reschedule(driver, d.id, {
+      rescheduledFor: new Date(Date.now() + 3_600_000),
+    });
+    expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
+  });
+
   it('reschedules without a caller token', async () => {
     const d = await assign();
     await service.pickup(driver, d.id, AUTH);
     const rescheduled = await service.reschedule(driver, d.id, {
-      rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+      rescheduledFor: TOMORROW,
     });
     expect(rescheduled.status).toBe(DeliveryStatus.RESCHEDULED);
   });
@@ -245,7 +281,7 @@ describe('DeliveryService', () => {
       );
       await withNotifier.pickup(driver, d.id, AUTH);
       await withNotifier.reschedule(driver, d.id, {
-        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+        rescheduledFor: TOMORROW,
         slot: 'Pagi (09:00–12:00)',
       });
       expect(notify).toHaveBeenCalledWith(
@@ -276,7 +312,7 @@ describe('DeliveryService', () => {
       );
       await withNotifier.pickup(driver, d.id, AUTH);
       await withNotifier.reschedule(driver, d.id, {
-        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+        rescheduledFor: TOMORROW,
       });
       expect(notify).toHaveBeenCalledWith(
         'DELIVERY_RESCHEDULED',
@@ -294,7 +330,7 @@ describe('DeliveryService', () => {
       );
       await withNotifier.pickup(driver, d.id, AUTH);
       await withNotifier.reschedule(driver, d.id, {
-        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+        rescheduledFor: TOMORROW,
       });
       expect(notify).not.toHaveBeenCalled();
     });
@@ -304,7 +340,7 @@ describe('DeliveryService', () => {
       const d = await assign();
       await service.pickup(driver, d.id, AUTH);
       const out = await service.reschedule(driver, d.id, {
-        rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+        rescheduledFor: TOMORROW,
       });
       expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
     });
@@ -540,7 +576,7 @@ describe('DeliveryService', () => {
      */
     it('answers a second reschedule for the same date, and refuses a different one', async () => {
       const d = await assign();
-      const when = new Date('2026-09-01T03:00:00.000Z');
+      const when = TOMORROW;
       const first = await service.reschedule(driver, d.id, { rescheduledFor: when });
 
       const replay = await service.reschedule(driver, d.id, { rescheduledFor: when });
@@ -548,7 +584,7 @@ describe('DeliveryService', () => {
       expect(replay.rescheduledFor).toEqual(first.rescheduledFor);
 
       await expect(
-        service.reschedule(driver, d.id, { rescheduledFor: new Date('2026-09-02T03:00:00.000Z') }),
+        service.reschedule(driver, d.id, { rescheduledFor: DAY_AFTER }),
       ).rejects.toBeInstanceOf(InvalidDeliveryTransitionError);
     });
   });
@@ -802,7 +838,7 @@ describe('DeliveryService', () => {
 
   it('reschedules a delivery and hands the order back to dispatch (3c)', async () => {
     const d = await assign();
-    const when = new Date('2026-08-01T09:00:00.000Z');
+    const when = TOMORROW;
     const out = await service.reschedule(driver, d.id, {
       rescheduledFor: when,
       slot: 'Pagi (09:00–12:00)',

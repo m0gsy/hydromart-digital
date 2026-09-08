@@ -814,6 +814,7 @@ export const hrFix = {
     withdrawFailed: 'Gagal menarik saldo. Coba lagi.',
   },
   expenses: {
+    rejectedReason: 'Alasan: {reason}',
     receipt: 'Foto struk',
     receiptHint: 'Wajib untuk persetujuan otomatis. Tanpa struk, klaim menunggu persetujuan depot.',
     autoApprove: 'Klaim sampai {amount} disetujui otomatis; di atasnya menunggu persetujuan manajer.',
@@ -915,6 +916,8 @@ export const hrFix = {
     bankHolder: 'Atas nama',
   },
   pod: {
+    sealQuestion: 'Kondisi segel galon',
+    sealBroken: 'Segel rusak',
     sealIntact: 'Segel galon utuh & tidak bocor',
     // K2.8b: dibaca saat menyelidiki keluhan, bukan saat mengantar.
     sealLabel: 'Segel',
@@ -931,7 +934,7 @@ export const hrFix = {
     noteHint: 'cth. Diterima langsung oleh pelanggan',
     readFailed: 'Gagal membaca gambar',
     photoFirst: 'Ambil foto bukti pengantaran dulu.',
-    sealFirst: 'Konfirmasi cek segel galon dulu.',
+    sealFirst: 'Pilih dulu kondisi segel galonnya.',
     nameRequired: 'Isi nama penerima.',
     finishFailed: 'Gagal menyelesaikan pengantaran.',
     replacePhoto: 'Ganti foto',

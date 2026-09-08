@@ -80,7 +80,16 @@ function Reschedule() {
 
       <Card className="space-y-4 p-4">
         <Field label={t('driver.reschedule.whenLabel')} htmlFor="when">
-          <Input id="when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+          {/* CA-4-33: the server refuses a time already gone; this is the courtesy half,
+              so the picker will not offer one in the first place. `min` is a local
+              datetime-local string, which is what the control compares against. */}
+          <Input
+            id="when"
+            type="datetime-local"
+            min={localNowForInput()}
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+          />
         </Field>
         <Field label={t('driver.reschedule.slotLabel')}>
           <div className="flex flex-wrap gap-2">
@@ -117,6 +126,17 @@ function Reschedule() {
       </Button>
     </div>
   );
+}
+
+/**
+ * `datetime-local` compares `min` against a LOCAL wall-clock string, not an ISO instant —
+ * `toISOString()` here would set the floor seven hours early in Jakarta and let a past time
+ * through on the very screen this guard is for.
+ */
+function localNowForInput(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 export default function ReschedulePage() {
