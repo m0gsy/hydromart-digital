@@ -26,6 +26,7 @@ import {
   Skeleton,
   StickyActionBar,
 } from '@/components/ui';
+import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { useCart } from '@/lib/cart-context';
 import { endpoints } from '@/lib/endpoints';
@@ -77,9 +78,15 @@ export default function ProductDetailPage() {
   // ponytail: useMemberRate already fetches loyalty/me internally but doesn't
   // expose the tier; a second read is the lazy way to name the tier without
   // touching member.ts.
+  // CA-3-15: scoped to the depot that will BILL. Tier thresholds and member rates are
+  // per-depot settings, so an unscoped read answers against the GLOBAL ladder — and this
+  // page was the only one of seven `loyalty.me` callers that sent no depot. The note it
+  // draws sits beside a price the same page charges from `cartDepotId()`, so the two
+  // disagreed whenever a depot overrode the rate.
   const { data: account } = useAsync<LoyaltyAccount | null>(
-    () => (customer ? api.get(endpoints.loyalty.me(), true) : Promise.resolve(null)),
-    [customer],
+    () =>
+      customer ? api.get(endpoints.loyalty.me(location?.depotId ?? null), true) : Promise.resolve(null),
+    [customer, location?.depotId],
   );
 
   // Best-effort delivery discovery: nearest depot to the user's chosen location.
@@ -425,6 +432,7 @@ function FbtCard({ item, product }: { item: Recommendation; product?: Product })
   const { t } = useT();
   const { customer } = useAuth();
   const { bump, apply } = useCart();
+  const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -449,8 +457,13 @@ function FbtCard({ item, product }: { item: Recommendation; product?: Product })
         ),
       );
       setAdded(true);
-    } catch {
-      bump(-1); // roll the badge back on failure
+    } catch (e) {
+      // CA-3-34, same shape as the cart's three: the badge rolled back and nothing said why,
+      // so a tap that hit "stok habis" was indistinguishable from a tap that missed. A toast
+      // rather than inline text because this card is rendered INSIDE a <Link> with no room
+      // for a message — the reason CA-3-24 chose a toast for the same shape on product-card.
+      toast(e instanceof ApiError ? e.message : t('shop.pdp.addError'), 'error');
+      bump(-1);
     } finally {
       setAdding(false);
     }

@@ -76,6 +76,11 @@ const PUSHED: Record<string, string> = {
    */
   '/hapus-akun': 'deleteAccount.navLabel',
   '/kebijakan-privasi': 'privacy.title',
+  // CA-3-51: the third legal page. It was never `bare` — it simply had no entry, so the app
+  // bar middle was blank and, having no link anywhere outside the must-accept banner in
+  // /account, no reader reached it to notice. `account.consents.purpose.TERMS` rather than
+  // `terms.title` because the terms dictionary is loaded only by the pages that render it.
+  '/syarat-ketentuan': 'account.consents.purpose.TERMS',
 };
 
 const BARE = new Set(['/login', '/register', '/verify']);

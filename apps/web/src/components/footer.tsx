@@ -89,6 +89,11 @@ export function Footer() {
         <div className="mt-8 flex flex-col gap-2 border-t border-white/15 pt-5 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <span>{t('auth.footer.copyright')}</span>
           <span className="flex gap-4">
+            {/* CA-3-51: desktop was orphaned too — the terms page had no link outside the
+                must-accept banner in /account. */}
+            <Link href="/syarat-ketentuan" prefetch={false} className="text-white/65 hover:text-white">
+              {t('account.consents.purpose.TERMS')}
+            </Link>
             <Link href="/kebijakan-privasi" prefetch={false} className="text-white/65 hover:text-white">
               {t('privacy.title')}
             </Link>

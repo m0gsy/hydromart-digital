@@ -22,7 +22,7 @@ import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { ErrorState, LinkButton, Money, Skeleton, StickyActionBar } from '@/components/ui';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
@@ -114,7 +114,11 @@ function CartInner() {
       const next = await api.put<Cart>(endpoints.cart.item(productId, depotId), { quantity }, true);
       setLines(next.items);
       apply(next);
-    } catch {
+    } catch (e) {
+      // CA-3-34: the rollback below is correct and was the whole of it — the row snapped
+      // back to its old number with no word said, which reads as the app ignoring the tap.
+      // A real reason ("stok tinggal 2") beats the generic line, same as product-card.tsx.
+      toast(e instanceof ApiError ? e.message : t('order.toast.updateFailed'), 'error');
       setLines(prev);
       bump(-delta);
       reload();
@@ -134,7 +138,10 @@ function CartInner() {
       const next = await api.del<Cart>(endpoints.cart.item(productId, depotId), true);
       setLines(next.items);
       apply(next);
-    } catch {
+    } catch (e) {
+      // CA-3-34: a deleted row reappearing silently is the worst of the three — it looks
+      // like the app undid a deliberate choice on its own.
+      toast(e instanceof ApiError ? e.message : t('order.toast.removeFailed'), 'error');
       setLines(prev);
       bump(line.quantity);
       reload();
@@ -161,7 +168,10 @@ function CartInner() {
       // DELETE /cart is the one cart write that answers 204 — nothing to adopt.
       await api.del(endpoints.cart.clear, true);
       apply({ items: [], subtotal: 0, depotId, pricingBasis: 'CATALOG', reseller: null });
-    } catch {
+    } catch (e) {
+      // CA-3-34: reuses `updateFailed` on purpose — after a confirm dialog the statement
+      // the reader needs is "your cart did not change", which is the same statement.
+      toast(e instanceof ApiError ? e.message : t('order.toast.updateFailed'), 'error');
       setLines(prev);
       bump(totalQty);
       reload();

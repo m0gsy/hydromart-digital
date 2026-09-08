@@ -15,7 +15,9 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="mx-auto max-w-[640px]">
-      <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">{title}</h1>
+      {/* Same one-line correction as /syarat-ketentuan beside it: this page has carried a
+          PUSHED title since H4 and kept its own heading too, so a phone read it twice. */}
+      <h1 className="hidden text-[22px] font-extrabold tracking-[-0.02em] sm:block">{title}</h1>
       <PrivacyBody />
     </div>
   );

@@ -28,6 +28,7 @@ const ROUTES: Record<string, 'root' | 'pushed' | 'bare'> = {
   '/favorites': 'pushed',
   '/notifications': 'pushed',
   '/help': 'pushed',
+  '/syarat-ketentuan': 'pushed',
   '/waralaba': 'pushed',
   '/resellers': 'pushed',
 

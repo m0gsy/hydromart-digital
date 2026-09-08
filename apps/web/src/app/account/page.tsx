@@ -1230,6 +1230,17 @@ export default function AccountPage() {
               requires the account-deletion page to be reachable from inside the app, and the
               privacy policy is the other half of the same obligation. */}
           <div className={GROUP}>
+            {/* CA-3-15/CA-3-51: the terms page existed and nothing on a phone reached it —
+                its only link in the whole app sat inside `{acceptance.data?.mustAccept && (`
+                above, so it appeared for the one reader already being made to agree and for
+                nobody else. `t('terms.title')` would print the key here: the 9.4 KB terms
+                dictionary is deliberately loaded only by the pages that render it, so this
+                uses the merged key the consent list beside it already uses. */}
+            <ListRow
+              href="/syarat-ketentuan"
+              title={t('account.consents.purpose.TERMS')}
+              icon={<FileText size={18} weight="fill" className={ROW_ICON} />}
+            />
             <ListRow
               href="/kebijakan-privasi"
               title={t('privacy.title')}
