@@ -137,6 +137,21 @@ export class DriverDeliveryController {
     return this.deliveries.fail(user.sub, id, dto.reason, authorization, dto.cashReturned);
   }
 
+  /**
+   * CA-4-30 — the same gate, readable. The POST below was the ONLY way to learn the state
+   * of a no-show, so a courier whose app restarted mid-wait could see it again only by
+   * adding an attempt they had not made.
+   */
+  @ApiOkResponse({ type: NoShowStatusResponseDto })
+  @Get(':id/contact-attempts')
+  @ApiOperation({ summary: 'Read the no-show gate status without recording an attempt (5a)' })
+  contactStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<NoShowStatus> {
+    return this.deliveries.contactStatus(user.sub, id);
+  }
+
   @ApiOkResponse({ type: NoShowStatusResponseDto })
   @Post(':id/contact-attempts')
   @ApiOperation({ summary: 'Record a contact attempt; returns the no-show gate status (5a)' })

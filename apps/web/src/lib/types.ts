@@ -1419,6 +1419,16 @@ export interface NoShowStatus {
   attempts: number;
   eligibleAt: string | null;
   canMarkNoShow: boolean;
+  /** CA-4-37: the per-depot threshold the courier is held to. The screen hard-coded 2. */
+  minAttempts: number;
+}
+
+/** CA-4-29/CA-4-37: the four tuned numbers the courier app renders (delivery-service). */
+export interface DriverSettings {
+  urbanSpeedKmph: number;
+  routeStopMinutes: number;
+  noShowMinContactAttempts: number;
+  noShowMinWaitSeconds: number;
 }
 
 // Courier shift (delivery-service). Front door of the driver app (design 3a/3b).

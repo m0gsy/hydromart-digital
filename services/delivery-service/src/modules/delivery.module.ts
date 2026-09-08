@@ -36,6 +36,7 @@ import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../application/ports/storage.port';
 import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
+import { DriverSettingsController } from './driver-settings.controller';
 import { DriverShiftController } from './driver-shift.controller';
 import { DriverIncidentController } from './driver-incident.controller';
 import { DriverSettlementController } from './driver-settlement.controller';
@@ -99,6 +100,7 @@ const providers: Provider[] = [
     DeliveryController,
     DriverDeliveryController,
     DriverShiftController,
+    DriverSettingsController,
     DriverIncidentController,
     DriverSettlementController,
     DriverPerformanceController,

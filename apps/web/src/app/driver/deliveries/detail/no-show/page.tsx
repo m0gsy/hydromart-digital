@@ -13,7 +13,17 @@ import { useT } from '@/lib/locale-context';
 import type { NoShowStatus } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
-type Method = 'CALL' | 'CHAT';
+/*
+ * CA-4-28 — the Chat button sent `'CHAT'` and delivery-service's `ContactMethod` is
+ * `CALL | WHATSAPP`, so class-validator rejected it with a 400 on every single tap. The
+ * courier saw an error, the attempt was never recorded, and the gate below — which will
+ * not let them declare a no-show until enough attempts exist — counted none of them. The
+ * only button that ever worked was Call.
+ */
+type Method = 'CALL' | 'WHATSAPP';
+
+/** Per-delivery contact log, kept on the phone: the server stores a count, not a list. */
+const LOG_KEY = (id: string) => `hydromart_noshow_log_${id}`;
 
 const CLOCK = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -42,12 +52,49 @@ function NoShow() {
   const { t } = useT();
   const id = useQueryParam('id');
   const [status, setStatus] = useState<NoShowStatus | null>(null);
-  // Session contact log — the backend returns only an attempt count, not per-attempt
-  // detail, so we record method + time locally as the courier makes each attempt.
+  // Contact log — the backend returns only an attempt count, not per-attempt detail, so
+  // method + time are recorded here as the courier makes each attempt.
   const [log, setLog] = useState<{ method: Method; at: number }[]>([]);
   const [elapsed, setElapsed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * CA-4-30 — this screen used to start from nothing and learn the state only by POSTing
+   * an attempt.
+   *
+   * So an app that restarted mid-wait — a phone that swapped apps while the courier was
+   * knocking, a battery saver, a crash — came back saying "0 percobaan" over a 05:00
+   * countdown, for a delivery that already had two attempts and a clock most of the way
+   * down. The only way to see the truth again was to record another attempt, which is
+   * precisely the thing the gate exists to stop them inventing.
+   *
+   * The gate itself comes back from the server; the per-attempt list is only on this
+   * phone, because the server keeps a count and not a list.
+   */
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    api
+      .get<NoShowStatus>(endpoints.deliveries.driver.contactAttempts(id), true)
+      .then((s) => {
+        if (live) setStatus(s);
+      })
+      .catch(() => {
+        /* A failed read leaves the screen as it was: the gate is enforced server-side
+           anyway, so the worst case is a courier who has to wait rather than one who
+           gets through early. */
+      });
+    try {
+      const raw = localStorage.getItem(LOG_KEY(id));
+      if (raw && live) setLog(JSON.parse(raw) as { method: Method; at: number }[]);
+    } catch {
+      /* Unreadable storage costs the detail list, not the gate. */
+    }
+    return () => {
+      live = false;
+    };
+  }, [id]);
 
   const eligibleMs = status?.eligibleAt ? new Date(status.eligibleAt).getTime() : null;
 
@@ -65,14 +112,31 @@ function NoShow() {
     return () => clearTimeout(timer);
   }, [eligibleMs]);
 
-  const ready = Boolean(status?.canMarkNoShow) || (elapsed && (status?.attempts ?? 0) >= 2);
+  /*
+   * CA-4-37 — this said `>= 2` while `noShowMinContactAttempts` is a per-depot setting.
+   * A depot that asked for three attempts got a button that unlocked one attempt early
+   * and a server that then refused the action the screen had just enabled. The threshold
+   * now comes back with the status; until it does, only the server's own verdict counts.
+   */
+  const minAttempts = status?.minAttempts ?? null;
+  const ready =
+    Boolean(status?.canMarkNoShow) ||
+    (elapsed && minAttempts !== null && (status?.attempts ?? 0) >= minAttempts);
 
   const attempt = async (method: Method) => {
     setBusy(true);
     setError(null);
     try {
       setStatus(await api.post<NoShowStatus>(endpoints.deliveries.driver.contactAttempts(id), { method }, true));
-      setLog((prev) => [...prev, { method, at: Date.now() }]);
+      setLog((prev) => {
+        const next = [...prev, { method, at: Date.now() }];
+        try {
+          localStorage.setItem(LOG_KEY(id), JSON.stringify(next));
+        } catch {
+          /* The list is a convenience; the count above it comes from the server. */
+        }
+        return next;
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.noShow.logError'));
     } finally {
@@ -112,7 +176,12 @@ function NoShow() {
           {t('courierFix.noShow.remainingLabel')}
         </div>
         <div className="text-[11px] text-[color:var(--muted)]">
-          {t('driver.noShow.attempts', { n: status?.attempts ?? 0 })}
+          {minAttempts === null
+      ? t('driver.noShow.attempts', { n: status?.attempts ?? 0 })
+      : t('courierFix.noShow.attemptsOf', {
+          n: status?.attempts ?? 0,
+          min: minAttempts,
+        })}
         </div>
       </Card>
 
@@ -153,7 +222,7 @@ function NoShow() {
         </button>
         <button
           type="button"
-          onClick={() => attempt('CHAT')}
+          onClick={() => attempt('WHATSAPP')}
           disabled={busy}
           className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
         >

@@ -52,6 +52,12 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
     fail: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/fail`,
     // No-show gate (5a): POST records a contact attempt → { attempts, eligibleAt,
     // canMarkNoShow }; PATCH no-show fails the delivery once the gate is met.
+    // CA-4-29/CA-4-37: the tuned numbers the courier app renders, on a route a courier may
+    // call. `settings/schema` is gated on `settingsRead` and 403s for KURIR, which is why
+    // the route ETA never appeared and the no-show screen hard-coded its threshold.
+    settings: '/deliveries/api/v1/driver/settings',
+    // GET reads the no-show gate; POST records an attempt (CA-4-30 — the POST used to be
+    // the only way to learn the state, so a restarted app could only see it by faking one).
     contactAttempts: (id: string) =>
       `/deliveries/api/v1/driver/deliveries/${id}/contact-attempts`,
     noShow: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/no-show`,
