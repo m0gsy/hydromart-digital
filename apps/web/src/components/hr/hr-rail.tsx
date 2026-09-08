@@ -26,7 +26,8 @@ import { usePathname } from 'next/navigation';
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { isServedHere } from '@/lib/deep-link';
-import { canManageHr, isHq } from '@/lib/roles';
+import { can, canManageHr, isHq } from '@/lib/roles';
+import type { Capability } from '@hydromart/access';
 
 export interface NavItem {
   href: string;
@@ -34,6 +35,18 @@ export interface NavItem {
   label: string;
   icon: Icon;
   adminOnly?: boolean;
+  /**
+   * CA-1-32: the capability whose absence makes this screen a door to a denial.
+   *
+   * `adminOnly` above answers one question — "may this reader change HR data" — and two of
+   * these screens are not hr-service's at all. Pelanggan reads customer-service's depot CRM
+   * (`depotCrm`) and Reseller reads its agen registry (`resellerView`), and neither list
+   * includes every role that holds `hrView`. So FINANCE was offered both, and
+   * ASSISTANT_SUPERVISOR was offered Reseller, and each one opened onto a 403 rendered as a
+   * load failure. Named per item rather than hard-coded in the filter so the next
+   * cross-service screen added here has somewhere to say so.
+   */
+  can?: Capability;
 }
 
 /*
@@ -49,8 +62,10 @@ export const HR_ITEMS: NavItem[] = [
   { href: '/hr', label: 'hrFix.nav.dashboard', icon: Gauge },
   { href: '/hr/employees', label: 'hrFix.nav.employees', icon: Users },
   { href: '/hr/departments', label: 'hrFix.nav.departments', icon: Buildings },
-  { href: '/hr/customers', label: 'hrFix.nav.customers', icon: Users },
-  { href: '/hr/resellers', label: 'hrFix.nav.resellers', icon: Storefront },
+  // Both live in customer-service, not hr-service, and their capability lists are narrower
+  // than `hrView` — see the `can` note on NavItem.
+  { href: '/hr/customers', label: 'hrFix.nav.customers', icon: Users, can: 'depotCrm' },
+  { href: '/hr/resellers', label: 'hrFix.nav.resellers', icon: Storefront, can: 'resellerView' },
   { href: '/hr/attendance', label: 'hrFix.nav.attendance', icon: CalendarCheck },
   { href: '/hr/leave', label: 'hrFix.nav.leave', icon: CalendarCheck },
   { href: '/hr/payroll', label: 'hrFix.nav.payroll', icon: CurrencyCircleDollar },
@@ -89,7 +104,9 @@ export function hrNavItems(role: string | null | undefined): NavItem[] {
     ...(isHq(role) && isServedHere('/hq')
       ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
       : []),
-    ...HR_ITEMS.filter((i) => !i.adminOnly || canManageHr(role)),
+    ...HR_ITEMS.filter(
+      (i) => (!i.adminOnly || canManageHr(role)) && (!i.can || can(i.can, role)),
+    ),
   ];
 }
 

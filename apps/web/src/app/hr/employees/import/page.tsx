@@ -11,6 +11,7 @@ import {
   phoneCell,
   type ImportColumn,
 } from '@/components/csv-import';
+import { AccessDeniedHq } from '@/components/hq/access-denied';
 import { LoadError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -25,6 +26,8 @@ import {
   type PtkpStatus,
   type Shift,
 } from '@/lib/hr';
+import { useAuth } from '@/lib/auth-context';
+import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
 // Imported, not re-listed: the server validates the `role` column against this exact
@@ -52,6 +55,7 @@ function nikCell(raw: string, t: Translate): string {
 
 export default function ImportEmployeesPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { depots } = useDepot();
   const [upsert, setUpsert] = useState(false);
   const departments = useAsync<Department[]>(
@@ -150,6 +154,15 @@ export default function ImportEmployeesPage() {
     [depots, deptRows, shiftRows, t],
   );
 
+
+  /*
+   * CA-1-30, third of the same shape: a bulk WRITE page with no gate of its own. The
+   * single-employee form and this one create the same records; one of them being reachable
+   * by URL and the other not would be an arbitrary line.
+   */
+  if (!canManageHr(customer?.role)) {
+    return <AccessDeniedHq role={customer?.role} />;
+  }
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       {/* Department and shift columns are validated AGAINST these two lists, so an unread

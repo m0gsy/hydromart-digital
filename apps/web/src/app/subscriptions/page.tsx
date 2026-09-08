@@ -261,7 +261,7 @@ function Panel() {
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label={copy.quantity} htmlFor="sub-qty">
+            <Field label={copy.quantity}>
               <div className="flex h-12 items-center justify-between rounded-[14px] border-[1.5px] border-app px-2">
                 <button
                   type="button"
@@ -292,7 +292,7 @@ function Panel() {
             </Field>
           </div>
 
-          <Field label={copy.frequency} htmlFor="sub-freq">
+          <Field label={copy.frequency}>
             <div className="grid grid-cols-3 gap-2.5">
               {FREQS.map((f) => {
                 const on = frequency === f;
